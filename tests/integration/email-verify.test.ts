@@ -823,8 +823,10 @@ describe("registration → verification → login", () => {
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
-    expect(code).toMatch(/} else \{\s*await timingParityNoop\(\);/);
-    expect(code).toMatch(/async function timingParityNoop\(\)[\s\S]*?\$transaction/);
+    expect(code).toMatch(/} else \{\s*await timingParityNoop\(email\);/);
+    expect(code).toMatch(/async function timingParityNoop\(email: string\)[\s\S]*?\$transaction/);
+    // Opus 11-05: dalların hatası durum koduna sızmaz — taban `finally`de, cevap hep aynı 200.
+    expect(code).toMatch(/\} finally \{\s*await padResponseTime\(startedAt, RESEND_VERIFY_RESPONSE_FLOOR_MS\);\s*\}\s*return jsonOk\(\{ ok: true \}\);/);
   });
 
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {

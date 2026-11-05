@@ -65,12 +65,20 @@ export async function POST(req: NextRequest) {
   // Eskiden başkası kurbanın adresiyle 6 kez basıp her seferinde öncekini geçersiz kılıyordu; kişi e-postadaki bağlantıya basınca "süresi
   // dolmuş" görüyordu. Artık kutudaki bağlantı ÇALIŞMAYA DEVAM EDER. Günlük tavanın kendisi hâlâ başkasınca doldurulabilir (hesabın varlığına
   // bakmadan sayılması numaralandırma korumasıdır, bilinçli) — o gün yalnız YENİDEN GÖNDERME kapanır, elindeki bağlantı değil.
-  if (user && needsEmailVerification(user) && !verifyLinkRecentlyIssued(user.emailVerifyExpiresAt)) {
-    await issueAndSend(user, email);
-  } else {
-    await timingParityNoop();
+  // 🚨 Hiçbir dal dışarıya farklı DURUM KODU sızdıramaz (Opus 11-05): gönderim dalı kendi hatalarını yutuyordu (200), eşitleyici işlem ise
+  // yutmuyordu → veritabanı zorlanınca (havuz dolu, işlem zaman aşımı) yalnız "hesap yok / doğrulanmış / sessiz pencere" dalı 500 dönüyordu,
+  // gerçek doğrulanmamış hesap 200 → hesap kâhini. Her dalın hatası raporlanır, cevap yine aynı 200 ve aynı taban (`finally`).
+  try {
+    if (user && needsEmailVerification(user) && !verifyLinkRecentlyIssued(user.emailVerifyExpiresAt)) {
+      await issueAndSend(user, email);
+    } else {
+      await timingParityNoop(email);
+    }
+  } catch (err) {
+    void reportError("auth.resend_verification.branch", err instanceof Error ? err : new Error(String(err)));
+  } finally {
+    await padResponseTime(startedAt, RESEND_VERIFY_RESPONSE_FLOOR_MS);
   }
-  await padResponseTime(startedAt, RESEND_VERIFY_RESPONSE_FLOOR_MS);
   return jsonOk({ ok: true });
 }
 
@@ -169,13 +177,15 @@ async function issueAndSend(
  * İDDİA EDİLMEZ; asıl savunma hız sınırları (adres başına 15 dakikada 4 istek) ve 10 dakikalık sessiz pencere — aynı hesap için ikinci
  * "yavaş" örnek 10 dakika sonra mümkün ve her biri kurbana gerçek bir e-posta götürür. Ölçüm: `docs/INCELEME-2026-11-05-tur7-…`.
  */
-async function timingParityNoop(): Promise<void> {
+async function timingParityNoop(email: string): Promise<void> {
   await rateLimitRelease("verify-resend-day:__timing_parity__");
   makeVerifyToken();
   await prisma.$transaction(async (tx) => {
     await tx.user.updateMany({ where: { id: "__timing_parity__" }, data: { emailVerifyTokenHash: null } });
-    // `enqueueIdentityEmail`in adımları: işlem kilidi + eski satırları iptal + sürüm okuma (yazma yok).
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('__timing_parity__'))`;
+    // `enqueueIdentityEmail`in adımları: işlem kilidi + eski satırları iptal + sürüm okuma (yazma yok). Kilit ADRES BAŞINA (Opus 11-05): tek
+    // ortak anahtar eşzamanlı "hesap yok" isteklerini sıraya diziyordu (gerçek yol kullanıcı başına kilitler) → yük altında bu dal tabanı
+    // aşıp yeniden ayırt edilebilir olurdu, üstelik ucuz bir bağlantı havuzu tüketme kolu. Anahtar özetlenir (adres veritabanına yazılmaz).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`__timing_parity__:${email}`}))`;
     await tx.emailOutbox.updateMany({ where: { userId: "__timing_parity__", kind: "verify_email", status: { in: ["pending", "claimed"] } }, data: { status: "canceled" } });
     await tx.emailOutbox.aggregate({ where: { userId: "__timing_parity__", kind: "verify_email" }, _max: { version: true } });
   });

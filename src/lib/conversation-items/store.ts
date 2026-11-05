@@ -216,14 +216,17 @@ export async function reopenItemsAnsweredBy(db: Db, input: { organizationId: str
 /**
  * Tur 7 T7-OB-1 adım 2 (kurucu 11-05 "ihtiyaç bazında"): kuyrukta bekleyen (henüz alınmamış) yapay zekâ taslağını misafirin daha yeni
  * mesajı geçti → taslak gönderilmeyecek (gönderim anı vetosu iptal eder). O taslağın "cevaplandı" kapattığı öğeler, yeni tur planlanmadan
- * ÖNCE yeniden AÇIK olur: her ihtiyaç kendi kuralıyla yeniden değerlendirilir (ör. "Havlu istemiyorum; Wi-Fi şifresini gönderin" → yalnız
- * havlu geri çekilir, Wi-Fi cevaplanır; "Teşekkürler" vazgeçme sayılmaz). Taslak bağı kaldırılır (iptalde `reopenItemsAnsweredBy` artık
- * dokunmaz; yeni cevap kendi bağını yazar). Yalnız hâlâ BU taslakla `answered` olan satırlar. Dönüş: açılan öğe sayısı.
+ * ÖNCE yeniden açılır: her ihtiyaç kendi kuralıyla yeniden değerlendirilir (ör. "Havlu istemiyorum; Wi-Fi şifresini gönderin" → yalnız
+ * havlu geri çekilir, Wi-Fi cevaplanır; "Teşekkürler" vazgeçme sayılmaz). Durum `pending_host` (iptalde işçinin `reopenItemsAnsweredBy`
+ * yazdığı durumla AYNI): tur öğeyi değerlendirirse (cevap / tutma / geri çekme) son durumu o yazar; tur değerlendiremezse (anlama katmanı
+ * düştü, öğe kipi kapandı) ihtiyaç ev sahibinde UYARI rozetiyle görünür kalır — `open` orada sessiz kalırdı (mutasyon F1f, 11-05: eskiden
+ * iptal ev sahibine bırakıyordu, sessizleşme gerileme olurdu). Taslak bağı kaldırılır (iptalde `reopenItemsAnsweredBy` artık dokunmaz; yeni
+ * cevap kendi bağını yazar). Yalnız hâlâ BU taslakla `answered` olan satırlar. Dönüş: açılan öğe sayısı.
  */
 export async function reopenItemsOfOvertakenDraft(db: Db, input: { organizationId: string; messageId: string }): Promise<number> {
   const res = await db.conversationItem.updateMany({
     where: { organizationId: input.organizationId, answeredByMessageId: input.messageId, status: "answered" },
-    data: { status: "open", resolvedAt: null, answeredByMessageId: null },
+    data: { status: "pending_host", resolvedAt: null, answeredByMessageId: null },
   });
   return res.count;
 }

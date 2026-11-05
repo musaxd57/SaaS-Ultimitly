@@ -5440,8 +5440,11 @@ async function sourceReferenceErased(
  * gelir ve o senkron dairenin mevcut rezervasyonlarını getirir; 3 saatlik pay saatlik derin senkronu (365 gün) da kapsar. Bilinen sınırlar
  * (belgeli): daire Lixus'a geldikten sonraki 3 saat içinde yapılan GERÇEK yeni rezervasyon karşılama almaz; anahtar açılmadan önce yapılmış
  * ama varışı 365 günden ileride olan rezervasyon pencereye girdiğinde yine "yeni" görünür (rezervasyon tarihi bilinmediği için).
- * Sağlayıcı daireleri senkronla oluşur; elle açılmış eski bir daire sonradan sağlayıcıya bağlanırsa taban o dairenin eski oluşturulma
- * anı kalır (Haiku 11-05; bugün böyle bir bağlama akışı yok).
+ * 🚨 BİLİNEN AÇIK (Opus 11-05 — önceki "bugün böyle bir bağlama akışı yok" notu YANLIŞTI; kurucuya soru, Tur 7 raporu §8): senkron aynı adlı
+ * BAĞLANTISIZ bir daireyi benimser ya da bayat bağlantıyı yeniden yöneltir (`hospitable-sync.ts` `linkProperty`) → taban o dairenin ESKİ
+ * oluşturulma anı kalır; elle / iCal için açılmış daire sonradan sağlayıcıya bağlanınca ilk senkronla gelen eski rezervasyonlar "yeni"
+ * sayılır. Bağlanma anı bugün güvenilir biçimde kayıtlı değil (`ChannelListing` yazıcısı anahtar arkasında, kapalı) → doğru çözüm ya yeni
+ * kolon (migration) ya da bağlantının kuruluş anı; ikisi de misafire gideni değiştirir, uygulanmadı.
  * Üç gönderici AYNI parçayı kullanır; metin önizlemeleri (`previewWelcomes` …) anahtarı ve tabanı bilinçli YOK SAYAR (metin kalitesi).
  */
 export const LIFECYCLE_BACKLOG_GRACE_MS = 3 * 60 * 60_000;

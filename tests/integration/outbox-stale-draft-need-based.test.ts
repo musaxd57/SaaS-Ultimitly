@@ -242,6 +242,24 @@ describe("Tur 7 T7-OB-1 adım 2 — kuyruktaki taslak ihtiyaç bazında", () => 
     expect(await statusOf(conversationId, "wifi")).toEqual(["answered"]);
   });
 
+  it("🚨 tur yeniden açılan ihtiyacı DEĞERLENDİREMEZSE (anlama katmanı düştü) soru sessiz kalmaz: ev sahibinde uyarıyla açık (pending_host)", async () => {
+    const { conversationId } = await seed("Otopark var mı?");
+    understands(understood([{ intent: "parking", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "parking", reply: PARKING, answeredRequests: { ok: true, refs: ["R1"] } }));
+    await applyChannelAutoReply(conversationId);
+    expect(await statusOf(conversationId, "parking")).toEqual(["answered"]);
+
+    await guestWrites(conversationId, "Bir de havlu lazım.");
+    mockUnderstand.mockResolvedValueOnce({ status: "failed", ms: 1 });
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "cleaning_linen", reply: `${PARKING} ${TOWELS}` }));
+    await applyChannelAutoReply(conversationId);
+    await deliver();
+    await deliver();
+    // Bayat taslak yine gitmedi; ihtiyaç "cevaplandı" görünmüyor ve ev sahibine kalan durumda (uyarı rozeti) — sessiz "open" değil.
+    expect(sent).not.toContain(PARKING);
+    expect(await statusOf(conversationId, "parking")).toEqual(["pending_host"]);
+  });
+
   it("KONTROL — geçilmemiş bekleyen taslak 'gönderilmiş' kalır: yeniden tur ikinci cevap ÜRETMEZ (model çağrılmaz), taslak bir kez gider", async () => {
     const { conversationId } = await seed("Otopark var mı?");
     understands(understood([{ intent: "parking", message: 1 }]));
