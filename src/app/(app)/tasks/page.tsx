@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { checkoutTimesFor } from "@/lib/tasks/checkout-times";
 import { redirect } from "next/navigation";
 import { ListChecks, Plus, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
@@ -168,6 +169,10 @@ export default async function TasksPage({
   for (const r of blockedRows) {
     if (!blockedByTask.has(r.taskId)) blockedByTask.set(r.taskId, { by: r.user?.name ?? null, at: r.createdAt, reason: r.note });
   }
+  // Temizlik kartında misafirin çıkış saati (kurucu 11-05 gece: geç çıkış onayı temizlik saatine bağlanır). Hazırlık hükmüyle AYNI kural:
+  // mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi. Kopya değil — rezervasyon / onay değişince kart kendiliğinden güncel.
+  const cleaningResIds = [...new Set(tasks.filter((t) => t.type === "cleaning" && t.status !== "done" && t.reservationId).map((t) => t.reservationId as string))];
+  const checkoutByRes = await checkoutTimesFor(session.organizationId, cleaningResIds);
   // Yönetici kartında "Atanan" seçimi: işletmenin kişileri (personel listesi personele gösterilmez).
   const members = canManage
     ? await prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
@@ -180,6 +185,7 @@ export default async function TasksPage({
       now,
       latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null,
       blocked: blockedByTask.get(t.id) ?? null,
+      checkout: t.reservationId ? (checkoutByRes.get(t.reservationId) ?? null) : null,
     }),
   );
 

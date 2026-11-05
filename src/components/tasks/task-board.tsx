@@ -33,6 +33,8 @@ export interface TaskCardData {
   latestNote?: string | null;
   /** "Yapılamıyor" görevin satırı ("Ayşe yapamıyor · 12:05 — hastayım"), değilse null. */
   blocked?: string | null;
+  /** Temizlik görevinde misafirin çıkış saati ("Misafir çıkışı 14:00 · geç çıkış onaylı") — temizlik bundan sonra başlar. */
+  checkoutNote?: string | null;
 }
 
 // The three Kanban columns. A card lands in exactly one: explicit todo / done,
@@ -441,6 +443,7 @@ export function TaskBoard({
               {due ? <span>· {due.text}</span> : null}
             </p>
           ) : null}
+          {t.checkoutNote && t.status !== "done" ? <p className="break-words font-medium text-foreground">{t.checkoutNote}</p> : null}
           {t.checklist ? (
             <p className="flex items-center gap-1">
               <CheckSquare className="size-3" /> {t.checklist.items.filter((c) => c.done).length}/

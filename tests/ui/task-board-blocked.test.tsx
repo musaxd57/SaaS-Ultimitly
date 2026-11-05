@@ -93,6 +93,15 @@ describe("pano — 'Yapamıyorum'", () => {
     expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
   });
 
+  it("geç çıkış: temizlik kartı 'Misafir çıkışı 14:00 · geç çıkış onaylı' satırını çizer; biten kartta çizmez", () => {
+    const note = "Misafir çıkışı 14:00 · geç çıkış onaylı";
+    const { unmount } = render(<TaskBoard tasks={[{ ...base, checkoutNote: note }]} canManage={false} />);
+    expect(screen.getByText(note)).toBeTruthy();
+    unmount();
+    render(<TaskBoard tasks={[{ ...base, status: "done", checkoutNote: note }]} canManage={false} />);
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
   it("kart satırı: bugünse saat, başka günse gün + saat; neden kısaltılır; kişi yoksa 'Atanan kişi'", () => {
     const now = new Date("2026-11-07T10:00:00Z");
     expect(blockedLine({ by: "Ayşe", at: new Date("2026-11-07T09:05:00Z"), reason: "hastayım" }, "Europe/Istanbul", now)).toBe("Ayşe yapamıyor · 12:05 — hastayım");

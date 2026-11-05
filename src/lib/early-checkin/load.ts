@@ -68,7 +68,11 @@ export function markOfTask(t: TaskWithUpdates, departingReservationId: string): 
  * doğrulanamadı ya da sürüyor — ulaşmış olabilir, temkin; kilit yalnız ONAYIN saatini yazar, ret saat taşımaz). Org kapsamlı; boş
  * girdide sorgu yok.
  */
-async function approvedLateCheckouts(organizationId: string, reservationIds: readonly string[]): Promise<Map<string, string>> {
+/**
+ * Onaylı geç çıkış saatleri (rezervasyon → en geç onaylı "HH:MM"). Hazırlık hükmü ve görev kartının "misafir çıkışı" satırı AYNI kaynaktan
+ * okur (kurucu 11-05 gece: geç çıkış onayı temizlik saatine bağlanır — kopya değil, türetme).
+ */
+export async function approvedLateCheckouts(organizationId: string, reservationIds: readonly string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (reservationIds.length === 0) return out;
   const rows = await prisma.decisionRequest.findMany({
