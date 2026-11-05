@@ -21,6 +21,7 @@ export function AutomationPrefsForm({
   taskFromMessage,
   commitmentsAuto,
   supplyRequest,
+  itemsMode = false,
 }: {
   disclosure: boolean;
   holdHours: number;
@@ -31,6 +32,11 @@ export function AutomationPrefsForm({
   /** Söz → görev otomatik (kurucu 10-17 gece); null / verilmedi = anahtar kapalı, seçenek gösterilmez ve gönderilmez. */
   commitmentsAuto?: boolean | null;
   supplyRequest: boolean;
+  /**
+   * Tur 7 S7-3: konuşma öğeleri kipi açık mı (canlıda açık). Açıkken insan talebi yapay zekâyı DURAKLATMAZ (bilinçli tasarım, 09-26):
+   * istek ev sahibine kalır, diğer güvenli sorular cevaplanır; süre yalnız öğeler izlenemediğinde (geri dönüş yolu) uygulanır.
+   */
+  itemsMode?: boolean;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -287,8 +293,9 @@ export function AutomationPrefsForm({
           Misafir sizinle görüşmek isteyince yapay zekânın beklemesi (saat)
         </label>
         <p className="mb-1.5 text-xs text-muted-foreground">
-          Misafir “gerçek bir kişiyle / ev sahibiyle görüşmek istiyorum” dediğinde, AI bu konuşmada
-          kaç saat sussun? (0–72) Bu sürede siz devralırsınız.
+          {itemsMode
+            ? "Misafir sizinle görüşmek isterse bu istek size kalır ve size bildirilir; AI aynı konuşmadaki diğer sorulara cevap vermeye devam eder. Bu süre yalnız istekler ayrı ayrı izlenemediğinde uygulanır: AI o kadar saat susar. (0–72)"
+            : "Misafir “gerçek bir kişiyle / ev sahibiyle görüşmek istiyorum” dediğinde, AI bu konuşmada kaç saat sussun? (0–72) Bu sürede siz devralırsınız."}
         </p>
         <Input
           id="hold-hours"

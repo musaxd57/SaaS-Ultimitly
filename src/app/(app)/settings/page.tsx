@@ -18,6 +18,7 @@ import { AlertEmailForm } from "@/components/settings/alert-email-form";
 import { WhatsAppBindingCard } from "@/components/settings/whatsapp-binding-card";
 import { TimezoneForm } from "@/components/settings/timezone-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
+import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { IcalPrivacyForm } from "@/components/settings/ical-privacy-form";
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
@@ -219,6 +220,7 @@ export default async function SettingsPage({
             taskFromMessage={org?.autoTaskFromMessageEnabled ?? false}
             commitmentsAuto={hostCommitmentAutoEnabled() ? (org?.autoCommitmentsEnabled ?? true) : null}
             supplyRequest={org?.autoSupplyRequestEnabled ?? false}
+            itemsMode={conversationItemsEnabled()}
           />
         </CardContent>
       </Card>
@@ -302,7 +304,8 @@ export default async function SettingsPage({
           <Link href="/properties" className="underline underline-offset-2">
             mülk sayfasındaki
           </Link>{" "}
-          &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider.
+          &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin gider. Metinde {"{isim}"} yoksa başına selam (&quot;Merhaba Ayşe,&quot;)
+          ve sonuna imzanız eklenir.
           {automationLocked ? " Aboneliğiniz aktif değil; otomatik mesajlar şu an duraklatıldı." : null}
         </p>
       </CardContent>
@@ -341,7 +344,7 @@ export default async function SettingsPage({
             <Link href="/properties" className="underline underline-offset-2">
               mülk sayfasındaki
             </Link>{" "}
-            &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider. AI anahtarı kapalıyken de, kendi anahtarları
+            &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin gider (metinde {"{isim}"} yoksa başına selam, sonuna imzanız eklenir). AI anahtarı kapalıyken de, kendi anahtarları
             açıksa gönderilirler. Dört anahtar da sayfanın üstündeki &quot;Otomasyon durumu&quot; kartındadır.
           </p>
         </CardContent>

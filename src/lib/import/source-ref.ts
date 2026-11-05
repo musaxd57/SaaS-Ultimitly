@@ -9,7 +9,7 @@
 
 export const SOURCE_REFERENCE_MAX = 200;
 
-/** Boş / yalnız boşluk → null. Uzun kimlik 200 UTF-16 birimine kesilir; kesim bir vekil çifti bölüyorsa yarım kalan yarı atılır. Eşgüçlü. */
+/** Boş / yalnız boşluk → null. Uzun kimlik 200 UTF-16 birimine kesilir; kesim bir vekil çifti bölüyorsa yarım kalan yarı atılır, sonda kalan boşluk kırpılır. Eşgüçlü. */
 export function normalizeSourceReference(raw: string | null | undefined): string | null {
   const trimmed = (raw ?? "").trim();
   if (!trimmed) return null;
@@ -17,5 +17,7 @@ export function normalizeSourceReference(raw: string | null | undefined): string
   let cut = trimmed.slice(0, SOURCE_REFERENCE_MAX);
   const last = cut.charCodeAt(cut.length - 1);
   if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1);
-  return cut;
+  // Kesimden SONRA da kırpılır (Haiku 11-05): "195 harf + boşluklar + XYZ" kesilince sonda boşluk kalıyor, ikinci geçiş onu kırpıp
+  // FARKLI değer üretiyordu → yazılan ile aranan ayrışırdı. Kırpılmış değer ≤ 200 olduğundan ikinci geçiş aynen döner (eşgüçlü).
+  return cut.trimEnd() || null;
 }

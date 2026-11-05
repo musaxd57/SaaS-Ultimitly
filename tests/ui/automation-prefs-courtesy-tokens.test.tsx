@@ -25,3 +25,16 @@ describe("Ayarlar — nezaket metninde desteklenmeyen alan", () => {
     expect((screen.getByRole("button", { name: /Kaydet/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe("Ayarlar — devir bekleme süresi yardım metni (Tur 7 S7-3)", () => {
+  afterEach(() => cleanup());
+  it("🚨 konuşma öğeleri kipinde 'AI susar' denmez: istek size kalır, diğer sorular cevaplanır; süre yalnız geri dönüşte", () => {
+    render(<AutomationPrefsForm {...PROPS} itemsMode />);
+    expect(screen.getByText(/bu istek size kalır ve size bildirilir/)).toBeTruthy();
+    expect(screen.queryByText(/Bu sürede siz devralırsınız/)).toBeNull();
+  });
+  it("KONTROL — öğe kipi kapalıyken eski (doğru) açıklama", () => {
+    render(<AutomationPrefsForm {...PROPS} />);
+    expect(screen.getByText(/Bu sürede siz devralırsınız/)).toBeTruthy();
+  });
+});

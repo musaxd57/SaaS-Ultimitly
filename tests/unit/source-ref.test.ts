@@ -29,3 +29,27 @@ describe("normalizeSourceReference", () => {
     expect(parseCsv(csv)[0].sourceReference).toHaveLength(SOURCE_REFERENCE_MAX);
   });
 });
+
+describe("normalizeSourceReference — eşgüçlülük (Haiku 11-05)", () => {
+  it("🚨 kesimden sonra sonda kalan boşluk kırpılır: ikinci geçiş aynı değeri verir", () => {
+    const s = "A".repeat(195) + "     " + "XYZ";
+    const once = normalizeSourceReference(s);
+    expect(once).toBe("A".repeat(195));
+    expect(normalizeSourceReference(once)).toBe(once);
+  });
+
+  it("rastgele 3.000 girdide f(f(x)) === f(x) ve uzunluk ≤ 200", () => {
+    const alphabet = ["a", "Z", " ", "\t", "😀", "ş", "-", "@"];
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let i = 0; i < 3000; i++) {
+      const len = Math.floor(rnd() * 260);
+      let x = "";
+      for (let j = 0; j < len; j++) x += alphabet[Math.floor(rnd() * alphabet.length)];
+      const y = normalizeSourceReference(x);
+      expect(normalizeSourceReference(y)).toBe(y);
+      if (y) expect(y.length).toBeLessThanOrEqual(SOURCE_REFERENCE_MAX);
+    }
+  });
+});
+

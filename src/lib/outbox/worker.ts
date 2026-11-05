@@ -444,9 +444,11 @@ async function settle(
  *   · `lastMessageAt` YALNIZ İLERİ yönde yazılır (onarım/uzun claim'de geriye kaymaz).
  * Tek UPDATE statement'ında ilişki filtresi → yarış penceresi DB'de kapanır.
  */
-async function markConversationDelivered(row: OutboxRow, now: Date): Promise<void> {
+async function markConversationDelivered(row: OutboxRow, now: Date): Promise<boolean> {
   const conversationId = row.conversationId;
-  if (!conversationId) return;
+  if (!conversationId) return true;
+  // T7-OB-5 (Haiku 11-05): yazma düşerse `false` → teslim etkisi damgalanmaz, onarıcı yeniden dener.
+  let ok = true;
   let anchor = now;
   let isAi = row.messageType === "ai";
   if (row.messageId) {
@@ -469,10 +471,15 @@ async function markConversationDelivered(row: OutboxRow, now: Date): Promise<voi
       },
       data: { status: "answered" },
     })
-    .catch(() => {});
+    .catch(() => {
+      ok = false;
+    });
   await prisma.conversation
     .updateMany({ where: { id: conversationId, lastMessageAt: { lt: now } }, data: { lastMessageAt: now } })
-    .catch(() => {});
+    .catch(() => {
+      ok = false;
+    });
+  return ok;
 }
 
 /**
@@ -891,16 +898,16 @@ async function stampLifecycleSent(row: OutboxRow, now: Date): Promise<void> {
  * "problem"a düştü korumalarının hepsi birebir çalışmaya devam ediyor. Muafiyet
  * yazmak o değişmezi delerdi.
  */
-async function applyHandoffHold(row: OutboxRow, now: Date): Promise<void> {
-  if (!row.conversationId || !row.messageId) return;
-  if (row.messageType && row.messageType !== "ai") return; // yalnız AI yanıtı
+async function applyHandoffHold(row: OutboxRow, now: Date): Promise<boolean> {
+  if (!row.conversationId || !row.messageId) return true;
+  if (row.messageType && row.messageType !== "ai") return true; // yalnız AI yanıtı
   const msg = await prisma.message.findUnique({
     where: { id: row.messageId },
     select: { authorType: true, aiIntent: true },
   });
-  if (msg?.authorType !== "ai" || msg.aiIntent !== "human_request") return;
+  if (msg?.authorType !== "ai" || msg.aiIntent !== "human_request") return true;
   // Öğe kipindeki insan talebi cevabı: satır içi yol kilit kurmaz; karar kuyruğa girişte işaretlendi (`handoff-exempt.ts`, Opus O1 + B1/B2).
-  if (await isHandoffExempt(prisma, row.id)) return;
+  if (await isHandoffExempt(prisma, row.id)) return true;
   const org = await prisma.organization.findUnique({
     where: { id: row.organizationId },
     select: { handoffHoldHours: true },
@@ -911,10 +918,12 @@ async function applyHandoffHold(row: OutboxRow, now: Date): Promise<void> {
       where: { id: row.conversationId },
       data: { autoReplyHoldUntil: new Date(now.getTime() + hours * 60 * 60 * 1000) },
     });
+    return true;
   } catch (err) {
     // Sessiz `catch {}` bu repoda belgeli anti-desen: hold yazılamazsa AI devir
     // penceresinde tekrar araya girebilir → iz bırakmadan geçmemeli.
     void reportError("outbox-handoff-hold", err);
+    return false; // T7-OB-5: damga yazılmaz → onarıcı kilidi yeniden kurar
   }
 }
 
@@ -925,13 +934,16 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
     return;
   }
   if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
+  let effectsOk = true;
   if (row.conversationId) {
-    await markConversationDelivered(row, now);
-    await applyHandoffHold(row, now);
+    const delivered = await markConversationDelivered(row, now);
+    const held = await applyHandoffHold(row, now);
+    effectsOk = delivered && held;
   }
   if (type === "ai" && row.messageId) await recloseDeliveredItems(row, now);
-  // T7-OB-5: etki değerlendirildi → 48 saatlik onarıcı bu satırı bir daha onarmaz (ev sahibinin sonradan seçtiği durum ezilmez). Damga
-  // yazılamazsa onarıcı BİR KEZ bakar (eski davranış, bir defalık) — hata teslimi bozmaz.
+  // T7-OB-5: etki değerlendirildi → 48 saatlik onarıcı bu satırı bir daha onarmaz (ev sahibinin sonradan seçtiği durum ezilmez). Bir etki
+  // yazılamadıysa (ya da damganın kendisi düşerse) damga YOK → onarıcı o etkiyi yeniden dener (Haiku 11-05). Hata teslimi bozmaz.
+  if (!effectsOk) return;
   await prisma.messageOutbox
     .updateMany({ where: { id: row.id, deliveryEffectAt: null }, data: { deliveryEffectAt: now } })
     .catch((err) => reportError("outbox-delivery-effect-stamp", err));
@@ -1649,6 +1661,8 @@ async function healDeliveryEffects(now: Date): Promise<void> {
     });
     if (rows.length === 0) break;
     cursor = rows[rows.length - 1].id;
+    /** Bu sayfada etkisi yazılamayan satırlar — damgalanmaz (sonraki geçişte yeniden denenir). */
+    const healFailed = new Set<string>();
 
     // Conversation başına bu sayfadaki EN GEÇ cevap çapası. 🚨 Y3 (Codex 10-07): çapa normal yolla (`markConversationDelivered`)
     // AYNI — cevabın kendi Message'ının `createdAt`'i; `messageId` yoksa (ya da mesaj yoksa) `sentAt`. Eskiden onarıcı `sentAt`'e
@@ -1757,12 +1771,15 @@ async function healDeliveryEffects(now: Date): Promise<void> {
               where: { id: r.conversationId as string, autoReplyHoldUntil: null },
               data: { autoReplyHoldUntil: until },
             })
-            .catch(() => {});
+            .catch(() => {
+              healFailed.add(r.id); // T7-OB-5 (Haiku 11-05): damgalanmaz → sonraki geçişte yeniden denenir
+            });
         }
       }
     }
     // T7-OB-5: bu sayfanın satırları değerlendirildi — bir daha onarılmaz (ev sahibinin sonraki durum seçimi korunur).
-    await prisma.messageOutbox.updateMany({ where: { id: { in: rows.map((r) => r.id) }, deliveryEffectAt: null }, data: { deliveryEffectAt: now } });
+    const stampIds = rows.map((r) => r.id).filter((id) => !healFailed.has(id));
+    if (stampIds.length) await prisma.messageOutbox.updateMany({ where: { id: { in: stampIds }, deliveryEffectAt: null }, data: { deliveryEffectAt: now } });
     if (rows.length < PAGE) break;
   }
 

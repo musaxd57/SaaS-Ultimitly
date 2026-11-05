@@ -5338,6 +5338,8 @@ async function sourceReferenceErased(
  * gelir ve o senkron dairenin mevcut rezervasyonlarını getirir; 3 saatlik pay saatlik derin senkronu (365 gün) da kapsar. Bilinen sınırlar
  * (belgeli): daire Lixus'a geldikten sonraki 3 saat içinde yapılan GERÇEK yeni rezervasyon karşılama almaz; anahtar açılmadan önce yapılmış
  * ama varışı 365 günden ileride olan rezervasyon pencereye girdiğinde yine "yeni" görünür (rezervasyon tarihi bilinmediği için).
+ * Sağlayıcı daireleri senkronla oluşur; elle açılmış eski bir daire sonradan sağlayıcıya bağlanırsa taban o dairenin eski oluşturulma
+ * anı kalır (Haiku 11-05; bugün böyle bir bağlama akışı yok).
  * Üç gönderici AYNI parçayı kullanır; metin önizlemeleri (`previewWelcomes` …) anahtarı ve tabanı bilinçli YOK SAYAR (metin kalitesi).
  */
 export const LIFECYCLE_BACKLOG_GRACE_MS = 3 * 60 * 60_000;
