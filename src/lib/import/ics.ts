@@ -12,6 +12,17 @@ export interface IcsReservation {
   channel: "ics";
   /** VEVENT STATUS (uppercased), e.g. "CANCELLED" | "CONFIRMED" | null. */
   status: string | null;
+  /**
+   * Tur 7 CAL-2 (11-05): serinin BELİRLİ bir örneğini tanımlayan RECURRENCE-ID (RFC 5545 §3.8.4.4) — varsa bu satır ana kayıt değil, bir
+   * ÖRNEKTİR (iptali yalnız o örneği etkiler). Yoksa `null` (ana kayıt). Aynı UID'nin satırları `ics-resolve.ts` ile çözülür.
+   */
+  recurrenceId?: Date | null;
+  /** Ana kayıtta tekrar kuralı (RRULE / RDATE) var mı — tekrarlar AÇILMAZ, satır ilk örneğiyle dolu gece olarak alınır. */
+  hasRecurrenceRule?: boolean;
+  /** SEQUENCE (sürüm numarası); yoksa `null`. */
+  sequence?: number | null;
+  /** LAST-MODIFIED (yoksa DTSTAMP) — aynı sürümdeki iki ana kayıt arasında daha yenisi. */
+  lastModified?: Date | null;
 }
 
 /** Unfold RFC 5545 long lines (continuation lines start with space or tab). */
@@ -329,6 +340,10 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         if (seen === undefined) signatureByUid.set(sourceReference, signature);
         else if (seen !== signature) reasons.add("duplicate_uid");
       }
+      const recurrenceIdRaw = get("RECURRENCE-ID");
+      const sequenceRaw = get("SEQUENCE");
+      const lastModifiedRaw = get("LAST-MODIFIED") ?? get("DTSTAMP");
+      const sequenceNum = sequenceRaw !== undefined && /^\s*\d{1,9}\s*$/.test(sequenceRaw) ? Number(sequenceRaw.trim()) : null;
       results.push({
         guestName,
         arrivalDate,
@@ -337,6 +352,10 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         notes,
         channel: "ics",
         status,
+        recurrenceId: recurrenceIdRaw ? parseIcsDate(recurrenceIdRaw, tzidOf("RECURRENCE-ID")) : null,
+        hasRecurrenceRule: Object.keys(current).some((k) => ["RRULE", "RDATE"].includes(k.split(";")[0])),
+        sequence: sequenceNum,
+        lastModified: lastModifiedRaw ? parseIcsDate(lastModifiedRaw, null) : null,
       });
 
       continue;

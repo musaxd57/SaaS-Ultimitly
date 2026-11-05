@@ -6,6 +6,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { reportError } from "@/lib/report-error";
 import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 import { icsIncompleteCause, parseIcsDetailed, type IcsIncompleteReason } from "@/lib/import/ics";
+import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { recordVerifiedCalendarIdentity } from "@/lib/billing/trial-identity";
@@ -356,7 +357,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   const ingestCtx: IngestContext = { organizationId: source.property.organizationId, provider: "ical", connectionId: null };
   // Every UID seen in THIS feed (incl. cancelled ones) → used below to reconcile
   // reservations that silently disappeared from the feed.
+  // Tur 7 CAL-2: beslemede GEÇEN her UID görülmüş sayılır — çözücünün dışarıda bıraktığı satırlar (ör. yok sayılan örnek iptali,
+  // ana kaydı olmayan iptal edilmiş örnek) dahil. Döngüden ÖNCE doldurulur ki aynı UID'nin hiçbir satırı "beslemeden kayboldu" sayılmasın.
   const seenRefs = new Set<string>();
+  for (const r of rows) if (r.sourceReference) seenRefs.add(r.sourceReference);
   // 🚨 BİR GEÇİŞTE KAYIT BAŞINA İLK SATIR (inceleme b1, 09-30 — dosyadan içe aktarmayla AYNI kural): aynı UID (ya da UID'siz
   // satırda aynı tarih çifti) ikinci kez gelirse atlanır. Aksi hâlde tekrarlayan etkinliğin iptal edilmiş örneği (aynı UID)
   // rezervasyonu her geçişte iptal ↔ yeniden onay arasında çalkalıyordu; geçiş iptalle bittiği için dışa aktarılan takvim o
@@ -383,8 +387,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     }
   };
 
-  for (const row of rows) {
-    if (row.sourceReference) seenRefs.add(row.sourceReference);
+  // Tur 7 CAL-2 (kurucu onayı 11-05): aynı UID'nin birden çok satırı (ana kayıt + tekrar örneği, iki sürüm) TEK etkin satıra çözülür
+  // (`ics-resolve.ts`) — "ilk gelen satır" kuralı sıraya bağlıydı: örnek iptali ana kayıttan önce gelirse bütün rezervasyon iptal oluyordu.
+  // Çözümde düşen satırlar eskisi gibi "atlandı" sayılır.
+  const resolvedRows = resolveIcsUidGroups(rows);
+  result.skipped += rows.length - resolvedRows.length;
+  for (const row of resolvedRows) {
     if (!row.guestName || !row.arrivalDate || !row.departureDate) {
       result.skipped++;
       continue;

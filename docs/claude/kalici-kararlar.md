@@ -344,7 +344,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **iCal abonelik senkronunda kayıt kimliği (09-30, inceleme b1):** bir geçişte kayıt başına İLK satır (UID; UID'siz satırda tarih çifti) —
   tekrarlayan etkinliğin iptal edilmiş örneği (aynı UID) rezervasyonu her geçişte iptal ↔ onay arasında çalkalıyordu (dosyadan içe aktarmayla
   aynı kural). UID'siz etkinlik: aynı kaynağın aynı tarihli UID'siz satırı aynı kayıttır (her geçişte kopya açılıyordu). BEGIN/END:VEVENT
-  büyük/küçük harf duyarsız, yalnız CR satır sonu okunur.
+  büyük/küçük harf duyarsız, yalnız CR satır sonu okunur. 🚨 **Tur 7 CAL-2 inceltmesi (kurucu onayı 11-05):** aynı UID'nin satırları önce
+  `import/ics-resolve.ts` ile SIRADAN BAĞIMSIZ tek satıra çözülür (ana kayıt ≠ tekrar örneği; örnek iptali yalnız o örneği etkiler — tek
+  seferlik kaydın kendi başlangıcındaki örnek kaydın kendisidir; birden çok ana kayıtta SEQUENCE, sonra LAST-MODIFIED/DTSTAMP; ayırt
+  edilemeyen çelişkide canlı kopya — yıkıcı değişiklik yok; tekrarlayan ana kayıt dolu gece). "İlk satır" artık yalnız ayırt edilemeyen
+  canlı kopyalar arasında geçerlidir. Elle `.ics` yükleme rotası bu çözücüye bağlanmadı (önizleme var; ayrı iş).
 - 🚨 **EKSİK iCal OKUMASI HÜKÜM VERMEZ (F16, 09-26):** `parseIcsDetailed().incomplete` kapalı küme (yarım dosya ·
   10.000 tavanı · RRULE/RDATE/EXDATE/RECURRENCE-ID — tekrar AÇILMAZ, bilinçli · tarihi eksik/bozuk/ters/sıfır süreli ya
   da BEGIN/END'i bozuk etkinlik · aynı UID çelişen iki hâl). Eksikse okunanlar yazılır ve açık STATUS:CANCELLED işlenir,
