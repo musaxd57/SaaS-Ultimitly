@@ -182,6 +182,16 @@ describe("görev — 'Yapamıyorum'", () => {
     expect((await create("todo")).status).toBe(201);
   });
 
+  it("aynı kişi ikinci kez 'Yapamıyorum' derse (neden ekler) ikinci bildirim GİTMEZ — yalnız durum değişince bildirilir", async () => {
+    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
+    asStaff(ayse);
+    expect((await patch(taskId, { status: "blocked", note: "hastayım" })).status).toBe(200);
+    expect((await patch(taskId, { status: "blocked", note: "yarın da gelemem" })).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mail.sent).toHaveLength(1);
+    expect(await prisma.taskUpdate.count({ where: { taskId, status: "blocked" } })).toBe(2); // ikisi de zaman çizelgesinde
+  });
+
   it("'Yapılamıyor' bağlı misafir sözünü KAPATMAZ (iş bitmedi)", async () => {
     const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "G", channel: "airbnb" } });
     const c = await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: conv.id, kind: "cleaning", dueAt: dayDate(TODAY), taskId } });
