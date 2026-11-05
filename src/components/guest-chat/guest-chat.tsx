@@ -95,11 +95,7 @@ export function GuestChat({
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     const seq = ++loadSeq.current;
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      ctrl.abort();
-    }, POLL_TIMEOUT_MS);
+    const timeout = setTimeout(() => ctrl.abort(), POLL_TIMEOUT_MS);
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET", signal: ctrl.signal });
       // U28 (Codex 10-07): SIRA DENETİMİ HER DALDAN ÖNCE. Eskiden yalnız başarı yolundaydı: daha yeni bir isteğin 200/açık cevabından
@@ -154,10 +150,8 @@ export function GuestChat({
       setClosed(false);
       if (Array.isArray(data.messages)) setMessages(data.messages);
     } catch {
-      if (seq !== loadSeq.current) return; // U28: daha yeni bir istek var — eski isteğin ağ hatası sayılmaz
-      // Ekran kapanırken / yerine yenisi geçerken yapılan iptal başarısızlık DEĞİLDİR; zaman aşımı ve ağ hatası öyledir (geçici, sonraki
-      // tur yeniden dener).
-      if (ctrl.signal.aborted && !timedOut) return;
+      if (seq !== loadSeq.current) return; // U28: daha yeni bir istek var — eski isteğin ağ hatası / iptali sayılmaz
+      // Ağ hatası ya da zaman aşımı (asılı sorgu iptal edildi) — geçici, sonraki tur yeniden dener.
       failuresRef.current += 1;
       if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
     } finally {

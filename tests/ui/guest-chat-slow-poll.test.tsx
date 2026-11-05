@@ -131,6 +131,54 @@ describe("GuestChat — yavaş bağlantıda tek uçuşlu sorgu", () => {
     expect(screen.getByText("Havlular dolapta.")).toBeTruthy();
   });
 
+  it("kilit açılışı yenilemesi uçuştaki eski sorguyu iptal eder; zamanlayıcı da uçuştaki bu yenilemeyi kesmez (tek uçuş)", async () => {
+    let getN = 0;
+    const abortable = (opts: RequestInit | undefined, ms: number, body: unknown) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve({ ok: true, status: 200, json: async () => body }), ms);
+        opts?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        });
+      });
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      if ((opts?.method ?? "GET") === "POST") return Promise.resolve({ ok: true, status: 200, json: async () => ({ unlocked: true }) });
+      getN += 1;
+      if (getN === 1) return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true }) });
+      // 2: kilit açılmadan önce başlamış yavaş sorgu (cevabı hâlâ "kod gerekli" — uygulanırsa misafir kilit ekranına geri düşer).
+      if (getN === 2) return abortable(opts, 30_000, { open: true, pinRequired: true });
+      // 3: kilit açılışı yenilemesi (8 sn sürer; bu arada zamanlayıcı turu gelir).
+      return abortable(opts, 8_000, { open: true, messages: [{ id: "a1", role: "ai", text: "Hoş geldiniz." }] });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="tok-pin" />);
+    await advance(6_000); // 1. sorgu → kilit ekranı; 5. sn'de 2. (yavaş) sorgu uçuşta
+    expect(getN).toBe(2);
+    fireEvent.change(screen.getByPlaceholderText("Sohbet kodu"), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sohbeti aç" }));
+    await advance(9_000);
+    expect(getN).toBe(3); // zamanlayıcı turu uçuştaki yenilemeyi kesip 4. sorgu açmadı
+    expect(screen.getByText("Hoş geldiniz.")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Sohbet kodu")).toBeNull();
+  });
+
+  it("görünürlük olayı turu öne çeker ama İKİNCİ döngü açmaz (uçuştayken de, beklerken de)", async () => {
+    const { stats } = slowServer(1_000, () => ({ open: true, messages: [] }));
+    render(<GuestChat token="tok-vis-loop" />);
+    const fire = () => act(async () => void document.dispatchEvent(new Event("visibilitychange")));
+    await advance(500);
+    await fire(); // sorgu uçuştayken
+    await advance(2_500);
+    await fire(); // beklerken → hemen tur
+    await advance(5_000);
+    await fire(); // yine beklerken
+    await advance(52_000);
+    // Tek döngü: ~6 sn'de bir tur (1 sn cevap + 5 sn bekleme) → 60 sn'de ~11. İki döngü olsaydı ~20.
+    expect(stats.gets).toBeLessThanOrEqual(12);
+    expect(stats.gets).toBeGreaterThanOrEqual(9);
+    expect(stats.maxInflight).toBe(1);
+  });
+
   it("bekleme hesabı: uyarı eşiğine kadar 5 sn, sonra ikiye katlanarak 60 sn tavanı", () => {
     expect([0, 1, 2, 3, 4, 5, 6, 9].map(guestChatPollDelay)).toEqual([5_000, 5_000, 5_000, 10_000, 20_000, 40_000, 60_000, 60_000]);
   });
