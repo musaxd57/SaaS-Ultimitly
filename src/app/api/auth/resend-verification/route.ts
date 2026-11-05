@@ -104,7 +104,7 @@ async function issueAndSend(
   const sendQuotaKey = `verify-resend-day:${email}`;
   // Hak doluysa SESSİZCE gönderilmez (429 yalnız gerçek hesaplarda görünürdü → hesap numaralandırma).
   if (!(await rateLimit(sendQuotaKey, VERIFY_RESEND_DAILY_CAP, VERIFY_RESEND_DAY_MS)).ok) return;
-  const release = () => rateLimitRelease(sendQuotaKey);
+  const release = () => rateLimitRelease(sendQuotaKey, VERIFY_RESEND_DAY_MS);
   const { raw, hash } = makeVerifyToken();
   const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
   const claimLink = async (tx: Pick<typeof prisma, "user">) => {
@@ -178,7 +178,7 @@ async function issueAndSend(
  * "yavaş" örnek 10 dakika sonra mümkün ve her biri kurbana gerçek bir e-posta götürür. Ölçüm: `docs/INCELEME-2026-11-05-tur7-…`.
  */
 async function timingParityNoop(email: string): Promise<void> {
-  await rateLimitRelease("verify-resend-day:__timing_parity__");
+  await rateLimitRelease("verify-resend-day:__timing_parity__", VERIFY_RESEND_DAY_MS);
   makeVerifyToken();
   await prisma.$transaction(async (tx) => {
     await tx.user.updateMany({ where: { id: "__timing_parity__" }, data: { emailVerifyTokenHash: null } });

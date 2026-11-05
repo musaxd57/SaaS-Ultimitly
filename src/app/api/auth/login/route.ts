@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     //     şifre sıfırlama (tamamlayan tarayıcı tanınan cihaz olur).
     // ⚠️ SAYIM SIZINTISI YOK: kova doluyken çerezsiz istek — hesap var ya da yok — AYNI hızlı
     // 429'u alır (bilinmeyen e-posta da kovayı doldurur, ↓). Kova dolu değilken akış birebir eski.
-    const acctPeek = await rateLimitPeek(`login-acct:${email}`, LOGIN_ACCT_LIMIT);
+    const acctPeek = await rateLimitPeek(`login-acct:${email}`, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS);
     if (!acctPeek.ok) {
       const known = user
         ? await verifyKnownDeviceToken(req.cookies.get(KNOWN_DEVICE_COOKIE)?.value, user.id, user.sessionEpoch)
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
         // Kilitleme vektörü AÇMAZ: bu dala ulaşmak doğru PAROLA ister.
         const totpDayKey = `login-2fa-fail-day:${user.id}`;
         if (!recoveryCode) {
-          const day = await rateLimitPeek(totpDayKey, LOGIN_2FA_DAILY_FAILURES);
+          const day = await rateLimitPeek(totpDayKey, LOGIN_2FA_DAILY_FAILURES, DAY_MS);
           if (!day.ok) {
             return tooManyRequests(
               day.retryAfter,

@@ -106,34 +106,53 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect(a).not.toEqual(b);
   });
 
-  it("🚨 F4: başka politikanın UZUN penceresi kısa pencereli anahtara taşınmaz (yuvada da, haritaya dönüşte de)", async () => {
+  it("🚨 N4: tohumun YÜKSEK bitleri de yuvayı değiştirir (eskiden 32 bitlik tohumun yalnız düşük 10 biti işe yarıyordu)", () => {
+    const keys = Array.from({ length: 64 }, (_, i) => `login-acct:k${i}@example.test`);
+    __setOverflowSeedForTest(0x00000001);
+    const a = keys.map((k) => __overflowSlotOfForTest(k));
+    __setOverflowSeedForTest(0x80000001); // düşük 10 bit AYNI
+    const b = keys.map((k) => __overflowSlotOfForTest(k));
+    expect(a).not.toEqual(b);
+  });
+
+  it("🚨 N4: başka pencere sınıfının (1 sa) dolu yuvası kısa pencereli (60 sn) anahtarı HİÇ kilitlemez; aynı sınıfta çakışma yine yalnız sıkılaştırır (kendi penceresiyle)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
     __setOverflowSeedForTest(7);
-    // Çakışan iki anahtar bul: biri 1 saatlik (3 hak), öteki dakikalık (2 hak) politika.
     const victim = "reply:org:conv";
     const slot = __overflowSlotOfForTest(victim);
-    let other = "";
-    for (let i = 0; i < 200_000 && !other; i++) if (__overflowSlotOfForTest(`login-acct:x${i}`) === slot) other = `login-acct:x${i}`;
-    expect(other).not.toBe("");
+    const collide = (prefix: string, skip = "") => {
+      for (let i = 0; i < 400_000; i++) if (`${prefix}${i}` !== skip && __overflowSlotOfForTest(`${prefix}${i}`) === slot) return `${prefix}${i}`;
+      return "";
+    };
+    const hourKey = collide("login-acct:x");
+    const minuteKey = collide("reply:o:c");
+    expect(hourKey).not.toBe("");
+    expect(minuteKey).not.toBe("");
     await flood("short", MEMORY_MAX_KEYS, 2_000); // tavan dolu (2 sn'lik kayıtlar)
-    for (let i = 0; i < 3; i++) await rateLimit(other, 3, HOUR); // yuva 1 saatlik pencereyle doldu
+    for (let i = 0; i < 3; i++) await rateLimit(hourKey, 3, HOUR); // 1 saatlik sınıfın yuvası doldu
+    expect((await rateLimit(victim, 2, 60_000)).ok).toBe(true); // eskiden: 1 SAAT boyunca 429
+    // Aynı (dakikalık) sınıfta çakışan anahtar yuvayı paylaşır → sıkılaştırır, ama en çok kendi penceresi kadar.
+    expect((await rateLimit(minuteKey, 2, 60_000)).ok).toBe(true);
     const r = await rateLimit(victim, 2, 60_000);
     expect(r.ok).toBe(false);
-    expect(r.retryAfter).toBeLessThanOrEqual(60); // eskiden ~3600 sn
-    vi.setSystemTime(new Date("2026-11-05T12:00:05Z")); // haritadakiler doldu → yer açılır
-    await flood("fresh", 400);
-    const back = await rateLimit(victim, 2, 60_000); // haritaya döner: taşınan sayaç (3) + 1 > 2 → engel, ama KENDİ penceresiyle
-    expect(back.ok).toBe(false);
-    expect(back.retryAfter).toBeLessThanOrEqual(60);
+    expect(r.retryAfter).toBeLessThanOrEqual(60);
   });
 
-  it("iade (release) taşma yuvasındaki ayrılmış hakkı da geri verir; sıfırın altına inmez", async () => {
+  it("iade (release) KENDİ pencere sınıfının taşma yuvasındaki ayrılmış hakkı geri verir; sıfırın altına inmez", async () => {
     await flood("ip", MEMORY_MAX_KEYS);
     for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
-    expect((await rateLimitPeek("refund", 5)).ok).toBe(false);
+    expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
+    await rateLimitRelease("refund", HOUR);
+    expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(true);
+  });
+
+  it("🚨 N4: pencere söylemeyen iade PAYLAŞILAN taşma yuvasını gevşetmez (başka anahtarın sayacı); bakış pencere söylemezse yine sıkı", async () => {
+    await flood("ip", MEMORY_MAX_KEYS);
+    for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
     await rateLimitRelease("refund");
-    expect((await rateLimitPeek("refund", 5)).ok).toBe(true);
+    expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
+    expect((await rateLimitPeek("refund", 5)).ok).toBe(false);
   });
 
   it("taşma yuvasının penceresi dolunca yuva sıfırlanır (taşmada kalıcı kilit yok)", async () => {

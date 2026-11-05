@@ -29,7 +29,23 @@ const buckets = new Map<string, Bucket>();
 export const MEMORY_MAX_KEYS = 10_000;
 const MEMORY_SWEEP_STEP = 64;
 export const MEMORY_OVERFLOW_SLOTS = 1_024;
-const overflow: (Bucket | undefined)[] = new Array(MEMORY_OVERFLOW_SLOTS);
+/**
+ * Pencere sınıfı başına AYRI taşma dizisi (Opus 11-05 N4): tek dizide 60 sn'lik bir anahtar, 1 saatlik (ya da 1 günlük) bir anahtarın açtığı
+ * yuvayı paylaşıp o uzun pencere boyunca kilitli kalabiliyordu (yalnız bildirilen bekleme süresi kısalmıştı). Pencereler koddan gelir (az
+ * sayıda); yine de güvenlik ağı: `MAX_WINDOW_CLASSES` aşılırsa yeni sınıflar ortak bir dizide sayılır (yalnız sıkılaştırır).
+ */
+const overflowByWindow = new Map<number, (Bucket | undefined)[]>();
+const MAX_WINDOW_CLASSES = 64;
+const SHARED_WINDOW_CLASS = -1;
+function overflowArray(windowMs: number): (Bucket | undefined)[] {
+  const cls = overflowByWindow.has(windowMs) || overflowByWindow.size < MAX_WINDOW_CLASSES ? windowMs : SHARED_WINDOW_CLASS;
+  let arr = overflowByWindow.get(cls);
+  if (!arr) {
+    arr = new Array<Bucket | undefined>(MEMORY_OVERFLOW_SLOTS);
+    overflowByWindow.set(cls, arr);
+  }
+  return arr;
+}
 let sweepCursor: IterableIterator<[string, Bucket]> | null = null;
 let sweepVisits = 0;
 
@@ -46,19 +62,39 @@ function overflowSlotOf(key: string): number {
     h ^= key.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
   }
+  // Son karıştırma (murmur3 fmix32, Opus 11-05 N4): FNV'de yuvayı belirleyen düşük bitler yalnız tohumun DÜŞÜK bitlerine bağlıydı (32 bitlik
+  // tohumun yalnız 10'u işe yarıyordu); karıştırmayla tohumun bütün bitleri yuvaya ulaşır.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
   return (h >>> 0) % MEMORY_OVERFLOW_SLOTS;
 }
 
-function activeOverflowFor(key: string, now: number): Bucket | null {
-  const b = overflow[overflowSlotOf(key)];
-  return b && b.resetAt > now ? b : null;
+/**
+ * Anahtarın taşma yuvası. Pencere biliniyorsa O SINIFIN yuvası; bilinmiyorsa (bakma / iade çağrısı pencere söylemediyse) o yuvadaki EN DOLU
+ * etkin kova — bakışta yalnız sıkılaştırır.
+ */
+function activeOverflowFor(key: string, now: number, windowMs?: number): Bucket | null {
+  const slot = overflowSlotOf(key);
+  if (windowMs !== undefined) {
+    const b = overflowArray(windowMs)[slot];
+    return b && b.resetAt > now ? b : null;
+  }
+  let fullest: Bucket | null = null;
+  for (const arr of overflowByWindow.values()) {
+    const b = arr[slot];
+    if (b && b.resetAt > now && (!fullest || b.count > fullest.count)) fullest = b;
+  }
+  return fullest;
 }
 
 /** Anahtarın AÇIK penceresi: haritadaki kayıt; haritada yoksa (tavan doluyken sayılmışsa) taşma yuvası. */
-function activeMemoryBucket(key: string, now: number): Bucket | null {
+function activeMemoryBucket(key: string, now: number, windowMs?: number): Bucket | null {
   const b = buckets.get(key);
   if (b) return b.resetAt > now ? b : null;
-  return activeOverflowFor(key, now);
+  return activeOverflowFor(key, now, windowMs);
 }
 
 /** Süresi dolmuş kayıtları adım adım siler: çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret (amortize sabit maliyet). */
@@ -84,7 +120,7 @@ function sweepStep(now: number) {
 export function rateLimitMemoryStats(): { keys: number; overflowActive: number; sweepVisits: number } {
   const now = Date.now();
   let overflowActive = 0;
-  for (const b of overflow) if (b && b.resetAt > now) overflowActive++;
+  for (const arr of overflowByWindow.values()) for (const b of arr) if (b && b.resetAt > now) overflowActive++;
   return { keys: buckets.size, overflowActive, sweepVisits };
 }
 
@@ -144,7 +180,7 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
  * bellek yedeği de `count >= limit`te reddeder. DB hatasında bellek kovasına bakar
  * (orada kayıt yoksa "dolu değil" — kapı bugünkü davranışa düşer, fail-open).
  */
-export async function rateLimitPeek(key: string, limit: number): Promise<Verdict> {
+export async function rateLimitPeek(key: string, limit: number, windowMs?: number): Promise<Verdict> {
   try {
     const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
       SELECT
@@ -159,7 +195,7 @@ export async function rateLimitPeek(key: string, limit: number): Promise<Verdict
   } catch (err) {
     warnDbUnavailable(err);
     const now = Date.now();
-    const bucket = activeMemoryBucket(key, now);
+    const bucket = activeMemoryBucket(key, now, windowMs);
     if (!bucket || bucket.count < limit) return { ok: true, retryAfter: 0 };
     return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
   }
@@ -170,7 +206,7 @@ export async function rateLimitPeek(key: string, limit: number): Promise<Verdict
  * "önce ayır, iş düşerse iade et" deseni için (Tur 7 T7-AUTH-1 — doğrulama e-postası gönderim kotası). Önce bakıp sonra tüketmek
  * (`rateLimitPeek` + `rateLimit`) eşzamanlı iki isteğe aynı boş hakkı kullandırırdı. DB hatasında bellek kovası.
  */
-export async function rateLimitRelease(key: string): Promise<void> {
+export async function rateLimitRelease(key: string, windowMs?: number): Promise<void> {
   try {
     await prisma.$executeRaw`
       UPDATE "RateLimitCounter" SET "count" = GREATEST("count" - 1, 0)
@@ -178,7 +214,10 @@ export async function rateLimitRelease(key: string): Promise<void> {
     `;
   } catch (err) {
     warnDbUnavailable(err);
-    const bucket = activeMemoryBucket(key, Date.now());
+    // Taşma yuvası PAYLAŞILIR: pencere söylenmediyse iade yalnız anahtarın KENDİ kaydına yapılır (başka anahtarın sayacı gevşetilmez — N4).
+    const now = Date.now();
+    const own = buckets.get(key);
+    const bucket = own ? (own.resetAt > now ? own : null) : windowMs !== undefined ? activeOverflowFor(key, now, windowMs) : null;
     if (bucket && bucket.count > 0) bucket.count -= 1;
   }
 }
@@ -211,21 +250,22 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
     // Haritada değilken taşma yuvasında sayılmış isabetler yeni kayda TAŞINIR (sıfırlanma yok; çakışma payı yalnız sıkılaştırır).
     // Pencere anahtarın KENDİ penceresidir (Opus 11-05 F4): yuvayı paylaşan BAŞKA politikadaki anahtarın (ör. 1 saatlik) penceresi
     // dakikalık bir kovaya taşınmaz — sıkılaştırma en çok anahtarın kendi penceresi kadar sürer.
-    const carried = bucket ? null : activeOverflowFor(key, now);
+    const carried = bucket ? null : activeOverflowFor(key, now, windowMs);
     const start: Bucket = carried ? { count: carried.count + 1, resetAt: now + windowMs } : { count: 1, resetAt: now + windowMs };
     buckets.set(key, start);
     return start.count > limit ? blocked(start) : { ok: true, retryAfter: 0 };
   }
 
-  // Tavan etkin kayıtlarla dolu: hiçbir etkin kayıt SİLİNMEZ; yeni anahtar sabit boyutlu taşma yuvasında sayılır.
+  // Tavan etkin kayıtlarla dolu: hiçbir etkin kayıt SİLİNMEZ; yeni anahtar KENDİ pencere sınıfının sabit boyutlu taşma yuvasında sayılır
+  // (yuvanın penceresi = anahtarın penceresi → kilit en çok kendi penceresi kadar sürer — N4).
+  const arr = overflowArray(windowMs);
   const slot = overflowSlotOf(key);
-  let o = overflow[slot];
+  let o = arr[slot];
   if (!o || o.resetAt <= now) {
     o = { count: 0, resetAt: now + windowMs };
-    overflow[slot] = o;
+    arr[slot] = o;
   }
-  // Bekleme süresi anahtarın kendi penceresini aşmaz (yuva başka politikadan uzun pencereyle açılmış olabilir).
-  if (o.count >= limit) return { ok: false, retryAfter: Math.max(1, Math.ceil(Math.min(o.resetAt - now, windowMs) / 1000)) };
+  if (o.count >= limit) return blocked(o);
   o.count += 1;
   return { ok: true, retryAfter: 0 };
 }
@@ -431,7 +471,7 @@ export function pickClientHop(parts: string[], hops: number): string {
  *  each test's resetDb). Kept synchronous — existing tests call it fire-and-forget. */
 export function __resetRateLimit() {
   buckets.clear();
-  overflow.fill(undefined);
+  overflowByWindow.clear();
   sweepCursor = null;
   sweepVisits = 0;
   lastDbWarnAt = 0; // uyarı kısıtı da (test: her test kendi uyarısını görebilsin)

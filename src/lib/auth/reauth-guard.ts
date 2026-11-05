@@ -32,7 +32,7 @@ function reauthKey(userId: string): string {
 
 /** Şifre/kod doğrulamadan ÖNCE sorulur; hak YAKMAZ. */
 export function reauthBlocked(userId: string) {
-  return rateLimitPeek(reauthKey(userId), REAUTH_DAILY_FAILURES);
+  return rateLimitPeek(reauthKey(userId), REAUTH_DAILY_FAILURES, DAY_MS);
 }
 
 /** Yeniden doğrulama isteyen işlemler (kapalı küme — denetim kaydının `operation` alanı). */
