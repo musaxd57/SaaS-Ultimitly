@@ -86,10 +86,17 @@ export function KbTemplateSuggestions() {
       });
       if (!res.ok) {
         // Aynı kimlik başka içerikle kullanılmış (409): kimlik bırakılır, sunucunun açıklaması gösterilir (kurucu 10-15).
-        const data = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+        const data = (await res.json().catch(() => ({}))) as { code?: string; error?: string; fields?: Record<string, unknown> };
         if (res.status === 409 && data.code === KB_IDEMPOTENCY_CONFLICT) {
           requestIds.forget(s);
           toast.error(data.error ?? "Eklenemedi.");
+          return;
+        }
+        // Tur 6 KB6-3: sunucunun ÖZELLİKLE yazdığı açıklama (plan sınırı, uzunluk) `fields` altındadır — "Eklenemedi." onu yutuyordu
+        // (ekleme formu bunu zaten gösteriyor). Kimlik bırakılmaz (yeniden basış aynı işlem); açıklama yoksa bugünkü genel metin.
+        const field = data.fields ? Object.values(data.fields)[0] : null;
+        if (typeof field === "string") {
+          toast.error(field);
           return;
         }
         throw new Error(String(res.status));

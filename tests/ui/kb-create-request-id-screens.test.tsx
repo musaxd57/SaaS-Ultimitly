@@ -28,8 +28,8 @@ const posts = () =>
     .filter(([, init]) => init?.method === "POST")
     .map(([, init]) => JSON.parse(String(init!.body)) as { requestId?: string; content: string; title: string });
 
-/** POST cevapları sırayla: "fail" → 500, "net" → ağ hatası, "conflict" → 409 uyuşmazlık, "ok" → 201. GET (tarama) öneri listesini döndürür. */
-function mockFetch(scan: unknown, postPlan: Array<"ok" | "fail" | "net" | "conflict">) {
+/** POST cevapları sırayla: "fail" → 500, "net" → ağ hatası, "conflict" → 409 uyuşmazlık, "limit" → 400 plan sınırı, "ok" → 201. GET (tarama) öneri listesini döndürür. */
+function mockFetch(scan: unknown, postPlan: Array<"ok" | "fail" | "net" | "conflict" | "limit">) {
   const plan = [...postPlan];
   vi.stubGlobal(
     "fetch",
@@ -38,6 +38,13 @@ function mockFetch(scan: unknown, postPlan: Array<"ok" | "fail" | "net" | "confl
       const step = plan.shift() ?? "ok";
       if (step === "net") throw new TypeError("Failed to fetch");
       if (step === "fail") return { ok: false, status: 500, json: async () => ({ error: "x" }) } as unknown as Response;
+      if (step === "limit") {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ error: "Doğrulama hatası", fields: { _: "Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına 15 kayıt)." } }),
+        } as unknown as Response;
+      }
       if (step === "conflict") {
         return {
           ok: false,
@@ -326,6 +333,24 @@ describe("Şablon önerisi (KbTemplateSuggestions)", () => {
     expect(b.content).toBe(a.content);
     expect(c.content).not.toBe(a.content);
     expect(c.requestId).not.toBe(a.requestId);
+  });
+});
+
+describe("Şablon önerisi — sunucunun açıklaması (Tur 6 KB6-3)", () => {
+  it("🚨 plan sınırı reddi 'Eklenemedi.' değil SUNUCUNUN açıklamasını gösterir; yeniden basış aynı kimlik", async () => {
+    const { toast } = await import("@/lib/toast");
+    vi.mocked(toast.error).mockClear();
+    mockFetch({ fromTemplates: [TPL("t1", "Ağ adı Lale-Misafir, şifre kapıdaki kartta.")] }, ["limit", "ok"]);
+    const user = userEvent.setup();
+    render(<KbTemplateSuggestions />);
+    await user.click(screen.getByRole("button", { name: /Tara/ }));
+    await user.click((await screen.findAllByRole("button", { name: /Bilgi tabanına ekle/ }))[0]);
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith(expect.stringContaining("bilgi tabanı sınırına ulaştınız")));
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalledWith("Eklenemedi.");
+    await user.click((await screen.findAllByRole("button", { name: /Bilgi tabanına ekle/ }))[0]);
+    await waitFor(() => expect(posts()).toHaveLength(2));
+    expect(posts()[1].requestId).toBe(posts()[0].requestId);
   });
 });
 
