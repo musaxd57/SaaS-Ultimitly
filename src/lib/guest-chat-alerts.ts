@@ -296,12 +296,13 @@ export async function maybeSendQrEscalationEmail(args: {
         return { sent: false };
       }
 
-      const html = qrEscalationEmail(args.propertyName, args.reason, `${appBaseUrl()}/guest-chats`);
-      const result = await emailService.sendReporting(
-        to,
-        `⚠️ Misafir sohbetinde size devredilen mesaj — ${args.propertyName}`,
-        html,
-      );
+      const html = qrEscalationEmail(args.propertyName, args.reason, `${appBaseUrl()}/guest-chats`, Boolean(args.critical));
+      // Kurucu onayı S2 (11-04): kritik olayda konu kanal yolundaki gibi "⚠️ Acil misafir mesajı" (misafir adı YOK — QR gizlilik kuralı).
+      const subject =
+        args.critical && args.reason !== "erased_stay_hazard"
+          ? `⚠️ Acil misafir mesajı — ${args.propertyName}`
+          : `⚠️ Misafir sohbetinde size devredilen mesaj — ${args.propertyName}`;
+      const result = await emailService.sendReporting(to, subject, html);
       if (!result.ok) {
         // VISIBLE failure + claim release so the next escalation retries
         // instead of silently losing the alert.

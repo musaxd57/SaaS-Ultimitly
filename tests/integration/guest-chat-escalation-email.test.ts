@@ -378,6 +378,25 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(2);
   });
 
+  it("🚨 kurucu onayı S2 (11-04) + Tur 4: KRİTİK olayın e-postası '⚠️ Acil misafir mesajı' der (kanal yolundaki gibi); sıradan devir eski başlıkta; misafir metni / adı YOK", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const send = (eventId: string, critical: boolean) =>
+      maybeSendQrEscalationEmail({ organizationId: orgId, propertyName: "Lale 3", reservationId, eventId, reason: "ai_escalated", critical });
+    expect((await send(qrEscalationEventId("m-1", "Mutfakta yangın var!", true), true)).sent).toBe(true);
+    const [, subject, html] = mockSendReporting.mock.calls[0] as [string, string, string];
+    expect(subject).toBe("⚠️ Acil misafir mesajı — Lale 3");
+    expect(html).toContain("Acil misafir mesajı");
+    expect(html).toMatch(/hemen kontrol edin/);
+    expect(html).not.toContain("yangın var");
+    // Sıradan (kritik olmayan) devir: eski başlık ve metin aynen.
+    await prisma.reservation.update({ where: { id: reservationId }, data: { qrEscalationEmailAt: new Date(Date.now() - 3_600_000) } });
+    expect((await send("msg-plain", false)).sent).toBe(true);
+    const [, subject2, html2] = mockSendReporting.mock.calls[1] as [string, string, string];
+    expect(subject2).toBe("⚠️ Misafir sohbetinde size devredilen mesaj — Lale 3");
+    expect(html2).not.toContain("Acil misafir mesajı");
+  });
+
   it("forgetQrCriticalHistory yalnız O konaklamanın hafızasını siler (başka konaklamanın acil tekrarı hâlâ elenir)", async () => {
     const a = await fixture();
     const other = await prisma.reservation.create({

@@ -556,9 +556,16 @@ export function qrEscalationEmail(
     | "cancelled_stay"
     | "erased_stay_hazard",
   panelUrl: string,
+  // Tur 4 (11-05) + kurucu onayı S2 (11-04: "ev sahibine '⚠️ Acil misafir mesajı' e-postası, kanal yolundaki gibi"): kritik olay (açık
+  // tehlike, acil, erişim kaybı) bu e-postada GÖRÜNÜR olmalı — eskiden yangın e-postası sıradan bir devir e-postasıyla birebir aynıydı.
+  // Misafir metni / adı yine YOK (gizlilik kuralı aynen).
+  critical = false,
 ): string {
+  const urgent = critical && reason !== "erased_stay_hazard";
   const reasonText =
-    reason === "erased_stay_hazard"
+    urgent && reason === "ai_escalated"
+      ? "Misafir QR sohbetinden acil olabilecek bir durum bildirdi (yangın, gaz, duman, su baskını, mahsur kalma gibi). Yapay zekâ cevap vermedi ve size devretti — lütfen hemen kontrol edin."
+      : reason === "erased_stay_hazard"
       ? "Bu dairenin QR misafir sohbetinden bir TEHLİKE bildirimi geldi (yangın, gaz, duman gibi). Konaklamanın kişisel verileri silindiği için mesaj kaydedilmedi. Dairede biri olabilir — lütfen hemen kontrol edin."
       : reason === "cancelled_stay"
       ? "Bu dairenin İPTAL EDİLMİŞ bir rezervasyonu için QR misafir sohbetine yazıldı. Yapay zekâ cevap vermedi ve yapay zekâ kullanımınızdan düşülmedi; yazana yalnız \"sohbet kapalı\" gösterildi. Dairede biri olabilir — mesajı panelde okuyun."
@@ -577,8 +584,8 @@ export function qrEscalationEmail(
             "Planınızın günlük AI işlem hakkı dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
           : "Yapay zekâ, güvenlik kuralları gereği bu mesajı yanıtlamadı ve size devretti.";
   const body = `
-    <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
-      Misafir sohbetinde size devredilen mesaj
+    <h2 style="margin:0 0 8px;color:${urgent ? "#b91c1c" : "#b45309"};font-size:22px;font-weight:700;">
+      ${urgent ? "⚠️ Acil misafir mesajı" : "Misafir sohbetinde size devredilen mesaj"}
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
       <strong>${esc(propertyName)}</strong> dairesinin QR misafir sohbetinde yeni bir mesaj
