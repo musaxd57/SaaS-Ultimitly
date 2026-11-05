@@ -6,6 +6,7 @@
 // (fail-open only across instances, never fully open).
 
 import { isIP } from "node:net";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { formatErrorForLog } from "@/lib/redact";
 import { expandIpv6 } from "@/lib/net/ipv6";
@@ -32,9 +33,15 @@ const overflow: (Bucket | undefined)[] = new Array(MEMORY_OVERFLOW_SLOTS);
 let sweepCursor: IterableIterator<[string, Bucket]> | null = null;
 let sweepVisits = 0;
 
-/** FNV-1a (32 bit) → taşma yuvası. Kriptografik değil: yalnız dağıtım; çakışma güvenli yönde (daha sıkı). */
+/**
+ * Süreç başına RASTGELE tohum (Opus 11-05 F4): sabit tohumla yuva eşlemesi önceden hesaplanabiliyordu — saldırgan belirli bir kurbanın
+ * anahtarıyla (ör. bilinen e-postanın giriş kovası) çakışan anahtarlar seçip o yuvayı doldurabilirdi.
+ */
+let overflowSeed = randomBytes(4).readUInt32LE(0);
+
+/** FNV-1a (32 bit, tohumlu) → taşma yuvası. Kriptografik değil: yalnız dağıtım; çakışma güvenli yönde (daha sıkı). */
 function overflowSlotOf(key: string): number {
-  let h = 0x811c9dc5;
+  let h = (0x811c9dc5 ^ overflowSeed) >>> 0;
   for (let i = 0; i < key.length; i++) {
     h ^= key.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
@@ -202,10 +209,10 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
   sweepStep(now);
   if (bucket || buckets.size < MEMORY_MAX_KEYS) {
     // Haritada değilken taşma yuvasında sayılmış isabetler yeni kayda TAŞINIR (sıfırlanma yok; çakışma payı yalnız sıkılaştırır).
+    // Pencere anahtarın KENDİ penceresidir (Opus 11-05 F4): yuvayı paylaşan BAŞKA politikadaki anahtarın (ör. 1 saatlik) penceresi
+    // dakikalık bir kovaya taşınmaz — sıkılaştırma en çok anahtarın kendi penceresi kadar sürer.
     const carried = bucket ? null : activeOverflowFor(key, now);
-    const start: Bucket = carried
-      ? { count: carried.count + 1, resetAt: Math.max(carried.resetAt, now + windowMs) }
-      : { count: 1, resetAt: now + windowMs };
+    const start: Bucket = carried ? { count: carried.count + 1, resetAt: now + windowMs } : { count: 1, resetAt: now + windowMs };
     buckets.set(key, start);
     return start.count > limit ? blocked(start) : { ok: true, retryAfter: 0 };
   }
@@ -217,9 +224,18 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
     o = { count: 0, resetAt: now + windowMs };
     overflow[slot] = o;
   }
-  if (o.count >= limit) return blocked(o);
+  // Bekleme süresi anahtarın kendi penceresini aşmaz (yuva başka politikadan uzun pencereyle açılmış olabilir).
+  if (o.count >= limit) return { ok: false, retryAfter: Math.max(1, Math.ceil(Math.min(o.resetAt - now, windowMs) / 1000)) };
   o.count += 1;
   return { ok: true, retryAfter: 0 };
+}
+
+/** Yalnız test: taşma tohumunu sabitle ve bir anahtarın yuvasını oku (çakışan anahtar kurmak için). */
+export function __setOverflowSeedForTest(seed: number): void {
+  overflowSeed = seed >>> 0;
+}
+export function __overflowSlotOfForTest(key: string): number {
+  return overflowSlotOf(key);
 }
 
 /**

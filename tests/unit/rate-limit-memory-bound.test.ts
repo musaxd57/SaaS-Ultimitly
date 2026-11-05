@@ -24,6 +24,8 @@ import {
   rateLimitRelease,
   rateLimitMemoryStats,
   __resetRateLimit,
+  __setOverflowSeedForTest,
+  __overflowSlotOfForTest,
   MEMORY_MAX_KEYS,
 } from "@/lib/rate-limit";
 
@@ -49,7 +51,7 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect(s.keys).toBeLessThanOrEqual(MEMORY_MAX_KEYS);
     expect(s.overflowActive).toBeGreaterThan(0);
     // Eski kod: tavanın üstünde her yeni anahtar bütün haritayı tarıyordu (~yüz milyonlarca ziyaret). Şimdi ekleme başına sabit tavan.
-    expect(s.sweepVisits).toBeLessThanOrEqual(30_000 * 64 * 3);
+    expect(s.sweepVisits).toBeLessThanOrEqual(30_000 * 64); // ekleme başına en çok 64 ziyaret (Opus F11: eskiden 3× gevşek sınır)
   });
 
   it("🚨 sınırı aşan anahtar, araya giren sel sonrasında da SINIRLI kalır (etkin kayıt silinmez → hak sıfırlanmaz)", async () => {
@@ -93,6 +95,37 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     // 5. isabet hâlâ hak içinde (4 + 1), 6. reddedilir — sayaç taşmadan taşındı, sıfırdan başlamadı.
     expect((await rateLimit("carry", 5, HOUR)).ok).toBe(true);
     expect((await rateLimit("carry", 5, HOUR)).ok).toBe(false);
+  });
+
+  it("🚨 F4: taşma yuvası tohumlu — aynı anahtar farklı tohumda farklı yuvaya düşebilir (önceden hesaplanamaz)", () => {
+    const keys = Array.from({ length: 64 }, (_, i) => `login-acct:k${i}@example.test`);
+    __setOverflowSeedForTest(1);
+    const a = keys.map((k) => __overflowSlotOfForTest(k));
+    __setOverflowSeedForTest(2);
+    const b = keys.map((k) => __overflowSlotOfForTest(k));
+    expect(a).not.toEqual(b);
+  });
+
+  it("🚨 F4: başka politikanın UZUN penceresi kısa pencereli anahtara taşınmaz (yuvada da, haritaya dönüşte de)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    __setOverflowSeedForTest(7);
+    // Çakışan iki anahtar bul: biri 1 saatlik (3 hak), öteki dakikalık (2 hak) politika.
+    const victim = "reply:org:conv";
+    const slot = __overflowSlotOfForTest(victim);
+    let other = "";
+    for (let i = 0; i < 200_000 && !other; i++) if (__overflowSlotOfForTest(`login-acct:x${i}`) === slot) other = `login-acct:x${i}`;
+    expect(other).not.toBe("");
+    await flood("short", MEMORY_MAX_KEYS, 2_000); // tavan dolu (2 sn'lik kayıtlar)
+    for (let i = 0; i < 3; i++) await rateLimit(other, 3, HOUR); // yuva 1 saatlik pencereyle doldu
+    const r = await rateLimit(victim, 2, 60_000);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfter).toBeLessThanOrEqual(60); // eskiden ~3600 sn
+    vi.setSystemTime(new Date("2026-11-05T12:00:05Z")); // haritadakiler doldu → yer açılır
+    await flood("fresh", 400);
+    const back = await rateLimit(victim, 2, 60_000); // haritaya döner: taşınan sayaç (3) + 1 > 2 → engel, ama KENDİ penceresiyle
+    expect(back.ok).toBe(false);
+    expect(back.retryAfter).toBeLessThanOrEqual(60);
   });
 
   it("iade (release) taşma yuvasındaki ayrılmış hakkı da geri verir; sıfırın altına inmez", async () => {
