@@ -438,15 +438,15 @@ const GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN = 60;
 
 async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
-  const ip = rateLimitClientKey(req);
-  const limited = await rateLimit(`guestchat-get:${ip}`, GUEST_CHAT_GET_PER_IP_PER_MIN, 60_000);
+  const clientKey = rateLimitClientKey(req);
+  const limited = await rateLimit(`guestchat-get:${clientKey}`, GUEST_CHAT_GET_PER_IP_PER_MIN, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   const supportView = await supportViewRefusal(req);
   if (supportView) return supportView;
 
   const { token } = await params;
   const tokenBucket = createHash("sha256").update(token).digest("base64url").slice(0, 16);
-  const perToken = await rateLimit(`guestchat-get-t:${ip}:${tokenBucket}`, GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN, 60_000);
+  const perToken = await rateLimit(`guestchat-get-t:${clientKey}:${tokenBucket}`, GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN, 60_000);
   if (!perToken.ok) return tooManyRequests(perToken.retryAfter);
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
   const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
