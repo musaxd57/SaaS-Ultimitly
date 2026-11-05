@@ -113,7 +113,8 @@ kabul geri çekilmiş teklifi diriltmez; yalnız bir geçerli görevlendirme kal
 ## 4. Görevden alma / ekipten çıkarma (Codex: "kartı soluklaştırmak yetmez")
 Kodda doğrulandı (11-06): görevden alınan personel eski sekmeden **durum değiştiremez** (`api/tasks/[id]` 403 + koşullu yazım; test
 `tasks-route.test.ts:99`), **fotoğrafı açamaz** (`api/storage/photo` atanmamışa 404; test `critical-flow-private-upload-session.test.ts:139`),
-listesinde görmez (sorgu `assignedToId`; yalnız kod — test eklenecek). WhatsApp düğmesi de aynı sunucu kontrolünden geçer (görev hâlâ
+listesinde görmez (sorgu `assignedToId`; test `tasks-staff-privacy.test.ts`: başka birine atanınca eski kişinin listesinden düşer, yenisine
+girer, eski sekmeden durum değiştiremez). WhatsApp düğmesi de aynı sunucu kontrolünden geçer (görev hâlâ
 kendisinde mi). Ekipten çıkarma: `deactivatedAt` + `sessionEpoch` artışı → bütün oturumlar düşer, WhatsApp bağlantısı `revoked`.
 
 ## 5. Bakım görevi girişi ne zaman engeller (Codex + kurucu)
@@ -143,8 +144,8 @@ kendisinde mi). Ekipten çıkarma: `deactivatedAt` + `sessionEpoch` artışı �
 | Temizlik kanıtı: doğru görev + doğru konaklama; çıkış saati değişirse / görev yeniden açılırsa / araya konaklama girerse eski kanıt geçmez | Kod doğru (çekirdek yalnız devrin görevinin EN SON kimlikli "bitti"sini, çıkış anından sonra sayar). Eksik entegrasyon testleri eklendi: geç çıkış onayı "bitti"den sonra · araya giren konaklama · aynı gün başka konaklamaya bağlı tarihli temizlik · yeniden açılma |
 | Teklif süresi sabit 4 saat olmamalı | Teklif modu askıda; döndüğünde kural §2.7 |
 | Davet güvenliği (tarayıcı tüketmesin, açık onay, şifre sıfırlanamasın) | §3 tasarımı |
-| Görevden alma sunucuda | §4 — durum ve fotoğraf pinli; liste testi eklenecek |
-| QR sınırı: kişi dairenin bütün hakkını tüketemesin; genel sınır + doğrulanmış cihaz hakkı birlikte | Ölçüldü: çözümden önceki "ıska" kovası bina ağında bütün sohbetleri durdurabiliyordu → kaldırıldı (Opus N1). Doğrulanmış (bağlı) cihaz için ayrı kova — bu turda |
+| Görevden alma sunucuda | §4 — durum, fotoğraf ve liste pinli |
+| QR sınırı: kişi dairenin bütün hakkını tüketemesin; genel sınır + doğrulanmış cihaz hakkı birlikte | Ölçüldü: çözümden önceki "ıska" kovası bina ağında bütün sohbetleri durdurabiliyordu → kaldırıldı (Opus N1). Doğrulanmış (konaklamaya bağlı) cihaz artık KENDİ kovasında (konaklama başına 60/dk, IP'den bağımsız — aynı ağdaki başka istemcinin seli onu dondurmaz, çalınmış çerez çok IP'den çoğaltılamaz); doğrulanmamış istek (IP, daire) kovasında; kaba IP tavanı (240/dk) herkese önde. Kalan risk ve seçenek: soru K-5 (`b5dfc0dd`) |
 | Yedek sayaç: belleğin sınırlı kaldığı ve doluyken yeni hak verilmediği | Pinli (anahtar tavanı, etkin kayıt silinmez, taşma yalnız sıkılaştırır); Opus N4 ile pencere sınıfı başına yuva |
 | Sağlayıcı kabulü ≠ misafire teslim | Doğru: arayüz kabul edilen mesajı "İletildi" + çift tik ile gösteriyordu → "Gönderildi" + tek tik |
 
@@ -162,7 +163,35 @@ kendisinde mi). Ekipten çıkarma: `deactivatedAt` + `sessionEpoch` artışı �
 - **K-2:** Başka işletmede hesabı olan temizlikçi: v1'de "farklı e-posta" kısıtı + uzun vadeli üyelik modeli (M-2) tasarımı — sıra böyle mi,
   yoksa üyelik modeli önce mi?
 - **K-3:** WhatsApp bildirimi için Meta şablonu ve iş numarası: mevcut ev sahibi numarası mı, temizlikçilere ayrı numara mı?
+- **K-5:** QR'da kalan tek risk: AYNI IP'den dakikada 240'tan fazla geçersiz istek o ağdaki bütün misafirlerin sohbetini bekletir (genel
+  tavan herkes için önde; doğrulama bir veritabanı okuması olduğundan tavansız yapılamaz). Kapatmanın yolu imzalı "cihaz geçişi" (bağlı
+  cihaza ikinci, imzalı çerez; veritabanına gitmeden doğrulanır, genel tavanı atlar). Önerim: şimdilik GEREK YOK — saldırganın misafirle aynı
+  ağda olması gerekir, etkisi yalnız bekletme (veri sızmaz). Yapalım mı?
 - **K-4:** Misafire giden otomatik "Daireniz hazır": bugün HER açık bakım görevinde bekliyor. Eski konaklamadan kalan / tarihsiz / düşük
   öncelikli bakımda da beklesin mi (bugünkü, güvenli), yoksa "Girişler"deki ayrımla aynı mı olsun? Örnek: 3 Eki'den kalan "dolap kulpu"
   (düşük öncelik) açıkken bugün temizlik 12:40'ta bitti → bugün: misafire otomatik "Daireniz hazır" GİTMEZ, ev sahibi elle yazar; ayrımla:
   GİDER. Önerim: bugünkü kalsın (güvenli taraf), ev sahibi listede gördüğü eski görevi kapatsın.
+
+## 10. Uygulama durumu (11-06 gece — tasarımla FARKLAR dürüst kayıt)
+Migration'sız dilim yazıldı; hepsi `STAFF_NOTIFY_ENABLED` dışında anahtarsız (yalnız ev sahibi / personel ekranı; misafire giden metin
+DEĞİŞMEDİ). Commit'ler: `da4a7ea3` (Yapamıyorum) · `d32e15f1` (dairenin temizlikçisi) · `28502186` (geç çıkış satırı) · `d3923e31`
+(Girişler: bakım ayrımı, otomatik giriş mesajı, sade görünüm) · `2c2b8b55` + `8e5abc83` + `0197456b` (Haiku incelemesi düzeltmeleri) ·
+`b5dfc0dd` (QR doğrulanmış cihaz kovası).
+
+| Tasarım | Yazılan | Fark / neden |
+|---|---|---|
+| §2.1 kişi kullanım anında doğrulanır (aynı işletme, rol, hesap etkin) | Aynı işletme şartı (kural okunurken ve kayıtta) | "Hesap etkin" ekipten çıkarma (`deactivatedAt`, migration'lı dilim) gelince eklenir; rol şartı yok (sahip de temizlikçi olabilir) |
+| §2.1 "Evet" yalnız başlanmamış sistem görevlerini taşır | Projenin TEK "dokunulmamış" tanımı (`UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE` + kilit altında kontrol listesi): kişinin notu / fotoğrafı / işaretli maddesi olan iş taşınmaz; sistem notu engellemez | Haiku 11-06: ilk sürüm yalnız durum kaydına bakıyordu |
+| §2.2 zaman çizelgesine "Sistem atadı" kaydı | YOK | Kart son notu gösterir — her kartta aynı cümle olurdu. Kaynak izlenebilir: mülkün "Temizlik" kartı + denetim kaydı (`property.default_cleaner_set`) |
+| §2.3 tek giriş `notifyStaff`, WhatsApp, gün özeti | Yalnız e-posta: otomatik atama (`notifyTaskAssigned`, görev başına 3/saat + KİŞİ başına 10/saat) ve "yapılamıyor" (`notifyTaskBlocked`, sahip / yöneticilere, görev başına 3/saat) — anahtar KAPALI | WhatsApp şablonu Meta onayı + personel bağlama rotası ister (K-3); gün özeti yerine kişi tavanı (toplu takvimde kutu dolmasın); görevler yine atanır |
+| §2.4 kart satırı "temizliğe 14:00'ten sonra başlayın" | "Misafir çıkışı 14:00 · geç çıkış onaylı" | Talimat cümlesi değil olgu; saat hazırlık hükmüyle aynı kuraldan |
+| §2.5 Yapamıyorum | Yazıldı + kurallar: YALNIZ atanan kişi (yönetici başkasının işine diyemez; atamayla aynı istekte gelmez; karar kilitli satırdan) · görev o durumda AÇILAMAZ · ikinci basış ikinci e-posta göndermez · konaklama bitince bağlı söz kapanır, görev kalır · personel kartında "Ev sahibine bildirildi. Yine de yaparsanız durumu 'Devam ediyor' yapın." | — |
+| §2.6 onayda temizlikçiye `checkout_changed` bildirimi | YOK | Bildirim katmanı WhatsApp'la birlikte; kart satırı onaydan sonra kendiliğinden güncel |
+| §4 görevden alma | Doğrulandı + liste testi | — |
+| §5 bakım ayrımı | Yazıldı (Girişler; misafire giden karar değişmedi — K-4) | — |
+| §7 QR cihaz hakkı | Yazıldı | Kalan risk K-5 |
+
+İptal onarımı bilinçli DEĞİŞMEDİ: "Yapılamıyor" görevin kişi kaydı var → onarım zaten korur (kurucu D5); iptal anındaki temizlik bitmemiş
+her sistem görevini siler ("devam ediyor" gibi). Kırmızı-önce: gece dilimindeki her davranış testi eski kodda kırmızıydı; mutasyon sonucu
+→ `docs/INCELEME-2026-11-05-codex-43fb93e-bulgulari.md` §11.
+

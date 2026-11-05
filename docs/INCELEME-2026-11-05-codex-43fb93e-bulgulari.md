@@ -199,3 +199,35 @@ dayanak partisi B1–B19 **19/19** (`0dec1719`: çekirdeğin dört kimlik kümes
 şartı, satırın kendi notu, tekilleştirme, vade / ad / yazan etiketleri, Görevler bağlantısı, yazma servisinin önek ayrımı, genel cümle dalı).
 Haiku incelemesi sonrası (etiket kalıbı, "(gecikti)", eksik dayanak) C1–C3 **3/3** (`f651fa41`). Bu turun toplamı: 49 + 16 + 19 + 3 =
 **87 mutant, 87'si öldürüldü**.
+
+## 11. Opus ikinci inceleme (9242634b..6951b0da — N1–N6) + kurucu / Codex gece işleri
+
+İkinci Opus incelemesi F1–F12 düzeltmelerini sınadı; altı bulgu bugünkü kodda doğrulandı ve düzeltildi (15 test eski kodda kırmızı, yenide
+yeşil; mutasyon P1–P19 **19/19**). Misafire giden metin DEĞİŞMEDİ.
+
+| # | Bulgu | Ne yapıldı | Commit |
+|---|---|---|---|
+| N1 · P2 | F5'in "ıska" kovası ters tepti: aynı IP'den dakikada 60 geçersiz anahtar o IP'deki BÜTÜN geçerli sohbetleri 429'a düşürüyordu (bina ağı / operatör NAT'ı) ve iş azalmıyor, %25 artıyordu | Kova kaldırıldı; 404 yolunu kaba IP tavanı sınırlar; geçersiz anahtar sayaç satırı açmaz (F5'in amacı korunur) | `381324dd` |
+| N2 · P3 | Girişler: yalnız-tarih vadeli görevde uydurulmuş saat ve yanlış "(gecikti)" (tek tarih kuralı atlanıyordu) | Çapada yalnız gün ("bugün" / "6 Kas"), gecikme gün bazında | `c6dbcdff` |
+| N3 · P3 | Öneriden doldurulan cevapta öneri değişince eski istek kimliği kalıyordu | Öneri değişince kimlik sıfırlanır | `6e92a12f` |
+| N4 · P3 | Bellek yedeğinde farklı pencereli anahtarlar aynı taşma yuvasını paylaşıyordu; penceresiz bakış yanlış yuvaya bakabiliyordu | Pencere sınıfı başına yuva (en çok 64 sınıf), karma sonlandırıcı, çağıranlar pencereyi verir | `dd92cf7b` · `58f75111` · `7fd2a278` |
+| N5 · P2 | Elle cevap: sağlayıcı kabul ettikten SONRA kayıt yazılamazsa 500 → kullanıcı yeniden gönderir, misafire İKİ mesaj; talep uzatma hatası yutuluyordu | Teslim olduysa "gönderildi" döner, kayıt hatası raporlanır; uzatma iki kez denenir, olmazsa raporlanır | `43633531` |
+| N6 · P3 | Girişler: aynı göreve bağlı iki söz iki kez yazılıyordu; başka gündeki önceki çıkış yalnız saatle yazılıyordu | Görev kimliğiyle tekilleştirme; "3 Kas 11:00" | `c6dbcdff` |
+
+**Codex görsel / teknik listesi (kurucunun ilettiği):** sonuçlar tasarım belgesinde —
+`docs/TASARIM-2026-11-06-dogrudan-gorevlendirme-ve-whatsapp.md` §6 (görsel yorumlar), §7 (teknik doğrulama), §10 (yazılan / fark). Kısaca:
+temizlik kanıtı kodu doğruydu, dört eksik test eklendi · "İletildi" + çift tik → "Gönderildi" + tek tik (sağlayıcı kabulü teslim değil;
+`fd69b9c1`) · görevden alma sunucuda (durum, fotoğraf, liste pinli) · QR'da doğrulanmış cihazın kendi kovası (`b5dfc0dd`; kalan risk K-5) ·
+yedek sayaç sınırlı (N4).
+
+**Kurucunun gece akışı (kabul adımı yok; anahtarsız ekranlar, bildirim anahtarı KAPALI):** dairenin temizlikçisi bir kez seçilir, sonraki
+temizlikler doğrudan ona atanır (`d32e15f1`) · "Yapamıyorum" (`da4a7ea3`) · geç çıkış → kartta "Misafir çıkışı 14:00 · geç çıkış onaylı"
+(`28502186`) · Girişler: eski konaklamadan kalan bakım bütün girişleri kırmızı yapmaz, açıklamalı "bu girişi etkiliyor mu?" sorusu; erişim
+satırı gönderilecek otomatik giriş mesajına bakar; sade görünüm (`d3923e31`) · Haiku incelemesi düzeltmeleri (`2c2b8b55`: Yapamıyorum yalnız
+atanan kişi, görev o durumda açılamaz, taşıma "dokunulmamış" tanımıyla, kişi başına e-posta tavanı, konaklama bitince söz kapanır).
+
+**Mutasyon (commit edilmiş SHA, M0 yeşil):** gece partisi Q1–Q28 ilk koşuda **24/28** (`0197456b`) — yaşayan dördü eksik pindi, pinlendi
+(`cc71b46e`): Q11 "Evet" taşımasında kilit sonrası yeniden doğrulama (yarış; test kancası) · Q21 rezervasyonsuz tarihli bakım = engel · Q26
+Girişler'de bilinmeyen satır hep görünür · Q28 personelin "Yapılamıyor" kartı. İkinci koşu Q11 · Q21 · Q26 · Q28 + Q29 (personel listesi
+kapsamı) + Q30 (kancanın gerçekten tetiklendiği) **6/6**. Gece toplamı **30 mutant, 30'u öldürüldü**.
+
