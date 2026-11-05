@@ -179,6 +179,17 @@ describe("GuestChat — yavaş bağlantıda tek uçuşlu sorgu", () => {
     expect(stats.maxInflight).toBe(1);
   });
 
+  it("uçuştayken gelen görünürlük olayı sonraki turu ÖNE ÇEKMEZ: sonraki sorgu, uçuştaki bittikten tam 5 sn sonra", async () => {
+    const { stats } = slowServer(6_000, () => ({ open: true, messages: [] }));
+    render(<GuestChat token="tok-vis-timing" />);
+    await advance(500, 250); // t = 0,5 sn — 1. sorgu uçuşta (6 sn sürer)
+    await act(async () => void document.dispatchEvent(new Event("visibilitychange")));
+    await advance(10_250, 250); // t = 10,75 sn
+    expect(stats.gets).toBe(1); // 2. sorgu 6 + 5 = 11. sn'de başlar, öne çekilmez
+    await advance(750, 250); // t = 11,5 sn
+    expect(stats.gets).toBe(2);
+  });
+
   it("bekleme hesabı: uyarı eşiğine kadar 5 sn, sonra ikiye katlanarak 60 sn tavanı", () => {
     expect([0, 1, 2, 3, 4, 5, 6, 9].map(guestChatPollDelay)).toEqual([5_000, 5_000, 5_000, 10_000, 20_000, 40_000, 60_000, 60_000]);
   });
