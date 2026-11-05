@@ -198,12 +198,8 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
     return { ok: true, retryAfter: 0 };
   }
 
-  // Yeni pencere (anahtar yok ya da süresi doldu): önce sınırlı temizlik; tavan doluysa bir-iki adım daha (yine sınırlı).
+  // Yeni pencere (anahtar yok ya da süresi doldu): önce sınırlı temizlik (çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret).
   sweepStep(now);
-  if (!bucket && buckets.size >= MEMORY_MAX_KEYS) {
-    sweepStep(now);
-    sweepStep(now);
-  }
   if (bucket || buckets.size < MEMORY_MAX_KEYS) {
     // Haritada değilken taşma yuvasında sayılmış isabetler yeni kayda TAŞINIR (sıfırlanma yok; çakışma payı yalnız sıkılaştırır).
     const carried = bucket ? null : activeOverflowFor(key, now);

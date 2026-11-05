@@ -143,10 +143,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     const req = await claimOutboundRequest(id, input.idempotencyKey, "direct");
     if (req.result !== "claimed") {
       await releaseOutboundSend(id, input.claimBody);
-      if (req.result === "unavailable") return { status: "claim_unavailable" };
-      // Kuyruk yolu aldı (eşzamanlı deneme, anahtar iki kopyada farklı): satır yazıldıysa onun cevabı, yazılmadıysa "hâlâ gönderiliyor".
-      if (req.by === "queue" && !isInternal) return (await queuedRequestResult(input)) ?? { status: "duplicate" };
-      return { status: "duplicate" };
+      // Başka bir deneme (doğrudan ya da eşzamanlı kuyruk denemesi) bu kimliği tutuyor → "az önce gönderildi / hâlâ gönderiliyor".
+      return req.result === "unavailable" ? { status: "claim_unavailable" } : { status: "duplicate" };
     }
   }
   const outcome = await sendOnChannel(conversation, input.body, token ?? undefined);

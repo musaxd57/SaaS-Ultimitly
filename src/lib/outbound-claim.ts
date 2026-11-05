@@ -100,25 +100,16 @@ export async function claimOutboundRequest(
   const name = requestClaimName(conversationId, idempotencyKey);
   // Fırsatçı süpürme (↑ ile aynı): süresi dolan talep artık hiçbir şeyi tekilleştirmez.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: REQUEST_PREFIX }, lockedUntil: { lt: new Date() } } }).catch(() => {});
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS), holder: path } });
-      return { result: "claimed" };
-    } catch (err) {
-      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };
-    }
-    const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true, lockedUntil: true } }).catch(() => undefined);
-    if (row === undefined) return { result: "unavailable" };
-    // Arada bırakıldı (kesin başarısızlık) → bir kez daha dene.
-    if (row === null) continue;
-    if (row.lockedUntil <= new Date()) {
-      await prisma.systemLock.deleteMany({ where: { name, lockedUntil: { lte: new Date() } } }).catch(() => {});
-      continue;
-    }
-    return { result: "held", by: row.holder === "direct" || row.holder === "queue" ? row.holder : null };
+  try {
+    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS), holder: path } });
+    return { result: "claimed" };
+  } catch (err) {
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };
   }
-  // İki deneme de yarışta kaldı: güvenli taraf — tutuluyor say.
-  return { result: "held", by: null };
+  // Tutuluyor: sahibini oku. Arada bırakıldıysa (kesin başarısızlık) sahip bilinmez → güvenli taraf "tutuluyor" (sonraki deneme alır).
+  const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true } }).catch(() => undefined);
+  if (row === undefined) return { result: "unavailable" };
+  return { result: "held", by: row?.holder === "direct" || row?.holder === "queue" ? row.holder : null };
 }
 
 /** Kesin başarısız gönderimden / kuyruğa yazılamamadan sonra: aynı istek kimliği hemen yeniden denenebilsin. */

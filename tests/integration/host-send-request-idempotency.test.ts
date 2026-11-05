@@ -97,6 +97,18 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
   });
 
+  it("🚨 kuyruk satırı istek talebinden UZUN yaşar: talep süresi dolmuş olsa da (24 sa sonra) aynı kimlik doğrudan GİTMEZ", async () => {
+    outboxOn();
+    expect((await send("Kapı şifresi 4512")).status).toBe(202);
+    // 24 saat geçti: istek talebi süpürüldü, kuyruk satırı (kalıcı kayıt) duruyor.
+    await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } });
+    outboxOff();
+    const retry = await send("Kapı şifresi 4512");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(retry.status).toBe(200);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
   it("aynı kimlik + FARKLI gövde, anahtar kapatıldıktan sonra da çakışmadır (409) — gönderim yok", async () => {
     outboxOn();
     expect((await send("İlk metin")).status).toBe(202);
