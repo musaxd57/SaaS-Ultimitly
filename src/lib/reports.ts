@@ -10,6 +10,7 @@ import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core
 import { isAutomationMessage } from "@/lib/message-author";
 import { findInChunks } from "@/lib/in-chunks";
 import { reservationMessagingCapable } from "@/lib/channels/capability";
+import { NON_TOPIC_INTENT_MARKERS } from "@/lib/ai-intent-markers";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -504,7 +505,8 @@ export async function getTopTopics(orgId: string, limit = 5): Promise<TopicCount
     by: ["aiIntent"],
     where: {
       conversation: { property: { organizationId: orgId } },
-      aiIntent: { not: null },
+      // Kod işaretleri (kapanış nezaket cevabı) KONU değildir — süzgeç `take`TAN ÖNCE (sonradan süzmek listeyi kısaltırdı).
+      aiIntent: { not: null, notIn: [...NON_TOPIC_INTENT_MARKERS] },
       createdAt: { gte: since },
     },
     _count: { aiIntent: true },

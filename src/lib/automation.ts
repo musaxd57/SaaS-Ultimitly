@@ -236,6 +236,7 @@ import {
   reservationCreatedEmail,
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
+import { CLOSING_COURTESY_INTENT } from "@/lib/ai-intent-markers";
 import { oldestFirst } from "@/lib/due-order";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE, checklistTouched } from "@/lib/tasks/cancelled-leftovers";
@@ -1016,7 +1017,7 @@ async function persistRiskVisibility(
 // twice in a row: if OUR latest outbound was itself this courtesy, the guest is
 // thanking the thank-you and the thread is left alone (no pleasantry ping-pong).
 // ---------------------------------------------------------------------------
-const CLOSING_COURTESY_INTENT = "closing_courtesy"; // Message.aiIntent marker = the loop guard
+// Message.aiIntent marker = the loop guard (tek kaynak `ai-intent-markers.ts`; raporlar bunu konu saymaz).
 export type CourtesyKind = "ack" | "praise";
 // SHORT on purpose: a closing gets a closing, not a paragraph. The host can
 // replace these entirely with their own line (Organization.closingReplyText).
