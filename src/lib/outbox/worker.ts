@@ -10,6 +10,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { loadErasureGuard } from "@/lib/erasure";
+import { notAutomationMessageWhere } from "@/lib/message-author";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
 import { errorWithContext, reportError } from "@/lib/report-error";
 import { newCorrelationId, runAsNewSystemOperation, runWithCorrelation } from "@/lib/correlation";
@@ -542,8 +543,20 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
   }
   // A newer message (a host's manual reply, or a newer guest message) means this AI reply
   // is no longer the current turn — the thread moved on, so the stale draft must not go.
+  // 🚨 Tur 7 T7-OB-1 (kurucu onayı 11-05, adım 1): yalnız misafir mesajı ya da konuşmayı CEVAPLAYAN giden mesaj sayılır — ürünün "cevap mı"
+  // kuralı (`notAutomationMessageWhere`, K7). Bizim otomatik karşılama / giriş / çıkış mesajımız (ve anahtar açıkken kanalın otomatik
+  // mesajı) ile sistem olayı cevap DEĞİLDİR: teslimi bir geçiş gecikince arada gelen giriş mesajı soruyu cevapsız bırakıyordu (satır
+  // "superseded", ertesi geçişte tekilleştirme yeniden denemeyi engelliyordu). Aşağıdaki tetik çapalı kontrollerle aynı kural.
   const newer = await prisma.message.count({
-    where: { conversationId: row.conversationId as string, id: { not: row.messageId as string }, createdAt: { gt: msg.createdAt } },
+    where: {
+      conversationId: row.conversationId as string,
+      id: { not: row.messageId as string },
+      createdAt: { gt: msg.createdAt },
+      OR: [
+        { direction: "inbound" },
+        { direction: "outbound", AND: [notAutomationMessageWhere(), { OR: [{ authorType: null }, { authorType: { not: "system" } }] }] },
+      ],
+    },
   });
   if (newer > 0) return SUPERSEDED_BY_NEWER_MESSAGE;
   // 🚨 MODEL DÜŞÜNÜRKEN GELEN MİSAFİR MESAJI (Codex 09-30, C2). Yukarıdaki kıyas cevabın KENDİ kayıt anına göre: misafirin
