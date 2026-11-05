@@ -168,6 +168,13 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
+**🔔 Kurucu 11-05 gece (AYRI TUR — "en en iyi şekilde"): takvim serisini (RRULE) açma.** Bugün (doğrulandı): tekrarlar açılmaz, içe alınan
+tek kayıt serinin ilk örneğidir; ilk örneğin iptali onu iptal eder (CAL-2 11-05), sonraki örnekler (ör. 17 Kasım) içe alınmaz; kaynak "kısmi
+okuma" — takvim kartında sarı uyarı + "tekrarlayan etkinlikler okunamıyor", müsaitlik o geceler için "bilinmiyor" (başarılı okuma gibi
+davranılmaz). Ayrı turun şartları (kurucu + Codex): belirli bir tarih aralığında tekrarlar hesaplanır; bir örneğin iptali / taşınması
+diğerlerini bozmaz; serinin iptali bütün örnekleri kaldırır; 🚨 TEKRARLANAN DOLULUK OTOMATİK "YENİ MİSAFİR REZERVASYONU" SAYILMAZ (haftalık
+bakım kaydı her hafta karşılama mesajı / temizlik görevi üretmez). Mevcut düzeltmenin içine sıkıştırılmaz.
+
 **🔔 Kurucu 10-29 gece (unutma):** "ilerde WhatsApp'tan en önemlilerini bağlamak istiyorum" — ev sahibine giden EN ÖNEMLİ bildirimler (acil / kilitli
 kaldım / kayıp anahtar / Sorunlu konuşma) ileride WhatsApp'tan da gitsin. Bugün yalnız e-posta + panel. Kapsam ve hangi bildirimlerin "en önemli" olduğu
 kurucuyla belirlenecek; bildirim tablosu `docs/INCELEME-2026-10-28-gece-dongusu.md` (10-29 gece bölümü). Yeni sistem → önce soru, sonra tasarım.
