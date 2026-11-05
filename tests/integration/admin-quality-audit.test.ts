@@ -107,6 +107,7 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     vi.clearAllMocks();
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    vi.stubEnv("QUALITY_AUDIT_ENABLED", "1");
     // Gerçekçi denetçi: bulguyu ÖRNEKLEMDEKİ bir mesaja yazar (F15, 09-26: örneklemde olmayan mesaja ait bulgu listeye
     // girmez — eskiden sahte rapor "x" kimliğiyle geçiyordu).
     createMock.mockImplementation(async (params: { messages: { content: string }[] }) => {
@@ -128,6 +129,17 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     session = { userId: "u", organizationId: org.id, role: "owner", email: "musteri@example.com", name: "M", sessionEpoch: 0 };
     const res = await POST(req({ organizationId: org.id }));
     expect(res.status).toBe(401);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Codex 11-05: API anahtarı TANIMLI ama ayrı anahtar kapalı → 400, Claude'a HİÇBİR misafir mesajı gitmez (gizlilik metniyle tutarlı)", async () => {
+    vi.stubEnv("QUALITY_AUDIT_ENABLED", "");
+    const org = await seedCustomerOrg();
+    session = await makeOperatorSession();
+    const res = await POST(req({ organizationId: org.id }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.fields.flag).toContain("QUALITY_AUDIT_ENABLED");
     expect(createMock).not.toHaveBeenCalled();
   });
 

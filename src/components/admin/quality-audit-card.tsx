@@ -107,8 +107,9 @@ export function QualityAuditCard({
 
       {!configured ? (
         <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          Pasif: Railway&apos;e <code className="font-mono text-xs">ANTHROPIC_API_KEY</code>{" "}
-          eklendiğinde bu kart aktifleşir. (İsteğe bağlı{" "}
+          Pasif: Railway&apos;e <code className="font-mono text-xs">QUALITY_AUDIT_ENABLED=1</code> ve{" "}
+          <code className="font-mono text-xs">ANTHROPIC_API_KEY</code> eklendiğinde bu kart aktifleşir. Gizlilik metni
+          Anthropic&apos;e misafir mesajı iletilmediğini söylüyor — açmadan önce metin güncellenmeli. (İsteğe bağlı{" "}
           <code className="font-mono text-xs">QUALITY_AUDIT_MODEL</code> ile model seçilebilir;
           varsayılan claude-opus-4-8.)
         </p>

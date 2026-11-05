@@ -105,6 +105,7 @@ söylemek platform dışı ödeme değildir" satırı. Okuyucu satırı gerçek 
 | `OPENAI_TRANSLATE_MODEL` / `OPENAI_TRANSLATE_REASONING_EFFORT` | `gpt-6-luna` / `medium` |
 | `OPENAI_STYLE_MODEL` / `OPENAI_STYLE_REASONING_EFFORT` | `gpt-6-luna` / `none` |
 | `AI_DECISION_TEXT_MODEL` | **`claude-haiku-5-5`** (kurucu 11-04 "Haikuya geçelim karar metni yazıcısında"; ölçüm istek 9: 5.1 ile eşit, 10× ucuz — `docs/olcum/HAIKU-5.5-RAKIP-KIYASI-2026-11-04.md` §6). 🚨 **`ANTHROPIC_API_KEY` ŞART** (yoksa yazıcı onaylı şablona düşer, bekçi yine OpenAI). `AI_DECISION_TEXT_REASONING_EFFORT` BOŞ (ölçülen `low`). Gizlilik sayfasına Anthropic alt işleyen olarak eklendi (LEGAL_VERSION 2026-11). |
+| `QUALITY_AUDIT_ENABLED` | **KAPALI kalır** (Codex 11-05, 43fb93e incelemesi). Operatör kalite denetçisi maskelenmiş misafir mesajlarını Anthropic'e gönderir; gizlilik metni Anthropic'e misafir mesajı iletilmediğini söylüyor. Eskiden yalnız `ANTHROPIC_API_KEY`e bakıyordu — karar yazıcısı için anahtar eklenince kendiliğinden açılırdı. Açmadan önce gizlilik metni (avukat paketi) güncellenir + kurucu kararı. |
 | `AI_SEMANTIC_MODEL` (anlama + sıralayıcı ortak) | `gpt-5.1` — `AI_UNDERSTANDING_MODEL` ve `KB_RERANK_MODEL` BOŞ |
 | `AI_HISTORY_LEARN_MODEL` / `…_REASONING_EFFORT` (Geçmişten öğren, yeni) | boş bırakılabilir (kod varsayılanı `gpt-6-luna` / `low`) |
 

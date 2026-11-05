@@ -16,7 +16,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { crossSiteWrite } from "@/lib/route-guard";
 import { writeAudit } from "@/lib/audit";
-import { QualityAuditError, qualityAuditConfigured, runQualityAudit } from "@/lib/quality-audit";
+import { QualityAuditError, qualityAuditConfigured, qualityAuditEnabled, runQualityAudit } from "@/lib/quality-audit";
 
 // ---------------------------------------------------------------------------
 // Operatör paneli: Claude kalite ÜST-DENETÇİSİNİ isteğe bağlı çalıştır.
@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
+    if (!qualityAuditEnabled()) {
+      return badRequest({
+        flag: "Kalite denetimi kapalı (QUALITY_AUDIT_ENABLED). Gizlilik metni Anthropic'e misafir mesajı iletilmediğini söylüyor; metin güncellenmeden açılmaz.",
+      });
+    }
     if (!qualityAuditConfigured()) {
       return badRequest({
         apiKey: "ANTHROPIC_API_KEY tanımlı değil — Claude denetçisi yapılandırılmamış.",

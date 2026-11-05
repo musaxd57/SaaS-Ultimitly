@@ -32,9 +32,19 @@ export function qualityAuditModel(): string {
   return process.env.QUALITY_AUDIT_MODEL?.trim() || QUALITY_AUDIT_DEFAULT_MODEL;
 }
 
-/** Özellik anahtarı: API anahtarı tanımlıysa denetçi kullanılabilir. */
+/**
+ * 🚨 AYRI ANAHTAR (Codex 11-05, 43fb93e incelemesi): gizlilik metni Anthropic'e "misafir mesajı iletilmez" diyor (karar yazıcısı için
+ * eklendi); bu denetçi ise (adı / e-postayı / telefonu maskelenmiş) misafir mesajlarını Claude'a gönderir. Eskiden yalnız API anahtarına
+ * bakıyordu → karar yazıcısı için `ANTHROPIC_API_KEY` tanımlanınca denetim KENDİLİĞİNDEN açılıyor, metinle çelişiyordu. Artık yalnız
+ * `QUALITY_AUDIT_ENABLED=1` ile (varsayılan KAPALI); açmadan önce gizlilik metni (avukat paketi) güncellenir.
+ */
+export function qualityAuditEnabled(): boolean {
+  return process.env.QUALITY_AUDIT_ENABLED === "1";
+}
+
+/** Denetçi kullanılabilir mi: ayrı anahtar AÇIK + API anahtarı tanımlı. */
 export function qualityAuditConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  return qualityAuditEnabled() && Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 }
 
 export class QualityAuditError extends Error {
@@ -616,6 +626,8 @@ export async function runQualityAudit(
   organizationId: string,
   opts: { days?: number; limit?: number } = {},
 ): Promise<QualityAuditResult> {
+  // Doğrudan çağrıda da kapalı kalır (rota dışı bir çağıran anahtarı atlayamasın).
+  if (!qualityAuditEnabled()) throw new QualityAuditError("not_configured", "QUALITY_AUDIT_ENABLED kapalı.");
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) throw new QualityAuditError("not_configured", "ANTHROPIC_API_KEY tanımlı değil.");
 
