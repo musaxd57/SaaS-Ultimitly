@@ -149,6 +149,22 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(JSON.stringify(rows)).not.toContain("sistem notu");
   });
 
+  it("iki dairede ayrı not: her satır KENDİ devrinin notunu (yazan + saat) gösterir", async () => {
+    const { prev } = await sameDayTurnover();
+    const t1 = await cleaningTask(prev.id);
+    await prisma.taskUpdate.create({ data: { taskId: t1.id, userId: staffId, note: "a", createdAt: localToday(11, 30) } });
+    const p2 = (await prisma.property.create({ data: { organizationId: orgId, name: "Lale 7", checkInTime: "15:00", checkOutTime: "11:00" } })).id;
+    const prev2 = await reservation(addNights(TODAY, -2), TODAY, "Önceki 2", p2);
+    await reservation(TODAY, addNights(TODAY, 3), "Yeni 2", p2);
+    const mehmet = await prisma.user.create({ data: { organizationId: orgId, name: "Mehmet", email: "mehmet2@example.test", passwordHash: "x", role: "staff" } });
+    const t2 = await prisma.task.create({ data: { propertyId: p2, reservationId: prev2.id, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "todo", dueAt: dayDate(TODAY) } });
+    await prisma.taskUpdate.create({ data: { taskId: t2.id, userId: mehmet.id, note: "b", createdAt: localToday(11, 45) } });
+    const rows = await rowOf(localToday(14));
+    const noteOf = new Map(rows.map((r) => [r.guestName, factor(r, "cleaning_note")!.label]));
+    expect(noteOf.get("Yeni Misafir")).toBe("Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun");
+    expect(noteOf.get("Yeni 2")).toBe("Temizlik görevine not yazıldı · Mehmet · 11:45 — görevde okuyun");
+  });
+
   it("🚨 dayanak (Opus F7): ESKİ bir konaklamaya bağlı açık bakım görevi adıyla + atananıyla görünür, satır HAZIR DEĞİL", async () => {
     await sameDayTurnover();
     const old = await reservation(addNights(TODAY, -30), addNights(TODAY, -27), "Eski Misafir");
