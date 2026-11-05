@@ -39,7 +39,7 @@ export default async function ArrivalsPage() {
     <>
       <PageHeader
         title="Girişler"
-        description="Bugün ve sonraki iki gün girecek misafirlerin daireleri hazır mı. Temizlik yalnız çıkıştan sonra atılmış “bitti” kaydıyla hazır sayılır; görevin birine atanmış olması yetmez. Bilinmeyen durum hazır gösterilmez."
+        description="Bugün ve sonraki iki gün. Temizlik yalnız çıkıştan sonraki “bitti” kaydıyla hazır sayılır; bilinmeyen hazır gösterilmez."
       />
       <ArrivalsList rows={rows} truncated={data.truncated} />
     </>

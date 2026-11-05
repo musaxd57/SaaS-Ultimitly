@@ -35,6 +35,31 @@ const DOT: Record<Factor["state"], string> = {
   info: "bg-sky-500",
 };
 
+function FactorLine({ f }: { f: Factor }) {
+  return (
+    <li className="flex gap-2 text-sm" data-state={f.state}>
+      <span aria-hidden className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", DOT[f.state])} />
+      <span className="min-w-0">
+        <span className="text-foreground">{f.label}</span>
+        {f.missing && (f.state === "blocking" || f.state === "unknown") ? <span className="text-muted-foreground"> — eksik: {f.missing}</span> : null}
+      </span>
+    </li>
+  );
+}
+
+/** Hep görünenler: engeller + bilinmeyenler; hiçbiri yoksa temizlik satırı (durum ve kim). Sıra korunur. */
+function primaryOf(factors: Factor[]): { f: Factor; i: number }[] {
+  const indexed = factors.map((f, i) => ({ f, i }));
+  const urgent = indexed.filter(({ f }) => f.state === "blocking" || f.state === "unknown");
+  return urgent.length > 0 ? urgent : indexed.filter(({ f }) => f.key === "cleaning");
+}
+
+/** Açılır "Ayrıntılar": geri kalan (bilgi / tamam) satırlar. */
+function restOf(factors: Factor[]): { f: Factor; i: number }[] {
+  const shown = new Set(primaryOf(factors).map(({ i }) => i));
+  return factors.map((f, i) => ({ f, i })).filter(({ i }) => !shown.has(i));
+}
+
 export function ArrivalsList({ rows, truncated }: { rows: ArrivalsListRow[]; truncated: number }) {
   if (rows.length === 0) {
     return (
@@ -67,19 +92,24 @@ export function ArrivalsList({ rows, truncated }: { rows: ArrivalsListRow[]; tru
                   </div>
                   <Badge tone={OVERALL_TONE[r.overall]}>{OVERALL_LABEL[r.overall]}</Badge>
                 </div>
+                {/* Codex 11-05 (görsel inceleme): önce ne eksik — engeller ve bilinmeyenler hep görünür; bilgi satırları açılır "Ayrıntılar"da. */}
                 <ul className="space-y-1.5">
-                  {r.factors.map((f, i) => (
-                    <li key={`${f.key}-${i}`} className="flex gap-2 text-sm" data-state={f.state}>
-                      <span aria-hidden className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", DOT[f.state])} />
-                      <span className="min-w-0">
-                        <span className="text-foreground">{f.label}</span>
-                        {f.missing && (f.state === "blocking" || f.state === "unknown") ? (
-                          <span className="text-muted-foreground"> — eksik: {f.missing}</span>
-                        ) : null}
-                      </span>
-                    </li>
+                  {primaryOf(r.factors).map(({ f, i }) => (
+                    <FactorLine key={`${f.key}-${i}`} f={f} />
                   ))}
                 </ul>
+                {restOf(r.factors).length > 0 ? (
+                  <details className="group">
+                    <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground hover:text-foreground">
+                      Ayrıntılar ({restOf(r.factors).length})
+                    </summary>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {restOf(r.factors).map(({ f, i }) => (
+                        <FactorLine key={`${f.key}-${i}`} f={f} />
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
                 <div className="flex flex-wrap gap-3 text-sm">
                   {r.conversationId ? (
                     <Link href={`/inbox/${r.conversationId}`} className="text-primary hover:underline">

@@ -19,7 +19,7 @@ export type Overall = "not_ready" | "unknown" | "cleaning_ready";
 
 /** Bir faktörün dayandığı kayıt (tür + kimlik + zaman). */
 export interface Basis {
-  kind: "task_done" | "task_update" | "task" | "reservation" | "commitment" | "conversation_item" | "kb_item";
+  kind: "task_done" | "task_update" | "task" | "reservation" | "commitment" | "conversation_item" | "kb_item" | "auto_message";
   id: string | null;
   at: Date | null;
 }
@@ -75,7 +75,23 @@ export interface StayReadinessInput {
   /** Mülkte bağsız / gecikmiş açık bakım (çekirdeğin `maintenanceOpen`ı). */
   maintenanceOpen: boolean;
   /** `openIssue` / `maintenanceOpen` hükmünün dayandığı görevler (yalnız GÖSTERİM — kurucu: "her durumun dayanağı"; Opus 11-05 F7). */
-  issueTasks?: { id: string; title: string; kindLabel: string; assignee: string | null; dueAt: Date | null }[];
+  issueTasks?: {
+    id: string;
+    title: string;
+    kindLabel: string;
+    assignee: string | null;
+    dueAt: Date | null;
+    /**
+     * Görevin bu girişle ilişkisi (kurucu / Codex 11-05 gece: eski konaklamadan kalan bakım bütün girişleri kırmızı yapmasın; açıklamasız
+     * kesin hüküm yok): `turnover` = bu devre bağlı (önceki / gelen konaklama ya da devir günü) · `unlinked` = konaklamaya bağsız ·
+     * `other_stay` = BAŞKA (eski) bir konaklamaya bağlı. Yoksa (eski çağıran) `turnover` sayılır.
+     */
+    relation?: "turnover" | "unlinked" | "other_stay";
+    /** urgent | standard | low (görevin önceliği). */
+    priority?: string;
+    /** `other_stay` ise o konaklamanın günleri. */
+    stay?: { arrivalKey: string; departureKey: string } | null;
+  }[];
   /** Gösterilenden fazla açık bakım görevi var (sessiz kesme yok). */
   issueTasksMore?: boolean;
   /** Varış gecesini işgal eden başka konaklama sayısı (çekirdeğin `otherOverlaps`ı). */
@@ -86,8 +102,18 @@ export interface StayReadinessInput {
   commitments: { id: string; label: string; dueAt: Date; assignee: string | null; taskId?: string | null }[];
   /** Açık ihtiyaçlar (konuşma öğesi açık / ev sahibinde). */
   needs: { id: string; label: string; status: "open" | "pending_host"; at: Date }[];
-  /** Mülkte etkin "giriş talimatı" bilgi tabanı kalemi var mı (değeri OKUNMAZ). */
+  /** Mülkte etkin "giriş talimatı" bilgi tabanı kalemi var mı (değeri OKUNMAZ). `autoCheckin` verilmişse yalnız "bilgi tabanı daha yeni" notu için. */
   accessInstructions: { id: string; at: Date } | null;
+  /**
+   * Misafire GİDECEK otomatik giriş mesajının durumu (Codex 11-05: bilgi tabanında giriş kaydı olması gönderilecek mesajın hazır olduğunu
+   * kanıtlamaz — otomatik mesajlar `AutoMessageTemplate`te, bilgi tabanından AYRI). Yoksa (eski çağıran) bilgi tabanı satırı yazılır.
+   */
+  autoCheckin?:
+    | { state: "disabled" }
+    | { state: "missing" }
+    | { state: "skipped"; reason: string }
+    | { state: "review"; id: string; at: Date }
+    | { state: "ready"; id: string; at: Date };
   /** Giriş saati (mülk standardı ya da onaylı erken giriş), "HH:MM". */
   checkInTime: string | null;
 }
@@ -117,6 +143,20 @@ function dayKeyLabel(key: string): string {
   const at = new Date(`${key}T12:00:00Z`);
   if (Number.isNaN(at.getTime())) return key;
   return new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" }).format(at);
+}
+
+/**
+ * Bakım / kontrol görevinin bu girişe etkisi (kurucu / Codex 11-05 gece; tasarım docs/TASARIM-2026-11-06-… §5): acil → ENGEL · düşük
+ * öncelik → BİLGİ · bu devre bağlı ya da tarihli (varışa kadar vadeli) bağsız → ENGEL · eski konaklamaya bağlı ya da tarihsiz → BİLİNMİYOR
+ * ("bu girişi etkiliyor mu?"). Misafire giden otomatik "Daireniz hazır" kararı DEĞİŞMEDİ (her açık bakımda bekler — soru K-4).
+ */
+function issueStateOf(t: { relation?: "turnover" | "unlinked" | "other_stay"; priority?: string; dueAt: Date | null }): FactorState {
+  if (t.priority === "urgent") return "blocking";
+  if (t.priority === "low") return "info";
+  const relation = t.relation ?? "turnover";
+  if (relation === "turnover") return "blocking";
+  if (relation === "unlinked" && t.dueAt) return "blocking";
+  return "unknown";
 }
 
 /** Önceki çıkış: varışla aynı gün "11:00", başka gün "3 Kas 11:00"; saat yoksa yalnız gün (başka günse) ya da null (Opus 11-05 N6). */
@@ -197,6 +237,63 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
   return { key: "cleaning", state: "unknown", label: "Devir temizliği görevi yok", missing: "devir temizliği görevi", basis: [] };
 }
 
+const SKIP_REASON_TEXT: Record<string, string> = {
+  unfilled: "doldurulmamış alan var",
+  apartment_unresolved: "daire numarası çözülemedi",
+};
+
+/**
+ * Erişim satırı. Otomatik giriş mesajının durumu verildiyse ONA bakar (misafire gidecek olan odur — Codex 11-05); kapıya / kutuya
+ * yerleştiği v1'de doğrulanamaz (H-2) → hazır mesajda da "kontrol edilmedi". Mesajın DEĞERİ okunmaz / gösterilmez.
+ */
+function accessFactor(input: StayReadinessInput): Factor {
+  const a = input.autoCheckin;
+  const kbNewer = (at: Date) => (input.accessInstructions && input.accessInstructions.at.getTime() > at.getTime() ? " · bilgi tabanındaki giriş bilgisi daha yeni — kontrol edin" : "");
+  if (a?.state === "ready") {
+    return {
+      key: "access",
+      state: "info",
+      label: `Otomatik giriş mesajı hazır${kbNewer(a.at)} · kapıya / kutuya yerleştiği kontrol edilmedi`,
+      missing: "erişim kontrolü",
+      basis: [{ kind: "auto_message", id: a.id, at: a.at }],
+    };
+  }
+  if (a?.state === "skipped") {
+    return {
+      key: "access",
+      state: "blocking",
+      label: `Otomatik giriş mesajı gönderilemiyor: ${SKIP_REASON_TEXT[a.reason] ?? "metin doldurulamadı"}`,
+      missing: "giriş mesajının düzeltilmesi (Mülk → Otomatik mesajlar)",
+      basis: [],
+    };
+  }
+  if (a?.state === "review") {
+    return {
+      key: "access",
+      state: "unknown",
+      label: "Otomatik giriş mesajı kontrol bekliyor (iki farklı kaynaktan geldi)",
+      missing: "mesajı kontrol edip kaydetme",
+      basis: [{ kind: "auto_message", id: a.id, at: a.at }],
+    };
+  }
+  if (a?.state === "disabled") {
+    return { key: "access", state: "info", label: "Otomatik giriş mesajı kapalı · giriş bilgisini siz gönderin", missing: "erişim kontrolü", basis: [] };
+  }
+  if (a?.state === "missing") {
+    return { key: "access", state: "info", label: "Otomatik giriş mesajı yazılmamış · giriş bilgisini siz gönderin", missing: "giriş mesajı ve erişim kontrolü", basis: [] };
+  }
+  // Eski çağıran (otomatik mesaj durumu yok): bilgi tabanı satırı.
+  return input.accessInstructions
+    ? {
+        key: "access",
+        state: "info",
+        label: "Giriş talimatı bilgi tabanında var · kapıya / kutuya yerleştiği kontrol edilmedi",
+        missing: "erişim kontrolü",
+        basis: [{ kind: "kb_item", id: input.accessInstructions.id, at: input.accessInstructions.at }],
+      }
+    : { key: "access", state: "info", label: "Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi", missing: "giriş talimatı ve erişim kontrolü", basis: [] };
+}
+
 /** Saf: bir konaklamanın faktörleri + genel durumu. Sıra: engeller → bilinmeyenler → bilgi. */
 export function evaluateStay(input: StayReadinessInput): StayReadiness {
   const tz = input.timeZone;
@@ -236,17 +333,31 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       // Listenin kendi kalıbı ("Söz açık: …", "Temizlik açık · …"); tür adı Görevler sayfasındakiyle AYNEN (harf oynatılmaz).
       const who = t.assignee ? `atanan: ${t.assignee}` : "kimseye atanmadı";
       const due = t.dueAt ? ` · vade ${dueText(t.dueAt, input.now, tz)}` : "";
+      const state = issueStateOf(t);
+      if (state === "unknown") {
+        // Eski konaklamadan kalan / tarihsiz bakım: kesin hüküm YOK, açıklama var (kurucu / Codex 11-05 gece).
+        const where = t.relation === "other_stay" && t.stay ? ` · eski konaklamadan (${dayKeyLabel(t.stay.arrivalKey)} – ${dayKeyLabel(t.stay.departureKey)})` : t.dueAt ? due : " · tarihsiz";
+        factors.push({
+          key: "issue",
+          state: "unknown",
+          label: `${t.kindLabel} açık: ${t.title}${where} · ${who} — bu girişi etkiliyor mu?`,
+          missing: "görevin kapanması ya da bu güne tarihlenmesi",
+          basis: [{ kind: "task", id: t.id, at: t.dueAt }],
+        });
+        continue;
+      }
       factors.push({
         key: "issue",
-        state: "blocking",
-        label: `${t.kindLabel} açık: ${t.title} · ${who}${due}`,
-        missing: "görevin kapanması",
+        state,
+        label: `${t.kindLabel} açık${t.priority === "low" ? " (düşük öncelik)" : ""}: ${t.title} · ${who}${due}`,
+        missing: state === "blocking" ? "görevin kapanması" : null,
         basis: [{ kind: "task", id: t.id, at: t.dueAt }],
       });
     }
     // Ölçülü (muhafazakâr) yan: gösterilmeyen bakım görevi zaten bir sorun satırıysa bu cümle fazladan söylenmiş olur — eksik söylemekten iyi.
     if (all.length > 0 && input.issueTasksMore) {
-      factors.push({ key: "issue", state: "blocking", label: "Bu mülkte başka açık bakım görevleri de var", missing: "görevlerin kapanması", basis: [] });
+      // Görünmeyen görevlerin niteliği bilinmiyor → kesin engel değil, "bakın".
+      factors.push({ key: "issue", state: "unknown", label: "Bu mülkte başka açık bakım görevleri de var", missing: "Görevler'de kontrol", basis: [] });
     }
   }
   if (input.overlaps > 0) {
@@ -284,17 +395,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       basis: [{ kind: "conversation_item", id: n.id, at: n.at }],
     });
   }
-  factors.push(
-    input.accessInstructions
-      ? {
-          key: "access",
-          state: "info",
-          label: "Giriş talimatı bilgi tabanında var · kapıya / kutuya yerleştiği kontrol edilmedi",
-          missing: "erişim kontrolü",
-          basis: [{ kind: "kb_item", id: input.accessInstructions.id, at: input.accessInstructions.at }],
-        }
-      : { key: "access", state: "info", label: "Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi", missing: "giriş talimatı ve erişim kontrolü", basis: [] },
-  );
+  factors.push(accessFactor(input));
   const prevCheckout = checkoutWhen(input.cleaning, input.arrivalDayKey);
   if (prevCheckout || input.checkInTime) {
     // Aynı gün çıkış yoksa da önceki çıkış biliniyor (hazırlık ona göre ölçüldü) → günüyle yazılır (Opus 11-05 N6).

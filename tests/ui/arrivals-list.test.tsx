@@ -55,6 +55,30 @@ describe("Girişler listesi — görünüm", () => {
     expect(screen.queryByText(/^HAZIR$/)).toBeNull();
   });
 
+  it("Codex 11-05: önce ne eksik — engel / bilinmeyen satırları HEP görünür, bilgi satırları açılır 'Ayrıntılar'da", () => {
+    const { container } = render(<ArrivalsList rows={[row()]} truncated={0} />);
+    const details = container.querySelector("details")!;
+    expect(details.querySelector("summary")!.textContent).toBe("Ayrıntılar (1)");
+    expect(details.textContent).toContain("Giriş talimatı bilgi tabanında yok");
+    expect(details.textContent).not.toContain("Temizlik açık");
+    expect(details.open).toBe(false);
+  });
+
+  it("engel / bilinmeyen yoksa temizlik satırı (durum ve kim) dışarıda kalır", () => {
+    const ok = row({
+      overall: "cleaning_ready",
+      factors: [
+        { key: "cleaning", state: "ok", label: "Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra", missing: null, basis: [] },
+        { key: "timing", state: "info", label: "Önceki çıkış 11:00 → giriş 15:00", missing: null, basis: [] },
+      ],
+    });
+    const { container } = render(<ArrivalsList rows={[ok]} truncated={0} />);
+    const details = container.querySelector("details")!;
+    expect(details.textContent).toContain("Önceki çıkış 11:00");
+    expect(details.textContent).not.toContain("Temizlik bitti");
+    expect(screen.getByText("Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra")).toBeTruthy();
+  });
+
   it("günlere göre gruplanır; boş liste ve sığmayan giriş sayısı söylenir", () => {
     const { unmount } = render(
       <ArrivalsList rows={[row({ reservationId: "a" }), row({ reservationId: "b", dayKey: "2026-11-08", dayLabel: "Yarın · 8 Kasım Pazar" })]} truncated={3} />,

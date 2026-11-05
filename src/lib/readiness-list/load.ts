@@ -12,7 +12,7 @@ import { isItemKind } from "@/lib/conversation-items/core";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { reportError } from "@/lib/report-error";
 import { TASK_TYPE } from "@/lib/constants";
-import { evaluateStay, type CleaningInput, type StayReadiness } from "./evaluate";
+import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
 
 // ---------------------------------------------------------------------------
 // GİRİŞ HAZIRLIĞI LİSTESİ — YÜKLEYİCİ (salt-okuma; org kapsamlı; model çağrısı ve yazma YOK).
@@ -72,7 +72,7 @@ export async function loadArrivalReadiness(
 ): Promise<ArrivalReadinessList> {
   const days = opts.days ?? READINESS_LIST_DAYS;
   const max = opts.max ?? READINESS_LIST_MAX;
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true, autoCheckin: true } });
   const tz = orgTimezone(org?.timezone);
   const fromKey = todayKey(now, tz);
   const toKey = addNights(fromKey, Math.max(1, days) - 1);
@@ -124,7 +124,7 @@ export async function loadArrivalReadiness(
   const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds?.noteTaskIds ?? []))];
   const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds?.overlapReservationIds ?? []))];
 
-  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays] = await Promise.all([
+  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays, autoCheckins] = await Promise.all([
     prisma.conversation.findMany({
       where: { reservationId: { in: arrivalIds }, property: { organizationId } },
       select: { id: true, reservationId: true },
@@ -157,7 +157,16 @@ export async function loadArrivalReadiness(
     issueIds.length
       ? prisma.task.findMany({
           where: { id: { in: issueIds }, property: { organizationId } },
-          select: { id: true, title: true, type: true, dueAt: true, assignedTo: { select: { name: true } } },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            dueAt: true,
+            priority: true,
+            reservationId: true,
+            reservation: { select: { arrivalDate: true, departureDate: true } },
+            assignedTo: { select: { name: true } },
+          },
         })
       : Promise.resolve([]),
     // Notun yalnız yazanı + anı (İÇERİK seçilmez). Çekirdeğin saydığı kümeyle aynı koşul: kimlikli not kaydı; en yenisi önce.
@@ -174,6 +183,11 @@ export async function loadArrivalReadiness(
           select: { id: true, guestName: true, arrivalDate: true, departureDate: true },
         })
       : Promise.resolve([]),
+    // Misafire GİDECEK otomatik giriş mesajı (Codex 11-05; bilgi tabanından ayrı). Metin okunur ama yalnız boş mu diye — gösterilmez.
+    prisma.autoMessageTemplate.findMany({
+      where: { organizationId, propertyId: { in: propertyIds }, kind: "checkin" },
+      select: { id: true, propertyId: true, body: true, needsReview: true, lastSkipReason: true, updatedAt: true },
+    }),
   ]);
 
   const convByReservation = new Map<string, string[]>();
@@ -220,6 +234,15 @@ export async function loadArrivalReadiness(
   const accessOf = new Map<string, { id: string; at: Date }>();
   for (const k of kbItems) if (!accessOf.has(k.propertyId)) accessOf.set(k.propertyId, { id: k.id, at: k.updatedAt });
   const issueById = new Map(issueTasks.map((t) => [t.id, t]));
+  const autoCheckinOf = new Map(autoCheckins.map((a) => [a.propertyId, a]));
+  const autoCheckinStateOf = (propertyId: string): NonNullable<StayReadinessInput["autoCheckin"]> => {
+    if (!org?.autoCheckin) return { state: "disabled" };
+    const a = autoCheckinOf.get(propertyId);
+    if (!a || a.body.trim() === "") return { state: "missing" };
+    if (a.lastSkipReason) return { state: "skipped", reason: a.lastSkipReason };
+    if (a.needsReview) return { state: "review", id: a.id, at: a.updatedAt };
+    return { state: "ready", id: a.id, at: a.updatedAt };
+  };
   const overlapById = new Map(overlapStays.map((r) => [r.id, r]));
 
   const rows: ArrivalRow[] = arrivals.map((a, i) => {
@@ -277,7 +300,24 @@ export async function loadArrivalReadiness(
       issueTasks: [...new Set([...(basisIds?.issueTaskIds ?? []), ...(basisIds?.maintenanceTaskIds ?? [])])]
         .map((id) => issueById.get(id))
         .filter((t): t is NonNullable<typeof t> => !!t)
-        .map((t) => ({ id: t.id, title: t.title, kindLabel: TASK_TYPE.label(t.type), assignee: t.assignedTo?.name ?? null, dueAt: t.dueAt })),
+        .map((t) => {
+          // Çekirdeğin kümesi ilişkiyi söyler: devir kümesi → bu devre bağlı; mülk kümesi → bağsız ya da BAŞKA konaklamaya bağlı.
+          const turnover = (basisIds?.issueTaskIds ?? []).includes(t.id);
+          const relation: "turnover" | "unlinked" | "other_stay" = turnover ? "turnover" : t.reservationId ? "other_stay" : "unlinked";
+          return {
+            id: t.id,
+            title: t.title,
+            kindLabel: TASK_TYPE.label(t.type),
+            assignee: t.assignedTo?.name ?? null,
+            dueAt: t.dueAt,
+            relation,
+            priority: t.priority,
+            stay:
+              relation === "other_stay" && t.reservation
+                ? { arrivalKey: calendarDateOf(t.reservation.arrivalDate, tz).key, departureKey: calendarDateOf(t.reservation.departureDate, tz).key }
+                : null,
+          };
+        }),
       issueTasksMore: basisIds?.maintenanceMore === true,
       overlaps: f?.otherOverlaps ?? 0,
       overlapStays: (basisIds?.overlapReservationIds ?? [])
@@ -307,6 +347,7 @@ export async function loadArrivalReadiness(
           at: it.createdAt,
         })),
       accessInstructions: accessOf.get(a.propertyId) ?? null,
+      autoCheckin: autoCheckinStateOf(a.propertyId),
       checkInTime: earlyOf.get(a.id) ?? normalizeHhmm(a.property.checkInTime),
     });
     return {
