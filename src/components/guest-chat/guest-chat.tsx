@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestChatThread, type GuestChatMessage as ChatMessage } from "@/components/guest-chat/guest-chat-thread";
 import { GUEST_COPY, type GuestLocale } from "@/components/guest-chat/guest-chat-copy";
 import { isImeComposing } from "@/lib/ime";
+import { newRequestId } from "@/lib/request-id";
 /**
  * Kaç ARDIŞIK başarısız yenilemeden sonra misafire söylenir.
  *
@@ -95,7 +96,11 @@ export function GuestChat({
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     const seq = ++loadSeq.current;
-    const timeout = setTimeout(() => ctrl.abort(), POLL_TIMEOUT_MS);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, POLL_TIMEOUT_MS);
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET", signal: ctrl.signal });
       // U28 (Codex 10-07): SIRA DENETİMİ HER DALDAN ÖNCE. Eskiden yalnız başarı yolundaydı: daha yeni bir isteğin 200/açık cevabından
@@ -151,7 +156,9 @@ export function GuestChat({
       if (Array.isArray(data.messages)) setMessages(data.messages);
     } catch {
       if (seq !== loadSeq.current) return; // U28: daha yeni bir istek var — eski isteğin ağ hatası / iptali sayılmaz
-      // Ağ hatası ya da zaman aşımı (asılı sorgu iptal edildi) — geçici, sonraki tur yeniden dener.
+      // Ekran kapanırken yapılan iptal başarısızlık DEĞİLDİR (Opus 11-05 F3); zaman aşımı (asılı sorgu) ve ağ hatası öyledir — geçici,
+      // sonraki tur yeniden dener.
+      if (ctrl.signal.aborted && !timedOut) return;
       failuresRef.current += 1;
       if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
     } finally {
@@ -202,7 +209,10 @@ export function GuestChat({
       stopped = true;
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
-      inflightRef.current?.abort();
+      // Uçuş kaydı ŞİMDİ boşalır (Opus 11-05 F3): yeniden kurulan döngünün ilk turu iptal edilen sorgunun `finally`sini beklemeden yükler.
+      const inflight = inflightRef.current;
+      inflightRef.current = null;
+      inflight?.abort();
     };
   }, [loadHistory, closed, boundElsewhere]);
 
@@ -213,6 +223,23 @@ export function GuestChat({
   async function send() {
     const text = input.trim();
     if (!text || sending) return;
+    // Opus 11-05 F12: kimlik HER ŞEYDEN ÖNCE ve fırlatmayan yardımcıyla (eski Safari'de `crypto.randomUUID` yok) — eskiden iyimser balondan
+    // SONRA ve try DIŞINDA üretiliyordu: hata balonu "gönderildi" gibi bırakıp mesajı hiç yollamıyor, "gönderiliyor" bayrağı takılıyordu.
+    // Same text (a retry after a failure) reuses the id; new/edited text mints a fresh one — a deliberate identical follow-up gets a new
+    // id too, because a successful send clears the ref below.
+    const cur = requestIdRef.current;
+    if (!cur || cur.text !== text) {
+      requestIdRef.current = { id: newRequestId(), text };
+    }
+    const requestId = (requestIdRef.current as { id: string }).id;
+    // Opus 11-05 F2: gönderimden ÖNCE başlamış (yavaş) sorgu iyimser balonu ezmesin — iptal edilir, sıra numarası ilerler (sonucu uygulanmaz,
+    // başarısızlık da sayılmaz). Gönderim sürerken yeni sorgu zaten başlamaz; gönderim sonrası yenileme en yeni durumu getirir.
+    if (inflightRef.current) {
+      const inflight = inflightRef.current;
+      inflightRef.current = null;
+      inflight.abort();
+    }
+    loadSeq.current += 1;
     setInput("");
     setError(null);
     // optimistic guest bubble; the server fetch below replaces the list with the
@@ -229,14 +256,6 @@ export function GuestChat({
       // gönderilemeyen metin geri gelir.
       setInput((cur) => (cur.trim() ? cur : text));
     };
-    // Same text (a retry after a failure) reuses the id; new/edited text mints
-    // a fresh one — a deliberate identical follow-up gets a new id too, because
-    // a successful send clears the ref below.
-    const cur = requestIdRef.current;
-    if (!cur || cur.text !== text) {
-      requestIdRef.current = { id: crypto.randomUUID(), text };
-    }
-    const requestId = (requestIdRef.current as { id: string }).id;
     try {
       const res = await fetch(`/api/chat/${token}`, {
         method: "POST",

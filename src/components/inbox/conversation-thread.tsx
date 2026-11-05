@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { newRequestId } from "@/lib/request-id";
 import { FormError } from "@/components/form-error";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
@@ -192,8 +193,15 @@ export function ConversationThread({
   // Composed-message idempotency id — see sendReply (Codex 07-23). Payload'a
   // BAĞLI: gövde/aiAssisted değişirse YENİ id üretilir (aynı id + farklı içerik
   // sunucuda 409'dur — Codex r2 #3); aynı payload'ın retry'ı aynı id'yi taşır.
-  const requestIdRef = useRef<{ id: string; body: string; aiAssisted: boolean } | null>(null);
+  const requestIdRef = useRef<{ id: string; body: string; aiAssisted: boolean; source: "composer" | "suggestion" } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  // Opus 11-05 F9: yazma kutusundan çıkan bekleyen kimlik, kutu o metinden UZAKLAŞINCA (silindi / değişti) düşer — saatler sonra aynı kısa
+  // metni ("Tamam") bilerek yeniden yazmak YENİ mesajdır (eski kimlik 24 saat "az önce gönderildi" der ya da kuyrukta eski satıra
+  // tekilleşirdi). Kutu aynı metni tutuyorsa (yanıtı kaybolan gönderimin tekrarı) kimlik korunur. Öneri gönderimi kutudan bağımsızdır.
+  useEffect(() => {
+    const cur = requestIdRef.current;
+    if (cur && cur.source === "composer" && composer.trim() !== cur.body.trim()) requestIdRef.current = null;
+  }, [composer]);
   const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /**
@@ -269,7 +277,7 @@ export function ConversationThread({
     }
   }
 
-  async function sendReply(body: string, aiAssisted = false) {
+  async function sendReply(body: string, aiAssisted = false, source: "composer" | "suggestion" = "composer") {
     if (!body.trim()) return;
     setSending(true);
     setSendError(null);
@@ -279,8 +287,8 @@ export function ConversationThread({
     // any body/aiAssisted change mints a fresh id (server 409-guards reuse with
     // different content). Cleared after a SUCCESSFUL send.
     const cur = requestIdRef.current;
-    if (!cur || cur.body !== body || cur.aiAssisted !== aiAssisted) {
-      requestIdRef.current = { id: crypto.randomUUID(), body, aiAssisted };
+    if (!cur || cur.body !== body || cur.aiAssisted !== aiAssisted || cur.source !== source) {
+      requestIdRef.current = { id: newRequestId(), body, aiAssisted, source };
     }
     const requestId = (requestIdRef.current as { id: string }).id;
     try {
@@ -291,17 +299,24 @@ export function ConversationThread({
       });
       if (res.ok) {
         requestIdRef.current = null;
-        // Y10 (Codex 10-07): yalnız GÖNDERİLEN metin hâlâ yazma alanındaysa temizlenir — gönderim sürerken yazılan yeni taslak
-        // ve "Onayla ve gönder" ile öneri giderken alanda ayrıca duran taslak silinmez.
-        setComposer((cur) => (cur.trim() === body.trim() ? "" : cur));
-        setSuggestion(null);
         // Durable Outbox (flag ON): kuyruğa alınan mesaj henüz TESLİM DEĞİL — dürüstçe söylenir. 🚨 Codex 11-05: karar HTTP kodundan
         // değil AÇIK durumdan: tekilleşen tekrar (aynı istek kimliği) 200 döner ama satır hâlâ sırada / başarısız olabilir — eskiden 200
         // "Mesaj gönderildi." duyuruluyordu. Metinler mevcut olanlar (kuyruk notu + mesaj balonunun durum etiketi).
         const data = (await res.json().catch(() => null)) as { outbox?: { status?: string; delivery?: string } } | null;
         const outbox = data?.outbox;
-        if (outbox?.status === "queued") {
-          const delivery = outbox.delivery ?? "pending";
+        const delivery = outbox?.status === "queued" ? (outbox.delivery ?? "pending") : null;
+        if (delivery === "failed" || delivery === "canceled") {
+          // Opus 11-05 F6: tekilleşen tekrarın satırı GÖNDERİLEMEDİ / iptal edildi → yazılan metin ve öneri KORUNUR (teslim edilmiş gibi
+          // silinmez), sebep görünür (mesaj balonunun mevcut etiketi). Kimlik sıfırlandı: bir sonraki basış YENİ mesajdır.
+          setSendError(OUTBOX_STATUS_UI[delivery].label);
+          refresh();
+          return;
+        }
+        // Y10 (Codex 10-07): yalnız GÖNDERİLEN metin hâlâ yazma alanındaysa temizlenir — gönderim sürerken yazılan yeni taslak
+        // ve "Onayla ve gönder" ile öneri giderken alanda ayrıca duran taslak silinmez.
+        setComposer((cur) => (cur.trim() === body.trim() ? "" : cur));
+        setSuggestion(null);
+        if (delivery !== null) {
           if (delivery === "sent") announce("Mesaj gönderildi.");
           else if (delivery === "pending" || delivery === "sending") setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
           else announce(OUTBOX_STATUS_UI[delivery]?.label ?? "Mesaj sıraya alındı — birazdan gönderilecek.");
@@ -1152,7 +1167,7 @@ export function ConversationThread({
                 <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
                   <Wand2 className="size-4" /> Taslağı kullan
                 </Button>
-                <Button size="sm" onClick={() => sendReply(suggestion.reply, true)} disabled={sending}>
+                <Button size="sm" onClick={() => sendReply(suggestion.reply, true, "suggestion")} disabled={sending}>
                   {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
                   Onayla ve gönder
                 </Button>
