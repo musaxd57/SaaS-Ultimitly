@@ -222,6 +222,10 @@ export async function maybeSendQrEscalationEmail(args: {
             OR: [
               { qrEscalationEmailMessageId: null },
               { qrEscalationEmailMessageId: { not: args.eventId } }, // same event never re-mails
+              // Tur 4 (11-05): KRİTİK olayda "aynı olay" 3 saattir (kurucu K-T1, ↑`claimRecentCritical`). Satırdaki son kimlik ise süresizdi →
+              // sabah "Su basıyor!" e-postası gittiyse akşamki AYNI sözcüklü yeni su baskını (ev sahibi yapay zekâyı yeniden açmadıysa) hiç
+              // uyarmıyordu. Pencere dolunca aynı kimlik yeniden uyarır; pencere içindeki tekrar iki katmanda da elenir.
+              ...(args.critical ? [{ qrEscalationEmailAt: { lt: new Date(claimedAt.getTime() - RECENT_CRITICAL_WINDOW_MS) } }] : []),
             ],
           },
           // Anti-flood clock — SKIPPED for a critical (safety/emergency) event:

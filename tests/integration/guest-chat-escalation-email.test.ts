@@ -27,6 +27,7 @@ import {
   qrEscalationEventId,
   QR_ESCALATION_COOLDOWN_MS,
   QR_ALERT_RESPONSE_BUDGET_MS,
+  RECENT_CRITICAL_WINDOW_MS,
 } from "@/lib/guest-chat-alerts";
 import { POST } from "@/app/api/chat/[token]/route";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
@@ -351,6 +352,28 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     const after = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId }, select: { qrEscalationEmailAt: true, qrEscalationEmailMessageId: true } });
     expect(after.qrEscalationEmailAt?.getTime()).toBe(before.qrEscalationEmailAt?.getTime());
     expect(after.qrEscalationEmailMessageId).toBeNull();
+    expect((await crit("m-3")).sent).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
+  it("🚨 Tur 4 (11-05): AYNI acil metin 3 saatlik pencere DOLDUKTAN sonra yeniden gelirse (ev sahibi yeniden açmadan) YENİ olay sayılır ve uyarır", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const crit = (msgId: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, "Banyoda su basıyor!", true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await crit("m-1")).sent).toBe(true);
+    expect((await crit("m-2")).deduped).toBe(true); // pencere içinde: aynı olay
+    // 3 saat + 1 dk geçmiş gibi: tekrar hafızasının süresi ve son e-posta anı geriye çekilir.
+    const past = new Date(Date.now() - RECENT_CRITICAL_WINDOW_MS - 60_000);
+    await prisma.systemLock.updateMany({ where: { name: { startsWith: "qr-crit-recent:" } }, data: { lockedUntil: past } });
+    await prisma.reservation.update({ where: { id: reservationId }, data: { qrEscalationEmailAt: past } });
     expect((await crit("m-3")).sent).toBe(true);
     expect(mockSendReporting).toHaveBeenCalledTimes(2);
   });
