@@ -10,7 +10,7 @@
 // iddiası anlamsızdır.
 // ---------------------------------------------------------------------------
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
 vi.mock("@/lib/messaging", async (orig) => ({
@@ -48,7 +48,7 @@ async function seed(kind: "welcome" | "checkin" | "checkout") {
       timezone: "Europe/Istanbul",
     },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Deniz Daire" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Deniz Daire" } });
   await createKbWithAutoMessage({
     data: { propertyId: property.id, category: kind, title: kind, content: `${kind} metni — kapı kodu 4821`, isActive: true },
   });
@@ -143,7 +143,7 @@ describe("Y4 — kuyruksuz yol: son talep durum + tarih şartını yeniden ister
     const orgId = await seed("checkin");
     const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
     // Yeniden bağlama sonrası çift satır: aynı sourceReference BAŞKA mülk satırında, iptal durumda (aday olamaz, ama damgalanmalı).
-    const relinked = await prisma.property.create({ data: { organizationId: orgId, name: "Eski Kayıt" } });
+    const relinked = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Eski Kayıt" } });
     await prisma.reservation.create({
       data: {
         propertyId: relinked.id,
@@ -254,7 +254,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
     await prisma.reservation.delete({ where: { id: a.id } });
     // Önce (fiziksel olarak İLK) iptal edilmiş kopya, sonra onaylı satır — sırasız `findFirst` kopyayı döndürüp mesajı iptal ediyordu.
-    const relinked = await prisma.property.create({ data: { organizationId: orgId, name: "Eski Kayıt" } });
+    const relinked = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Eski Kayıt" } });
     await prisma.reservation.create({
       data: {
         propertyId: relinked.id,
@@ -288,7 +288,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     const orgId = await seed("checkin");
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
     const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
-    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Başka Daire" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
     // Aynı kaynak kimliği, bir ay ÖNCE bitmiş, "pending" kopya — en erken varış o; eski seçim onu alıp "window_passed" diyordu.
     await prisma.reservation.create({
       data: {

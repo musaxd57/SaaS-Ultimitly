@@ -24,7 +24,7 @@
 //    dönmeden hiçbir "gitmedi" iddiası anlamlı değildir.
 // ---------------------------------------------------------------------------
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
 vi.mock("@/lib/messaging", async (orig) => ({
@@ -86,7 +86,7 @@ async function seed(opts: SeedOpts) {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Deniz Daire" },
+    data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Deniz Daire" },
   });
 
   let reservationId: string | null = null;
@@ -288,7 +288,7 @@ describe("yaşam döngüsü göndericileri — iptal + iCal/manuel kanal", () =>
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "Deniz Daire" },
+      data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Deniz Daire" },
     });
     for (const category of ["welcome", "checkin", "checkout"]) {
       await createKbWithAutoMessage({

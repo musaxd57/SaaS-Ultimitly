@@ -193,6 +193,13 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
   });
 
+  it("reddedilen Lixus dosyası saatlik içe aktarma hakkını YEMEZ (6 ret sonra gerçek dosya yine aktarılır)", async () => {
+    for (let i = 0; i < 6; i++) {
+      expect((await POST(icsReq(propertyId, calendar(vevent(`own-${i}@guestops-ai`))), { params: Promise.resolve({}) })).status).toBe(400);
+    }
+    expect((await POST(icsReq(propertyId, calendar(vevent("gercek-1@airbnb.com"))), { params: Promise.resolve({}) })).status).toBe(200);
+  });
+
   // ── 3. KARIŞIK DOSYA: iptal satırı elenir, canlı satır geçer ──────────────
   it("AYNI dosyada iptal + canlı: yalnız canlı olan yazılır", async () => {
     const ics = calendar(

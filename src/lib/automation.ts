@@ -5327,6 +5327,36 @@ async function sourceReferenceErased(
 }
 
 /**
+ * 🚨 YAŞAM DÖNGÜSÜ MESAJI — "AÇILDIKTAN SONRA YAPILAN REZERVASYON" TABANI (Tur 7 S7-4, kurucu önceliği 11-05).
+ *
+ * Ayarlar "açıldıktan sonra yapılan rezervasyonlara gider; eskilere gönderilmez" diyor, ama taban yalnız anahtarın açıldığı andı
+ * (`autoXEnabledAt`) ve `Reservation.createdAt` = LIXUS'A İLK GELİŞ anıdır (sağlayıcının rezervasyon tarihi saklanmıyor). Anahtar
+ * bağlantıdan ÖNCE açılmışsa ya da ilan sonradan eklendiyse, ilk senkronla gelen haftalar önceki rezervasyonlar "yeni" sayılıyordu →
+ * misafire geç "rezervasyonunuz için teşekkürler" + 4 gün içinde varışsa giriş mesajı (kapı kodu / Wi-Fi) gidiyordu.
+ *
+ * Taban artık DAİRE BAŞINA: en geç (anahtarın açıldığı an, dairenin Lixus'a geldiği an + `LIFECYCLE_BACKLOG_GRACE_MS`). Daire ilk senkronla
+ * gelir ve o senkron dairenin mevcut rezervasyonlarını getirir; 3 saatlik pay saatlik derin senkronu (365 gün) da kapsar. Bilinen sınırlar
+ * (belgeli): daire Lixus'a geldikten sonraki 3 saat içinde yapılan GERÇEK yeni rezervasyon karşılama almaz; anahtar açılmadan önce yapılmış
+ * ama varışı 365 günden ileride olan rezervasyon pencereye girdiğinde yine "yeni" görünür (rezervasyon tarihi bilinmediği için).
+ * Üç gönderici AYNI parçayı kullanır; metin önizlemeleri (`previewWelcomes` …) anahtarı ve tabanı bilinçli YOK SAYAR (metin kalitesi).
+ */
+export const LIFECYCLE_BACKLOG_GRACE_MS = 3 * 60 * 60_000;
+async function lifecycleBaselineWhere(organizationId: string, baseline: Date): Promise<Prisma.ReservationWhereInput> {
+  const props = await prisma.property.findMany({ where: { organizationId }, select: { id: true, createdAt: true } });
+  const floor = (p: { createdAt: Date }) => p.createdAt.getTime() + LIFECYCLE_BACKLOG_GRACE_MS;
+  const older = props.filter((p) => floor(p) <= baseline.getTime()).map((p) => p.id);
+  const newer = props.filter((p) => floor(p) > baseline.getTime());
+  return {
+    OR: [
+      ...(older.length ? [{ propertyId: { in: older }, createdAt: { gte: baseline } }] : []),
+      ...newer.map((p) => ({ propertyId: p.id, createdAt: { gte: new Date(floor(p)) } })),
+      // Hiç dairesi olmayan işletme: boş OR'a güvenilmez — açıkça eşleşmeyen koşul.
+      ...(props.length === 0 ? [{ id: "__no_property__" }] : []),
+    ],
+  };
+}
+
+/**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
  * base entry, personalised with the guest's first name and closed with the org
@@ -5381,9 +5411,9 @@ export async function sendDueWelcomes(
       // denetimi: `channel` iCal işaretçisi DEĞİL, gerçek işaretçi calendarSourceId)
       // fragment'in başlığında; önizleme aynı fragment'i yayar → parite yapısal.
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
-      createdAt: { gte: baseline }, // only bookings created since welcome was enabled
+      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
       // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
-      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)],
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
     },
     select: {
       id: true,
@@ -5596,10 +5626,10 @@ export async function sendDueCheckins(
       status: "confirmed",
       checkinSentAt: null,
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
-      createdAt: { gte: baseline }, // only bookings created since this was enabled
+      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
       arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
       // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
-      AND: [onOrAfterTodayWhere("arrivalDate", now, tz)],
+      AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
     },
     select: {
       id: true,
@@ -5968,12 +5998,15 @@ export async function sendDueCheckouts(
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
-      createdAt: { gte: baseline }, // only bookings created since checkout was enabled
+      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
       // Yalnız org gününe göre BUGÜN çıkanlar — TEK TARİH KURALI (↑todayDateAnchors): gerçek anlar org gününün
       // (DST'de 23/25 saatlik) içinde, "yalnız tarih" değerleri bugünün iki çapası. Eski "+3 gün" penceresi ABD
       // dilimlerinde bugünün 00:00Z değerini dışarıda bırakıp bir gün ÖNCE seçiyordu. Asıl gönderim-anı checkout
       // vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI kuralı kullanır (Codex 07-23; iki yol ayrışamaz).
-      AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
+      AND: [
+        { OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] },
+        await lifecycleBaselineWhere(organizationId, baseline),
+      ],
     },
     select: {
       id: true,

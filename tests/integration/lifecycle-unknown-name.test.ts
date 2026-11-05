@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // AD BİLİNMİYORSA "Merhaba," (kurucu kararı 09-28). Sağlayıcı adı vermeyen rezervasyon "Rezervasyon HM4K2" diye kaydediliyor;
@@ -43,7 +43,7 @@ async function seed(guestName: string, content: Record<"welcome" | "checkin" | "
       autoCheckoutEnabledAt: enabledAt,
     },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale" } });
   for (const category of ["welcome", "checkin", "checkout"] as const) {
     await createKbWithAutoMessage({
       data: { propertyId: property.id, category, title: category, content: content[category], isActive: true },

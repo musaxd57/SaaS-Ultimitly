@@ -80,7 +80,8 @@ export function hasUnfilledPlaceholders(filledBody: string): boolean {
  * "kaydetme, önizleme ve gerçek gönderim aynı değişken kurallarını kullanmalı"). Ev sahibine "şu alan desteklenmiyor" demek için.
  */
 export function unfilledPlaceholderTokens(filledBody: string): string[] {
-  const doubleBraces = filledBody.match(/\{\{[^}]*\}\}|\{\{/g) ?? [];
+  // Sınırlı tekrar (ReDoS kuralı): `[^}]*` + global eşleşme "{{{{…" dizisinde her konumdan sona kadar tarıyordu (karesel).
+  const doubleBraces = filledBody.match(/\{\{[^}\n]{0,64}\}\}|\{\{/g) ?? [];
   const all = [...new Set([...kbPlaceholderTokens(filledBody), ...doubleBraces, ...leftoverGuestTokens(filledBody), ...unfilledTemplateTokens(filledBody)])];
   // "{{guestName}}" içindeki "{guestName}" ayrıca sayılmaz (aynı alan iki kez gösterilmesin).
   return all.filter((t) => !all.some((o) => o !== t && o.includes(t))).slice(0, 6);

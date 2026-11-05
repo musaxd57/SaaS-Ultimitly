@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { seedAutoMessage } from "../helpers/auto-message";
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ const mockSend = vi.mocked(sendOnChannel);
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0) } });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale 3" } });
   const arrival = new Date(Date.now() + 3 * 86_400_000);
   await prisma.reservation.create({
     data: {

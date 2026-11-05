@@ -157,16 +157,24 @@ export const PATCH = withManage(async (session, req) => {
       errors.closingReplyText = "Metin olmalı.";
     } else {
       const trimmed = (raw ?? "").toString().trim();
-      const unsupported = unsupportedCourtesyTokens(trimmed);
+      // Uzunluk ÖNCE (Haiku 11-05): alan taraması yalnız sınır içindeki metinde koşar.
+      const unsupported = trimmed.length > CLOSING_TEXT_MAX ? [] : unsupportedCourtesyTokens(trimmed);
       if (trimmed.length > CLOSING_TEXT_MAX) {
         errors.closingReplyText = `En fazla ${CLOSING_TEXT_MAX} karakter.`;
-      } else if (unsupported.length > 0 && (await courtesyTextCheckApplies(session.organizationId, trimmed, data))) {
+      } else if (unsupported.length > 0 && (await courtesyEnabledAfter(session.organizationId, data))) {
         // Tur 7 (kurucu onayı 11-05): ev sahibi hatayı gönderimde değil KAYITTA öğrenir — gönderimle aynı alan kuralı.
         errors.closingReplyText = unsupportedCourtesyMessage(unsupported);
       } else {
         update.closingReplyText = trimmed.length === 0 ? null : trimmed;
       }
     }
+  }
+
+  // Nezaket cevabı AÇILIYOR ama bu istekte metin yok: kayıtlı metin aynı kuralla denetlenir (yalnız API — form metni her zaman yollar).
+  if (data.autoClosingReplyEnabled === true && !("closingReplyText" in data)) {
+    const stored = (await prisma.organization.findUnique({ where: { id: session.organizationId }, select: { closingReplyText: true } }))?.closingReplyText ?? "";
+    const unsupported = unsupportedCourtesyTokens(stored);
+    if (unsupported.length > 0) errors.closingReplyText = unsupportedCourtesyMessage(unsupported);
   }
 
   // Host-written late-checkout / stay-extension offer. Empty clears it → the AI
@@ -324,14 +332,12 @@ export const PATCH = withManage(async (session, req) => {
 });
 
 /**
- * Kayıt kontrolü YALNIZ metin değişiyorsa ya da nezaket cevabı açık kalacak / açılıyorsa uygulanır — form da aynı (alan yalnız açıkken
- * görünür). Kapalıyken daha önce kaydedilmiş eski metin, başka bir ayarı kaydetmeyi engellemez (ev sahibi görmediği alan için takılmaz).
+ * Kayıt kontrolü YALNIZ nezaket cevabı bu kayıttan sonra AÇIK olacaksa uygulanır — form da aynı (alan ve uyarı yalnız açıkken görünür;
+ * Haiku incelemesi 11-05: "açıkken bozuk metin yaz → kapat → kaydet" formda geçip sunucuda reddediliyordu). Kapalıyken metin kaydedilebilir;
+ * açıldığı kayıtta (metin gönderilmese de) denetlenir ↓.
  */
-async function courtesyTextCheckApplies(organizationId: string, trimmed: string, data: Record<string, unknown>): Promise<boolean> {
-  const cur = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: { closingReplyText: true, autoClosingReplyEnabled: true },
-  });
-  const enabledAfter = "autoClosingReplyEnabled" in data ? data.autoClosingReplyEnabled === true : (cur?.autoClosingReplyEnabled ?? false);
-  return enabledAfter || (cur?.closingReplyText ?? "") !== trimmed;
+async function courtesyEnabledAfter(organizationId: string, data: Record<string, unknown>): Promise<boolean> {
+  if ("autoClosingReplyEnabled" in data) return data.autoClosingReplyEnabled === true;
+  const cur = await prisma.organization.findUnique({ where: { id: organizationId }, select: { autoClosingReplyEnabled: true } });
+  return cur?.autoClosingReplyEnabled ?? false;
 }

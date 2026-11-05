@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import React from "react";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { treeText } from "../helpers/tree-text";
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ async function seed(propertyName: string, welcome: string) {
   const org = await prisma.organization.create({
     data: { name: "Daire Org", timezone: "Europe/Istanbul", autoWelcome: true, autoWelcomeEnabledAt: enabledAt },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: propertyName } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: propertyName } });
   await createKbWithAutoMessage({
     data: { propertyId: property.id, category: "welcome", title: "Karşılama mesajı", content: welcome, isActive: true },
   });

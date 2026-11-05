@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitRelease } from "@/lib/rate-limit";
 import type { GuestNameSource } from "@/lib/guest-name-source";
 import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -225,7 +225,11 @@ export const POST = withManage(async (session, req) => {
     const parsedIcs = parseIcsDetailed(text);
     // Tur 7 (kurucu onayı 11-05): Lixus'un kendi dışa aktardığı dosya içe aktarılmaz — abonelik yoluyla AYNI tanıma (`isOwnExportUid`),
     // risk kopya rezervasyon (dosya bir kez okunur, döngü yok). Önizleme dahil hiçbir satır sınıflandırılmaz.
-    if (parsedIcs.events.some((e) => isOwnExportUid(e.sourceReference))) return badRequest({ file: OWN_FILE_IMPORT_TEXT });
+    if (parsedIcs.events.some((e) => isOwnExportUid(e.sourceReference))) {
+      // Reddedilen dosya saatlik hakkı YEMEZ (Haiku incelemesi 11-05): yanlış dosya türü gibi ücretsiz bir ret.
+      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`);
+      return badRequest({ file: OWN_FILE_IMPORT_TEXT });
+    }
     // Tur 7 CAL-2 (Codex 11-05 gece: "dosya ve URL yolu ortak ayrıştırma, kimlik ve iptal kurallarını kullansın; önizleme korunsun"):
     // aynı UID'nin satırları abonelik senkronuyla AYNI çözücüden geçer (ana kayıt ≠ tekrar örneği, sürüm bilgisi, sıradan bağımsız).
     // Çözümde düşen kopya satırlar önizlemede ayrı "tekrar" satırı olarak görünmez; dosya içi tekrar kuralı (↓) UID'siz satırlar için durur.

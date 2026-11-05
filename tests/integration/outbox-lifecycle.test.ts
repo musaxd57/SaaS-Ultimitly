@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, reactivateBlockedOutbox, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
@@ -35,7 +35,7 @@ async function seedWelcome(opts: { source?: string; welcomeSentAt?: Date | null 
   const org = await prisma.organization.create({
     data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa", autoReplyHospitable: true, autoCheckin: true, autoCheckout: true },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "lale 3" } });
   await createKbWithAutoMessage({
     data: { propertyId: property.id, category: "welcome", title: "K", content: "Merhaba {isim}" },
   });

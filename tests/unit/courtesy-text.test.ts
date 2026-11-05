@@ -33,3 +33,12 @@ describe("nezaket metni — desteklenmeyen alan", () => {
     for (const s of samples) expect(unfilledPlaceholderTokens(s).length > 0).toBe(hasUnfilledPlaceholders(s));
   });
 });
+
+describe("alan taraması — karesel iş yok (ReDoS kuralı)", () => {
+  it("50.000 karakterlik '{{{{…' dizisi hızlı taranır", () => {
+    const t0 = performance.now();
+    unfilledPlaceholderTokens("{".repeat(50_000));
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+});
+

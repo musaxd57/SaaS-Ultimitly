@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // YAŞAM-DÖNGÜSÜ GÖNDERİM ARIZALARI ARTIK BİR YERE YAZILIYOR
@@ -61,7 +61,7 @@ async function seed() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Lale 7" },
+    data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale 7" },
   });
   await createKbWithAutoMessage({
     data: {
@@ -128,7 +128,7 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     // Aynı org, AYRI daire, AYNI sourceReference — ve bu satır geçen ay
     // GERÇEKTEN gönderilmiş.
     const sent = new Date(Date.now() - 30 * DAY);
-    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 8" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Lale 8" } });
     const sibling = await prisma.reservation.create({
       data: {
         propertyId: other.id,

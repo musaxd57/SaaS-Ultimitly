@@ -117,10 +117,19 @@ describe("PATCH /api/settings — nezaket metni alanları (Tur 7, kurucu onayı 
     expect((await patch({ autoClosingReplyEnabled: true, closingReplyText: "Rica ederiz {isim}!" })).status).toBe(200);
   });
 
-  it("KONTROL — nezaket kapalıyken önceden kaydedilmiş eski metin başka bir ayarın kaydını ENGELLEMEZ; açılırsa engeller", async () => {
+  it("KONTROL — nezaket KAPALIYKEN metin (eski ya da yeni) kaydı engellemez — form da öyle; AÇILDIĞI kayıtta denetlenir", async () => {
     await prisma.organization.update({ where: { id: orgId }, data: { closingReplyText: "Eski [ALAN]", autoClosingReplyEnabled: false } });
     expect((await patch({ autoClosingReplyEnabled: false, closingReplyText: "Eski [ALAN]", handoffHoldHours: 4 })).status).toBe(200);
-    expect((await patch({ autoClosingReplyEnabled: true, closingReplyText: "Eski [ALAN]" })).status).toBe(400);
+    expect((await patch({ autoClosingReplyEnabled: false, closingReplyText: "Yeni [ALAN]" })).status).toBe(200);
+    expect((await patch({ autoClosingReplyEnabled: true, closingReplyText: "Yeni [ALAN]" })).status).toBe(400);
+  });
+
+  it("🚨 yalnız anahtarı açan istek (metin alanı YOK) kayıtlı bozuk metni de denetler", async () => {
+    await prisma.organization.update({ where: { id: orgId }, data: { closingReplyText: "Kod %KOD%", autoClosingReplyEnabled: false } });
+    const res = await patch({ autoClosingReplyEnabled: true });
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.closingReplyText).toBe("%KOD% desteklenmiyor. Kullanılabilir alanlar: {isim}, {daire}.");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).autoClosingReplyEnabled).toBe(false);
   });
 });
 

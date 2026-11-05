@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { seedAutoMessage } from "../helpers/auto-message";
 import type { SessionPayload } from "@/lib/auth";
 
@@ -60,7 +60,7 @@ async function seedQueued(body = "Merhaba {isim}, kapı kodu 4821.") {
   const org = await prisma.organization.create({
     data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa", autoCheckin: true, autoCheckout: true },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale 3" } });
   await seedAutoMessage(property.id, "welcome", body);
   const arrival = new Date(Date.now() + 3 * 86_400_000);
   const r = await prisma.reservation.create({
@@ -188,7 +188,7 @@ describe("kurucu T4 — kuyruktaki otomatik mesaj gönderimden önce güncel met
     const { orgId, reservationId } = await seedQueued();
     await sendDueWelcomes(orgId);
     // Yeniden bağlama sonrası çift satır başka mülkte durur (mülk + kaynak kimliği benzersiz).
-    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 4" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Lale 4" } });
     const propertyId = other.id;
     const twin = await prisma.reservation.create({
       data: {
@@ -376,7 +376,7 @@ describe("Claude 2. dalga #95 (10-21): veto ile metin yenileme AYNI rezervasyon 
 
   async function seedTwoUnits() {
     const { orgId, propertyId, reservationId } = await seedQueued("Merhaba {isim}, A dairesi kapı kodu 4821.");
-    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 5" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Lale 5" } });
     await seedAutoMessage(other.id, "welcome", "Merhaba {isim}, B dairesi kapı kodu 9999.");
     await sendDueWelcomes(orgId);
     const own = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });

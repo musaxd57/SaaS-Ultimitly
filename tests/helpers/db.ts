@@ -44,6 +44,13 @@ export async function resetDb(): Promise<void> {
 }
 
 /** Create an organization + one property and return both ids. */
+/**
+ * Fikstür dairesinin Lixus'a geliş anı: "30 gün önce". Gerçekte daire (ilk senkronla) rezervasyonlarından ÖNCE vardır; yaşam döngüsü
+ * mesajları (S7-4) dairenin ilk senkronundaki ESKİ rezervasyonları "yeni" saymamak için daire başına taban kullanır — aynı anda kurulan
+ * daire + rezervasyon fikstürü o tabanın içine düşerdi.
+ */
+export const PROPERTY_EXISTED_BEFORE = new Date(Date.now() - 30 * 86_400_000);
+
 export async function makeOrgWithProperty(overrides?: {
   checkInTime?: string;
   checkOutTime?: string;
@@ -54,6 +61,7 @@ export async function makeOrgWithProperty(overrides?: {
   const property = await prisma.property.create({
     data: {
       organizationId: org.id,
+      createdAt: PROPERTY_EXISTED_BEFORE,
       name: "Test Property",
       checkInTime: overrides?.checkInTime ?? "15:00",
       checkOutTime: overrides?.checkOutTime ?? "11:00",

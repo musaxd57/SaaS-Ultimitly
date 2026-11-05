@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { addDays } from "date-fns";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
@@ -109,7 +109,7 @@ async function seed(opts: {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Deniz Daire" },
+    data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Deniz Daire" },
   });
   const conversation = await prisma.conversation.create({
     data: {
@@ -2222,7 +2222,7 @@ describe("sendDueWelcomes", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "lale 3" },
+      data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await createKbWithAutoMessage({
@@ -2441,7 +2441,7 @@ describe("sendDueCheckins", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "lale 3" },
+      data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await createKbWithAutoMessage({
@@ -2549,7 +2549,7 @@ describe("sendDueCheckouts", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "lale 3" },
+      data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await createKbWithAutoMessage({

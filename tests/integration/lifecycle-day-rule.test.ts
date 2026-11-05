@@ -10,7 +10,7 @@
 // Kural artık `calendarDateOf` (gönderici ve önizleme AYNI). İstanbul davranışı değişmedi (öteki dosyalar pinliyor).
 // ---------------------------------------------------------------------------
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 
 vi.mock("@/lib/messaging", async (orig) => ({
   ...(await orig<typeof import("@/lib/messaging")>()),
@@ -49,7 +49,7 @@ async function seed(timezone: string, stay: { arrival: Date; departure: Date }) 
       autoCheckoutEnabledAt: enabledAt,
     },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
+  const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale" } });
   for (const category of ["welcome", "checkin", "checkout"]) {
     await createKbWithAutoMessage({
       data: { propertyId: property.id, category, title: category, content: `${category} metni`, isActive: true },

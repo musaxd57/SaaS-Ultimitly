@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
@@ -126,7 +126,7 @@ describe("V0.1 outbound dispatch — üç üretim yolu", () => {
     const org = await prisma.organization.create({
       data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "Sevgiler,\nİsa" },
     });
-    const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
+    const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "lale 3" } });
     await createKbWithAutoMessage({
       data: { propertyId: property.id, category: "welcome", title: "Karşılama", content: "Daire 3 — Wifi: LALE/1234" },
     });
