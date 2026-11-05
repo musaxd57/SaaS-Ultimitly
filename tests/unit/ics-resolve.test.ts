@@ -47,10 +47,16 @@ describe("ayrıştırıcı — sürüm ve örnek alanları", () => {
 });
 
 describe("çözücü — ana kayıt ile tekrar örneği ayrı", () => {
-  it("🚨 tekrarlayan serinin İPTAL edilmiş örneği (ilk örneği dahil) ana kaydı iptal ETMEZ — iki sırada da dolu", () => {
+  it("🚨 tekrarlayan seride BAŞKA tarihteki örneğin iptali içe alınan ilk örneği iptal ETMEZ — iki sırada da dolu", () => {
     const m = master("s-1", "20261110", "20261112", ["RRULE:FREQ=WEEKLY;COUNT=4"]);
     expect(resolveBothOrders(m, instance("s-1", "20261117", "20261117", "20261119", ["STATUS:CANCELLED"]))).toEqual(["s-1|2026-11-10..2026-11-12|-"]);
-    expect(resolveBothOrders(m, instance("s-1", "20261110", "20261110", "20261112", ["STATUS:CANCELLED"]))).toEqual(["s-1|2026-11-10..2026-11-12|-"]);
+  });
+
+  it("🚨 tekrarlayan seride İLK örneğin (içe alınan kaydın) iptali o kaydı iptal eder — iptal edilen gece dolu TUTULMAZ (Codex 11-05 gece)", () => {
+    const m = master("s-1b", "20261110", "20261112", ["RRULE:FREQ=WEEKLY;COUNT=2"]);
+    expect(resolveBothOrders(m, instance("s-1b", "20261110", "20261110", "20261112", ["STATUS:CANCELLED"]))).toEqual([
+      "s-1b|2026-11-10..2026-11-12|CANCELLED",
+    ]);
   });
 
   it("🚨 tek seferlik kaydın BAŞKA tarihli (var olmayan) örneğinin iptali kayda dokunmaz", () => {

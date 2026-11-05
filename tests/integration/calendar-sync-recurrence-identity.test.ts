@@ -62,6 +62,20 @@ describe("iCal senkronu — ana kayıt / tekrar örneği / sürüm (CAL-2)", () 
     }
   });
 
+  it("🚨 seri 10 + 17: yalnız 10 örneği iptal → 10'daki kayıt iptal (dışa aktarım o geceleri kapatmaz); 17 örneği iptal → 10 dolu kalır", async () => {
+    const master = ev("rec-2", 10, 12, ["RRULE:FREQ=WEEKLY;COUNT=2"]);
+    const cancel10 = ev("rec-2", 10, 12, [`RECURRENCE-ID;VALUE=DATE:${ymd(10)}`, "STATUS:CANCELLED"]);
+    const cancel17 = ev("rec-2", 17, 19, [`RECURRENCE-ID;VALUE=DATE:${ymd(17)}`, "STATUS:CANCELLED"]);
+    const { propertyId, sourceId } = await seed();
+    await syncWith(sourceId, cal(master));
+    const [r] = await prisma.reservation.findMany({ where: { propertyId } });
+    expect(r.status).toBe("confirmed");
+    await syncWith(sourceId, cal(master, cancel17));
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("confirmed");
+    await syncWith(sourceId, cal(cancel10, master));
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("cancelled");
+  });
+
   it("🚨 GERÇEK iptal: daha yeni sürümün (SEQUENCE) iptali, canlı eski kopya önde gelse de rezervasyonu iptal eder", async () => {
     const { propertyId, sourceId } = await seed();
     await syncWith(sourceId, cal(ev("bk-2", 10, 12, ["SEQUENCE:1"])));

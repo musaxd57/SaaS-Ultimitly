@@ -348,7 +348,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `import/ics-resolve.ts` ile SIRADAN BAĞIMSIZ tek satıra çözülür (ana kayıt ≠ tekrar örneği; örnek iptali yalnız o örneği etkiler — tek
   seferlik kaydın kendi başlangıcındaki örnek kaydın kendisidir; birden çok ana kayıtta SEQUENCE, sonra LAST-MODIFIED/DTSTAMP; ayırt
   edilemeyen çelişkide canlı kopya — yıkıcı değişiklik yok; tekrarlayan ana kayıt dolu gece). "İlk satır" artık yalnız ayırt edilemeyen
-  canlı kopyalar arasında geçerlidir. Elle `.ics` yükleme rotası bu çözücüye bağlanmadı (önizleme var; ayrı iş).
+  canlı kopyalar arasında geçerlidir. (11-05 gece, Codex) Tekrarlar açılmadığı için içe alınan tek kayıt serinin İLK örneğidir: o tarihteki
+  örneğin iptali kurallı seride de o kaydı iptal eder (iptal edilen gece dolu tutulmaz); sonraki örnekler içe alınmaz (seriyi açma ayrı karar).
 - 🚨 **EKSİK iCal OKUMASI HÜKÜM VERMEZ (F16, 09-26):** `parseIcsDetailed().incomplete` kapalı küme (yarım dosya ·
   10.000 tavanı · RRULE/RDATE/EXDATE/RECURRENCE-ID — tekrar AÇILMAZ, bilinçli · tarihi eksik/bozuk/ters/sıfır süreli ya
   da BEGIN/END'i bozuk etkinlik · aynı UID çelişen iki hâl). Eksikse okunanlar yazılır ve açık STATUS:CANCELLED işlenir,

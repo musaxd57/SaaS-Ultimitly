@@ -7,13 +7,15 @@ import type { IcsReservation } from "@/lib/import/ics";
 // STATUS:CANCELLED kopyası (tekrar örneğinin iptali ya da eski sürüm) canlı satırdan ÖNCE gelirse rezervasyon iptal oluyor / hiç
 // alınmıyordu → dışa aktarılan takvim o geceleri bırakıyordu (çift rezervasyon riski). RFC 5545 VEVENT sırasını sabitlemez. Kurallar:
 //  · Ana kayıt (RECURRENCE-ID'siz) ile tekrar örneği ayrı değerlendirilir. Ana kaydın KENDİ STATUS:CANCELLED'ı gerçek iptaldir.
-//  · Örnek iptali yalnız o örneği etkiler: tekrar kuralı olmayan (tek seferlik) ana kaydın KENDİ başlangıcındaki örnek tek örnektir →
-//    onun iptali / değişikliği rezervasyonun kendisidir. Başka tarihteki örnek ya da kurallı serinin örneği rezervasyona dokunmaz
-//    (tekrarlar açılmaz; okuma zaten "tekrarlayan / eksik" işaretli, kaynak `partial` — ev sahibi görür).
+//  · Örnek iptali yalnız o örneği etkiler. Tekrarlar AÇILMADIĞI için (F16) içe alınan TEK kayıt ana kaydın İLK örneğidir → o tarihteki
+//    örneğin iptali / taşınması o kaydın iptali / taşınmasıdır — seri kurallı olsa da (Codex 11-05 gece: "iptal edilen örneği yanlışlıkla
+//    dolu tutma"; ölçüldü: 10 Kasım örneği iptal edilmiş seride 10 Kasım "dolu" kalıyordu). Başka tarihteki örnek (17 Kasım) içe alınmış
+//    hiçbir kayda karşılık gelmez → dokunmaz (okuma "tekrarlayan / eksik" işaretli, kaynak `partial`; müsaitlik o geceler için "bilinmiyor").
 //  · Birden fazla ana kayıt: yüksek SEQUENCE, eşitse daha yeni LAST-MODIFIED (yoksa DTSTAMP) kazanır. En yeni sürümde ÇELİŞKİ kalırsa
 //    (eşit sürüm, farklı içerik) yıkıcı değişiklik yapılmaz: canlı (iptal olmayan) satır varsa besleme sırasındaki İLK canlı satır
 //    alınır (dolu gece; tarihler geçişler arasında gidip gelmez — b1), hepsi iptalse iptal tutarlıdır.
-//  · Tekrarlayan ana kayıt ilk örneğiyle DOLU gece olarak alınmaya devam eder (kurucu onayı: boş göstermek çift rezervasyon riski).
+//  · Tekrarlayan ana kayıt ilk örneğiyle DOLU gece olarak alınmaya devam eder (ilk örnek iptal değilse); sonraki örnekler (17 Kasım) bugün
+//    içe ALINMAZ — seriyi açma ayrı karar (kurucuya soruldu).
 //  · Ana kaydı beslemede olmayan örnek(ler): iptal UYGULANMAZ; iptal olmayan ilk örnek dolu gece olarak alınır.
 // UID'siz satırlar ve tek satırlı ana kayıtlar aynen geçer; çıktı sırası UID'nin ilk görülme sırasıdır.
 // ---------------------------------------------------------------------------
@@ -84,7 +86,7 @@ export function resolveIcsUidGroups(events: readonly IcsReservation[]): IcsReser
       continue;
     }
     const master = masters.length === 1 ? masters[0] : pickNewest(masters);
-    const ownOccurrence = master.hasRecurrenceRule ? [] : instances.filter((r) => sameDay(r.recurrenceId!, master.arrivalDate));
+    const ownOccurrence = instances.filter((r) => sameDay(r.recurrenceId!, master.arrivalDate));
     out.push(ownOccurrence.length > 0 ? { ...pickNewest(ownOccurrence), recurrenceId: null } : master);
   }
   return out;
