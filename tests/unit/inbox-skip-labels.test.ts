@@ -61,7 +61,7 @@ describe("konuşma bandı etiketleri", () => {
 
   it("C: bağlantı / saat / plan sebeplerinde eylem bağlantısı var ve gerçek bir ayar sekmesine gider", () => {
     const tabs = new Set(SETTINGS_NAV.flatMap((g) => g.items.map((i) => i.id)));
-    for (const reason of ["outside_hours", "not_connected", sendFailureReason("definitive_failure"), sendFailureReason("blocked"), "daily_budget", BILLING_PAUSED_REASON]) {
+    for (const reason of ["outside_hours", "not_connected", sendFailureReason("definitive_failure"), sendFailureReason("blocked"), "channel_paused", "daily_budget", BILLING_PAUSED_REASON]) {
       const action = SKIP_REASON_ACTIONS[reason];
       expect(action, reason).toBeTruthy();
       expect(tabs.has(new URL(action.href, "https://x.test").searchParams.get("tab") ?? "")).toBe(true);

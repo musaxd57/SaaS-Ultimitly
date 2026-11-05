@@ -42,6 +42,8 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { suggestReply } from "@/lib/ai";
+import { emailService } from "@/lib/email";
+import { importCanonicalThread } from "@/lib/ingest/write-service";
 import type { SuggestReplyResult } from "@/lib/ai/types";
 import { sendOnChannel } from "@/lib/messaging";
 import { understandGuestMessages } from "@/lib/ai/semantic/understand";
@@ -53,6 +55,7 @@ import { __setChannelThreadPageForTests } from "@/lib/channel-thread-window";
 const mockSuggest = vi.mocked(suggestReply);
 const mockUnderstand = vi.mocked(understandGuestMessages);
 const mockInlineSend = vi.mocked(sendOnChannel);
+const mockMail = vi.mocked(emailService.sendReporting);
 
 const STAY_NONE = { requested: false, kind: "none", checkin_time: null, checkout_time: null };
 function understood(requests: { intent: string; message: number }[], withdrawn: { intent: string; message: number }[] = []): MessageUnderstanding {
@@ -148,6 +151,7 @@ describe("Tur 7 T7-OB-1 adım 2 — kuyruktaki taslak ihtiyaç bazında", () => 
     mockSuggest.mockReset();
     mockUnderstand.mockReset();
     mockInlineSend.mockClear();
+    mockMail.mockClear();
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
@@ -327,6 +331,7 @@ describe("Tur 7 T7-OB-1 adım 2 — teslimi belirsiz yapay zekâ cevabı", () =>
     mockSuggest.mockReset();
     mockUnderstand.mockReset();
     mockInlineSend.mockClear();
+    mockMail.mockClear();
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
@@ -411,6 +416,80 @@ describe("Tur 7 T7-OB-1 adım 2 — teslimi belirsiz yapay zekâ cevabı", () =>
     understands(understood([{ intent: "cleaning_linen", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "cleaning_linen", reply: TOWELS, answeredRequests: { ok: true, refs: ["R1"] } }));
     expect((await applyChannelAutoReply(s.conversationId)).skippedReason).toBe("delivery_unverified");
+  });
+
+  it("🚨 belirsiz cevap aslında GİTTİYSE (senkron sağlayıcıdaki kopyasını bizim satırımıza bağlar) tutma KALKAR — sonraki soru normal cevaplanır", async () => {
+    const { orgId, conversationId } = await ambiguousFirstReply();
+    const convo = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { propertyId: true } });
+    // Gerçek senkron yazımı: sağlayıcı akışında bizim metnimiz ev sahibi tarafında görünüyor → adopt-and-heal yerel AI satırını sahiplenir.
+    await prisma.$transaction((tx) =>
+      importCanonicalThread(
+        tx,
+        convo.propertyId,
+        {
+          externalId: "res-sd",
+          code: "SDCODE",
+          channel: "airbnb",
+          status: "confirmed",
+          arrivalDate: new Date(Date.now() + 5 * 86_400_000),
+          departureDate: new Date(Date.now() + 8 * 86_400_000),
+          guest: { externalId: "g-sd", name: "Alex", givenName: "Alex", email: null, phone: null },
+          totalAmount: null,
+          currency: null,
+          conversationExternalId: "conv-sd",
+          conversationLanguage: null,
+          lastMessageAt: new Date(),
+          terminal: false,
+        },
+        [{ externalId: "prov-echo-1", direction: "outbound", senderName: "Ev Sahibi", body: PARKING, createdAt: new Date() }],
+        null,
+        { organizationId: orgId, provider: "hospitable", connectionId: null },
+      ),
+    );
+    const ai = await prisma.message.findFirstOrThrow({ where: { conversationId, authorType: "ai" } });
+    expect(ai.externalId).toBe("prov-echo-1");
+    expect(await prisma.message.count({ where: { conversationId, authorType: "host" } })).toBe(0);
+
+    await guestWrites(conversationId, "Bir de havlu lazım.");
+    understands(understood([{ intent: "cleaning_linen", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "cleaning_linen", reply: TOWELS, answeredRequests: { ok: true, refs: ["R1"] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).toBeUndefined();
+    // Kuyruk konuşma başına SIRALI: yeni cevap, önceki belirsiz satır son durumuna (inceleme) varana dek bekler — kör tekrar yok, kilit
+    // de yok (süre sınırlı: eşleştirici denemeleri bitince satır incelemeye düşer). Sağlayıcıda bulunan kopyanın satırı "iletildi"
+    // sayması (bekleme hiç olmaz) kurucu sorusu O3 — uygulanmadı.
+    await deliver();
+    expect(sent).toEqual([PARKING]);
+    await prisma.messageOutbox.updateMany({ where: { conversationId, status: "ambiguous" }, data: { status: "review" } });
+    await deliver();
+    // Belirsiz satırın kendisi yine kör tekrarlanmadı (tek deneme); yeni soru cevaplandı.
+    expect(sent).toEqual([PARKING, TOWELS]);
+  });
+
+  it("🚨 tutma sırasında gelen HASSAS istek (IBAN) ev sahibinde tutulur + bugünkü tek e-posta; güvenli istek açık kalır; karar kaydı yazılır", async () => {
+    const { conversationId } = await ambiguousFirstReply();
+    const both = "IBAN'ınızı atar mısınız? Bir de havlu lazım.";
+    await guestWrites(conversationId, both);
+    understands(understood([{ intent: "payment_invoice", message: 1 }, { intent: "cleaning_linen", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "cleaning_linen", reply: TOWELS, answeredRequests: { ok: true, refs: ["R1"] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "delivery_unverified" });
+    const rows = await prisma.conversationItem.findMany({
+      where: { conversationId, kind: { in: ["payment_invoice", "cleaning_linen"] } },
+      select: { kind: true, status: true, notifiedAt: true },
+      orderBy: { kind: "asc" },
+    });
+    expect(rows.map((r) => [r.kind, r.status, r.notifiedAt !== null])).toEqual([
+      ["cleaning_linen", "open", false],
+      ["payment_invoice", "pending_host", true],
+    ]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const reasons = (await prisma.riskEvent.findMany({ where: { conversationId }, select: { surface: true, finalDecision: true, reason: true } }))
+      .map((r) => `${r.surface}:${r.finalDecision}:${r.reason}`)
+      .sort();
+    expect(reasons).toContain("auto_reply:human_review:delivery_unverified");
+    await deliver(timeout);
+    expect(sent).toEqual([PARKING]);
   });
 
   it("koşucu tutulan mesajı DAMGALAR (her turda yeniden modellenmez); misafir yeni yazınca yeniden değerlendirilir", async () => {

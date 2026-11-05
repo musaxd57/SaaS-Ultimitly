@@ -4059,11 +4059,32 @@ export async function applyChannelAutoReply(
   // sonraki misafir mesajları normal cevaplanır (süresiz kilit yok). Bu mesaj için KALICI hayır (koşucu damgalar; her turda yeniden
   // modelleme yok); misafir yeni yazınca yeniden değerlendirilir. Kuyruk anahtarından bağımsız okunur: anahtar kapatılsa da (geri
   // alma) kalan belirsiz satırlar geçerlidir.
-  const unresolvedAi = await prisma.messageOutbox.findFirst({
+  // 🚨 Opus 11-05: belirsiz cevap GERÇEKTEN gittiyse senkron sağlayıcıdaki kopyasını ev sahibi mesajı olarak YAZMAZ — aynı metinli yerel
+  // satırımızı sahiplenir (`ingest/write-service.ts` adopt-and-heal: yalnız `externalId` yazılır, yazar "ai" kalır). O satır artık konuşmayı
+  // tutmaz: sağlayıcının akışında bizim metnimiz var → misafir o cevabı almıştır (ya da ev sahibi aynı metni yazmıştır; iki hâlde de ikinci
+  // cevap tekrar olmaz, soru da kayıp değildir). Eskiden yalnız ev sahibi yazarı sayılıyordu → en yaygın belirsiz durumda (sağlayıcı kabul
+  // etti, cevap zaman aşımına düştü) konuşma ev sahibi yazana kadar SÜRESİZ tutuluyordu. Kuyruk satırının durumu değişmez (kurucu sorusu O3).
+  const unresolvedRows = await prisma.messageOutbox.findMany({
     where: { conversationId: conversation.id, messageType: "ai", status: { in: [...UNRESOLVED_DELIVERY_STATUSES] } },
     orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
+    select: { createdAt: true, messageId: true },
+    take: 20,
   });
+  const echoed = new Set(
+    unresolvedRows.length > 0
+      ? (
+          await prisma.message.findMany({
+            where: {
+              conversationId: conversation.id,
+              id: { in: unresolvedRows.map((r) => r.messageId).filter((id): id is string => id !== null) },
+              externalId: { not: null },
+            },
+            select: { id: true },
+          })
+        ).map((m) => m.id)
+      : [],
+  );
+  const unresolvedAi = unresolvedRows.find((r) => r.messageId === null || !echoed.has(r.messageId)) ?? null;
   if (unresolvedAi) {
     const hostActedSince = await prisma.message.count({
       where: { conversationId: conversation.id, direction: "outbound", authorType: "host", createdAt: { gt: unresolvedAi.createdAt } },
@@ -4074,6 +4095,55 @@ export async function applyChannelAutoReply(
         conversation.id,
         conversation.skippedReason === PROVIDER_OUTAGE_REASON ? PROVIDER_OUTAGE_REASON : DELIVERY_UNVERIFIED_REASON,
       );
+      // Opus 11-05: tutma da öteki "gitmedi" çıkışlarının kaydını yapar — kapıda tutulan turla AYNI (`settleItemsTurn` cevapsız: hassas öğe
+      // ev sahibinde tutulur, güvenli istek açık kalır) + modelin öğelere atfedilemeyen sinyali + hassas öğe e-postası (mesaj başına bugünkü tek
+      // e-posta; normal gönderilen turda da gider — YENİ e-posta türü yok) + karar kartı bildirimi + karar kaydı. Eskiden hiçbiri yoktu: tutma
+      // sırasında gelen iade / ödeme / "ev sahibiyle görüşmek istiyorum" isteği kimseye e-posta atmıyordu.
+      if (itemsPlan) {
+        const heldAt = new Date();
+        try {
+          await settleItemsTurn(prisma, {
+            organizationId: conversation.property.organizationId,
+            turnItems: itemsPlan.turnItems,
+            answerable: itemsPlan.answerable,
+            now: heldAt,
+            answeredRefs: null,
+          });
+          if (result.source === "openai") {
+            await recordModelItems(prisma, {
+              organizationId: conversation.property.organizationId,
+              conversationId: conversation.id,
+              messageId: last.id,
+              items: unattributedModelItems({ intent: result.intent, riskType: result.riskType, riskLevel: result.riskLevel }, itemsPlan.turnHeld),
+              now: heldAt,
+            });
+          }
+          await notifyItemsForHost({
+            organizationId: conversation.property.organizationId,
+            conversation,
+            messageIds: itemsTurnMessageIds,
+            now: heldAt,
+          });
+        } catch (err) {
+          void reportError(`conversation-items delivery-hold org=${conversation.property.organizationId}`, err);
+        }
+      }
+      if (turnDecisions.length > 0) await notifyDecisions();
+      await recordDecision({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "human_review",
+        riskLevel: result.riskLevel,
+        riskType: result.riskType,
+        reason: DELIVERY_UNVERIFIED_REASON,
+        confidence: result.confidence,
+        ...groundingAudited,
+        srcDeclared: result.sourceAudit?.declared ?? null,
+        srcVerified: result.sourceAudit?.verified ?? null,
+      });
       return { sent: false, skippedReason: DELIVERY_UNVERIFIED_REASON, draft, ...meta };
     }
   }
@@ -4122,7 +4192,13 @@ export async function applyChannelAutoReply(
         idempotencyKey: nextReplyIdempotencyKey(
           `auto:${conversation.id}:${last.id}`,
           await prisma.messageOutbox.findMany({
-            where: { organizationId: conversation.property.organizationId, idempotencyKey: { startsWith: `auto:${conversation.id}:${last.id}` } },
+            // Konuşma süzgeci dizini kullanır (`conversationId, status`): `startsWith` varsayılan sıralama kuralında anahtar dizinini
+            // kullanamaz → işletmenin bütün kuyruk satırları taranırdı (Opus 11-05). Anahtar zaten konuşma kimliğini taşır — anlam aynı.
+            where: {
+              organizationId: conversation.property.organizationId,
+              conversationId: conversation.id,
+              idempotencyKey: { startsWith: `auto:${conversation.id}:${last.id}` },
+            },
             select: { idempotencyKey: true, status: true, lastErrorCode: true },
           }),
         ),

@@ -102,6 +102,9 @@ const REASONS = new Set([
   "reply_host_contact_only",
   // Kurucu 10-30 ("mesajı ev sahibi yazıyor"): QR devir sebebi; kanal kapısıyla aynı ad (`ai/host-voice-guard.ts`).
   "reply_host_voice",
+  // Tur 7 T7-OB-1 adım 2 (kurucu 11-05): önceki yapay zekâ cevabının teslimi belirsiz, ev sahibi henüz yazmadı → bu turun cevabı otomatik
+  // gitmedi, ev sahibine kaldı (konuşma notu aynı kod — `outbox/state.ts` `DELIVERY_UNVERIFIED_REASON`).
+  "delivery_unverified",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

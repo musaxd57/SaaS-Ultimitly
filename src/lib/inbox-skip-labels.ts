@@ -88,6 +88,9 @@ export const SKIP_REASON_ACTIONS: Record<string, { href: string; label: string; 
   not_connected: CONNECTION,
   send_failed: CONNECTION,
   subscription_inactive: CONNECTION,
+  // Opus 11-05: kuyruk yolu 402'de artık `channel_paused` yazar (T7-OB-4) — bağlantı bağlantısı onunla birlikte kaybolmasın (abonelik dönünce
+  // de zararsız: sekme bağlantının etkin olduğunu gösterir).
+  channel_paused: CONNECTION,
   daily_budget: PLAN,
   [BILLING_PAUSED_REASON]: PLAN,
 };
