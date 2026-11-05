@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { installTurkishZodErrors } from "@/lib/zod-tr";
-import { PASSWORD_TOO_LONG_MESSAGE, passwordExceedsByteLimit } from "@/lib/auth/password-policy";
+import { newPasswordProblem } from "@/lib/auth/password-policy";
 import { GUEST_DISPLAY_NAME_MAX, guestDisplayNameTooLong } from "@/lib/guest-display-name";
 
 // ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
@@ -56,14 +56,17 @@ export const registerSchema = z.object({
   organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı").max(200),
   name: z.string().min(2, "Ad en az 2 karakter olmalı").max(200),
   email: z.string().email("Geçerli bir e-posta girin").max(254),
-  // ③ 72 BAYT (09-23): bcrypt fazlasını sessizce yok sayar → yeni parola sınırı aşamaz.
-  // Ölçü ve metin TEK kaynaktan (`auth/password.ts`); değiştirme/sıfırlama yolları aynısını
-  // kullanır. `max(200)` kaba bir gövde kemeri olarak kalır.
+  // ③ 72 BAYT (09-23): bcrypt fazlasını sessizce yok sayar → yeni parola sınırı aşamaz. `max(200)` kaba bir gövde kemeri olarak kalır.
+  // 🚨 Tur 7 T7-AUTH-3 (kurucu önceliği 11-05): en az uzunluk + bayt sınırı TEK kaynaktan (`newPasswordProblem`, kurucu W6 10-21) —
+  // kayıt ve operatörün müşteri açması da değiştirme / sıfırlama yollarıyla AYNI kural. Eskiden burada `.min(8)` HAM dizenin kod
+  // noktalarını sayıyordu: ayrık yazımlı (NFD) 7 harfli parola ("ş" iki birim) kayıtta GEÇİYOR, sıfırlamada reddediliyordu.
   password: z
     .string()
-    .min(8, "Şifre en az 8 karakter olmalı")
     .max(200)
-    .refine((pw) => !passwordExceedsByteLimit(pw), PASSWORD_TOO_LONG_MESSAGE),
+    .superRefine((pw, ctx) => {
+      const problem = newPasswordProblem(pw);
+      if (problem) ctx.addIssue({ code: "custom", message: problem });
+    }),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 

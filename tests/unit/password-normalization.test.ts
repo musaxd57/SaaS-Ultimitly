@@ -156,3 +156,24 @@ describe("kurucu W6 (10-21): en az uzunluk saklanan (NFC) biçimin karakter say�
     expect(newPasswordProblem("abcdefgh")).toBeNull();
   });
 });
+
+describe("Tur 7 T7-AUTH-3: kayıt şeması da W6 kuralını kullanır (değiştirme / sıfırlama ile aynı)", () => {
+  it("🚨 ayrık yazımlı (NFD) 7 harfli parola kayıtta REDDEDİLİR; 8 harfli NFD kabul", async () => {
+    const { registerSchema } = await import("@/lib/validators");
+    const base = { organizationName: "Lale Ev", name: "Ayşe", email: "a@example.com" };
+    const seven = registerSchema.safeParse({ ...base, password: "ş".repeat(7).normalize("NFD") });
+    expect(seven.success).toBe(false);
+    expect(seven.error?.issues[0]?.message).toBe("Şifre en az 8 karakter olmalı.");
+    expect(registerSchema.safeParse({ ...base, password: "ş".repeat(8).normalize("NFD") }).success).toBe(true);
+  });
+
+  it("KONTROL — 72 bayt sınırı ve kısa ASCII kayıtta da aynı metinle", async () => {
+    const { registerSchema } = await import("@/lib/validators");
+    const { newPasswordProblem } = await import("@/lib/auth/password-policy");
+    const base = { organizationName: "Lale Ev", name: "Ayşe", email: "a@example.com" };
+    for (const pw of ["kisa", "ş".repeat(37), "abcdefgh"]) {
+      const r = registerSchema.safeParse({ ...base, password: pw });
+      expect(r.success ? null : r.error.issues[0].message).toBe(newPasswordProblem(pw));
+    }
+  });
+});
