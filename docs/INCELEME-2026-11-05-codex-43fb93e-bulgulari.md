@@ -150,6 +150,12 @@ anahtar yapılmaz. Bu ortak mimari tasarımına (J) girer; migration gerekir. **
   REDDEDİLDİ (belirsizde hemen yeniden gönderim olmaz); 2. madde (yazımdan önce çöken kuyruk yolu) kuyruk talebini 2 dk'ya indirerek
   çözüldü; 4. madde 2.6 ile kapandı; 3/5/6 tasarım gereği güvenli taraf.
 
+## 8.1 Tam kapının yakaladığı (dürüst kayıt)
+İlk tam kapı (gate-1105l) veritabanısız kolda BİR kırmızı verdi: `rate-limit-ip-bucket` mekanik pini (`rateLimit(` içinde `${ip}` deseni
+yasak — kova anahtarı ham IP'den kurulmasın). QR okuma sınırında (2.5) değişkenin adı `ip` idi; değer zaten `rateLimitClientKey`ten
+geliyordu (IPv6 /64 gruplu), yani davranış doğruydu ama pin metin olarak yakaladı. Ad `clientKey` yapıldı (`2c15f582`). Ders: hız
+sınırına dokunan değişiklikte `tests/unit/rate-limit*` pinleri de koşulur. Kapı durdurulup bütün değişikliklerle yeniden koşuldu.
+
 ## 9. Son mutasyon partisi
 14/14 öldürüldü (M0 yeşil): duyuru D1–D6 (rota alanı, iki yolun gerçek durumu, istemcinin üç dalı), QR sınırı Q1–Q3 (daire kovası,
 240 tavanı, kovada istekte bulunanın IP'si), kalite denetimi A1–A4 (kart, doğrudan çağrı, rota, yalnız "1"), G8 (tek tur kalkanı — önceki
