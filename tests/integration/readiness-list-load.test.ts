@@ -123,6 +123,25 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(factor(rows[0], "need")).toBeUndefined();
   });
 
+  it("🚨 hükmün okuduğu BAĞSIZ devir günü temizlik görevi de gösterilir (atanan doğru; Haiku 11-05)", async () => {
+    await sameDayTurnover();
+    await prisma.task.create({
+      data: { propertyId, reservationId: null, type: "cleaning", title: "Temizlik", origin: "manual", status: "todo", dueAt: dayDate(TODAY), assignedToId: staffId },
+    });
+    const rows = await rowOf();
+    expect(rows[0].readiness.overall).toBe("not_ready");
+    expect(factor(rows[0], "cleaning")!.label).toBe("Temizlik açık · atanan: Ayşe · başlanmadı");
+  });
+
+  it("temizlikçinin bugün devir temizliğine yazdığı not BİLGİ olarak görünür (içerik okunmaz)", async () => {
+    const { prev } = await sameDayTurnover();
+    const t = await cleaningTask(prev.id, { assignedToId: staffId });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, note: "Klozet kapağı kırık", createdAt: localToday(11, 30) } });
+    const rows = await rowOf(localToday(14));
+    expect(factor(rows[0], "cleaning_note")).toMatchObject({ state: "info", label: "Temizlikçi bugün bu temizliğe not yazdı — görevde bakın" });
+    expect(JSON.stringify(rows)).not.toContain("Klozet");
+  });
+
   it("iki dairenin devri karışmaz: her satır KENDİ devir görevinin atananını gösterir", async () => {
     const { prev } = await sameDayTurnover();
     await cleaningTask(prev.id, { assignedToId: staffId });

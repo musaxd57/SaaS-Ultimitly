@@ -158,6 +158,20 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(r.factors.find((f) => f.key === "timing")!.label).toBe("önceki çıkış 11:00 → giriş 15:00");
   });
 
+  it("okunamayan hüküm BİLİNMİYOR'dur (asla yeşil değil), çekirdek 'hazır' dese bile", () => {
+    const r = evaluateStay(stay({ cleaning: cleaning({ unavailable: true, status: "ready", readyMark: { id: "u1", at: at("2026-11-07T09:00:00Z"), by: null } }) }));
+    expect(r.overall).toBe("unknown");
+    expect(cleaningFactor(r)).toMatchObject({ state: "unknown", label: "Temizlik durumu şu an okunamadı" });
+  });
+
+  it("temizlikçi notu BİLGİ satırıdır — genel durumu değiştirmez", () => {
+    const base = stay({ cleaning: cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T09:00:00Z"), by: null } }) });
+    const withNote = evaluateStay({ ...base, cleaningNote: true });
+    expect(withNote.overall).toBe("cleaning_ready");
+    expect(withNote.factors.find((f) => f.key === "cleaning_note")).toMatchObject({ state: "info" });
+    expect(evaluateStay(base).factors.some((f) => f.key === "cleaning_note")).toBe(false);
+  });
+
   it("saat işletmenin saat diliminde yazılır (aynı an, farklı dilim)", () => {
     const ready = cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T15:40:00Z"), by: null } });
     expect(cleaningFactor(evaluateStay(stay({ timeZone: "America/New_York", cleaning: ready }))).label).toBe("Temizlik bitti 10:40 · çıkıştan (11:00) sonra");

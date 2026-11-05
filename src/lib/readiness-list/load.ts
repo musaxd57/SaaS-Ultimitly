@@ -10,6 +10,7 @@ import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import { commitmentLabel, isCommitmentKind } from "@/lib/guest-commitments-core";
 import { isItemKind } from "@/lib/conversation-items/core";
 import { itemKindLabel } from "@/lib/conversation-items/view";
+import { reportError } from "@/lib/report-error";
 import { evaluateStay, type CleaningInput, type StayReadiness } from "./evaluate";
 
 // ---------------------------------------------------------------------------
@@ -93,19 +94,28 @@ export async function loadArrivalReadiness(
   const arrivalIds = arrivals.map((a) => a.id);
   const propertyIds = [...new Set(arrivals.map((a) => a.propertyId))];
 
-  // Temizlik hükmü: konaklama başına BUGÜNKÜ yükleyici (aynı kanıt yolu).
-  const facts = await pool(arrivals, CONCURRENCY, (a) =>
-    loadEarlyCheckinFacts({
-      organizationId,
-      propertyId: a.propertyId,
-      reservationId: a.id,
-      now,
-      requested: { time: null, sources: 0, conflict: false },
-      singleIntent: true,
-    }),
-  );
+  // Temizlik hükmü: konaklama başına BUGÜNKÜ yükleyici (aynı kanıt yolu). Bir konaklamanın hatası sayfayı düşürmez: o satır "okunamadı"
+  // (bilinmiyor — asla yeşil değil) olur, hata raporlanır.
+  const failed = new Set<number>();
+  const facts = await pool(arrivals.map((a, i) => ({ a, i })), CONCURRENCY, async ({ a, i }) => {
+    try {
+      return await loadEarlyCheckinFacts({
+        organizationId,
+        propertyId: a.propertyId,
+        reservationId: a.id,
+        now,
+        requested: { time: null, sources: 0, conflict: false },
+        singleIntent: true,
+      });
+    } catch (err) {
+      failed.add(i);
+      void reportError("readiness-list.stay", err);
+      return null;
+    }
+  });
 
-  const referenceIds = [...new Set(facts.map((f) => f?.referenceId).filter((x): x is string => !!x))];
+  // Gösterilen görevler = hükmün okuduğu görevler (çekirdeğin kümesi; bağsız devir günü görevi dahil — Haiku 11-05).
+  const cleaningIds = [...new Set(facts.flatMap((f) => f?.cleaningTaskIds ?? []))];
   const readyMarkIds = facts.map((f) => f?.readyMark?.id).filter((x): x is string => !!x);
 
   const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems] = await Promise.all([
@@ -114,9 +124,9 @@ export async function loadArrivalReadiness(
       select: { id: true, reservationId: true },
       orderBy: { createdAt: "asc" },
     }),
-    referenceIds.length
+    cleaningIds.length
       ? prisma.task.findMany({
-          where: { reservationId: { in: referenceIds }, type: "cleaning", property: { organizationId } },
+          where: { id: { in: cleaningIds }, property: { organizationId } },
           select: {
             id: true,
             reservationId: true,
@@ -190,8 +200,9 @@ export async function loadArrivalReadiness(
     const convs = convByReservation.get(a.id) ?? [];
     const f = loaded?.facts;
     const referenceId = loaded?.referenceId ?? null;
+    const ownTaskIds = new Set(loaded?.cleaningTaskIds ?? []);
     const tasks = cleaningTasks
-      .filter((t) => t.reservationId === referenceId)
+      .filter((t) => ownTaskIds.has(t.id))
       .map((t) => {
         const latest = t.updates[0];
         const started = latest && latest.status === "in_progress" && latest.userId ? latest : null;
@@ -208,6 +219,7 @@ export async function loadArrivalReadiness(
       // Açık görev önce (engelleyen o).
       .sort((x, y) => Number(y.open) - Number(x.open));
     const cleaning: CleaningInput = {
+      unavailable: failed.has(i),
       status: f?.readiness ?? "unknown",
       note: f?.readinessNote ?? null,
       previousKnown: referenceId !== null,
@@ -219,6 +231,7 @@ export async function loadArrivalReadiness(
       timeZone: tz,
       now,
       cleaning,
+      cleaningNote: f?.cleaningNote === true,
       openIssue: f?.openIssue === true,
       maintenanceOpen: f?.maintenanceOpen === true,
       overlaps: f?.otherOverlaps ?? 0,

@@ -98,6 +98,8 @@ export interface LoadedEarlyCheckin {
   referenceId: string | null;
   /** Hazır hükmünü veren "bitti" kaydı (kimlik + an). */
   readyMark: { id: string | null; at: Date } | null;
+  /** Hükmün okuduğu BU DEVRİN temizlik görevleri (gösterim: giriş hazırlığı listesi aynı kümeyi gösterir — 11-05). */
+  cleaningTaskIds: string[];
 }
 
 export async function loadEarlyCheckinFacts(args: {
@@ -133,7 +135,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null };
+  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [] };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -171,6 +173,7 @@ export async function loadEarlyCheckinFacts(args: {
 
   // Hazırlık: referans çıkış = aynı gün ayrılan; yoksa varıştan önceki EN SON çıkış.
   let readyMark: LoadedEarlyCheckin["readyMark"] = null;
+  let cleaningTaskIds: string[] = [];
   const reference = previous
     ? { id: previous.r.id, dayKey: previous.d, checkout: previous.checkout }
     : await (async () => {
@@ -203,6 +206,7 @@ export async function loadEarlyCheckinFacts(args: {
         ],
       },
       select: {
+        id: true,
         type: true,
         origin: true,
         status: true,
@@ -216,6 +220,7 @@ export async function loadEarlyCheckinFacts(args: {
     const onTurnoverDay = (t: { dueAt: Date | null }) => t.dueAt !== null && calendarDateOf(t.dueAt, tz).key === reference.dayKey;
     // BU DEVRİN temizliği: devir gününe tarihli (bağlı ya da bağsız) + ayrılan konaklamaya bağlı TARİHSİZ görev.
     const cleaning = tasks.filter((t) => t.type === "cleaning" && (onTurnoverDay(t) || (t.dueAt === null && t.reservationId === reference.id)));
+    cleaningTaskIds = cleaning.map((t) => t.id);
     const marks = cleaning.map((t) => markOfTask(t, reference.id));
     const checkoutAt = wallClockMoment(reference.dayKey, reference.checkout, tz);
     const opts = { dayStart, allowBeforeCheckout: rule?.readyBeforeCheckout === true };
@@ -274,5 +279,5 @@ export async function loadEarlyCheckinFacts(args: {
       facts.previousNightVerifiedVacant = report.ok && report.value.nights.length === 1 && report.value.nights[0].state === "free";
     }
   }
-  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark };
+  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark, cleaningTaskIds };
 }

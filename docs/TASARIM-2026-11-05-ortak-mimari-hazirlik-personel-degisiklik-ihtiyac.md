@@ -76,9 +76,17 @@ ya da kilit entegrasyonu) aynı faktör `ok` olur ve genel durum "HAZIR"a çıka
   - `Cmt 8 Kas · Lale 7 · 14:00 · BİLİNMİYOR — Temizlik görevi yok (eksik: devir temizliği görevi)`
   - `Paz 9 Kas · Lale 3 · 16:00 · TEMİZLİK HAZIR — Bitti 11:40 (Ayşe, çıkıştan sonra) · Erişim kontrol edilmedi`
 
-**Teknik:** saf değerlendirici (`src/lib/readiness-list/evaluate.ts`, DB yok) + toplu yükleyici (az sayıda sorgu; devir seçimi ve görev
-kümesi bugünkü tek-konaklama yükleyicisiyle BİREBİR — kâhin testi: rastgele kurulumda iki yükleyici aynı hükmü verir) + sayfa. Model çağrısı
-yok, yazma yok, migration yok.
+**Teknik (UYGULANDI, `387f5228`):** saf değerlendirici (`src/lib/readiness-list/evaluate.ts`, DB yok) + yükleyici
+(`src/lib/readiness-list/load.ts`) + sayfa `/arrivals` ("Girişler", menüde "Görevler"in altında). Temizlik hükmü için ikinci bir devir /
+görev mantığı YAZILMADI: konaklama başına bugünkü tek-konaklama yükleyicisi (`loadEarlyCheckinFacts`, eşzamanlılık 4) çağrılır — misafire
+giden "Daireniz hazır" kararıyla birebir aynı kanıt (test: dört kurulumda liste satırı = tek-konaklama hükmü). Söz / ihtiyaç / giriş
+talimatı / kişi adları toplu sorgularla eklenir. Bir konaklamanın hatası sayfayı düşürmez (satır "okunamadı", hata raporlanır). Ölçek notu:
+konaklama başına birkaç sorgu — 3 günlük pencerede tipik işletme için yeterli; yüzlerce girişte toplu yükleyiciye (aynı hükmü verdiği
+kâhin testiyle) geçilir. Model çağrısı yok, yazma yok, migration yok.
+Satırın gösterdiği görevler = hükmün okuduğu görevler (çekirdek `cleaningTaskIds` döndürür — ekleme; bağsız devir günü görevi dahil,
+Haiku 11-05). Temizlikçinin o gün devre yazdığı not BİLGİ satırıdır (içerik okunmaz). Mutasyon: 22 mutanttan 21'i öldürüldü; yaşayan K22
+(`status` bilinmiyor → "hazır") EŞDEĞER: değerlendirici "temizlik bitti" için hükmün yanında "bitti" işaretini de ister ve çekirdek işareti
+YALNIZ hazır hükmünde verir (`readyMarkOf`) — "hazır ama işaretsiz" girdisi ulaşılamaz, çıktı birebir aynı kalır.
 
 ## 3. B — Personel daveti ve iş kabulü
 

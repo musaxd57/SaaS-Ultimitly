@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 export type FactorState = "ok" | "blocking" | "unknown" | "info";
-export type FactorKey = "cleaning" | "issue" | "overlap" | "commitment" | "need" | "access" | "timing";
+export type FactorKey = "cleaning" | "cleaning_note" | "issue" | "overlap" | "commitment" | "need" | "access" | "timing";
 export type Overall = "not_ready" | "unknown" | "cleaning_ready";
 
 /** Bir faktörün dayandığı kayıt (tür + kimlik + zaman). */
@@ -33,6 +33,8 @@ export interface Factor {
 }
 
 export interface CleaningInput {
+  /** Hüküm OKUNAMADI (yükleyici hata verdi) — bilinmiyor; satır sayfayı düşürmez. */
+  unavailable?: boolean;
   /** Bugünkü çekirdeğin hükmü (`loadEarlyCheckinFacts` → `facts.readiness` / `readinessNote`). */
   status: "ready" | "not_ready" | "unknown";
   note: "none" | "open" | "fresh" | "before_checkout" | "no_time" | null;
@@ -50,6 +52,8 @@ export interface StayReadinessInput {
   timeZone: string;
   now: Date;
   cleaning: CleaningInput;
+  /** Temizlikçi bugün bu devrin temizliğine not yazdı (çekirdeğin `cleaningNote`ı; içerik okunmaz). */
+  cleaningNote?: boolean;
   /** Devirde açık sorun / bakım / kontrol görevi (çekirdeğin `openIssue`ı). */
   openIssue: boolean;
   /** Mülkte bağsız / gecikmiş açık bakım (çekirdeğin `maintenanceOpen`ı). */
@@ -76,6 +80,9 @@ function hhmm(d: Date, timeZone: string): string {
 }
 
 function cleaningFactor(c: CleaningInput, tz: string): Factor {
+  if (c.unavailable) {
+    return { key: "cleaning", state: "unknown", label: "Temizlik durumu şu an okunamadı", missing: "sayfayı yenileyin", basis: [] };
+  }
   const task = c.tasks[0] ?? null;
   const taskBasis: Basis[] = c.tasks.map((t) => ({ kind: "task" as const, id: t.id, at: null }));
   const after = c.previousCheckout ? `çıkıştan (${c.previousCheckout}) sonra` : "çıkıştan sonra";
@@ -118,6 +125,10 @@ function cleaningFactor(c: CleaningInput, tz: string): Factor {
 export function evaluateStay(input: StayReadinessInput): StayReadiness {
   const tz = input.timeZone;
   const factors: Factor[] = [cleaningFactor(input.cleaning, tz)];
+  if (input.cleaningNote) {
+    // Sorun bildiriminin bugünkü tek yolu temizlikçinin notu (çekirdek: otomatik "Daireniz hazır"ı durdurur) — burada BİLGİ: bakın.
+    factors.push({ key: "cleaning_note", state: "info", label: "Temizlikçi bugün bu temizliğe not yazdı — görevde bakın", missing: null, basis: [] });
+  }
   if (input.openIssue || input.maintenanceOpen) {
     factors.push({
       key: "issue",
