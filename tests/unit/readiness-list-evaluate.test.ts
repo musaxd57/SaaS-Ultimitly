@@ -155,7 +155,7 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     const r = evaluateStay(stay({ cleaning: cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T09:00:00Z"), by: null } }) }));
     expect(r.factors.map((f) => f.key)).toEqual(["cleaning", "access", "timing"]);
     expect(r.factors.find((f) => f.key === "access")).toMatchObject({ state: "info", label: "Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi" });
-    expect(r.factors.find((f) => f.key === "timing")!.label).toBe("önceki çıkış 11:00 → giriş 15:00");
+    expect(r.factors.find((f) => f.key === "timing")!.label).toBe("Önceki çıkış 11:00 → giriş 15:00");
   });
 
   it("okunamayan hüküm BİLİNMİYOR'dur (asla yeşil değil), çekirdek 'hazır' dese bile", () => {

@@ -163,7 +163,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     });
     const rows = await rowOf();
     expect(rows[0].checkInTime).toBe("12:00");
-    expect(factor(rows[0], "timing")!.label).toBe("önceki çıkış 11:00 → giriş 12:00");
+    expect(factor(rows[0], "timing")!.label).toBe("Önceki çıkış 11:00 → giriş 12:00");
   });
 
   it("sığmayan giriş sayısı söylenir (sessiz kesme yok)", async () => {

@@ -172,7 +172,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       : { key: "access", state: "info", label: "Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi", missing: "giriş talimatı ve erişim kontrolü", basis: [] },
   );
   if (input.cleaning.previousCheckout || input.checkInTime) {
-    const out = input.cleaning.previousCheckout ? `önceki çıkış ${input.cleaning.previousCheckout}` : "önceki çıkış bilinmiyor";
+    const out = input.cleaning.previousCheckout ? `Önceki çıkış ${input.cleaning.previousCheckout}` : "Önceki çıkış bilinmiyor";
     const inn = input.checkInTime ? `giriş ${input.checkInTime}` : "giriş saati bilinmiyor";
     factors.push({ key: "timing", state: "info", label: `${out} → ${inn}`, missing: null, basis: [] });
   }
