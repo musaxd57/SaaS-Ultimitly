@@ -877,6 +877,19 @@ describe("register + resend — durable outbox (flag ON)", () => {
     expect(await prisma.emailOutbox.count()).toBe(1);
   });
 
+  it("🚨 T7-AUTH-1: kuyruklu yolda da günlük gönderim kotası gerçek gönderimde düşer — 24 saatte en fazla 6 e-posta kuyruğa yazılır", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "qbomb@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    for (let i = 0; i < 9; i++) {
+      expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "qbomb@x.com" }))).status).toBe(200);
+      await prisma.$executeRaw`UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute' WHERE "key" LIKE 'verify-resend:%' OR "key" LIKE 'verify-resend-acct:%'`;
+      await ageVerifyLink("qbomb@x.com");
+    }
+    expect(vi.mocked(enqueueIdentityEmail)).toHaveBeenCalledTimes(6);
+  });
+
   it("RESEND: yeni token eski teslim-edilmemiş linki süperseder; yalnız YENİ link gönderilir ve doğrular", async () => {
     await register(
       postReq("http://localhost/api/auth/register", {
