@@ -21,6 +21,8 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    tabanından AYNEN taşındı; `SELECT count(*) FROM "AutoMessageTemplate" WHERE "needsReview"` > 0 ise o kartlarda "kontrol edin" uyarısı var.
 2. **`ENCRYPTION_KEY` aynı kalır** (rotasyon ASLA). Kasadaki değerle Railway'deki aynı mı — yalnız parmak izi ile karşılaştırın.
 3. **Hospitable OAuth:** süresi dolmuş olabilir → Ayarlar → Bağlantılar'da yeniden bağlanın; `scripts/diagnose-hospitable-tokens.ts` salt-okuma.
+   Kurucu org hâlâ `HOSPITABLE_API_TOKEN` ortam yedeğindeyse ve o token reddedilirse (Tur 7 T7-OB-2): kuyruktaki elle cevaplar artık sonsuz
+   yeniden gönderilmez — ~6 denemede "Gönderilemedi" olur + uyarı; token düzeltilince `/sent/queue`dan "yeniden dene".
 4. **Paddle:** kapalıyken gelen webhook'lar kaçtı → abonelik durumunu Paddle panosuyla karşılaştırın (reconcile).
    🚨 **CANLI API ANAHTARI (10-17):** eski canlı anahtarın süresi 13 Eylül 2026'da DOLDU (Paddle anahtarları varsayılan 90 gün, en çok 1 yıl;
    dolan anahtar yenilenemez) → 13 Eylül'den beri portal / paket değişikliği / durum okuma çağrıları çalışmıyordu (webhook etkilenmez). Kurucu

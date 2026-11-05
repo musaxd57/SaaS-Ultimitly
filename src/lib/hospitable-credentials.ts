@@ -537,7 +537,11 @@ export async function clearOrgHospitableToken(orgId: string): Promise<void> {
   });
 }
 
-export type ProviderAuthFailureOutcome = "refresh_forced" | "revoked" | "noop";
+/**
+ * `env_rejected` (Tur 7 T7-OB-2): reddedilen token kayıtlı bir org token'ı DEĞİL, kurucu org'un ortam yedeği (`HOSPITABLE_API_TOKEN`).
+ * Ne yenilenebilir ne iptal edilebilir — "noop" demek kuyruğun her geçişte ölü anahtarla yeniden göndermesine yol açıyordu.
+ */
+export type ProviderAuthFailureOutcome = "refresh_forced" | "revoked" | "noop" | "env_rejected";
 
 /**
  * The provider rejected this org's credential on an authenticated call (HTTP
@@ -561,7 +565,11 @@ export async function handleProviderAuthFailure(
     where: { id: orgId },
     select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true },
   });
-  if (!org || !org.hospitableTokenEnc) return "noop"; // already disconnected
+  if (!org || !org.hospitableTokenEnc) {
+    // Kayıtlı token yok: reddedilen token ortam yedeğiyse (yalnız PRIMARY_ORG_ID kullanır) çağıran bunu KALICI ret sayar (T7-OB-2).
+    const env = process.env.HOSPITABLE_API_TOKEN;
+    return env && failedToken === env ? "env_rejected" : "noop"; // aksi hâlde zaten bağlantısız
+  }
   // 🚨 GEÇ GELEN RED YENİ BAĞLANTIYI DÜŞÜRMEZ (Codex 09-30, A5). Aşağıdaki koşullu yazma işleyicinin O AN okuduğu token'a
   // göreydi: gönderim sürerken ev sahibi yeniden bağlandıysa (ya da token yenilendiyse) ESKİ token'ın geç gelen 401'i YENİ
   // bağlantıyı iptal ediyordu. Hüküm yalnız reddedilen token HÂLÂ kayıttaki token ise verilir.

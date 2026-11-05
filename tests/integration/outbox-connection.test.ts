@@ -394,4 +394,25 @@ describe("outbox × ChannelConnection", () => {
     expect(await row(outboxId)).toMatchObject({ status: "sent" });
     expect(await getConnection(orgId)).toMatchObject({ status: "active", generation: 1 });
   });
+
+  it("🚨 Tur 7 T7-OB-2: kurucu org'un ORTAM YEDEĞİ token'ı reddedilince satır her geçişte ölü anahtarla yeniden gönderilmez — deneme tüketilir, 6 denemede 'failed'", async () => {
+    const { orgId, conversationId } = await seed();
+    vi.stubEnv("PRIMARY_ORG_ID", orgId);
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "ENV-DEAD");
+    resetPrimaryOrgCache();
+    expect(await handleProviderAuthFailure(orgId, 401, "ENV-DEAD")).toBe("env_rejected");
+    expect(await handleProviderAuthFailure(orgId, 401, "BASKA")).toBe("noop");
+    const { outboxId } = await enqueue(orgId, conversationId, "k-env-401");
+    const send = vi.fn(async () => ({ ok: false, error: "Hospitable API hatası (HTTP 401)", kind: "auth_revoked" as const }));
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    for (let i = 0; i < 12; i++) {
+      await drainOutboxOnce({ send, now, verifyCredential: async () => false });
+      clock += 3 * 60 * 60_000; // geri çekilmeyi aş
+    }
+    const r = await row(outboxId);
+    expect(r.status).toBe("failed");
+    expect(send.mock.calls.length).toBeLessThanOrEqual(6); // eskiden 12 geçişte 12 gönderim, satır sonsuza dek "pending"
+  });
 });
+

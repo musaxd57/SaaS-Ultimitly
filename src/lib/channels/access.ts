@@ -22,7 +22,8 @@ import type { OutboundCredential, OutboundProvider } from "./outbound";
 // kimlik bilgisini taşımak (kiracı / sağlayıcı karışması) bundan kötüdür.
 // ---------------------------------------------------------------------------
 
-export type CredentialRejectionOutcome = "refresh_forced" | "revoked" | "noop";
+/** `env_rejected`: ortam yedeği token reddedildi (yenilenemez / iptal edilemez) — kuyruk bunu kalıcı ret sayar (Tur 7 T7-OB-2). */
+export type CredentialRejectionOutcome = "refresh_forced" | "revoked" | "noop" | "env_rejected";
 
 export interface MessagingAccess<P extends OutboundProvider = OutboundProvider> {
   readonly provider: P;

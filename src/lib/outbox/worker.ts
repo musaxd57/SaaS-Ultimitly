@@ -19,6 +19,7 @@ import {
   dispatchOutbound,
   verifyOutboundCredential,
   handleOutboundCredentialRejected,
+  type CredentialRejectionOutcome,
   resolveOrgChannelCredential,
   resolveOutboundRoute,
   type OutboundProvider,
@@ -1548,6 +1549,34 @@ async function processOne(
     // is told to reconnect; from then on the row parks as `disconnected` with NO
     // provider call until the connection is active again.
     const httpStatus = /HTTP (401|403)/.exec(outcome.error ?? "")?.[1] === "403" ? 403 : 401;
+    // Tur 7 T7-OB-2 (kurucu 11-05 "tamamını yap"): ret kararı settle'dan ÖNCE alınır. Kurucu org'un ortam yedeği token'ı reddedildiyse
+    // (kayıtlı token yok → yenilenemez, iptal edilemez) bu KALICI bir rettir: eskiden satır her geçişte ölü anahtarla yeniden gönderiliyor,
+    // hiç "başarısız" olmuyor, alarm çalmıyordu (12 geçişte 12 POST). Artık kesin hata gibi: deneme tüketilir, 6 denemede `failed` + alarm.
+    let rejection: CredentialRejectionOutcome = "noop";
+    try {
+      // V0.8: the rejected credential goes back to ITS provider's lifecycle owner (the row's own route decides which).
+      const route = resolveOutboundRoute(row);
+      if (route.kind === "external") {
+        rejection = await handleOutboundCredentialRejected(row.organizationId, httpStatus, { provider: route.destination.provider, token: providerToken });
+      }
+    } catch (err) {
+      // The lifecycle decision failing must be visible, not fatal to the batch (the row still parks below).
+      await reportError("outbox-auth-failure-handling", err).catch(() => {});
+    }
+    if (rejection === "env_rejected") {
+      if (attemptsExhausted(row.attemptCount)) {
+        const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "auth_revoked", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+        if (done) {
+          await signalOutboxStuck(row, "failed");
+          await applyFailureEffect(row, "definitive_failure");
+        }
+        acc.failed++;
+      } else {
+        await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "auth_revoked", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+        acc.retried++;
+      }
+      return;
+    }
     await settle(row, token, "sending", {
       status: "pending",
       availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
@@ -1557,17 +1586,6 @@ async function processOne(
       claimedBy: null,
       claimExpiresAt: null,
     });
-    try {
-      // V0.8: the rejected credential goes back to ITS provider's lifecycle owner (the row's own route decides which).
-      const route = resolveOutboundRoute(row);
-      if (route.kind === "external") {
-        await handleOutboundCredentialRejected(row.organizationId, httpStatus, { provider: route.destination.provider, token: providerToken });
-      }
-    } catch (err) {
-      // The row is already parked safely; the lifecycle decision failing must be visible,
-      // not fatal to the batch.
-      await reportError("outbox-auth-failure-handling", err).catch(() => {});
-    }
     acc.retried++;
     return;
   }
