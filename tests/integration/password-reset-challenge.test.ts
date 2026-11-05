@@ -254,7 +254,7 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
       req({ action: "confirm", token: eski.token, code: yeni.code, newPassword: NEW_PASSWORD }),
     );
     expect(capraz.status).toBe(400);
-    expect((await capraz.json()).fields?.code).toContain("Bu kod artık kullanılamıyor");
+    expect((await capraz.json()).fields?.code).toContain("Kod doğrulanamadı");
 
     // 🚨 VE ESKİ CHALLENGE YANMADI: kendi kodu HÂLÂ çalışıyor. Çapraz denemenin
     // eski satırın bütçesini tüketip kullanıcıyı dışarıda bırakmadığını gösterir.
@@ -461,7 +461,7 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
       const res = await POST(req(body, "13.0.0.1"));
       expect(res.status).toBe(400);
       const json = await res.json();
-      expect(json.fields?.code).toContain("Bu kod artık kullanılamıyor");
+      expect(json.fields?.code).toContain("Kod doğrulanamadı");
       // Alan adı AYRIŞMAMALI: `email` sızarsa dal oracle'ı geri gelir.
       expect(Object.keys(json.fields ?? {})).toEqual(["code"]);
     }

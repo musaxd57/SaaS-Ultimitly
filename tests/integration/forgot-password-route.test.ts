@@ -39,10 +39,9 @@ function reqFrom(body: unknown, ip = "9.9.9.1") {
   });
 }
 
-/** Faz 3 sonrası tek genel confirm hatası. Metin DEĞİŞTİRİLMEMELİ: ekrandaki
- *  "Kodu tekrar gönder" davetiyesiyle eşleşiyor ve tüm başarısızlık sebeplerini
- *  tek bir cevaba indiriyor. */
-const GENERIC = "Bu kod artık kullanılamıyor.";
+/** Faz 3 sonrası tek genel confirm hatası: tüm başarısızlık sebeplerini tek bir cevaba indirir (hangi sebep olduğu sızmaz).
+ *  Tur 7 T7-AUTH-2 (11-05): yalnız bu ekrandaki düğmeyi ("Baştan başla") anar — eskiden Ayarlar'daki "Kodu tekrar gönder"i anıyordu. */
+const GENERIC = "Kod doğrulanamadı. Kodu kontrol edip tekrar deneyin ya da “Baştan başla” ile yeni bir kod isteyin."; // T7-AUTH-2 (11-05)
 
 describe("forgot-password — rota-geneli değişmezler", () => {
   beforeEach(async () => {
@@ -144,5 +143,18 @@ describe("forgot-password — rota-geneli değişmezler", () => {
     const res = await POST(reqFrom({ action: "baska", email: EMAIL }, "9.9.9.7"));
     expect(res.status).toBe(400);
     expect((await res.json()).fields?._).toContain("Geçersiz işlem");
+  });
+});
+
+describe("Tur 7 T7-AUTH-2 — halka açık sıfırlama ekranı metni", () => {
+  it("🚨 genel hata yalnız bu ekranda olan düğmeyi anar ve sebep uydurmaz", async () => {
+    const { readFileSync } = await import("node:fs");
+    const route = readFileSync("src/app/api/account/forgot-password/route.ts", "utf8");
+    const form = readFileSync("src/components/auth/forgot-password-form.tsx", "utf8");
+    expect(route).not.toMatch(/const GENERIC_CONFIRM =[^;]*Kodu tekrar gönder/);
+    expect(route).not.toMatch(/const GENERIC_CONFIRM =[^;]*daha yeni bir kod/);
+    expect(route).toMatch(/const GENERIC_CONFIRM =[^;]*“Baştan başla”/);
+    expect(form).toContain("Baştan başla"); // anılan düğme bu ekranda gerçekten var
+    expect(form).not.toContain("Kodu tekrar gönder");
   });
 });

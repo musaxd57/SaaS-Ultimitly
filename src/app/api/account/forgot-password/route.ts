@@ -69,9 +69,11 @@ function verificationCode(): string {
 
 // Same generic message whether the token is missing, unknown, expired, out of
 // budget, or the code is wrong — the response never reveals which (nor whether
-// an account exists). Wording matches the on-screen CTA ("Kodu tekrar gönder").
-const GENERIC_CONFIRM =
-  "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.";
+// an account exists).
+// Tur 7 T7-AUTH-2 (kurucu 11-05 "tamamını yap"): metin yalnız BU ekrandaki düğmeyi ("Baştan başla") anar ve sebep uydurmaz. Eskiden
+// "Kodu tekrar gönder" (yalnız Ayarlar'daki şifre kartında var) ve "daha yeni bir kod oluşturulmuş olabilir" (burada yeni istek eski
+// kodu öldürmez) diyordu; tek haneli yazım hatası "ölü kod" gibi okunuyor, kişi geçerli kodu bırakıyordu. Ayarlar'daki metin AYNI kalır.
+const GENERIC_CONFIRM = "Kod doğrulanamadı. Kodu kontrol edip tekrar deneyin ya da “Baştan başla” ile yeni bir kod isteyin.";
 
 export async function POST(req: NextRequest) {
   // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23; `login` rotasının F8 emsali, gerekçe
