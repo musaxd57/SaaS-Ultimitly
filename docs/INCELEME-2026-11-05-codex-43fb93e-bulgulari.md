@@ -197,4 +197,5 @@ doğrulandı; düzeltilenlerin testi eski kodda kırmızı, yenide yeşil. Misaf
 balon, temizlik, F9 / F6 dalları, tohum, pencere, bekleme sınırı, ıska kovası, daire kovası, gün sırası, görev-var dalı, tarih etiketi) ·
 dayanak partisi B1–B19 **19/19** (`0dec1719`: çekirdeğin dört kimlik kümesi, "+1" okuma, aynı gün iki ayrılış, üç org süzgeci, kimlikli not
 şartı, satırın kendi notu, tekilleştirme, vade / ad / yazan etiketleri, Görevler bağlantısı, yazma servisinin önek ayrımı, genel cümle dalı).
-Bu turun toplamı: 49 + 16 + 19 = **84 mutant, 84'ü öldürüldü**.
+Haiku incelemesi sonrası (etiket kalıbı, "(gecikti)", eksik dayanak) C1–C3 **3/3** (`f651fa41`). Bu turun toplamı: 49 + 16 + 19 + 3 =
+**87 mutant, 87'si öldürüldü**.
