@@ -1,5 +1,5 @@
 import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -427,14 +427,27 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
   return noStore(await handleGuestChatGet(req, ctx));
 }
 
+// 🚨 OKUMA SINIRI İKİ KATMAN (Codex 11-05, 43fb93e incelemesi P2). Eskiden tek kova vardı: IP başına 60/dk. Her açık sohbet 5 sn'de bir
+// sorgular (12/dk) → aynı bina internetindeki FARKLI dairelerin altı misafiri 72/dk ile sınıra takılıyor, altıncının sohbeti donuyordu.
+// Şimdi: daire (QR anahtarı) başına IP bütçesi bugünkü gibi 60/dk — aynı dairede zaten tek cihaz okur (konaklama cihaza bağlı); kaba IP
+// tavanı 240/dk (~20 eşzamanlı sohbet) yalnız toplam yükü sınırlar. Anahtar ham değil ÖZET olarak tutulur (sır başka tabloya yazılmaz);
+// kova istekte bulunanın IP'sini taşır → başkası bu dairenin misafirinin kotasını tüketemez. Token 244 bit rastgele: tahmin saldırısı
+// sınırın konusu değil, yük öyle.
+const GUEST_CHAT_GET_PER_IP_PER_MIN = 240;
+const GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN = 60;
+
 async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
-  const limited = await rateLimit(`guestchat-get:${rateLimitClientKey(req)}`, 60, 60_000);
+  const ip = rateLimitClientKey(req);
+  const limited = await rateLimit(`guestchat-get:${ip}`, GUEST_CHAT_GET_PER_IP_PER_MIN, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   const supportView = await supportViewRefusal(req);
   if (supportView) return supportView;
 
   const { token } = await params;
+  const tokenBucket = createHash("sha256").update(token).digest("base64url").slice(0, 16);
+  const perToken = await rateLimit(`guestchat-get-t:${ip}:${tokenBucket}`, GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN, 60_000);
+  if (!perToken.ok) return tooManyRequests(perToken.retryAfter);
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
   const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
   if (!ctx) return notFound();
