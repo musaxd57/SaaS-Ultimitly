@@ -468,6 +468,10 @@ describe("51: acil KARARI (bağlam ilkesi)", () => {
       "Annem bayıldı!",
       "Hepimiz bayıldık, başımız dönüyor",
       "Derya bayıldı!",
+      // T1 tasarımı 11-04 (Y2): BULUNMA eki övgü değildir — "evde / banyoda / salonda bayıldı" açık olay kalır (eskiden övgü diye maskeleniyordu).
+      "Annem evde bayıldı",
+      "Eşim banyoda bayıldı",
+      "Babam salonda bayıldı",
       "Annem merdivenden düştü",
       "Merdivenden düştüm",
       "Помогите!",
@@ -839,6 +843,9 @@ describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () 
     "Merdiven duman dolu",
     "Merdivenden duman yükseliyor",
     "Gas tritt aus dem Herd aus",
+    // T1 tasarımı 11-04 (Y1): "fışkır" kökü çekimiyle ("fışkırıyor") — ilk düzeltmede çekimsiz yazıldığı için ek "koşul eki" sanılıyordu.
+    "Musluktan su fışkırıyor",
+    "Vanadan su fışkırıyor",
   ])("🚨 %j → açık / olası (anılış DEĞİL)", (m) => {
     expect(["clear", "possible"]).toContain(level(m));
   });
@@ -863,6 +870,8 @@ describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () 
     ["Vana gaz kaçıyor muydu, kontrol ettiniz mi?", "mentioned"],
     ["Ocak gaz kokuyor mu diye kontrol ettim, kokmuyor", "mentioned"],
     ["Merdivenden duman geliyorsa nereden çıkalım?", "mentioned"],
+    ["Musluktan su fışkırıyorsa ne yapayım?", "mentioned"],
+    ["Musluktan su fışkırıyordu, tamir edildi", "mentioned"],
     ["If the stove smells like gas, what should I do?", "mentioned"],
     ["Does the stove have a gas smell detector?", "mentioned"],
     ["Yangın tüpü dolu mu?", "none"],

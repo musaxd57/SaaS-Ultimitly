@@ -559,10 +559,10 @@ const HAZARD_EVENT_VERB =
   /(?:alev\s+al|alevlen|alev\s+(?:var|cikiyor|yukseliyor)|ates\s+(?:al|cik)|tutus|yaniyor|yanmaya|on\s+fire|caught\s+fire|brennt|f[aä]ngt\s+feuer|br[uû]le|quema|arde|горит|загорел|يحترق|اشتعل)/iu;
 /** A-3: anılışın HEMEN ardındaki kaçak / taşma / koku / gelme fiili (katlanmış metin; "akıyor" BİLEREK yok — musluktan akan su olay değil). */
 const HAZARD_LEAK_AFTER =
-  /^\s*(?:siz(?:iyor|iyo|di|mis|maya)|kac(?:iyor|iyo|ti|mis|maya)|kok(?:uyor|uyo|tu|mus|maya)|gel(?:iyor|iyo|di|mis|meye)|tas(?:iyor|iyo|ti|mis)|fiskir\p{L}{0,8}|dol(?:u|du|uyor|uyo|mus)|yuksel(?:iyor|iyo|di|mis)|(?:is\s+|are\s+)?(?:leak(?:ing|s|ed)?|escap(?:ing|es|ed)|coming\s+(?:out|in|from)|pouring|gushing)|str[oö]mt|tritt\s+aus|fuit|s'?[ée]chappe|se\s+escapa|утека\p{L}{0,4}|сочит\p{L}{0,4}|يتسرب|تتسرب)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:siz(?:iyor|iyo|di|mis|maya)|kac(?:iyor|iyo|ti|mis|maya)|kok(?:uyor|uyo|tu|mus|maya)|gel(?:iyor|iyo|di|mis|meye)|tas(?:iyor|iyo|ti|mis)|fiskir(?:iyor|iyo|di|mis|maya)|dol(?:u|du|uyor|uyo|mus)|yuksel(?:iyor|iyo|di|mis)|(?:is\s+|are\s+)?(?:leak(?:ing|s|ed)?|escap(?:ing|es|ed)|coming\s+(?:out|in|from)|pouring|gushing)|str[oö]mt|tritt\s+aus|fuit|s'?[ée]chappe|se\s+escapa|утека\p{L}{0,4}|сочит\p{L}{0,4}|يتسرب|تتسرب)(?![\p{L}\p{N}])/iu;
 /** A-3: anılışın İÇİNDEKİ çekimli kaçak / koku fiili (katlanmış metin). */
 const HAZARD_LEAK_IN_MENTION =
-  /(?:siz(?:iyor|iyo|di|mis)|kac(?:iyor|iyo|ti|mis)|kok(?:uyor|uyo|tu|mus)|fiskir|leak(?:ing|s|ed)|escap(?:ing|es|ed)|smell(?:s|ing)?\s+(?:of|like)|riecht|tritt\s+aus|str[oö]mt|fuit|sent\s+(?:le|la)|s'?[ée]chappe|se\s+escapa|huele\s+a|пахнет|утека|يتسرب|تتسرب)/iu;
+  /(?:siz(?:iyor|iyo|di|mis)|kac(?:iyor|iyo|ti|mis)|kok(?:uyor|uyo|tu|mus)|fiskir(?:iyor|iyo|di|mis)|leak(?:ing|s|ed)|escap(?:ing|es|ed)|smell(?:s|ing)?\s+(?:of|like)|riecht|tritt\s+aus|str[oö]mt|fuit|sent\s+(?:le|la)|s'?[ée]chappe|se\s+escapa|huele\s+a|пахнет|утека|يتسرب|تتسرب)/iu;
 /**
  * İnceleme 11-04 (ters etki): Türkçe gaz anılışı "kokuyor / kaçıyor" kökünü SAĞ SINIRSIZ yakalar → "Vanadan gaz kaçıyorsa ne yapayım?",
  * "Ocak gaz kokuyordu", "kaçıyor muydu", "kokuyor mu diye kontrol ettim" de canlı olay sayılıyordu. Anılışın hemen ardında ek (harf),
@@ -938,7 +938,8 @@ export function contextLabels(labels: readonly string[], decision: { lexicalClea
  * ANLAMA MODELİ kaldırabilir (koştu ve "acil değil" dedi); model koşmadıysa / düştüyse etiket kalır (güvenli taraf). Aynı mesajda başka acil
  * sözcüğü varsa maskeden sonra da kalır → kaldırılmaz ("Помогите, пожалуйста! Мама упала…", "Emergency! What's the number?").
  *  a) övgü "-(y)A bayılmak" (sevmek): yönelme ekli ad + 1. şahıs ("Daireye bayıldık", "Manzaraya bayıldım"); öteki şahıslarda yalnız bilinen
- *     yer / şey adıyla ("Çocuklar havuza bayıldı"). "Annem bayıldı", "Hepimiz bayıldık, başımız dönüyor" AÇIK kalır.
+ *     yer / şey adıyla ("Çocuklar havuza bayıldı"). "Annem bayıldı", "Hepimiz bayıldık, başımız dönüyor" AÇIK kalır. BULUNMA eki (-da / -de /
+ *     -ta / -te) övgü DEĞİLDİR (T1 tasarımı 11-04, Y2): "Annem evde bayıldı", "Eşim banyoda bayıldı" açık kalır — ekten önceki d / t dışlanır.
  *  b) "düştü" öznesi bağlantı / fiyat / ölçü ("İnternet düştü", "Fiyatlar düştü mü?", "Suyun basıncı düştü"); "Annem düştü" açık kalır.
  *  d) Rusça nezaket "Помогите, пожалуйста, …" (tek başına "Помогите!" açık kalır).
  *  e) ağa / uygulamaya giriş yapamama ("No puedo entrar a la red wifi", "Не могу войти в сеть Wi-Fi", "لا أستطيع الدخول إلى شبكة الواي فاي").
@@ -951,8 +952,8 @@ export function contextLabels(labels: readonly string[], decision: { lexicalClea
 const TR_PRAISE_NOUNS =
   "(?:daire|ev|evin|oda|manzara|havuz|teras|balkon|plaj|deniz|kahvalti|konum|mahalle|bahce|mutfak|dekor|dekorasyon|jakuzi|sauna|sehir|mekan|tasarim|banyo|salon|yatak|esya|ortam|atmosfer)";
 const AMBIGUOUS_EMERGENCY = rxg([
-  `${NL}(?:\\p{L}{1,20}y[ae]|${TR_PRAISE_NOUNS}\\p{L}{0,6}[ae])\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:dik|dim|iyoruz|iyorum)${NR}`,
-  `${NL}${TR_PRAISE_NOUNS}\\p{L}{0,6}[ae]\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:di|diniz|dilar|iyor|iyorlar|iyorsunuz|acak|acaksiniz)${NR}`,
+  `${NL}(?:\\p{L}{1,20}y[ae]|${TR_PRAISE_NOUNS}\\p{L}{0,6}(?<![dt])[ae])\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:dik|dim|iyoruz|iyorum)${NR}`,
+  `${NL}${TR_PRAISE_NOUNS}\\p{L}{0,6}(?<![dt])[ae]\\s+(?:cok\\s+|resmen\\s+|adeta\\s+|gercekten\\s+)?bayil(?:di|diniz|dilar|iyor|iyorlar|iyorsunuz|acak|acaksiniz)${NR}`,
   `${NL}(?:internet\\p{L}*|wi-?fi\\p{L}*|net${NR}|baglanti\\p{L}*|sinyal\\p{L}*|fiyat\\p{L}*|basinc\\p{L}*|sicaklik\\p{L}*|sarj\\p{L}*|hiz\\p{L}*|kalite\\p{L}*)\\s+(?:\\p{L}+\\s+)?dustu\\p{L}{0,6}${NR}`,
   `${NL}no\\s+(?:puedo|podemos)\\s+(?:entrar|acceder|conectar(?:me|nos)?)\\s+(?:a|al|en)\\s+(?:la\\s+|el\\s+|mi\\s+)?(?:red|wifi|wi-fi|internet|aplicaci[oó]n|app|cuenta)${NR}`,
   `(?:لا\\s+(?:أستطيع|نستطيع|يمكنني|يمكننا)\\s+(?:الدخول|الاتصال)\\s+(?:إلى|ب)\\s*(?:شبكة|الشبكة|الواي\\s*فاي|الإنترنت|التطبيق|الحساب))`,
