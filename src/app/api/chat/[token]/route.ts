@@ -1,5 +1,5 @@
 import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -65,7 +65,7 @@ import {
   qrEscalationEventId,
 } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
-import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey, rateLimitPeek } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
 import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend, renewKeyedOutboundSend, startKeyedClaimHeartbeat } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
@@ -429,12 +429,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
 
 // 🚨 OKUMA SINIRI İKİ KATMAN (Codex 11-05, 43fb93e incelemesi P2). Eskiden tek kova vardı: IP başına 60/dk. Her açık sohbet 5 sn'de bir
 // sorgular (12/dk) → aynı bina internetindeki FARKLI dairelerin altı misafiri 72/dk ile sınıra takılıyor, altıncının sohbeti donuyordu.
-// Şimdi: daire (QR anahtarı) başına IP bütçesi bugünkü gibi 60/dk — aynı dairede zaten tek cihaz okur (konaklama cihaza bağlı); kaba IP
-// tavanı 240/dk (~20 eşzamanlı sohbet) yalnız toplam yükü sınırlar. Anahtar ham değil ÖZET olarak tutulur (sır başka tabloya yazılmaz);
-// kova istekte bulunanın IP'sini taşır → başkası bu dairenin misafirinin kotasını tüketemez. Token 244 bit rastgele: tahmin saldırısı
+// Şimdi: daire başına IP bütçesi bugünkü gibi 60/dk — aynı dairede zaten tek cihaz okur (konaklama cihaza bağlı); kaba IP tavanı 240/dk
+// (~20 eşzamanlı sohbet) yalnız toplam yükü sınırlar. Daire kovası anahtar ÇÖZÜLDÜKTEN sonra mülk kimliğiyle kurulur (Opus 11-05 F5:
+// anahtar özetiyle kurulunca her rastgele anahtar ayrı bir sayaç satırı yazıyordu). Bilinmeyen anahtar denemeleri ayrı "ıska" kovasında
+// (IP başına 60/dk, önceki tek sınırla aynı) — kova doluysa anahtar hiç çözülmez: 404 yolundaki veritabanı yükü eskisinden fazla değil.
+// Kovalar istekte bulunanın IP'sini taşır → başkası bu dairenin misafirinin kotasını tüketemez. Token 244 bit rastgele: tahmin saldırısı
 // sınırın konusu değil, yük öyle.
 const GUEST_CHAT_GET_PER_IP_PER_MIN = 240;
-const GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN = 60;
+const GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN = 60;
+const GUEST_CHAT_GET_MISS_PER_IP_PER_MIN = 60;
 
 async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
@@ -445,12 +448,17 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
   if (supportView) return supportView;
 
   const { token } = await params;
-  const tokenBucket = createHash("sha256").update(token).digest("base64url").slice(0, 16);
-  const perToken = await rateLimit(`guestchat-get-t:${clientKey}:${tokenBucket}`, GUEST_CHAT_GET_PER_IP_TOKEN_PER_MIN, 60_000);
-  if (!perToken.ok) return tooManyRequests(perToken.retryAfter);
+  const missKey = `guestchat-get-miss:${clientKey}`;
+  const misses = await rateLimitPeek(missKey, GUEST_CHAT_GET_MISS_PER_IP_PER_MIN);
+  if (!misses.ok) return tooManyRequests(misses.retryAfter);
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
   const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
-  if (!ctx) return notFound();
+  if (!ctx) {
+    await rateLimit(missKey, GUEST_CHAT_GET_MISS_PER_IP_PER_MIN, 60_000);
+    return notFound();
+  }
+  const perProperty = await rateLimit(`guestchat-get-p:${clientKey}:${ctx.property.id}`, GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN, 60_000);
+  if (!perProperty.ok) return tooManyRequests(perProperty.retryAfter);
   if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
 
   // Per-stay device binding: the FIRST device to open the chat claims it. A
