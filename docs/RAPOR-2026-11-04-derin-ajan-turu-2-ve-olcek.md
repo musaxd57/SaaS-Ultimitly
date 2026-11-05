@@ -66,7 +66,12 @@ Bu yol şunları görmüyor (ölçüldü):
 | "Tüp gaz kaçırıyor" · "Ich rieche Gas" · "Gas is leaking from the stove" · "Musluktan su fışkırıyor" · "boru patladı" | hiçbir şey | aynı |
 
 Dikkat edilecek yanlış alarm: "Bayıldım" (övgü), "Yerden ısıtma yok mu?" — öneri yalnız EYLEM / DURUM bildiren öbekle (10-31 kişisel tehlike
-deseniyle aynı: koşul / soru / önlem cümlesi uyarı DEĞİL) + bugünkü yanlış alarm kör setinde 0 sınırı. Misafire giden metin DEĞİŞMEZ. Yapalım mı?
+deseniyle aynı: koşul / soru / önlem cümlesi uyarı DEĞİL) + bugünkü yanlış alarm kör setinde 0 sınırı. Misafire giden metin DEĞİŞMEZ.
+**Tam tasarım (3 bağımsız tasarım + hakem + sentez, ölçümlü): `docs/TASARIM-2026-11-04-model-yokken-acil-uyari.md`** — bugün tıbbi acil
+model yokken 0/37 uyarı alıyor; öneriyle 359 gerçek acilden 307'si, 409 zor olumsuzdan 13 yeni yanlış ACİL (süzgeçlerle düşecek, açılıştan
+önce kör set + gerçek geçmiş ölçümü şart). 12 soru (S1–S12) önce / sonra örnekli; en önemlileri S1 (çıplak "Annem bayıldı" ne olsun),
+S9 (kendine zarar — "Kendimi öldürmek istiyorum" bugün hiçbir ağda yok, ayrı öncelikli tasarım). Dilim 0 (iki gerileme / açık) yapıldı:
+"Musluktan su fışkırıyor" yeniden canlı kaçak; "Annem evde bayıldı" artık övgü diye maskelenmiyor. Yapalım mı?
 
 ### T2b — S1'in kalan iki boşluğu (misafire gideni değiştirir)
 - **Geç mesajdan sonra misafir yeniden yazarsa** yapay zekâ yalnız YENİ mesajı cevaplıyor, geç mesaj kayboluyor. ÖRNEK: 10:00 misafir "Wi-Fi
