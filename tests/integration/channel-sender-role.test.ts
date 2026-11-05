@@ -19,6 +19,7 @@ import { summarizeHostStyle } from "@/lib/ai";
 import { refreshStyleProfile } from "@/lib/automation";
 import { getConversationSuggestions, getPropertyWifiSuggestions } from "@/lib/ai-suggestions/load";
 import { executeHistoryLearnRun, startHistoryLearnRun } from "@/lib/history-learn/service";
+import { claimOutboundRequest, extendOutboundRequest } from "@/lib/outbound-claim";
 
 const mockSummarize = vi.mocked(summarizeHostStyle);
 
@@ -168,6 +169,19 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     await prisma.systemLock.update({ where: { name: `outbound-send:${conv.id}:abc` }, data: { lockedUntil: new Date(Date.now() - 1000) } });
     await importThread(propertyId, [guestQ(), m("q-held", { senderRole: "automation", body: "Otopark binanın arkasında.", createdAt: tmplAt }), m("q-later", { senderRole: "automation", body: "Çıkış hatırlatması", createdAt: new Date("2026-10-12T14:30:00Z") })]);
     expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-later" } })).authorType).toBe("automation");
+  });
+
+  it("🚨 Opus 11-05 F11: elle cevabın İSTEK talebi (başarılı gönderimden sonra 24 sa tutulur) belirsiz gönderim SAYILMAZ — GERÇEK yazma servisinden; gövde talebi ↑ sayılır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ()]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    const key = `manual:${conv.id}:req:abc12345`;
+    expect((await claimOutboundRequest(conv.id, key, "direct")).result).toBe("claimed");
+    await extendOutboundRequest(conv.id, key);
+    expect(await prisma.systemLock.count({ where: { lockedUntil: { gt: new Date(Date.now() + 3_600_000) } } })).toBe(1);
+    await importThread(propertyId, [guestQ(), m("q-auto", { senderRole: "automation", body: "Çıkış hatırlatması", createdAt: tmplAt })]);
+    // Belirsiz sayılsaydı yazar "host" olurdu (yukarıdaki gövde talebi testi) — istek talebi bu kararı değiştirmez.
+    expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-auto" } })).authorType).toBe("automation");
   });
 
   it("rol vermeyen kanal / tanınmayan rol: bugünkü davranış (cevap sayılır) — yalnız KESİN otomasyon ayrılır", async () => {
