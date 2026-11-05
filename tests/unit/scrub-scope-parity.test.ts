@@ -222,12 +222,14 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //   · Reservation.guestAdults / guestChildren / guestInfants / guestPets (Int?, migration 86, kurucu 10-23 akşam) → KAPSAM DIŞI:
       //     kanalın verdiği kişi / evcil hayvan SAYISI; ne ad ne metin ne kimlik taşır (`sourcePlatform` emsali). Anonim satırda da doğrudur;
       //     KVKK ihracına girer (`data-export.ts`).
+      //   · MessageOutbox.deliveryEffectAt (DateTime?, migration 91, Tur 7 T7-OB-5 11-05) → KAPSAM DIŞI: teslimin konuşma etkisinin
+      //     yazıldığı an (onarıcı sayfalaması); misafirin ne metnini ne kimliğini taşır (`ingestedAt` emsali). Anonim satırda da doğrudur.
       Message: 18,
       Conversation: 26,
       Reservation: 42,
       Task: 15,
       TaskUpdate: 6,
-      MessageOutbox: 24,
+      MessageOutbox: 25,
       AiGeneration: 23,
       AiReviewLabel: 5,
     };
