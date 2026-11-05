@@ -772,6 +772,61 @@ describe("registration → verification → login", () => {
     }
   });
 
+  it("🚨 T7-AUTH-1 EŞZAMANLI: aynı anda gelen 4 istek → TEK bağlantı, TEK e-posta, TEK hak (yarışı kaybeden hakkını iade eder)", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "race@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    const codes = await Promise.all(
+      Array.from({ length: 4 }, () => resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "race@x.com" })).then((r) => r.status)),
+    );
+    expect(codes).toEqual([200, 200, 200, 200]);
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    expect((await verifyEmail(verifyReq(tokenFromAnyLastMail()))).status).toBe(200); // giden bağlantı geçerli (sonradan ezilmedi)
+    const [q] = await prisma.$queryRaw<Array<{ count: number }>>`SELECT "count"::int AS count FROM "RateLimitCounter" WHERE "key" = 'verify-resend-day:race@x.com'`;
+    expect(q.count).toBe(1);
+  });
+
+  it("🚨 T7-AUTH-1 EŞZAMANLI: son hak boşken aynı anda gelen istekler sınırı AŞAMAZ", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "edge@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    // 5 hak kullanılmış (bugün 5 e-posta gitti) — 6. ve son hak boş.
+    await prisma.$executeRaw`INSERT INTO "RateLimitCounter" ("key", "count", "resetAt") VALUES ('verify-resend-day:edge@x.com', 5, (now() AT TIME ZONE 'utc') + interval '1 day')`;
+    // Bağlantı yarışı ayrı sınansın diye: her istek ayrı bir "eski bağlantı" görmesin — hepsi aynı satırı okur, yalnız biri yazabilir;
+    // hak ayrımı yarıştan ÖNCE olduğu için ikinci istek ya hakkı alamaz ya da yarışı kaybedip iade eder.
+    await Promise.all(Array.from({ length: 3 }, () => resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "edge@x.com" }))));
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    const [q] = await prisma.$queryRaw<Array<{ count: number }>>`SELECT "count"::int AS count FROM "RateLimitCounter" WHERE "key" = 'verify-resend-day:edge@x.com'`;
+    expect(q.count).toBeGreaterThanOrEqual(6);
+    // Pencere geçse de 7. e-posta gitmez.
+    await drain15MinBuckets();
+    await ageVerifyLink("edge@x.com");
+    await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "edge@x.com" }));
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 T7-AUTH-1: sağlayıcı reddederse hak İADE edilir (gitmeyen e-posta kotadan düşmez)", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "refund@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    mockSendReporting.mockResolvedValueOnce({ ok: false, error: "Resend HTTP 500" });
+    await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "refund@x.com" }));
+    const [q] = await prisma.$queryRaw<Array<{ count: number }>>`SELECT "count"::int AS count FROM "RateLimitCounter" WHERE "key" = 'verify-resend-day:refund@x.com'`;
+    expect(q.count).toBe(0);
+  });
+
+  it("ZAMANLAMA PARİTESİ (yapısal pin): bağlantı üretmeyen dallar da veritabanı işi yapar", () => {
+    const code = readFileSync(join(process.cwd(), "src/app/api/auth/resend-verification/route.ts"), "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+      .join("\n");
+    expect(code).toMatch(/} else \{\s*await timingParityNoop\(\);/);
+    expect(code).toMatch(/async function timingParityNoop\(\)[\s\S]*?\$transaction/);
+  });
+
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
     await prisma.user.create({
@@ -888,6 +943,17 @@ describe("register + resend — durable outbox (flag ON)", () => {
       await ageVerifyLink("qbomb@x.com");
     }
     expect(vi.mocked(enqueueIdentityEmail)).toHaveBeenCalledTimes(6);
+  });
+
+  it("🚨 T7-AUTH-1 EŞZAMANLI (kuyruklu yol): aynı anda gelen 4 istek → kuyrukta TEK canlı e-posta", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "qrace@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    await Promise.all(Array.from({ length: 4 }, () => resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "qrace@x.com" }))));
+    expect(await prisma.emailOutbox.count()).toBe(1);
+    const [q] = await prisma.$queryRaw<Array<{ count: number }>>`SELECT "count"::int AS count FROM "RateLimitCounter" WHERE "key" = 'verify-resend-day:qrace@x.com'`;
+    expect(q.count).toBe(1);
   });
 
   it("RESEND: yeni token eski teslim-edilmemiş linki süperseder; yalnız YENİ link gönderilir ve doğrular", async () => {

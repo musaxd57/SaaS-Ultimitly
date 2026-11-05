@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
-import { rateLimit, rateLimitClientKey, rateLimitPeek } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey, rateLimitRelease } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import {
@@ -63,63 +63,116 @@ export async function POST(req: NextRequest) {
   // dolmuş" görüyordu. Artık kutudaki bağlantı ÇALIŞMAYA DEVAM EDER. Günlük tavanın kendisi hâlâ başkasınca doldurulabilir (hesabın varlığına
   // bakmadan sayılması numaralandırma korumasıdır, bilinçli) — o gün yalnız YENİDEN GÖNDERME kapanır, elindeki bağlantı değil.
   if (user && needsEmailVerification(user) && !verifyLinkRecentlyIssued(user.emailVerifyExpiresAt)) {
-    const sendQuotaKey = `verify-resend-day:${email}`;
-    if (!(await rateLimitPeek(sendQuotaKey, VERIFY_RESEND_DAILY_CAP)).ok) return jsonOk({ ok: true });
-    const consumeSendQuota = () => rateLimit(sendQuotaKey, VERIFY_RESEND_DAILY_CAP, VERIFY_RESEND_DAY_MS);
-    const { raw, hash } = makeVerifyToken();
-    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
-    if (emailOutboxEnabled()) {
-      // Durable outbox (Tur-4): new token hash + send-intent in ONE transaction
-      // (the enqueue supersedes any still-undelivered previous link, so only
-      // the newest token's e-mail goes out). No provider call on this path.
-      // T7-AUTH-1: kuyruğa yazma düşerse işlem geri alınır (bağlantı değişmez → sessiz pencere başlamaz, kota tüketilmez) ve cevap yine
-      // aynı 200 — kişi kilitlenmez, hemen yeniden isteyebilir; ops alarmı alır.
-      try {
-        await prisma.$transaction(async (tx) => {
-          await tx.user.update({
-            where: { id: user.id },
-            data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
-          });
-          await enqueueIdentityEmail(tx, {
-            userId: user.id,
-            kind: "verify_email",
-            secret: raw,
-            recipient: email,
-            expiresAt,
-          });
-        });
-      } catch (err) {
-        void reportError("auth.resend_verification.enqueue", err instanceof Error ? err : new Error(String(err)));
-        return jsonOk({ ok: true });
-      }
-      await consumeSendQuota();
-      kickEmailOutboxDrain();
-      return jsonOk({ ok: true });
-    }
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
-    });
-    const sent = await emailService.sendReporting(
-      email,
-      "Lixus AI — E-postanızı doğrulayın",
-      verifyEmailHtml(verifyUrl(raw)),
-    );
-    // The response is DELIBERATELY uniform (always 200 — a different shape on failure
-    // would only appear for real unverified accounts → account enumeration). But a
-    // genuine send failure must page ops, not vanish (redacted — no recipient/token).
-    if (sent.ok) await consumeSendQuota();
-    if (!sent.ok) {
-      void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
-      // Eski (kuyruksuz) yol: e-posta GİTMEDİ ama yeni bağlantı eskisini geçersiz kıldı — 10 dk sessizlik bu kişiyi boşuna bekletmesin
-      // (Haiku 10-22). Bağlantı "10 dk önce üretilmiş" sayılacak kadar geriye çekilir; ömrü yalnız o kadar kısalır.
-      await prisma.user
-        .updateMany({
-          where: { id: user.id, emailVerifyTokenHash: hash },
-          data: { emailVerifyExpiresAt: new Date(expiresAt.getTime() - VERIFY_RESEND_QUIET_MS) },
-        })
-        .catch(() => {});
-    }
+    await issueAndSend(user, email);
+  } else {
+    await timingParityNoop();
   }
   return jsonOk({ ok: true });
+}
+
+/** Bu istek bağlantıyı üretme yarışını kaybetti (aynı anda gelen başka istek kazandı) — e-posta gitmez. */
+class LostIssueRace extends Error {}
+
+/**
+ * 🚨 Tur 7 T7-AUTH-1 (Codex 11-05 gece: "iki işçi aynı boş hakkı kullanıp sınırı aşmamalı"). Sıra:
+ *  1. GÜNLÜK GÖNDERİM HAKKI ÖNCE AYRILIR — `rateLimit` tek atomik SQL artırımıdır; eşzamanlı istekler aynı boş hakkı ALAMAZ. Eskiden önce
+ *     bakılıp (`peek`) gönderimden sonra tüketiliyordu: 5. hak boşken aynı anda gelen iki istek ikisi de gönderiyordu.
+ *  2. BAĞLANTI KOŞULLU ÜRETİLİR — satır okunduğu hâldeyse (`emailVerifyExpiresAt` aynı) yazılır; aynı anda gelen ikinci istek 0 satır
+ *     günceller → yarışı kaybeder, e-posta göndermez (eskiden iki bağlantı + iki e-posta, ilki geçersiz).
+ *  3. İş düşerse (yarış kaybı, kuyruğa yazma hatası, sağlayıcı reddi) hak İADE edilir (`rateLimitRelease`).
+ * Neyin sayıldığı (karıştırılmasın): kuyruklu yolda "kuyruğa yazıldı" = gönderim NİYETİ (teslim değil; boşaltıcı sonra sağlayıcıya verir,
+ * sağlayıcının kabulü ve kutuya teslim AYRI olaylardır ve burada bilinmez); kuyruksuz yolda "sağlayıcı kabul etti". Kuyruğa yazılıp sonra
+ * sağlayıcıda düşen e-posta hakkı İADE ETMEZ — tavan e-posta bombasına karşıdır, sayım güvenli (sıkı) yönde hata yapar; boşaltıcı ops
+ * alarmı verir. Cevap her dalda aynı 200.
+ */
+async function issueAndSend(
+  user: { id: string; emailVerifyExpiresAt: Date | null },
+  email: string,
+): Promise<void> {
+  const sendQuotaKey = `verify-resend-day:${email}`;
+  // Hak doluysa SESSİZCE gönderilmez (429 yalnız gerçek hesaplarda görünürdü → hesap numaralandırma).
+  if (!(await rateLimit(sendQuotaKey, VERIFY_RESEND_DAILY_CAP, VERIFY_RESEND_DAY_MS)).ok) return;
+  const release = () => rateLimitRelease(sendQuotaKey);
+  const { raw, hash } = makeVerifyToken();
+  const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+  const claimLink = async (tx: Pick<typeof prisma, "user">) => {
+    const won = await tx.user.updateMany({
+      where: { id: user.id, emailVerifiedAt: null, emailVerifyExpiresAt: user.emailVerifyExpiresAt },
+      data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
+    });
+    if (won.count !== 1) throw new LostIssueRace();
+  };
+  if (emailOutboxEnabled()) {
+    // Durable outbox (Tur-4): new token hash + send-intent in ONE transaction
+    // (the enqueue supersedes any still-undelivered previous link, so only
+    // the newest token's e-mail goes out). No provider call on this path.
+    // Kuyruğa yazma düşerse işlem geri alınır (bağlantı değişmez → sessiz pencere başlamaz), hak iade edilir, cevap yine aynı 200 — kişi
+    // kilitlenmez, hemen yeniden isteyebilir; ops alarmı alır.
+    try {
+      await prisma.$transaction(async (tx) => {
+        await claimLink(tx);
+        await enqueueIdentityEmail(tx, {
+          userId: user.id,
+          kind: "verify_email",
+          secret: raw,
+          recipient: email,
+          expiresAt,
+        });
+      });
+    } catch (err) {
+      await release();
+      if (!(err instanceof LostIssueRace)) {
+        void reportError("auth.resend_verification.enqueue", err instanceof Error ? err : new Error(String(err)));
+      }
+      return;
+    }
+    kickEmailOutboxDrain();
+    return;
+  }
+  try {
+    await claimLink(prisma);
+  } catch (err) {
+    await release();
+    if (!(err instanceof LostIssueRace)) throw err;
+    return;
+  }
+  const sent = await emailService.sendReporting(
+    email,
+    "Lixus AI — E-postanızı doğrulayın",
+    verifyEmailHtml(verifyUrl(raw)),
+  );
+  // The response is DELIBERATELY uniform (always 200 — a different shape on failure
+  // would only appear for real unverified accounts → account enumeration). But a
+  // genuine send failure must page ops, not vanish (redacted — no recipient/token).
+  if (!sent.ok) {
+    await release();
+    void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
+    // Eski (kuyruksuz) yol: e-posta GİTMEDİ ama yeni bağlantı eskisini geçersiz kıldı — 10 dk sessizlik bu kişiyi boşuna bekletmesin
+    // (Haiku 10-22). Bağlantı "10 dk önce üretilmiş" sayılacak kadar geriye çekilir; ömrü yalnız o kadar kısalır.
+    await prisma.user
+      .updateMany({
+        where: { id: user.id, emailVerifyTokenHash: hash },
+        data: { emailVerifyExpiresAt: new Date(expiresAt.getTime() - VERIFY_RESEND_QUIET_MS) },
+      })
+      .catch(() => {});
+  }
+}
+
+/**
+ * ZAMANLAMA PARİTESİ (Tur 7, Codex 11-05 gece: "aynı 200 tek başına hesabın gizlendiğini kanıtlamaz"). Bağlantı üretmeyen dallar (hesap yok,
+ * doğrulanmış / eski hesap, son 10 dakikada bağlantı gitmiş) gönderim dalının veritabanı işine benzer bir işlem yapar: gönderim hakkı
+ * kovasına dokunan bir ifade + iki satırlık boş işlem (`forgot-password` rotasındaki `__timing_parity__` emsali). Mutlak sabit süre
+ * İDDİA EDİLMEZ; asıl savunma hız sınırları (adres başına 15 dakikada 4 istek) ve 10 dakikalık sessiz pencere — aynı hesap için ikinci
+ * "yavaş" örnek 10 dakika sonra mümkün ve her biri kurbana gerçek bir e-posta götürür. Ölçüm: `docs/INCELEME-2026-11-05-tur7-…`.
+ */
+async function timingParityNoop(): Promise<void> {
+  await rateLimitRelease("verify-resend-day:__timing_parity__");
+  makeVerifyToken();
+  await prisma.$transaction(async (tx) => {
+    await tx.user.updateMany({ where: { id: "__timing_parity__" }, data: { emailVerifyTokenHash: null } });
+    // `enqueueIdentityEmail`in adımları: işlem kilidi + eski satırları iptal + sürüm okuma (yazma yok).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('__timing_parity__'))`;
+    await tx.emailOutbox.updateMany({ where: { userId: "__timing_parity__", kind: "verify_email", status: { in: ["pending", "claimed"] } }, data: { status: "canceled" } });
+    await tx.emailOutbox.aggregate({ where: { userId: "__timing_parity__", kind: "verify_email" }, _max: { version: true } });
+  });
 }

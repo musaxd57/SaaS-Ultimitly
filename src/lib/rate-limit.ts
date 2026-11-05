@@ -91,6 +91,24 @@ export async function rateLimitPeek(key: string, limit: number): Promise<Verdict
   }
 }
 
+/**
+ * Daha önce `rateLimit` ile AYRILMIŞ bir hakkı İADE eder (açık pencerede sayaç 1 azalır, sıfırın altına inmez). Atomik tek ifade:
+ * "önce ayır, iş düşerse iade et" deseni için (Tur 7 T7-AUTH-1 — doğrulama e-postası gönderim kotası). Önce bakıp sonra tüketmek
+ * (`rateLimitPeek` + `rateLimit`) eşzamanlı iki isteğe aynı boş hakkı kullandırırdı. DB hatasında bellek kovası.
+ */
+export async function rateLimitRelease(key: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "RateLimitCounter" SET "count" = GREATEST("count" - 1, 0)
+      WHERE "key" = ${key} AND "resetAt" > (now() AT TIME ZONE 'utc')
+    `;
+  } catch (err) {
+    warnDbUnavailable(err);
+    const bucket = buckets.get(key);
+    if (bucket && bucket.resetAt > Date.now() && bucket.count > 0) bucket.count -= 1;
+  }
+}
+
 // Throttled operational warning — a DB outage would otherwise log per request.
 let lastDbWarnAt = 0;
 function warnDbUnavailable(err: unknown) {
