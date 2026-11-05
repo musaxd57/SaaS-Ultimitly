@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { replyToneOrWarm } from "@/lib/constants";
 import { styleProfileForPrompt } from "@/lib/guest-chat";
 import { suggestReply } from "@/lib/ai";
 import { guestTurnLanguage } from "@/lib/ai/language-signal";
@@ -66,7 +67,7 @@ export const POST = withManage(async (session, req) => {
   if (!message) return badRequest({ message: "Bir test mesajı yazın." });
   if (message.length > 4000) return badRequest({ message: "Mesaj çok uzun (en fazla 4000 karakter)." });
 
-  const tone: Tone = TONES.includes(body?.tone as Tone) ? (body?.tone as Tone) : "warm";
+  const requestedTone: Tone | null = TONES.includes(body?.tone as Tone) ? (body?.tone as Tone) : null;
 
   // Pick the requested apartment (must belong to the org) or fall back to the
   // org's first apartment, so the knowledge base is realistic.
@@ -131,8 +132,12 @@ export const POST = withManage(async (session, req) => {
       autoReplyDisclosure: true,
       timezone: true,
       language: true,
+      aiReplyTone: true,
     },
   });
+  // Kurucu onayı 11-05 (Tur 7 S7-1): istek ton vermezse (kart vermez) işletmenin KAYITLI tonu — gerçek gönderim ve "AI öner" ile aynı
+  // kural (`replyToneOrWarm`). Eskiden her zaman "sıcak" kullanılıyordu; kart "misafire birebir gidecek olan" dediği hâlde önizleme farklıydı.
+  const tone: Tone = requestedTone ?? replyToneOrWarm(org?.aiReplyTone);
 
   // Same pipeline as the inbox. We attach a SAMPLE reservation (today's
   // check-in at the chosen apartment) so reservation-aware questions ("which
