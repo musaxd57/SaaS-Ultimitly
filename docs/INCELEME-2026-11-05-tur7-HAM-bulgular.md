@@ -181,3 +181,38 @@ Not reported because they are deliberate decisions or minor:
 
 **Bu alanda temiz çıkanlar:** Checked and found no new defect (or only already-reported/known items): PATCH /api/settings validation (strict int coercion, closed IANA timezone set, EnabledAt stamped only on OFF→ON, field-name-only audit, alert-email relay guard and verification budget); role checks (withManage on settings, AI test, templates and host-channel; billing tab owner + Paddle only; KVKK/delete owner only; Hospitable connect owner/operator, with claimEnv limited to the primary org at the API); bulk times (sends only changed fields, zero-pads stored times, org-scoped updateMany); night-hours window semantics match isWithinActiveHours (start==end means all day); timezone/alert/iCal/AI-voice forms re-baseline and refresh after save; templates editor (tenant check on propertyId in POST/PATCH, raw propertyId kept in PATCH so a template is not moved by accident, single-pass placeholder fill, no prototype keys); AI test route KB cap/selection parity, gate input parity (reply, stayChange, timeConflicts, claimedActions, hostContactOnly), note/signature composition and closing-courtesy preview matching the real closing path; WhatsApp binding scoped per org+user with generic rejection messages; settings nav ?tab= derivation. Known items not repeated: disclosure-note help text (T-22), signature brackets/<email> blocking lifecycle messages (SABAH-KARARLARI #36, reconfirmed with probe p2), alert-email help/test-email dead end, 'uçtan uca şifreli' wording, dev sample chips, checkout-card baseline sentence (T5-9), {{propertyName}} blank fill (founder decision 10-22). Late-checkout offer text vs the host-contact ban: partial strip only, the rest still goes (probe p6), so not a defect.
 
+
+---
+
+## Kurucu kararları ve Codex görüşü (11-05 akşam) — bu bölüm doğrulamadan SONRA eklendi
+
+Kurucu altı öne çıkan bulgunun ana kodda doğrulanmasını istedi; altısı da kodda satır satır okunarak DOĞRULANDI (CAL-1, CAL-2, T7-OB-1,
+T7-AUTH-1, S7-1, S7-2). Düzeltme yalnız S7-1 için onaylandı ve yapıldı. Diğerleri için Codex görüşü kurucu aracılığıyla geldi; kurucu:
+"mantıklı ise Codex'i dinle, emin değilsen sor, ona çok güvenme".
+
+- **S7-1 — YAPILDI** (kurucu: "evet öyle yap"): deneme kartı işletmenin kayıtlı tonunu kullanır.
+- **CAL-1 — hata metni ONAYLANDI (kurucu: "bu metin güzel"):** "Lixus takvim bağlantıları içe aktarma kaynağı olarak kullanılamaz.
+  Airbnb, Booking veya desteklenen başka bir takvimin dışa aktarım bağlantısını ekleyin." Codex: adres kontrolü metinde "lixus" aramaz,
+  ayrıştırılmış adresin gerçek alan adı + dışa aktarım yolu üzerinden yapılır; okuyucu kendi kayıtlarımızı görünce kaynak AÇIKÇA hatalı
+  işaretlenir ve "hepsini eledim, takvim boş" sonucu önceki rezervasyonları iptal ETTİRMEZ; temizlik ihtiyacı salt-okuma sayımıyla
+  doğrulanır, otomatik silme yok.
+- **CAL-2 — Codex:** "tekrar örneği hiçbir şeyi iptal edemez" fazla geniş. Ana kayıt ile tekrar örneği ayrı kimlik; örnek iptali yalnız o
+  örneği etkiler; desteklenmeyen tekrar yapısı sessizce normal rezervasyon sayılmaz; birden fazla ana kayıtta sürüm bilgisi (SEQUENCE /
+  LAST-MODIFIED) değerlendirilir, çözülemeyen çelişkide yıkıcı değişiklik yok; testte ana kaydın gerçek iptali hâlâ çalışmalı.
+- **T7-OB-1 — Codex:** karar yalnız `authorType` ile kurulmasın (ev sahibinin onaylayıp gönderdiği AI taslağı ev sahibi cevabıdır;
+  sağlayıcının otomatik gönderiyi ev sahibi diye etiketlemesi hesaba katılmalı); Devral / otomasyon kapalı / güvenlik engelleri kendi
+  güncel durumlarından kontrol edilmeye devam eder; bayat taslağı iptal etmek açık soruyu kapatmamalı, tekilleştirme yeniden değerlendirmeyi
+  sonsuza kadar engellememeli; test: misafir sonunda doğru cevabı aldı mı ve ikinci kez almadı mı.
+- **T7-AUTH-1 — Codex metni:** "Talebiniz alındı. Doğrulama e-postası için gelen kutunuzu ve spam klasörünü kontrol edin. Yeniden istemek
+  için 10 dakika bekleyin." (benim "Bağlantıyı gönderdik" taslağım aynı hatayı sürdürüyordu); 10 dk düğme beklemesi tek başına çözüm değil;
+  istek sınırı ile gerçek gönderim sınırı ayrılabilir (kota iadesi kendiliğinden sızıntı değil — dışarıdan görünen yanıt / süre / sınır
+  davranışıyla değerlendirilir).
+- **S7-2 — Codex ekledi:** adın içeriği yeniden şablon olarak çalıştırılmaz (tek geçiş); önizleme ve gerçek gönderim aynı doldurucuyu kullanır.
+- **Kapsam dışı (kurucu):** daireler arası bağlantılı müsaitlik ("A dolunca B kapansın") — yeni mimari / migration YOK; gerçek müşteri
+  ihtiyacı oluşursa ayrı değerlendirilir.
+- **İleride değerlendirilecek özellik — BAŞLANMADI (kurucu: "sohbette kalsın"): "Takvim bağlantısını düzelt / başka daireye taşı".**
+  Takvim bağlantısı eklemek hedef takvimi sıfırlamaz; yanlış daireye eklenen bağlantı için güvenli bir taşıma işlemi: (1) hangi bağlantı
+  hangi daireye seçilir, (2) önizlemede etkilenecek kayıtlar ve olası çakışmalar gösterilir, (3) ev sahibi açıkça onaylar, (4) yalnız o
+  bağlantıdan gelen kayıtlar taşınır — elle girilmiş ya da başka kaynaktan gelenlere dokunulmaz, (5) tekrarlansa da ikinci kopya oluşmaz,
+  yarıda kalırsa izlenebilir şekilde toparlanır. Çakışma gizlenmez, gerçek bir rezervasyon silinerek "çözülmez", ev sahibine gösterilir.
+  Dış takvimlerin güncellenmesi anlık değildir (Airbnb içe aktarılan takvimleri dönemsel yeniler).
