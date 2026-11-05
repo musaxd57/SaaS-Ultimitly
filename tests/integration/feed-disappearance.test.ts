@@ -260,4 +260,34 @@ describe("feed-disappearance reconciliation (#23, FAZ 2)", () => {
     expect(await prisma.task.findUnique({ where: { id: sys.id } })).toBeNull(); // system cleared
     expect(await prisma.task.findUnique({ where: { id: man.id } })).not.toBeNull(); // manual preserved
   });
+
+  it("🚨 Tur 7 CAL-5: DEVAM EDEN konaklama beslemede görülünce 'görüldü' damgası yazılır (iptal adayı olmadan); sayaçlara dokunulmaz", async () => {
+    const { propertyId, sourceId } = await seedSource();
+    const ongoing = await mkRes(propertyId, sourceId, "uid-ongoing", {
+      arrivalDate: new Date(Date.now() - 2 * 86_400_000),
+      departureDate: new Date(Date.now() + 2 * 86_400_000),
+    });
+    const runAt = new Date();
+    await reconcile(sourceId, propertyId, ["uid-ongoing"], runAt);
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: ongoing.id } });
+    expect(r.feedLastSeenAt?.getTime()).toBe(runAt.getTime());
+    expect(r.feedMissingCount).toBeNull(); // devam eden konaklama iptal adayı DEĞİL — sayaç hiç yazılmaz
+    expect(r.status).toBe("confirmed");
+  });
+
+  it("KONTROL — CAL-5: bitmiş konaklama ve beslemede OLMAYAN devam eden konaklama damgalanmaz", async () => {
+    const { propertyId, sourceId } = await seedSource();
+    const past = await mkRes(propertyId, sourceId, "uid-past", {
+      arrivalDate: new Date(Date.now() - 6 * 86_400_000),
+      departureDate: new Date(Date.now() - 3 * 86_400_000),
+    });
+    const absent = await mkRes(propertyId, sourceId, "uid-absent", {
+      arrivalDate: new Date(Date.now() - 1 * 86_400_000),
+      departureDate: new Date(Date.now() + 1 * 86_400_000),
+    });
+    await reconcile(sourceId, propertyId, ["uid-past", "uid-other"], new Date());
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: past.id } })).feedLastSeenAt).toBeNull();
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: absent.id } })).feedLastSeenAt).toBeNull();
+  });
 });
+

@@ -827,6 +827,24 @@ export async function reconcileFeedDisappearance(opts: {
     // Stale-run guard: a newer reliable run already reconciled → don't let this older run overwrite.
     if (src.lastReconcileAt && runStartedAt <= src.lastReconcileAt) return;
 
+    // 🚨 Tur 7 CAL-5 (kurucu 11-05 "tamamını yap"): "beslemede görüldü" damgası (`feedLastSeenAt`) adaylıktan BAĞIMSIZ yazılır. Adaylar
+    // (iptal adayı) yalnız GELECEK varışlardır — doğru, devam eden konaklama iptal edilmez — ama damga da yalnız onlara yazılıyordu: DEVAM
+    // EDEN konaklama besleme az önce okunmuş olsa da hep "güncel olmayabilir" sayılıyordu (devir paneli, müsaitlik kesinliği). Yalnız
+    // damga; sayaçlar (kaçırma serisi) aday döngüsünde kalır. Görülen UID'ler parça parça (tek ifade sınırı).
+    const seenList = [...seenRefs];
+    for (let i = 0; i < seenList.length; i += 1000) {
+      await tx.reservation.updateMany({
+        where: {
+          propertyId: source.propertyId,
+          calendarSourceId: source.id,
+          status: { in: ["confirmed", "pending"] },
+          departureDate: { gt: now },
+          sourceReference: { in: seenList.slice(i, i + 1000) },
+        },
+        data: { feedLastSeenAt: runStartedAt },
+      });
+    }
+
     // Candidates: only FUTURE, source-bound, still-active rows of THIS feed.
     const loadCandidates = () =>
       tx.reservation.findMany({
