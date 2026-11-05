@@ -3,7 +3,7 @@ import "server-only";
 import { createHash, createHmac } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { OUTBOUND_SEND_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
+import { OUTBOUND_SEND_CLAIM_PREFIX, OUTBOUND_REQUEST_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
 
 // ---------------------------------------------------------------------------
 // Short-lived, DB-backed duplicate-send guard for MANUAL outbound replies.
@@ -66,6 +66,71 @@ export async function claimOutboundSend(conversationId: string, body: string): P
 /** Release after a FAILED delivery so the same text can be retried immediately. */
 export async function releaseOutboundSend(conversationId: string, body: string): Promise<void> {
   await prisma.systemLock.deleteMany({ where: { name: claimName(conversationId, body) } }).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// İSTEK KİMLİĞİ TALEBİ (Codex 11-05, 43fb93e incelemesi P2). İstemcinin mesaj başına istek kimliği (`strictIdempotency`) kalıcı kuyruk
+// açık da kapalı da olsa AYNI kayda bağlanır: iki yol da göndermeden / kuyruğa yazmadan ÖNCE bu talebi atomik olarak alır, sahibi
+// (`holder`) hangi yolun aldığını söyler. Eskiden kuyruk yolu yalnız kuyruk satırını, doğrudan yol yalnız 2 dk'lık GÖVDE talebini
+// görüyordu: anahtar iki deneme arasında değişirse (yayın / geri alma) aynı istek ikinci kez gidebiliyordu; doğrudan yolda yanıtı
+// kaybolan başarılı gönderimin 2 dk sonraki tekrarı da ikinci mesajdı. Süre: başarıdan sonra 24 sa; belirsiz sonuçta gövde talebiyle
+// aynı 2 dk (bugünkü "konuşmayı kontrol edip yeniden gönder" penceresi DEĞİŞMEZ); kesin başarısızlıkta bırakılır.
+// ---------------------------------------------------------------------------
+const REQUEST_PREFIX = OUTBOUND_REQUEST_CLAIM_PREFIX;
+const REQUEST_CLAIM_TTL_MS = 24 * 60 * 60_000;
+
+export type OutboundRequestPath = "direct" | "queue";
+export type OutboundRequestClaim =
+  | { result: "claimed" }
+  /** Bu istek kimliğini daha önce (ya da şu an) bir yol aldı: `by` hangisi (tanınmayan sahip → null). */
+  | { result: "held"; by: OutboundRequestPath | null }
+  /** Talep deposu okunamadı → gönderim reddedilir (fail-closed, ↑ `claimOutboundSend`). */
+  | { result: "unavailable" };
+
+function requestClaimName(conversationId: string, idempotencyKey: string): string {
+  const digest = createHash("sha256").update(idempotencyKey).digest("base64url").slice(0, 24);
+  return `${REQUEST_PREFIX}${conversationId}:${digest}`;
+}
+
+export async function claimOutboundRequest(
+  conversationId: string,
+  idempotencyKey: string,
+  path: OutboundRequestPath,
+): Promise<OutboundRequestClaim> {
+  const name = requestClaimName(conversationId, idempotencyKey);
+  // Fırsatçı süpürme (↑ ile aynı): süresi dolan talep artık hiçbir şeyi tekilleştirmez.
+  await prisma.systemLock.deleteMany({ where: { name: { startsWith: REQUEST_PREFIX }, lockedUntil: { lt: new Date() } } }).catch(() => {});
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS), holder: path } });
+      return { result: "claimed" };
+    } catch (err) {
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };
+    }
+    const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true, lockedUntil: true } }).catch(() => undefined);
+    if (row === undefined) return { result: "unavailable" };
+    // Arada bırakıldı (kesin başarısızlık) → bir kez daha dene.
+    if (row === null) continue;
+    if (row.lockedUntil <= new Date()) {
+      await prisma.systemLock.deleteMany({ where: { name, lockedUntil: { lte: new Date() } } }).catch(() => {});
+      continue;
+    }
+    return { result: "held", by: row.holder === "direct" || row.holder === "queue" ? row.holder : null };
+  }
+  // İki deneme de yarışta kaldı: güvenli taraf — tutuluyor say.
+  return { result: "held", by: null };
+}
+
+/** Kesin başarısız gönderimden / kuyruğa yazılamamadan sonra: aynı istek kimliği hemen yeniden denenebilsin. */
+export async function releaseOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
+  await prisma.systemLock.deleteMany({ where: { name: requestClaimName(conversationId, idempotencyKey) } }).catch(() => {});
+}
+
+/** Belirsiz sonuç: talep gövde talebinin süresine (2 dk) iner — bugünkü yeniden gönderme penceresi korunur. */
+export async function shortenOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
+  await prisma.systemLock
+    .updateMany({ where: { name: requestClaimName(conversationId, idempotencyKey) }, data: { lockedUntil: new Date(Date.now() + CLAIM_TTL_MS) } })
+    .catch(() => {});
 }
 
 // ---------------------------------------------------------------------------

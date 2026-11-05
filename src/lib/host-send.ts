@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { resolveOrgChannelCredential } from "@/lib/channels";
-import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
+import { claimOutboundSend, releaseOutboundSend, claimOutboundRequest, releaseOutboundRequest, shortenOutboundRequest } from "@/lib/outbound-claim";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
@@ -69,18 +69,35 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   // synchronous deliver-then-persist below. Falls through to the proven claim-then-send when the flag is OFF (default) or the
   // thread is internal (nothing to deliver). ──
   if (durableOutboxEnabledFor(input.organizationId) && !isInternal && conversation.externalReservationId) {
-    const enq = await enqueueOutbound({
-      organizationId: input.organizationId,
-      conversationId: id,
-      channel: conversation.channel,
-      externalReservationId: conversation.externalReservationId,
-      body: input.body,
-      senderName: input.senderName,
-      authorType: "host",
-      messageType: "manual",
-      aiAssisted: input.aiAssisted,
-      idempotencyKey: input.idempotencyKey,
-    });
+    // 🚨 Codex 11-05 (43fb93e incelemesi P2): istek kimliği iki yolda da AYNI talebe bağlanır (`claimOutboundRequest`). Bu kimlikle
+    // DOĞRUDAN gönderim yapıldıysa / sürüyorsa (anahtar iki deneme arasında açıldı) kuyruğa ikinci kopya yazılmaz. Önceki kuyruk denemesinin
+    // talebi engel değildir — kuyruk satırı anahtarla zaten tekilleşir (aşağıdaki içerik denetimi dahil).
+    let ownRequestClaim = false;
+    if (input.strictIdempotency) {
+      const req = await claimOutboundRequest(id, input.idempotencyKey, "queue");
+      if (req.result === "unavailable") return { status: "claim_unavailable" };
+      if (req.result === "held" && req.by !== "queue") return { status: "duplicate" };
+      ownRequestClaim = req.result === "claimed";
+    }
+    let enq: Awaited<ReturnType<typeof enqueueOutbound>>;
+    try {
+      enq = await enqueueOutbound({
+        organizationId: input.organizationId,
+        conversationId: id,
+        channel: conversation.channel,
+        externalReservationId: conversation.externalReservationId,
+        body: input.body,
+        senderName: input.senderName,
+        authorType: "host",
+        messageType: "manual",
+        aiAssisted: input.aiAssisted,
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (err) {
+      // Kuyruğa yazılamadı → hiçbir şey gönderilmeyecek: talep tutulursa (anahtar kapanınca) doğrudan yolun yeniden denemesi 24 sa kilitlenirdi.
+      if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey);
+      throw err;
+    }
     // (Codex r2 #3 + r3) İstek kimlikli dedupe-hit'te PAYLOAD eşleşmesi ŞART — gövde VE aiAssisted: aynı kimliği farklı gövdeyle
     // kullanmak yeni mesajı YUTAR; aynı gövde + farklı aiAssisted ise AI-kredisi metriğini yanlış bırakır.
     if (enq.deduped && input.strictIdempotency) {
@@ -107,11 +124,31 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   const pressedAt = new Date();
   const before = await prisma.conversation.findUnique({ where: { id }, select: { status: true } });
 
+  // 🚨 Codex 11-05 (43fb93e incelemesi P2): bu istek kimliği KUYRUĞA yazılmışsa (anahtar açıkken; sonra kapatıldı) doğrudan GÖNDERİLMEZ —
+  // satır hâlâ teslim edilecek (anahtar kapalıyken de satır varsa işçi boşaltır). Kuyruk satırı kalıcıdır: istek talebinin 24 saatinden
+  // uzun yaşar, önce ona bakılır. Cevap kuyruk yolunun tekilleştirme cevabıyla aynı (içerik denetimi dahil).
+  if (input.strictIdempotency && !isInternal) {
+    const queued = await queuedRequestResult(input);
+    if (queued) return queued;
+  }
+
   // Duplicate guard (claim-then-send, like auto-reply): a double-click / browser retry with the SAME text must not reach the
   // guest twice. Keyed on the RAW typed body so both duplicates map to the same claim even when translate is on.
   const claimed = await claimOutboundSend(id, input.claimBody);
   if (claimed === "duplicate") return { status: "duplicate" };
   if (claimed === "unavailable") return { status: "claim_unavailable" };
+  // İstek kimliği talebi (`claimOutboundRequest`): aynı kimlikle ikinci gönderim / kuyruk satırı oluşmaz — yanıtı kaybolan başarılı gönderimin
+  // geç tekrarı ve araya giren anahtar değişikliği dahil.
+  if (input.strictIdempotency) {
+    const req = await claimOutboundRequest(id, input.idempotencyKey, "direct");
+    if (req.result !== "claimed") {
+      await releaseOutboundSend(id, input.claimBody);
+      if (req.result === "unavailable") return { status: "claim_unavailable" };
+      // Kuyruk yolu aldı (eşzamanlı deneme, anahtar iki kopyada farklı): satır yazıldıysa onun cevabı, yazılmadıysa "hâlâ gönderiliyor".
+      if (req.by === "queue" && !isInternal) return (await queuedRequestResult(input)) ?? { status: "duplicate" };
+      return { status: "duplicate" };
+    }
+  }
   const outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
   if (!outcome.ok) {
     // DEFINITIVE provider rejection (HTTP 4xx incl. 429; not 408) → nothing was delivered → release so the same text is
@@ -119,8 +156,11 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // error — so the claim stays held for its TTL and the caller tells the user to CHECK the thread before resending.
     if (isDefinitiveSendFailure(outcome.error)) {
       await releaseOutboundSend(id, input.claimBody);
+      if (input.strictIdempotency) await releaseOutboundRequest(id, input.idempotencyKey);
       return { status: "failed_definitive", error: outcome.error };
     }
+    // Belirsiz: istek talebi gövde talebiyle aynı 2 dk'ya iner — "kontrol edip yeniden gönder" penceresi eskisi gibi.
+    if (input.strictIdempotency) await shortenOutboundRequest(id, input.idempotencyKey);
     return { status: "failed_ambiguous" };
   }
 
@@ -189,4 +229,19 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     await reportError("commitment-auto-send", err);
   }
   return { status: "sent", message };
+}
+
+/**
+ * Bu istek kimliğinin KUYRUK satırı varsa kuyruk yolunun tekilleştirme cevabı (içerik farklıysa çakışma), yoksa null. Kuyruk yolunun
+ * kendi denetimiyle aynı ölçüt: gövde VE aiAssisted eşleşmeli (Codex r2 #3 + r3).
+ */
+async function queuedRequestResult(input: HostSendInput): Promise<HostSendResult | null> {
+  const existing = await prisma.messageOutbox.findUnique({
+    where: { organizationId_idempotencyKey: { organizationId: input.organizationId, idempotencyKey: input.idempotencyKey } },
+    select: { body: true, messageId: true },
+  });
+  if (!existing) return null;
+  const message = existing.messageId ? await prisma.message.findUnique({ where: { id: existing.messageId } }) : null;
+  if (existing.body !== input.body || (message != null && message.aiAssisted !== input.aiAssisted)) return { status: "idempotency_conflict" };
+  return { status: "queued", message, deduped: true };
 }
