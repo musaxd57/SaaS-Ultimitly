@@ -17,6 +17,7 @@ import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 import { alertTracker } from "@/lib/alert-state";
 import { directChannelsForProperty, icalChannelOfUrl, icalWriteAuthority, standbySummary } from "@/lib/channels/ical-authority";
+import { isOwnExportUid, OWN_FEED_IMPORT_TEXT } from "@/lib/export/own-feed";
 
 export interface SyncResult {
   imported: number;
@@ -306,6 +307,19 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // saymaz, kaynak `partial` yazılır ve müsaitlik motoru bu kaynakla hiçbir geceye "boş" demez.
   const parsed = parseIcsDetailed(text);
   const rows = parsed.events;
+
+  // Tur 7 CAL-1 (kurucu onayı 11-05): beslemede Lixus'un kendi dışa aktarım kimliği varsa (kendi bağlantımız eklenmiş, yönlendirme
+  // servisi ya da kopya) HİÇBİR satır yazılmaz ve kayıp uzlaştırması KOŞMAZ — "hepsini eledim, takvim boş" sonucu önceki rezervasyonları
+  // iptal ettirmez. Kaynak açıkça "hata" (ev sahibi ekranda görür); veri silinmez.
+  if (rows.some((r) => isOwnExportUid(r.sourceReference))) {
+    result.errors.push(OWN_FEED_IMPORT_TEXT);
+    result.skipped = rows.length;
+    await prisma.calendarSource.update({
+      where: { id: sourceId },
+      data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: OWN_FEED_IMPORT_TEXT },
+    });
+    return result;
+  }
 
   // 🚨 DEĞİŞMEZ 6 — DOĞRUDAN KANAL SAHİPLİĞİ (`channels/ical-authority.ts`; kurucu 10-11: yalnız doğrudan kanal, Hospitable köprüsü hariç).
   // Aynı kanalın etkin doğrudan bağlantısı bu mülkü kapsıyorsa bu takvim YEDEK: çekildi ve sağlığı yazılır, ama hiçbir satır oluşturulmaz /

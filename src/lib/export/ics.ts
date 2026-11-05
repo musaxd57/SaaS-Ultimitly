@@ -4,6 +4,7 @@
 // the corresponding dates.
 
 import { calendarDateOf } from "@/modules/availability/core";
+import { OWN_EXPORT_UID_SUFFIX } from "@/lib/export/own-feed";
 
 export interface IcsEvent {
   uid: string;
@@ -157,7 +158,7 @@ export function buildIcalEvents(
   timeZone: string,
 ): IcsEvent[] {
   return reservations.map((r) => ({
-    uid: `${r.id}@guestops-ai`,
+    uid: `${r.id}${OWN_EXPORT_UID_SUFFIX}`,
     summary: showGuestName && r.guestName ? `Rezervasyon — ${r.guestName}` : "Rezervasyon",
     start: exportDay(r.arrivalDate, timeZone),
     end: exportDay(r.departureDate, timeZone),

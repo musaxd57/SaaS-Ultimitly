@@ -61,6 +61,40 @@ describe("iCal feed hardening", () => {
     expect(result.imported).toBe(1);
   });
 
+  // Tur 7 CAL-1 (kurucu onayı 11-05): Lixus'un kendi takvim bağlantısı içe aktarma kaynağı olamaz.
+  it("🚨 CREATE: Lixus'un kendi takvim bağlantısı reddedilir (onaylı metin), hiçbir şey kaydedilmez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+    const res = await createSource(
+      new NextRequest(`http://localhost/api/properties/${propertyId}/calendar-sources`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: "Lixus", url: "https://www.lixusai.com/api/calendar/0123456789abcdef0123456789abcdef" }),
+      }),
+      { params: Promise.resolve({ id: propertyId }) },
+    );
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("Lixus takvim bağlantıları içe aktarma kaynağı olarak kullanılamaz.");
+    expect(await prisma.calendarSource.count({ where: { propertyId } })).toBe(0);
+  });
+
+  it("🚨 SYNC: beslemede Lixus'un kendi etkinlik kimliği varsa hiçbir satır yazılmaz, önceki rezervasyon iptal edilmez, kaynak 'hata'", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({ data: { propertyId, label: "Kısaltılmış bağlantı", url: "https://example.com/cal.ics" } });
+    // Bu kaynaktan daha önce gelmiş gerçek rezervasyon (sonraki "boş" okuma onu iptal ETTİRMEMELİ).
+    const prior = await prisma.reservation.create({
+      data: { propertyId, guestName: "Rezervasyon", arrivalDate: new Date("2026-12-01T00:00:00Z"), departureDate: new Date("2026-12-03T00:00:00Z"), status: "confirmed", channel: "other", sourceReference: "old-1@airbnb.com", calendarSourceId: source.id },
+    });
+    const ICS = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:res9${"@guestops-ai"}\nDTSTART;VALUE=DATE:20261210\nDTEND;VALUE=DATE:20261212\nSUMMARY:Rezervasyon\nEND:VEVENT\nEND:VCALENDAR`;
+    vi.mocked(fetchFeedText).mockResolvedValue(ICS);
+    const result = await syncCalendarSource(source.id);
+    expect(result.imported).toBe(0);
+    expect(result.errors).toEqual(["Lixus takvim bağlantıları içe aktarma kaynağı olarak kullanılamaz. Airbnb, Booking veya desteklenen başka bir takvimin dışa aktarım bağlantısını ekleyin."]);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: prior.id } })).status).toBe("confirmed");
+    expect(await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } })).toMatchObject({ lastStatus: "error" });
+  });
+
   it("CREATE requires https: http URL is rejected, nothing stored", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };

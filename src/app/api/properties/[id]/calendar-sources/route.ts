@@ -4,6 +4,7 @@ import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import { isPrivateHost } from "@/lib/net/private-host";
+import { isOwnExportFeedUrl, OWN_FEED_IMPORT_TEXT } from "@/lib/export/own-feed";
 import {
   CALENDAR_URL_SENTINEL,
   calendarUrlContractEnabled,
@@ -44,6 +45,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   } catch {
     return badRequest({ url: "Geçerli bir https iCal bağlantısı girin." });
   }
+  // Tur 7 CAL-1 (kurucu onayı 11-05): Lixus'un kendi takvim bağlantısı içe aktarılamaz (her senkron kopyaları çoğaltıyordu).
+  if (isOwnExportFeedUrl(url)) return badRequest({ url: OWN_FEED_IMPORT_TEXT });
 
   // KAYNAK SAYISI TAVANI (↓ işlem içinde). Tavansızdı: bir hesap tek daireye yüzlerce besleme
   // ekleyip senkronu tetikleyebiliyordu — her biri ayrı bir dış HTTP isteği ve
