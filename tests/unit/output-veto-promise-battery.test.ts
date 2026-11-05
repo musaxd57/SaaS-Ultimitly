@@ -441,7 +441,9 @@ describe("gerçek model cevapları (09-25 cevap kıyası, 540 cevap, iki model) 
     }
     expect(n).toBeGreaterThan(400);
     expect(vetoed).toEqual([]);
-    expect(handoff).toBe(193);
+    // 11-05 (Tur 4): +1 — "mesajlarınız buradan ev sahibiniz tarafından görülebilir" (telefon sorusu, gpt-5.1). Aynı sınıf aşağıdaki
+    // "Paylaşacaklarınızı ev sahibiniz uygulamadan görebilir" pini (K10: "host görebilir gibi bir şey yazmasın"); edilgen biçim kaçıyordu.
+    expect(handoff).toBe(194);
   });
 });
 

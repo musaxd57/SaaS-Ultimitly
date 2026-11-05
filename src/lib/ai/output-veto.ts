@@ -596,7 +596,13 @@ const HANDOFF_NOTICE = new RegExp(
     // tarifi) ve "-ce" etken eki ("ev sahibinizce iletildi" = tarafından) devir DEĞİLDİR → gelecek yalnız 3. şahıs, yönelme eki "c/ç"siz.
     `|(?:ev\\s+sahib|ekib|ekip|yönetici|görevli)\\p{L}{0,6}(?<![cç])[ea]\\s+(?:\\p{L}+\\s+){0,2}?(?:iletil|aktarıl|bildiril|ulaştırıl|yönlendiril)(?:d[iı]|m[iı][sş](?:t[iı]r)?|[ea]c[ea](?:k(?:t[iı]r)?|ğ(?:iz|im)))${NR}` +
     // TR: "ev sahibiniz görebilir / görüntüleyebilir / görecek / görüyor" (3. şahıs; "görebilirsiniz" değil)
-    `|ev\\s+sahib\\p{L}{0,6}\\s+(?:\\p{L}+\\s+){0,2}?(?:görebilir|görüntüleyebilir|görecek|görüyor|okuyabilir)(?!s[iı]n[iı]z)${NR}` +
+    `|ev\\s+sahib\\p{L}{0,6}\\s+(?:\\p{L}+\\s+){0,2}?(?:görebilir|görebiliyor|görüntüleyebilir|görüntüleyebiliyor|görecek|görüyor|okuyabilir|okuyabiliyor)(?!s[iı]n[iı]z)${NR}` +
+    // Tur 4 (11-05, ölçüldü — Konuşma Kayıtları bloğunun "kayıtlı olduğunu ve ev sahibinin görebildiğini söyle" satırının yeniden ifadeleri
+    // vetodan geçiyordu): sıfat "kayıtlı(dır)" (yalnız mesaj / talep / istek / şikâyet öznesiyle; "tarihleriniz … kayıtlı" bilgi cümlesi
+    // DEĞİL), şimdiki zaman "görebiliyor" ve "ev sahibiniz tarafından görülebilir" edilgeni. "Ev sahibinin evi balkondan görülebilir"
+    // (tarafından yok) eşleşmez.
+    `|(?:mesaj|talep|taleb|istek|isteğ|bildirim|şik[aâ]yet|sorun|rica)\\p{L}{0,8}\\s+(?:\\p{L}+\\s+){0,2}?kay[ıi]tl[ıi](?:d[ıi]r)?${NR}` +
+    `|ev\\s+sahib\\p{L}{0,6}\\s+tarafından\\s+(?:\\p{L}+\\s+){0,1}?(?:görülebil|görüntülenebil|okunabil)\\p{L}*` +
     // EN
     `|(?:your|the)\\s+(?:message|request|report|note|question|query|feedback|dates?|details|complaint|concern)s?\\s+(?:(?:has|have)\\s+been\\s+(?:now\\s+|already\\s+)?(?:recorded|noted|logged|registered|forwarded|passed\\s+on|shared|received|saved|escalated|relayed` +
     // 10-01 (A05): edilgen İLETME (alıcı ev sahibi) "has been sent / passed to the host", "was forwarded / escalated". "The details were sent
@@ -604,7 +610,10 @@ const HANDOFF_NOTICE = new RegExp(
     `|passed\\s+(?:along|to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager))|sent\\s+(?:over\\s+)?to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager))` +
     `|(?:was|were)\\s+(?:forwarded|passed\\s+on|escalated|relayed|passed\\s+to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)|sent\\s+(?:over\\s+)?to\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)))${NR}` +
     `|(?:your|the)\\s+(?:host|owner)\\s+(?:now\\s+)?has\\s+(?:received\\s+)?your\\s+(?:message|request|question|note)s?${NR}` +
-    `|(?:is|are)\\s+(?:now\\s+)?visible\\s+to\\s+(?:your|the)\\s+(?:host|owner|team)${NR}` +
+    `|(?:is|are|and)\\s+(?:now\\s+)?visible\\s+to\\s+(?:your|the)\\s+(?:host|owner|team)${NR}` +
+    // Tur 4 (11-05, ölçüldü): "Your late checkout request is recorded / has been noted" — öznede ara sözcük (en çok iki) ve "is / was"
+    // ile kayıt fiili. "Your reservation is recorded" (rezervasyon bilgisi) özne listesinde değil.
+    `|(?:your|the)\\s+(?:[\\p{L}-]+\\s+){0,2}?(?:message|request|report|note|question|query|feedback|complaint|concern)s?\\s+(?:(?:has|have)\\s+been|is|are|was|were)\\s+(?:now\\s+|already\\s+)?(?:recorded|noted|logged|registered|on\\s+record)${NR}` +
     // EN: "The cleaning team has been notified", "Your request will be passed on to the host".
     `|(?:host|owner|team|cleaner|manager|housekeeping|staff)\\s+(?:has|have)\\s+(?:already\\s+)?been\\s+(?:notified|informed|told|alerted|contacted)${NR}` +
     // EN ALICI ODAKLI (Opus 10-15, ölçüldü): "The TV issue has been passed on to your host" — özne listede olmasa da alıcı ev sahibi / ekipse.
