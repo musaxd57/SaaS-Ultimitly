@@ -171,6 +171,22 @@ describe("QR rotası — bağlamla tehlike (55 + 51)", () => {
     expect((await lastEvent()).reason).not.toBe("physical_hazard");
   });
 
+  // Tur 4 (11-05): anlama katmanı mesajı 1.000 karakterde keser — QR mesajı 2.000'e kadar. Kuyruktaki tehlike modele ulaşmamışsa "acil
+  // değil" hükmü o kısım için yoktur → olası tehlike güvenli tarafta (devir), kontrolle aynı cümle.
+  it("🚨 Tur 4: anlama 'acil değil' dedi AMA mesaj tavandan uzun (kuyruk görülmedi) → olası-tehlike devri KALIR", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("wifi"));
+    mockSuggest.mockResolvedValue({ ...DRAFT, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const { token } = await seed();
+    const long = `${"Merhaba, tatilimiz çok güzel geçiyor, şehri gezdik ve akşam yemeği için güzel bir yer bulduk. ".repeat(12)}Kısa devre oldu, wifi şifresi neydi?`;
+    expect(long.length).toBeGreaterThan(1_000);
+    expect(long.length).toBeLessThan(2_000);
+    const out = await ask(token, long);
+    expect(out.escalated).toBe(true);
+    expect(out.reply ?? null).toBeNull();
+    expect((await lastEvent()).reason).toBe("physical_hazard");
+  });
+
   it("OLASI tehlike + anlama katmanı 'acil değil' → acil DEĞİL (112 satırı yok) ama şikâyet akışı: ev sahibinde, misafire metin yok", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));

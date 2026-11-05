@@ -17,6 +17,7 @@ import { hasEmergencyCallDirective, hazardDecisionFor, hazardEvidenceOf } from "
 import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency-number";
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
+import { understandingSawAll } from "@/lib/ai/semantic/understanding-schema";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   absenceReaderActive,
@@ -1149,7 +1150,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // 51: bağlam kararı — olası / anılan fiziksel tehlikede kararı anlama katmanı verir; açık tehlike ↑ zaten devredildi. Katman
   // koşmadıysa (kapalı / düştü) olası tehlike güvenli tarafta kalır, anılan tehlike acile ÇEVRİLMEZ.
   const hazardDecision = hazardDecisionFor(
-    { texts: [message], understandingRan: understood != null, understandingEmergency: understandingRiskOf(understood) === "emergency" },
+    // Tur 4 (11-05): katman mesajın tamamını görmediyse (1.000 karakter tavanı / 5+ istek) "koştu ve acil değil dedi" SAYILMAZ.
+    { texts: [message], understandingRan: understandingSawAll(understood, [message]), understandingEmergency: understandingRiskOf(understood) === "emergency" },
     isSafetyEmergencyText,
   );
   let stayCtx: Parameters<typeof evaluateEscalation>[4] = {

@@ -447,3 +447,18 @@ export function understandingQueries(
   }
   return out;
 }
+
+/**
+ * Anlama katmanı bu cevapsız metinlerin TAMAMINI gördü mü (Tur 4, 11-05 — ölçüldü)? Katman en fazla UNDERSTANDING_MAX_UNANSWERED mesaj görür,
+ * her mesajı redaksiyondan sonra UNDERSTANDING_MESSAGE_CAP karakterde keser ve en fazla MAX_UNDERSTOOD_REQUESTS istek döndürür. Bunlardan biri
+ * aşıldıysa sonuç "model koştu ve acil DEĞİL dedi" sayılamaz: mesajın sonundaki "Bu arada banyoda su basıyor" ya da altıncı istek modele hiç
+ * ulaşmamış olabilir. Tehlike bağlam kararı (`hazardDecisionFor`) bu durumda katmanı KOŞMAMIŞ sayar → olası tehlike güvenli tarafta kalır,
+ * kelime ağının acil etiketi model sorulmadan kalkmaz (K-1029-C). Öğe kipindeki `message_not_fully_read` / `request_cap` ile aynı kural.
+ */
+export function understandingSawAll(u: MessageUnderstanding | null | undefined, texts: readonly string[]): boolean {
+  if (!u) return false;
+  if (u.requests.length >= MAX_UNDERSTOOD_REQUESTS) return false;
+  if (texts.length > UNDERSTANDING_MAX_UNANSWERED) return false;
+  return texts.every((t) => t.length <= UNDERSTANDING_MESSAGE_CAP - NOT_FULLY_READ_MARGIN);
+}
+

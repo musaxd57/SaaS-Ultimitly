@@ -145,7 +145,7 @@ import {
   hasOpenHostWork,
   notClosingHandledWhere,
 } from "@/lib/conversation-attention";
-import { ASSISTANT_QUESTION_INTENT, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import { ASSISTANT_QUESTION_INTENT, understandingSawAll, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -2454,7 +2454,8 @@ export async function applyChannelAutoReply(
   // Öğe planı ve kapı AYNI hükmü kullanır (öğe kipinde kelime ağının acil etiketi turu acil yola çevirmesin, kapı da kaldırsın).
   const hazardContextFor = (u: MessageUnderstanding | null | undefined) => {
     const d = hazardDecisionFor(
-      { texts: unansweredGuestTexts, understandingRan: u != null, understandingEmergency: understandingRiskOf(u) === "emergency" },
+      // Tur 4 (11-05): katman metnin tamamını görmediyse (uzun mesaj / 5+ istek / 5+ mesaj) "koştu ve acil değil dedi" SAYILMAZ.
+      { texts: unansweredGuestTexts, understandingRan: understandingSawAll(u, unansweredGuestTexts), understandingEmergency: understandingRiskOf(u) === "emergency" },
       isSafetyEmergencyText,
     );
     return { hazardCleared: d.lexicalCleared, hazardClearedAsIssue: d.clearedAsIssue, hazardUnverified: d.unverifiedPossible };

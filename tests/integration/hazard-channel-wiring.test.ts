@@ -141,6 +141,40 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     expect(d).not.toBe("lexical_risk");
   });
 
+  // Tur 4 (11-05, ölçüldü): anlama katmanı mesajı 1.000 karakterde keser ve en fazla 5 istek döndürür. Mesajın sonundaki tehlike modele hiç
+  // ulaşmamış olabilir → "koştu ve acil değil dedi" sayılmaz; olası tehlike güvenli tarafta kalır (K-1029-C).
+  it("🚨 Tur 4: anlama 'acil değil' dedi AMA mesaj tavandan uzun (kuyruk görülmedi) → olası-tehlike tutuşu KALIR", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("wifi"));
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const long = `${"Merhaba, tatilimiz çok güzel geçiyor, şehri gezdik ve akşam yemeği için güzel bir yer bulduk. ".repeat(12)}Kısa devre oldu, wifi şifresi neydi?`;
+    expect(long.length).toBeGreaterThan(1_000);
+    const id = await seed(long);
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await gateDetail(id)).toBe("lexical_risk");
+  });
+
+  it("🚨 Tur 4: anlama 'acil değil' dedi AMA istek tavanı doldu (5 istek — altıncı görülmemiş olabilir) → tutuş KALIR", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        const verdict = {
+          language: "tr",
+          requests: ["wifi", "parking", "checkout_time", "trash", "amenities"].map((intent) => ({ intent, query_tr: intent, query_original: intent })),
+          stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        };
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), { status: 200 });
+      }),
+    );
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+    const id = await seed("Wifi şifresi? Otopark nerede? Çıkış kaçta? Çöp nereye? Fön makinesi var mı? Kısa devre oldu.");
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await gateDetail(id)).toBe("lexical_risk");
+  });
+
   it("OLASI tehlike + anlama katmanı 'acil değil' → acil rozeti kalkar ama şikâyet akışı (gönderilmez, rozet şikâyet)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("appliance_help"));
