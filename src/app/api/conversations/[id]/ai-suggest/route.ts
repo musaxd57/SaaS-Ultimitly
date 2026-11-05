@@ -27,6 +27,7 @@ import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
+import { guestTurnLanguage } from "@/lib/ai/language-signal";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -270,7 +271,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           guestTexts,
           policy,
           understood,
-          detectedLanguage: result.detectedLanguage,
+          // Tur 6 DIL-5 (11-05, ölçüldü): kanal oto-yanıtıyla AYNI kural — misafirin mesajından emin olunan dil önce, modelin beyanı
+          // yedek (kod metni dil kapısından muaf; modelin dil kayması taslağı yanlış dilde kurmasın).
+          detectedLanguage: guestTurnLanguage(guestTexts[guestTexts.length - 1] ?? lastInbound.body, guestTexts.slice(0, -1)) ?? result.detectedLanguage,
         })
       : null;
   const earlyCheckin = run

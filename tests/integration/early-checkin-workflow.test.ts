@@ -1246,6 +1246,23 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  // Tur 6 DIL-5 (11-05, ölçüldü): taslağın dili yalnız modelin beyanından geliyordu; kanal oto-yanıtı misafirin mesajından emin olunan
+  // dili önce kullanır. Türkçe yazan misafire model "en" beyan ederse taslak İngilizce kuruluyordu.
+  it("🚨 Tur 6 DIL-5: misafir Türkçe yazdı, model 'en' beyan etti → taslak misafirin dilinde (kanal oto-yanıtıyla aynı kural)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00") }));
+    const id = await conversationFor(t, "Merhaba, bugün saat 13:00'te giriş yapabilir miyiz? Teşekkürler.");
+    session = owner(t.orgId);
+    const res = await aiSuggest(new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }), {
+      params: Promise.resolve({ id }),
+    });
+    const json = (await res.json()) as { earlyCheckin: { draft: string | null } | null };
+    expect(String(json.earlyCheckin?.draft)).toMatch(/13:00/);
+    expect(String(json.earlyCheckin?.draft)).not.toMatch(/The apartment is ready/);
+    expect(String(json.earlyCheckin?.draft)).toMatch(/Ekim/);
+  });
+
   it("rota kanıt alanlarını panele taşır: çıkış doğrulandı, açık sorun, misafirin erken beyanı, temizlikçi başladı", async () => {
     const t = await turnover({ guestCheckout: "10:00" });
     // Kanıtlı erken hazırlık: aynı kullanıcı 09:30 başladı, 10:15 hazır (çıkıştan önce); host rızası açık.
