@@ -3,7 +3,7 @@
 > Nasıl: dört alan için birer arayıcı ajan 21 bulgu getirdi (ham liste AYNEN: `INCELEME-2026-11-05-tur7-HAM-bulgular.md`). Kullanım
 > sınırı yüzünden çürütücüler koşmadı. Kurucunun seçtiği **altı öne çıkan bulgu** ana kodda satır satır okunarak DOĞRULANDI ve kurucu
 > onayı + Codex görüşüyle düzeltildi (Codex önerileri kodda ölçüldü; daha geniş olan biri — "tekrar örneği hiçbir şeyi iptal edemez" —
-> Codex'in kendi inceltmesiyle uygulandı). Kalan 15 bulgu **doğrulanmadı** (§3) — sıradaki adım çürütücü.
+> Codex'in kendi inceltmesiyle uygulandı). Kalan 12 bulgu (ham listede 18 bulgu vardı; önceki sürümde "21 / 15" yazıyordu — YANLIŞTI) ayrı çürütücülerle doğrulandı (§3).
 
 ## 1. YAPILANLAR (altısı da kurucu onaylı)
 
@@ -23,26 +23,32 @@ mutasyon **27/27** (ilk koşuda 1 mutant yaşadı — kuyruklu yolda gönderim k
 ## 2. Açık kalanlar (bilinçli, soru değil — sırası gelince sorulur)
 - **T7-OB-1 adım 2 (Codex):** bayat taslağın iptali açık soruyu kapatmamalı; tekilleştirme yeniden değerlendirmeyi sonsuza kadar
   engellememeli. Adım 1 bugünkü kaybı kapatıyor; adım 2 tasarım ister (yeni bir yeniden-deneme davranışı → önce soru + örnek).
-- **CAL-2:** elle `.ics` yükleme rotası bu çözücüye bağlanmadı (önizleme var, ev sahibi görüyor) — aynı kural oraya da taşınabilir, ayrı iş.
+- **CAL-2:** elle `.ics` yükleme de artık aynı çözücüden geçiyor (11-05 gece, Codex; önizleme korunur). Lixus'tan dışa aktarılmış dosyanın yeniden yüklenmesini reddetme metni kurucu onayı bekliyor.
 - **S7-2:** Ayarlar'da nezaket metni kaydedilirken doldurulamayan alan uyarısı yok (gönderim anında sessiz kapanış; deneme kartı sebebi
   söylüyor). Kayıt anında uyarı yeni bir ev sahibi metni ister.
 - **CAL-1:** canlı veride kendi beslemesini eklemiş daire var mı — `scripts/diagnose-own-feed-loop.ts` (salt okuma) kurucu çalıştırır.
 
-## 3. Doğrulanmayı bekleyen 15 bulgu (ham — çürütücü KOŞMADI, ayrıntı ham belgede)
-- **CAL-3** 200 karakterden uzun takvim kimliği kesik saklanıp tam aranıyor → tarih değişikliği / iptal yok sayılıyor.
-- **CAL-4** silinip yeniden eklenen beslemede benimsenen rezervasyonlar kanal "manual" kalıyor.
-- **CAL-5** kayıp uzlaştırması yalnız gelecek varışları "görüldü" sayıyor → devam eden konaklama hep "doğrulanmamış".
-- **T7-OB-2** eski ortam anahtarıyla 401: satır her geçişte ölü anahtarla yeniden gönderiliyor.
-- **T7-OB-3** hızlı uyandırma tavanı park edilen satırlarla delinip 61 sn'de bir sonsuz uyanıyor.
-- **T7-OB-4** abonelik bitince bekletilen yapay zekâ cevabı "abonelik dönünce gönderilir" görünüyor ama yeniden açılışta iptal ediliyor.
-- **T7-OB-5** 48 saatlik teslim onarıcısı ev sahibinin elle "Yeni" yaptığı konuşmayı her geçişte "Cevaplandı"ya çeviriyor.
-- **T7-AUTH-2** şifre sıfırlama hata metni o ekranda olmayan "Kodu tekrar gönder" düğmesini ve yanlış bir sebebi söylüyor.
-- **T7-AUTH-3** kayıt (ve operatörün açtığı hesap) W6 parola kuralını uygulamıyor (ayrık yazımlı 7 karakter kabul).
-- **S7-3** devir bekleme saati ayarı konuşma öğeleri kipinde (canlı anahtar) hiçbir şey yapmıyor, yardım metni "yapay zekâ susar" diyor.
-- **S7-4** "mevcut rezervasyonlara karşılama / giriş mesajı gitmez" sözü anahtar açıldıktan sonra ilk kez içe alınan rezervasyonda bozuluyor.
-- **S7-5** otomatik mesaj yardımı "aynen gider" diyor ama Türkçe selam + imza ekleniyor (çift selam / İngilizce metnin üstünde Türkçe satır).
-- Kimlik alanından iki eski madde hâlâ kodda (yeni değil): `?next=` yalnız yoldan kuruluyor (S-07) · tanıtım sayfasındaki "en güncel 30'unu
-  okur" cümlesi varsayılan getirmeyle yanlış (T-09) — `RAPOR-2026-11-04-derin-ajan-turu.md`.
+## 3. Kalan 12 bulgu — çürütücü sonucu (11-05 gece), risk sırasıyla. HİÇBİRİ DÜZELTİLMEDİ (kurucu: "topluca onay yok")
+
+Dört alanda ayrı çürütücü, mevcut kodda (Tur 7 düzeltmeleri dahil) kendi deneme betiğiyle yeniden üretmeye çalıştı: **12'si doğrulandı**
+(T7-OB-5 kısmen). Ödeme riski taşıyan bulgu yok. Sıra: yanlış gönderim → veri kaybı → yetki / hesap güvenliği → altyapı → yanıltıcı metin.
+
+| Sıra | # | Risk | Ne | Müşteriye görünen değişiklik (önce → sonra) |
+|---|---|---|---|---|
+| 1 | **S7-4** (orta) | yanlış gönderim | "Mevcut rezervasyonlara karşılama / giriş mesajı gitmez" sözü, anahtar açıldıktan SONRA ilk kez içe alınan eski rezervasyonda bozuluyor (ilk bağlantı, yeni ilan). Çıkış mesajı da aynı kuralda. | Misafir (bağlantıdan 3 hafta önce yapılmış rezervasyon): önce "Merhaba Ayşe, rezervasyonunuz için teşekkürler…" + 4 gün içinde varışsa giriş mesajı → sonra hiçbiri. |
+| 2 | **CAL-3** (düşük) | veri kaybı | 200 karakterden uzun takvim kimliği kesik saklanıp tam aranıyor → tarih değişikliği / iptal yok sayılıyor (Outlook tarzı uzun kimlikler). | Ev sahibi: 15–17 Kasım → 25–28 Kasım'a taşınan konaklama önce 15–17'de kalıyor, dışa aktarım 25–28'i açık bırakıyor → sonra 25–28. |
+| 3 | **T7-OB-5** (kısmen) | veri kaybı | Teslimden sonraki 48 saat içinde ev sahibinin elle "Yeni" yaptığı konuşmayı onarıcı her 2 dakikada "Cevaplandı"ya çeviriyor (yalnız kalıcı kuyruk açıkken). Doğru düzeltme yeni bir kolon ister (migration → onay + yedek). | Ev sahibi: önce "Yeni" yaptığı konuşma 2 dk içinde "Cevaplandı" → sonra "Yeni" kalır. |
+| 4 | **T7-AUTH-3** (düşük) | hesap güvenliği | Kayıt ekranı W6 parola kuralını uygulamıyor: ayrık yazımlı (NFD) 7 karakterlik parola kabul. Canlı açılınca geçerli. | Kayıt: önce hesap açılır → sonra "Şifre en az 8 karakter olmalı." |
+| 5 | **T7-OB-2** (düşük) | altyapı | Kurucu hesabının eski ortam anahtarı reddedilince kuyruk satırı her geçişte ölü anahtarla yeniden gönderiliyor; satır hiç "başarısız" olmuyor. | Ev sahibi: önce "Sırada — gönderilmeyi bekliyor" sonsuza kadar → sonra 30–60 dk içinde "gönderilemedi" + uyarı (yeni metin yok). |
+| 6 | **T7-OB-3** (düşük) | altyapı | Hızlı uyandırma tavanı, alınıp hemen park edilen satırla deliniyor → bağlantı kopukken dakikada bir boşuna işlem. | yok |
+| 7 | **T7-OB-4** (düşük) | yanıltıcı metin | Abonelik pasifken bekleyen yapay zekâ cevabı "bağlantı gelince gönderilecek" görünüyor ama abonelik dönünce İPTAL ediliyor (W7 kararınız). | Ev sahibi: önce "…gönderilecek" (bekler, cevap vermez) → sonra mevcut cümle "…gönderilmedi — lütfen elle yanıtlayın". |
+| 8 | **CAL-4** (düşük) | yanıltıcı metin | Silinip yeniden eklenen beslemede benimsenen rezervasyonlar "Manuel" kalıyor (kod yorumu tersini söylüyor). | İptaller sayfası rozeti: "Manuel" → "Airbnb". |
+| 9 | **CAL-5** (düşük) | yanıltıcı metin | Kayıp uzlaştırması yalnız gelecek varışları "görüldü" sayıyor → devam eden konaklama hep "güncel olmayabilir" (yalnız uzlaştırma anahtarı açıkken; yön güvenli). | Devir paneli: "…(kayıt güncel olmayabilir)" uyarısı kalkar. |
+| 10 | **T7-AUTH-2** (düşük) | yanıltıcı metin | Şifre sıfırlama hata metni o ekranda olmayan "Kodu tekrar gönder" düğmesini söylüyor. | "…“Kodu tekrar gönder” ile…" → ör. "Kodu kontrol edip tekrar deneyin ya da “Baştan başla” ile yeni bir kod isteyin." |
+| 11 | **S7-3** (düşük) | yanıltıcı metin | Devir bekleme saati ayarı konuşma öğeleri kipinde (canlı) uygulanmıyor — bu BİLİNÇLİ tasarım (09-26), yalnız yardım metni eski. | Ayarlar yardım metni: "…AI kaç saat sussun?" → öğe kipinde "istek size kalır ve size bildirilir…". |
+| 12 | **S7-5** (düşük) | yanıltıcı metin | Otomatik mesaj yardımı "aynen gider" diyor; {isim} yoksa selam + imza ekleniyor (önizleme bunu zaten gösteriyor). | Yardım metni: "aynen gider" → "AI'dan geçmeden gider; {isim} yoksa başına selam, sonuna imza eklenir". |
+
+Çürütücü kanıtları ve satır numaraları: oturum çalışma klasörü `tur7-verdicts.json` (repo dışı).
 
 ## 4. Kapsam dışı / ileride (kurucu)
 - Daireler arası bağlantılı müsaitlik ("A dolunca B kapansın") — yeni mimari / migration yok; gerçek ihtiyaç doğarsa ayrı değerlendirilir.

@@ -6,6 +6,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { icsIncompleteCause, parseIcsDetailed } from "@/lib/import/ics";
+import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
@@ -221,7 +222,10 @@ export const POST = withManage(async (session, req) => {
     // ile ayrıca eklendi (`automation.ts`). "ics" kanalı bu ROTAYA özgü kalır ve
     // tam da bu yüzden elle yüklenen satırı benzersiz biçimde tanımlar (↓iptal).
     const parsedIcs = parseIcsDetailed(text);
-    rows = parsedIcs.events;
+    // Tur 7 CAL-2 (Codex 11-05 gece: "dosya ve URL yolu ortak ayrıştırma, kimlik ve iptal kurallarını kullansın; önizleme korunsun"):
+    // aynı UID'nin satırları abonelik senkronuyla AYNI çözücüden geçer (ana kayıt ≠ tekrar örneği, sürüm bilgisi, sıradan bağımsız).
+    // Çözümde düşen kopya satırlar önizlemede ayrı "tekrar" satırı olarak görünmez; dosya içi tekrar kuralı (↓) UID'siz satırlar için durur.
+    rows = resolveIcsUidGroups(parsedIcs.events);
     if (parsedIcs.incomplete.length > 0) {
       incompleteNote = `Dosyanın bir kısmı okunamadı (${icsIncompleteCause(parsedIcs.incomplete[0])}); bazı rezervasyonlar aktarılmayabilir.`;
     }

@@ -71,6 +71,11 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      dilimi). Anahtar açık ama `WHATSAPP_APP_SECRET` / `WHATSAPP_PHONE_NUMBER_ID` yoksa uç gelen mesajı 200 ile yutar + "host-channel-webhook-
      dormant" alarmı verir.
 
+5. **Tur 7 CAL-1 sayımı (web servisi açıldıktan SONRA, salt okuma):** `DATABASE_URL=… npx tsx scripts/diagnose-own-feed-loop.ts` — kendi
+   Lixus takvim bağlantısını içe aktarma kaynağı olarak eklemiş daire var mı, kopya rezervasyon oluşmuş mu. Betik HİÇBİR ŞEY değiştirmez;
+   kayıt bulunursa etkilenen kaynakların opak kimliklerini ve önerilen işlemi yazar. Sonuç kurucuya gösterilir; temizlik **otomatik
+   başlatılmaz**, ayrı ve onaylı bir adımdır (Codex + kurucu 11-05).
+
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 
 `AUTO_REPLY_ENABLED` · `GUEST_CHAT_ENABLED` · `REGISTRATION_OPEN` · `LANDING_DEMO_ENABLED` · `TRIAL_EMAILS_ENABLED` · `BILLING_ENFORCED` ·

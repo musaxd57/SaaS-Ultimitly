@@ -167,6 +167,17 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect(rows[0].channel).toBe("ics");
   });
 
+  // ── Tur 7 CAL-2 (Codex 11-05 gece): dosya yolu abonelikle AYNI kimlik / iptal kuralı ─────────────────
+  it("🚨 var olan konaklama: aynı UID'nin iptal kopyası canlı kopyadan ÖNCE gelse de İPTAL EDİLMEZ (sıradan bağımsız, abonelikle aynı kural)", async () => {
+    await POST(icsReq(propertyId, calendar(vevent("cift-1@ornek.com"))), { params: Promise.resolve({}) });
+    const res = await POST(icsReq(propertyId, calendar(vevent("cift-1@ornek.com", { cancelled: true }), vevent("cift-1@ornek.com"))), {
+      params: Promise.resolve({}),
+    });
+    expect(res.status).toBe(200);
+    const rows = await prisma.reservation.findMany({ where: { propertyId }, select: { status: true } });
+    expect(rows.map((r) => r.status)).toEqual(["confirmed"]);
+  });
+
   // ── 3. KARIŞIK DOSYA: iptal satırı elenir, canlı satır geçer ──────────────
   it("AYNI dosyada iptal + canlı: yalnız canlı olan yazılır", async () => {
     const ics = calendar(
