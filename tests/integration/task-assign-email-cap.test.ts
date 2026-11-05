@@ -20,6 +20,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { emailService } from "@/lib/email";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { PATCH } from "@/app/api/tasks/[id]/route";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 
 const patch = (id: string, body: unknown) =>
   PATCH(new NextRequest(`http://localhost/api/tasks/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }), {
@@ -73,6 +74,19 @@ describe("görev atama e-postası tavanı", () => {
     expect((await patch(task.id, { assignedToId: m.id })).status).toBe(200);
     await vi.waitFor(() => expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1));
     expect(vi.mocked(emailService.sendReporting).mock.calls[0]?.[0]).toBe("m@x.com");
+  });
+
+  it("🚨 demo hesabı (Tur 4, 11-05): yeniden atama yapılır, e-posta GİTMEZ (demo personeli teslim edilemeyen example.com adresi)", async () => {
+    const org = await prisma.organization.create({ data: { id: DEMO_ORG_ID, name: "Demo" } });
+    const reviewer = await prisma.user.create({ data: { organizationId: org.id, name: "Demo İnceleme", email: "demo@x.com", passwordHash: "x", role: "manager" } });
+    const staff = await prisma.user.create({ data: { organizationId: org.id, name: "Temizlik", email: "lxdemo-staff-1@example.com", passwordHash: "x", role: "staff" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
+    const task = await prisma.task.create({ data: { propertyId: property.id, title: "Temizlik", type: "cleaning" } });
+    session = { userId: reviewer.id, organizationId: org.id, role: "manager", email: reviewer.email, name: reviewer.name, sessionEpoch: 0 };
+    expect((await patch(task.id, { assignedToId: staff.id })).status).toBe(200);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).assignedToId).toBe(staff.id);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled();
   });
 
   it("KONTROL: tavan görev başına — başka görevin ataması e-postasını alır", async () => {

@@ -7,6 +7,7 @@ import { emailService } from "@/lib/email";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
@@ -197,7 +198,12 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // görünümü; e-posta onun kutusunda, saklama süremizin dışında kalır).
   // TAVAN (kurucu kararı 10-11): aynı görev için saatte en çok 3 atama e-postası — döngüyle yeniden atama personelin kutusunu
   // doldurmasın. Atama YİNE yapılır (yukarıda yazıldı); yalnız fazladan e-posta gitmez.
-  const mailAllowed = newAssignee ? (await rateLimit(`task-assign-mail:${task.id}`, TASK_ASSIGN_MAILS_PER_HOUR, 60 * 60_000)).ok : false;
+  // DEMO HESABI HİÇBİR ŞEY GÖNDERMEZ (Tur 4, 11-05): demo personeli `lxdemo-staff-*@example.com` — teslim edilemeyen ayrılmış alan adı;
+  // inceleme ekibinin her yeniden ataması gerçek bir gönderim denemesi + geri dönen e-posta (gönderici itibarı) + alarm üretiyordu.
+  const mailAllowed =
+    newAssignee && !isDemoOrg(session.organizationId)
+      ? (await rateLimit(`task-assign-mail:${task.id}`, TASK_ASSIGN_MAILS_PER_HOUR, 60 * 60_000)).ok
+      : false;
   if (newAssignee && mailAllowed) {
     const emailTask = newAssignee.role === "owner" || newAssignee.role === "manager" ? task : staffTaskProjection(task);
     const html = taskAssignedEmail(
