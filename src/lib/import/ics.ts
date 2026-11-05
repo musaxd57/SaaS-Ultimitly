@@ -3,6 +3,8 @@ import { zonedWallClockToUtc, isValidTimeZone } from "@/lib/timezone";
 // ICS (iCalendar) parser for reservation imports.
 // Handles VEVENT blocks with DTSTART/DTEND in both date-only and datetime formats.
 
+import { normalizeSourceReference } from "@/lib/import/source-ref";
+
 export interface IcsReservation {
   guestName: string;
   arrivalDate: Date;
@@ -319,7 +321,8 @@ export function parseIcsDetailed(text: string): IcsParseResult {
 
       // Source reference: from UID
       const uid = get("UID");
-      const sourceReference = uid ? uid.trim() : null;
+      // CAL-3: kimlik doğduğu yerde saklanacak biçime getirilir (200 sınırı + kırpma) — ↓ her kullanım aynı değeri görür.
+      const sourceReference = normalizeSourceReference(uid);
 
       // STATUS (RFC 5545): "CANCELLED" means the booking was removed on the OTA
       // side — the sync marks the local reservation cancelled instead of importing

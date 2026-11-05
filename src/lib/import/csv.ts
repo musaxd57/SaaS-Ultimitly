@@ -11,6 +11,7 @@
 // a correct RFC 4180 tokenizer is small, fully testable, and keeps our
 // Turkish-specific delimiter + header-alias + date logic in one place.
 
+import { normalizeSourceReference } from "@/lib/import/source-ref";
 export class CsvParseError extends Error {
   constructor(message: string) {
     super(message);
@@ -354,7 +355,7 @@ export function parseCsv(text: string): CsvReservation[] {
     const totalAmount = parseAmount(get(amountIdx));
     const currency = get(currencyIdx) || undefined;
     const channel = get(channelIdx) || undefined;
-    const sourceReference = get(refIdx) || undefined;
+    const sourceReference = normalizeSourceReference(get(refIdx)) ?? undefined; // CAL-3: senkron / dosya yolu ile aynı biçim
     const notes = get(notesIdx) || undefined;
     const status = normalizeStatus(get(statusIdx));
 

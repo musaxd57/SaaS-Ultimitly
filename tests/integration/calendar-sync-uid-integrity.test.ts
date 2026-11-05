@@ -114,4 +114,24 @@ describe("iCal abonelik senkronu — kayıt kimliği (inceleme b1)", () => {
     const foldedCrlf = cal(ev("fold-2", 10, 12)).replace("UID:fold-2", "UID:fold\n -2").replace(/\n/g, "\r\n");
     expect(parseIcsDetailed(foldedCrlf).events.map((e) => e.sourceReference)).toEqual(["fold-2"]);
   });
+
+  it("🚨 CAL-3: 200 karakterden uzun UID — tarih değişikliği ve STATUS:CANCELLED uygulanır (eskiden 'atlandı', kayıt eski tarihte kalıyordu)", async () => {
+    const { propertyId, sourceId } = await seed();
+    const uid = `${"E".repeat(240)}@exchange.example`;
+    vi.mocked(fetchFeedText).mockResolvedValue(cal(ev(uid, 10, 12)));
+    await syncCalendarSource(sourceId);
+    const [r] = await prisma.reservation.findMany({ where: { propertyId } });
+    expect(r.sourceReference).toHaveLength(200);
+
+    vi.mocked(fetchFeedText).mockResolvedValue(cal(ev(uid, 20, 23)));
+    await syncCalendarSource(sourceId);
+    const moved = await prisma.reservation.findMany({ where: { propertyId } });
+    expect(moved).toHaveLength(1);
+    expect(moved[0].arrivalDate.toISOString().slice(0, 10)).toBe(new Date(Date.now() + 20 * DAY).toISOString().slice(0, 10));
+
+    vi.mocked(fetchFeedText).mockResolvedValue(cal(ev(uid, 20, 23, ["STATUS:CANCELLED"])));
+    await syncCalendarSource(sourceId);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("cancelled");
+  });
 });
+

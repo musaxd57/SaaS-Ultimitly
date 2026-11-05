@@ -7,6 +7,7 @@ import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeEr
 import { withManage } from "@/lib/route-guard";
 import { icsIncompleteCause, parseIcsDetailed } from "@/lib/import/ics";
 import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
+import { normalizeSourceReference } from "@/lib/import/source-ref";
 import { isOwnExportUid, OWN_FILE_IMPORT_TEXT } from "@/lib/export/own-feed";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
@@ -690,7 +691,7 @@ export const POST = withManage(async (session, req) => {
       channel: isIcs ? "ics" : "manual",
       status: "confirmed",
       ingestedAt: new Date(), // V0.4 provenance: İLK ALINMA, dosya bir ingress'tir (connectionId yok)
-      sourceReference: sourceReference ? sourceReference.slice(0, 200) : null,
+      sourceReference: normalizeSourceReference(sourceReference),
       notes: row.notes ? row.notes.slice(0, 5000) : null,
       ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
         ? {

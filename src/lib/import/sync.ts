@@ -7,6 +7,7 @@ import { reportError } from "@/lib/report-error";
 import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 import { icsIncompleteCause, parseIcsDetailed, type IcsIncompleteReason } from "@/lib/import/ics";
 import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
+import { normalizeSourceReference } from "@/lib/import/source-ref";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { recordVerifiedCalendarIdentity } from "@/lib/billing/trial-identity";
@@ -588,7 +589,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               departureDate: row.departureDate,
               channel,
               status: "confirmed",
-              sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+              sourceReference: normalizeSourceReference(row.sourceReference),
               calendarSourceId: source.id,
               notes: row.notes ? row.notes.slice(0, 5000) : null,
               currency: "EUR",
