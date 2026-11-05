@@ -27,7 +27,8 @@ export const dynamic = "force-dynamic";
 const STATUS_META: Record<OutboxStatus, { label: string; tone: BadgeTone; note?: string }> = {
   pending: { label: "Sırada", tone: "warning" },
   sending: { label: "Gönderiliyor", tone: "default" },
-  sent: { label: "İletildi", tone: "success" },
+  // Sağlayıcı KABUL etti (Codex 11-05): kanal misafirin cihazına ulaştığını bildirmiyor → teslim iddia edilmez.
+  sent: { label: "Gönderildi", tone: "success" },
   ambiguous: {
     label: "Doğrulanamadı",
     tone: "warning",
@@ -115,7 +116,7 @@ export default async function OutboxQueuePage({
         // (outbox) durum görünümü" diyordu — ürünün İÇ terimini (outbox) müşteriye
         // gösteriyor ve ekranın NE İŞE YARADIĞINI hiç söylemiyordu. Yeni metin
         // önce SORUYU cevaplıyor ("mesajım gitti mi?"), sonra sınırı söylüyor.
-        description="Misafirlere giden mesajların teslim durumu. Bir mesaj gönderilemediyse sebebini burada görür, tekrar deneyebilirsiniz. Mesajın kendi metni ve misafir bilgileri burada gösterilmez — onlar için konuşma ekranını açın."
+        description="Misafirlere giden mesajların gönderim durumu. Bir mesaj gönderilemediyse sebebini burada görür, tekrar deneyebilirsiniz. Mesajın kendi metni ve misafir bilgileri burada gösterilmez — onlar için konuşma ekranını açın."
       >
         <Link
           href="/sent"
@@ -151,7 +152,7 @@ export default async function OutboxQueuePage({
         <EmptyState
           icon={ListOrdered}
           title="Henüz gönderim kaydı yok"
-          description="Bu ekran, bir mesajın misafire ulaşıp ulaşmadığını takip etmek için. Mesaj göndermeye başladığınızda her deneme burada durumuyla listelenir — ulaştı, bekliyor ya da ulaşamadı."
+          description="Bu ekran, bir mesajın gönderilip gönderilmediğini takip etmek için. Mesaj göndermeye başladığınızda her deneme burada durumuyla listelenir — gönderildi, bekliyor ya da gönderilemedi."
         />
       ) : list.rows.length === 0 ? (
         <EmptyState

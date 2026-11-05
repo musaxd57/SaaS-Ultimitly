@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Bot,
   Wand2,
+  Check,
   CheckCheck,
   Info,
   FileText,
@@ -55,12 +56,13 @@ export interface ThreadMessage {
 }
 
 // Persistent, host-facing delivery labels for a message that went through the
-// durable outbox. "sent" is the only state that means the guest actually received
-// it; every other state must stay visually distinct from a normal delivered bubble.
+// durable outbox. 🚨 "sent" = the CHANNEL PROVIDER ACCEPTED it (Codex 11-05): the provider gives us no delivery / read receipt, so the
+// label says "Gönderildi" with a SINGLE tick — never "İletildi" / a double tick, which read as "reached the guest's phone". Every other
+// state must stay visually distinct from a sent bubble.
 const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
   pending: { label: "Sırada — gönderilmeyi bekliyor", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
   sending: { label: "Gönderiliyor…", className: "bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300" },
-  sent: { label: "İletildi", className: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" },
+  sent: { label: "Gönderildi", className: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" },
   reconciling: { label: "Doğrulanıyor…", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
   ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300" },
   review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300" },
@@ -808,7 +810,7 @@ export function ConversationThread({
                 )}
               >
                 {m.outboxStatus === "sent" ? (
-                  <CheckCheck className="size-3" />
+                  <Check className="size-3" />
                 ) : m.outboxStatus === "canceled" ? (
                   <X className="size-3" />
                 ) : m.outboxStatus === "blocked" ? (
