@@ -11,7 +11,7 @@ import type { ItemKind } from "@/lib/conversation-items/core";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
 import { reservationDayRangeWhere } from "@/lib/day-where";
-import { todayKey } from "@/modules/availability/core";
+import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
@@ -99,6 +99,19 @@ export const UNANSWERED_HOURS = 6;
 export const DEPARTING_UNANSWERED_HOURS = 2;
 /** "Çıkışı yaklaşan" penceresi. */
 export const DEPARTURE_SOON_HOURS = 24;
+
+/**
+ * Çıkış "yakın" mı (Tur 5, 11-05, ölçüldü). Ham `departure >= şimdi` kıyası tarih-yalnız çapada (Hospitable çıkışı D 00:00Z = İstanbul
+ * 03:00) çıkış GÜNÜ sabahından itibaren "geçti" diyordu: çıkış günü cevap bekleyen misafirin "Çıkışı yaklaşan" satırı hiç çıkmıyordu
+ * (aynı gün iCal saatli kayıtta çıkıyordu). Tarih-yalnız çapa → işletme gününe göre çıkış günü BUGÜN ya da YARIN (çıkış günü boyunca
+ * "bitmedi", `stayEndedBefore` ile aynı); gerçek an (saatli kayıt) → eski 24 saat penceresi aynen.
+ */
+export function departingWithinSoonWindow(departure: Date, now: Date, timeZone: string): boolean {
+  const { key, anchor } = calendarDateOf(departure, timeZone);
+  if (anchor === "instant") return departure >= now && departure.getTime() <= now.getTime() + DEPARTURE_SOON_HOURS * HOUR;
+  const today = todayKey(now, timeZone);
+  return key >= today && key <= addNights(today, 1);
+}
 /** Örüntü bu kadar gün içinde SON KEZ gözlendiyse hâlâ güncel sayılır. */
 export const RECURRING_FRESH_DAYS = 30;
 /**
@@ -139,6 +152,8 @@ export const GAP_SOON_DAYS = 7;
 export const GAP_UNCONFIRMED_PENALTY = 5;
 /** Tek sorguda incelenecek en fazla konuşma (sınırsız tarama yok). */
 export const CONVERSATION_CANDIDATE_CAP = 200;
+/** "En uzun bekleyen" okumasının durumları (cevaplanmış konuşma o okumanın tavanını doldurmasın). `answered` YOK: QR konuşmaları en yeni okumadan gelir. */
+export const OPEN_CANDIDATE_STATUSES = ["new", "waiting", "problem", "closed"] as const;
 
 /**
  * KONUŞMANIN KENDİ YÜZEYİ (kurucu bildirimi 09-12: "normalde qr sohbeti ama
@@ -298,33 +313,43 @@ export async function findAttentionItems(
     // sormak, cevapsız kalmış gerçek bir misafir mesajını KAÇIRIRDI. Burada
     // yalnızca pencereyi daraltmak için kullanılıyor; karar GÖRÜNÜR SON
     // MESAJDAN veriliyor (aşağıda).
-    prisma.conversation.findMany({
-      where: { propertyId: { in: propertyIds }, lastMessageAt: { gte: windowStart } },
-      orderBy: { lastMessageAt: "asc" },
-      take: CONVERSATION_CANDIDATE_CAP,
-      select: {
-        id: true,
-        propertyId: true,
-        // 🚨 Kanal, BAĞLANTIYI belirler (↓ `conversationHref`). Eskiden bu alan
-        // seçilmiyordu bile ve href sabit `/inbox/${id}` idi — QR sohbetleri
-        // kanal yüzeyinin arkasına düşüyordu.
-        channel: true,
-        // "Cevap gerekmedi" hâli (`conversation-attention.ts`): kapanışa bilerek sessiz kalınmış konuşma cevapsız değildir.
-        status: true,
-        skippedReason: true,
-        autoReplyAttemptedAt: true,
-        lastMessageAt: true,
-        reservation: { select: { departureDate: true, status: true } },
-        messages: {
-          // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz; otomatik şablon mesajı (K7) cevap değildir —
-          // misafirin cevapsız sorusunu gizlemesin.
-          where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: 1,
-          select: { direction: true, createdAt: true },
-        },
-      },
-    }),
+    // Tur 5 (11-05, ölçüldü): tek "en eski önce" okuması, 30 günde 200'den fazla konuşması olan işletmede CEVAPLANMIŞ eski konuşmalarla
+    // doluyordu — en yeni (cevapsız, çıkışı yaklaşan, QR devri) konuşmalar adaya hiç girmiyordu (230 eski + 5 bekleyen → 0 satır). İki okuma
+    // birleşir: (1) EN YENİ tavan kadar — taze, çıkışı yaklaşan ve QR konuşmaları (QR konuşması "answered" doğar, durumu değişmez);
+    // (2) EN ESKİ tavan kadar ama yalnız açık durumlu — "en uzun bekleyen" amacı. Kimliğe göre tekilleşir; satırlar sonra öneme göre sıralanır.
+    (async () => {
+      const read = (dir: "asc" | "desc", openOnly: boolean) =>
+        prisma.conversation.findMany({
+          where: { propertyId: { in: propertyIds }, lastMessageAt: { gte: windowStart }, ...(openOnly ? { status: { in: [...OPEN_CANDIDATE_STATUSES] } } : {}) },
+          orderBy: [{ lastMessageAt: dir }, { id: dir }],
+          take: CONVERSATION_CANDIDATE_CAP,
+          select: {
+            id: true,
+            propertyId: true,
+            // 🚨 Kanal, BAĞLANTIYI belirler (↓ `conversationHref`). Eskiden bu alan
+            // seçilmiyordu bile ve href sabit `/inbox/${id}` idi — QR sohbetleri
+            // kanal yüzeyinin arkasına düşüyordu.
+            channel: true,
+            // "Cevap gerekmedi" hâli (`conversation-attention.ts`): kapanışa bilerek sessiz kalınmış konuşma cevapsız değildir.
+            status: true,
+            skippedReason: true,
+            autoReplyAttemptedAt: true,
+            lastMessageAt: true,
+            reservation: { select: { departureDate: true, status: true } },
+            messages: {
+              // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz; otomatik şablon mesajı (K7) cevap değildir —
+              // misafirin cevapsız sorusunu gizlemesin.
+              where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: 1,
+              select: { direction: true, createdAt: true },
+            },
+          },
+        });
+      const [oldestOpen, newest] = await Promise.all([read("asc", true), read("desc", false)]);
+      const seen = new Set<string>();
+      return [...oldestOpen, ...newest].filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+    })(),
     prisma.propertyMemory.findMany({
       where: {
         organizationId,
@@ -490,7 +515,10 @@ export async function findAttentionItems(
     });
   }
 
-  const departureCutoff = new Date(now.getTime() + DEPARTURE_SOON_HOURS * HOUR);
+  // Çıkış günü işletmenin takviminden okunur (tek tarih kuralı) — yalnız çıkışı olan aday varsa org dilimi okunur.
+  const departureTz = conversations.some((c) => c.reservation?.departureDate)
+    ? orgTimezone(decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone)
+    : null;
   for (const convo of conversations) {
     const last = convo.messages[0];
     // Görünür mesajı olmayan ya da son sözü BİZDE olan konuşma cevapsız değildir.
@@ -508,8 +536,8 @@ export async function findAttentionItems(
     const departingSoon =
       departure !== null &&
       (convo.reservation?.status === "confirmed" || convo.reservation?.status === "completed") &&
-      departure >= now &&
-      departure <= departureCutoff;
+      departureTz !== null &&
+      departingWithinSoonWindow(departure, now, departureTz);
 
     if (departingSoon) {
       if (hoursWaiting < DEPARTING_UNANSWERED_HOURS) continue;
