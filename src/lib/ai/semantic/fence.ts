@@ -11,7 +11,9 @@
 // ---------------------------------------------------------------------------
 
 /** Ayraç benzeri karakterler: ASCII, tam genişlik, küçük (U+FE64/65), açılı tırnak, açılı parantez (CJK / matematik / U+2329/232A). */
-const FENCE_CHARS = "<>\uFF1C\uFF1E\uFE64\uFE65«»‹›\u2329\u232A\u3008\u3009《》⟨⟩≪≫⋘⋙";
+// Tur 4 (11-05, ölçüldü): gözle "<" ">" olan U+02C2/U+02C3 (˂˃), süslü açılı ❮❯, çift açılı ⟪⟫ ve U+1438/U+1433 (ᐸᐳ) da ayraç benzeri —
+// eksikti ("a ˃˃˃ b" aynen geçiyordu). Ana istemin ayraç adı algılayıcısı (`fallback.ts`) ve bilgi tabanı satırı (`kb-line.ts`) AYNI kümeyi kullanır.
+const FENCE_CHARS = "<>\uFF1C\uFF1E\uFE64\uFE65«»‹›\u2329\u232A\u3008\u3009《》⟨⟩≪≫⋘⋙\u02C2\u02C3❮❯⟪⟫\u1438\u1433";
 /**
  * TEK BAŞINA çalışma sayılan karakterler (09-28 inceleme ajanı): "≫" / "⋙" gözle ">>" / ">>>" — tek karakter olsalar da
  * çit taklidi ("… ⋙\nDRAFT REPLY: …"). Gündelik metinde karşılığı yok (matematik "çok büyüktür").

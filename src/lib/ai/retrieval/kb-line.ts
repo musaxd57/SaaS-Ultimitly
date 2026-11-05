@@ -30,16 +30,16 @@ export function defuseBlockDelimiters(v: string): string {
 
 const GENERIC_FENCE = /<<\s*([A-Z_]{2,})\s*>>/gu;
 const GENERIC_FENCE_TEST = /<<\s*[A-Z_]{2,}\s*>>/u;
-const FENCE_BRACKETS = /[<>«»≪≫＜＞]/gu;
+const FENCE_BRACKETS = /[<>«»≪≫＜＞‹›〈〉〈〉《》⟨⟩˂˃❮❯⟪⟫ᐸᐳ]/gu;
 
 /**
  * KENDİ ayraç ADLARIMIZIN diğer yazımları (09-28 inceleme ajanı — misafir dedektörüyle AYNI sınıf, `fallback.ts`): küçük harf,
  * boşluk / tire / nokta ayırıcı, tek açılı, «» / ≪≫ / tam genişlik parantez. Genel "<<sözcük>>" DEĞİL (Fransızca tırnak).
  */
 const OUR_FENCE_NAME =
-  /[<«≪＜]{1,2}\s*((?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end))\s*[>»≫＞]{1,2}/giu;
+  /[<«≪＜‹〈〈《⟨˂❮⟪ᐸ]{1,2}\s*((?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end))\s*[>»≫＞›〉〉》⟩˃❯⟫ᐳ]{1,2}/giu;
 const OUR_FENCE_NAME_TEST =
-  /[<«≪＜]{1,2}\s*(?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end)\s*[>»≫＞]{1,2}/iu;
+  /[<«≪＜‹〈〈《⟨˂❮⟪ᐸ]{1,2}\s*(?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end)\s*[>»≫＞›〉〉》⟩˃❯⟫ᐳ]{1,2}/iu;
 
 /** İsteme giren bilgi tabanı satırı (paketleyicinin yazdığı AYNEN). */
 export function kbLine(k: { category: string; title: string; content: string }): string {
