@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull, forbidden } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull, forbidden, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { isSuperAdmin } from "@/lib/admin";
 import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { logEvent } from "@/lib/event-log";
@@ -30,6 +31,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!isSuperAdmin(session)) return unauthorized();
   // Destek görünümünde operatör yazması YOK — önce çıkış (kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
   if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
+  // Tur 3 (11-04): site dışı / JSON olmayan istek kotaya ve gövde okumasına girmeden reddedilir (hesap rotalarındaki 11-04 sırası).
+  if (crossSiteWrite(req)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
 
   try {
     const { id } = await ctx.params;

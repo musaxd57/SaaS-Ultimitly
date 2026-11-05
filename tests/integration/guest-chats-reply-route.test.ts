@@ -90,3 +90,34 @@ describe("POST /api/guest-chats/[id]/reply — handoff identity is authorType, n
     expect(guestChatAiPausedFromMessages(stored)).toBe(true);
   });
 });
+
+// Tur 3 (11-04): başka siteden yazma kapısı + içerik türü yazma kotasından ÖNCE (kardeş resume-ai ve withAuth ile aynı sıra).
+describe("POST /api/guest-chats/[id]/reply — site dışı / JSON olmayan istek kotaya dokunmaz", () => {
+  beforeEach(async () => {
+    await resetDb();
+    session = null;
+  });
+
+  it("site dışı istek 403, JSON olmayan 415; ikisi de yazma kovası satırı açmaz ve mesaj yazmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const id = await makeChatConvo(propertyId);
+    session = sess(orgId, "Ev Sahibi");
+    const cross = new Request(`http://localhost/api/guest-chats/${id}/reply`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "sec-fetch-site": "cross-site" },
+      body: JSON.stringify({ body: "Merhaba" }),
+    });
+    expect((await POST(cross as never, { params: Promise.resolve({ id }) })).status).toBe(403);
+    const plain = new Request(`http://localhost/api/guest-chats/${id}/reply`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: JSON.stringify({ body: "Merhaba" }),
+    });
+    expect((await POST(plain as never, { params: Promise.resolve({ id }) })).status).toBe(415);
+    expect(await prisma.rateLimitCounter.count()).toBe(0);
+    expect((await rows(id)).filter((r) => r.direction === "outbound")).toHaveLength(0);
+    // KONTROL: aynı site + JSON → yazılır.
+    expect((await call(id, "Merhaba")).status).toBeLessThan(300);
+  });
+});
+

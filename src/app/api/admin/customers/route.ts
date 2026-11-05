@@ -2,7 +2,8 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull, forbidden } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull, forbidden, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { isSuperAdmin, isSuperAdminEmail } from "@/lib/admin";
 import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { rateLimit } from "@/lib/rate-limit";
@@ -32,6 +33,9 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(session)) return unauthorized();
   // Destek görünümünde operatör yazması YOK — önce çıkış (kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
   if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
+  // Tur 3 (11-04): site dışı / JSON olmayan istek kotaya ve gövde okumasına girmeden reddedilir (hesap rotalarındaki 11-04 sırası).
+  if (crossSiteWrite(req)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
 
   const limited = await rateLimit(`admin-create:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

@@ -31,6 +31,12 @@ import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 export const INBOUND_DEDUPE_PREFIX = "host-in:";
 export const INBOUND_DEDUPE_TTL_MS = 8 * 24 * 60 * 60 * 1000;
+/**
+ * Tur 3 (11-04): web kancası imzası yalnız gövdenin HMAC'i (zaman damgası / tek kullanımlık değer yok) ve tekrar kilidi 8 gün yaşıyor → kilit
+ * silindikten sonra aynı imzalı gövde yeniden gönderilirse mesaj YENİDEN işlenirdi (ör. önizlemeye yazılan "Gönder"). Sağlayıcı gecikmiş
+ * teslimi en çok 7 gün dener; mesaj anı bu sınırdan eskiyse olay tekrar sayılır, işlenmez. Kilit süresinden kısa → kilit varken zaten tekrar.
+ */
+export const INBOUND_MAX_EVENT_AGE_MS = INBOUND_DEDUPE_TTL_MS - 12 * 60 * 60 * 1000;
 /** İşleniyor kirası: bir mesajın işlenmesi (veritabanı + en çok bir gönderim) bundan uzun sürmez. */
 export const INBOUND_LEASE_MS = 2 * 60 * 1000;
 const PROCESSING = "processing";
@@ -133,6 +139,11 @@ export async function handleHostInbound(input: {
       // Süresi dolmuş kilitler: 8 günü geçmiş bitmiş mesajlar + kirası dolmuş yarım işler (yeniden denemede baştan işlenir).
       swept = true;
       await prisma.systemLock.deleteMany({ where: { name: { startsWith: INBOUND_DEDUPE_PREFIX }, lockedUntil: { lt: now } } }).catch(() => {});
+    }
+    const sentAt = ev.at.getTime();
+    if (Number.isFinite(sentAt) && sentAt > 0 && now.getTime() - sentAt > INBOUND_MAX_EVENT_AGE_MS) {
+      result.duplicates++;
+      continue;
     }
     const name = inboundDedupeName(input.provider, ev.providerMessageId);
     const claim = await claimInbound(name);

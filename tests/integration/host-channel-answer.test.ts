@@ -54,7 +54,7 @@ vi.spyOn(prisma.hostQuestion, "findFirst").mockImplementation(((args: Parameters
 }) as never);
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
-import { handleHostInbound } from "@/lib/host-channel/inbound";
+import { handleHostInbound, INBOUND_MAX_EVENT_AGE_MS } from "@/lib/host-channel/inbound";
 import {
   HOST_TEXTS,
   HOST_ANSWER_MAX,
@@ -289,6 +289,22 @@ describe("WhatsApp cevap dilimi", () => {
     expect(sendMock).toHaveBeenCalledTimes(1);
     // Gitmiş cevabın düğmesine ikinci dokunuş: "geçersiz önizleme" DENMEZ (panelden yeniden yazdırırdı) — sessiz (sert inceleme 10-30 A2).
     expect(tr.out).toHaveLength(before);
+  });
+
+  it("🚨 Tur 3 (11-04): 7,5 günden eski [Gönder] olayı (tekrar kilidi silindikten sonra yeniden gönderilmiş imzalı gövde) işlenmez", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await previewed(h);
+    sendMock.mockResolvedValue({ status: "sent", message: { id: "msg-1" } });
+    const id = hostQuestionButtonId(q.questionId, q.version, "send");
+    const old = { ...button(DIG_A, "wamid.old", id), at: new Date(Date.now() - INBOUND_MAX_EVENT_AGE_MS - 60_000) };
+    const res = await deliver([old]);
+    expect(res.duplicates).toBe(1);
+    expect(sendMock).not.toHaveBeenCalled();
+    expect((await question(q.questionId)).status).not.toBe("done");
+    // KONTROL: sınırın hemen içindeki (gecikmiş ama meşru) teslim işlenir.
+    const late = { ...button(DIG_A, "wamid.late", id), at: new Date(Date.now() - INBOUND_MAX_EVENT_AGE_MS + 60 * 60_000) };
+    await deliver([late]);
+    expect(sendMock).toHaveBeenCalledTimes(1);
   });
 
   it("🚨 Codex 11-04 P2: önizleme gece yarısından ÖNCE hazırlandı, [Gönder] SONRA geldi + metinde 'yarın' → gönderilmez, soru yeniden açık, ev sahibine 'gün değişti'", async () => {

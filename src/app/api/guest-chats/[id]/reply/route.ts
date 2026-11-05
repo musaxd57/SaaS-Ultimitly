@@ -1,6 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull, impersonationReadOnly } from "@/lib/api";
+import {
+  requireSession,
+  unauthorized,
+  canManage,
+  forbidden,
+  jsonOk,
+  badRequest,
+  notFound,
+  readJsonCappedOrNull,
+  impersonationReadOnly,
+  hasJsonContentType,
+  unsupportedMediaType,
+} from "@/lib/api";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 import { hostWriteLimited } from "@/lib/host-write-limit";
@@ -16,7 +29,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const readOnly = session ? impersonationReadOnly(session, req.method) : null;
   if (readOnly) return readOnly;
   if (!session) return unauthorized();
+  // Tur 3 (11-04): başka siteden yazma kapısı + içerik türü YAZMA KOTASINDAN ÖNCE (kardeş `resume-ai` ve `withAuth` ile aynı sıra) — eskiden
+  // site dışı / JSON olmayan istek de kotayı harcıyordu.
+  if (crossSiteWrite(req)) return forbidden();
   if (!canManage(session)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   const limited = await hostWriteLimited(session, req.method);
   if (limited) return limited;
 
