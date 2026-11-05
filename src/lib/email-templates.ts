@@ -45,7 +45,7 @@ const FOOTER = `
     <tr>
       <td style="color:#94a3b8;font-size:12px;text-align:center;">
         Lixus AI — Kısa Dönem Kiralama Yönetim Platformu<br/>
-        Bu e-posta otomatik olarak oluşturulmuştur. Lütfen yanıtlamayınız.
+        Bu e-posta otomatik olarak oluşturulmuştur. Lütfen yanıtlamayın.
       </td>
     </tr>
   </table>

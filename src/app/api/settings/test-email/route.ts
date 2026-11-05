@@ -5,6 +5,7 @@ import { emailService } from "@/lib/email";
 import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
+import { TEST_EMAIL_FOOTNOTE } from "@/lib/test-email-copy";
 
 // ---------------------------------------------------------------------------
 // Send a TEST alert email to ALERT_EMAIL so the host can verify the SMTP setup
@@ -46,8 +47,7 @@ export const POST = withManage(async (session) => {
     heading: "Acil bildirim adresiniz çalışıyor",
     intro:
       "Bu adres Lixus AI'da <strong style=\"color:#0f172a\">acil bildirim adresi</strong> olarak kayıtlı. Bir misafir şikayet, iade ya da güvenlik konusu yazdığında uyarı buraya gelecek.",
-    footnote:
-      "Bu mesajı Ayarlar &rsaquo; Bağlantılar'daki &ldquo;Test e-postası gönder&rdquo; düğmesi oluşturdu. Adresi istediğiniz zaman aynı yerden değiştirebilirsiniz.",
+    footnote: TEST_EMAIL_FOOTNOTE,
   });
 
   const result = await emailService.sendReporting(to, "Lixus AI — Acil bildirim adresi doğrulandı", html);

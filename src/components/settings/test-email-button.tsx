@@ -53,7 +53,7 @@ export function TestEmailButton() {
       const res = await fetch("/api/settings/test-email", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setResult({ ok: true, msg: `Test e-postası gönderildi → ${data.to}. Gelen kutunu kontrol et.` });
+        setResult({ ok: true, msg: `Test e-postası gönderildi → ${data.to}. Gelen kutunuzu kontrol edin.` });
         // Tek-seferlik kurulum aracı: başarıdan sonra buton kalkar (bayrak +
         // hidden). Onay toast'ı `hidden`'dan BAĞIMSIZ render edilir, sonra 8 sn
         // içinde kendiliğinden temizlenir → bölüm tamamen kaybolur.

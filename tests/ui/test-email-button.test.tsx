@@ -33,6 +33,8 @@ describe("TestEmailButton (UI)", () => {
       expect(screen.queryByRole("button", { name: /Test e-postası gönder/ })).toBeNull();
     });
     expect(screen.getByText(/Test e-postası gönderildi/)).toBeTruthy();
+    // Kurucu kuralı (09-23): hitap "siz" / "-in" ("Gelen kutunu kontrol et" değil).
+    expect(screen.getByText(/Gelen kutunuzu kontrol edin\./)).toBeTruthy();
     expect(localStorage.getItem("lixus-test-email-sent")).toBe("1");
   });
 
