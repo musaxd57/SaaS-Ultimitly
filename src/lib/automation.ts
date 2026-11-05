@@ -4068,7 +4068,8 @@ export async function applyChannelAutoReply(
     where: { conversationId: conversation.id, messageType: "ai", status: { in: [...UNRESOLVED_DELIVERY_STATUSES] } },
     orderBy: { createdAt: "desc" },
     select: { createdAt: true, messageId: true },
-    take: 20,
+    // Sınır YOK (Haiku 11-05): ilk N satırın hepsi sağlayıcıda görünüp N+1'inci görünmüyorsa tutma atlanırdı. Konuşma başına bu satırlar
+    // azdır ve sorgu dizinlidir (`conversationId, status`).
   });
   const echoed = new Set(
     unresolvedRows.length > 0
