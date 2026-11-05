@@ -175,7 +175,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     const rows = await rowOf();
     expect(rows[0].readiness.overall).toBe("not_ready");
     const issues = rows[0].readiness.factors.filter((f) => f.key === "issue");
-    expect(issues.map((f) => f.label)).toEqual(["Açık bakım görevi: Klima arızası · atanan: Mehmet"]);
+    expect(issues.map((f) => f.label)).toEqual(["Bakım açık: Klima arızası · atanan: Mehmet"]);
     expect(issues[0].basis).toEqual([{ kind: "task", id: m.id, at: null }]);
   });
 
@@ -189,7 +189,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     const rows = await rowOf();
     const issues = rows[0].readiness.factors.filter((f) => f.key === "issue");
     expect(issues.map((f) => f.label).sort()).toEqual(
-      ["Açık bakım görevi: Ampul · kimseye atanmadı · vade 15:00", "Açık check-out kontrol görevi: Çıkış kontrolü · kimseye atanmadı · vade 15:00"].sort(),
+      ["Bakım açık: Ampul · kimseye atanmadı · vade 15:00", "Check-out Kontrol açık: Çıkış kontrolü · kimseye atanmadı · vade 15:00"].sort(),
     );
     expect(issues.map((f) => f.basis[0].id).sort()).toEqual([k.id, b.id].sort());
   });

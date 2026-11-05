@@ -184,16 +184,19 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       });
     }
     for (const t of shown) {
+      // Listenin kendi kalıbı ("Söz açık: …", "Temizlik açık · …"); tür adı Görevler sayfasındakiyle AYNEN (harf oynatılmaz).
       const who = t.assignee ? `atanan: ${t.assignee}` : "kimseye atanmadı";
-      const due = t.dueAt ? ` · vade ${whenLabel(t.dueAt, input.now, tz)}` : "";
+      const late = t.dueAt && t.dueAt.getTime() < input.now.getTime() ? " (gecikti)" : "";
+      const due = t.dueAt ? ` · vade ${whenLabel(t.dueAt, input.now, tz)}${late}` : "";
       factors.push({
         key: "issue",
         state: "blocking",
-        label: `Açık ${t.kindLabel.toLocaleLowerCase("tr-TR")} görevi: ${t.title} · ${who}${due}`,
+        label: `${t.kindLabel} açık: ${t.title} · ${who}${due}`,
         missing: "görevin kapanması",
         basis: [{ kind: "task", id: t.id, at: t.dueAt }],
       });
     }
+    // Ölçülü (muhafazakâr) yan: gösterilmeyen bakım görevi zaten bir sorun satırıysa bu cümle fazladan söylenmiş olur — eksik söylemekten iyi.
     if (shown.length > 0 && input.issueTasksMore) {
       factors.push({ key: "issue", state: "blocking", label: "Bu mülkte başka açık bakım görevleri de var", missing: "görevlerin kapanması", basis: [] });
     }

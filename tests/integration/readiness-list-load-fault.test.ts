@@ -10,6 +10,8 @@ import { todayKey, addNights } from "@/modules/availability/core";
 const failFor = new Set<string>();
 /** Çekirdeğin dayanak kümesine YABANCI kimlik sokar (gerçekte çekirdek mülk kapsamlı okur; burada yükleyicinin KENDİ org süzgeci sınanır). */
 const injectBasis = vi.hoisted(() => ({ issue: [] as string[], note: [] as string[], overlap: [] as string[] }));
+/** Dayanak alanı OLMAYAN sonuç (eski sürüm / taklit) döndürülecek konaklamalar. */
+const noBasisFor = vi.hoisted(() => new Set<string>());
 vi.mock("@/lib/early-checkin/load", async (orig) => {
   const actual = await orig<typeof import("@/lib/early-checkin/load")>();
   return {
@@ -18,6 +20,7 @@ vi.mock("@/lib/early-checkin/load", async (orig) => {
       if (args.reservationId && failFor.has(args.reservationId)) throw new Error("db hiccup (test)");
       const out = await actual.loadEarlyCheckinFacts(args);
       if (!out) return out;
+      if (args.reservationId && noBasisFor.has(args.reservationId)) return { ...out, basisIds: undefined as never };
       return {
         ...out,
         basisIds: {
@@ -55,6 +58,20 @@ describe("giriş hazırlığı listesi — bir konaklamanın arızası", () => {
     injectBasis.issue = [];
     injectBasis.note = [];
     injectBasis.overlap = [];
+    noBasisFor.clear();
+  });
+
+  it("dayanak alanı olmayan sonuç (eski / taklit) listeyi DÜŞÜRMEZ: hüküm aynı, satır genel cümleyle yazılır (Haiku 11-05)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty({ checkInTime: "15:00", checkOutTime: "11:00" });
+    const stay = await prisma.reservation.create({
+      data: { propertyId, guestName: "Dayanaksız", arrivalDate: dayDate(TODAY), departureDate: dayDate(addNights(TODAY, 2)), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.task.create({ data: { propertyId, type: "maintenance", title: "Klima", origin: "manual", status: "todo" } });
+    noBasisFor.add(stay.id);
+    const { rows } = await loadArrivalReadiness(orgId, new Date());
+    expect(rows.map((r) => r.guestName)).toEqual(["Dayanaksız"]);
+    expect(rows[0].readiness.overall).toBe("not_ready");
+    expect(rows[0].readiness.factors.find((f) => f.key === "issue")!.label).toBe("Mülkte açık bakım görevi var");
   });
 
   it("🚨 dayanak okuması da kendi org süzgecinden geçer: başka işletmenin görevi / notu / konaklaması kimliği sızsa bile GÖSTERİLMEZ", async () => {

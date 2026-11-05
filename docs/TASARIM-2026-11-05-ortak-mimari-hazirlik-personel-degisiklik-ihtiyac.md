@@ -53,7 +53,7 @@ satır, varış saatine göre sıralı; daire süzgeci.
 | Faktör | Engeller mi | Dayanak | Örnek |
 |---|---|---|---|
 | Devir temizliği | Evet | bugünkü çekirdek (`readinessDetailOf` + `markOfTask`, AYNEN) | "Bitti 12:40 · Ayşe · çıkıştan (11:00) sonra" / "Açık · Ayşe'ye atandı · başlanmadı" / "Başladı 11:20 · Ayşe" / "Bitti işareti çıkıştan önce (10:05)" / "Temizlik görevi yok" (bilinmiyor) |
-| Açık sorun / bakım | Evet | bugünkü `openIssue` / `maintenanceOpen` kuralı; satır başına görev (çekirdeğin aynı kümesi) | "Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00" |
+| Açık sorun / bakım | Evet | bugünkü `openIssue` / `maintenanceOpen` kuralı; satır başına görev (çekirdeğin aynı kümesi) | "Bakım açık: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00 (gecikti)" |
 | Temizlik görevine not | Hayır (bilgi — ağırlık J-10) | çekirdeğin `cleaningNote`ı; en son kimlikli not kaydı (yazan + an, içerik OKUNMAZ) | "Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun" |
 | Çift rezervasyon | Evet | `otherOverlaps`; çakışmanın tarafı olan konaklamalar | "Çakışan konaklama: Ali Veli · 5 Kas – 8 Kas" |
 | Varışta yerine getirilecek söz | Evet | `GuestCommitment` açık + vadesi varıştan önce | "Söz: bebek yatağı (açık, görev Ayşe'de)" |

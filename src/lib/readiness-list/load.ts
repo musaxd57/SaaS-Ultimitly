@@ -119,9 +119,10 @@ export async function loadArrivalReadiness(
   const cleaningIds = [...new Set(facts.flatMap((f) => f?.cleaningTaskIds ?? []))];
   const readyMarkIds = facts.map((f) => f?.readyMark?.id).filter((x): x is string => !!x);
   // Engel / bilgi satırlarının dayanağı (çekirdeğin aynı kümeleri — Opus 11-05 F7; kurucu: "her durumun dayanağı anlaşılsın").
-  const issueIds = [...new Set(facts.flatMap((f) => [...(f?.basisIds.issueTaskIds ?? []), ...(f?.basisIds.maintenanceTaskIds ?? [])]))];
-  const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds.noteTaskIds ?? []))];
-  const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds.overlapReservationIds ?? []))];
+  // `?.` basisIds'te de: dayanağı olmayan bir sonuç (eski / taklit) satırı düşürmez, bütün listeyi hiç düşürmez (Haiku 11-05).
+  const issueIds = [...new Set(facts.flatMap((f) => [...(f?.basisIds?.issueTaskIds ?? []), ...(f?.basisIds?.maintenanceTaskIds ?? [])]))];
+  const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds?.noteTaskIds ?? []))];
+  const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds?.overlapReservationIds ?? []))];
 
   const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays] = await Promise.all([
     prisma.conversation.findMany({

@@ -196,9 +196,12 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     );
     const issues = r.factors.filter((f) => f.key === "issue");
     expect(issues).toHaveLength(1);
-    expect(issues[0]).toMatchObject({ state: "blocking", label: "Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00", missing: "görevin kapanması" });
+    expect(issues[0]).toMatchObject({ state: "blocking", label: "Bakım açık: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00 (gecikti)", missing: "görevin kapanması" });
     expect(issues[0].basis).toEqual([{ kind: "task", id: "m1", at: at("2026-11-06T07:00:00Z") }]);
     expect(r.overall).toBe("not_ready");
+    // KONTROL: vadesi henüz gelmemiş görev "gecikti" demez.
+    const upcoming = evaluateStay(stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima arızası", kindLabel: "Bakım", assignee: null, dueAt: at("2026-11-07T12:00:00Z") }] }));
+    expect(upcoming.factors.find((f) => f.key === "issue")!.label).toBe("Bakım açık: Klima arızası · kimseye atanmadı · vade 15:00");
   });
 
   it("birden çok sorun görevi ayrı satır; atanmamış / vadesiz söylenir; gösterilenden fazlası 'başkaları da var' der", () => {
@@ -213,8 +216,8 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
       }),
     );
     expect(r.factors.filter((f) => f.key === "issue").map((f) => f.label)).toEqual([
-      "Açık check-out kontrol görevi: Çıkış kontrolü · kimseye atanmadı · vade 11:00",
-      "Açık bakım görevi: Musluk damlatıyor · kimseye atanmadı",
+      "Check-out Kontrol açık: Çıkış kontrolü · kimseye atanmadı · vade 11:00 (gecikti)",
+      "Bakım açık: Musluk damlatıyor · kimseye atanmadı",
       "Bu mülkte başka açık bakım görevleri de var",
     ]);
     expect(r.factors.some((f) => f.label === "Devirde açık sorun / bakım görevi var")).toBe(false);

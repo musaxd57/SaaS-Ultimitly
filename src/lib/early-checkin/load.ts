@@ -117,7 +117,10 @@ export interface EarlyCheckinBasisIds {
 /** Gösterilen açık bakım görevi sayısı (hüküm için 1 yeter; fazlası "başkaları da var" diye söylenir — sessiz kesme yok). */
 export const MAINTENANCE_SHOWN_MAX = 5;
 
-const NO_BASIS: EarlyCheckinBasisIds = { issueTaskIds: [], maintenanceTaskIds: [], maintenanceMore: false, noteTaskIds: [], overlapReservationIds: [] };
+/** Her çağrıda YENİ diziler (paylaşılan boş dizi bir çağıranın `push`uyla ötekine sızmasın). */
+function noBasis(): EarlyCheckinBasisIds {
+  return { issueTaskIds: [], maintenanceTaskIds: [], maintenanceMore: false, noteTaskIds: [], overlapReservationIds: [] };
+}
 
 export async function loadEarlyCheckinFacts(args: {
   organizationId: string;
@@ -152,7 +155,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [], basisIds: { ...NO_BASIS } };
+  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [], basisIds: noBasis() };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -176,7 +179,7 @@ export async function loadEarlyCheckinFacts(args: {
   // Aynı gün iki ayrılan = biri ötekiyle çakışmış (çift rezervasyon) → çakışma sayılır.
   facts.otherOverlaps = occupying.length + Math.max(0, sameDay.length - 1) + malformed.length;
   const basisIds: EarlyCheckinBasisIds = {
-    ...NO_BASIS,
+    ...noBasis(),
     // Aynı gün iki ayrılan → ikisi de çakışmanın tarafı (hangisinin "fazla" olduğu bilinemez).
     overlapReservationIds: [...new Set([...occupying, ...(sameDay.length > 1 ? sameDay : []), ...malformed].map((x) => x.r.id))],
   };

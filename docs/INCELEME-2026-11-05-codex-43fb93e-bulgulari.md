@@ -184,7 +184,8 @@ doğrulandı; düzeltilenlerin testi eski kodda kırmızı, yenide yeşil. Misaf
 
 **Girişler dayanağı — önce / sonra (ev sahibi ekranı; misafire bir şey gitmez):**
 - Önce: `HAZIR DEĞİL — Mülkte açık bakım görevi var` (hangi görev? kimde?).
-  Sonra: `HAZIR DEĞİL — Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00 — eksik: görevin kapanması`.
+  Sonra: `HAZIR DEĞİL — Bakım açık: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00 (gecikti) — eksik: görevin kapanması`
+  (listenin kendi kalıbı: "Söz açık: …", "Temizlik açık · …"; tür adı Görevler sayfasındakiyle aynı; vadesi geçmişse "(gecikti)").
 - Önce: `Temizlikçi bugün bu temizliğe not yazdı — görevde bakın`.
   Sonra: `Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun` (notun İÇERİĞİ gösterilmez; yazan her zaman temizlikçi değildir).
 - Önce: `Aynı gece başka bir konaklama var`. Sonra: `Çakışan konaklama: Ali Veli · 5 Kas – 8 Kas` (aynı gün iki ayrılış da yazılır).
