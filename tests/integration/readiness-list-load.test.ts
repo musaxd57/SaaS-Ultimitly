@@ -149,6 +149,62 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(JSON.stringify(rows)).not.toContain("sistem notu");
   });
 
+  // ---- Codex 11-05 teknik doğrulama: eski kanıt kendiliğinden geçerli kalmaz (misafire giden "Daireniz hazır"la AYNI çekirdek) ----
+
+  it("🚨 Codex (kurucu örneği): 'bitti' 12:40'ta atıldı, SONRA geç çıkış 14:00'e onaylandı → eski 'bitti' kanıt DEĞİL (çıkıştan önce)", async () => {
+    const { prev, next } = await sameDayTurnover();
+    const t = await cleaningTask(prev.id, { assignedToId: staffId, status: "done" });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(12, 40) } });
+    expect((await rowOf(localToday(15)))[0].readiness.overall).toBe("cleaning_ready"); // onaydan önce: 11:00 çıkışından sonra bitti
+    const conv = await prisma.conversation.create({ data: { propertyId, reservationId: prev.id, guestIdentifier: "Önceki Misafir", channel: "airbnb" } });
+    await prisma.decisionRequest.create({
+      data: { organizationId: orgId, conversationId: conv.id, messageId: "m-late", reservationId: prev.id, kind: "late_checkout", lang: "tr", status: "approved", decidedTime: "14:00" },
+    });
+    const rows = await rowOf(localToday(15));
+    expect(rows[0].readiness.overall).toBe("not_ready");
+    expect(factor(rows[0], "cleaning")).toMatchObject({ state: "blocking", label: '"Bitti" işareti çıkıştan önce (12:40)' });
+    expect(factor(rows[0], "timing")!.label).toBe("Önceki çıkış 14:00 → giriş 15:00");
+    // Misafire giden karar da aynı kanıtı okur.
+    const single = await loadEarlyCheckinFacts({ organizationId: orgId, propertyId, reservationId: next.id, now: localToday(15), requested: { time: null, sources: 0, conflict: false }, singleIntent: true });
+    expect(single!.facts.readiness).toBe("not_ready");
+  });
+
+  it("🚨 Codex: araya YENİ bir konaklama girerse eski devrin 'bitti'si bu varış için geçmez (devir değişti)", async () => {
+    const a = await reservation(addNights(TODAY, -6), addNights(TODAY, -3), "A");
+    await reservation(TODAY, addNights(TODAY, 2), "Yeni Misafir");
+    const t = await prisma.task.create({
+      data: { propertyId, reservationId: a.id, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "done", dueAt: dayDate(addNights(TODAY, -3)) },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: new Date(`${addNights(TODAY, -3)}T10:00:00Z`) } });
+    expect((await rowOf(localToday(14)))[0].readiness.overall).toBe("cleaning_ready");
+    await reservation(addNights(TODAY, -2), addNights(TODAY, -1), "Araya giren"); // A'dan sonra, varıştan önce
+    const rows = await rowOf(localToday(14));
+    expect(rows.find((r) => r.guestName === "Yeni Misafir")!.readiness.overall).not.toBe("cleaning_ready");
+    expect(factor(rows.find((r) => r.guestName === "Yeni Misafir")!, "cleaning")).toMatchObject({ state: "unknown", label: "Devir temizliği görevi yok" });
+  });
+
+  it("🚨 Codex: aynı gün tarihli ama BAŞKA bir konaklamaya bağlı temizlik 'bitti'si bu devrin kanıtı DEĞİL", async () => {
+    await sameDayTurnover();
+    const other = await reservation(addNights(TODAY, -20), addNights(TODAY, -17), "Başka konaklama");
+    const t = await prisma.task.create({
+      data: { propertyId, reservationId: other.id, type: "cleaning", title: "Temizlik", origin: "manual", status: "done", dueAt: dayDate(TODAY) },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(12, 0) } });
+    const rows = await rowOf(localToday(14));
+    expect(rows[0].readiness.overall).not.toBe("cleaning_ready");
+    expect(factor(rows[0], "cleaning")!.state).not.toBe("ok");
+  });
+
+  it("🚨 Codex: 'bitti'den SONRA görev yeniden açıldıysa (en son kayıt 'yapılacak') hazır SAYILMAZ", async () => {
+    const { prev } = await sameDayTurnover();
+    const t = await cleaningTask(prev.id, { assignedToId: staffId, status: "todo" });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(12, 0) } });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "todo", createdAt: localToday(12, 30) } });
+    const rows = await rowOf(localToday(14));
+    expect(rows[0].readiness.overall).toBe("not_ready");
+    expect(factor(rows[0], "cleaning")!.label).toBe("Temizlik açık · atanan: Ayşe · başlanmadı");
+  });
+
   it("🚨 N6: önceki çıkış BAŞKA gündeyse (araya boş gün) zaman satırı ve 'bitti' kaydı GÜNÜYLE yazılır", async () => {
     const day = addNights(TODAY, -2);
     const prev = await reservation(addNights(TODAY, -5), day, "Eski Çıkan");
