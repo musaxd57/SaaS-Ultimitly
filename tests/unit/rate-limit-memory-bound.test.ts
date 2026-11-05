@@ -103,7 +103,20 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect((await rateLimitPeek("refund", 5)).ok).toBe(true);
   });
 
+  it("taşma yuvasının penceresi dolunca yuva sıfırlanır (taşmada kalıcı kilit yok)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    await flood("ip", MEMORY_MAX_KEYS); // tavan uzun pencereli (1 sa) etkin kayıtlarla dolu
+    for (let i = 0; i < 5; i++) expect((await rateLimit("short", 5, 1_000)).ok).toBe(true);
+    expect((await rateLimit("short", 5, 1_000)).ok).toBe(false);
+    vi.setSystemTime(new Date("2026-11-05T12:00:02Z"));
+    expect(rateLimitMemoryStats().keys).toBe(MEMORY_MAX_KEYS); // hâlâ dolu → yine taşma yuvası
+    expect((await rateLimit("short", 5, 1_000)).ok).toBe(true);
+  });
+
   it("KONTROL — tavan altında davranış eskisiyle aynı: sınıra kadar izin, sonra ret", async () => {
+    // Sıfırlama bellek yedeğini (taşma yuvaları dahil) tamamen boşaltır — önceki testlerin taşma sayaçları buraya sızmaz.
+    expect(rateLimitMemoryStats()).toEqual({ keys: 0, overflowActive: 0, sweepVisits: 0 });
     for (let i = 0; i < 3; i++) expect((await rateLimit("k", 3, HOUR)).ok).toBe(true);
     const r = await rateLimit("k", 3, HOUR);
     expect(r.ok).toBe(false);
