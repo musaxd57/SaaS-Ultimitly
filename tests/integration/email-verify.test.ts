@@ -719,7 +719,7 @@ describe("registration → verification → login", () => {
       await ageVerifyLink("bomb@x.com");
     }
     expect(mockSendReporting).toHaveBeenCalledTimes(6);
-  });
+  }, 30_000);
 
   /** 15 dakikalık istek kovalarını (IP + adres) boşaltır — zamanın geçmesini taklit eder; günlük gönderim kotasına dokunmaz. */
   const drain15MinBuckets = () =>
@@ -739,7 +739,7 @@ describe("registration → verification → login", () => {
       await ageVerifyLink("patient@x.com");
     }
     expect(mockSendReporting).toHaveBeenCalledTimes(6);
-  });
+  }, 30_000);
 
   it("🚨 T7-AUTH-1: gönderim kotası dolunca da cevap AYNI 200 — kayıtlı ve kayıtsız adres ayırt edilemez", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
@@ -756,7 +756,7 @@ describe("registration → verification → login", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(6); // tavan aynen (e-posta bombası koruması)
     expect(statuses.real).toEqual(Array(9).fill(200));
     expect(statuses.ghost).toEqual(Array(9).fill(200));
-  });
+  }, 30_000);
 
   it("KONTROL — istek sınırı hesaptan bağımsız: 15 dakikada 5. istek her adreste 429", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
@@ -770,7 +770,7 @@ describe("registration → verification → login", () => {
       for (let i = 0; i < 5; i++) codes.push((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email }))).status);
       expect(codes).toEqual([200, 200, 200, 200, 429]);
     }
-  });
+  }, 30_000);
 
   it("🚨 T7-AUTH-1 EŞZAMANLI: aynı anda gelen 4 istek → TEK bağlantı, TEK e-posta, TEK hak (yarışı kaybeden hakkını iade eder)", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
@@ -943,7 +943,7 @@ describe("register + resend — durable outbox (flag ON)", () => {
       await ageVerifyLink("qbomb@x.com");
     }
     expect(vi.mocked(enqueueIdentityEmail)).toHaveBeenCalledTimes(6);
-  });
+  }, 30_000);
 
   it("🚨 T7-AUTH-1 EŞZAMANLI (kuyruklu yol): aynı anda gelen 4 istek → kuyrukta TEK canlı e-posta", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });

@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey, rateLimitRelease } from "@/lib/rate-limit";
+import { padResponseTime, RESEND_VERIFY_RESPONSE_FLOOR_MS } from "@/lib/response-floor";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import {
@@ -53,6 +54,8 @@ export async function POST(req: NextRequest) {
   // pencerede (U12) hiçbir şey gönderilmeyen basışlar kotayı yiyordu. Kota doluysa SESSİZCE gönderilmez ve cevap yine aynı 200 — 429
   // yalnız gerçek hesaplarda görünürdü (hesap numaralandırma). Aşağıdaki gönderim dalında.
 
+  // Tur 7 (Codex 11-05 gece): buradan sonrası hesaba bağlı iş — her dal aynı en kısa sürede cevaplanır (↓padResponseTime).
+  const startedAt = performance.now();
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, createdAt: true, emailVerifiedAt: true, emailVerifyExpiresAt: true },
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
   } else {
     await timingParityNoop();
   }
+  await padResponseTime(startedAt, RESEND_VERIFY_RESPONSE_FLOOR_MS);
   return jsonOk({ ok: true });
 }
 
