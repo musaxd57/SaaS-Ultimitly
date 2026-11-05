@@ -15,6 +15,8 @@ import {
   type CourtesyKind,
 } from "@/lib/automation";
 import { kbFactsOf } from "@/lib/ai/availability-claims";
+import { AUTO_MESSAGE_ISSUE_TEXT, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
+import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { fixSupportContextOf } from "@/lib/conversation-items/relation";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -273,20 +275,27 @@ export const POST = withManage(async (session, req) => {
     : isPositiveFeedback(message)
       ? "praise"
       : null;
-  const closingReplyEnabled = org?.autoClosingReplyEnabled ?? false;
+  // Tur 7 S7-2: önizleme gönderimle AYNI doldurucu + AYNI kapı. Ev sahibinin metni doldurulamıyorsa gerçek kanalda nezaket cevabı
+  // gitmez (sessiz kapanış / övgüde model akışı) → önizleme de ayarı kapalı gibi davranır ve sebebi söyler.
+  const courtesyFor = (kind: CourtesyKind) =>
+    org
+      ? composeClosingCourtesy({
+          kind,
+          lang: closingCourtesyLanguage(message, org.language),
+          customText: org.closingReplyText,
+          signature: org.aiSignature,
+          guestFirstName: guestFirstNameOf(TEST_GUEST_NAME),
+          propertyName: property.name,
+        })
+      : null;
+  const courtesyBlocked = Boolean(org?.autoClosingReplyEnabled && closingKind && hasUnfilledPlaceholders(courtesyFor(closingKind) ?? ""));
+  const closingReplyEnabled = (org?.autoClosingReplyEnabled ?? false) && !courtesyBlocked;
   // Gerçek kanalla AYNI (inceleme 09-25, P1): teşekkür/onay SUSTURULUR; övgü yalnız nezaket cevabı açıkken o cevabı alır,
   // kapalıyken modele gider (övgü listesi soru işaretsiz soruyu da kabul ediyordu) — anlam yolu yine susturabilir.
   const lexicalClosing = closingKind === "ack" || (closingKind === "praise" && closingReplyEnabled);
   // Nezaket cevabı YALNIZ sözcük yolunda (gerçek kanalla aynı); anlam yolunda her zaman sessizlik.
   const closingReplyPreview =
-    lexicalClosing && closingKind && closingReplyEnabled && org
-      ? composeClosingCourtesy({
-          kind: closingKind,
-          lang: closingCourtesyLanguage(message, org.language),
-          customText: org.closingReplyText,
-          signature: org.aiSignature,
-        })
-      : null;
+    lexicalClosing && closingKind && closingReplyEnabled && org ? courtesyFor(closingKind) : null;
 
   // K-1029-A (Opus F10 yan not): silme kaydı (kökler — selamdaki misafir adı dahil) ve tutulan cevabın taslağı istemciye dönmez.
   const publicResult = { ...result };
@@ -302,5 +311,6 @@ export const POST = withManage(async (session, req) => {
     closingSemantic: !lexicalClosing && semanticClosing,
     closingReplyEnabled,
     closingReplyPreview,
+    closingReplyIssue: courtesyBlocked ? AUTO_MESSAGE_ISSUE_TEXT.unfilled : null,
   });
 });

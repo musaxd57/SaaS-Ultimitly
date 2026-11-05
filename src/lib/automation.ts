@@ -132,7 +132,7 @@ import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile"
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
-import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
+import { apartmentResolvable, fillGuestPlaceholders, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
 import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
 import { isGreetingOnly, modelGuestFirstName } from "@/lib/ai/code-greeting";
@@ -1074,10 +1074,18 @@ export function composeClosingCourtesy(opts: {
   lang: string;
   customText: string | null;
   signature: string | null;
+  /**
+   * Tur 7 S7-2 (kurucu onayı 11-05): ev sahibinin metnindeki `{isim}` / `{daire}` yaşam döngüsü mesajlarıyla AYNI doldurucudan çözülür
+   * (Ayarlar "{isim} yazarsanız misafirin adıyla değiştirilir" diyor; eskiden ham "{isim}" gidiyordu). Tek geçiş: adın içeriği yeniden
+   * şablon olarak çalışmaz. `null` = ad bilinmiyor → hitap adsız (09-28 kuralı). Mülk adı yoksa `{daire}` kalır → gönderim kapısı durdurur.
+   */
+  guestFirstName?: string | null;
+  propertyName?: string;
 }): string {
   const custom = opts.customText?.trim();
   const defaults = CLOSING_COURTESY_TEXTS[opts.kind];
-  const text = custom || (defaults[opts.lang] ?? defaults.en);
+  const filled = custom ? fillGuestPlaceholders(custom, { guestFirstName: opts.guestFirstName ?? null, propertyName: opts.propertyName }).trim() : "";
+  const text = filled || (defaults[opts.lang] ?? defaults.en);
   const signature = opts.signature?.trim();
   return [text, ...(signature ? [signature] : [])].join("\n\n");
 }
@@ -1104,6 +1112,9 @@ async function maybeSendClosingCourtesy(opts: {
   kind: CourtesyKind;
   /** Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur (`offPlatformContactHoldsFor`) — imza da gövdeye girer (Opus C1). */
   contactHolds?: boolean;
+  /** Tur 7 S7-2: ev sahibinin metnindeki `{isim}` / `{daire}` için (yaşam döngüsü mesajlarıyla aynı kaynak). */
+  guestFirstName: string | null;
+  propertyName: string;
   org: {
     autoClosingReplyEnabled: boolean;
     closingReplyText: string | null;
@@ -1133,8 +1144,13 @@ async function maybeSendClosingCourtesy(opts: {
     customText: opts.org.closingReplyText,
     // 4-14-b (kurucu kararı 10-28 gece): Airbnb'de imzanın iletişim satırı her zaman çıkar (onaylı konaklamada numara Airbnb'de zaten görünür).
     signature: signatureForContactWindow(opts.org.aiSignature, opts.contactHolds === true || signatureStripsContactFor(opts.conversation)),
+    guestFirstName: opts.guestFirstName,
+    propertyName: opts.propertyName,
   });
   if (opts.contactHolds && containsContactValue(body)) return false;
+  // 🚨 Tur 7 S7-2: doldurulmamış alan ({daire} çözülemedi, "[ADRES]", "{{…}}", tanınmayan "{kod}") misafire GİTMEZ — yaşam döngüsü
+  // mesajlarıyla aynı kapı (`hasUnfilledPlaceholders`). Nezaket cevabı yerine sessiz kapanış (diğer kapılar gibi aşağıya düşer).
+  if (hasUnfilledPlaceholders(body)) return false;
 
   // Cross-replica idempotency claim (same as the main auto-send): only the run
   // that flips new/waiting→answered may deliver; failure releases the claim.
@@ -2219,6 +2235,8 @@ export async function applyChannelAutoReply(
         lastInbound: { id: last.id, body: last.body },
         kind: closingKind,
         contactHolds: offPlatformContactHoldsFor(conversation),
+        guestFirstName: guestFirstNameOf(conversation.reservation?.guestName ?? conversation.guestIdentifier),
+        propertyName: conversation.property.name,
         org,
       });
       if (courtesySent) {

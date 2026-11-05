@@ -33,6 +33,8 @@ interface TestResult {
   /** The EXACT courtesy message the real channel would send (custom-or-default
    *  text + note + signature) — only set for a pure closing with the toggle ON. */
   closingReplyPreview?: string | null;
+  /** Tur 7 S7-2: nezaket metni doldurulamadığı için gönderilmiyorsa sebebi (yaşam döngüsü kartlarındaki cümlenin aynısı). */
+  closingReplyIssue?: string | null;
 }
 
 // A few ready-made probes covering the behaviours that matter most.
@@ -172,6 +174,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                   ? "Nezaket yanıtı ayarınız AÇIK — misafire otomatik olarak ŞU mesaj GÖNDERİLİR (aynı mesaja bir kez):"
                   : "Bu mesaja cevap gerekmez: misafire hiçbir şey gönderilmez. Konuşmada açık bir konu yoksa “Cevap gerekmedi” olarak işaretlenir."}
               </p>
+              {result.closingReplyIssue ? <p className="text-amber-700 dark:text-amber-400">Nezaket yanıtı: {result.closingReplyIssue}</p> : null}
               {result.closingReplyEnabled && result.closingReplyPreview && !result.closingSemantic ? (
                 <pre className="whitespace-pre-wrap break-words rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">
                   {result.closingReplyPreview}
