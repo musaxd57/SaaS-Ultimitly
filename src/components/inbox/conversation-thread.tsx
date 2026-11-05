@@ -202,6 +202,14 @@ export function ConversationThread({
     const cur = requestIdRef.current;
     if (cur && cur.source === "composer" && composer.trim() !== cur.body.trim()) requestIdRef.current = null;
   }, [composer]);
+  // Opus 11-05 N3: öneriden çıkan bekleyen kimlik ÖNERİ NESNESİNE bağlıdır — panel yeni bir taslağa / yeni "AI öner" sonucuna geçince
+  // (ya da kapanınca) düşer: aynı metinli YENİ taslak yeni mesajdır (eski kimlik kuyrukta eski satıra tekilleşip "gönderildi" der ya da
+  // 24 saat "az önce gönderildi" derdi). Aynı panel nesnesi duruyorsa (yanıtı kaybolan onayın tekrarı) kimlik korunur; sayfa yenilemesi
+  // aynı taslağı yeniden kurmaz (`seenDraftRef`).
+  useEffect(() => {
+    const cur = requestIdRef.current;
+    if (cur && cur.source === "suggestion") requestIdRef.current = null;
+  }, [suggestion]);
   const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /**

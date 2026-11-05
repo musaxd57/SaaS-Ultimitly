@@ -184,6 +184,35 @@ describe("gelen kutusu yazma alanı — istek kimliği", () => {
     expect(ids[1]).toBe(ids[0]);
   });
 
+  it("🚨 N3: öneriden giden onayın yanıtı kaybolduktan sonra AYNI METİNLİ YENİ taslak gelirse YENİ kimlik; aynı panelde tekrar AYNI kimlik", async () => {
+    const ids = capture([async () => Promise.reject(new TypeError("network")), async () => Promise.reject(new TypeError("network"))]);
+    const draft = (messageId: string) => ({
+      messageId,
+      reply: "Rica ederiz, iyi tatiller!",
+      intent: "general",
+      confidence: 0.9,
+      availabilityCheck: null,
+      internalSourceCheck: false,
+    });
+    const { rerender } = render(<ConversationThread {...props} initialDraft={draft("m1")} />);
+    const approve = async () => {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Onayla ve gönder/ }));
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+      });
+    };
+    await approve();
+    await approve(); // aynı panel nesnesi: yanıtı kaybolan onayın tekrarı → aynı kimlik (çift gönderim yok)
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).toBe(ids[0]);
+    // Misafir yeniden yazdı; yeni mesajın taslağı birebir aynı metin → YENİ mesaj.
+    rerender(<ConversationThread {...props} initialDraft={draft("m2")} />);
+    await flush();
+    await approve();
+    expect(ids).toHaveLength(3);
+    expect(ids[2]).not.toBe(ids[0]);
+  });
+
   it("🚨 F6: tekilleşen tekrarın satırı GÖNDERİLEMEDİ ise yazılan metin KORUNUR ve sebep görünür", async () => {
     capture([async () => json(200, { id: "x", outbox: { status: "queued", deduped: true, delivery: "failed" } })]);
     render(<ConversationThread {...props} />);
