@@ -168,6 +168,11 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
+**🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım
+sağlayıcılarını Merkezi Turizm Veri Tabanına API ile veri göndermeye zorluyor olabilir — Lixus otellere PMS olarak satılırsa doğrudan
+ilgili. Tam metin okunmadı → avukat + ayrı tasarım (`docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §11.5). İşletme
+belgesi tasarımının kendisi kurucu + Codex kararını bekliyor (aynı belge §13–§14).
+
 **🔔 Kurucu 11-06 akşam (WEB SİTESİ TAMAMEN BİTİNCE — "Ü-6 sonradan web sitesini tamamen bitirince yapıcam"): davetle "sahip" rolü.**
 Karar verildi, uygulama ertelendi (Ü-6, `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12): davet formunda rolün yetki listesi; "Sahip"
 seçilince ayrı onay + davet edenden taze yeniden doğrulama (şifre / 2FA); davet e-postası ve kabul sayfası yetkileri gösterir; yeni sahip
