@@ -84,6 +84,18 @@ describe("personel kartı — 'Başladım' → 'Bitti'", () => {
     expect(calls).toEqual([{ url: "/api/tasks/t1", body: { status: "done" } }]);
   });
 
+  it("Haiku 11-06: temizlik DIŞI işte 'Bitti' sorusu dairenin hazır olduğunu söylemez", async () => {
+    stubFetch();
+    const asked: string[] = [];
+    registerConfirmHandler(async (o) => {
+      asked.push(String(o.body));
+      return false;
+    });
+    render(<TaskBoard tasks={[{ ...base, type: "maintenance", title: "Klima", status: "in_progress" }]} canManage={false} />);
+    await click("Bitti");
+    expect(asked).toEqual(["Ev sahibi işin bittiğini görür."]);
+  });
+
   it("KONTROL — soruda 'Vazgeç' → istek GİTMEZ", async () => {
     const calls = stubFetch();
     registerConfirmHandler(async () => false);

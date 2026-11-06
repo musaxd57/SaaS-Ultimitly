@@ -18,6 +18,7 @@ import { reservationMessagingCapable } from "@/lib/channels/capability";
 import { hasMessagingConnection } from "@/lib/channels";
 import { lifecycleBaselineWhere } from "@/lib/automation";
 import { autoMessageIssue } from "@/lib/auto-messages/render";
+import { loadErasureGuard } from "@/lib/erasure";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
 
 // ---------------------------------------------------------------------------
@@ -100,6 +101,7 @@ export async function loadArrivalReadiness(
         arrivalDate: true,
         // Otomatik giriş mesajı bu rezervasyona gider mi / gitti mi (gönderici `sendDueCheckins` ile aynı şartlar — Opus 11-06 N2).
         checkinSentAt: true,
+        status: true,
         sourceReference: true,
         calendarSourceId: true,
         channel: true,
@@ -269,6 +271,8 @@ export async function loadArrivalReadiness(
         : !org.autoCheckinEnabledAt
           ? "no_baseline"
           : null;
+  // Gönderici açıkça SİLİNEN (KVKK) misafire de göndermez (Haiku 11-06) — aynı kapı.
+  const erasure = org?.autoCheckin && !orgOff ? await loadErasureGuard(organizationId) : null;
   const afterBaseline = new Set<string>();
   if (org?.autoCheckin && !orgOff && org.autoCheckinEnabledAt) {
     const rows = await prisma.reservation.findMany({
@@ -284,6 +288,9 @@ export async function loadArrivalReadiness(
     const t = autoCheckinOf.get(a.propertyId);
     if (!t || t.body.trim() === "") return { state: "missing" };
     if (!reservationMessagingCapable(a)) return { state: "not_sending", reason: "no_channel" };
+    // Gönderici yalnız "onaylı" rezervasyonu ve silinmemiş kaynak kimliğini aday yapar (Haiku 11-06).
+    if (a.status !== "confirmed") return { state: "not_sending", reason: "no_baseline" };
+    if (erasure?.blocksSourceReference(a.sourceReference)) return { state: "not_sending", reason: "erased" };
     if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
     // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
     const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);

@@ -208,6 +208,15 @@ describe("dairenin temizlikçisi", () => {
     expect(await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ assignedToId: ayse.id, status: "blocked" });
   });
 
+  it("Haiku 11-06: kapatılmış (etkin olmayan) kural 'eski temizlikçi' sayılmaz — 'taşı' hiçbir şey taşımaz", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    await createReservationTasks(r.id);
+    await prisma.automationRule.updateMany({ where: defaultCleanerWhere(orgId, propertyId), data: { isEnabled: false } });
+    expect((await (await put(propertyId, { userId: mehmet.id, moveOpen: true })).json()).moved).toBe(0);
+    expect((await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } })).assignedToId).toBe(ayse.id);
+  });
+
   it("KONTROL — 'Hayır, yalnız yeniler' 'Yapılamıyor' görevi de taşımaz; başlanmış (devam ediyor) iş 'Evet'te de kalır", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const r1 = await reservation(addNights(TODAY, 1), addNights(TODAY, 3), "A");

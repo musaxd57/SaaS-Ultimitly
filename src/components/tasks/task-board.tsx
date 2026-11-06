@@ -170,10 +170,11 @@ export function TaskBoard({
    * Atanan kişi: tek dokunuşla "Bitti" (kurucu 11-05 gece akışı: "Başladım → Bitti"). "Bitti" kaydı dairenin hazır olduğunun kanıtıdır
    * (Girişler / erken giriş kararı) — yanlışlıkla basılmasın diye bir kez sorulur. "Başladım" sorulmaz (zararsız).
    */
-  async function markDone(id: string) {
+  async function markDone(id: string, type: string) {
     const ok = await confirmDialog({
       title: "İş bitti mi?",
-      body: "Ev sahibi dairenin hazır olduğunu görür.",
+      // Temizlikte "bitti" dairenin hazırlık kanıtıdır; başka işte yalnız işin bittiği görülür (Haiku 11-06).
+      body: type === "cleaning" ? "Ev sahibi dairenin hazır olduğunu görür." : "Ev sahibi işin bittiğini görür.",
       confirmLabel: "Evet, bitti",
       cancelLabel: "Vazgeç",
     });
@@ -531,7 +532,7 @@ export function TaskBoard({
         {!canManage && t.status !== "done" ? (
           <button
             type="button"
-            onClick={() => (t.status === "in_progress" ? void markDone(t.id) : void setStatus(t.id, "in_progress"))}
+            onClick={() => (t.status === "in_progress" ? void markDone(t.id, t.type) : void setStatus(t.id, "in_progress"))}
             disabled={busyId === t.id}
             className="mt-2 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >

@@ -110,7 +110,7 @@ export interface StayReadinessInput {
    */
   autoCheckin?:
     | { state: "sent"; at: Date }
-    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" }
+    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" }
     | { state: "disabled" }
     | { state: "missing" }
     | { state: "skipped"; reason: string }
@@ -240,12 +240,13 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
 }
 
 /** Otomatik giriş mesajı bu rezervasyona GİTMEYECEK — neden (ev sahibi dili; teknik ayrıntı yok). */
-const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline", string> = {
+const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased", string> = {
   kill_switch: "Otomatik mesajlar şu an kapalı",
   no_connection: "Kanal bağlantısı yok, otomatik giriş mesajı gitmez",
   no_baseline: "Otomatik giriş mesajı gitmez",
   no_channel: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi)",
   before_baseline: "Rezervasyon otomatik giriş mesajı açılmadan önce yapılmış, mesaj gitmez",
+  erased: "Misafirin verileri silindiği için otomatik mesaj gitmez",
 };
 
 const SKIP_REASON_TEXT: Record<string, string> = {

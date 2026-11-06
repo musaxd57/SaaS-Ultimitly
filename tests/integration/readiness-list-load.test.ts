@@ -4,6 +4,7 @@ import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import { todayKey, addNights } from "@/modules/availability/core";
 import { encryptSecret } from "@/lib/crypto-core";
+import { tombstoneKeyHash, currentKeyFingerprint } from "@/lib/erasure";
 
 // ---------------------------------------------------------------------------
 // Giriş hazırlığı listesi — yükleyici (gerçek PostgreSQL). Kurucu H1 (11-05): kayıtlardan türer; eksik veri asla hazır değil; atanmış
@@ -474,6 +475,28 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
       state: "info",
       label: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi) · giriş bilgisini siz gönderin",
     });
+  });
+
+  it("Haiku 11-06: gönderici yalnız ONAYLI ve SİLİNMEMİŞ misafire gönderir — liste de 'hazır' demez", async () => {
+    vi.stubEnv("ERASURE_HMAC_SECRET", "x".repeat(48));
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
+    await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512" } });
+    const label = async () => factor((await rowOf())[0], "access")!.label;
+    expect(await label()).toBe("Otomatik giriş mesajı hazır · kapıya / kutuya yerleştiği kontrol edilmedi");
+    await prisma.erasureTombstone.create({
+      data: {
+        organizationId: orgId,
+        keyType: "source_reference",
+        keyHash: tombstoneKeyHash(orgId, "source_reference", `ref-${next.id}`)!,
+        keyFingerprint: currentKeyFingerprint(),
+        erasedAt: new Date(),
+      },
+    });
+    expect(await label()).toBe("Misafirin verileri silindiği için otomatik mesaj gitmez · giriş bilgisini siz gönderin");
+    await prisma.erasureTombstone.deleteMany({});
+    await prisma.reservation.update({ where: { id: next.id }, data: { status: "completed" } });
+    expect(await label()).toBe("Otomatik giriş mesajı gitmez · giriş bilgisini siz gönderin");
   });
 
   it("Opus 11-06 N2: gönderildiyse 'gönderildi <an>'; genel anahtar kapalı / bağlantı yok / açılıştan önceki rezervasyon → gitmez", async () => {

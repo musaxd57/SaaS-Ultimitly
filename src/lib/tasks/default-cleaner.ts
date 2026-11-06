@@ -73,9 +73,9 @@ export async function saveDefaultCleaner(
       const user = await tx.user.findFirst({ where: { id: userId, organizationId }, select: { id: true } });
       if (!user) return { result: "user_not_found" as const, moved: 0, movedIds: [] };
     }
-    const rows = await tx.automationRule.findMany({ where, orderBy: { updatedAt: "desc" }, select: { id: true, actionJson: true } });
-    // Eski temizlikçi: kuralın kilit altındaki değeri (kişi hâlâ bu işletmede olmalı — `loadDefaultCleanerUserId` ile aynı kural).
-    const previousId = parseDefaultCleanerAction(rows[0]?.actionJson);
+    const rows = await tx.automationRule.findMany({ where, orderBy: { updatedAt: "desc" }, select: { id: true, actionJson: true, isEnabled: true } });
+    // Eski temizlikçi: kuralın kilit altındaki ETKİN değeri (kişi hâlâ bu işletmede olmalı — `loadDefaultCleanerUserId` ile aynı kural).
+    const previousId = parseDefaultCleanerAction(rows.find((r) => r.isEnabled)?.actionJson);
     const previous = previousId ? ((await tx.user.findFirst({ where: { id: previousId, organizationId }, select: { id: true } }))?.id ?? null) : null;
     if (!userId) {
       await tx.automationRule.deleteMany({ where });
