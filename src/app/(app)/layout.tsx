@@ -23,7 +23,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuth();
-  // One read does double duty for every page under this layout:
+  // One Prisma call (user + membership — two SQL queries, nested select) does double duty for every page under this layout:
   //  (a) the org name for the shell, and
   //  (b) the SESSION-EPOCH guard — a password change/reset bumps User.sessionEpoch,
   //      so a stolen page-side token whose epoch no longer matches dies right here.

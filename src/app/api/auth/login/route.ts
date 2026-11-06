@@ -348,9 +348,10 @@ export async function POST(req: NextRequest) {
     // fırlatmaz (`password-upgrade.ts`) — girişin sonucunu hiçbir koşulda değiştirmez.
     if (needsRehash) await upgradeStoredPasswordHash(user.id, user.passwordHash, parsed.data.password);
 
-    // Security breadcrumb: a successful sign-in (who + when). Non-fatal. M-2 (Opus S8): BÜTÜN kimlik kayıtları (başarılı / başarısız
-    // giriş, 2FA, kurtarma kodu) Ü-3 kararına kadar kişinin ANA işletmesine — tek kural. Başarısızlık üyelik seçilmeden yazılır; başarıyı
-    // seçilen işletmeye yazmak iki kuralı yan yana koyardı (çok üyelikte A'nın dökümüne B'nin denemeleri düşerdi). Ü-3 dilim 6c'den önce.
+    // Security breadcrumb: a successful sign-in (who + when). Non-fatal. M-2 (Opus S8): bu ROTANIN bütün kimlik kayıtları (başarılı /
+    // başarısız giriş, 2FA hatası, kurtarma kodu) Ü-3 kararına kadar kişinin ANA işletmesine — tek kural. Başarısızlık üyelik seçilmeden
+    // yazılır; başarıyı seçilen işletmeye yazmak iki kuralı yan yana koyardı. Oturum içindeki kimlik işlemleri (parola / 2FA / yeniden
+    // doğrulama) oturumun işletmesine yazar — Ü-3 kapsamında (tasarım §3; Opus R4), dilim 6a'dan ÖNCE karar.
     await writeAudit({
       organizationId: user.organizationId,
       actorUserId: user.id,

@@ -27,6 +27,29 @@ describe("(app)/layout — yetki kapısı", () => {
     expect(dbRead).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["üyelik iki okuma arasında ÇIKARILDI", { id: "m1", role: "owner", status: "revoked", epoch: 0 }],
+    ["üyelik yeniden alındı (kimlik farklı)", { id: "m2", role: "owner", status: "active", epoch: 0 }],
+    ["üyelik kuşağı arttı", { id: "m1", role: "owner", status: "active", epoch: 1 }],
+  ])("🚨 M-2 (Opus R7): requireAuth geçse de düzen KENDİ okumasında üyeliği doğrular — %s → çıkış", async (_label, row) => {
+    vi.mocked(requireAuth).mockResolvedValueOnce({
+      userId: "u1",
+      organizationId: "o1",
+      role: "owner",
+      email: "a@example.test",
+      name: "A",
+      sessionEpoch: 0,
+      membershipId: "m1",
+      membershipEpoch: 0,
+    } as never);
+    dbRead.mockResolvedValueOnce({ sessionEpoch: 0, memberships: [{ ...row, organization: { name: "Lale" } }] });
+    const err = await AppLayout({ children: "GİZLİ İÇERİK" }).then(
+      () => null,
+      (e: unknown) => e as { digest?: string },
+    );
+    expect(String(err?.digest ?? "")).toContain("/api/auth/logout");
+  });
+
   it("middleware eşleyicisi API'yi ve noktalı yolları atlar — yetki kapısı olarak ona güvenilmez (bu dosyanın varlık sebebi)", async () => {
     const { config } = await import("@/middleware");
     const re = new RegExp(`^${config.matcher[0]}$`);

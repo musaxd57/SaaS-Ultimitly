@@ -116,7 +116,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - 🚨 **ROL DEĞİŞTİREN / PERSONEL DAVET EDEN akış eklenirse `sessionEpoch` ARTIRILIR (ön koşul, #211):** ara katmanın personel
   yönlendirmesi JWT rolünü okur, kayan oturum rolü aynen yeniden imzalar (tazelemez) ve (app) sayfalarının çoğu rolü kendisi
   kontrol etmez (yalnız API rolü DB'den okur) → yetkisi düşürülen yönetici gelen kutusunu görmeye devam ederdi. Bugün rolü
-  değiştiren yol YOK (personel yalnız seed/demo).
+  değiştiren yol YOK (personel yalnız seed/demo). ⚠️ M-2 (üyelik, dal `m2/*`, 11-06): dilim 1–2 rol değişimini ÜYELİK KUŞAĞIYLA düşürür
+  (oturum o işletmede geçersiz; "beni hatırla", tanınan cihaz ve WhatsApp bağı kalır). Bu kuralın metni kurucunun Ü-4 kararını bekliyor
+  (`docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12) — karar gelene kadar harfiyen `sessionEpoch` artıran bir yol EKLENMEZ, önce sorulur.
 - 2FA aktifliğinin tek koşulu `twoFactorEnabledAt`; bayat secret arıza değil → `/admin` "2FA'yı sıfırla"
   (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz. Sıfırlama kaydı AYNI işlemde ve ZORUNLU (`writeAuditInTx`, 10-01
   A02 F3 — yazılamazsa sıfırlama olmaz).

@@ -78,9 +78,12 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   hiçbiri yoksa oturum BASILMAZ, sade metin: "Hesabınız şu an hiçbir işletmeye bağlı değil." (davet ipucu yok — bugün bu dala yalnız
   kayan dağıtım artığı düşer; Opus S5) (bu dala yalnız doğru şifre + 2FA ile ulaşılır — numaralandırma yok). Etkin üyelik yoksa
   kurtarma kodu YAKILMAZ: geçerliliği tüketmeden sınanır, sonra 403 (Opus S7). ~~Giriş kaydı seçilen işletmeye [M6].~~ → **Ü-3
-  kararına kadar BÜTÜN kimlik kayıtları (başarılı / başarısız giriş, 2FA, kurtarma kodu) kişinin ANA işletmesine — tek kural (Opus S8;
-  başarısızlık üyelik seçilmeden yazılır, iki kural yan yana A'nın dökümüne B'nin denemelerini taşırdı). Ü-3 dilim 6c'den ÖNCE karara
-  bağlanır** (çok üyelikte ana işletme, kişinin başka işletmedeki girişlerini görür).
+  kararına kadar GİRİŞ ROTASININ bütün kimlik kayıtları (başarılı / başarısız giriş, 2FA hatası, kurtarma kodu) kişinin ANA işletmesine —
+  tek kural (Opus S8; başarısızlık üyelik seçilmeden yazılır, iki kural yan yana A'nın dökümüne B'nin denemelerini taşırdı).** Oturum
+  içindeki kimlik işlemleri oturumun işletmesine yazar: `account.password_change` (`account/password`), `2fa_enable` / `2fa_disable` /
+  `2fa_recovery_generate` (`account/2fa`), `account.reauth_failed` (`auth/reauth-guard.ts`) — beşi de Ü-3 kapsamında (Opus R4). **Ü-3
+  dilim 6a'dan ÖNCE karara bağlanır:** 6a ile A'dan çıkarılan ama aynası A'da kalan kişinin her hatalı girişi (IP'li) A'nın günlüğüne
+  düşmeye devam ederdi.
 - **İşletme değiştir** (dilim 6c): `POST /api/account/switch-organization` + `withAuth`; **bürünme oturumu REDDEDİLİR** (operatör
   işletmeler arası yalnız `/api/admin/enter`); denetim kaydı yalnız HEDEF işletmeye, kaynak kimliği taşımadan; yanıttan sonra tam sayfa
   yükleme (istemci önbelleği 30 sn — `staleTimes`).
@@ -180,7 +183,7 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   `MEMBERSHIP_BACKFILL_APPLY=1` + `MEMBERSHIP_BACKFILL_EXPECT=<sayı>` — 94'ün ifadesi dosyadan, sayı değiştiyse yazmaz).
 - **Dilim 2 Opus incelemesi (S1–S12, `scratchpad` raporu; üretim istek yolunda P1 açık YOK)** — kalıcı notlar:
   - 🚨 **S3 ön koşulu (dilim 4–6'dan ÖNCE):** iddiasız (üyelik kimliği taşımayan) eski belirteçler kuşak 0 sayılır ve kimlik denetimini atlar.
-    Bugün üyelik satırını SİLEN yol yok (çıkarma = `revoked` + kuşak; tek yazıcı pini silmeyi de yasaklar), açık kapalı. Satırı silip aynı
+    Bugün üyelik satırını SİLEN yol yok (çıkarma = `revoked` + kuşak; tek yazıcı pini silmeyi yazıcının KENDİSİ dahil yasaklar — Opus R3), açık kapalı. Satırı silip aynı
     (kişi, işletme) için yeniden yaratan herhangi bir yol eklenmeden ÖNCE iddiasız belirteçlere son tarih konur (emsal
     `LEGACY_SESSION_COOKIE_READ_UNTIL`) — yalnız yeniden giriş ister; cihaz güveni ve WhatsApp bağları `sessionEpoch`e bağlı, etkilenmez.
     Ayrıca `requireSession` / `requireAuth` doğruladığı üyeliğin kimliğini / kuşağını oturuma yazar → parola / 2FA yeniden imzaları belirteci
@@ -195,7 +198,8 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
     (yoksa askıdaki hesap kalıcı 503 verir ve betik onu ana işletmesine geri yazar).
 
 ## 11. Riskler
-- Oturum doğrulaması her istekte bir satır daha okur — `requireSession` kullanıcıyı zaten okuyor, aynı sorguda `include`.
+- Oturum doğrulaması her istekte bir satır daha okur — `requireSession` kullanıcıyı zaten okuyor; iç içe seçim aynı Prisma çağrısında
+  AYRI bir SQL sorgusudur (`relationJoins` yok; Opus S12 / R10).
 - 179 test dosyası kullanıcıyı doğrudan yaratıyor; 30 dosya gerçek doğrulamadan geçiyor (bürünme / oturum kuşağı / hesap silme pinleri) →
   dilim 2 bunları kırar (beklenen; yardımcıyla düzeltilir, sahte geçiş yok).
 - Paddle müşterisi e-postayla tekilleşir: iki işletmenin sahibi aynı kişi olunca "nadir" durum olağanlaşır (webhook eşlemesi onaydan /
@@ -208,7 +212,10 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
 - **Ü-2** "Hesabı sil" üçe ayrılsın mı: "İşletmeyi sil" (sahip) · "İşletmeden ayrıl" (her üye; son sahip ayrılamaz) · "Kullanıcı hesabımı
   sil" (kimlik)? Önerim: evet — bugün personelin kendi verisini sildirme yolu yok.
 - **Ü-3** Giriş / 2FA / şifre kayıtları (IP'li) işletme günlüğünden kişiye ait ayrı kayda alınsın mı? Önerim: evet (A'nın dökümü Ayşe'nin
-  B için çalıştığı saatleri göstermesin).
+  B için çalıştığı saatleri göstermesin). Kapsam: giriş rotasının dört kaydı + oturum içi beş kimlik kaydı (§3). Ek soru (Opus S7 / R6):
+  geçerli ikinci faktörden SONRA verilen "hiçbir işletmeye bağlı değil" 403'ü kişiye bağlı bir iz bıraksın mı? Bugün iz yok — kod yakılmadığı
+  için çalınmış bir kurtarma kodu (parolayla birlikte) sessizce "sınanabilir"; bugün bu dala yalnız kayan dağıtım artığı düşer (pratik risk
+  yok), dilim 6a ile anlam kazanır. **Dilim 6a'dan ÖNCE karar.**
 - **Ü-4** Ekipten çıkarmada #211 kuralı (`sessionEpoch` artışı) yerine üyelik kuşağı artsın mı? Önerim: evet — `sessionEpoch` artışı
   kişinin B'deki oturumlarını, "beni hatırla"sını ve WhatsApp bağlarını da düşürür; A'nın kararı B'deki işini bozmasın. Onaylanırsa
   `docs/claude/kalici-kararlar.md` #211 metni "rol değişimi / çıkarma = üyelik kuşağı; `sessionEpoch` yalnız kimlik olayları" diye

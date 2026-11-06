@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
-// M-2 dilim 2 (Opus S5) — ÜYELİK ONARIMI çekirdeği (`scripts/membership-backfill.ts`; uygulama bu modülü İÇE AKTARMAZ — dosya okur).
+// M-2 dilim 2 (Opus S5) — ÜYELİK ONARIMI çekirdeği (`scripts/membership-backfill.ts`, YALNIZ yerel klondan; uygulama bu modülü İÇE
+// AKTARMAZ — dosya okur; yol `process.cwd()`'e göre, betik uygulama kökünden koşar).
 //
 // Ne zaman: `/api/health?strict=1` → 503 `users_without_membership` (HİÇ üyelik satırı olmayan kullanıcı var; böyle biri giriş yapamaz).
 // Sebep: dilim 1 ile dilim 2 aynı yayında gitti ya da geri dönüşte dilim-1 öncesi kod hesap açtı; migration 94 yalnız BİR kez koşar.
@@ -70,7 +71,8 @@ export async function applyMembershipBackfill(
       if (before.count !== expected) return { ok: false as const, actual: before.count };
       return { ok: true as const, inserted: await tx.$executeRawUnsafe(statement) };
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    // Etkileşimli işlemin varsayılan süresi 5 sn (Opus R1): büyük tabloda yarıda kalsa geri alınır (güvenli) ama onarım hiç tamamlanamazdı.
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 60_000, maxWait: 10_000 },
   );
   if (!written.ok) return { ok: false, reason: "count_changed", expected, actual: written.actual };
   return { ok: true, inserted: written.inserted, remaining: (await membershipGap(db)).count };

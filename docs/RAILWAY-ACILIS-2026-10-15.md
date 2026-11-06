@@ -9,7 +9,8 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    ÖNCESİ yedek olmaz. Sıra: Railway'de yalnız Postgres'i açın (web servisinin otomatik deploy'unu kapatın ya da kopya sayısını 0 tutun; dala
    push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
    `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **92** (00…91; 11-05 taze veritabanında ölçüldü) — üyelik dalı (`m2/membership`) birleşince **93** ve **94** de gelir
-   ama İKİ AYRI yayında: önce 93 (dilim 1) tek başına, sonra 94 + dilim 2 (sayım 94 → 95). Sebep ve onarım ↓"Üyelik (M-2)".
+   ama İKİ AYRI yayında: önce 93 (dilim 1) tek başına, sonra 94 + dilim 2 (sayım 92 → 93 → 94; 92 numarası `{daire}` tasarımına
+   ayrıldı, klasörü yok — o migration önce gelirse her sayı +1). Sebep ve onarım ↓"Üyelik (M-2)".
    **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
    (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn (10-18: 78 aynı prova veritabanında ayrıca uygulandı, 1,4 sn, sapma sıfır); `migrate diff` sapma sıfır. Statik tarama
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
@@ -358,9 +359,15 @@ kurucu onayıyla §1'e taşındı.)
 - Dilim 1 (migration 93: tablo + doldurma, okuyucu yok) TEK BAŞINA yayınlanır; yeni hesaplar o andan itibaren üyelikle açılır.
 - Dilim 2 (migration 94 + oturumun üyelikten doğrulanması) SONRAKİ yayında: 94, dilim 1 yayını sırasında eski kodun açtığı (üyeliksiz) hesapları
   yakalar. İkisi aynı yayında giderse yayın anında açılan hesap giriş yapamaz ("Hesabınız şu an hiçbir işletmeye bağlı değil.").
-- İzleyici `/api/health?strict=1` → 503 `reason: "users_without_membership"`: üyelik satırı HİÇ olmayan kullanıcı var. Önce salt-okuma:
-  `npx tsx scripts/membership-backfill.ts` (sayı + hesapların açılış anı aralığı; kimlik / e-posta basılmaz), sonra taze `pg_dump` ve
-  `MEMBERSHIP_BACKFILL_APPLY=1 MEMBERSHIP_BACKFILL_EXPECT=<salt-okumanın sayısı> npx tsx scripts/membership-backfill.ts` (94'ün AYNI
-  ifadesi, dosyadan; sayı o arada değiştiyse yazmaz; çıkarılmış üyeliği dirilmez). Strict uç sonucu 30 sn önbellekte tutar → onarımdan
-  sonra en geç 30 sn içinde 200.
+  İstisna: Railway'in İLK açılışı (↑0. adım — web servisi kapalıyken önce veritabanı; eski kopya istek almıyor) iki dilimi birlikte
+  taşıyabilir, boşluk oluşmaz. "İki ayrı yayın" kuralı canlı servisin sonraki yayınları ve geri dönüş içindir.
+- İzleyici `/api/health?strict=1` → 503 `reason: "users_without_membership"`: üyelik satırı HİÇ olmayan kullanıcı var. Onarım YALNIZ
+  YEREL KLONDAN, uygulama kökünde (üretim kabında betik / `src` / `tsx` yok — Railway Console'da koşmaz) ve hedef AÇIKÇA verilerek
+  (`DATABASE_URL` verilmezse betik durur; yoksa yerel `.env` okunurdu). Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`:
+  1. Salt-okuma: `DATABASE_URL='<DATABASE_PUBLIC_URL>' npx tsx scripts/membership-backfill.ts` → ilk satır `HEDEF: <sunucu>:<kapı>/<db> (UZAK)`
+     olmalı; sayı + hesapların açılış anı aralığı (kimlik / e-posta basılmaz).
+  2. Taze `pg_dump`, sonra yazma: aynı komutun başına `MEMBERSHIP_BACKFILL_APPLY=1 MEMBERSHIP_BACKFILL_EXPECT=<1. adımın sayısı>` (94'ün
+     AYNI ifadesi, dosyadan; sayı o arada değiştiyse yazmaz; çıkarılmış üyeliği dirilmez).
+  3. Strict uç sonucu 30 sn önbellekte tutar → en geç 30 sn sonra gövdede `"membership":"ok"` görünür.
+- Olumlu kontrol (her dilim 2 yayınından sonra): strict gövdesinde `"membership":"ok"`.
   🚨 İleride ekipten çıkarma / "askıda hesap" (Ü-1) gelince bu sayaç ve betik o tasarımla birlikte yeniden tanımlanır.

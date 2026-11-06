@@ -38,7 +38,7 @@ vi.mock("@/lib/email", () => ({
 import { requireSession } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
 import { pickLoginMembership } from "@/lib/membership/session";
-import { enterOrganization } from "@/lib/admin";
+import { enterOrganization, exitImpersonation } from "@/lib/admin";
 import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import AppLayout from "@/app/(app)/layout";
 import { POST as login } from "@/app/api/auth/login/route";
@@ -162,6 +162,24 @@ describe("M-2 dilim 2 — pinler", () => {
     jar.set.length = 0;
     expect(await enterOrganization(current, target.id)).toBe(false);
     expect(jar.set.filter((c) => c.value && c.name.endsWith(SESSION_COOKIE))).toEqual([]);
+  });
+
+  it("bürünmeden çıkış: operatör KENDİ son kullandığı ETKİN üyeliğine döner (son kullanılan → ana; Opus R7)", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", "ops-cikis@lixusai.com");
+    const opOrg = await prisma.organization.create({ data: { name: "Operatör" } });
+    const other = await prisma.organization.create({ data: { name: "Operatör 2" } });
+    const op = await makeUser({ data: { organizationId: opOrg.id, name: "Op", email: "ops-cikis@lixusai.com", passwordHash: "x", role: "owner", twoFactorEnabledAt: new Date() } });
+    await extraMembership(op.id, other.id, "manager");
+    await prisma.user.update({ where: { id: op.id }, data: { lastActiveOrganizationId: other.id } });
+    const target = await prisma.organization.create({ data: { name: "Müşteri" } });
+    await makeUser({ data: { organizationId: target.id, name: "Sahip", email: "sahip-cikis@example.test", passwordHash: "x", role: "owner" } });
+    const current: SessionPayload = { userId: op.id, organizationId: opOrg.id, role: "owner", email: op.email, name: "Op", sessionEpoch: 0, mfa: true };
+    expect(await enterOrganization(current, target.id)).toBe(true);
+    jar.token = [...jar.set].reverse().find((c) => c.value && c.name.endsWith(SESSION_COOKIE))!.value;
+    jar.set.length = 0;
+    expect(await exitImpersonation()).toBe(true);
+    const back = [...jar.set].reverse().find((c) => c.value && c.name.endsWith(SESSION_COOKIE))!;
+    expect(await verifySession(back.value)).toMatchObject({ userId: op.id, organizationId: other.id, role: "manager" });
   });
 
   it("🚨 e-posta doğrulama: etkin üyelik yoksa hesap doğrulanır ama OTURUM BASILMAZ (ayrı sebep kodu)", async () => {

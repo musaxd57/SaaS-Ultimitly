@@ -106,11 +106,6 @@ export async function remainingRecoveryCodes(userId: string): Promise<number> {
 }
 
 /**
- * Try to burn one recovery code for this user. TRUE exactly once per code:
- * the conditional updateMany is the atomic arbiter (usedAt must still be null),
- * scoped to userId so one user's code can never unlock another's account.
- */
-/**
  * Kod geçerli ve KULLANILMAMIŞ mı — TÜKETMEZ (M-2, Opus S7). Yalnız girişte, gidecek etkin üyeliği olmayan kişi için: kodu yakmadan
  * "doğru kod" ile "hatalı kod"u ayırır (doğruysa 403, kod geçerli kalır; yeniden davetten sonra kullanılır). Tüketme kararı YİNE
  * `consumeRecoveryCode`'un atomik koşullu güncellemesidir — bu okuma kimseye oturum açmaz.
@@ -125,6 +120,11 @@ export async function recoveryCodeIsUsable(userId: string, input: string): Promi
   return row !== null;
 }
 
+/**
+ * Try to burn one recovery code for this user. TRUE exactly once per code:
+ * the conditional updateMany is the atomic arbiter (usedAt must still be null),
+ * scoped to userId so one user's code can never unlock another's account.
+ */
 export async function consumeRecoveryCode(userId: string, input: string): Promise<boolean> {
   const normalized = normalizeRecoveryCode(input);
   if (normalized.length !== RECOVERY_CODE_LEN) return false;

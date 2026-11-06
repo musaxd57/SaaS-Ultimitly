@@ -164,6 +164,9 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     // ölçtüğü şeyin (SUPERADMIN_EMAILS'ten silmenin etkisi) tek değişken
     // kalması için diğer değişkeni sabitlemek. Yeni eklenen boyut ayrıca
     // kendi testleriyle pinli (↑"mfa iddiası sayfa yolunda da doğrulanır").
+    // Önceki testin `…Once` kuyruğu SIZMAZ (Opus R7): kuyrukta kalan üyeliksiz aktör satırı sonraki testte kullanıcı satırı olarak okunur,
+    // catch dalı bürünmeyi çıkışa yollar → test YANLIŞ sebeple yeşil kalırdı.
+    findUnique.mockReset();
     findUnique.mockResolvedValue(member({
       sessionEpoch: 0,
       role: "owner",
@@ -256,7 +259,8 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     // Rol veritabanıyla AYNI (owner): rol uyuşmazlığı ayrı bir çıkış sebebidir (Codex 09-30 B2, ↑ayrı pin) — bu test yalnız
     // bürünme kapısının normal oturuma dokunmadığını ölçer.
     TOKEN = await signSession({ ...base, role: "owner" }); // actorUserId YOK
-    await expect(requireAuth()).resolves.toMatchObject({ userId: "u1" });
+    // Rol de iddia edilir (Opus R7): DB arızası (catch) dalı oturumu "staff" ile DÖNDÜRÜR — yalnız `userId` iddiası o dalda da yeşildi.
+    await expect(requireAuth()).resolves.toMatchObject({ userId: "u1", role: "owner" });
   });
 });
 
@@ -286,6 +290,7 @@ describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
     }));
     const s = await requireAuth();
     expect(s.organizationId).toBe("o1"); // kimse çıkışa atılmadı
+    expect(s.role).toBe("owner"); // başarı yolu (catch dalı "staff" döndürür — Opus R7)
     expect(s.mfa).toBe(false); // operatör yetkisi kapandı
   });
 

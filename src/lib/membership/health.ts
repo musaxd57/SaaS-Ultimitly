@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 //
 // Uç herkese açık ve kimliksiz → kuyruk yoklamasıyla (`outbox/health.ts` `strictQueueState`, Codex 10-16 ölçümü: önbellek boşken 100 eşzamanlı
 // istek 400 okuma başlatıyordu) AYNI desen: 30 sn bellek içi sonuç + süren yoklamaya katılma + sıfırlama kuşağı. Sorgu sayım DEĞİL varlık
-// sorusu (ilk eşleşmede durur).
+// sorusu: eksik VARSA ilk eşleşmede durur; yoksa (olağan durum) kullanıcı tablosunu okur (Prisma `none` = `NOT IN (alt sorgu)`) — 30 sn
+// önbellekle ölçekte önemsiz (Opus R10).
 //
 // "missing" = HİÇ üyelik satırı olmayan kullanıcı var: kayan dağıtımda eski kodun açtığı hesap; oturum üyelikten doğrulandığı için böyle biri
 // giriş YAPAMAZ → sayfalar (onarım: `scripts/membership-backfill.ts`, önce salt-okuma). Yalnız ÇIKARILMIŞ üyeliği olan kişi meşrudur, sayılmaz.
