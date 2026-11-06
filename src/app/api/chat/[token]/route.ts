@@ -94,6 +94,15 @@ import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { hostContactOpenWithoutLedger, needsFromUnderstanding } from "@/lib/conversation-items/host-contact-settle";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
+import {
+  deviceLaneKey,
+  devicePassAvailable,
+  devicePassConfirmed,
+  readDevicePass,
+  secretTagOf,
+  splitStayCookie,
+  stayCookieValue,
+} from "@/lib/guest-chat-pass";
 
 export const dynamic = "force-dynamic";
 
@@ -188,14 +197,21 @@ function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
-function setStayCookie(res: NextResponse, name: string, secret: string, departureDate: Date): void {
+function setStayCookie(
+  res: NextResponse,
+  name: string,
+  secret: string,
+  stay: { id: string; departureDate: Date },
+  chatToken: string,
+): void {
   // Cover the whole stay (+36h grace), min 1h, capped at 60d. The server also
   // gates on an active stay, so this lifetime is just hygiene, not the control.
-  const ms = departureDate.getTime() + 36 * 3_600_000 - Date.now();
+  const ms = stay.departureDate.getTime() + 36 * 3_600_000 - Date.now();
   const maxAge = Math.min(60 * 86_400, Math.max(3_600, Math.floor(ms / 1000)));
   res.cookies.set({
     name,
-    value: secret,
+    // K-5: sır + imzalı cihaz geçişi (çerezle AYNI ömür). Sır kısmı ve veritabanı bağı değişmez.
+    value: stayCookieValue(secret, stay.id, chatToken, new Date(Date.now() + maxAge * 1000)),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -380,11 +396,12 @@ async function handlePinUnlock(
   cookieName: string,
   cookie: string | null,
   pin: string,
+  chatToken: string,
 ): Promise<NextResponse> {
   const claimAndCookie = (claimed: Awaited<ReturnType<typeof bindOrCheckStay>>): NextResponse => {
     if (claimed.status === "mismatch") return jsonOk({ boundElsewhere: true });
     const out = jsonOk({ unlocked: true });
-    if (claimed.status === "bound") setStayCookie(out, cookieName, claimed.secret, res.departureDate);
+    if (claimed.status === "bound") setStayCookie(out, cookieName, claimed.secret, res, chatToken);
     return out;
   };
 
@@ -441,34 +458,54 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
 // bağıyla eşleşen) kendi kovasını kullanır — anahtar KONAKLAMA, IP değil. Böylece aynı ağdaki başka bir istemci (QR fotoğrafı elinde kalan
 // eski misafir, aynı Wi-Fi'deki başka cihaz) bu daireye sel yapıp (IP, daire) kovasını doldursa da misafirin sohbeti donmaz; çalınmış çerez
 // de çok IP'den çoğaltılamaz (konaklama başına 60/dk). Doğrulanmamış istek (çerezsiz / eşleşmeyen) bugünkü gibi (IP, daire) kovasında.
-// Genel sınır (kaba IP tavanı) HERKES için önde kalır: doğrulama bir okumadır, tavansız yapılamaz. Kalan risk (aynı IP'den 240/dk geçersiz
-// anahtar seli herkesi bekletir) belgede: kapatmak için imzalı cihaz geçişi (yeni çerez) gerekir — kurucu sorusu.
+// Genel sınır (kaba IP tavanı) doğrulanmamış istekler için önde kalır: doğrulama bir okumadır, tavansız yapılamaz.
+// 🚨 İMZALI CİHAZ GEÇİŞİ (kurucu / Codex 11-06 K-5, `lib/guest-chat-pass.ts`): eskiden kalan risk — aynı IP'den 240/dk geçersiz anahtar seli
+// o IP'deki herkesi bekletirdi, doğrulanmış cihaz dahil. Cihaz çerezi artık imzalı bir geçiş taşır; geçiş VERİTABANINA GİTMEDEN doğrulanır,
+// istek kaba tavana girmeden cihazın kendi kovasına (konaklama + bağ, dakikada 60) gider. Geçiş erişim VERMEZ (konaklama + bağ aşağıda
+// aynen denetlenir); bağ değişmişse (ev sahibi sıfırladı) geçiş bir şey kazandırmamış sayılır ve istek kaba tavandan da geçer.
 const GUEST_CHAT_GET_PER_IP_PER_MIN = 240;
 const GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN = 60;
 const GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN = 60;
+/** Mesaj gönderme: IP başına dakikada 20 (bugünkü); imzalı geçişli bağlı cihaz kendi kovasında aynı 20 (konaklama başına saatlik tavan ayrıca). */
+const GUEST_CHAT_POST_PER_IP_PER_MIN = 20;
+const GUEST_CHAT_POST_PER_DEVICE_PER_MIN = 20;
 
 async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
+  const { token } = await params;
   const clientKey = rateLimitClientKey(req);
-  const limited = await rateLimit(`guestchat-get:${clientKey}`, GUEST_CHAT_GET_PER_IP_PER_MIN, 60_000);
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const coarse = () => rateLimit(`guestchat-get:${clientKey}`, GUEST_CHAT_GET_PER_IP_PER_MIN, 60_000);
+  // Veritabanından ÖNCE: geçerli geçiş → cihazın kendi kovası; yoksa kaba IP tavanı (bugünkü gibi).
+  const pass = readDevicePass(req.headers.get("cookie"), token);
+  const first = pass
+    ? await rateLimit(deviceLaneKey("guestchat-get-d", pass.reservationId, pass.secretTag), GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN, 60_000)
+    : await coarse();
+  if (!first.ok) return tooManyRequests(first.retryAfter);
   const supportView = await supportViewRefusal(req);
   if (supportView) return supportView;
 
-  const { token } = await params;
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
   const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
   if (!ctx) return notFound();
   const cookieName = stayCookieName(ctx.property.id);
-  const cookie = readCookie(req, cookieName);
+  const cookie = splitStayCookie(readCookie(req, cookieName)).secret;
   // Çerez varsa bağ YALNIZ okunur (sahiplenme yok — o, kovadan SONRA): eşleşirse istek konaklamanın kendi kovasına gider.
   const stay = ctx.open ? ctx.activeReservation : null;
   const pre = stay && cookie ? await bindOrCheckStay(stay.id, cookie, { allowClaim: false }) : null;
   const verified = pre?.status === "match";
-  const lane = verified && stay
-    ? await rateLimit(`guestchat-get-d:${stay.id}`, GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN, 60_000)
-    : await rateLimit(`guestchat-get-p:${clientKey}:${ctx.property.id}`, GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN, 60_000);
-  if (!lane.ok) return tooManyRequests(lane.retryAfter);
+  const passOk = verified && stay !== null && devicePassConfirmed(pass, stay.id, cookie);
+  if (pass && !passOk) {
+    // Geçiş bu istekte bir şey kazandırmadı (konaklama bitti / değişti, bağ sıfırlandı): istek doğrulanmamış istek gibi kaba tavandan geçer.
+    const late = await coarse();
+    if (!late.ok) return tooManyRequests(late.retryAfter);
+  }
+  if (!passOk) {
+    // Cihaz kovası tek: geçişsiz ama veritabanında doğrulanmış cihaz da AYNI kovayı kullanır (konaklama + bağ).
+    const lane = verified && stay && cookie
+      ? await rateLimit(deviceLaneKey("guestchat-get-d", stay.id, secretTagOf(cookie)), GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN, 60_000)
+      : await rateLimit(`guestchat-get-p:${clientKey}:${ctx.property.id}`, GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN, 60_000);
+    if (!lane.ok) return tooManyRequests(lane.retryAfter);
+  }
   if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
 
   // Per-stay device binding: the FIRST device to open the chat claims it. A
@@ -524,7 +561,12 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
     text: m.body,
   }));
   const out = jsonOk({ open: true, messages });
-  if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, ctx.activeReservation.departureDate);
+  if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, ctx.activeReservation, token);
+  // K-5: bağ doğrulandı ama çerez geçiş taşımıyor (eski biçim) ya da geçişi bu bağa ait değil → geçişli biçime BİR KEZ yükseltilir
+  // (sonraki istekler geçişi taşır, yeniden yazılmaz).
+  else if (binding.status === "match" && cookie && !passOk && devicePassAvailable()) {
+    setStayCookie(out, cookieName, cookie, ctx.activeReservation, token);
+  }
   return out;
 }
 
@@ -599,13 +641,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // attırıp dairedeki ağın sohbet kovasını yakamasın. Geçersiz JSON gövde kovayı YİNE tüketir.
   if (!hasJsonContentType(req)) return unsupportedMediaType();
 
-  // Public + unauthenticated → cap per IP first.
-  const ipLimit = await rateLimit(`guestchat-ip:${rateLimitClientKey(req)}`, 20, 60_000);
+  // Public + unauthenticated → cap per IP first. K-5: imzalı cihaz geçişi taşıyan istek (veritabanı yok) IP kovası yerine cihazın kendi
+  // kovasına gider — aynı ağdan sel, bağlı misafirin mesaj göndermesini durdurmaz. Geçiş aşağıda bağla doğrulanmazsa IP kovası yine uygulanır.
+  const { token } = await params;
+  const ipCap = () => rateLimit(`guestchat-ip:${rateLimitClientKey(req)}`, GUEST_CHAT_POST_PER_IP_PER_MIN, 60_000);
+  const pass = readDevicePass(req.headers.get("cookie"), token);
+  const ipLimit = pass
+    ? await rateLimit(deviceLaneKey("guestchat-post-d", pass.reservationId, pass.secretTag), GUEST_CHAT_POST_PER_DEVICE_PER_MIN, 60_000)
+    : await ipCap();
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
   const supportView = await supportViewRefusal(req);
   if (supportView) return supportView;
-
-  const { token } = await params;
 
   const bodyResult = await parseJsonBody<{ message?: unknown; pin?: unknown; requestId?: unknown }>(req);
   if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
@@ -630,6 +676,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Chat is open only during an active stay (until checkOutTime on departure day).
   // Outside that → no AI, no escalation, just a polite "no active stay" reply.
   if (!ctx.open || !ctx.activeReservation) {
+    // K-5: açık konaklama yok → geçiş doğrulanamaz; istek IP kovasından da geçer (geçiş bir şey kazandırmaz).
+    if (pass) {
+      const late = await ipCap();
+      if (!late.ok) return tooManyRequests(late.retryAfter);
+    }
     // İPTAL EDİLMİŞ konaklama şu anı kapsıyorsa (kurucu 10-12): model ÇAĞRILMAZ (kota düşmez), yazana aynı "sohbet kapalı" cevabı
     // gider (iptal bilgisi verilmez), mesaj ev sahibi için panele kaydedilir ve ev sahibine "iptal edilmiş rezervasyonun dairesinden
     // yazılıyor" uyarısı gider. Tekrar yazışma da aynı yoldan; e-posta en çok 6 saatte bir, kayıt saatte en çok N mesaj.
@@ -641,11 +692,21 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   }
   const res = ctx.activeReservation;
   const cookieName = stayCookieName(ctx.property.id);
-  const cookie = readCookie(req, cookieName);
+  const cookie = splitStayCookie(readCookie(req, cookieName)).secret;
+  // K-5: geçiş bu konaklamanın ŞU ANKİ bağına mı ait — veritabanından (sahiplenmeden) doğrulanır. Değilse (ev sahibi bağı sıfırladı,
+  // konaklama değişti) istek IP kovasından da geçer: geçiş erişim de kapasite de vermez.
+  const passOk =
+    pass !== null &&
+    devicePassConfirmed(pass, res.id, cookie) &&
+    (await bindOrCheckStay(res.id, cookie, { allowClaim: false })).status === "match";
+  if (pass && !passOk) {
+    const late = await ipCap();
+    if (!late.ok) return tooManyRequests(late.retryAfter);
+  }
 
   // ---- PIN UNLOCK: the guest submitted a PIN to claim the stay (Faz 5) ----
   if (pinInput !== null) {
-    return handlePinUnlock(req, res, ctx.pinRequired, cookieName, cookie, pinInput);
+    return handlePinUnlock(req, res, ctx.pinRequired, cookieName, cookie, pinInput, token);
   }
 
   // ---- Message flow ----
@@ -679,7 +740,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // claimed the stay for this device).
   const finalize = (payload: Record<string, unknown>) => {
     const out = jsonOk(payload);
-    if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, res.departureDate);
+    if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, res, token);
+    // K-5: doğrulanmış ama geçişsiz (eski biçim) çerez geçişli biçime bir kez yükseltilir.
+    else if (binding.status === "match" && cookie && !passOk && devicePassAvailable()) setStayCookie(out, cookieName, cookie, res, token);
     return out;
   };
 
@@ -759,7 +822,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     }
     const capped = tooManyRequests(stayLimit.retryAfter, STAY_MESSAGE_CAP_TEXT);
     // Cihaz bu istekte bağlandıysa çerez YİNE kurulur (yoksa misafir bir sonraki mesajda "başka cihazda" görürdü).
-    if (binding.status === "bound") setStayCookie(capped, cookieName, binding.secret, res.departureDate);
+    if (binding.status === "bound") setStayCookie(capped, cookieName, binding.secret, res, token);
     return capped;
   }
 
