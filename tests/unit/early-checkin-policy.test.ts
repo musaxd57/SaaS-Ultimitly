@@ -13,13 +13,17 @@ import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 
 const RULE: EarlyCheckinRule = { mode: "auto", earliest: "09:00", fee: { amount: 30, currency: "EUR" }, note: null };
 
-describe("politika metni (kodda, altı dil)", () => {
+describe("politika metni (kodda, bütün onay dilleri)", () => {
   it("ücret kayıttan biçimlenir; karar söylenmez (izin / ret / söz yok); host notu EKLENMEZ", () => {
     expect(earlyCheckinPolicyText(RULE, "en")).toBe(
       "The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.",
     );
     expect(earlyCheckinPolicyText(RULE, "tr")).toBe(
       "Erken giriş ücreti €30. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
+    );
+    // İspanyolca (kurucu 11-06, EK-3); Intl İspanyolca para biçiminde rakam ile simge arasında BÖLÜNMEZ boşluk.
+    expect(earlyCheckinPolicyText(RULE, "es")).toBe(
+      "La tarifa del check-in anticipado es de 30\u00a0€. La posibilidad de hacer el check-in anticipado depende de la limpieza de ese día; su anfitrión decide.",
     );
     // Not ONAY için yazılır ("Ödeme talebi platformdan gelecek"); bilgi cevabında "ücretlendirileceksiniz" gibi okunur ve
     // birebir metin muafiyetiyle bir izin cümlesi ("12:00'den itibaren mümkündür") de taşıyabilirdi (inceleme 09-24).

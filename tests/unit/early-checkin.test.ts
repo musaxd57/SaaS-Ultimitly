@@ -246,7 +246,7 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
 describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı kuralı", () => {
   const approvable = decideEarlyCheckin(OK, RULE);
 
-  it("altı dilde GÜN + saat + ücret, selamsız; Arapçada Latin rakamlar; tanınmayan dil → İngilizce", () => {
+  it("bütün onay dillerinde GÜN + saat + ücret, selamsız; Arapçada Latin rakamlar; tanınmayan dil → İngilizce", () => {
     for (const lang of EARLY_CHECKIN_LANGS) {
       const t = earlyCheckinApprovalText(approvable, lang, null, "2026-10-14");
       expect(t, lang).toContain("12:00");
@@ -256,18 +256,25 @@ describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı 
       expect(t ?? "", lang).not.toMatch(/^(?:Merhaba|Hello|Hallo|Bonjour|مرحب|Здравствуйте)/);
     }
     expect(earlyCheckinLang("pt")).toBe("en");
+    expect(earlyCheckinLang("es")).toBe("es"); // kurucu 11-06 EK-3 (eskiden İngilizceye düşüyordu)
+    expect(earlyCheckinLang("es-MX")).toBe("es");
     expect(earlyCheckinLang("TR")).toBe("tr");
     expect(earlyCheckinLang("de-DE")).toBe("de");
     expect(earlyCheckinLang(null)).toBe("en");
     expect(earlyCheckinApprovalText(approvable, "tr", null, "2026-10-14")).toBe(
       "Bugün (14 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.",
     );
+    // İspanyolca (EK-3): kurucuya gösterilen cümle; ücret İspanyol biçiminde.
+    expect(earlyCheckinApprovalText(approvable, "es", null, "2026-10-14")).toBe(
+      // Intl İspanyolca para biçiminde rakam ile simge arasına BÖLÜNMEZ boşluk koyar (Fransızcadaki gibi) — satır sonu onları ayırmaz.
+      "Puede hacer el check-in hoy (14 de octubre) a partir de las 12:00. La tarifa del check-in anticipado es de 30\u00a0€.",
+    );
   });
 
-  it("🚨 K-4 (kurucu 11-06): onay metni daireyi \"hazır\" İLAN ETMEZ — altı dilde yalnız gün + saat (ve kayıtlı ücret)", () => {
+  it("🚨 K-4 (kurucu 11-06): onay metni daireyi \"hazır\" İLAN ETMEZ — bütün dillerde yalnız gün + saat (ve kayıtlı ücret)", () => {
     // Temizlik "bitti" kanıtı kararın GİRDİSİDİR; metne "hazır" iddiası olarak girmez (temizlikçinin bildirmediği bir sorunda ev sahibini
-    // zor durumda bırakırdı). Kalıp altı dilin "hazır" sözcüklerini tanır; her dilde metin ayrıca gün + saati taşır (vakum değil).
-    const READY = /haz[ıi]r|\bready\b|bereit|pr[eê]te?\b|جاهز|готов/iu;
+    // zor durumda bırakırdı). Kalıp yedi dilin "hazır" sözcüklerini tanır; her dilde metin ayrıca gün + saati taşır (vakum değil).
+    const READY = /haz[ıi]r|\bready\b|bereit|pr[eê]te?\b|\blist[oa]s?\b|جاهز|готов/iu;
     for (const lang of EARLY_CHECKIN_LANGS) {
       const t = earlyCheckinApprovalText(approvable, lang, null, "2026-10-14") ?? "";
       expect(t, lang).not.toMatch(READY);
@@ -275,7 +282,7 @@ describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı 
       expect(t, lang).toMatch(/14/);
     }
     // Kalıbın kendisi gerçekten yakalıyor (eski metinler).
-    for (const old of ["Daireniz hazır; bugün", "The apartment is ready", "Die Wohnung ist bereit", "Le logement est prêt", "الشقة جاهزة", "Квартира готова"])
+    for (const old of ["Daireniz hazır; bugün", "The apartment is ready", "Die Wohnung ist bereit", "Le logement est prêt", "El apartamento está listo", "الشقة جاهزة", "Квартира готова"])
       expect(old).toMatch(READY);
   });
 

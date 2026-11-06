@@ -214,6 +214,7 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   - Askıdaki kişi giriş yapabilir ama oturum ALMAZ (§13): "Bağlı olduğunuz işletme hesabını kapattı" + yapabilecekleri (davet kabul /
     hesabı sil). Askıya alınırken sade bilgi e-postası gider.
   - **Süre sınırı (KVKK, en az veri):** 12 ay içinde hiçbir işletmeye katılmazsa kimlik silinir; 30 gün önce hatırlatma e-postası.
+    **12 ay — kurucu onayladı (11-06: "Ü-1 uygun").**
   - 🚨 Değişmez korunur: girişteki onarım (`repairHomeMembershipIfMissing`) askıdaki kişiyi ATLAR (yoksa onu silinen işletmenin yerine
     ana işletmesine geri yazardı — §13). Sağlık sayacı ve onarım betiği de askıdakini saymaz (Opus S11).
 - **Ü-2 → kurucu "neden üçe ayrılsın?" diye sordu; açıklama (karar bekliyor):** bugün "Hesabı sil" İŞLETMEYİ siler (işletme + içindeki
@@ -233,8 +234,9 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   "beni hatırla"sı ve WhatsApp bağları etkilenmez. Kalıcı karar #211 metni buna göre güncellendi (`docs/claude/kalici-kararlar.md`).
 - **Ü-5 → KARAR: evet.** WhatsApp bağı işletme başına + amaç alanı (ev sahibi / personel); gelen cevap hangi işletmeye ait olduğunu bağdan
   bilir. Bağ üyelik kimliği + kuşağını taşır → çıkarma / rol değişimi bağı da kendiliğinden geçersiz kılar (Opus S6; dilim 3).
-- **Ü-6 → KARAR: davetle "sahip" rolü VERİLEBİLİR**, şu şartlarla (kurucu: "verilmeden önce verilecek yetki ve yapabilecekleri gösterilsin,
-  onay verilip gönderilebilsin"):
+- **Ü-6 → KARAR: davetle "sahip" rolü VERİLEBİLİR** — 🔔 **ERTELENDİ (kurucu 11-06: "Ü-6 sonradan web sitesini tamamen bitirince yapıcam")**:
+  özellik ve hukuk maddesi web sitesi tamamen bitince, kurucuyla birlikte. Şartlar (kurucu: "verilmeden önce verilecek yetki ve
+  yapabilecekleri gösterilsin, onay verilip gönderilebilsin"):
   - Davet formunda seçilen rolün yetki listesi gösterilir (sahip: faturalandırma, işletmeyi kapatma, ekip yönetimi, bütün misafir verisi,
     bağlantılar…). "Sahip" seçilince ayrı onay adımı: "Bu kişiye işletmenizin TAM yetkisini veriyorsunuz" + kutucuk; davet eden kişiden
     taze yeniden doğrulama (şifre / 2FA — mevcut `reauth-guard`).

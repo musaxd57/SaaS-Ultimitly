@@ -5,14 +5,15 @@
 // 🚨 Metin daireyi "hazır" İLAN ETMEZ (kurucu 11-06, K-4): misafir saati sordu; "Daireniz hazır" temizlikçinin bildirmediği bir sorunda
 // ev sahibini zor durumda bırakan ek bir iddiaydı. Metin yalnız onaylanan saati ve günü söyler.
 //
-// Diller bekletme mesajlarıyla aynı altı dil (tr, en, de, fr, ar, ru); tanınmayan → en. Cümleler cinsiyet
+// Diller: tr, en, de, fr, es, ar, ru (İspanyolca kurucu 11-06, EK-3: eskiden İspanyolca yazan misafire İngilizce gidiyordu; gün sözlüğü
+// İspanyolcayı zaten tanıyor); tanınmayan → en. Cümleler cinsiyet
 // varsaymaz (ev sahibini ya da yazanı erkek varsayan kuruluşlar 08-08 denetiminde düzeltildi — aynı kural).
 // Ücret yalnız host'un girdiği tutar/para birimiyle biçimlenir (rakamlar Latin); yapay zekâ hesaplamaz.
 // ---------------------------------------------------------------------------
 
 import type { EarlyCheckinDecision, EarlyCheckinRule } from "./core";
 
-export const EARLY_CHECKIN_LANGS = ["tr", "en", "de", "fr", "ar", "ru"] as const;
+export const EARLY_CHECKIN_LANGS = ["tr", "en", "de", "fr", "es", "ar", "ru"] as const;
 export type EarlyCheckinLang = (typeof EARLY_CHECKIN_LANGS)[number];
 
 // Selamsız (konuşmanın ortasında tekrar selam verilmez — `isFirstOperatorReply` kuralı) ve GÜNÜ adlandırır: onay
@@ -22,6 +23,7 @@ const APPROVED: Record<EarlyCheckinLang, (time: string, day: string) => string> 
   en: (t, d) => `You can check in today (${d}) from ${t}.`,
   de: (t, d) => `Sie können heute (${d}) ab ${t} Uhr einchecken.`,
   fr: (t, d) => `Vous pouvez arriver aujourd'hui (${d}) à partir de ${t}.`,
+  es: (t, d) => `Puede hacer el check-in hoy (${d}) a partir de las ${t}.`,
   ar: (t, d) => `يمكنكم تسجيل الدخول اليوم (${d}) ابتداءً من الساعة ${t}.`,
   ru: (t, d) => `Сегодня (${d}) заезд возможен с ${t}.`,
 };
@@ -31,6 +33,7 @@ const FEE: Record<EarlyCheckinLang, (fee: string) => string> = {
   en: (f) => `The early check-in fee is ${f}.`,
   de: (f) => `Die Gebühr für den frühen Check-in beträgt ${f}.`,
   fr: (f) => `Les frais d'arrivée anticipée s'élèvent à ${f}.`,
+  es: (f) => `La tarifa del check-in anticipado es de ${f}.`,
   ar: (f) => `رسوم تسجيل الدخول المبكر ${f}.`,
   ru: (f) => `Стоимость раннего заезда — ${f}.`,
 };
@@ -40,6 +43,7 @@ const LOCALE: Record<EarlyCheckinLang, string> = {
   en: "en-GB",
   de: "de-DE",
   fr: "fr-FR",
+  es: "es-ES",
   ar: "ar-u-nu-latn",
   ru: "ru-RU",
 };
@@ -92,6 +96,9 @@ const POLICY_DECIDES: Record<EarlyCheckinLang, string> = {
   en: "Whether an early check-in is possible depends on that day's cleaning; your host decides.",
   de: "Ob ein früher Check-in möglich ist, hängt von der Reinigung an diesem Tag ab; Ihr Gastgeber entscheidet.",
   fr: "La possibilité d'arriver plus tôt dépend du ménage ce jour-là ; votre hôte décide.",
+  // "su anfitrión decide": kararı ev sahibine bırakan cümlenin İspanyolca kalıbı (`availability-claims.ts` HOST_DECISION) — öbür dillerdeki gibi
+  // "EV SAHİBİNİZİN KARARIDIR" tutma anahtarı açıkken tutulur (kurucu kuralı 10-01).
+  es: "La posibilidad de hacer el check-in anticipado depende de la limpieza de ese día; su anfitrión decide.",
   ar: "إمكانية الدخول المبكر تعتمد على تنظيف ذلك اليوم، والقرار للمضيف.",
   ru: "Возможен ли ранний заезд, зависит от уборки в этот день; решение принимает хозяин.",
 };

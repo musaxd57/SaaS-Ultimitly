@@ -15,6 +15,7 @@
 | en | The apartment is ready — you can check in today (7 November) from 12:00. | You can check in today (7 November) from 12:00. |
 | de | Die Wohnung ist bereit – Sie können heute (7. November) ab 12:00 Uhr einchecken. | Sie können heute (7. November) ab 12:00 Uhr einchecken. |
 | fr | Le logement est prêt : vous pouvez arriver aujourd'hui (7 novembre) à partir de 12:00. | Vous pouvez arriver aujourd'hui (7 novembre) à partir de 12:00. |
+| es | (İngilizce giderdi) | Puede hacer el check-in hoy (7 de noviembre) a partir de las 12:00. — **EK-3, kurucu 11-06: eklendi** (ücret: "La tarifa del check-in anticipado es de 30 €."; politika "… su anfitrión decide." öbür dillerdeki gibi tutma kuralına tabi) |
 | ar | الشقة جاهزة ويمكنكم تسجيل الدخول اليوم … | يمكنكم تسجيل الدخول اليوم (7 نوفمبر) ابتداءً من الساعة 12:00. |
 | ru | Квартира готова — сегодня … | Сегодня (7 ноября) заезд возможен с 12:00. |
 
@@ -101,8 +102,8 @@ Karar Motoru metninde zaten uygulanan ilkenin (`decisions/text-check.ts`) genell
   yerine sizin onayınızla gider.) Önerim: evet.
 - **EK-2** E3'teki zarf (tarih biçimi / göreli zaman / kişi sayısı / başka daire → taslak) kelime ağı yasağının kapsamına girer mi? Önerim: girmez
   — yalnız durdurur, hiçbir şeye izin vermez.
-- **EK-3** İspanyolca onay satırı eklensin mi? (Bugün İspanyolca misafire İngilizce gider.) "Puede hacer el check-in hoy (7 de noviembre) a
-  partir de las 12:00."
+- **EK-3 → KARAR (kurucu 11-06): eklendi.** "Puede hacer el check-in hoy (7 de noviembre) a partir de las 12:00." (+ ücret ve politika
+  cümleleri; `early-checkin/reply.ts`, pinli).
 - **EK-4** Onay metninde dairenin adı geçsin mi? (Birden çok rezervasyonu olan misafirde yanlış daire anlaşılmasın.) "Lale 3 için bugün
   (7 Kasım) saat 12:00 itibarıyla giriş yapabilirsiniz." — ilan adı mı, iç ad mı?
 - **EK-5** Otomatik onay metni ile Karar Motorunun "Erken giriş talebiniz onaylandı: …" metni tek aile olsun mu? Önerim: evet (tek ses).
