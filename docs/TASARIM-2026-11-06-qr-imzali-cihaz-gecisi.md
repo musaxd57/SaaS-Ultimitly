@@ -43,3 +43,7 @@
   bağ, süresi dolmuş geçiş, başka dairenin geçişi, tek cihaz kovası, eski biçimin yükseltilmesi, uydurma çerez sayaç açmaz.
 - Kırmızı-önce: eski rotayla 5 kırmızı (olumlu davranışlar); 4 "gevşetme yok" kontrolü iki tarafta da yeşil.
 - QR rotasına dokunan 59 test dosyası (649 test) yeşil.
+- Mutasyon 17/17 öldürüldü (M0 yeşil; `c113a5d5`): okuma / gönderme geçiş yolu, bayat geçişin kaba tavana düşmesi (okuma, gönderme, kapanmış
+  konaklama), bağ + sır onayı, süre, anahtar özeti, tarama sınırı, tek cihaz kovası, eski biçimin yükseltilmesi, geçişli çerezin yeniden
+  yazılmaması, iki parçalı değerin sır sayılması, sır kısmının ayrılması, gönderme yolunun veritabanı onayı, sabit zamanlı imza karşılaştırması,
+  çift kova düşümü. Mutasyon planı gönderme yolunda iki pinsiz dal gösterdi (sıfırlanmış bağ, biten konaklama) → testleri eklendi.

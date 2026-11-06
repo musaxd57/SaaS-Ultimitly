@@ -198,3 +198,22 @@ DEĞİŞMEDİ). Commit'ler: `da4a7ea3` (Yapamıyorum) · `d32e15f1` (dairenin te
 her sistem görevini siler ("devam ediyor" gibi). Kırmızı-önce: gece dilimindeki her davranış testi eski kodda kırmızıydı; mutasyon sonucu
 → `docs/INCELEME-2026-11-05-codex-43fb93e-bulgulari.md` §11.
 
+## 11. Kurucu cevapları (11-06 sabah) ve uygulananlar
+- **K-1 (Codex metniyle onaylandı, tek toplu onay YOK) → `db9e532a`:** kişi değişince mülk sayfasında liste: "Mehmet bundan sonraki
+  temizliklerde kullanılacak. Ayrıca mevcut 3 başlanmamış görevi de aktarmak ister misiniz?" + sayı · tarih aralığı · seçilebilir satırlar
+  (varsayılan hepsi; "Yapılamıyor" denmiş iş dahil) · başlanmış işler ayrı, seçilemez ("Başlanmış işler aktarılmaz") · tamamlanan ve elle
+  açılan işler değişmez. Düğmeler: "Kaydet ve seçilenleri aktar (n)" · "Yalnız kaydet" · "Vazgeç". Sunucu seçimi kilit altında yeniden
+  hesaplar; arada başlanmış iş taşınmaz, "1 görev aktarılamadı: bu arada başlanmış ya da değişmiş" denir. Eski kişiye "Görevlendirmeniz
+  değişti" e-postası (iş teklifi dili yok; anahtar `STAFF_NOTIFY_ENABLED`); panodan başkasına ya da "Atanmadı"ya çekilen görevde de (boş
+  atama satırı sorguda kaçıyordu — düzeltildi). Eski sekmeden "Başladım": sunucu yazmaz, pano "Bu görev artık sizin listenizde değil." der
+  ve listeyi yeniler (not yazarken yenilemez, not kaybolmaz). Mutasyon 16/16.
+- **K-2 → üyelik modeli önce:** `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` (Opus incelemesiyle 2. sürüm, dilimler + Ü-1…Ü-6 soruları).
+- **K-3 (ayrı numara, şirket hesabı) → `docs/WHATSAPP-SABLON-BASVURUSU-2026-11-06-temizlikci.md`:** iki numara aynı Meta işletme hesabında
+  (1: ev sahibi, 2: temizlikçi), dört şablon metni + örnek değerler, izin akışı, "Bitti"nin nasıl kabul edildiği (düğmeyle gelen kimlikli
+  "Bitti" doğrudan; elle yazılan "bitti" tek açık işte "işaretlensin mi?", birden çoksa "hangisi?" — tahmin yok).
+- **K-5 (yap, derin) → `bfe2b77d` + `c113a5d5`:** `docs/TASARIM-2026-11-06-qr-imzali-cihaz-gecisi.md` — ikinci çerez değil, var olan cihaz
+  çerezinin imzalı uzantısı; selde bağlı cihaz okumaya ve göndermeye devam eder, geçiş erişim vermez, sıfırlanmış / süresi dolmuş geçiş
+  bir şey kazandırmaz.
+- **K-4 (soru açık):** "Daireniz hazır" YALNIZ misafir erken giriş İSTEDİĞİNDE, ev sahibinin o daire için açtığı erken giriş kuralıyla
+  (taslak ya da otomatik) ve temizlik "bitti" kaydıyla gider; normal giriş saatinde böyle bir mesaj gönderilmez.
+
