@@ -31,7 +31,12 @@ function row(id: string, status: string, statusLabel: string) {
 const LIST = {
   planAllowed: true,
   twoFactor: true,
-  licenses: [row("lic-doc", "verified", "Eşleşti"), row("lic-app", "pending", "İnceleniyor")],
+  licenses: [
+    row("lic-doc", "verified", "Eşleşti"),
+    row("lic-app", "pending", "İnceleniyor"),
+    row("lic-susp", "suspended", "Askıda"),
+    row("lic-review", "under_review", "İnceleniyor"),
+  ],
 };
 
 function mockFetch() {
@@ -57,32 +62,30 @@ describe("İşletme belgeleri — geri çekme sorusu ve bildirimi", () => {
     vi.unstubAllGlobals();
   });
 
-  it("eşleşmiş belge: belge sorusu, onaylanınca 'Belgeyi geri çektiniz.'", async () => {
-    const fetchMock = mockFetch();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<LicensesCard properties={[]} />);
-    await waitFor(() => expect(withdrawButtons()).toHaveLength(2));
-    fireEvent.click(withdrawButtons()[0]);
-    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Belgeyi geri çektiniz."));
-    expect(confirm).toHaveBeenCalledWith(DOC_QUESTION);
-    expect(fetchMock).toHaveBeenCalledWith("/api/licenses/lic-doc/withdraw", expect.objectContaining({ method: "POST" }));
-  });
-
-  it("incelemedeki başvuru: başvuru sorusu, onaylanınca 'Başvuruyu geri çektiniz.'", async () => {
-    mockFetch();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<LicensesCard properties={[]} />);
-    await waitFor(() => expect(withdrawButtons()).toHaveLength(2));
-    fireEvent.click(withdrawButtons()[1]);
-    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Başvuruyu geri çektiniz."));
-    expect(confirm).toHaveBeenCalledWith(APP_QUESTION);
-  });
+  // Satır sırası LIST ile aynı: 0 eşleşmiş · 1 bekleyen · 2 askıda · 3 insana düşmüş inceleme (ev sahibine o da "İnceleniyor").
+  for (const [index, id, label, question, notice] of [
+    [0, "lic-doc", "eşleşmiş belge", DOC_QUESTION, "Belgeyi geri çektiniz."],
+    [1, "lic-app", "incelemedeki başvuru", APP_QUESTION, "Başvuruyu geri çektiniz."],
+    [2, "lic-susp", "askıdaki belge", DOC_QUESTION, "Belgeyi geri çektiniz."],
+    [3, "lic-review", "insana düşmüş başvuru", APP_QUESTION, "Başvuruyu geri çektiniz."],
+  ] as const) {
+    it(`${label}: doğru soru, onaylanınca '${notice}'`, async () => {
+      const fetchMock = mockFetch();
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<LicensesCard properties={[]} />);
+      await waitFor(() => expect(withdrawButtons()).toHaveLength(4));
+      fireEvent.click(withdrawButtons()[index]);
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe(notice));
+      expect(confirm).toHaveBeenCalledWith(question);
+      expect(fetchMock).toHaveBeenCalledWith(`/api/licenses/${id}/withdraw`, expect.objectContaining({ method: "POST" }));
+    });
+  }
 
   it("soru 'işaret kalkar' gibi tehdit cümlesi taşımaz; vazgeçilirse istek GİTMEZ", async () => {
     const fetchMock = mockFetch();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<LicensesCard properties={[]} />);
-    await waitFor(() => expect(withdrawButtons()).toHaveLength(2));
+    await waitFor(() => expect(withdrawButtons()).toHaveLength(4));
     fireEvent.click(withdrawButtons()[0]);
     fireEvent.click(withdrawButtons()[1]);
     expect(confirm).toHaveBeenCalledTimes(2);
