@@ -127,7 +127,8 @@ const MAX_MESSAGE = 2000;
 
 // KONAKLAMA BAŞINA SAATLİK MESAJ TAVANI (kurucu kararı 10-11, karar listesi 15). IP kovası (dakikada 20) tek başına yetmiyordu: cihazı
 // bağlayan kişi farklı IP'lerden sınırsız mesaj yazdırabiliyordu (her mesaj bir kayıt + kota). Tavanın üstünde yapay zekâ çağrılmaz,
-// mesaj KAYDEDİLMEZ, misafir aşağıdaki metni görür (kurucu onaylı, AYNEN); ev sahibine saatte TEK kayıt düşer (konuşma "Ev sahibine
+// mesaj KAYDEDİLMEZ, misafir `QR_SERVER_TEXT.stayMessageCap` metnini görür (kurucu onaylı; 11-06 ev sahibinin ağzına çevrildi, Türkçe
+// ekranda görünür — İngilizce ekran kendi genel cümlesini basar); ev sahibine saatte TEK kayıt düşer (konuşma "Ev sahibine
 // iletildi" işareti + karar kaydı + açıksa uyarı e-postası).
 const STAY_MESSAGES_PER_HOUR = 40;
 

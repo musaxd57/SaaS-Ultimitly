@@ -655,6 +655,8 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
     // (`QR_SERVER_TEXT`) taşındı — aynı ev sahibi sesi denetimi orada da koşar. Anti-vakum (K10, 09-30: devir metni artık YOK): rota
     // başka cihaz uyarısını GERÇEKTEN oradan alıyor (cevap alanı olarak — boş bir anılma yetmez) ve taranan küme o uyarıyı içeriyor.
     expect(qrCode).toMatch(/reply:\s*QR_SERVER_TEXT\.boundElsewhere\b/);
+    expect(qrCode).toMatch(/reply:\s*QR_SERVER_TEXT\.pinRequired\b/);
+    expect(qrCode).toMatch(/=\s*QR_SERVER_TEXT\.stayMessageCap\b/);
     expect(QR_SERVER_TEXT.boundElsewhere).toMatch(/başka bir cihaz/i);
     for (const [key, text] of Object.entries(QR_SERVER_TEXT)) {
       expect(text, key).not.toMatch(CORP);

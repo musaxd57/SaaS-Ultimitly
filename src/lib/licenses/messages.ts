@@ -21,6 +21,8 @@ export const LICENSE_TEXT = {
   invalidUnits: "Belgenin kapsadığı daireleri seçin.",
   invalidGroup: "Acenta grubunu seçin.",
   withdrawn: "Belgeyi geri çektiniz.",
+  /** İncelemedeki başvuru geri çekilince (soru da "Başvuruyu…" der — 11-06). */
+  applicationWithdrawn: "Başvuruyu geri çektiniz.",
 } as const;
 
 export const LICENSE_STATUS_LABEL: Record<LicenseStatus, string> = {

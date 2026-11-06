@@ -75,7 +75,8 @@
   VARSAYILAN KAPALI):** açıkken kararı ev sahibine bırakan cümle (7 dil, DAR liste `defersDecisionToHost` — `DEFERRALS`tan AYRI, o liste
   değişmedi; koşul cümlesi "müsaitliğe bağlıdır" tek başına DEĞİL) çıktı vetosunda `handoff_notice` (K10 yolu: mesaj başına tek e-posta);
   hassas konaklama isteğinde iki modelin doğruladığı erteleme de gitmez (`deferralHeld`, gerekçe `availability_unconfirmed`); koddan
-  kurulan doğrulanmış erken giriş ONAYI muaf; politika metni ("kararı ev sahibiniz verir") açıkken tutulur — yeniden yazımı sabah kararı.
+  kurulan doğrulanmış erken giriş ONAYI muaf; politika metni 11-06'dan beri YALNIZ ücret (kurucu: "temizliğe bağlı / kararı ev sahibiniz
+  verir" cümlesi kalktı — "Erken giriş ücreti ₺500.") → anahtar açıkken de gider (uçtan uca pin `early-checkin-scenarios` 10e).
   "Karar bekliyor" kartı + Onayla / Reddet = Host Karar Motoru (Faz 0 onayı bekliyor). 🚨 10-02 (canlıda açık; Luna öğe ölçümünde GİTTİ):
   liste aynı anlamın öteki biçimlerini de tutar — Almanca "liegt im Ermessen Ihres Gastgebers" (5.1'in de en sık Almanca biçimi) / "Sache
   Ihres Gastgebers" / "obliegt Ihrem Gastgeber", "a decision for your host" / "rests with your host", "relève de votre hôte", "depende de tu

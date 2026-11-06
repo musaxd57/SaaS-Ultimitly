@@ -107,10 +107,11 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
 
   async function withdraw(id: string, status: string) {
     // Kurucu 11-06: soru sakin ve bilgilendirici — tehdit gibi okunmaz ("işaret kalkar" yazmaz); geri dönüşün yolu söylenir.
-    const question =
-      status === "verified" || status === "suspended"
-        ? "Bu belgeyi geri çekmek istiyor musunuz? İstediğiniz zaman yeniden ekleyebilirsiniz; ekibimiz belgeyi yeniden kontrol eder."
-        : "Başvuruyu geri çekmek istiyor musunuz? İstediğiniz zaman yeniden başvurabilirsiniz.";
+    // Eşleşmiş / askıdaki BELGE ile incelemedeki BAŞVURU ayrı söylenir; sonuç bildirimi de aynı ayrımla (sunucunun genel cümlesine bakılmaz).
+    const isDocument = status === "verified" || status === "suspended";
+    const question = isDocument
+      ? "Bu belgeyi geri çekmek istiyor musunuz? İstediğiniz zaman yeniden ekleyebilirsiniz; ekibimiz belgeyi yeniden kontrol eder."
+      : "Başvuruyu geri çekmek istiyor musunuz? İstediğiniz zaman yeniden başvurabilirsiniz.";
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -118,7 +119,7 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
       const res = await fetch(`/api/licenses/${encodeURIComponent(id)}/withdraw`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
       if (!res.ok) setError(body.error ?? NETWORK);
-      else setNotice(body.message ?? LICENSE_TEXT.withdrawn);
+      else setNotice(isDocument ? LICENSE_TEXT.withdrawn : LICENSE_TEXT.applicationWithdrawn);
       await load();
     } catch {
       setError(NETWORK);

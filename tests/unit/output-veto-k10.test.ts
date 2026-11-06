@@ -52,7 +52,8 @@ const LEGIT: string[] = [
   "Ev sahibiniz size özel bir hoş geldin notu bıraktı, masada görebilirsiniz.",
   "The fire extinguisher is visible next to the door.",
   "Your host's recommendations are in the guidebook; you can see them in the app.",
-  // Koddan kurulan erken giriş politika metni (karar ertelemesi, bildirim değil):
+  // 11-06'ya dek koddan kurulan erken giriş politika metni (artık üretilmiyor — metin yalnız ücret); karar ertelemesi bildirim DEĞİL
+  // sınıfının örneği olarak kalır:
   "Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
   "Whether an early check-in is possible depends on that day's cleaning; your host decides.",
   // Misafire soru (netleştirme) söz değildir:

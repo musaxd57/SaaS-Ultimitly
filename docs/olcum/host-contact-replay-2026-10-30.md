@@ -148,3 +148,6 @@ Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_R
 
 Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
 
+
+> **11-06 notu:** bu koşu `docs/olcum` içindeki yasak adlı setleri (kör / kabul / blind / acceptance / `-acc<N>`) de okudu — süzgeç 11-06'da
+> eklendi (`tests/eval/measurement-files.ts`). Yukarıdaki örneklerin hiçbiri o dosyalardan değil; sayılar o setlerin cevaplarını da içerebilir.

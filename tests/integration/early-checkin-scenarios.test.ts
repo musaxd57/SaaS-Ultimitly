@@ -632,6 +632,34 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect((await decision(id)).reason).toBe("early_checkin_policy");
   });
 
+  it("10e · 🚨 kurucu 11-06: 'ev sahibinizin kararıdır' tutma anahtarı AÇIKKEN de politika metni (yalnız ücret) uçtan uca gider", async () => {
+    // Kurucu: "hem ücret belliyse hem de erken giriş mesajı açıksa o gidebilsin". 11-06'ya dek metnin ikinci cümlesi ("kararı ev sahibiniz
+    // verir") bu anahtar açıkken çıktı vetosunda tutuluyordu; o cümle kalktı. Önceden yalnız veto düzeyinde pinliydi (Opus 11-06).
+    vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");
+    const { vetoOutgoingReply } = await import("@/lib/ai/output-veto");
+    // Anahtar bu süreçte GERÇEKTEN etkin: kararı ev sahibine bırakan cümle tutulur (anahtarsız geçen bir koşu bu testi vakumda bırakırdı).
+    expect(vetoOutgoingReply("Whether an early check-in is possible depends on that day's cleaning; your host decides.")).not.toBeNull();
+    const now = Z("2026-10-14T05:00:00.000");
+    at(now);
+    const infoNlu = nlu(null, [], {
+      requests: [{ intent: "early_checkin", query_tr: "erken giriş ücretli mi", query_original: "is early check-in paid" }],
+      stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+    });
+    const t = await turnover();
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    openAi({
+      reply: reply({ reply: "Early check-in may be possible depending on availability.", stayChangeAsked: "none", replyStance: "none" }),
+      understanding: infoNlu,
+      guard: NO_REQUEST_GUARD,
+    });
+    const id = await conversationFor(t.propertyId, t.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(true);
+    // Gönderimin kendi sabit eki (yapay zekâ açıklaması) sonda kalır — öbür senaryolar gibi BAŞ sınanır; ertelemeli eski cümle hiçbir yerde yok.
+    expect(sentBody().startsWith("The early check-in fee is €30.")).toBe(true);
+    expect(sentBody()).not.toMatch(/cleaning|your host decides/i);
+    expect(await decision(id)).toMatchObject({ finalDecision: "auto_sent", reason: "early_checkin_policy" });
+  });
+
   it("10c · politika metni YALNIZ gerçek bilgi sorusuna: modeller mesajların tamamını görmediyse ya da mesajda saat / başka gün varsa gitmez; host notu eklenmez; kaynak sayımı yazılmaz (inceleme 09-24)", async () => {
     const now = Z("2026-10-14T05:00:00.000");
     at(now);
