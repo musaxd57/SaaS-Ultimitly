@@ -90,27 +90,18 @@ export function earlyCheckinApprovalText(
   return parts.join(" ");
 }
 
-// POLİTİKA: kararın dayanağı söylenir, karar SÖYLENMEZ — izin vermez, reddetmez, söz vermez (tasarım K).
-const POLICY_DECIDES: Record<EarlyCheckinLang, string> = {
-  tr: "Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
-  en: "Whether an early check-in is possible depends on that day's cleaning; your host decides.",
-  de: "Ob ein früher Check-in möglich ist, hängt von der Reinigung an diesem Tag ab; Ihr Gastgeber entscheidet.",
-  fr: "La possibilité d'arriver plus tôt dépend du ménage ce jour-là ; votre hôte décide.",
-  // "su anfitrión decide": kararı ev sahibine bırakan cümlenin İspanyolca kalıbı (`availability-claims.ts` HOST_DECISION) — öbür dillerdeki gibi
-  // "EV SAHİBİNİZİN KARARIDIR" tutma anahtarı açıkken tutulur (kurucu kuralı 10-01).
-  es: "La posibilidad de hacer el check-in anticipado depende de la limpieza de ese día; su anfitrión decide.",
-  ar: "إمكانية الدخول المبكر تعتمد على تنظيف ذلك اليوم، والقرار للمضيف.",
-  ru: "Возможен ли ранний заезд, зависит от уборки в этот день; решение принимает хозяин.",
-};
+// POLİTİKA (BİLGİ SORUSU): yalnız kayıtlı ÜCRET söylenir — izin vermez, reddetmez, söz vermez (tasarım K). 🚨 Kurucu 11-06: "temizliğe bağlı
+// olduğunu herkes biliyor", "müşteriye yakınırcasına bir yazı gitmesi çok saçma" → eskiden ücretin ardına eklenen "… o günkü temizliğe
+// bağlıdır; kararı ev sahibiniz verir" cümlesi (7 dil) KALKTI; ücret kayıtlıysa ve kural otomatikse (gönderim şartları aynen) yalnız ücret
+// gider. Böylece cümle "ev sahibinizin kararıdır" tutma kuralına da takılmaz (anahtar açıkken de gider — kurucu: "o gidebilsin").
 
 /**
- * BİLGİ SORUSU ("erken giriş ücretli mi?") için POLİTİKA metni (dilim 6, kurucu senaryo 10). Yalnız host'un KAYITLI
- * ücreti + kararın o günün temizliğine bağlı olduğu. Kayıtlı ücret yoksa `null`: "ücretsiz" de "ücretli" de
- * varsayılmaz (soru host'a kalır). Host notu EKLENMEZ (inceleme 09-24): not ONAY için yazılır ("ödeme talebi
- * platformdan gelecek" bilgi cevabında "ücretlendirileceksiniz" gibi okunur) ve birebir metin muafiyetiyle bir izin
+ * BİLGİ SORUSU ("erken giriş ücretli mi?") için POLİTİKA metni (dilim 6, kurucu senaryo 10). Yalnız host'un KAYITLI ücreti. Kayıtlı ücret
+ * yoksa `null`: "ücretsiz" de "ücretli" de varsayılmaz (soru host'a kalır). Host notu EKLENMEZ (inceleme 09-24): not ONAY için yazılır
+ * ("ödeme talebi platformdan gelecek" bilgi cevabında "ücretlendirileceksiniz" gibi okunur) ve birebir metin muafiyetiyle bir izin
  * cümlesi de taşıyabilirdi.
  */
 export function earlyCheckinPolicyText(rule: EarlyCheckinRule | null, lang: EarlyCheckinLang): string | null {
   if (!rule?.fee) return null;
-  return `${FEE[lang](formatEarlyCheckinFee(rule.fee, lang))} ${POLICY_DECIDES[lang]}`;
+  return FEE[lang](formatEarlyCheckinFee(rule.fee, lang));
 }

@@ -106,13 +106,11 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
   }
 
   async function withdraw(id: string, status: string) {
-    // Doğrulanmış belgede işaretin de kalkacağı söylenir (Opus 11-06 P3-20).
+    // Kurucu 11-06: soru sakin ve bilgilendirici — tehdit gibi okunmaz ("işaret kalkar" yazmaz); geri dönüşün yolu söylenir.
     const question =
-      status === "verified"
-        ? "Belgeyi geri çekerseniz \"eşleşti\" işareti de kalkar. Geri çekmek istiyor musunuz?"
-        : status === "suspended"
-          ? "Belgeyi geri çekmek istiyor musunuz?"
-          : "Başvuruyu geri çekmek istiyor musunuz?";
+      status === "verified" || status === "suspended"
+        ? "Bu belgeyi geri çekmek istiyor musunuz? İstediğiniz zaman yeniden ekleyebilirsiniz; ekibimiz belgeyi yeniden kontrol eder."
+        : "Başvuruyu geri çekmek istiyor musunuz? İstediğiniz zaman yeniden başvurabilirsiniz.";
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);

@@ -216,10 +216,10 @@ describe("GuestChat (UI, two-way)", () => {
     setupFetch([{ id: "h1", role: "host", text: "Hi, this is your host." }]);
     const { container } = render(<GuestChat token="t" locale="en" />);
     await screen.findByText("Lixus AI Guest Assistant");
-    expect(screen.getByText(/The host team can join the conversation/)).toBeTruthy();
+    expect(screen.getByText(/Our team can join the conversation/)).toBeTruthy();
     expect(screen.getByPlaceholderText("Type your question…")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
-    await screen.findByText("The host team joined the conversation");
+    await screen.findByText("Our team joined the conversation");
     expect(screen.getByText("👥 Host team")).toBeTruthy();
     expect(container.querySelector('[lang="en"]')).not.toBeNull();
     expect(screen.queryByText(/Sorunuzu yazın|Gönder|İşletme ekibi/)).toBeNull();
@@ -251,7 +251,7 @@ describe("GuestChat (UI, two-way)", () => {
     expect(screen.getByText(/This is not the door code/)).toBeTruthy();
     fireEvent.change(input, { target: { value: "000000" } });
     fireEvent.click(screen.getByRole("button", { name: "Open chat" }));
-    await screen.findByText("Wrong code. Please check the chat code your host gave you.");
+    await screen.findByText("Wrong code. Please check the chat code we gave you.");
   });
 
   it("varsayılan (Türkçe) PIN ekranında da kapı kodu olmadığı yazılı (U3)", async () => {

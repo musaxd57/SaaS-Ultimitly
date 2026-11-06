@@ -196,13 +196,14 @@ describe("QR kapısı — kanalla AYNI yüklem", () => {
 
 describe("koddan kurulan erken giriş metinleri", () => {
   const rule = { mode: "auto" as const, earliest: "12:00", fee: { amount: 300, currency: "TRY" as const }, note: null };
-  it("🚨 açıkken politika metni ('kararı ev sahibiniz verir', bütün diller) TUTULUR — kurucu: 'ev sahibinizin kararına bağlıdır demesin' (yeniden yazımı sabah kararı)", () => {
+  it("🚨 politika metni artık yalnız ücret (kurucu 11-06: 'ücret belliyse … o gidebilsin') — anahtar açıkken de TUTULMAZ, bütün diller", () => {
     for (const lang of EARLY_CHECKIN_LANGS) {
       const text = earlyCheckinPolicyText(rule, lang)!;
+      expect(text.length, lang).toBeGreaterThan(5);
       vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "");
       expect(vetoOutgoingReply(text), `${lang} kapalı`).toBeNull();
       vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");
-      expect(vetoOutgoingReply(text), `${lang} açık`).toBe("handoff_notice");
+      expect(vetoOutgoingReply(text), `${lang} açık`).toBeNull();
     }
   });
   it("açıkken doğrulanmış ONAY metni (bütün onay dilleri, ücretli) tutulmaz", () => {

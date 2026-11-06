@@ -547,7 +547,8 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
       stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
     });
     const infoReply = reply({ reply: "Early check-in may be possible depending on availability.", stayChangeAsked: "none", replyStance: "none" });
-    const POLICY = "The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.";
+    // Kurucu 11-06: yalnız kayıtlı ücret (temizlik / "kararı ev sahibiniz verir" cümlesi kalktı).
+    const POLICY = "The early check-in fee is €30.";
 
     // (a) Kural otomatik + kayıtlı ücret → politika metni (modelin "müsaitliğe bağlı" cevabı değil).
     const t = await turnover();
@@ -556,6 +557,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     const a = await conversationFor(t.propertyId, t.own.id, "Is early check-in paid?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(a)).sent).toBe(true);
     expect(sentBody().startsWith(POLICY)).toBe(true);
+    expect(sentBody()).not.toMatch(/cleaning|your host decides/i);
     expect(await decision(a)).toMatchObject({ finalDecision: "auto_sent", reason: "early_checkin_policy", ec: { a: "0" } });
 
     // (b) KONTROL: kural TASLAK → politika metni otomatik gitmez (host).
@@ -626,7 +628,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ reply: drifted, understanding: infoNlu, guard: NO_REQUEST_GUARD });
     const id = await conversationFor(t.propertyId, t.own.id, "Is early check-in paid? Could you tell me please?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(sentBody().startsWith("The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.")).toBe(true);
+    expect(sentBody().startsWith("The early check-in fee is €30.")).toBe(true);
     expect((await decision(id)).reason).toBe("early_checkin_policy");
   });
 

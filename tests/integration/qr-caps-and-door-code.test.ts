@@ -24,7 +24,8 @@ import { maybeSendQrEscalationEmail, QR_CRITICAL_EMAILS_PER_HOUR } from "@/lib/g
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 
 const mockSuggest = vi.mocked(suggestReply);
-const CAP_TEXT = "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz.";
+// Kurucu 11-06: ev sahibinin ağzından, "ev sahibiniz bilgilendirildi" bildirimi yok.
+const CAP_TEXT = "Şu anda çok fazla mesaj aldık. Kısa süre sonra tekrar yazabilirsiniz.";
 
 const reply = (text: string) => ({
   intent: "general",

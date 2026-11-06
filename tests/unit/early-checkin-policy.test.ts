@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { earlyCheckinPolicyText, EARLY_CHECKIN_LANGS } from "@/lib/early-checkin/reply";
+import { hostVoiceViolation } from "@/lib/ai/host-voice-guard";
 import { stayInfoOnly } from "@/lib/ai/availability-claims";
 import { earlyCheckinPolicyAllowed } from "@/lib/early-checkin/workflow";
 import type { StayGuardVerdict, UnderstandingStaySignal } from "@/lib/ai/semantic/stay-change";
@@ -7,34 +8,30 @@ import type { EarlyCheckinRule } from "@/lib/early-checkin/core";
 
 // ---------------------------------------------------------------------------
 // DİLİM 6 — BİLGİ SORUSU ("erken giriş ücretli mi?") → host kuralından KODDA kurulan POLİTİKA metni (kurucu senaryo
-// 10: "policy/info flow, gereksiz inceleme yok"). Metin izin vermez, reddetmez, söz vermez; ücret YALNIZ kayıttan.
+// 10: "policy/info flow, gereksiz inceleme yok"). Metin izin vermez, reddetmez, söz vermez; ücret YALNIZ kayıttan. Kurucu 11-06: YALNIZ
+// ücret — "o günkü temizliğe bağlıdır; kararı ev sahibiniz verir" cümlesi kalktı ("herkes biliyor", "yakınırcasına").
 // Bilgi sorusu yalnız iki anlamsal katman KOŞUP "istek yok" dediğinde ve tek sinyal konu etiketiyken kanıtlanır.
 // ---------------------------------------------------------------------------
 
 const RULE: EarlyCheckinRule = { mode: "auto", earliest: "09:00", fee: { amount: 30, currency: "EUR" }, note: null };
 
 describe("politika metni (kodda, bütün onay dilleri)", () => {
-  it("ücret kayıttan biçimlenir; karar söylenmez (izin / ret / söz yok); host notu EKLENMEZ", () => {
-    expect(earlyCheckinPolicyText(RULE, "en")).toBe(
-      "The early check-in fee is €30. Whether an early check-in is possible depends on that day's cleaning; your host decides.",
-    );
-    expect(earlyCheckinPolicyText(RULE, "tr")).toBe(
-      "Erken giriş ücreti €30. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
-    );
+  it("yalnız kayıtlı ücret (kurucu 11-06); karar söylenmez (izin / ret / söz yok); host notu EKLENMEZ", () => {
+    expect(earlyCheckinPolicyText(RULE, "en")).toBe("The early check-in fee is €30.");
+    expect(earlyCheckinPolicyText(RULE, "tr")).toBe("Erken giriş ücreti €30.");
     // İspanyolca (kurucu 11-06, EK-3); Intl İspanyolca para biçiminde rakam ile simge arasında BÖLÜNMEZ boşluk.
-    expect(earlyCheckinPolicyText(RULE, "es")).toBe(
-      "La tarifa del check-in anticipado es de 30\u00a0€. La posibilidad de hacer el check-in anticipado depende de la limpieza de ese día; su anfitrión decide.",
-    );
+    expect(earlyCheckinPolicyText(RULE, "es")).toBe("La tarifa del check-in anticipado es de 30\u00a0€.");
     // Not ONAY için yazılır ("Ödeme talebi platformdan gelecek"); bilgi cevabında "ücretlendirileceksiniz" gibi okunur ve
     // birebir metin muafiyetiyle bir izin cümlesi ("12:00'den itibaren mümkündür") de taşıyabilirdi (inceleme 09-24).
-    expect(earlyCheckinPolicyText({ ...RULE, note: "Erken giriş 12:00'den itibaren mümkündür." }, "tr")).toBe(
-      "Erken giriş ücreti €30. Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.",
-    );
+    expect(earlyCheckinPolicyText({ ...RULE, note: "Erken giriş 12:00'den itibaren mümkündür." }, "tr")).toBe("Erken giriş ücreti €30.");
     for (const lang of EARLY_CHECKIN_LANGS) {
       const t = earlyCheckinPolicyText(RULE, lang);
       expect(t, lang).toMatch(/30/);
       // İzin ya da onay cümlesi YOK (onay metninin "hazır / giriş yapabilirsiniz" kalıbı burada olmaz).
       expect(t, lang).not.toMatch(/ready|hazır|bereit|prêt|lista|готова|جاهزة|can check in|giriş yapabilirsiniz/i);
+      // 🚨 Kurucu 11-06: temizlik dayanağı da ev sahibine bırakma da YOK (yedi dil); metin ev sahibinin sesinde.
+      expect(t, lang).not.toMatch(/temizli|cleaning|reinigung|ménage|limpieza|تنظيف|уборк|sahibiniz|host|gastgeber|hôte|anfitri|المضيف|хозя/i);
+      expect(hostVoiceViolation(t), lang).toBeNull();
     }
   });
 

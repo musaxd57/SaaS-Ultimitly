@@ -94,6 +94,7 @@ import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { hostContactOpenWithoutLedger, needsFromUnderstanding } from "@/lib/conversation-items/host-contact-settle";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
+import { QR_SERVER_TEXT } from "@/components/guest-chat/guest-chat-copy";
 import {
   deviceLaneKey,
   devicePassAvailable,
@@ -136,7 +137,8 @@ const QR_EMERGENCY_DIRECTIVE_RETRY_NOTE =
 /** Çıktıda kapı kodu görülen ilk taslaktan sonra modele giden SABİT not (kod yazılı, misafir metni / değer taşımaz). */
 const QR_DOOR_CODE_RETRY_NOTE =
   "Önceki taslağın bir kapı / bina / anahtar kutusu / tuş paneli kodu içeriyordu. Bu QR kanalında böyle bir kod ASLA yazılmaz (geçmiş mesajlarda görünse bile). Kodu yazmadan yeniden cevap ver; misafir kodu ev sahibinin doğrudan mesaj kanalından alır.";
-const STAY_MESSAGE_CAP_TEXT = "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz.";
+// Kurucu 11-06: ev sahibinin ağzından, "ev sahibiniz bilgilendirildi" bildirimi YOK (metin `guest-chat-copy.ts` QR_SERVER_TEXT).
+const STAY_MESSAGE_CAP_TEXT = QR_SERVER_TEXT.stayMessageCap;
 
 // Max PAID AI calls per apartment per (UTC) day — a durable cost ceiling.
 // Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
@@ -726,14 +728,13 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (binding.status === "unclaimed") {
     return jsonOk({
       pinRequired: true,
-      reply: "Sohbeti kullanmak için ev sahibinizin verdiği sohbet kodunu girin.",
+      reply: QR_SERVER_TEXT.pinRequired,
     });
   }
   if (binding.status === "mismatch") {
     return jsonOk({
       boundElsewhere: true,
-      reply:
-        "Bu konaklama için sohbet başka bir cihazda başlatıldı. Yardım için lütfen ev sahibinizle iletişime geçin.",
+      reply: QR_SERVER_TEXT.boundElsewhere,
     });
   }
   // Set the stay cookie on whichever answer we return below (only when we just
