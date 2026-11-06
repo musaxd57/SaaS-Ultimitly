@@ -8,7 +8,8 @@
 // Çıktıda token, ciphertext, hash, e-posta, kullanıcı ya da org kimliği YOKTUR
 // (çekirdek modül zaten yalnız sayı döndürür — basacak bir sır elde yok).
 //
-// Kullanım (Railway Console'dan veya yerel klondan prod DATABASE_URL ile):
+// Kullanım (YALNIZ yerel klondan — üretim kabında `tsx` ve `src/` yok, Railway Console'da koşmaz; prod DATABASE_URL = Railway Postgres
+// `DATABASE_PUBLIC_URL`):
 //   DATABASE_URL=... ENCRYPTION_KEY=... npx tsx scripts/diagnose-hospitable-tokens.ts
 //
 // Hipotez sondası (OPSİYONEL, yine salt-okuma):
