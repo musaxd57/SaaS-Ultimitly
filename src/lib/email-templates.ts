@@ -127,6 +127,22 @@ export function taskBlockedEmail(n: { reporterName: string; propertyName: string
   return wrapEmail(body);
 }
 
+/**
+ * Görev kişinin listesinden ÇIKTI (temizlikçi değişti / başka birine atandı — kurucu / Codex 11-06 K-1: "iş teklifi değil, Görevlendirmeniz
+ * değişti"). Kişiye gider; misafir adı / mesajı TAŞIMAZ (daire + tür + gün). Metin sade: ne oldu.
+ */
+export function assignmentRemovedEmail(n: { name: string; items: { propertyName: string; typeLabel: string; dueLabel: string | null }[] }): string {
+  const rows = n.items
+    .map((i) => `<li style="margin:0 0 6px;">${esc(i.propertyName)} · ${esc(i.typeLabel)}${i.dueLabel ? ` · ${esc(i.dueLabel)}` : ""}</li>`)
+    .join("");
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">Görevlendirmeniz değişti</h2>
+    <p style="margin:0 0 12px;color:#0f172a;font-size:15px;">Merhaba ${esc(n.name)}, şu işler artık sizin listenizde değil:</p>
+    <ul style="margin:0 0 16px;padding-left:20px;color:#0f172a;font-size:15px;">${rows}</ul>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">Bir sorunuz varsa ev sahibinizle görüşün.</p>`;
+  return wrapEmail(body);
+}
+
 export function taskAssignedEmail(
   task: TaskEmailData,
   assignee: AssigneeEmailData,

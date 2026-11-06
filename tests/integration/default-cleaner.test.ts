@@ -234,7 +234,7 @@ describe("dairenin temizlikçisi", () => {
     expect(await prisma.task.findUniqueOrThrow({ where: { id: started.id } })).toMatchObject({ assignedToId: ayse.id, status: "in_progress" });
   });
 
-  it("taşınan işler yeni kişinin yeni görevidir: anahtar AÇIKKEN yeni kişiye e-posta (otomatik atamayla aynı yol); KAPALIYKEN gitmez", async () => {
+  it("taşınan işler yeni kişinin yeni görevidir: anahtar AÇIKKEN yeni kişiye 'Yeni Görev', eski kişiye 'Görevlendirmeniz değişti' (K-1); KAPALIYKEN hiçbiri", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
     await createReservationTasks(r.id);
@@ -244,7 +244,10 @@ describe("dairenin temizlikçisi", () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     await put(propertyId, { userId: ayse.id, moveOpen: true });
     await new Promise((res) => setTimeout(res, 50));
-    expect(mail.sent.map((m) => m.to)).toEqual(["ayse-dc@example.test"]);
+    const byTo = Object.fromEntries(mail.sent.map((m) => [m.to, m.subject]));
+    expect(Object.keys(byTo).sort()).toEqual(["ayse-dc@example.test", "mehmet-dc@example.test"]);
+    expect(byTo["ayse-dc@example.test"].startsWith("Yeni Görev: ")).toBe(true);
+    expect(byTo["mehmet-dc@example.test"]).toBe("Görevlendirmeniz değişti: Test Property");
   });
 
   it("🚨 yarış: aday listesi okunduktan SONRA kişi işe başladıysa (kilitten önce) görev TAŞINMAZ — tanım kilit altında yeniden uygulanır", async () => {

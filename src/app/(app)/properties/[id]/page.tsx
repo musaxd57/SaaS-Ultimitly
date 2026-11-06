@@ -16,8 +16,9 @@ import { PropertyForm } from "@/components/properties/property-form";
 import { SupplyProfileForm } from "@/components/properties/supply-profile-form";
 import { parseSupplyProfile } from "@/lib/supply";
 import { Brush, PackageOpen } from "lucide-react";
-import { DefaultCleanerForm } from "@/components/properties/default-cleaner-form";
-import { loadDefaultCleanerUserId, openFutureCleaningIds } from "@/lib/tasks/default-cleaner";
+import { DefaultCleanerForm, type TransferItem } from "@/components/properties/default-cleaner-form";
+import { loadDefaultCleanerUserId, transferCandidates, type TransferTask } from "@/lib/tasks/default-cleaner";
+import { taskDueDayLabel } from "@/lib/tasks/card-data";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
 import { CalendarFileImport } from "@/components/properties/calendar-file-import";
@@ -28,7 +29,7 @@ import { GuestErasureControl } from "@/components/properties/guest-erasure-contr
 import { guestErasureEnabled, reservationsWithSourceTombstone } from "@/lib/erasure";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
-import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
+import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS } from "@/lib/constants";
 import { formatDate, formatDayInTz } from "@/lib/utils";
 import { getMemoryContradictions, getPropertyMemory } from "@/modules/intelligence";
 import { MemoryContradictions } from "@/components/properties/memory-contradictions";
@@ -97,17 +98,28 @@ export default async function PropertyDetailPage({
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
-  // Dairenin temizlikçisi (kurucu 11-05 gece): kural + işletmenin kişileri + şu anki temizlikçide duran başlanmamış gelecekteki temizlikler.
+  // Dairenin temizlikçisi (kurucu 11-05 gece): kural + işletmenin kişileri + şu anki temizlikçide duran gelecekteki temizlikler — kişi
+  // değişirken ekranda SEÇEREK aktarma listesi (kurucu / Codex 11-06 K-1): aktarılabilirler ve başlanmış (aktarılmayan) işler ayrı.
   const defaultCleaner = canManage
     ? await (async () => {
+        const tz = orgTimezone(property.organization?.timezone);
         const userId = await loadDefaultCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
         const members = await prisma.user.findMany({
           where: { organizationId: session.organizationId },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         });
-        const open = userId ? await openFutureCleaningIds(prisma, session.organizationId, property.id, userId, new Date()).catch(() => []) : [];
-        return { userId, members, openFutureCount: open.length };
+        const empty = { movable: [], started: [] };
+        const lists = userId
+          ? await transferCandidates(prisma, session.organizationId, property.id, userId, new Date()).catch(() => empty)
+          : empty;
+        const item = (t: TransferTask): TransferItem => ({
+          id: t.id,
+          title: t.title,
+          dueLabel: taskDueDayLabel(t.dueAt, tz),
+          statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
+        });
+        return { userId, members, movable: lists.movable.map(item), started: lists.started.map(item) };
       })()
     : null;
   // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
@@ -382,10 +394,10 @@ export default async function PropertyDetailPage({
               <CardContent>
                 <DefaultCleanerForm
                   propertyId={property.id}
-                  propertyName={property.name}
                   currentUserId={defaultCleaner.userId}
                   members={defaultCleaner.members}
-                  openFutureCount={defaultCleaner.openFutureCount}
+                  movable={defaultCleaner.movable}
+                  started={defaultCleaner.started}
                 />
               </CardContent>
             </Card>

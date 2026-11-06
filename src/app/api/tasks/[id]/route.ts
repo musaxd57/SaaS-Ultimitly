@@ -12,7 +12,7 @@ import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue"
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
-import { notifyTaskBlocked } from "@/lib/tasks/notify";
+import { notifyAssignmentRemoved, notifyTaskBlocked } from "@/lib/tasks/notify";
 import { TASK_TYPE } from "@/lib/constants";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
@@ -32,6 +32,14 @@ function parseChecklist(json: string | null): { label: string; done: boolean }[]
 
 class ChecklistConflict extends Error {}
 const CHECKLIST_CONFLICT_TEXT = "Görev listesi bu arada değişti. Sayfayı yenileyip tekrar deneyin.";
+
+/**
+ * Görev bu kişiye atalı değil (çoğunlukla: sayfa açıkken ev sahibi görevi başka birine verdi — kurucu / Codex 11-06 K-1 "eski sekmeden
+ * Başladım"). Ayrı kod: pano bunu "yetkiniz yok"tan ayırır, açık mesaj gösterip listeyi yeniler. Sunucu kararı aynı (yazma yok).
+ */
+function notAssigned() {
+  return NextResponse.json({ error: "Bu görev size atanmamış.", code: "not_assigned" }, { status: 403 });
+}
 /** Aynı görev için saatte en çok bu kadar atama e-postası (kurucu kararı 10-11; route.ts yalnız rota alanlarını dışa verir → export yok). */
 const TASK_ASSIGN_MAILS_PER_HOUR = 3;
 
@@ -71,7 +79,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // Staff scope: a staff member may only touch a task ASSIGNED TO THEM. (Owner /
   // manager may touch any task in the org.)
   if (!canManage(session) && existing.assignedToId !== session.userId) {
-    return forbidden("Bu görev size atanmamış.");
+    return notAssigned();
   }
 
   const data = await readJsonCappedOrNull(req);
@@ -153,11 +161,13 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       // Misafir sözü (migration 62): durum değişiyorsa ÖNCEKİ durum satır kilidiyle okunur — söz aynı işlemde kapanır / yeniden açılır.
       // Atama değişiyorsa da okunur: "Yapılamıyor" görev BAŞKA birine atanınca "Yapılacak"a döner (kurucu 11-05 gece, tasarım §2.5).
       let prevStatus: string | null = null;
+      let prevAssignee: string | null = null;
       let reassigned = false;
       if (d.status !== undefined || d.assignedToId !== undefined) {
         const [row] = await tx.$queryRaw<{ status: string; assignedToId: string | null }[]>`
           SELECT "status", "assignedToId" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
         prevStatus = row?.status ?? null;
+        prevAssignee = row?.assignedToId ?? null;
         reassigned = d.assignedToId !== undefined && (d.assignedToId || null) !== (row?.assignedToId ?? null);
         // "Yapamıyorum" kilitli satıra göre: görev artık bu kişiye atalı değilse hiçbir şey yazılmaz (yönetici de olsa).
         if (d.status === "blocked" && (row?.assignedToId ?? null) !== session.userId) return null;
@@ -205,14 +215,20 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           },
         });
       }
-      return { updated, prevStatus };
+      return { updated, prevStatus, removedFrom: reassigned ? prevAssignee : null };
     });
   } catch (err) {
     if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
     throw err;
   }
-  if (!written) return forbidden("Bu görev size atanmamış.");
-  const { updated: task, prevStatus: prevStatusAtWrite } = written;
+  if (!written) return notAssigned();
+  const { updated: task, prevStatus: prevStatusAtWrite, removedFrom } = written;
+
+  // Görev eski kişinin listesinden çıktı → "Görevlendirmeniz değişti" (kurucu / Codex 11-06 K-1; anahtar arkasında). Kendini çıkaran
+  // yöneticiye gitmez.
+  if (removedFrom && removedFrom !== session.userId) {
+    void notifyAssignmentRemoved(session.organizationId, removedFrom, [task.id]).catch((err) => void reportError("task-unassign-mail", err));
+  }
 
   // "Yapamıyorum" (kurucu 11-05 gece): ev sahibine bildirim — anahtar (`STAFF_NOTIFY_ENABLED`) arkasında; en iyi çaba, yanıtı bekletmez.
   if (d.status === "blocked" && prevStatusAtWrite !== "blocked") {

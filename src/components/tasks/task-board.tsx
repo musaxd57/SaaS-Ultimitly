@@ -144,6 +144,24 @@ export function TaskBoard({
     });
   }
 
+  /**
+   * Sunucu "görev artık size atalı değil" dedi (kurucu / Codex 11-06 K-1: sayfa açıkken ev sahibi görevi başka birine verdi, kişi eski
+   * sekmeden "Başladım"a bastı). Sunucu hiçbir şey yazmadı; "yetkiniz yok" yerine ne olduğu söylenir ve liste yenilenir (kart kaybolur).
+   */
+  async function staleAssignmentText(res: Response): Promise<string | null> {
+    if (res.status !== 403) return null;
+    const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+    if (body?.code !== "not_assigned") return null;
+    return canManage ? "Bu görev bu arada başka birine atandı." : "Bu görev artık sizin listenizde değil.";
+  }
+  async function handledStaleAssignment(res: Response): Promise<boolean> {
+    const text = await staleAssignmentText(res);
+    if (!text) return false;
+    toast.error(text);
+    startTransition(() => router.refresh());
+    return true;
+  }
+
   async function setStatus(id: string, status: string) {
     setBusyId(id);
     try {
@@ -153,6 +171,7 @@ export function TaskBoard({
         body: JSON.stringify({ status }),
       });
       if (!res.ok) {
+        if (await handledStaleAssignment(res)) return;
         // The Select is controlled by the server prop, so it snaps back on its own;
         // tell the user why the change didn't stick.
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
@@ -214,6 +233,11 @@ export function TaskBoard({
         body: JSON.stringify(reason ? { status: "blocked", note: reason } : { status: "blocked" }),
       });
       if (!res.ok) {
+        if (await handledStaleAssignment(res)) {
+          setCantDoOpen(null);
+          setCantDoReason("");
+          return;
+        }
         toast.error(res.status === 403 ? "Bu görev size atanmamış." : "Bildirilemedi. Lütfen tekrar deneyin.");
         return;
       }
@@ -244,6 +268,7 @@ export function TaskBoard({
         body: JSON.stringify({ checklistToggle: { index, label: item.label, done: !item.done } }),
       });
       if (!res.ok) {
+        if (await handledStaleAssignment(res)) return;
         toast.error(
           res.status === 403
             ? "Bu işlem için yetkiniz yok."
@@ -307,6 +332,7 @@ export function TaskBoard({
         body: JSON.stringify({ photoUrl: url }),
       });
       if (!patchRes.ok) {
+        if (await handledStaleAssignment(patchRes)) return;
         // The image uploaded but didn't attach — say so instead of failing silently.
         toast.error("Fotoğraf kaydedilemedi, tekrar deneyin.");
         return;
@@ -347,8 +373,10 @@ export function TaskBoard({
         body: JSON.stringify({ note }),
       });
       if (!res.ok) {
-        // Keep the typed note so it isn't lost; tell the user it didn't save.
-        setNoteError((prev) => ({ ...prev, [id]: "Not kaydedilemedi, tekrar deneyin." }));
+        // Keep the typed note so it isn't lost; tell the user it didn't save. Görev arada başkasına geçtiyse (K-1) "tekrar deneyin" denmez —
+        // tekrar da tutmaz; liste YENİLENMEZ ki yazılan not ekranda kalsın (kişi kopyalayıp ev sahibine iletebilir).
+        const stale = await staleAssignmentText(res);
+        setNoteError((prev) => ({ ...prev, [id]: stale ?? "Not kaydedilemedi, tekrar deneyin." }));
         setNoteStatus((prev) => ({ ...prev, [id]: undefined }));
         return;
       }

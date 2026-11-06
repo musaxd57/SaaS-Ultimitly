@@ -19,6 +19,12 @@ export function taskDueTimeLabel(dueAt: Date | null, timeZone: string): string |
   return formatTime(dueAt, timeZone);
 }
 
+/** Vadenin GÜNÜ ("07 Kas 2026") tek tarih kuralıyla (`calendarDateOf`) — pano kartı, bildirim e-postaları ve aktarma listesi AYNI yazım. */
+export function taskDueDayLabel(dueAt: Date | null, timeZone: string): string | null {
+  if (!dueAt) return null;
+  return formatDayInTz(new Date(`${calendarDateOf(dueAt, timeZone).key}T12:00:00.000Z`), "UTC");
+}
+
 type ChecklistItem = { label: string; done: boolean };
 
 export interface TaskCardRow {
@@ -81,7 +87,7 @@ export function taskCardData(
     propertyName: t.property.name,
     assigneeName: t.assignedTo?.name ?? null,
     assigneeId: t.assignedToId ?? null,
-    dueLabel: due ? formatDayInTz(new Date(`${due.key}T12:00:00.000Z`), "UTC") : null,
+    dueLabel: taskDueDayLabel(t.dueAt, ctx.timeZone),
     dueDays: due ? nightsBetween(todayKey(ctx.now, ctx.timeZone), due.key) : null,
     checklist: checklist.length > 0 ? { items: checklist } : null,
     latestPhotoUrl: ctx.latestPhotoUrl,
