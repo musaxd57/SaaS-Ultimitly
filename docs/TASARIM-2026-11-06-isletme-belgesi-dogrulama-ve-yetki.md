@@ -559,13 +559,15 @@ fırsat var** (misafirlerinin gerçekten ne istediğinden). Örnekler (kurgusal)
    ileride (S3'e bağlı) doğrudan rezervasyon sayfası.
 5. **Belgesi olmayan ev sahibi:** belgeye bağlı yetki yok; ileride anlaşmalı acentanın turunu tanıtma ve yönlendirme (hukuk).
 
-Asistanın misafire ev sahibinin kendi teklifini sunması müşteriye giden metni değiştirir → önce / sonra örneğiyle kurucu onayı (öneri):
-- Misafir: *"Havalimanından daireye nasıl gelebilirim?"*
-- Bugün: bilgi tabanındaki ulaşım bilgisi (ör. "Havalimanından taksiyle yaklaşık 45 dakika.").
-- Önerilen (yalnız ev sahibi transfer teklifini açmışsa ve belge kapısı geçiyorsa): *"Havalimanından taksiyle yaklaşık 45 dakika. Ev
-  sahibinizin transfer hizmeti de var: 1.200 TL. Rezervasyon için: [ev sahibinin bağlantısı]"* + acentanın unvanı ve belge numarası
-  (online satış kanalında gösterme yükümlülüğü, Ek A R7 — mesajda gerekip gerekmediği avukata). Fiyat ve bağlantı kodda, ev sahibinin
-  kaydından; yapay zekâ fiyat uydurmaz; ödeme yöntemi kuralı (`payment-method-guard`) geçerli.
+Asistanın misafire ev sahibinin kendi teklifini sunması müşteriye giden metni değiştirir → önce / sonra örneğiyle kurucu onayı (öneri).
+🚨 Metin EV SAHİBİNİN AĞZINDAN yazılır (ben / biz dili; "ev sahibiniz …" YASAK — kurucu 11-06). ⚠️ Kurucu 11-06: teklif Airbnb / Booking
+mesajlarında GİTMEZ (platform kuralı riski) — yalnız Lixus'un kendi misafir akışında (§18):
+- Misafir (QR sohbeti / misafir sayfası): *"Havalimanından daireye nasıl gelebilirim?"*
+- Bugün: bilgi tabanındaki ulaşım bilgisi (ör. "Havalimanından taksiyle yaklaşık 45 dakika sürüyor.").
+- Önerilen (yalnız ev sahibi transfer teklifini açmışsa ve belge kapısı geçiyorsa): *"Havalimanından taksiyle yaklaşık 45 dakika sürüyor.
+  İsterseniz transfer hizmetimiz de var: 1.200 TL. Rezervasyon için: [bağlantı]"* + acenta unvanı ve belge numarası (online satış
+  kanalında gösterme yükümlülüğü, Ek A R7). Fiyat ve bağlantı kodda, ev sahibinin kaydından; yapay zekâ fiyat uydurmaz; ödeme yöntemi
+  kuralı (`payment-method-guard`) geçerli.
 
 ### 16.2 S3'ün açıklaması (kurucu "tam anlamadım" dedi)
 Bugün Lixus ilan yayınlamaz: ev sahibinin ilanı Airbnb / Booking'dedir; Lixus mesajlara yardım eder. Soru şu: **ileride Lixus'ta,

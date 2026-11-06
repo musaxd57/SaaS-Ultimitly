@@ -233,6 +233,9 @@ Bu dosyaya token/anahtar/parola yazma.
   ve gereksiz uzatma müşteriye GİTMEZ; yalnız ne yapması gerektiği söylenir, büyük platformların deyimiyle.
   Fiil seçimi de ürün dilidir: kullanıcı şifre "seçmez", OLUŞTURUR; hitap sitenin geri kalanı gibi "-in"
   ("…daha kısa bir şifre oluşturun."; "-iniz" değil). Kurucu seçimi 09-23, pinli.
+- 🚨 **MİSAFİRE GİDEN HER METİN EV SAHİBİNİN AĞZINDAN (kurucu 11-06: "3. tekil şahıs gibi konuşmak yasak, host yazıyor gibi düşün, bir
+  daha böyle bir hata yapma"):** "ev sahibiniz …", "your host …" gibi üçüncü şahıs YASAK; ben / biz dili ("transfer hizmetimiz var").
+  Tasarım belgelerindeki ÖRNEK misafir metinleri DAHİL (hata 11-06'da bir tasarım örneğinde yapıldı). Kod kuralı `ai/host-voice.ts`.
 - **Hospitable'a özgü yeni ekran/özellik YAPILMAZ (kurucu 09-23: "amacımız Hospitable'ı kaldırmak"):**
   bağlantı sağlığı gibi yüzeyler sağlayıcıdan bağımsız `ChannelConnection` üzerine kurulur (Airbnb Direct'i de taşır).
 - **Ajanlar yalnız araştırır/ölçer/doğrular; kodu Claude yazar.** Bol paralel ajan, bulguları kodla doğrula
