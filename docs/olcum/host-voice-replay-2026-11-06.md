@@ -137,4 +137,27 @@ Sıra gönderim kapısıyla aynı: "ev sahibinize yazın" süzgeci cümleyi sile
 - `model-reply-compare-2026-09-25-gpt-5.1-dil.json` (host_third_person): Fiyatlarla ilgili detaylar rezervasyon yaptığınız platform üzerinden güncel olarak görülebilir; bu konu ev sahibinizin kararıdır.
 - `model-reply-compare-2026-09-25-gpt-5.1-dil.json` (host_third_person): Zum Thema Parken kann Ihnen Ihre Gastgeberin am besten eine genaue Auskunft geben.
 
-Çalışma: kod d3bfc6641653 · model çağrısı yok.
+Model ÇAĞRILMADI: aşağıdaki kimlik ölçümü üreten kodun sürümünü kaydeder (katman modelleri yalnız bilgi amaçlı).
+
+
+## Koşu kimliği (katman bazında model + düşünme ayarı)
+
+Commit: `3e9948fe`
+
+| Katman | Model | Düşünme çabası |
+|---|---|---|
+| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Konaklama bekçisi | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Çeviri | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Üslup özeti | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Karar metni yazıcısı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |
+
+Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=(boş)` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=(boş)` · `AI_HOST_DECISION_HOLD_ENABLED=(boş)` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=(boş)` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=(boş)` · `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=(boş)` · `AI_HOST_CONTACT_PARTIAL_DISABLED=(boş)` · `AI_HOST_VOICE_GUARD_DISABLED=(boş)` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=(boş)` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_REFERRAL_JUDGE_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)` · `AI_ANSWER_REUSE_SHADOW_ENABLED=(boş)` · `AI_ITEM_ORDINAL_ENABLED=(boş)` · `AI_PART_REWRITE_ENABLED=(boş)`
+
+İstem kimliği (SHA-256 ilk 12): cevap `bd6e8b2d6471` (öğe + yabancı dil örneği `34e8b0508392`) · anlama `2280457cf496` (kip: temel)
+
+Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
+
