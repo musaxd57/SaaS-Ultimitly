@@ -174,8 +174,9 @@ ilk onaylar gölgede) → `docs/TASARIM-2026-11-06-erken-giris-guvenilir-cevap.m
 `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12 · işletme belgesi S3 (doğrudan rezervasyon sayfası olacak mı) + §16.1 iş fırsatı akışı
 ve asistan örneği + Ek B / P3-20 ev sahibi metinleri + Bakanlık tesis sorgusunun sütunları (işletmeci unvanı görünüyor mu — Codex) →
 `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §16, §18 (Faz 1a kodu 11-06 gece dalda, anahtar KAPALI) · misafir hizmetleri
-Q1–Q4 → `docs/TASARIM-2026-11-06-misafir-hizmetleri-ve-dogrudan-rezervasyon.md` · misafire giden üçüncü şahıs metinlerinin ev sahibi ağzına
-çevrilmesi (erken giriş politika cümlesi 7 dil, QR sohbet "ev sahibinizle…" cümleleri; önce / sonra örnekleri raporda) — kurucu onayı.
+YOL PLANI sorular D-1…D-7 + P0 avukat soruları → `docs/TASARIM-2026-11-06-misafir-hizmetleri-ve-dogrudan-rezervasyon.md` (2. sürüm) · QR alt
+yazı etiketi ("Otomatik asistan + ev sahibi") ev sahibi ağzına çevrilsin mi · istemde "bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …'
+yaz" örneği için ÜCRETLİ ölçüm onayı (ücretsiz ölçüm: `docs/olcum/host-voice-replay-2026-11-06.md`).
 Cevap gelmeden bu maddeler UYGULANMAZ.
 
 **🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım
