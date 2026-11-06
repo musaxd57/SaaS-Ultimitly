@@ -21,6 +21,11 @@ describe("tekrar oynatma — yasak ölçüm dosyası süzgeci", () => {
       "anlama-2026-10-21-rtblind.json",
       "live-pipeline-2026-09-30-KABUL-referans.json",
       "live-pipeline-2026-09-30-acceptance.json",
+      // Kör KABUL koşuları "-acc<N>" adıyla (11-06 Opus: süzgeç bunları geçiriyordu) — gerçek ad biçimleri.
+      "qr-live-2026-10-02-gpt-5.1-qr-live-acc1-fix51.json",
+      "stay-change-eval-2026-10-09-gpt-5.1-stay-change-acc10.json",
+      "acil-numara-2026-10-11-gpt-6-luna-acc2-thr-mv43l2ge.json",
+      "anlama-2026-10-20-kor5.json",
     ]) {
       expect(isForbiddenMeasurementFile(name), name).toBe(true);
     }
@@ -32,6 +37,8 @@ describe("tekrar oynatma — yasak ölçüm dosyası süzgeci", () => {
       "host-contact-replay-2026-10-30.json",
       "anlama-korku-mesajlari-2026-10-20.json",
       "kordon-2026-10-01.json",
+      "kb-access-2026-10-01.json",
+      "anlama-accuracy-2026-10-20.json",
     ]) {
       expect(isForbiddenMeasurementFile(name), name).toBe(false);
     }
