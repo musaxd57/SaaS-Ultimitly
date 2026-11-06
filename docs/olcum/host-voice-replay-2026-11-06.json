@@ -1,7 +1,7 @@
 {
   "day": "2026-11-06",
-  "filesRead": 294,
-  "filesSkipped": 61,
+  "filesRead": 264,
+  "filesSkipped": 91,
   "all": {
     "replies": 3680,
     "rawThird": 1935,
@@ -567,7 +567,7 @@
     }
   ],
   "runtime": {
-    "commit": "3e9948fe",
+    "commit": "f289e27f",
     "layers": {
       "reply": {
         "model": "gpt-5.1",

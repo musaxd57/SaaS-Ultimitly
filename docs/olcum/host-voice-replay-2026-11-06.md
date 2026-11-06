@@ -1,6 +1,6 @@
 # Ev sahibinin sesi — tekrar oynatma (2026-11-06, ücretsiz, model çağrısı yok)
 
-Okunan ölçüm dosyası: 294 · yasak adlı (kör / kabul / blind / acceptance …) atlanan: 61 · tekil cevap: 3680.
+Okunan ölçüm dosyası: 264 · yasak adlı (kör / kabul / blind / acceptance …) atlanan: 91 · tekil cevap: 3680.
 Sıra gönderim kapısıyla aynı: "ev sahibinize yazın" süzgeci cümleyi siler → kalan metinde ev sahibi sesi denetçisi (`reply_host_voice`).
 
 | Küme | Cevap | Ham üçüncü şahıs | Süzgeç tamamını tuttu | Süzgeç kurtardı | Ev sahibine kalır | · üçüncü şahıs | · arka plan anlatımı | · başka işletme | YALNIZ bu denetçi tuttu |
@@ -142,7 +142,7 @@ Model ÇAĞRILMADI: aşağıdaki kimlik ölçümü üreten kodun sürümünü ka
 
 ## Koşu kimliği (katman bazında model + düşünme ayarı)
 
-Commit: `3e9948fe`
+Commit: `f289e27f`
 
 | Katman | Model | Düşünme çabası |
 |---|---|---|
