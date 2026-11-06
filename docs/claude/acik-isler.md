@@ -168,6 +168,13 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
+**🔔 Kurucu 11-06 akşam (WEB SİTESİ TAMAMEN BİTİNCE — "Ü-6 sonradan web sitesini tamamen bitirince yapıcam"): davetle "sahip" rolü.**
+Karar verildi, uygulama ertelendi (Ü-6, `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12): davet formunda rolün yetki listesi; "Sahip"
+seçilince ayrı onay + davet edenden taze yeniden doğrulama (şifre / 2FA); davet e-postası ve kabul sayfası yetkileri gösterir; yeni sahip
+katılınca bütün sahiplere e-posta; işletmede her zaman en az bir sahip. Hukuk maddesi (yetkinin yanlış kişiye verilmesinden doğan
+sonuçlardan Lixus sorumlu değil) koşullara AYNI TURDA, avukat onayıyla, kurucuyla birlikte girer. Bugün ekip daveti akışı YOK (üye yalnız
+kayıt ve operatör panelinden açılır; doğrulandı 11-06); davet bu turdan önce yapılırsa yalnız yönetici / personel seçilebilir.
+
 **🔔 Kurucu 11-05 gece (AYRI TUR — "en en iyi şekilde"): takvim serisini (RRULE) açma.** Bugün (doğrulandı): tekrarlar açılmaz, içe alınan
 tek kayıt serinin ilk örneğidir; ilk örneğin iptali onu iptal eder (CAL-2 11-05), sonraki örnekler (ör. 17 Kasım) içe alınmaz; kaynak "kısmi
 okuma" — takvim kartında sarı uyarı + "tekrarlayan etkinlikler okunamıyor", müsaitlik o geceler için "bilinmiyor" (başarılı okuma gibi

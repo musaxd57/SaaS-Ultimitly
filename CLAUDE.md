@@ -390,6 +390,7 @@ Bu dosyaya token/anahtar/parola yazma.
 **Şablon → KB önerisi (`kb-from-templates.ts`, CANLI):** kategori allowlist YALNIZ `wifi`+`rules` (gerekçeler arşivde);
 **Şablon düzenleme/uygulama:** PATCH `propertyId` alanı var; create şemasındaki `.nullish().transform(v => v || null)`
 **Panel yerleşimi (lg):** dış kap `lg:fixed lg:inset-0`, `fillsViewport` dikey flex, grid `lg:flex-1 lg:min-h-0`, kart
+**🔔 Kurucu 11-06 akşam (web sitesi tamamen bitince):** Ü-6 davetle "sahip" rolü + hukuk maddesi — şartlar `docs/claude/acik-isler.md`.
 **🔔 Kurucu 11-05 gece (ayrı tur):** takvim serisini (RRULE) açma — şartlar (tekrarlanan doluluk misafir rezervasyonu sayılmaz) `docs/claude/acik-isler.md`.
 **🔔 Kurucu 10-29 gece (unutma):** en önemli ev sahibi bildirimleri ileride WhatsApp'tan da → `docs/claude/acik-isler.md` (önce soru + tasarım).
 **🔔 Kurucu 10-21 (işler bitince SIRADAKİ PLAN):** kelime değil bağlam (aday bulucu + bağlam hakemi, "bilgim yok" ölçüldü) · kırmızı takım seti · ev sahibini haksız duruma düşürmeme (özür / "haklısınız" / kusur kabulü misafire gitmez; "para vermeyeceğim" → cevap yok) → `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` (sorular T-a, T-b).
