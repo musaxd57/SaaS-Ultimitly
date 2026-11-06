@@ -23,6 +23,7 @@ import {
   REJECT_REASONS,
   SUSPEND_REASONS,
   isLicenseStatus,
+  isPendingExpired,
   lockKeyFor,
   nextStatus,
   pendingUntilFrom,
@@ -33,6 +34,7 @@ import {
 } from "./state";
 import {
   approvalReadiness,
+  containsTcknLike,
   parseProof,
   parseReading,
   reinstateReadiness,
@@ -312,6 +314,8 @@ export async function recordRegistryReading(input: {
       const lic = await tx.businessLicense.findUnique({ where: { id: input.licenseId }, select: LICENSE_SELECT });
       if (!lic || !isLicenseType(lic.type)) return { ok: false as const, reason: "not_found" as const };
       if (!isLicenseStatus(lic.status) || ["rejected", "withdrawn", "expired"].includes(lic.status)) return { ok: false as const, reason: "not_open" as const };
+      // Süresi dolmuş (henüz süpürülmemiş) bekleyen başvuruya kanıt yazılmaz (Haiku 11-06 #4).
+      if (isPendingExpired(lic, now)) return { ok: false as const, reason: "not_open" as const };
       const parsed = parseReading({ type: lic.type, numberNorm: lic.numberNorm, holderNameNorm: lic.holder.legalNameNorm }, input.reading);
       if (!parsed.ok) return { ok: false as const, reason: "invalid" as const, field: parsed.error };
       const reading = parsed.value;
@@ -356,13 +360,16 @@ export async function recordOwnershipProof(input: {
   licenseId: string;
   operatorUserId: string;
   proof: Record<string, unknown>;
+  now?: Date;
 }): Promise<{ ok: true } | { ok: false; reason: OperatorError; field?: string }> {
   const parsed = parseProof(input.proof);
   if (!parsed.ok) return { ok: false, reason: "invalid", field: parsed.error };
+  const now = input.now ?? new Date();
   return prisma.$transaction(async (tx) => {
-    const lic = await tx.businessLicense.findUnique({ where: { id: input.licenseId }, select: { id: true, organizationId: true, status: true } });
+    const lic = await tx.businessLicense.findUnique({ where: { id: input.licenseId }, select: { id: true, organizationId: true, status: true, pendingUntil: true } });
     if (!lic) return { ok: false as const, reason: "not_found" as const };
     if (["rejected", "withdrawn", "expired"].includes(lic.status)) return { ok: false as const, reason: "not_open" as const };
+    if (isPendingExpired(lic, now)) return { ok: false as const, reason: "not_open" as const };
     await appendEvent(tx, {
       licenseId: lic.id,
       organizationId: lic.organizationId,
@@ -421,6 +428,8 @@ export async function decideLicense(input: DecisionInput): Promise<DecisionResul
   const now = input.now ?? new Date();
   const note = input.note === undefined || input.note === null || input.note === "" ? null : displayText(input.note, 500);
   if (input.note && !note) return { ok: false, reason: "invalid" };
+  if (note && containsTcknLike(note)) return { ok: false, reason: "invalid" };
+  if (typeof input.nameOverride === "string" && containsTcknLike(input.nameOverride)) return { ok: false, reason: "invalid" };
   try {
     return await prisma.$transaction(async (tx) => {
       const lic = await tx.businessLicense.findUnique({ where: { id: input.licenseId }, select: LICENSE_SELECT });
@@ -435,7 +444,21 @@ export async function decideLicense(input: DecisionInput): Promise<DecisionResul
       let evidence: Record<string, unknown> = {};
       if (input.action === "approve") {
         const nameOverride = typeof input.nameOverride === "string" ? displayText(input.nameOverride, 300) : null;
-        const ready = approvalReadiness({ lastReading: ev.lastReading, lastProof: ev.lastProof, now, nameOverride });
+        // Unvan eşleşmesi KARAR ANINDA yeniden hesaplanır: okumadan sonra (doğrulanmamış) hak sahibinin unvanı başka bir başvuruyla
+        // değiştiyse eski eşleşme geçmez (Haiku 11-06 #3).
+        const lastReading = ev.lastReading
+          ? {
+              ...ev.lastReading,
+              value: {
+                ...ev.lastReading.value,
+                match: {
+                  ...ev.lastReading.value.match,
+                  legalName: !!ev.lastReading.value.fields.legalName && normalizeLegalName(ev.lastReading.value.fields.legalName) === lic.holder.legalNameNorm,
+                },
+              },
+            }
+          : null;
+        const ready = approvalReadiness({ lastReading, lastProof: ev.lastProof, now, nameOverride });
         if (!ready.ok) return { ok: false as const, reason: "not_ready" as const, missing: ready.missing };
         const reading = ev.lastReading!.value;
         // Resmî kayıttaki nitelik kazanır (ev sahibi A yazdı, kayıt C diyorsa C).
@@ -455,7 +478,7 @@ export async function decideLicense(input: DecisionInput): Promise<DecisionResul
           pendingUntil: null,
           suspendReason: null,
         };
-        evidence = { nameOverride: reading.match.legalName ? null : nameOverride, proofMethod: ev.lastProof!.value.method };
+        evidence = { nameOverride: lastReading!.value.match.legalName ? null : nameOverride, proofMethod: ev.lastProof!.value.method };
       } else if (input.action === "reject") {
         if (typeof input.reason !== "string" || !(REJECT_REASONS as readonly string[]).includes(input.reason)) return { ok: false as const, reason: "invalid" as const };
         patch = { pendingUntil: null };

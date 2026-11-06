@@ -12,7 +12,7 @@ import { billingEnforced, getEntitlement, isFounderOrg } from "@/lib/billing/sub
 import { LICENSE_TYPE_INFO, REGISTRY_SOURCES, isLicenseType, isRegistrySourceId, type LicenseType } from "./catalog";
 import { effectiveStatus, type LicenseStatus } from "./state";
 import { licenseMarks, marksForProperty, MARK_TTL_DAYS, type LicenseMark } from "./capabilities";
-import { EXPIRED_TEXT, LICENSE_STATUS_LABEL, REJECT_REASON_TEXT, SUSPEND_REASON_TEXT, markText } from "./messages";
+import { EXPIRED_TEXT, LICENSE_STATUS_LABEL, REJECT_REASON_TEXT, SUSPEND_REASON_TEXT, VERIFIED_STALE_LABEL, markText } from "./messages";
 import { maskTaxId } from "./tax-id";
 import type { ReadingEvidence, ProofEvidence } from "./evidence";
 
@@ -88,13 +88,17 @@ export async function listOrgLicenses(organizationId: string, now = new Date()):
     if (status === "suspended") statusText = r.suspendReason && r.suspendReason in SUSPEND_REASON_TEXT ? SUSPEND_REASON_TEXT[r.suspendReason as keyof typeof SUSPEND_REASON_TEXT] : SUSPEND_REASON_TEXT.operator;
     else if (status === "rejected") statusText = lastReasonOf(r.events, status);
     else if (status === "expired") statusText = EXPIRED_TEXT;
+    // 🚨 Çakışma yüzünden incelemedeki başvuru ev sahibine "pending" görünür — etiket kadar alan da (Haiku 11-06 #1).
+    const hostStatus: LicenseStatus = status === "under_review" ? "pending" : status;
+    // Doğrulanmış ama son okuması 30 günü geçmiş belge "Eşleşti" demez (işaret kalktı; Haiku 11-06 #2).
+    const statusLabel = hostStatus === "verified" && !mark ? VERIFIED_STALE_LABEL : LICENSE_STATUS_LABEL[hostStatus];
     out.push({
       id: r.id,
       type: r.type,
       typeLabel: LICENSE_TYPE_INFO[r.type].label,
       number: r.number,
-      status,
-      statusLabel: LICENSE_STATUS_LABEL[status],
+      status: hostStatus,
+      statusLabel,
       statusText,
       group: typeof attrs.group === "string" ? attrs.group : null,
       facilityType: typeof attrs.facilityType === "string" ? attrs.facilityType : null,

@@ -128,7 +128,9 @@ describe("durum makinesi", () => {
   it("bekleyen başvuru 14 gün; süresi dolunca okuyan 'expired' görür (tembel)", () => {
     const now = new Date("2026-11-06T10:00:00Z");
     const until = pendingUntilFrom(now);
-    expect(until.getTime() - now.getTime()).toBe(PENDING_TTL_DAYS * DAY);
+    // Sayı SABİTİN KENDİSİYLE ölçülmez (mutasyon AC2: sabit 30 yapılınca test de 30'u bekliyordu) — tasarımdaki 14 gün.
+    expect(PENDING_TTL_DAYS).toBe(14);
+    expect(until.getTime() - now.getTime()).toBe(14 * DAY);
     const row = { status: "pending", pendingUntil: until };
     expect(effectiveStatus(row, new Date(until.getTime() - 1))).toBe("pending");
     expect(effectiveStatus(row, until)).toBe("expired");
@@ -165,8 +167,10 @@ describe("'eşleşti' işareti — hesaplanır, 30 günde kendiliğinden kalkar"
   });
 
   it("işaret üretmeyenler: doğrulanmamış, 30 günden eski okuma, türe uymayan / bilinmeyen kaynak, kapsamsız tesis, gelecek tarih", () => {
-    const stale = { ...base, lastRegistryOkAt: new Date(now.getTime() - MARK_TTL_DAYS * DAY) };
-    const fresh29 = { ...base, lastRegistryOkAt: new Date(now.getTime() - (MARK_TTL_DAYS - 1) * DAY) };
+    // Tasarımdaki 30 gün YAZIYLA (mutasyon AC16: sabitle ölçülen test 31 güne de uyuyordu).
+    expect(MARK_TTL_DAYS).toBe(30);
+    const stale = { ...base, lastRegistryOkAt: new Date(now.getTime() - 30 * DAY) };
+    const fresh29 = { ...base, lastRegistryOkAt: new Date(now.getTime() - 29 * DAY) };
     expect(licenseMarks([fresh29], now)).toHaveLength(1);
     for (const r of [
       { ...base, status: "suspended" },

@@ -54,6 +54,19 @@ const MISSING: Record<string, string> = {
   proof_weak: "kanıt yöntemi tek başına yetmez",
   tax_unconfirmed: "vergi numarası teyit edilmedi",
 };
+const FIELD_LABEL: Record<string, string> = {
+  source: "kaynak",
+  query: "sorgulanan numara",
+  outcome: "sonuç",
+  fields: "kayıt alanları",
+  group: "grup",
+  note: "not (TC kimlik numarası yazılmaz)",
+  method: "yöntem",
+  ref: "kısa kayıt (en az 5 karakter; TC kimlik numarası yazılmaz)",
+  tax: "vergi numarası teyidi",
+  action: "eylem",
+  body: "girdi",
+};
 const REJECT: Record<string, string> = { not_found: "Kayıtta yok", mismatch: "Uyuşmazlık", no_authority: "Temsil yetkisi yok", other: "Diğer" };
 const SUSPEND: Record<string, string> = { registry_cancelled: "Kayıtta iptal", not_found: "Kayıtta bulunamıyor", mismatch: "Uyuşmazlık", operator: "Operatör" };
 
@@ -88,7 +101,7 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
         await onChanged();
       } else {
         const missing = Array.isArray(r.body.missing) ? (r.body.missing as string[]).map((m) => MISSING[m] ?? m).join(", ") : "";
-        const fieldErr = r.body.fields ? Object.keys(r.body.fields as object).join(", ") : "";
+        const fieldErr = r.body.fields ? Object.keys(r.body.fields as object).map((k) => FIELD_LABEL[k] ?? k).join(", ") : "";
         setMsg([String(r.body.error ?? "Hata"), missing, fieldErr].filter(Boolean).join(" — "));
       }
     } catch {
@@ -148,7 +161,7 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
               </option>
             ))}
           </Select>
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Sorgulanan numara" placeholder="Sorgulanan numara" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Kayıtta numarayla aranan belge numarası" placeholder="Kayıtta numarayla aranan belge numarası" />
           <Select value={outcome} onChange={(e) => setOutcome(e.target.value)} aria-label="Sonuç">
             {Object.entries(OUTCOMES).map(([k, v]) => (
               <option key={k} value={k}>

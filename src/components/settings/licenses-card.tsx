@@ -132,7 +132,7 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
           Acenta ve konaklama belgelerinizi ekleyin. Belgeniz resmî kayıtla eşleşince burada ve ilgili dairenin sayfasında görünür.
         </p>
         {!data ? (
-          <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+          error ? null : <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
         ) : (
           <>
             {data.licenses.length > 0 && (

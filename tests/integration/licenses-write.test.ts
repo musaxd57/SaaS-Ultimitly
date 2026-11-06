@@ -198,6 +198,8 @@ describe("işletme belgesi — tek yazıcı", () => {
     expect(await prisma.licenseEvent.count({ where: { licenseId: rb.licenseId, reason: "lock_conflict" } })).toBe(1);
     const [hostRow] = await listOrgLicenses(b.orgId);
     expect(hostRow.statusLabel).toBe("İnceleniyor");
+    // Alan da sızdırmaz: ham "under_review" ev sahibine gitmez (Haiku 11-06 #1).
+    expect(hostRow.status).toBe("pending");
     expect((await prisma.businessLicense.findUniqueOrThrow({ where: { id: ra.licenseId } })).status).toBe("verified");
     // Operatör kuyruğu çakışmayı görür (yalnız orada).
     const q = await operatorLicenseQueue();
@@ -284,6 +286,50 @@ describe("işletme belgesi — tek yazıcı", () => {
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "reject", reason: "other" })).toEqual({ ok: false, reason: "not_open" });
     const [row] = await listOrgLicenses(o.orgId);
     expect(row).toMatchObject({ status: "expired", statusLabel: "Süresi doldu" });
+  });
+
+  it("doğrulanmış ama son okuması 30 günü geçmiş belge 'Eşleşti' demez; işaret yok", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    await approveFlow(r.licenseId);
+    await prisma.businessLicense.update({ where: { id: r.licenseId }, data: { lastRegistryOkAt: new Date(Date.now() - 31 * DAY) } });
+    const [row] = await listOrgLicenses(o.orgId);
+    expect(row).toMatchObject({ status: "verified", statusLabel: "Yeniden kontrol bekleniyor", mark: null });
+  });
+
+  it("🚨 okumadan SONRA unvan başka başvuruyla değişirse onay eski eşleşmeyle geçmez (eşleşme karar anında)", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() });
+    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof });
+    // Aynı vergi no ile ikinci başvuru, farklı unvan → doğrulanmamış hak sahibinin unvanı değişir.
+    expect((await agencyApp(o, { number: "999", holder: { kind: "company", legalName: "Bambaşka Turizm A.Ş.", taxId: "1234567890" } })).ok).toBe(true);
+    expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve" })).toEqual({ ok: false, reason: "not_ready", missing: ["name_mismatch"] });
+  });
+
+  it("süresi dolmuş (süpürülmemiş) bekleyen başvuruya okuma da kanıt da yazılmaz", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    await prisma.businessLicense.update({ where: { id: r.licenseId }, data: { pendingUntil: new Date(Date.now() - 1000) } });
+    expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() })).toEqual({ ok: false, reason: "not_open" });
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof })).toEqual({ ok: false, reason: "not_open" });
+  });
+
+  it("🚨 operatörün serbest metnine TC kimlik numarası yazılamaz (kanıt kaydı, okuma notu, karar notu, unvan gerekçesi)", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    const T = "10000000146";
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof, evidenceRef: `İmzalayan TC ${T}` } })).toEqual({ ok: false, reason: "invalid", field: "ref" });
+    expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ note: `kimlik ${T}` }) })).toEqual({ ok: false, reason: "invalid", field: "note" });
+    expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "reject", reason: "other", note: `no:${T}` })).toEqual({ ok: false, reason: "invalid" });
+    expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve", nameOverride: `Yetkili ${T} beyan etti` })).toEqual({ ok: false, reason: "invalid" });
+    // KONTROL: 10 haneli VKN ve tarih / sayfa numarası serbest.
+    expect((await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof, evidenceRef: "VKN 1234567890, TSG 2025/123 s.4" } })).ok).toBe(true);
+    expect(await prisma.licenseEvent.count({ where: { licenseId: r.licenseId, evidence: { string_contains: T } } })).toBe(0);
   });
 
   it("🚨 hesap dökümü (KVKK): hak sahibi + belge var; vergi no özeti / şifresi YOK; çakışmayla incelemede olan 'pending' görünür; operatör günlüğü YOK", async () => {

@@ -32,6 +32,9 @@ export const LICENSE_STATUS_LABEL: Record<LicenseStatus, string> = {
   expired: "Süresi doldu",
 };
 
+/** Doğrulanmış belgenin son okuması 30 günü geçti — işaret kalktı, yeniden kontrol bekleniyor. */
+export const VERIFIED_STALE_LABEL = "Yeniden kontrol bekleniyor";
+
 export const SUSPEND_REASON_TEXT: Record<SuspendReason, string> = {
   registry_cancelled: "Resmî kayıtta belgeniz geçerli görünmüyor. Bir hata olduğunu düşünüyorsanız bize yazın.",
   not_found: "Belgeniz resmî kayıtta bulunamadı. Bir hata olduğunu düşünüyorsanız bize yazın.",

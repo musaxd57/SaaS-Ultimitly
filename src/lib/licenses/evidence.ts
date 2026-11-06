@@ -47,6 +47,11 @@ export type ReadingEvidence = {
 
 export type ProofEvidence = { method: ProofMethod; evidenceRef: string; taxIdConfirmed: boolean };
 
+/** 11 haneli TC kimlik numarasına benzeyen dizi (serbest metinde TCKN saklanmaz — tasarım §3.3; Haiku 11-06 #7). */
+export function containsTcknLike(s: string): boolean {
+  return /(?:^|\D)[1-9]\d{10}(?:\D|$)/.test(s);
+}
+
 function short(v: unknown, max: number): string | undefined | null {
   if (v === undefined || v === null || v === "") return undefined;
   if (typeof v !== "string") return null;
@@ -95,7 +100,7 @@ export function parseReading(
     return { ok: false, error: "group" };
   }
   const note = short(raw.note, 500);
-  if (note === null) return { ok: false, error: "note" };
+  if (note === null || (note && containsTcknLike(note))) return { ok: false, error: "note" };
   const match = {
     number: queryNorm === license.numberNorm,
     legalName: found && !!fields.legalName && normalizeLegalName(fields.legalName) === license.holderNameNorm,
@@ -107,7 +112,7 @@ export function parseProof(raw: Record<string, unknown>): { ok: true; value: Pro
   const method = raw.method;
   if (typeof method !== "string" || !(PROOF_METHODS as readonly string[]).includes(method)) return { ok: false, error: "method" };
   const ref = short(raw.evidenceRef, 500);
-  if (!ref || ref.length < 5) return { ok: false, error: "ref" };
+  if (!ref || ref.length < 5 || containsTcknLike(ref)) return { ok: false, error: "ref" };
   if (typeof raw.taxIdConfirmed !== "boolean") return { ok: false, error: "tax" };
   return { ok: true, value: { method: method as ProofMethod, evidenceRef: ref, taxIdConfirmed: raw.taxIdConfirmed } };
 }
