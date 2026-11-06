@@ -3,6 +3,7 @@ import { DEMO_ID_PREFIX, DEMO_LOGIN_EMAIL, DEMO_ORG_ID } from "./constants";
 import { isAutoMessageKind } from "../auto-messages/render";
 import { ALERT_EMAIL_GEN_PREFIX } from "../alert-email-generation-key";
 import type { DemoDataset } from "./dataset";
+import { createUserWithMembership, setHomeMembershipRole } from "../membership/write";
 
 // ---------------------------------------------------------------------------
 // DEMO HESABI — UYGULAMA ÇEKİRDEĞİ (betik ve testler kullanır; `server-only` modül İÇE AKTARMAZ).
@@ -174,9 +175,12 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         if (!existing) {
           const passwordHash = isReviewer ? opts.reviewerPasswordHash : opts.staffPasswordHash;
           if (!passwordHash) throw new DemoRefusedError("first_run_needs_password");
-          await tx.user.create({
-            data: { id: u.id, organizationId: DEMO_ORG_ID, name: u.name, email: u.email, role: u.role, passwordHash, emailVerifiedAt: now },
-          });
+          // M-2: kullanıcı + demo işletmesi üyeliği AYNI işlemde (tek yazıcı; demo sınırı yazıcıda denetlenir).
+          await createUserWithMembership(
+            tx,
+            { id: u.id, organizationId: DEMO_ORG_ID, name: u.name, email: u.email, role: u.role, passwordHash, emailVerifiedAt: now },
+            "demo",
+          );
           continue;
         }
         // Kimlik + demo org BİRLİKTE (inceleme 09-24): başka org'a ait aynı kimlikli bir satır asla güncellenmez.
@@ -184,7 +188,6 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
           where: { id: u.id, organizationId: DEMO_ORG_ID },
           data: {
             name: u.name,
-            role: u.role,
             emailVerifiedAt: now,
             ...(isReviewer && opts.rotatePassword && opts.reviewerPasswordHash ? { passwordHash: opts.reviewerPasswordHash } : {}),
             ...(opts.resetSecurity || (isReviewer && opts.rotatePassword)
@@ -200,6 +203,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
               : {}),
           },
         });
+        // M-2: rol AYNA + üyelikte birlikte (tek yazıcı; rol değiştiyse üyelik kuşağı artar). Kimlik + demo org şartı aynen.
+        await setHomeMembershipRole(tx, u.id, DEMO_ORG_ID, u.role, "demo");
         if (opts.resetSecurity) {
           await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: u.id, user: { organizationId: DEMO_ORG_ID } } });
         }

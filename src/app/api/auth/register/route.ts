@@ -22,6 +22,7 @@ import { normalizeEmail } from "@/lib/email-identity";
 import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
 import { recordSignupNetwork } from "@/lib/billing/signup-network";
 import { verifyTurnstileToken } from "@/lib/auth/turnstile";
+import { createUserWithMembership } from "@/lib/membership/write";
 
 // ⚠️ İKİ DAL DA BU GÖVDEYİ DÖNER — sabit tek yerde tutuluyor ki zamanla
 // AYRIŞMASINLAR. Sağlayıcı arızasında "yeni hesap" dalı 503, "hesabı var" dalı
@@ -225,8 +226,10 @@ export async function POST(req: NextRequest) {
         // instant. Version + IP + UA make the consent record defensible against a
         // later "I never accepted" dispute (which text, when, from where).
         const acceptedAt = new Date();
-        const user = await tx.user.create({
-          data: {
+        // M-2: kullanıcı + ana işletme üyeliği AYNI işlemde (tek yazıcı).
+        const user = await createUserWithMembership(
+          tx,
+          {
             organizationId: org.id,
             name: parsed.data.name,
             email,
@@ -241,7 +244,8 @@ export async function POST(req: NextRequest) {
             emailVerifyTokenHash: hash,
             emailVerifyExpiresAt: verifyExpiresAt,
           },
-        });
+          "signup",
+        );
         // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
         // while billing is dormant — counts as active until BILLING_ENFORCED is on.
         await tx.subscription.create({

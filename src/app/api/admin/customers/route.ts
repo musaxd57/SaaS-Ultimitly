@@ -12,6 +12,7 @@ import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { appDefaultTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
 import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
+import { createUserWithMembership } from "@/lib/membership/write";
 
 // Billing lifecycle the operator chooses for a new customer. ALWAYS creates a
 // Subscription row so an operator-created org can never silently fall into
@@ -75,8 +76,10 @@ export async function POST(req: NextRequest) {
           ...NEW_ORG_AUTO_REPLY_WINDOW,
         },
       });
-      await tx.user.create({
-        data: {
+      // M-2: kullanıcı + ana işletme üyeliği AYNI işlemde (tek yazıcı).
+      await createUserWithMembership(
+        tx,
+        {
           organizationId: org.id,
           name: parsed.data.name,
           email,
@@ -88,7 +91,8 @@ export async function POST(req: NextRequest) {
           // documents operator-created customers as exempt from that gate.
           emailVerifiedAt: new Date(),
         },
-      });
+        "operator",
+      );
       // Always create a Subscription row (never leave the org row-less):
       //   trial  → 14-day Pro reverse-trial, then normal billing (public-signup parity)
       //   manual → active + provider "manual": premium ON, no trial clock; the

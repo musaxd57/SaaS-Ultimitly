@@ -76,6 +76,8 @@ const EXCLUDED: Record<string, string> = {
     "⚠️ KARAR (avukat paketi, tasarım §5): takip numarası olay günlüğü — iç teşhis; DOĞRUDAN kişisel veri taşımaz (kapalı olay adı + anahtar başına kalıplı kimlik / kod / sayı); Paddle abonelik / işlem kimliği yalnız işletmeye bağlı satırda (işletme silinince satırla gider), 90 gün",
   HostChannelBinding:
     "Ev sahibinin bildirim adresi (migration 88) — numara yalnız şifreli + HMAC anahtarı, doğrulama özetleri; kimlik bilgisi niteliğinde (bağlantı ayarlardan görülür / kapatılır), dökümde düz numara olmaz",
+  Membership:
+    "M-2 dilim 1 üyelik (migration 93) — bugün kullanıcı satırının ana işletme AYNASI (rol aynı; kişi dökümde `users` altında). Çok üyelik dilim 6c'de açılır; o dilimde dökümün üye listesi üyelikten kurulur (ad, e-posta, o işletmedeki rol, katılma / çıkarılma — Opus M21)",
   HostQuestion:
     "Ev sahibine giden soru kuyruğu (migration 88) — geçici iş satırı (metinler şifreli, 7 günde boşalır, 90 günde silinir; misafire giden cevabı işaretleyen satır metinsiz kalır, konuşmayla gider); misafir yazışmasının kendisi (mesajlar) dökümde",
 };

@@ -30,6 +30,7 @@ const KEPT: Record<string, string> = {
   CalendarSource: "takvim bağlantısı VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri; inceleyici eklerse operatör elle bakar)",
   HostChannelBinding:
     "ev sahibinin WhatsApp bağlantısı (migration 88) — kullanıcıya bağlı (User korunur); demo hesabında bağlanmaz, bağlandıysa kendi akışıyla kapatılır",
+  Membership: "demo kullanıcılarının demo işletmesi üyeliği (M-2) — User korunur, rol tek yazıcıyla ayna + üyelikte birlikte eşitlenir",
   ChannelListing: "bağlantıya bağlı ilan eşlemesi — bağlantıyla birlikte (demo hesabında yok)",
   ErasureTombstone: "silme koruma kaydı — yeniden içe aktarmayı engeller, kendi kuralıyla",
   StorageDeletion: "depo silme kuyruğu — sıfırlama YAZAR (dosyalar silinsin), silmez",

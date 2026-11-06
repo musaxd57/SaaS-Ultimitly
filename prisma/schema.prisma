@@ -175,7 +175,9 @@ model Organization {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
-  users                 User[]
+  users                 User[]       @relation("UserHomeOrganization")
+  lastActiveUsers       User[]       @relation("UserLastActiveOrganization")
+  memberships           Membership[]
   trialIdentities       TrialIdentity[]
   signupNetworkTraces   SignupNetworkTrace[]
   riskEvents            RiskEvent[]
@@ -273,7 +275,14 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  // M-2 (dilim 1): `organizationId` / `role` = ANA İŞLETME AYNASI — yetki üyelikte (`Membership`); yalnız tek yazıcı
+  // (`lib/membership/write.ts`) yazar. Okuyucular dilim 3'te üyeliğe geçer (tasarım docs/TASARIM-2026-11-06-uyelik-modeli-M2.md).
+  organization     Organization             @relation("UserHomeOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships        Membership[] @relation("MembershipUser")
+  invitedMemberships Membership[] @relation("MembershipInvitedBy")
+  // Son kullanılan işletme (girişte varsayılan — dilim 2 `pickLoginMembership`). Silinen işletmeyi göstermez (SetNull).
+  lastActiveOrganizationId String?
+  lastActiveOrganization   Organization? @relation("UserLastActiveOrganization", fields: [lastActiveOrganizationId], references: [id], onDelete: SetNull)
   assignedTasks    Task[]                   @relation("TaskAssignee")
   taskUpdates      TaskUpdate[]
   auditLogs        AuditLog[]
@@ -285,10 +294,44 @@ model User {
   hostChannelBindings HostChannelBinding[]
 
   @@index([organizationId])
+  @@index([lastActiveOrganizationId])
   // verify-email looks a user up BY token hash on every emailed-link click —
   // that was a full-table scan (rate-limited, but still). Plain index, not
   // unique: 256-bit random values collide never; uniqueness isn't the contract.
   @@index([emailVerifyTokenHash])
+}
+
+/// M-2 ÜYELİK (kurucu / Codex 11-06 K-2; tasarım docs/TASARIM-2026-11-06-uyelik-modeli-M2.md): TEK kullanıcı (kimlik: e-posta, şifre,
+/// 2FA, sessionEpoch), işletme BAŞINA üyelik (yetki: rol, durum, üyelik kuşağı). Dilim 1: tablo + belirlenimli doldurma (migration 93) +
+/// tek yazıcı (`lib/membership/write.ts`); OKUYUCU YOK — davranış değişmez.
+/// 🚨 GEÇİCİ BEKÇİ `singleMembershipGuard`: dilim 6c'ye kadar kişi başına TEK üyelik veritabanında imkânsız (okuyucular üyeliğe geçmeden
+/// çok üyelik oluşamasın — Opus M11). Yazıcı her satıra `userId` yazar; dilim 6c sütunu boşaltır / dizini düşürür.
+model Membership {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String
+  /// owner | manager | staff — VARSAYILANSIZ (rolü unutan yazım derlenmez; `User.role @default("owner")` hatası tekrarlanmasın, Opus M19).
+  role           String
+  /// active | revoked
+  status         String    @default("active")
+  /// Rol değişimi / çıkarma kuşağı artırır → o işletmedeki oturumlar düşer (dilim 2).
+  epoch          Int       @default(0)
+  /// signup | operator | demo | seed | backfill | invite — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
+  origin         String
+  invitedById    String?
+  revokedAt      DateTime?
+  /// Geçici tek-üyelik bekçisi (yukarıda). Tekil dizin sütunda, ilişki alanında DEĞİL — ilişki bire-çok kalır.
+  singleMembershipGuard String? @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User         @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+  @@index([invitedById])
 }
 
 /// PAROLA SIFIRLAMA CHALLENGE'I — hesap başına DEĞİL, İSTEK başına satır.

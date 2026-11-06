@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createUserWithMembership } from "../src/lib/membership/write";
 
 const prisma = new PrismaClient();
 
@@ -63,28 +64,30 @@ async function main() {
   });
 
   const passwordHash = await bcrypt.hash("demo1234", 10);
-  const owner = await prisma.user.create({
-    data: {
-      organizationId: org.id,
-      name: "Demo Sahibi",
-      email: "demo@guestops.ai",
-      passwordHash,
-      role: "owner",
-      // Local demo account: without this stamp the post-cutoff email-verification
-      // gate blocks login entirely (the E2E smoke caught this regression).
-      emailVerifiedAt: new Date(),
-    },
-  });
-  const staff = await prisma.user.create({
-    data: {
-      organizationId: org.id,
-      name: "Ayşe Temizlik",
-      email: "ayse@guestops.ai",
-      passwordHash,
-      role: "staff",
-      emailVerifiedAt: new Date(),
-    },
-  });
+  // M-2: yerel tohum da kullanıcıyı ana işletme üyeliğiyle birlikte yaratır (tek yazıcı) — yoksa üyelik okuyan dilimlerde giriş döngüsü.
+  const owner = await prisma.$transaction((tx) =>
+    createUserWithMembership(
+      tx,
+      {
+        organizationId: org.id,
+        name: "Demo Sahibi",
+        email: "demo@guestops.ai",
+        passwordHash,
+        role: "owner",
+        // Local demo account: without this stamp the post-cutoff email-verification
+        // gate blocks login entirely (the E2E smoke caught this regression).
+        emailVerifiedAt: new Date(),
+      },
+      "seed",
+    ),
+  );
+  const staff = await prisma.$transaction((tx) =>
+    createUserWithMembership(
+      tx,
+      { organizationId: org.id, name: "Ayşe Temizlik", email: "ayse@guestops.ai", passwordHash, role: "staff", emailVerifiedAt: new Date() },
+      "seed",
+    ),
+  );
 
   const p1 = await prisma.property.create({
     data: {
