@@ -4,7 +4,7 @@
 // sırasına BIRAKILMAZ (Opus P2-14): o anahtarlar döndürülürse bütün eşsizlik araması sessizce kırılırdı. Sır HİÇ döndürülmez.
 // ---------------------------------------------------------------------------
 
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export function licenseSecret(env: Record<string, string | undefined> = process.env): string | null {
   const s = env.LICENSE_HMAC_SECRET?.trim();
@@ -23,3 +23,10 @@ export function taxIdHash(secret: string, digits: string): string {
 
 /** Şifreli VKN'nin bağlamı: işletme + özet (satır kimliği yazmadan önce bilinmez). */
 export const taxIdAad = (organizationId: string, hash: string) => `license-holder-taxid:v1:${organizationId}:${hash}`;
+
+/** Sabit zamanlı özet karşılaştırması: operatörün belgeden yazdığı vergi numarası ↔ başvurudaki (numara saklanmaz — Opus 11-06 P1-2). */
+export function sameTaxIdHash(a: string, b: string): boolean {
+  const x = Buffer.from(a, "hex");
+  const y = Buffer.from(b, "hex");
+  return x.length === 32 && x.length === y.length && timingSafeEqual(x, y);
+}

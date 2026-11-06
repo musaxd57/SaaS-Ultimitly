@@ -2,7 +2,8 @@
 // İŞLETME BELGESİ — OKUMA (Faz 1a). Ev sahibi listesi, mülk sayfası işareti, operatör kuyruğu. Okuma YAZMAZ: süresi dolmuş bekleyen
 // başvuru `effectiveStatus` ile "Süresi doldu" görünür (kalıcı geçişi ilk yazma yapar).
 // · Plan kapısı (kurucu S8): Pro + Business. Faturalandırma zorunlu değilken ve kurucunun işletmesinde açık (bütün paket kapılarının
-//   ortak kuralı); deneme sürümünde KAPALI (her başvuru operatör zamanı harcar).
+//   ortak kuralı); deneme sürümünde KAPALI (her başvuru operatör zamanı harcar). Paket düşünce "eşleşti" işareti de görünmez (Opus 11-06
+//   P3-15) — belge ve durumu listede kalır.
 // · Ev sahibine giden satırda vergi numarası yalnız maskeli; çakışma / operatör ayrıntısı yok.
 // ---------------------------------------------------------------------------
 
@@ -12,9 +13,10 @@ import { billingEnforced, getEntitlement, isFounderOrg } from "@/lib/billing/sub
 import { LICENSE_TYPE_INFO, REGISTRY_SOURCES, isLicenseType, isRegistrySourceId, type LicenseType } from "./catalog";
 import { effectiveStatus, type LicenseStatus } from "./state";
 import { licenseMarks, marksForProperty, MARK_TTL_DAYS, type LicenseMark } from "./capabilities";
+import { normalizeLegalName, normalizeLicenseNumber } from "./normalize";
 import { EXPIRED_TEXT, LICENSE_STATUS_LABEL, REJECT_REASON_TEXT, SUSPEND_REASON_TEXT, VERIFIED_STALE_LABEL, markText } from "./messages";
 import { maskTaxId } from "./tax-id";
-import type { ReadingEvidence, ProofEvidence } from "./evidence";
+import { registryNameStillMatches, type ReadingEvidence, type ProofEvidence } from "./evidence";
 
 export const LICENSE_PLAN_CODES: ReadonlySet<string> = new Set(["pro", "business"]);
 
@@ -53,7 +55,8 @@ function lastReasonOf(events: { reason: string; evidence: unknown }[], status: L
   return null;
 }
 
-export async function listOrgLicenses(organizationId: string, now = new Date()): Promise<HostLicenseRow[]> {
+export async function listOrgLicenses(organizationId: string, now = new Date(), planAllowed?: boolean): Promise<HostLicenseRow[]> {
+  const showMarks = planAllowed ?? (await licensePlanAllowed(organizationId));
   const rows = await prisma.businessLicense.findMany({
     where: { organizationId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -105,15 +108,16 @@ export async function listOrgLicenses(organizationId: string, now = new Date()):
       starClass: typeof attrs.starClass === "string" ? attrs.starClass : null,
       holder: { kind: r.holder.kind, legalName: r.holder.legalName, taxIdMasked: maskTaxId(r.holder.taxIdLast2) },
       units: r.units.map((u) => ({ id: u.property.id, name: u.property.name })),
-      mark: mark ? { text: markText(mark), expiresAt: mark.expiresAt.toISOString() } : null,
+      mark: mark && showMarks ? { text: markText(mark), expiresAt: mark.expiresAt.toISOString() } : null,
       createdAt: r.createdAt.toISOString(),
     });
   }
   return out;
 }
 
-/** Bir işletmenin geçerli işaretleri (yalnız doğrulanmış belgeler). */
+/** Bir işletmenin geçerli işaretleri (yalnız doğrulanmış belgeler; paket kapsamıyorsa hiç). */
 export async function orgLicenseMarks(organizationId: string, now = new Date()): Promise<LicenseMark[]> {
+  if (!(await licensePlanAllowed(organizationId))) return [];
   const since = new Date(now.getTime() - MARK_TTL_DAYS * 24 * 60 * 60 * 1000);
   const rows = await prisma.businessLicense.findMany({
     where: { organizationId, status: "verified", lastRegistryOkAt: { gt: since } },
@@ -153,9 +157,14 @@ export type OperatorLicenseRow = {
   status: LicenseStatus;
   attributes: Record<string, unknown>;
   holder: { kind: string; legalName: string; taxIdMasked: string; verifiedElsewhere: boolean };
-  unitCount: number;
+  /** Başvurudaki daireler — operatör kayıttaki tesisle (ad / adres) eşleştirir (Opus 11-06 P1-3). */
+  units: { id: string; name: string; address: string | null; city: string | null }[];
   sources: { id: string; label: string; url: string }[];
-  lastReading: { at: string; value: ReadingEvidence } | null;
+  /**
+   * Son okuma + eşleşmenin BUGÜNKÜ değeri (Opus 11-06 P3-19): okumadan sonra hak sahibinin unvanı değiştiyse saklanan eşleşme bayattır;
+   * doğrulanmış belgede onayda kabul edilen kayıt unvanı da sayılır.
+   */
+  lastReading: { at: string; value: ReadingEvidence; current: { number: boolean; legalName: boolean } } | null;
   lastProof: { at: string; value: ProofEvidence } | null;
   lastRegistryOkAt: string | null;
   createdAt: string;
@@ -185,8 +194,10 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
       lastRegistryOkAt: true,
       createdAt: true,
       organization: { select: { name: true } },
-      holder: { select: { id: true, kind: true, legalName: true, taxIdLast2: true, taxIdHash: true } },
-      _count: { select: { units: true } },
+      registryNameNorm: true,
+      numberNorm: true,
+      holder: { select: { id: true, kind: true, legalName: true, legalNameNorm: true, taxIdLast2: true, taxIdHash: true } },
+      units: { take: 200, select: { property: { select: { id: true, name: true, address: true, city: true } } } },
       events: {
         where: { actorKind: "operator", reason: { in: ["registry_read", "suspend", "ownership_proof"] } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -208,6 +219,16 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
     const readEv = r.events.find((e) => (e.evidence as { reading?: unknown } | null)?.reading);
     const proofEv = r.events.find((e) => e.reason === "ownership_proof");
     const owner = guardOwner.get(r.holder.taxIdHash);
+    const reading = readEv ? (readEv.evidence as { reading: ReadingEvidence }).reading : null;
+    const current = reading
+      ? {
+          number: !!reading.fields?.number && normalizeLicenseNumber(reading.fields.number) === r.numberNorm,
+          legalName:
+            r.status === "verified" || r.status === "suspended"
+              ? registryNameStillMatches(reading, r.registryNameNorm, r.holder.legalNameNorm)
+              : !!reading.fields?.legalName && normalizeLegalName(reading.fields.legalName) === r.holder.legalNameNorm,
+        }
+      : null;
     const row: OperatorLicenseRow = {
       id: r.id,
       organizationId: r.organizationId,
@@ -223,9 +244,9 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
         taxIdMasked: maskTaxId(r.holder.taxIdLast2),
         verifiedElsewhere: owner !== undefined && owner !== r.holder.id,
       },
-      unitCount: r._count.units,
+      units: r.units.map((u) => ({ id: u.property.id, name: u.property.name, address: u.property.address, city: u.property.city })),
       sources: LICENSE_TYPE_INFO[r.type].sources.filter(isRegistrySourceId).map((id) => ({ id, label: REGISTRY_SOURCES[id].label, url: REGISTRY_SOURCES[id].url })),
-      lastReading: readEv ? { at: readEv.createdAt.toISOString(), value: (readEv.evidence as { reading: ReadingEvidence }).reading } : null,
+      lastReading: readEv && reading && current ? { at: readEv.createdAt.toISOString(), value: reading, current } : null,
       lastProof: proofEv ? { at: proofEv.createdAt.toISOString(), value: (proofEv.evidence as { proof: ProofEvidence }).proof } : null,
       lastRegistryOkAt: r.lastRegistryOkAt ? r.lastRegistryOkAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),

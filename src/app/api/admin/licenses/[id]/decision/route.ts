@@ -27,6 +27,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     reason: body.reason,
     nameOverride: body.nameOverride,
     note: body.note,
+    confirmedUnitIds: body.confirmedUnitIds,
   });
   if (res.ok) return jsonOk(res);
   if (res.reason === "not_found") return notFound(OPERATOR_ERROR_TEXT.not_found);

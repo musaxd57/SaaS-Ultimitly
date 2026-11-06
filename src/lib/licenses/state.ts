@@ -19,6 +19,8 @@ export const TERMINAL_STATUSES: ReadonlySet<LicenseStatus> = new Set(["rejected"
 
 export const PENDING_TTL_DAYS = 14;
 export const MAX_OPEN_APPLICATIONS = 3;
+/** Geri çek + yeniden başvur döngüsü operatör kuyruğunu doldurmasın (Opus 11-06 P3-18): işletme başına son 24 saatte açılan başvuru. */
+export const MAX_APPLICATIONS_PER_DAY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const SUSPEND_REASONS = ["registry_cancelled", "not_found", "mismatch", "operator"] as const;

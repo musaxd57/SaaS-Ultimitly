@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
-import { createLicenseApplication, decideLicense, recordOwnershipProof, recordRegistryReading, withdrawLicense } from "@/lib/licenses/write";
+import { __licenseTestHooks, createLicenseApplication, decideLicense, recordOwnershipProof, recordRegistryReading, withdrawLicense } from "@/lib/licenses/write";
 import { listOrgLicenses, orgLicenseMarks, operatorLicenseQueue } from "@/lib/licenses/read";
 import { buildOrganizationDataExport } from "@/lib/data-export";
 
@@ -35,14 +35,15 @@ const validReading = (over: Record<string, unknown> = {}) => ({
   source: "ktb_agency_search",
   query: "12345",
   outcome: "valid",
-  fields: { legalName: "LALE TUR. TİC. LTD. ŞTİ.", group: "C", statusText: "Geçerli" },
+  fields: { number: "12.345", legalName: "LALE TUR. TİC. LTD. ŞTİ.", group: "C", statusText: "Geçerli" },
   ...over,
 });
-const strongProof = { method: "esign_declaration", evidenceRef: "TSG 2025/123 s.4 — yetkili e-imzası", taxIdConfirmed: true };
+/** Operatör belgeden vergi numarasını YAZAR (kutu yok); varsayılan, agencyApp'in numarası. */
+const strongProof = (taxId = "1234567890") => ({ method: "esign_declaration", evidenceRef: "TSG 2025/123 s.4 — yetkili e-imzası", taxId });
 
-async function approveFlow(licenseId: string, readingOver: Record<string, unknown> = {}) {
+async function approveFlow(licenseId: string, readingOver: Record<string, unknown> = {}, taxId = "1234567890") {
   expect((await recordRegistryReading({ licenseId, operatorUserId: OP, reading: validReading(readingOver) })).ok).toBe(true);
-  expect((await recordOwnershipProof({ licenseId, operatorUserId: OP, proof: strongProof })).ok).toBe(true);
+  expect(await recordOwnershipProof({ licenseId, operatorUserId: OP, proof: strongProof(taxId) })).toEqual({ ok: true, taxIdMatched: true });
   return decideLicense({ licenseId, operatorUserId: OP, action: "approve" });
 }
 
@@ -135,7 +136,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     expect(await approveFlow(r.licenseId)).toEqual({ ok: true, status: "verified" });
   });
 
-  it("onay şartları: okuma + güçlü kanıt + vergi teyidi; eksikler sırayla döner", async () => {
+  it("onay şartları: okuma + güçlü kanıt + belgedeki vergi numarası eşleşmesi; eksikler sırayla döner", async () => {
     const o = await seedOrg();
     const r = await agencyApp(o);
     if (!r.ok) throw new Error(r.reason);
@@ -144,15 +145,19 @@ describe("işletme belgesi — tek yazıcı", () => {
       reason: "not_ready",
       missing: ["reading", "proof"],
     });
-    await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ fields: { legalName: "Lala Turizm Ltd. Şti.", group: "A" } }) });
-    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { method: "registered_domain", evidenceRef: "DNS TXT kaydı görüldü", taxIdConfirmed: false } });
+    await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ fields: { number: "12345", legalName: "Lala Turizm Ltd. Şti.", group: "A" } }) });
+    // Belgedeki numara başvurudakinden farklı → eşleşmedi (numara saklanmaz).
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { method: "registered_domain", evidenceRef: "DNS TXT kaydı görüldü", taxId: "1234567899" } })).toEqual({
+      ok: true,
+      taxIdMatched: false,
+    });
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve" })).toEqual({
       ok: false,
       reason: "not_ready",
       missing: ["name_mismatch", "proof_weak", "tax_unconfirmed"],
     });
     // Unvan farkı yalnız yazılı gerekçeyle geçilir; gerekçe olay günlüğünde kalır.
-    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof });
+    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof() });
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve", nameOverride: "kısa" })).toMatchObject({ reason: "not_ready" });
     const ok = await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve", nameOverride: "Kayıtta eski unvan; TSG unvan değişikliği ilanı görüldü" });
     expect(ok).toEqual({ ok: true, status: "verified" });
@@ -179,9 +184,9 @@ describe("işletme belgesi — tek yazıcı", () => {
     const p = await seedOrg("Eski");
     const r2 = await agencyApp(p, { number: "77777", holder: { kind: "company", legalName: "Eski Tur A.Ş.", taxId: "5555555555" } });
     if (!r2.ok) throw new Error(r2.reason);
-    await recordRegistryReading({ licenseId: r2.licenseId, operatorUserId: OP, reading: validReading({ query: "77777", fields: { legalName: "Eski Tur Anonim Şirketi", group: "A" } }) });
+    await recordRegistryReading({ licenseId: r2.licenseId, operatorUserId: OP, reading: validReading({ query: "77777", fields: { number: "77777", legalName: "Eski Tur Anonim Şirketi", group: "A" } }) });
     await prisma.licenseEvent.updateMany({ where: { licenseId: r2.licenseId, reason: "registry_read" }, data: { createdAt: new Date(Date.now() - 8 * DAY) } });
-    await recordOwnershipProof({ licenseId: r2.licenseId, operatorUserId: OP, proof: strongProof });
+    await recordOwnershipProof({ licenseId: r2.licenseId, operatorUserId: OP, proof: strongProof("5555555555") });
     expect(await decideLicense({ licenseId: r2.licenseId, operatorUserId: OP, action: "approve" })).toEqual({ ok: false, reason: "not_ready", missing: ["reading_stale"] });
   });
 
@@ -192,7 +197,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     const rb = await agencyApp(b, { holder: { kind: "company", legalName: "Lale Turizm Ticaret Limited Şirketi", taxId: "9999999999" } });
     if (!ra.ok || !rb.ok) throw new Error("başvuru");
     expect(await approveFlow(ra.licenseId)).toEqual({ ok: true, status: "verified" });
-    expect(await approveFlow(rb.licenseId)).toEqual({ ok: false, reason: "lock_conflict" });
+    expect(await approveFlow(rb.licenseId, {}, "9999999999")).toEqual({ ok: false, reason: "lock_conflict" });
     const lb = await prisma.businessLicense.findUniqueOrThrow({ where: { id: rb.licenseId } });
     expect(lb).toMatchObject({ status: "under_review", lockKey: null });
     expect(await prisma.licenseEvent.count({ where: { licenseId: rb.licenseId, reason: "lock_conflict" } })).toBe(1);
@@ -213,7 +218,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     const rb = await agencyApp(b, { number: "54321" });
     if (!ra.ok || !rb.ok) throw new Error("başvuru");
     expect(await approveFlow(ra.licenseId)).toEqual({ ok: true, status: "verified" });
-    expect(await approveFlow(rb.licenseId, { query: "54321" })).toEqual({ ok: false, reason: "lock_conflict" });
+    expect(await approveFlow(rb.licenseId, { query: "54321", fields: { number: "54321", legalName: "LALE TUR. TİC. LTD. ŞTİ.", group: "C" } })).toEqual({ ok: false, reason: "lock_conflict" });
     expect((await prisma.businessLicense.findUniqueOrThrow({ where: { id: rb.licenseId } })).status).toBe("under_review");
     expect(await prisma.licenseEvent.findFirst({ where: { licenseId: rb.licenseId, reason: "lock_conflict" }, select: { evidence: true } })).toMatchObject({ evidence: { on: "holder" } });
   });
@@ -232,10 +237,12 @@ describe("işletme belgesi — tek yazıcı", () => {
 
     for (const outcome of ["not_found", "unreadable"]) {
       const res = await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: { source: "ktb_agency_search", query: "12345", outcome } });
-      expect(res).toMatchObject({ ok: true, autoSuspended: false, renewed: false });
-      expect((await prisma.businessLicense.findUniqueOrThrow({ where: { id: r.licenseId } })).status).toBe("verified");
+      expect(res).toMatchObject({ ok: true, autoSuspended: false, renewed: false, markCleared: false });
+      const still = await prisma.businessLicense.findUniqueOrThrow({ where: { id: r.licenseId } });
+      expect(still.status).toBe("verified");
+      expect(still.lastRegistryOkAt).not.toBeNull();
     }
-    const cancel = await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ outcome: "cancelled", fields: { legalName: "Lale Turizm Ltd. Şti.", statusText: "İptal" } }) });
+    const cancel = await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ outcome: "cancelled", fields: { number: "12345", legalName: "Lale Turizm Ltd. Şti.", statusText: "İptal" } }) });
     expect(cancel).toMatchObject({ ok: true, autoSuspended: true });
     const sus = await prisma.businessLicense.findUniqueOrThrow({ where: { id: r.licenseId } });
     expect(sus).toMatchObject({ status: "suspended", suspendReason: "registry_cancelled", lockKey: "agency:12345" });
@@ -303,7 +310,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     const r = await agencyApp(o);
     if (!r.ok) throw new Error(r.reason);
     await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() });
-    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof });
+    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof() });
     // Aynı vergi no ile ikinci başvuru, farklı unvan → doğrulanmamış hak sahibinin unvanı değişir.
     expect((await agencyApp(o, { number: "999", holder: { kind: "company", legalName: "Bambaşka Turizm A.Ş.", taxId: "1234567890" } })).ok).toBe(true);
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve" })).toEqual({ ok: false, reason: "not_ready", missing: ["name_mismatch"] });
@@ -315,7 +322,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     if (!r.ok) throw new Error(r.reason);
     await prisma.businessLicense.update({ where: { id: r.licenseId }, data: { pendingUntil: new Date(Date.now() - 1000) } });
     expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() })).toEqual({ ok: false, reason: "not_open" });
-    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof })).toEqual({ ok: false, reason: "not_open" });
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof() })).toEqual({ ok: false, reason: "not_open" });
   });
 
   it("🚨 operatörün serbest metnine TC kimlik numarası yazılamaz (kanıt kaydı, okuma notu, karar notu, unvan gerekçesi)", async () => {
@@ -323,12 +330,15 @@ describe("işletme belgesi — tek yazıcı", () => {
     const r = await agencyApp(o);
     if (!r.ok) throw new Error(r.reason);
     const T = "10000000146";
-    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof, evidenceRef: `İmzalayan TC ${T}` } })).toEqual({ ok: false, reason: "invalid", field: "ref" });
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof(), evidenceRef: `İmzalayan TC ${T}` } })).toEqual({ ok: false, reason: "invalid", field: "ref" });
+    // Ayraçlı yazım da yakalanır (Opus 11-06 P3-17).
+    expect(await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof(), evidenceRef: "İmzalayan TC 100 000 001 46" } })).toEqual({ ok: false, reason: "invalid", field: "ref" });
+    expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ fields: { number: "12345", legalName: `Lale ${T}`, group: "A" } }) })).toEqual({ ok: false, reason: "invalid", field: "fields" });
     expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading({ note: `kimlik ${T}` }) })).toEqual({ ok: false, reason: "invalid", field: "note" });
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "reject", reason: "other", note: `no:${T}` })).toEqual({ ok: false, reason: "invalid" });
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve", nameOverride: `Yetkili ${T} beyan etti` })).toEqual({ ok: false, reason: "invalid" });
     // KONTROL: 10 haneli VKN ve tarih / sayfa numarası serbest.
-    expect((await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof, evidenceRef: "VKN 1234567890, TSG 2025/123 s.4" } })).ok).toBe(true);
+    expect((await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof(), evidenceRef: "VKN 1234567890, TSG 2025/123 s.4" } })).ok).toBe(true);
     expect(await prisma.licenseEvent.count({ where: { licenseId: r.licenseId, evidence: { string_contains: T } } })).toBe(0);
   });
 
@@ -339,7 +349,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     const rb = await agencyApp(b, { holder: { kind: "company", legalName: "Lale Turizm Ticaret Limited Şirketi", taxId: "9999999999" } });
     if (!ra.ok || !rb.ok) throw new Error("başvuru");
     await approveFlow(ra.licenseId);
-    expect(await approveFlow(rb.licenseId)).toEqual({ ok: false, reason: "lock_conflict" });
+    expect(await approveFlow(rb.licenseId, {}, "9999999999")).toEqual({ ok: false, reason: "lock_conflict" });
     const dump = await buildOrganizationDataExport(b.orgId);
     const text = JSON.stringify(dump);
     expect(dump?.businessLicenses.licenses).toHaveLength(1);
@@ -353,7 +363,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     const r = await agencyApp(o);
     if (!r.ok) throw new Error(r.reason);
     await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() });
-    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof });
+    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: strongProof() });
     const [x, y] = await Promise.all([
       decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve" }),
       decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "reject", reason: "other" }),

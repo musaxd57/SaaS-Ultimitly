@@ -2323,6 +2323,9 @@ model BusinessLicense {
   lastRegistryOkAt DateTime?
   /// O okumanın kaynağı (lib/licenses/catalog.ts REGISTRY_SOURCES) — işaret metni kaynağa göre ("Bakanlık" / "TÜRSAB").
   lastRegistrySource String?
+  /// Onayda (ya da askıdan dönüşte) KABUL EDİLEN kayıttaki ticari unvanın normal biçimi; tesis kaydı unvan göstermiyorsa NULL. Sonraki
+  /// okumalar bununla (ya da hak sahibinin unvanıyla) karşılaştırılır — gerekçeyle onaylanmış eski unvanlı kayıt da tazelenebilir.
+  registryNameNorm String?
   /// Başvuruyu açan kişi (düz kimlik; kişi silinse de iz kalır).
   createdByUserId  String?
   createdAt        DateTime  @default(now())

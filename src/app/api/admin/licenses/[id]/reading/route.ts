@@ -4,8 +4,9 @@ import { isSuperAdmin } from "@/lib/admin";
 import { recordRegistryReading } from "@/lib/licenses/write";
 import { OPERATOR_ERROR_TEXT, operatorUserId, operatorWritePreamble } from "@/lib/licenses/operator-route";
 
-// Operatör: RESMÎ KAYIT OKUMASI (K2, Faz 1a). Yeniden üretilebilir sorgu kaydı: kaynak (kapalı küme) + sorgulanan numara + kayıttan
-// KOPYALANAN alanlar. Doğrulanmış belgede kayıt AÇIKÇA iptal diyorsa belge hemen askıya alınır; "bulunamadı" / "okunamadı" hüküm vermez.
+// Operatör: RESMÎ KAYIT OKUMASI (K2, Faz 1a). Yeniden üretilebilir sorgu kaydı: kaynak (kapalı küme) + sorgulanan değer + kayıttan
+// KOPYALANAN alanlar (kayıtta görünen belge numarası dahil — eşleşme onunla). Doğrulanmış belgede kayıt AÇIKÇA iptal diyorsa (numara bu
+// belgeninse) belge hemen askıya alınır; geçerli ama uyuşmayan kayıt işareti kaldırır; "bulunamadı" / "okunamadı" hüküm vermez.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
   if (!session) return unauthorized();

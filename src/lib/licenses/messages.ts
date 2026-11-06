@@ -13,8 +13,10 @@ export const LICENSE_TEXT = {
   twoFactorRequired: "Belge eklemek için önce iki aşamalı doğrulamayı açın.",
   planRequired: "Bu özellik Pro ve Business paketlerinde var.",
   tooManyOpen: "Aynı anda en çok 3 başvurunuz incelemede olabilir. Sonuçlanmalarını bekleyin.",
+  tooManyRecent: "Bir günde en çok 10 başvuru yapabilirsiniz. Daha sonra yeniden deneyin.",
   invalidNumber: "Belge numarasını kontrol edin.",
   invalidTaxId: "Vergi numarasını kontrol edin.",
+  invalidTckn: "TC kimlik numarasını kontrol edin.",
   invalidName: "Ticari unvanı yazın.",
   invalidUnits: "Belgenin kapsadığı daireleri seçin.",
   invalidGroup: "Acenta grubunu seçin.",
@@ -45,7 +47,8 @@ export const SUSPEND_REASON_TEXT: Record<SuspendReason, string> = {
 export const REJECT_REASON_TEXT: Record<RejectReason, string> = {
   not_found: "Bu numarayla resmî kayıtta bir belge bulamadık. Numarayı kontrol edip yeniden başvurun.",
   mismatch: "Resmî kayıttaki unvan, girdiğiniz unvanla aynı değil. Unvanı kontrol edip yeniden başvurun.",
-  no_authority: "Şirketi temsil yetkisi doğrulanamadı.",
+  // Şahıs işletmesinde "şirket" yok (Opus 11-06 P3-20) — iki duruma da uyan cümle.
+  no_authority: "Belge sahibi adına başvuru yetkiniz doğrulanamadı.",
   other: "Başvurunuz onaylanmadı.",
 };
 

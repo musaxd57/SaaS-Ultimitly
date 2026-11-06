@@ -24,7 +24,8 @@ const FIELD_ERRORS: Partial<Record<CreateApplicationError, Record<string, string
 
 export const GET = withOwner(async (session) => {
   if (!licensesEnabled()) return notFound();
-  const [planAllowed, licenses] = await Promise.all([licensePlanAllowed(session.organizationId), listOrgLicenses(session.organizationId)]);
+  const planAllowed = await licensePlanAllowed(session.organizationId);
+  const licenses = await listOrgLicenses(session.organizationId, new Date(), planAllowed);
   return jsonOk({ planAllowed, twoFactor: session.mfa === true, licenses });
 });
 
@@ -33,7 +34,8 @@ export const POST = withOwner(async (session, req) => {
   if (!hasJsonContentType(req)) return unsupportedMediaType();
   if (session.mfa !== true) return forbidden(LICENSE_TEXT.twoFactorRequired);
   if (!(await licensePlanAllowed(session.organizationId))) return forbidden(LICENSE_TEXT.planRequired);
-  const limited = await rateLimit(`license-apply:${session.organizationId}`, 10, 24 * 60 * 60_000);
+  // Deneme sınırı (yazım hatası düzeltmeye yetecek kadar); açılan başvuru sınırı (günde 10) yazıcıda, veritabanından sayılır.
+  const limited = await rateLimit(`license-apply:${session.organizationId}`, 30, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   const body = (await readJsonCappedOrNull(req)) as Record<string, unknown> | null;
   if (!body || typeof body !== "object" || Array.isArray(body)) return badRequest({ body: "Belge bilgilerini kontrol edin." });
@@ -50,6 +52,8 @@ export const POST = withOwner(async (session, req) => {
   if (res.ok) return jsonOk({ ok: true, message: LICENSE_TEXT.applicationReceived });
   if (res.reason === "disabled") return notFound();
   if (res.reason === "too_many_open") return jsonOk({ error: LICENSE_TEXT.tooManyOpen }, 409);
+  if (res.reason === "too_many_recent") return jsonOk({ error: LICENSE_TEXT.tooManyRecent }, 409);
+  if (res.reason === "invalid_tax_id") return badRequest({ taxId: holder.kind === "sole_proprietor" ? LICENSE_TEXT.invalidTckn : LICENSE_TEXT.invalidTaxId });
   // Kendi hesabındaki aynı belge — başka hesap hakkında bilgi vermez.
   if (res.reason === "duplicate") return jsonOk({ error: "Bu belge için zaten bir kaydınız var." }, 409);
   return badRequest(FIELD_ERRORS[res.reason] ?? { body: "Belge bilgilerini kontrol edin." });

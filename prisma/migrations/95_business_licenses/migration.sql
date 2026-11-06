@@ -36,6 +36,7 @@ CREATE TABLE "BusinessLicense" (
     "verifiedAt" TIMESTAMP(3),
     "lastRegistryOkAt" TIMESTAMP(3),
     "lastRegistrySource" TEXT,
+    "registryNameNorm" TEXT,
     "createdByUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

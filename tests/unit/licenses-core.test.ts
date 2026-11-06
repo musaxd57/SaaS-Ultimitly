@@ -14,7 +14,18 @@ import {
 } from "@/lib/licenses/state";
 import { licenseMarks, marksForProperty, MARK_TTL_DAYS, type LicenseMarkInput } from "@/lib/licenses/capabilities";
 import { LICENSE_STATUS_LABEL, markText } from "@/lib/licenses/messages";
-import { licenseSecret, licensesEnabled, taxIdHash } from "@/lib/licenses/secret";
+import { licenseSecret, licensesEnabled, sameTaxIdHash, taxIdHash } from "@/lib/licenses/secret";
+import { MAX_APPLICATIONS_PER_DAY } from "@/lib/licenses/state";
+import {
+  approvalReadiness,
+  containsTcknLike,
+  groupChange,
+  parseProof,
+  parseReading,
+  reinstateReadiness,
+  verifiedReadingVerdict,
+  type ReadingEvidence,
+} from "@/lib/licenses/evidence";
 
 // ---------------------------------------------------------------------------
 // İŞLETME BELGESİ Faz 1a — saf çekirdek (tasarım docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md §2–§5).
@@ -93,7 +104,8 @@ describe("vergi numarası", () => {
     expect(parseTaxId("company", "10000000146")).toBeNull();
     expect(parseTaxId("sole_proprietor", "10000000146")).toEqual({ digits: "10000000146", form: "tckn" });
     expect(parseTaxId("sole_proprietor", "10000000147")).toBeNull();
-    expect(parseTaxId("sole_proprietor", "1234567890")).toEqual({ digits: "1234567890", form: "vkn" });
+    // Şahıs işletmesinde YALNIZ TC kimlik numarası (Opus 11-06 P1-2): eski 10 haneli numara ikinci bir kimlik açamaz.
+    expect(parseTaxId("sole_proprietor", "1234567890")).toBeNull();
     expect(parseTaxId("company", "12345a7890")).toBeNull();
     expect(parseTaxId("company", 1234567890)).toBeNull();
     expect(maskTaxId("46")).toBe("••••••••46");
@@ -220,5 +232,111 @@ describe("metinler + sır", () => {
     expect(taxIdHash(secret, "1234567890")).toBe(taxIdHash(secret, "1234567890"));
     expect(taxIdHash(secret, "1234567890")).not.toBe(taxIdHash("t".repeat(32), "1234567890"));
     expect(taxIdHash(secret, "1234567890")).not.toBe(taxIdHash(secret, "1234567891"));
+  });
+});
+
+describe("kanıt (Opus 11-06)", () => {
+  const agency = { type: "agency" as const, numberNorm: "12345", holderNameNorm: normalizeLegalName("Lale Turizm Ltd. Şti.") };
+  const facility = { type: "tourism_operation" as const, numberNorm: "20240123", holderNameNorm: agency.holderNameNorm };
+  const ok = (r: ReturnType<typeof parseReading>): ReadingEvidence => {
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+  const read = (fields: Record<string, unknown>, over: Record<string, unknown> = {}) =>
+    parseReading(agency, { source: "ktb_agency_search", query: "12345", outcome: "valid", fields: { number: "12345", legalName: "LALE TUR. LTD. ŞTİ.", group: "A", ...fields }, ...over });
+
+  it("P2-8 numara eşleşmesi kayıtta GÖRÜNEN numarayla (sorgu değeri değil); kayıt bulunduysa numara zorunlu", () => {
+    expect(ok(read({ number: "12346" })).match).toEqual({ number: false, legalName: true });
+    expect(ok(read({ number: "12.345" }, { query: "Lale" })).match.number).toBe(true);
+    expect(read({ number: undefined })).toEqual({ ok: false, error: "number" });
+    expect(read({ number: "12;345" })).toEqual({ ok: false, error: "number" });
+    // Bulunamadı / okunamadı: alan yok, eşleşme yok.
+    expect(ok(parseReading(agency, { source: "ktb_agency_search", query: "12345", outcome: "not_found" })).match).toEqual({ number: false, legalName: false });
+    expect(parseReading(agency, { source: "ktb_agency_search", query: "12345", outcome: "not_found", fields: { number: "12345" } })).toEqual({ ok: false, error: "fields" });
+  });
+
+  it("türe göre alanlar: acentada unvan + grup, tesiste tesis adı zorunlu (unvan isteğe bağlı); öbür türün alanı reddedilir", () => {
+    expect(read({ facilityName: "Lale Apart" })).toEqual({ ok: false, error: "fields" });
+    expect(read({ group: "D" })).toEqual({ ok: false, error: "group" });
+    expect(read({ legalName: undefined })).toEqual({ ok: false, error: "fields" });
+    const fac = (fields: Record<string, unknown>) => parseReading(facility, { source: "ktb_facility_search", query: "2024-0123", outcome: "valid", fields: { number: "2024-0123", ...fields } });
+    expect(fac({})).toEqual({ ok: false, error: "fields" });
+    expect(ok(fac({ facilityName: "Lale Apart", address: "Örnek Sk. 5", district: "Fethiye", city: "Muğla" })).match).toEqual({ number: true, legalName: false });
+    expect(fac({ facilityName: "Lale Apart", group: "A" })).toEqual({ ok: false, error: "group" });
+  });
+
+  it("🚨 P3-17 TC kimlik numarası ayraçlı / görünmez karakterli / tam genişlikli yazımda da yakalanır; 10 haneli VKN ve tarihler serbest", () => {
+    for (const t of ["10000000146", "100 000 001 46", "100.000.001.46", "1000-0000-146", "1\u200b0000000146", "１０００００００１４６"]) {
+      expect(containsTcknLike(`kimlik ${t} yazıldı`), t).toBe(true);
+    }
+    for (const t of ["VKN 1234567890", "TSG 2025/123 s.4", "12.03.2025 10:30", "0532 123 45 67", "+90 532 123 45 67"]) expect(containsTcknLike(t), t).toBe(false);
+    expect(read({ legalName: "Lale 100 000 001 46 Ltd." })).toEqual({ ok: false, error: "fields" });
+    expect(read({}, { query: "10000000146" })).toEqual({ ok: false, error: "query" });
+    // Belgenin kendi numarası TCKN'ye benzese de sorgu olarak kabul edilir.
+    expect(parseReading({ ...agency, numberNorm: "34202400001" }, { source: "ktb_agency_search", query: "34202400001", outcome: "valid", fields: { number: "34202400001", legalName: "Lale Tur Ltd. Şti.", group: "A" } }).ok).toBe(true);
+  });
+
+  it("P3-17 süre: uzun boşluk / rakam dizilerinde doğrusal", () => {
+    const t0 = performance.now();
+    containsTcknLike("1" + " ".repeat(50_000) + "x");
+    containsTcknLike("1 ".repeat(25_000));
+    containsTcknLike("9".repeat(50_000));
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+
+  it("🚨 P1-2 kanıtta vergi numarası YAZILIR: şirkette 10 hane, şahısta yalnız geçerli TC kimlik; kutu biçimi geçmez; eski kayıt biçimi onay açmaz", () => {
+    const base = { method: "esign_declaration", evidenceRef: "TSG 2025/123 s.4" };
+    expect(parseProof({ ...base, taxIdConfirmed: true }, "company")).toEqual({ ok: false, error: "tax" });
+    expect(parseProof({ ...base, taxId: "123 456 7890" }, "company")).toEqual({ ok: true, value: { method: "esign_declaration", evidenceRef: "TSG 2025/123 s.4", taxDigits: "1234567890" } });
+    expect(parseProof({ ...base, taxId: "1234567890" }, "sole_proprietor")).toEqual({ ok: false, error: "tax" });
+    expect(parseProof({ ...base, taxId: "10000000146" }, "sole_proprietor")).toMatchObject({ ok: true });
+    const r = { at: new Date("2026-11-06T09:00:00Z"), value: ok(read({})) };
+    const now = new Date("2026-11-06T10:00:00Z");
+    const legacy = { at: now, value: { method: "esign_declaration", evidenceRef: "x", taxIdConfirmed: true } as never };
+    expect(approvalReadiness({ lastReading: r, lastProof: legacy, now })).toEqual({ ok: false, missing: ["tax_unconfirmed"] });
+    expect(approvalReadiness({ lastReading: r, lastProof: { at: now, value: { method: "esign_declaration", evidenceRef: "x", taxIdMatched: true } }, now })).toEqual({ ok: true });
+    expect(approvalReadiness({ lastReading: r, lastProof: { at: now, value: { method: "esign_declaration", evidenceRef: "x", taxIdMatched: true } }, now, unitsConfirmed: false })).toEqual({
+      ok: false,
+      missing: ["units_unconfirmed"],
+    });
+    const secret = "s".repeat(32);
+    expect(sameTaxIdHash(taxIdHash(secret, "1234567890"), taxIdHash(secret, "1234567890"))).toBe(true);
+    expect(sameTaxIdHash(taxIdHash(secret, "1234567890"), taxIdHash(secret, "1234567891"))).toBe(false);
+    expect(sameTaxIdHash("", "")).toBe(false);
+  });
+
+  it("P2-5 / P2-6 / P3-12 doğrulanmış belgeye okuma: başka numaranın iptali hiçbir şey; bu numaranın iptali askı; grup daralma / genişleme; uyuşmazlık işareti kaldırır", () => {
+    const v = (fields: Record<string, unknown>, over: Record<string, unknown> = {}, attrs: unknown = { group: "A" }, accepted: string | null = agency.holderNameNorm) =>
+      verifiedReadingVerdict({ type: "agency", attributes: attrs, acceptedNameNorm: accepted, holderNameNorm: agency.holderNameNorm, reading: ok(read(fields, over)) });
+    expect(v({ number: "54321", group: undefined }, { outcome: "cancelled" })).toEqual({ kind: "none" });
+    expect(v({ group: undefined }, { outcome: "cancelled" })).toEqual({ kind: "suspend" });
+    expect(v({})).toEqual({ kind: "renew", attributes: { group: "A" }, registryNameNorm: agency.holderNameNorm, groupNarrowed: false });
+    expect(v({ group: "C" })).toMatchObject({ kind: "renew", attributes: { group: "C" }, groupNarrowed: true });
+    expect(v({ group: "A" }, {}, { group: "C" })).toEqual({ kind: "clear", why: "group" });
+    expect(v({ group: "C" }, {}, { group: "B" })).toEqual({ kind: "clear", why: "group" });
+    expect(v({ number: "99999" })).toEqual({ kind: "clear", why: "number" });
+    expect(v({ legalName: "Bambaşka Tur A.Ş." })).toEqual({ kind: "clear", why: "name" });
+    // Gerekçeyle onaylanmış eski kayıt unvanı tazelenir; kayıt sahibin unvanına dönerse kabul edilen unvan güncellenir.
+    expect(v({ legalName: "Eski Unvan Tur Ltd. Şti." }, {}, { group: "A" }, "eski unvan tur ltd sti")).toMatchObject({ kind: "renew", registryNameNorm: "eski unvan tur ltd sti" });
+    expect(v({}, {}, { group: "A" }, "eski unvan tur ltd sti")).toMatchObject({ kind: "renew", registryNameNorm: agency.holderNameNorm });
+    expect(groupChange("A", "B")).toBe("narrowed");
+    expect(groupChange("B", "A")).toBe("changed");
+    expect(groupChange("B", "B")).toBe("same");
+    expect(groupChange(undefined, "A")).toBe("changed");
+  });
+
+  it("P3-11 askıdan dönüş: askıdan sonraki okuma şart, 7 günden eski olamaz, numara + unvan tutmalı", () => {
+    const now = new Date("2026-11-06T10:00:00Z");
+    const at = (d: number) => new Date(now.getTime() - d * DAY);
+    const good = ok(read({}));
+    expect(reinstateReadiness(null, now, agency.holderNameNorm, agency.holderNameNorm)).toBe(false);
+    expect(reinstateReadiness({ at: at(1), value: good }, now, agency.holderNameNorm, agency.holderNameNorm)).toBe(true);
+    expect(reinstateReadiness({ at: at(8), value: good }, now, agency.holderNameNorm, agency.holderNameNorm)).toBe(false);
+    expect(reinstateReadiness({ at: at(1), value: ok(read({ number: "99999" })) }, now, agency.holderNameNorm, agency.holderNameNorm)).toBe(false);
+    expect(reinstateReadiness({ at: at(1), value: ok(read({ legalName: "Başka Tur A.Ş." })) }, now, agency.holderNameNorm, agency.holderNameNorm)).toBe(false);
+  });
+
+  it("P3-18 günlük başvuru sınırı tasarımdaki 10 (sabitin kendisiyle ölçülmez)", () => {
+    expect(MAX_APPLICATIONS_PER_DAY).toBe(10);
   });
 });

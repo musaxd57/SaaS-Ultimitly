@@ -105,8 +105,15 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
     }
   }
 
-  async function withdraw(id: string) {
-    if (!window.confirm("Bu belgeyi geri çekmek istediğinize emin misiniz?")) return;
+  async function withdraw(id: string, status: string) {
+    // Doğrulanmış belgede işaretin de kalkacağı söylenir (Opus 11-06 P3-20).
+    const question =
+      status === "verified"
+        ? "Belgeyi geri çekerseniz \"eşleşti\" işareti de kalkar. Geri çekmek istiyor musunuz?"
+        : status === "suspended"
+          ? "Belgeyi geri çekmek istiyor musunuz?"
+          : "Başvuruyu geri çekmek istiyor musunuz?";
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -129,7 +136,8 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <p className="text-muted-foreground">
-          Acenta ve konaklama belgelerinizi ekleyin. Belgeniz resmî kayıtla eşleşince burada ve ilgili dairenin sayfasında görünür.
+          Acenta ve konaklama belgelerinizi ekleyin. Belgeniz resmî kayıtla eşleşince burada görünür; konaklama belgesi, kapsadığı dairelerin
+          sayfasında da görünür.
         </p>
         {!data ? (
           error ? null : <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
@@ -153,7 +161,7 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
                     {l.mark && <div className="mt-1 text-emerald-700 dark:text-emerald-400">{l.mark.text}</div>}
                     {l.statusText && <div className="mt-1">{l.statusText}</div>}
                     {WITHDRAWABLE.has(l.status) && data.twoFactor && (
-                      <Button type="button" variant="ghost" size="sm" className="mt-1 px-0" disabled={busy} onClick={() => void withdraw(l.id)}>
+                      <Button type="button" variant="ghost" size="sm" className="mt-1 px-0" disabled={busy} onClick={() => void withdraw(l.id, l.status)}>
                         Geri çek
                       </Button>
                     )}

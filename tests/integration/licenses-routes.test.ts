@@ -126,7 +126,7 @@ describe("işletme belgesi rotaları", () => {
     expect((await applyPost(jsonReq("/api/licenses", application()), NOCTX)).status).toBe(200);
   });
 
-  it("🚨 başvuru cevabı TEK genel cümle: aynı belge başka hesapta doğrulanmış olsa bile ikinci hesap farkı göremez", async () => {
+  it("🚨 başvuru cevabı TEK genel cümle + çakışma SONRASI liste de aynı: aynı belge başka hesapta doğrulanmış olsa bile ikinci hesap farkı göremez", async () => {
     const a = await seed("Lale");
     const b = await seed("Rakip");
     session = asHost(a.orgId);
@@ -135,18 +135,32 @@ describe("işletme belgesi rotaları", () => {
     const licA = await prisma.businessLicense.findFirstOrThrow({ where: { organizationId: a.orgId } });
     // A'nın belgesi doğrulanır (operatör akışı).
     session = asOperator();
-    await readingPost(jsonReq(`/api/admin/licenses/${licA.id}/reading`, { source: "ktb_agency_search", query: "12345", outcome: "valid", fields: { legalName: "Lale Turizm Ltd. Şti.", group: "A" } }), idCtx(licA.id));
-    await proofPost(jsonReq(`/api/admin/licenses/${licA.id}/proof`, { method: "esign_declaration", evidenceRef: "TSG ilanı + e-imza", taxIdConfirmed: true }), idCtx(licA.id));
+    const okReading = { source: "ktb_agency_search", query: "12345", outcome: "valid", fields: { number: "12345", legalName: "Lale Turizm Ltd. Şti.", group: "A" } };
+    expect((await readingPost(jsonReq(`/api/admin/licenses/${licA.id}/reading`, okReading), idCtx(licA.id))).status).toBe(200);
+    expect((await proofPost(jsonReq(`/api/admin/licenses/${licA.id}/proof`, { method: "esign_declaration", evidenceRef: "TSG ilanı + e-imza", taxId: "1234567890" }), idCtx(licA.id))).status).toBe(200);
     expect((await decisionPost(jsonReq(`/api/admin/licenses/${licA.id}/decision`, { action: "approve" }), idCtx(licA.id))).status).toBe(200);
     // B aynı numarayla başvurur: cevap A'nınkiyle BİREBİR aynı.
     session = asHost(b.orgId);
     const rb = await applyPost(jsonReq("/api/licenses", { ...application(), holder: { kind: "company", legalName: "Rakip Tur A.Ş.", taxId: "9999999999" } }), NOCTX);
     expect(rb.status).toBe(200);
     expect(await rb.json()).toEqual({ ok: true, message: LICENSE_TEXT.applicationReceived });
+    const before = await (await listGet(getReq("/api/licenses"), NOCTX)).json();
+    // Operatör B'yi de onaylamaya çalışır → bekçi çakışması → B incelemeye düşer (Opus 11-06 P2-10: liste testi ancak çakışma GERÇEKTEN
+    // olduktan sonra anlamlı — yalnız bekleyen bir başvuru zaten "İnceleniyor" der).
+    const licB = await prisma.businessLicense.findFirstOrThrow({ where: { organizationId: b.orgId } });
+    session = asOperator();
+    await readingPost(jsonReq(`/x`, { ...okReading, fields: { ...okReading.fields, legalName: "Rakip Tur A.Ş." } }), idCtx(licB.id));
+    await proofPost(jsonReq(`/x`, { method: "esign_declaration", evidenceRef: "TSG ilanı + e-imza", taxId: "9999999999" }), idCtx(licB.id));
+    const conflict = await decisionPost(jsonReq(`/x`, { action: "approve" }), idCtx(licB.id));
+    expect(conflict.status).toBe(409);
+    expect((await prisma.businessLicense.findUniqueOrThrow({ where: { id: licB.id } })).status).toBe("under_review");
+    session = asHost(b.orgId);
     const listB = await (await listGet(getReq("/api/licenses"), NOCTX)).json();
     const body = JSON.stringify(listB);
-    expect(body).not.toMatch(/taxIdHash|taxIdEnc|lockKey|verifiedGuard|1234567890|9999999999/);
-    expect(listB.licenses[0]).toMatchObject({ statusLabel: "İnceleniyor", holder: { taxIdMasked: "••••••••99" } });
+    expect(body).not.toMatch(/taxIdHash|taxIdEnc|lockKey|verifiedGuard|under_review|lock_conflict|başka|1234567890|9999999999/);
+    expect(listB.licenses[0]).toMatchObject({ status: "pending", statusLabel: "İnceleniyor", statusText: null, mark: null, holder: { taxIdMasked: "••••••••99" } });
+    // Çakışmadan önceki ve sonraki liste satırı birebir aynı.
+    expect(listB).toEqual(before);
   });
 
   it("geri çekme: başka işletmenin belgesi bulunamadı (404); kendi belgesi 200", async () => {
@@ -168,7 +182,7 @@ describe("işletme belgesi rotaları", () => {
     session = asHost(a.orgId);
     await applyPost(jsonReq("/api/licenses", application()), NOCTX);
     const lic = await prisma.businessLicense.findFirstOrThrow({ where: { organizationId: a.orgId } });
-    const reading = { source: "ktb_agency_search", query: "12345", outcome: "valid", fields: { legalName: "Lale Turizm Ltd. Şti.", group: "A" } };
+    const reading = { source: "ktb_agency_search", query: "12345", outcome: "valid", fields: { number: "12345", legalName: "Lale Turizm Ltd. Şti.", group: "A" } };
 
     session = asHost(a.orgId);
     expect((await queueGet()).status).toBe(401);
@@ -189,7 +203,10 @@ describe("işletme belgesi rotaları", () => {
     expect(JSON.stringify(q)).not.toMatch(/1234567890|taxIdEnc/);
     expect((await readingPost(jsonReq(`/x`, reading), idCtx(lic.id))).status).toBe(200);
     expect((await decisionPost(jsonReq(`/x`, { action: "approve" }), idCtx(lic.id))).status).toBe(409);
-    expect((await proofPost(jsonReq(`/x`, { method: "document_set", evidenceRef: "İmza sirküleri + vergi levhası doğrulandı", taxIdConfirmed: true }), idCtx(lic.id))).status).toBe(200);
+    // Kutu biçimi (numarasız) kabul edilmez; belgedeki numara yazılır, cevap yalnız eşleşip eşleşmediğini söyler.
+    expect((await proofPost(jsonReq(`/x`, { method: "document_set", evidenceRef: "İmza sirküleri + vergi levhası doğrulandı", taxIdConfirmed: true }), idCtx(lic.id))).status).toBe(400);
+    const proofRes = await proofPost(jsonReq(`/x`, { method: "document_set", evidenceRef: "İmza sirküleri + vergi levhası doğrulandı", taxId: "1234567890" }), idCtx(lic.id));
+    expect(await proofRes.json()).toEqual({ ok: true, taxIdMatched: true });
     const ok = await decisionPost(jsonReq(`/x`, { action: "approve" }), idCtx(lic.id));
     expect(await ok.json()).toEqual({ ok: true, status: "verified" });
     session = asHost(a.orgId);

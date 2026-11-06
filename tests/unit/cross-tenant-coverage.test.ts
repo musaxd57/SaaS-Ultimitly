@@ -32,6 +32,8 @@ const COVERAGE: Record<string, Record<string, string>> = {
   "kb/[id]": { PATCH: "tests/integration/cross-tenant-handlers.test.ts", DELETE: "tests/integration/cross-tenant-handlers-more.test.ts" },
   "kb/[id]/copy": { POST: "tests/integration/cross-tenant-handlers.test.ts" },
   "outbox/[id]/retry": { POST: "tests/integration/outbox-ops.test.ts" },
+  // İşletme belgesi Faz 1a: başka işletmenin belgesi 404 (licenses-routes "geri çekme" testi).
+  "licenses/[id]/withdraw": { POST: "tests/integration/licenses-routes.test.ts" },
   "properties/[id]": {
     GET: "tests/integration/cross-tenant-handlers.test.ts",
     PATCH: "tests/integration/cross-tenant-handlers.test.ts",
