@@ -625,6 +625,12 @@ export function checkProductionEnv(env) {
   // "true" / "yes" / "on" / " 1" KAPALI demektir. KB_* bayraklari "true"yu da kabul ettigi icin operator ayni aliskanlikla
   // AI_UNDERSTANDING_ENABLED=true yazip bayragi SESSIZCE kapali birakabiliyordu. Davranis DEGISMEZ; yalniz acilista gorunur.
   // Liste kaynakla pinli (tests/unit/env-strict-flags.test.ts): kodda `env.X === "1"` okunan her bayrak burada.
+  // Isletme belgesi (Faz 1a, src/lib/licenses/secret.ts): anahtar acik ama AYRI sir eksik / kisa -> ozellik KAPALI kalir (zayif ozet
+  // uretilmez). Uyari, hata degil: acilisi durdurmaz.
+  if (env.BUSINESS_LICENSES_ENABLED === "1" && !(String(env.LICENSE_HMAC_SECRET ?? "").trim().length >= 32)) {
+    warnings.push("BUSINESS_LICENSES_ENABLED=1 but LICENSE_HMAC_SECRET is missing or shorter than 32 characters — business licenses stay OFF.");
+  }
+
   for (const name of STRICT_ONE_FLAGS) {
     const raw = env[name] === undefined ? undefined : TRIMMED_STRICT_FLAGS.has(name) ? env[name].trim() : env[name];
     if (raw === undefined || raw === "" || raw === "0" || raw === "1") continue;
@@ -693,6 +699,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "SIGNUP_NETWORK_TRACE_ENABLED",
   "SIGNUP_TURNSTILE_ENABLED",
   "STAFF_NOTIFY_ENABLED",
+  // Isletme belgesi Faz 1a (kurucu 11-06; src/lib/licenses/secret.ts) — varsayilan KAPALI, yalniz "1" + LICENSE_HMAC_SECRET.
+  "BUSINESS_LICENSES_ENABLED",
   "TRIAL_CARD_GATE_ENABLED",
   "CHANNEL_AUTOMATION_NOT_REPLY_ENABLED",
   "HOST_COMMITMENT_AUTO_ENABLED",

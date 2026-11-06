@@ -121,6 +121,9 @@ const OWNER_ONLY: Record<string, string> = {
   "hospitable/connect DELETE": "kanal bağlantısını kaldırma",
   "hospitable/oauth/authorize GET": "kanal OAuth başlatma",
   "hospitable/oauth/callback GET": "kanal OAuth dönüşü (kimlik bilgisi yazar)",
+  "licenses GET": "işletme belgeleri (Faz 1a; vergi no maskeli — belge yönetimi hukuki yük taşır)",
+  "licenses POST": "belge başvurusu (Faz 1a; ayrıca iki aşamalı doğrulama + Pro / Business)",
+  "licenses/[id]/withdraw POST": "belgeyi geri çekme (Faz 1a; ayrıca iki aşamalı doğrulama)",
 };
 
 const SESSION = /if \(!session\)\s*return unauthorized\(\)/;
@@ -150,6 +153,10 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "admin/reset-2fa POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/trial-identity-exempt POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (deneme istisnası; bürünmede yasak)" },
   "admin/trial-end POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (denemeyi bitir / geri ver — kurucu Q4; bürünmede yasak)" },
+  "admin/licenses GET": { gate: [SESSION, SUPERADMIN], reason: "operatör (işletme belgesi kuyruğu, Faz 1a; bürünmede yasak)" },
+  "admin/licenses/[id]/reading POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (resmî kayıt okuması; bürünmede / site dışı yazma yok)" },
+  "admin/licenses/[id]/proof POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (hak sahipliği kanıtı; belge dosyası saklanmaz)" },
+  "admin/licenses/[id]/decision POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (belge kararı; şartlar lib/licenses/evidence.ts)" },
   "alert-email/verify POST": { gate: null, reason: "kimliksiz: uyarı adresi onayı (imzalı belirteç = alıcının posta kutusu; bayrak kapılı)" },
   "auth/login POST": { gate: null, reason: "kimliksiz: giriş" },
   "auth/logout GET": { gate: null, reason: "kimliksiz: yalnız çerezi siler" },

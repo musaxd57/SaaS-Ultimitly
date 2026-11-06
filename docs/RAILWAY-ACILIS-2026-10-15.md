@@ -10,7 +10,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
    `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **92** (00…91; 11-05 taze veritabanında ölçüldü) — üyelik dalı (`m2/membership`) birleşince **93** ve **94** de gelir
    ama İKİ AYRI yayında: önce 93 (dilim 1) tek başına, sonra 94 + dilim 2 (sayım 92 → 93 → 94; 92 numarası `{daire}` tasarımına
-   ayrıldı, klasörü yok — o migration önce gelirse her sayı +1). Sebep ve onarım ↓"Üyelik (M-2)".
+   ayrıldı, klasörü yok — o migration önce gelirse her sayı +1). Sebep ve onarım ↓"Üyelik (M-2)". **95** (`95_business_licenses`,
+   işletme belgesi Faz 1a, kurucu onayı 11-06): yalnız dört YENİ tablo — dolu tabloya dokunmaz; anahtarı kapalıyken hiçbir okuyucusu yok
+   (↓"İşletme belgesi (Faz 1a)").
    **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
    (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn (10-18: 78 aynı prova veritabanında ayrıca uygulandı, 1,4 sn, sapma sıfır); `migrate diff` sapma sıfır. Statik tarama
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
@@ -354,6 +356,17 @@ kurucu onayıyla §1'e taşındı.)
 - `AI_DAILY_CALL_CAP` — işletme başına günlük yapay zekâ çağrı tavanını PLANDAN BAĞIMSIZ herkese uygular (boşken tavan plandan gelir;
   `src/lib/ai/daily-budget.ts`). Yalnız maliyet kaçağında geçici fren; yazılırsa her pakete aynı sayı uygulanır — sonra silin.
 - `AI_DAILY_QR_SHARE_PERCENT` — günlük tavanın QR misafir sohbetine ayrılan payı (boşken %30; 1–100). Geçersiz değer sessizce varsayılana döner.
+
+## İşletme belgesi (Faz 1a) — VARSAYILAN KAPALI
+- Tasarım `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md`; migration 95 (yalnız yeni tablolar).
+- Açmak için İKİSİ birden: `BUSINESS_LICENSES_ENABLED=1` (yalnız "1"; "true" kapalı sayılır, açılışta uyarı) + `LICENSE_HMAC_SECRET` (en az 32
+  karakter rastgele; vergi numarası özetinin anahtarı). Sır yoksa ya da kısaysa özellik KAPALI kalır (açılışta uyarı). 🚨 `LICENSE_HMAC_SECRET`
+  ASLA döndürülmez: değişirse bütün hak sahibi özetleri eşleşmez olur ("bir şirket tek hesapta" kuralı sessizce kırılır). Kasada ayrı saklanır.
+- Kapsam: Pro + Business (faturalandırma zorunlu değilken ve kurucunun işletmesinde açık; denemede kapalı). Ev sahibi tarafı yalnız işletme
+  sahibi + iki aşamalı doğrulamalı oturum. Operatör kuyruğu `/api/admin/licenses` (süper-admin + 2FA; bürünmede kapalı).
+- Belge görüntüsü Lixus'a GELMEZ / saklanmaz; operatör resmî kaydı okur (yeniden üretilebilir sorgu kaydı), hak sahipliği kanıtını dışarıda
+  inceler, kararı yazar. "Eşleşti" işareti son başarılı okumadan 30 gün sonra kendiliğinden kalkar → doğrulanmış her belge ayda bir yeniden
+  okunur (kuyrukta "yeniden okunacak" listesi).
 
 ## Üyelik (M-2) — yayın sırası ve 503 `users_without_membership`
 - Dilim 1 (migration 93: tablo + doldurma, okuyucu yok) TEK BAŞINA yayınlanır; yeni hesaplar o andan itibaren üyelikle açılır.

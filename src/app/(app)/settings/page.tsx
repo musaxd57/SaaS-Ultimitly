@@ -16,6 +16,8 @@ import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
 import { WhatsAppBindingCard } from "@/components/settings/whatsapp-binding-card";
+import { LicensesCard } from "@/components/settings/licenses-card";
+import { licensesEnabled } from "@/lib/licenses/secret";
 import { TimezoneForm } from "@/components/settings/timezone-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
@@ -683,6 +685,8 @@ export default async function SettingsPage({
       <>
         {notificationsView}
         {timezoneView}
+        {/* İşletme belgeleri (Faz 1a): yalnız sahip; anahtar kapalıyken çizilmez (kart ayrıca 404'te kendini gizler). */}
+        {isOwner && licensesEnabled() ? <LicensesCard properties={properties} /> : null}
         {icalPrivacyView}
       </>
     ),

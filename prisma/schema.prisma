@@ -211,6 +211,8 @@ model Organization {
   propertyInstructions  PropertyInstruction[]
   hostChannelBindings   HostChannelBinding[]
   hostQuestions         HostQuestion[]
+  licenseHolders        LicenseHolder[]
+  businessLicenses      BusinessLicense[]
 }
 
 model User {
@@ -441,6 +443,7 @@ model Property {
   instructions        PropertyInstruction[]
   historyLearnReviews HistoryLearnComparison[]
   autoMessages        AutoMessageTemplate[]
+  licenseUnits        LicenseUnit[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -2260,4 +2263,112 @@ model HostQuestion {
   @@index([organizationId, status])
   @@index([conversationId, status])
   @@index([bindingId, status])
+}
+
+/// İŞLETME BELGESİ — HAK SAHİBİ (Faz 1a, migration 95; kurucu 11-06 "Faz1a'ya başla, migration onayım var"; tasarım
+/// docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md §2, §10). Belgede adı yazan şirket ya da şahıs. Vergi numarası DÜZ
+/// SAKLANMAZ: şirkette (VKN) şifreli + anahtarlı özet; şahısta (TCKN) YALNIZ anahtarlı özet (`LICENSE_HMAC_SECRET`, ayrı sır).
+model LicenseHolder {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// company | sole_proprietor (kapalı küme: lib/licenses/catalog.ts)
+  kind           String
+  /// Ticari unvan, kullanıcının yazdığı biçimde (ekranda gösterilir).
+  legalName      String
+  /// Karşılaştırma için normalize unvan (lib/licenses/normalize.ts).
+  legalNameNorm  String
+  /// HMAC-SHA256(LICENSE_HMAC_SECRET, tür + vergi no) — eşsizlik araması.
+  taxIdHash      String
+  /// Yalnız şirket VKN'si, şifreli (aad = id + işletme). Şahısta (TCKN) NULL — TCKN hiçbir biçimde geri okunabilir saklanmaz.
+  taxIdEnc       String?
+  /// Maskeli gösterim için son iki hane.
+  taxIdLast2     String
+  /// BEKÇİ: bu hak sahibinin doğrulanmış (verified / suspended) bir belgesi varken = taxIdHash, yoksa NULL. Bir şirket aynı anda yalnız
+  /// BİR hesapta doğrulanmış olabilir (kurucu S5 "olur"); bekleyen başvuru KİLİTLEMEZ (Opus P1-1). Desen: Membership.singleMembershipGuard.
+  verifiedGuard  String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  licenses     BusinessLicense[]
+
+  @@unique([organizationId, taxIdHash])
+  @@index([taxIdHash])
+}
+
+/// İŞLETME BELGESİ (Faz 1a). Durum ve kural tek kaynak lib/licenses/state.ts; yetki (işaret) HESAPLANIR, saklanmaz (capabilities.ts).
+model BusinessLicense {
+  id               String    @id @default(cuid())
+  organizationId   String
+  holderId         String
+  /// agency | tourism_operation | simple_accommodation (Faz 1a kapalı küme; konut izni Faz 1b — Bakanlık API'si)
+  type             String
+  /// Kullanıcının yazdığı numara (ekranda) + normalize hâli (karşılaştırma / bekçi).
+  number           String
+  numberNorm       String
+  /// Tür bazında nitelikler: acentada { group }, tesiste { facilityType?, starClass? }. Doğrulamada resmî kayıttaki değer kazanır.
+  attributes       Json
+  /// pending | under_review | verified | suspended | rejected | withdrawn | expired
+  status           String
+  /// Askı sebebi: registry_cancelled | not_found | mismatch | operator
+  suspendReason    String?
+  /// İyimser kilit (CAS): her geçiş `version` eşitken yazar ve artırır — eski okumaya göre hesaplanmış karar araya giren kararı ezemez.
+  version          Int       @default(0)
+  /// BEKÇİ: verified / suspended iken `${type}:${numberNorm}`, yoksa NULL — bir belge aynı anda yalnız bir hesapta doğrulanmış olabilir.
+  lockKey          String?   @unique
+  /// Bekleyen başvurunun bitişi (14 gün); geçince süresi dolmuş sayılır.
+  pendingUntil     DateTime?
+  verifiedAt       DateTime?
+  /// Son BAŞARILI ve eşleşen resmî kayıt okuması — "eşleşti" işareti bundan 30 gün sonra kendiliğinden kalkar.
+  lastRegistryOkAt DateTime?
+  /// O okumanın kaynağı (lib/licenses/catalog.ts REGISTRY_SOURCES) — işaret metni kaynağa göre ("Bakanlık" / "TÜRSAB").
+  lastRegistrySource String?
+  /// Başvuruyu açan kişi (düz kimlik; kişi silinse de iz kalır).
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  holder       LicenseHolder  @relation(fields: [holderId], references: [id], onDelete: Cascade)
+  units        LicenseUnit[]
+  events       LicenseEvent[]
+
+  @@index([organizationId, status])
+  @@index([holderId])
+  @@index([type, numberNorm])
+}
+
+/// Belgenin kapsadığı daireler (tesis belgeleri). Acenta belgesi hak sahibi geneli — birimi yok.
+model LicenseUnit {
+  licenseId  String
+  propertyId String
+  createdAt  DateTime @default(now())
+
+  license  BusinessLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  property Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([licenseId, propertyId])
+  @@index([propertyId])
+}
+
+/// BELGE OLAY GÜNLÜĞÜ — YALNIZ EKLE (kod yalnız `create` çağırır). Her geçiş + her resmî kayıt okuması + her hak sahipliği kanıtı.
+/// Kanıt alanı yeniden üretilebilir sorgu kaydını taşır (kaynak, sorgu, kayıttan KOPYALANAN alanlar). Belge görüntüsü YOK.
+model LicenseEvent {
+  id             String   @id @default(cuid())
+  licenseId      String
+  organizationId String
+  fromStatus     String?
+  toStatus       String
+  /// application | registry_read | ownership_proof | approve | reject | suspend | reinstate | withdraw | expire | lock_conflict
+  reason         String
+  /// host | operator | system
+  actorKind      String
+  actorUserId    String?
+  evidence       Json?
+  createdAt      DateTime @default(now())
+
+  license BusinessLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@index([licenseId, createdAt])
+  @@index([organizationId, createdAt])
 }

@@ -257,6 +257,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       await tx.autoMessageTemplate.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // Kopyalama işlem kaydı (migration 81) — işletmeye bağlı iç kayıt, sıfırlamada temizlenir.
       await tx.kbCopyOperation.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
+      // İşletme belgesi (Faz 1a, migration 95): demo hesabında açılmış başvurular sıfırlanır; belge / birim / olay hak sahibinden zincirleme.
+      await tx.licenseHolder.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // İnceleme sırasında eklenmiş, veri kümesinde olmayan mülkler.
       await tx.property.deleteMany({ where: { organizationId: DEMO_ORG_ID, id: { notIn: ds.properties.map((p) => p.id) } } });
 

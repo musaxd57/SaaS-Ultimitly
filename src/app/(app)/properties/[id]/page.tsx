@@ -42,6 +42,8 @@ import { EarlyCheckinRuleForm } from "@/components/properties/early-checkin-rule
 import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { HouseRulesForm } from "@/components/properties/house-rules-form";
 import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
+import { licensesEnabled } from "@/lib/licenses/secret";
+import { propertyLicenseMarkTexts } from "@/lib/licenses/read";
 import { HistoryLearnPanel } from "@/components/properties/history-learn-panel";
 import { historyCompareAllowed, historyLearnEnabled, propertyInstructionsAllowed } from "@/lib/history-learn/service";
 import { propertyInstructionsPromptEnabled } from "@/lib/history-learn/prompt-instructions";
@@ -85,6 +87,8 @@ export default async function PropertyDetailPage({
   // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
   // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
   const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
+  // İşletme belgesi "eşleşti" işareti (Faz 1a): her gösterimde belgelerden HESAPLANIR (askıdaki / 30 günden eski okumalı belge görünmez).
+  const licenseMarks = licensesEnabled() ? await propertyLicenseMarkTexts(session.organizationId, property.id).catch(() => []) : [];
   // Değişmez 13 (kurucu 10-11): olası çelişki uyarıları — yalnız yönetici; okunamazsa uyarı yok (sayfanın geri kalanı etkilenmez).
   // Destek görünümünde (bürünme, salt-okunur — K8) gösterilmez: "Bilerek böyle" yazması reddedilir (Haiku 4. tur).
   const contradictions =
@@ -277,6 +281,14 @@ export default async function PropertyDetailPage({
           />
         ) : null}
       </PageHeader>
+
+      {licenseMarks.length > 0 ? (
+        <ul className="mb-4 space-y-1 text-sm text-emerald-700 dark:text-emerald-400" aria-label="İşletme belgesi">
+          {licenseMarks.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      ) : null}
 
       {/* min-w-0 ZORUNLU, kozmetik DEĞİL: grid çocukları varsayılan olarak
           `min-width:auto` alır, yani sütun İÇERİĞİN min-content'i kadar geniş

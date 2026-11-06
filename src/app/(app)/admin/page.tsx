@@ -544,6 +544,19 @@ export default async function AdminPage() {
 
       <Card className="max-w-2xl">
         <CardHeader>
+          <CardTitle className="text-base">İşletme belgeleri</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Belge başvuruları: resmî kayıt okuması, hak sahipliği kanıtı, karar ve aylık yeniden okuma.{" "}
+          <a href="/admin/licenses" className="font-medium text-primary underline-offset-4 hover:underline">
+            Kuyruğu aç
+          </a>
+          {" "}(<code className="font-mono text-xs">BUSINESS_LICENSES_ENABLED=1</code> + <code className="font-mono text-xs">LICENSE_HMAC_SECRET</code> ile açılır).
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
           <CardTitle className="text-base">Yapay Zekâ Kalite Konsolu</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">

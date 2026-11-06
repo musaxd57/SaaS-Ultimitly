@@ -35,10 +35,16 @@ const EXPORTED: Record<string, string> = {
   PropertyInstruction: "prisma.propertyInstruction.findMany", // ev sahibinin yazdığı talimat (migration 65)
   HistoryLearnComparison: "prisma.historyLearnComparison.findMany", // ev sahibinin karşılaştırma notu (migration 65)
   AutoMessageTemplate: "prisma.autoMessageTemplate.findMany", // ev sahibinin otomatik mesaj metni (kurucu T4, migration 80)
+  LicenseHolder: "prisma.licenseHolder.findMany", // işletme belgesi hak sahibi (Faz 1a, migration 95) — vergi no özeti / şifresi YOK, son iki hane
+  BusinessLicense: "prisma.businessLicense.findMany", // işletme belgesi (Faz 1a) — durum ev sahibinin gördüğü gibi (under_review → pending)
+  LicenseUnit: "units: { select: { propertyId: true } }", // belgenin kapsadığı daireler, belge satırının içinde
 };
 
 /** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */
 const EXCLUDED: Record<string, string> = {
+  LicenseEvent:
+    "işletme belgesi operatör günlüğü (Faz 1a) — iç doğrulama kanıtı (kayıt okuması, operatör notu) ve kiracılar arası çakışma işareti taşır; ev " +
+    "sahibinin gördüğü durum BusinessLicense dökümünde",
   VerifiedAnswer: "doğrulanmış cevap tekrarının GÖLGE kaydı (migration 85) — misafir metni / kimliği yok: bilgi tabanından doğrulanmış cevap + süzülmüş Türkçe arama sorgusu; 30 günde geçersiz, 90 gün dokunulmazsa silinir",
   CheckoutIntent: "ödeme ekranı durumu — iç işletim; delil CheckoutConsent ve sonuç Invoice dökümde; takma adlı Paddle işlem kimliği, kapanıştan 90 gün sonra silinir (Codex 10-21, migration 82)",
   KbChunkVector: "bilgi tabanı parçalarının anlam vektörleri (migration 87) — türetilmiş önbellek, METİN YOK; kaynağı (bilgi tabanı kalemi) dökümde; kalem silinince cascade ile gider",

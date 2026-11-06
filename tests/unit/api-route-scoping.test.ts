@@ -62,6 +62,16 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "admin/events/route.ts":
     "global: takip numarasıyla TÜM işletmelerin olay günlüğünde arama (destek); tek yetki isSuperAdmin (+2FA), bürünmede yasak, site dışı " +
     "istek reddi, saatte 60, zorunlu denetim kaydı (kayıttaki org = operatörün kendi oturumu)",
+  "admin/licenses/route.ts":
+    "global: operatör belge kuyruğu — TÜM işletmelerin başvuruları (vergi no maskeli); tek yetki isSuperAdmin (+2FA), bürünmede yasak, " +
+    "anahtar kapalıysa 404",
+  "admin/licenses/[id]/reading/route.ts":
+    "operatör: belge kimliği YOLDAN gelir (tüm işletmeler); tek yetki isSuperAdmin (+2FA), bürünmede / site dışı yazma yok, " +
+    "operatör kotası; kayıt yalnız-ekle olay günlüğüne operatör kimliğiyle",
+  "admin/licenses/[id]/proof/route.ts":
+    "operatör: belge kimliği YOLDAN gelir; tek yetki isSuperAdmin (+2FA), bürünmede / site dışı yazma yok; belge dosyası saklanmaz",
+  "admin/licenses/[id]/decision/route.ts":
+    "operatör: belge kimliği YOLDAN gelir; tek yetki isSuperAdmin (+2FA), bürünmede / site dışı yazma yok; CAS + bekçi sütunları",
   "alert-email/verify/route.ts":
     "public: org id İMZALI belirteçten gelir (HMAC, alan ayrımlı, 24 saat; bayrak kapalı → 404); YALNIZ o org'un uyarı " +
     "adresini ve yalnız belirteçteki eski adres hâlâ kayıtlıysa (CAS) değiştirir",
@@ -180,7 +190,14 @@ describe("API rotaları kiracı kapsamı taşır", () => {
 
   it("kaynak/kayıt id'si alan rotalar org'a göre filtreler (token'la korunanlar hariç)", () => {
     const tokenScoped = ["calendar/[token]/route.ts", "chat/[token]/route.ts"];
-    const globalByDesign = ["admin/leads/[id]/route.ts"];
+    // Operatör belge uçları (Faz 1a) bilerek TÜM işletmeleri görür: belge kimliği yoldan, tek yetki isSuperAdmin (+2FA), bürünmede ve
+    // site dışı yazmada kapalı — davranışsal pin `tests/integration/licenses-routes.test.ts`.
+    const globalByDesign = [
+      "admin/leads/[id]/route.ts",
+      "admin/licenses/[id]/reading/route.ts",
+      "admin/licenses/[id]/proof/route.ts",
+      "admin/licenses/[id]/decision/route.ts",
+    ];
     const dynamic = routes.filter(
       (r) => /\[[^\]]+\]/.test(r.rel) && !tokenScoped.includes(r.rel) && !globalByDesign.includes(r.rel),
     );

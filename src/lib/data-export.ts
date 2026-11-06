@@ -84,6 +84,8 @@ export async function buildOrganizationDataExport(organizationId: string) {
     propertyInstructions,
     historyLearnReviews,
     autoMessages,
+    licenseHolders,
+    businessLicenses,
   ] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
@@ -334,6 +336,29 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: { id: true, propertyId: true, kind: true, body: true, revision: true, createdAt: true, updatedAt: true },
       orderBy: [{ propertyId: "asc" }, { kind: "asc" }],
     }),
+    // İşletme belgesi (Faz 1a, migration 95): ev sahibinin girdiği hak sahibi + belge. Vergi numarası özeti / şifreli hâli dökümde YOK (yalnız
+    // son iki hane). Operatör olay günlüğü (LicenseEvent) DIŞARIDA: iç kanıt + kiracılar arası çakışma işareti taşır.
+    prisma.licenseHolder.findMany({
+      where: { organizationId },
+      select: { id: true, kind: true, legalName: true, taxIdLast2: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+    prisma.businessLicense.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        holderId: true,
+        type: true,
+        number: true,
+        status: true,
+        attributes: true,
+        verifiedAt: true,
+        lastRegistryOkAt: true,
+        createdAt: true,
+        units: { select: { propertyId: true } },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
   ]);
   if (!org) return null;
   return {
@@ -348,5 +373,10 @@ export async function buildOrganizationDataExport(organizationId: string) {
     propertyInstructions,
     historyLearnReviews,
     autoMessages,
+    // "under_review" çakışma sebebiyle de oluşur → ev sahibine "İnceleniyor" gibi "pending" görünür (başka hesap hakkında sızıntı yok).
+    businessLicenses: {
+      holders: licenseHolders,
+      licenses: businessLicenses.map((l) => ({ ...l, status: l.status === "under_review" ? "pending" : l.status })),
+    },
   };
 }
