@@ -41,7 +41,13 @@ function collect(): { samples: Sample[]; filesRead: number; filesSkipped: number
   const samples: Sample[] = [];
   let filesRead = 0;
   let filesSkipped = 0;
-  for (const f of readdirSync(OLCUM).filter((n) => n.endsWith(".json")).sort()) {
+  // Tarih sırası (sonra ad): aynı cevap birden çok dosyada geçiyorsa İLK görüldüğü (en eski) ölçüme yazılır — öncesi / sonrası ayrımı
+  // dosya adının alfabesine göre kaymasın (Haiku 11-06). Tarihsiz dosyalar en sonda, kendi kümelerinde.
+  const dayOf = (n: string) => /20\d\d-\d\d-\d\d/.exec(n)?.[0] ?? "9999-99-99";
+  const files = readdirSync(OLCUM)
+    .filter((n) => n.endsWith(".json"))
+    .sort((a, b) => dayOf(a).localeCompare(dayOf(b)) || a.localeCompare(b));
+  for (const f of files) {
     if (REPLAY_OUTPUT.test(f)) continue;
     if (isForbiddenMeasurementFile(f)) {
       filesSkipped++;
@@ -89,6 +95,8 @@ function firstThirdPersonSentence(text: string): string | null {
 type Bucket = {
   replies: number;
   rawThird: number;
+  /** Süzgeç cevabın tamamını ev sahibine bıraktı (geriye içerik kalmadı) — süzgeç ölçümünün konusu, aşağıdaki sütunlara girmez. */
+  filterHeldWhole: number;
   rescuedByFilter: number;
   held: number;
   heldThird: number;
@@ -96,13 +104,14 @@ type Bucket = {
   heldReferral: number;
   heldOnlyByVoice: number;
 };
-const bucket = (): Bucket => ({ replies: 0, rawThird: 0, rescuedByFilter: 0, held: 0, heldThird: 0, heldInternal: 0, heldReferral: 0, heldOnlyByVoice: 0 });
+const bucket = (): Bucket => ({ replies: 0, rawThird: 0, filterHeldWhole: 0, rescuedByFilter: 0, held: 0, heldThird: 0, heldInternal: 0, heldReferral: 0, heldOnlyByVoice: 0 });
 
 function main(): void {
   const { samples, filesRead, filesSkipped } = collect();
   const all = bucket();
   const before = bucket();
   const after = bucket();
+  const undated = bucket();
   const byLang: Record<string, Bucket> = {};
   const phrases = new Map<string, number>();
   const onlyVoicePhrases = new Map<string, number>();
@@ -111,7 +120,7 @@ function main(): void {
   const rescuedExamples: { file: string; before: string; after: string }[] = [];
 
   for (const s of samples) {
-    const period = s.day && s.day >= PROMPT_CHANGE_DAY ? after : before;
+    const period = !s.day ? undated : s.day >= PROMPT_CHANGE_DAY ? after : before;
     const lang = (byLang[s.lang ?? "?"] ??= bucket());
     const buckets = [all, period, lang];
     for (const b of buckets) b.replies++;
@@ -119,7 +128,10 @@ function main(): void {
     if (raw === "host_third_person") for (const b of buckets) b.rawThird++;
     const filtered = stripHostContactFiller(s.reply, s.guest ? [s.guest] : []);
     // Süzgeç cevabın TAMAMINI ev sahibine bırakıyorsa (geriye içerik kalmadı) o cevap bu ölçümün değil süzgeç ölçümünün konusu.
-    if (filtered.hostContactOnly) continue;
+    if (filtered.hostContactOnly) {
+      for (const b of buckets) b.filterHeldWhole++;
+      continue;
+    }
     const v = hostVoiceViolation(filtered.text);
     if (raw === "host_third_person" && v === null) {
       for (const b of buckets) b.rescuedByFilter++;
@@ -155,7 +167,7 @@ function main(): void {
 
   const pct = (n: number, d: number) => (d ? `${((100 * n) / d).toFixed(1)}%` : "—");
   const row = (name: string, b: Bucket) =>
-    `| ${name} | ${b.replies} | ${b.rawThird} (${pct(b.rawThird, b.replies)}) | ${b.rescuedByFilter} | ${b.held} (${pct(b.held, b.replies)}) | ${b.heldThird} | ${b.heldInternal} | ${b.heldReferral} | ${b.heldOnlyByVoice} (${pct(b.heldOnlyByVoice, b.replies)}) |`;
+    `| ${name} | ${b.replies} | ${b.rawThird} (${pct(b.rawThird, b.replies)}) | ${b.filterHeldWhole} | ${b.rescuedByFilter} | ${b.held} (${pct(b.held, b.replies)}) | ${b.heldThird} | ${b.heldInternal} | ${b.heldReferral} | ${b.heldOnlyByVoice} (${pct(b.heldOnlyByVoice, b.replies)}) |`;
   const topOnlyVoice = [...onlyVoicePhrases.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
   const topPhrases = [...phrases.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
   // Model çağrısı yok → çalışma kimliği yalnız kod sürümü (run-meta.ts sunucu modülü yükler; bu tekrar oynatma ona gerek duymaz).
@@ -167,7 +179,7 @@ function main(): void {
   }
   const runtime = { commit, models: "yok (tekrar oynatma)" };
   const day = new Date().toISOString().slice(0, 10);
-  const json = { day, filesRead, filesSkipped, all, before, after, byLang, topPhrases, topOnlyVoice, heldExamples, onlyVoiceExamples, rescuedExamples, runtime };
+  const json = { day, filesRead, filesSkipped, all, before, after, undated, byLang, topPhrases, topOnlyVoice, heldExamples, onlyVoiceExamples, rescuedExamples, runtime };
   writeFileSync(path.join(OLCUM, `host-voice-replay-${day}.json`), `${JSON.stringify(json, null, 2)}\n`);
   const md = [
     `# Ev sahibinin sesi — tekrar oynatma (${day}, ücretsiz, model çağrısı yok)`,
@@ -175,11 +187,12 @@ function main(): void {
     `Okunan ölçüm dosyası: ${filesRead} · yasak adlı (kör / kabul / blind / acceptance …) atlanan: ${filesSkipped} · tekil cevap: ${all.replies}.`,
     `Sıra gönderim kapısıyla aynı: "ev sahibinize yazın" süzgeci cümleyi siler → kalan metinde ev sahibi sesi denetçisi (\`reply_host_voice\`).`,
     "",
-    "| Küme | Cevap | Ham üçüncü şahıs | Süzgeç kurtardı | Ev sahibine kalır | · üçüncü şahıs | · arka plan anlatımı | · başka işletme | YALNIZ bu denetçi tuttu |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "| Küme | Cevap | Ham üçüncü şahıs | Süzgeç tamamını tuttu | Süzgeç kurtardı | Ev sahibine kalır | · üçüncü şahıs | · arka plan anlatımı | · başka işletme | YALNIZ bu denetçi tuttu |",
+    "|---|---|---|---|---|---|---|---|---|---|",
     row("Hepsi", all),
     row(`${PROMPT_CHANGE_DAY} öncesi ölçümler`, before),
     row(`${PROMPT_CHANGE_DAY} ve sonrası`, after),
+    row("tarihsiz dosyalar", undated),
     ...Object.entries(byLang)
       .sort((a, b) => b[1].replies - a[1].replies)
       .slice(0, 8)
