@@ -117,6 +117,29 @@ describe("QR sohbeti — imzalı cihaz geçişi (K-5)", () => {
     expect((await post(token, FLOOD_IP, "Tekrar", legacy)).status).toBe(429);
   }, 120_000);
 
+  /** Gönderme IP kovasını (20/dk) geçersiz anahtarlarla doldurur. */
+  async function floodPost(ip: string) {
+    for (let i = 0; i < 20; i++) await post(`yok${i}`.padEnd(64, "x"), ip, "x");
+    expect((await post("yok-son".padEnd(64, "x"), ip, "x")).status).toBe(429);
+  }
+
+  it("🚨 gönderme: ev sahibi bağı sıfırladıysa eski geçiş selde bir şey kazandırmaz (429) — cihaz sessizce yeniden bağlanmaz", async () => {
+    const { token, reservationId } = await chatProperty(orgId, 1);
+    const cookie = setCookieOf(await post(token, FLOOD_IP, "Merhaba"))!;
+    await prisma.reservation.update({ where: { id: reservationId }, data: { chatBoundHash: null, chatBoundAt: null } });
+    await floodPost(FLOOD_IP);
+    expect((await post(token, FLOOD_IP, "Çöp ne zaman?", cookie)).status).toBe(429);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } })).chatBoundHash).toBeNull();
+  }, 120_000);
+
+  it("🚨 gönderme: konaklama BİTTİKTEN sonra geçiş IP kovasını atlatmaz (selde 429)", async () => {
+    const { token, reservationId } = await chatProperty(orgId, 1);
+    const cookie = setCookieOf(await post(token, FLOOD_IP, "Merhaba"))!;
+    await prisma.reservation.update({ where: { id: reservationId }, data: { arrivalDate: daysFromNow(-4), departureDate: daysFromNow(-1) } });
+    await floodPost(FLOOD_IP);
+    expect((await post(token, FLOOD_IP, "Çöp ne zaman?", cookie)).status).toBe(429);
+  }, 120_000);
+
   it("🚨 geçiş ERİŞİM VERMEZ: geçerli geçiş BAŞKA bir sırla taşınırsa sohbet açılmaz (başka cihaz) — selde 429", async () => {
     const { token } = await chatProperty(orgId, 1);
     const cookie = setCookieOf(await get(token, "198.51.100.2"))!;
