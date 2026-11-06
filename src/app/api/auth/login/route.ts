@@ -4,7 +4,9 @@ import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
 import { upgradeStoredPasswordHash } from "@/lib/auth/password-upgrade";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie, setKnownDeviceCookie } from "@/lib/auth";
-import { membershipClaims, NO_ACTIVE_MEMBERSHIP_TEXT, pickLoginMembership } from "@/lib/membership/session";
+import { membershipClaims, NO_ACTIVE_MEMBERSHIP_TEXT, NO_MEMBERSHIP_REASON, pickLoginMembership } from "@/lib/membership/session";
+import { repairHomeMembershipIfMissing } from "@/lib/membership/write";
+import { reportError } from "@/lib/report-error";
 import {
   badRequest,
   jsonOk,
@@ -179,7 +181,17 @@ export async function POST(req: NextRequest) {
     // M-2 dilim 2 (Opus M15): oturumun işletmesi = seçilen ETKİN üyelik (son kullanılan → ana → en eski). Seçim ikinci adımdan ÖNCE
     // okunur ama sonucu yalnız ikinci adımdan SONRA söylenir (↓403 — numaralandırma yok). Önce okunmasının tek sebebi kurtarma kodu:
     // gidecek işletmesi olmayan kişinin tek kullanımlık kodu YAKILMAZ (Opus S7).
-    const membership = await pickLoginMembership(prisma, user);
+    let membership = await pickLoginMembership(prisma, user);
+    // Kayan dağıtım artığı (HİÇ üyelik satırı yok — eski kodun açtığı hesap): ana işletme üyeliği BURADA onarılır, kişi fark etmez (kurucu
+    // 11-06, tasarım §13). İkinci adımdan ÖNCE: kurtarma kodunu tüketip tüketmeme kararı (↓) son üyelik durumuna göre verilmeli. Onarım oturum
+    // basmaz; çıkarılmış üyeliği olan kişiye hiçbir şey yazmaz (↓403). Operasyon sinyali: bu bir yayın sırası hatasının izidir.
+    if (!membership) {
+      if (await repairHomeMembershipIfMissing(prisma, user.id)) {
+        void reportError("membership-login-repair", new Error("home_membership_repaired_at_login"));
+      }
+      // Onarım yazmadıysa da yeniden seçilir: eşzamanlı ikinci giriş, ilk girişin yazdığı satırı görür (boşuna 403 almaz).
+      membership = await pickLoginMembership(prisma, user);
+    }
     let trustedDevice = false;
     if (user.twoFactorEnabledAt) {
       // Fail-closed: any error reading the trusted-device cookie → ask for 2FA.
@@ -317,7 +329,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Etkin üyelik yoksa (↑seçim) oturum BASILMAZ — sade metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır; numaralandırma yok).
-    if (!membership) return NextResponse.json({ error: NO_ACTIVE_MEMBERSHIP_TEXT }, { status: 403 });
+    if (!membership) return NextResponse.json({ error: NO_ACTIVE_MEMBERSHIP_TEXT, reason: NO_MEMBERSHIP_REASON }, { status: 403 });
     await setSessionCookie({
       userId: user.id,
       ...membershipClaims(membership),

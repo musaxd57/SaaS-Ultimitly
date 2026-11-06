@@ -197,7 +197,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     expect(await recheckEarlyCheckinsAfterCleaning(s.orgId, AFTER_SETTLE)).toBe(0);
     await runDueChannelAutoReplies(s.orgId);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
+    expect(String(mockSend.mock.calls[0][1])).toContain("You can check in today (14 October) from 13:00");
   });
 
   it("🚨 15 ajan A11: görevin atanmış kişisi sistem notunu ELLE yazsa da yeniden değerlendirme bastırılmaz (koruma yalnız sistem kaydı)", async () => {

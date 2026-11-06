@@ -25,7 +25,7 @@ import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadines
 // GİRİŞ HAZIRLIĞI LİSTESİ — YÜKLEYİCİ (salt-okuma; org kapsamlı; model çağrısı ve yazma YOK).
 //
 // 🚨 Temizlik hükmü konaklama başına BUGÜNKÜ tek-konaklama yükleyicisinden (`loadEarlyCheckinFacts`) gelir — misafire giden
-// "Daireniz hazır" kararıyla AYNI kanıt yolu; devir seçimi, görev kümesi ve "bitti" kanıtı burada YENİDEN YAZILMAZ (ikinci bir kopya
+// "erken giriş onayı" kararıyla AYNI kanıt yolu; devir seçimi, görev kümesi ve "bitti" kanıtı burada YENİDEN YAZILMAZ (ikinci bir kopya
 // zamanla ayrışırdı). Burada yalnız GÖSTERİM ayrıntısı (kim atandı / başladı, kimin "bitti" dediği) ve hükme girmeyen ek faktörler
 // (söz, ihtiyaç, giriş talimatı) toplu sorgularla eklenir. Ölçü: konaklama başına ~6-8 sorgu; eşzamanlılık sınırlı.
 // ---------------------------------------------------------------------------

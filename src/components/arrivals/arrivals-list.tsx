@@ -49,7 +49,7 @@ function FactorLine({ f }: { f: Factor }) {
 
 /**
  * Açılır "Ayrıntılar"a YALNIZ saf bağlam iner: önceki çıkış → giriş saati ve düşük öncelikli bakım. Geri kalan her satır HEP görünür
- * (Opus 11-06 N5): temizlikçinin notu (misafire giden otomatik "Daireniz hazır"ı durdurur), açık misafir ihtiyacı, söz ve ERİŞİM satırı —
+ * (Opus 11-06 N5): temizlikçinin notu (misafire giden otomatik erken giriş onayını durdurur), açık misafir ihtiyacı, söz ve ERİŞİM satırı —
  * H-2: erişim "kontrol edilmedi" satırı gizlenmez, gizlemek "her şey hazır" izlenimi verirdi. Codex'in sadeliği: açıklama kısa, bağlam kapalı.
  */
 const isContextOnly = (f: Factor) => f.key === "timing" || (f.key === "issue" && f.state === "info");

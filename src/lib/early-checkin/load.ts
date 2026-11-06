@@ -10,7 +10,7 @@
 //  · Kanıt modeli (09-24): yalnız KİMLİKLİ kullanıcı kaydı "bitti" sayılır ve görevin EN SON durum kaydı "bitti"
 //    olmalı (geri alınıp yeniden atılmış işaretin eskisi sayılmaz); ayrılan konaklamaya bağlı TARİHSİZ temizlik görevi
 //    de kümeye girer (açıksa engeller). Devirde AÇIK bakım/kontrol görevi (ayrılan ya da gelen konaklamaya bağlı, ya da
-//    devir gününe tarihli) "Daireniz hazır"ı durdurur; mülkte bağsız tarihsiz/gecikmiş açık bakım görevi ve
+//    devir gününe tarihli) erken giriş onayını durdurur; mülkte bağsız tarihsiz/gecikmiş açık bakım görevi ve
 //    temizlikçinin bugün devir temizliğine yazdığı NOT (bugün sorun bildiriminin tek yolu) yalnız otomatik gönderimi
 //    durdurur. (Temizlikçinin kapalı-küme sorun bildirimi ayrı dilim — bugün personel görev AÇAMAZ.)
 //  · Aynı gün devir yoksa dün gece YALNIZ müsaitlik motoru taze kaynaklarla "boş" diyorsa boş sayılır.
@@ -30,7 +30,7 @@ import { loadEarlyCheckinRule } from "./rules";
 export { laterTime, READY_SETTLE_MS, readinessDetailOf, readinessOf, readyAtOf, wallClockMoment } from "./readiness";
 
 const DAY_MS = 86_400_000;
-/** Devirde "Daireniz hazır"ı durduran açık görev türleri (temizlikçinin sorun bildirimi bakım görevi olarak açılır). */
+/** Devirde erken giriş onayını durduran açık görev türleri (temizlikçinin sorun bildirimi bakım görevi olarak açılır). */
 export const EARLY_CHECKIN_ISSUE_TASK_TYPES = ["maintenance", "checkout_review"] as const;
 
 type TaskWithUpdates = {

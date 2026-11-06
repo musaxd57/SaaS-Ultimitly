@@ -148,7 +148,7 @@ describe("hassas konaklama isteği — kanıtlı erteleme", () => {
 
   it("açıkken koddan kurulan doğrulanmış erken giriş onayı (birebir metin, tek tür) MUAF kalır", () => {
     vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");
-    const text = "Daireniz hazır; bugün (1 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz.";
+    const text = "Bugün (1 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz.";
     const e = evaluateAvailability(text, ["Saat 12'de girebilir miyiz?"], {
       verifiedGrant: { text },
       declared: { asked: "early_checkin", stance: "none" },

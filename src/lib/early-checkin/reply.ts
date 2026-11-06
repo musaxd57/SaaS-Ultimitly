@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------------------
 // DOĞRULANMIŞ ERKEN GİRİŞ — ONAY METNİ KODDA KURULUR (09-24). Model metni DEĞİL: yalnız doğrulanmış veri
-// (onaylanan saat, "daire hazır" işareti) ve host'un KAYITLI kuralı (ücret, host notu) girer. Böylece "cevap bu
+// (onaylanan saat; temizlik "bitti" kanıtı KARARIN girdisidir) ve host'un KAYITLI kuralı (ücret, host notu) girer. Böylece "cevap bu
 // verilere uygun mu?" sorusu yapıdan cevaplanır: metinde uydurma saat, takvim iddiası ya da tutar olamaz.
+// 🚨 Metin daireyi "hazır" İLAN ETMEZ (kurucu 11-06, K-4): misafir saati sordu; "Daireniz hazır" temizlikçinin bildirmediği bir sorunda
+// ev sahibini zor durumda bırakan ek bir iddiaydı. Metin yalnız onaylanan saati ve günü söyler.
 //
 // Diller bekletme mesajlarıyla aynı altı dil (tr, en, de, fr, ar, ru); tanınmayan → en. Cümleler cinsiyet
 // varsaymaz (ev sahibini ya da yazanı erkek varsayan kuruluşlar 08-08 denetiminde düzeltildi — aynı kural).
@@ -16,12 +18,12 @@ export type EarlyCheckinLang = (typeof EARLY_CHECKIN_LANGS)[number];
 // Selamsız (konuşmanın ortasında tekrar selam verilmez — `isFirstOperatorReply` kuralı) ve GÜNÜ adlandırır: onay
 // yalnız bugünkü varış içindir; başka bir gün / başka bir konaklama sanılmasın (inceleme 09-24).
 const APPROVED: Record<EarlyCheckinLang, (time: string, day: string) => string> = {
-  tr: (t, d) => `Daireniz hazır; bugün (${d}) saat ${t} itibarıyla giriş yapabilirsiniz.`,
-  en: (t, d) => `The apartment is ready — you can check in today (${d}) from ${t}.`,
-  de: (t, d) => `Die Wohnung ist bereit – Sie können heute (${d}) ab ${t} Uhr einchecken.`,
-  fr: (t, d) => `Le logement est prêt : vous pouvez arriver aujourd'hui (${d}) à partir de ${t}.`,
-  ar: (t, d) => `الشقة جاهزة ويمكنكم تسجيل الدخول اليوم (${d}) ابتداءً من الساعة ${t}.`,
-  ru: (t, d) => `Квартира готова — сегодня (${d}) заезд возможен с ${t}.`,
+  tr: (t, d) => `Bugün (${d}) saat ${t} itibarıyla giriş yapabilirsiniz.`,
+  en: (t, d) => `You can check in today (${d}) from ${t}.`,
+  de: (t, d) => `Sie können heute (${d}) ab ${t} Uhr einchecken.`,
+  fr: (t, d) => `Vous pouvez arriver aujourd'hui (${d}) à partir de ${t}.`,
+  ar: (t, d) => `يمكنكم تسجيل الدخول اليوم (${d}) ابتداءً من الساعة ${t}.`,
+  ru: (t, d) => `Сегодня (${d}) заезд возможен с ${t}.`,
 };
 
 const FEE: Record<EarlyCheckinLang, (fee: string) => string> = {

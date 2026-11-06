@@ -90,7 +90,7 @@ export interface EarlyCheckinFacts {
   departureConfirmed?: boolean;
   /**
    * Devirde AÇIK sorun/bakım/kontrol görevi var (ayrılan ya da gelen konaklamaya bağlı, ya da devir gününe tarihli) —
-   * "Daireniz hazır" gidemez (host).
+   * erken giriş onayı gidemez (host).
    */
   openIssue?: boolean;
   /** Mülkte bağsız, tarihsiz ya da gecikmiş AÇIK bakım/kontrol görevi var — yalnız otomatik gönderimi durdurur. */

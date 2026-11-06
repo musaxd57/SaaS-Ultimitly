@@ -91,7 +91,8 @@ export async function requireAuth(): Promise<SessionPayload> {
     // 🚨 ROL DEĞİŞTİYSE OTURUM KAPANIR (Codex 09-30, B2): ara katmanın personel yönlendirmesi ÇEREZDEKİ role bakar ve (app)
     // sayfalarının çoğu rolü kendisi kontrol etmez → rolü düşürülen yöneticinin eski çerezi gelen kutusu sayfalarını açmaya
     // devam ederdi (burada rol personele çekilse de sayfa buna bakmıyordu). Uyuşmazlıkta çıkış: yeni giriş taze rolü taşır,
-    // ara katman doğru yönlendirir. Bugün rolü değiştiren yol YOK; ileride eklenecek yol epoch da artırmalı (CLAUDE.md ön koşul).
+    // ara katman doğru yönlendirir. Rolü değiştiren yol üyelik KUŞAĞINI artırır (kalıcı karar #211, kurucu 11-06 Ü-4) → aşağıdaki
+    // üyelik denetimi oturumu yalnız o işletmede düşürür.
     // M-2: üyelik etkin + kuşak / kimlik aynı olmalı; B2 kuralı ÜYELİK rolüyle (rol değiştiyse çıkış, yeni giriş taze rolü taşır).
     // 🚨 İşletme ÜSTÜNE YAZILMAZ (Opus M4): JWT'nin işletmesindeki üyelik doğrulandı; ana işletmeye taşımak B'deki oturumu A'da açardı.
     if (!user || user.sessionEpoch !== session.sessionEpoch || !membershipMatchesSession(membership, session) || membership.role !== session.role) {

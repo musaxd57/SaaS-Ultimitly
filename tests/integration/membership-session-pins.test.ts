@@ -37,7 +37,7 @@ vi.mock("@/lib/email", () => ({
 
 import { requireSession } from "@/lib/api";
 import { requireAuth } from "@/lib/auth";
-import { pickLoginMembership } from "@/lib/membership/session";
+import { NO_ACTIVE_MEMBERSHIP_TEXT, pickLoginMembership } from "@/lib/membership/session";
 import { enterOrganization, exitImpersonation } from "@/lib/admin";
 import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import AppLayout from "@/app/(app)/layout";
@@ -144,6 +144,119 @@ describe("M-2 dilim 2 — pinler", () => {
     const written = [...jar.set].reverse().find((c) => c.value && c.name.endsWith(SESSION_COOKIE))!;
     expect(await verifySession(written.value)).toMatchObject({ organizationId: b.id, role: "staff" });
     expect(await prisma.auditLog.findMany({ where: { action: "auth.login_success" }, select: { organizationId: true } })).toEqual([{ organizationId: a.id }]);
+  });
+
+  it("🚨 HİÇ üyelik satırı olmayan kişi (kayan dağıtım artığı) girişte ONARILIR: ana işletmede etkin üyelik (köken repair), oturum basılır; ikinci giriş ikinci satır yazmaz", async () => {
+    const a = await prisma.organization.create({ data: { name: "Lale A" } });
+    // Eski kodun açtığı hesap: tek yazıcıdan GEÇMEDEN (bilerek).
+    const orphan = await prisma.user.create({
+      data: { organizationId: a.id, name: "Eski", email: "eski-onar@example.test", passwordHash: await bcrypt.hash("secret123", 4), role: "manager", emailVerifiedAt: new Date() },
+    });
+    const doLogin = (ip: string) =>
+      login(
+        new NextRequest("http://www.lixusai.com/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": ip },
+          body: JSON.stringify({ email: "eski-onar@example.test", password: "secret123" }),
+        }),
+      );
+    const res = await doLogin("9.9.9.21");
+    expect(res.status).toBe(200);
+    const rows = await prisma.membership.findMany({ where: { userId: orphan.id } });
+    expect(rows.map((r) => ({ organizationId: r.organizationId, role: r.role, status: r.status, origin: r.origin, epoch: r.epoch }))).toEqual([
+      { organizationId: a.id, role: "manager", status: "active", origin: "repair", epoch: 0 },
+    ]);
+    const written = [...jar.set].reverse().find((c) => c.value && c.name.endsWith(SESSION_COOKIE))!;
+    expect(await verifySession(written.value)).toMatchObject({ userId: orphan.id, organizationId: a.id, role: "manager", membershipId: rows[0]!.id });
+    expect((await doLogin("9.9.9.22")).status).toBe(200);
+    expect(await prisma.membership.count({ where: { userId: orphan.id } })).toBe(1);
+  });
+
+  it("🚨 eşzamanlı iki giriş: onarım TEK satır yazar ve ikinci giriş de oturum alır (boşuna 403 yok)", async () => {
+    const a = await prisma.organization.create({ data: { name: "Lale A" } });
+    const orphan = await prisma.user.create({
+      data: { organizationId: a.id, name: "Eski", email: "eski-yaris@example.test", passwordHash: await bcrypt.hash("secret123", 4), role: "owner", emailVerifiedAt: new Date() },
+    });
+    const one = (ip: string) =>
+      login(
+        new NextRequest("http://www.lixusai.com/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": ip },
+          body: JSON.stringify({ email: "eski-yaris@example.test", password: "secret123" }),
+        }),
+      );
+    const [r1, r2] = await Promise.all([one("9.9.9.31"), one("9.9.9.32")]);
+    expect([r1.status, r2.status]).toEqual([200, 200]);
+    expect(await prisma.membership.count({ where: { userId: orphan.id } })).toBe(1);
+  });
+
+  it("🚨 onarım ÇIKARILMIŞ üyeliği DİRİLTMEZ: satırı olan (çıkarılmış) kişi 403 + sebep kodu alır, yeni satır YAZILMAZ", async () => {
+    const a = await prisma.organization.create({ data: { name: "Lale A" } });
+    const u = await makeUser({
+      data: { organizationId: a.id, name: "Çıkan", email: "cikan-onar@example.test", passwordHash: await bcrypt.hash("secret123", 4), role: "staff", emailVerifiedAt: new Date() },
+    });
+    await prisma.membership.updateMany({ where: { userId: u.id }, data: { status: "revoked", epoch: { increment: 1 } } });
+    const res = await login(
+      new NextRequest("http://www.lixusai.com/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "9.9.9.41" },
+        body: JSON.stringify({ email: "cikan-onar@example.test", password: "secret123" }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: NO_ACTIVE_MEMBERSHIP_TEXT, reason: "no_membership" });
+    expect(await prisma.membership.findMany({ where: { userId: u.id }, select: { status: true, origin: true } })).toEqual([{ status: "revoked", origin: "seed" }]);
+    expect(jar.set.filter((c) => c.value && c.name.endsWith(SESSION_COOKIE))).toEqual([]);
+  });
+
+  it("🚨 onarımın KOD denetimi (veritabanı bekçisinden bağımsız): başka işletmede çıkarılmış satırı olan kişiye ana işletme üyeliği YAZILMAZ", async () => {
+    // Bekçi boş bırakılır (dilim 6c sonrası durum): satır başka işletmede olduğu için tekil kısıtlar ana işletmeye yazımı DURDURMAZ —
+    // kişiyi koruyan yalnız "satırı olan kişiye yazma" denetimidir (Haiku 11-06: önceki vaka bunu ayırmıyordu).
+    const home = await prisma.organization.create({ data: { name: "Lale A" } });
+    const other = await prisma.organization.create({ data: { name: "Lale B" } });
+    const u = await prisma.user.create({
+      data: { organizationId: home.id, name: "Çıkan", email: "cikan-baska@example.test", passwordHash: await bcrypt.hash("secret123", 4), role: "staff", emailVerifiedAt: new Date() },
+    });
+    await extraMembership(u.id, other.id, "staff", "revoked");
+    const res = await login(
+      new NextRequest("http://www.lixusai.com/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "9.9.9.51" },
+        body: JSON.stringify({ email: "cikan-baska@example.test", password: "secret123" }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await prisma.membership.findMany({ where: { userId: u.id }, select: { organizationId: true, status: true } })).toEqual([
+      { organizationId: other.id, status: "revoked" },
+    ]);
+  });
+
+  it("e-posta doğrulama: satırsız kişi (kayıt eski kodda açılmış) onarılır ve oturum basılır", async () => {
+    const org = await prisma.organization.create({ data: { name: "Lale A" } });
+    const token = "v".repeat(43);
+    const orphan = await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Yeni",
+        email: "yeni-onar@example.test",
+        passwordHash: await bcrypt.hash("secret123", 4),
+        role: "owner",
+        emailVerifyTokenHash: hashVerifyToken(token),
+        emailVerifyExpiresAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+    const res = await verifyEmail(
+      new NextRequest("http://www.lixusai.com/api/auth/verify-email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, password: "secret123" }),
+      }),
+    );
+    expect(await res.json()).toEqual({ ok: true });
+    const row = await prisma.membership.findFirstOrThrow({ where: { userId: orphan.id } });
+    expect(row).toMatchObject({ organizationId: org.id, role: "owner", status: "active", origin: "repair" });
+    const written = [...jar.set].reverse().find((c) => c.value && c.name.endsWith(SESSION_COOKIE))!;
+    expect(await verifySession(written.value)).toMatchObject({ userId: orphan.id, organizationId: org.id, membershipId: row.id });
   });
 
   it("🚨 bürünme: çıkarılmış sahip SEÇİLMEZ, etkin yönetici seçilir; hiç etkin üyelik yoksa giriş YOK", async () => {

@@ -90,7 +90,11 @@ describe("imzalı cihaz geçişi", () => {
   it("uzun çerez başlığıyla işlemci harcatılamaz: bu anahtarın özetini taşıyan en çok 6 geçişin imzası denenir", () => {
     const mine = stayCookieValue(SECRET, "res_1", TOKEN, future());
     const [body, sig] = passOf(mine).split(".");
-    const forged = Array.from({ length: 6 }, (_, i) => `gcs_f${i}=${SECRET}.${body}.${sig.slice(0, -1)}${i}`).join("; ");
+    // Sahte imza HER ZAMAN geçersiz olmalı: eskiden son karakter 0–5 ile değiştiriliyordu → gerçek imza o rakamla bitince (ölçüldü: koşuların
+    // ~%12,5'i) "sahte" çerezlerden biri gerçeğinin AYNISI oluyordu ve test rastgele kırmızıydı. Artık ilk karakter kesin farklı.
+    const bad = `${sig[0] === "A" ? "B" : "A"}${sig.slice(1)}`;
+    expect(bad).not.toBe(sig);
+    const forged = Array.from({ length: 6 }, (_, i) => `gcs_f${i}=${SECRET}.${body}.${bad}`).join("; ");
     expect(readDevicePass(`${forged}; gcs_p1=${mine}`, TOKEN)).toBeNull();
     expect(readDevicePass(`gcs_p1=${mine}; ${forged}`, TOKEN)?.reservationId).toBe("res_1");
   });

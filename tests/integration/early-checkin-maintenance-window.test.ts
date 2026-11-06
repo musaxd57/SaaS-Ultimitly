@@ -8,7 +8,7 @@ import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 //  · araya boş gün giren varışta bugüne / dünkü vadeli açık bakım,
 //  · ESKİ bir konaklamaya bağlı hâlâ açık bakım,
 //  · önceki konaklaması olmayan mülkteki açık bakım
-// otomatik "Daireniz hazır" onayını durdurmuyordu.
+// otomatik erken giriş onayını durdurmuyordu.
 // ---------------------------------------------------------------------------
 
 // İstanbul (UTC+3): 14 Ekim 11:40.

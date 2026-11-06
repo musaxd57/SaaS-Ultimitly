@@ -260,14 +260,29 @@ describe("onay metni — KODDA, yalnız doğrulanmış veri + host'un kayıtlı 
     expect(earlyCheckinLang("de-DE")).toBe("de");
     expect(earlyCheckinLang(null)).toBe("en");
     expect(earlyCheckinApprovalText(approvable, "tr", null, "2026-10-14")).toBe(
-      "Daireniz hazır; bugün (14 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.",
+      "Bugün (14 Ekim) saat 12:00 itibarıyla giriş yapabilirsiniz. Erken giriş ücreti €30.",
     );
+  });
+
+  it("🚨 K-4 (kurucu 11-06): onay metni daireyi \"hazır\" İLAN ETMEZ — altı dilde yalnız gün + saat (ve kayıtlı ücret)", () => {
+    // Temizlik "bitti" kanıtı kararın GİRDİSİDİR; metne "hazır" iddiası olarak girmez (temizlikçinin bildirmediği bir sorunda ev sahibini
+    // zor durumda bırakırdı). Kalıp altı dilin "hazır" sözcüklerini tanır; her dilde metin ayrıca gün + saati taşır (vakum değil).
+    const READY = /haz[ıi]r|\bready\b|bereit|pr[eê]te?\b|جاهز|готов/iu;
+    for (const lang of EARLY_CHECKIN_LANGS) {
+      const t = earlyCheckinApprovalText(approvable, lang, null, "2026-10-14") ?? "";
+      expect(t, lang).not.toMatch(READY);
+      expect(t, lang).toContain("12:00");
+      expect(t, lang).toMatch(/14/);
+    }
+    // Kalıbın kendisi gerçekten yakalıyor (eski metinler).
+    for (const old of ["Daireniz hazır; bugün", "The apartment is ready", "Die Wohnung ist bereit", "Le logement est prêt", "الشقة جاهزة", "Квартира готова"])
+      expect(old).toMatch(READY);
   });
 
   it("ücretsiz kuralda ücret cümlesi YOK; host notu en sona olduğu gibi eklenir", () => {
     const free = decideEarlyCheckin(OK, { ...RULE, fee: null });
     expect(earlyCheckinApprovalText(free, "en", "Please message us when you arrive.", "2026-10-14")).toBe(
-      "The apartment is ready — you can check in today (14 October) from 12:00. Please message us when you arrive.",
+      "You can check in today (14 October) from 12:00. Please message us when you arrive.",
     );
   });
 

@@ -24,7 +24,7 @@ const baseProps = {
   canReply: true,
 } as unknown as React.ComponentProps<typeof ConversationThread>;
 
-const DRAFT = "Hello, the apartment is ready — you can check in from 13:00. The early check-in fee is €30.";
+const DRAFT = "Hello, you can check in today (14 October) from 13:00. The early check-in fee is €30.";
 
 function suggestion(earlyCheckin: Record<string, unknown> | null) {
   return {

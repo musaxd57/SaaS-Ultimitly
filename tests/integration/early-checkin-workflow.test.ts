@@ -639,7 +639,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const out = await applyChannelAutoReply(id);
     expect(out.sent).toBe(true);
     const body = String(mockSend.mock.calls[0][1]);
-    expect(body.startsWith("The apartment is ready — you can check in today (14 October) from 13:00. The early check-in fee is €30.")).toBe(true);
+    expect(body.startsWith("You can check in today (14 October) from 13:00. The early check-in fee is €30.")).toBe(true);
     expect(body).not.toContain("is the host's call");
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
     const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: t.prepTaskId } });
@@ -711,7 +711,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
   });
 
   // Tur 5 D1 (11-05, ölçüldü, çürütücüyle yeniden üretildi): ret mesajı GİDEN mesaj olduğu için turu kapatıyordu; misafir yeniden sorunca
-  // yeni turda kart bulunmuyor, doğrulanmış otomatik onay ("Daireniz hazır; … 13:00") ev sahibinin reddini eziyordu. Üstteki pin kartı
+  // yeni turda kart bulunmuyor, doğrulanmış otomatik onay ("Bugün … 13:00 itibarıyla giriş yapabilirsiniz") ev sahibinin reddini eziyordu. Üstteki pin kartı
   // AYNI mesaja bağlıyordu (ret mesajı turu kapattığı için gerçekte oluşmayan durum). Kural (kalıcı karar "ev sahibinin kartını EZMEZ",
   // tasarım §10): aynı konaklamada ev sahibinin karar verdiği kart turdan BAĞIMSIZ otomatik onayı durdurur.
   it("🚨 Tur 5 D1: ev sahibi ÖNCEKİ turda reddetti (ret mesajı turu kapattı), misafir yeniden sordu → otomatik onay GİTMEZ; 'kapattı' ve aynı saatin onayı engellemez", async () => {
@@ -898,7 +898,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect(await applyChannelAutoReply(id2)).toMatchObject({ sent: true, queued: true });
     const row = await prisma.messageOutbox.findFirstOrThrow();
     expect(row.body).toContain("requires our approval");
-    expect(row.body).not.toContain("The apartment is ready");
+    expect(row.body).not.toMatch(/you can check in today/i); // onay metninin kendisi gitmedi (büyük/küçük harften bağımsız — Haiku 11-06)
     expect(await decision(id2)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: ["queued_delivery"], a: "0" } });
     expect(await prisma.taskUpdate.count({ where: { taskId: u.prepTaskId } })).toBe(0);
   });
@@ -924,7 +924,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
+    expect(String(mockSend.mock.calls[0][1])).toContain("You can check in today (14 October) from 13:00");
     expect(String(mockSend.mock.calls[0][1])).not.toContain("the host's call");
     expect((await decision(id)).reason).toBe("early_checkin_verified");
   });
@@ -1111,7 +1111,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
     const body = String(mockSend.mock.calls[0][1]);
     expect(body).not.toContain("get back to you");
-    expect(body.startsWith("The apartment is ready")).toBe(true);
+    expect(body.startsWith("You can check in today")).toBe(true);
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
   });
 
@@ -1149,7 +1149,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(String(mockSend.mock.calls[0][1]).startsWith("The apartment is ready")).toBe(true);
+    expect(String(mockSend.mock.calls[0][1]).startsWith("You can check in today")).toBe(true);
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
   });
 
@@ -1242,7 +1242,7 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
       fee: { amount: 30, currency: "EUR" },
       facts: { arrivalToday: true, requestedTime: "13:00", previousCheckout: "11:00", readiness: "ready", otherOverlaps: 0 },
     });
-    expect(String(json.earlyCheckin?.draft)).toMatch(/^The apartment is ready — you can check in today \(14 October\) from 13:00/);
+    expect(String(json.earlyCheckin?.draft)).toMatch(/^You can check in today \(14 October\) from 13:00/);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
@@ -1259,7 +1259,7 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
     });
     const json = (await res.json()) as { earlyCheckin: { draft: string | null } | null };
     expect(String(json.earlyCheckin?.draft)).toMatch(/13:00/);
-    expect(String(json.earlyCheckin?.draft)).not.toMatch(/The apartment is ready/);
+    expect(String(json.earlyCheckin?.draft)).not.toMatch(/you can check in today/i);
     expect(String(json.earlyCheckin?.draft)).toMatch(/Ekim/);
   });
 

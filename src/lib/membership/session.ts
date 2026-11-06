@@ -76,7 +76,10 @@ export function membershipClaims(m: LoginMembership): { organizationId: string; 
 }
 
 /**
- * Hiç etkin üyeliği olmayan kişiye girişte gösterilen metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır). Davet ipucu YOK (Opus
- * S5): bugün bu dala yalnız kayan dağıtım artığı (sistem arızası) düşer, davet yoktur; çıkarılan kişinin metni dilim 6a ile birlikte yazılır.
+ * Hiç ETKİN üyeliği olmayan kişiye girişte gösterilen metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır; kurucu 11-06 kararı bana
+ * bıraktı — tasarım §13). Kayan dağıtım artığı (HİÇ satırı olmayan) bu metni GÖRMEZ: girişte onarılır. Metni yalnız gerçekten hiçbir işletmede
+ * etkin üyeliği kalmamış kişi görür (çıkarılan / ileride askıdaki): ne yapacağını söyler — işletmeye katılmanın tek yolu davettir.
  */
-export const NO_ACTIVE_MEMBERSHIP_TEXT = "Hesabınız şu an hiçbir işletmeye bağlı değil.";
+export const NO_ACTIVE_MEMBERSHIP_TEXT = "Hesabınız şu an hiçbir işletmeye bağlı değil. Bir işletmeye katılmak için o işletmenin sahibinden davet isteyin.";
+/** Ayrı sebep kodu (giriş + e-posta doğrulama aynı kodu döndürür): istemci / gelecekteki hesap merkezi dalı ayırır. */
+export const NO_MEMBERSHIP_REASON = "no_membership";

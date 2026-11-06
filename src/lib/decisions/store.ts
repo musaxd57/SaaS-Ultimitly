@@ -328,7 +328,7 @@ export const HOST_OWNED_EARLY_CHECKIN_STATUSES = ["declined", "sending", "send_u
 /**
  * Tur 5 D1 (11-05, ölçüldü, çürütücüyle yeniden üretildi): ev sahibinin bu KONAKLAMANIN erken giriş talebinde verdiği karar, turdan
  * BAĞIMSIZ. Ret mesajı giden mesaj olduğu için turu kapatıyordu; misafir yeniden sorunca yeni turda kart bulunmuyor ve doğrulanmış
- * otomatik onay ("Daireniz hazır; … 13:00") ev sahibinin reddini eziyordu. Kural (kalıcı karar "ev sahibinin kartını EZMEZ", tasarım
+ * otomatik onay ("Bugün … 13:00 itibarıyla giriş yapabilirsiniz") ev sahibinin reddini eziyordu. Kural (kalıcı karar "ev sahibinin kartını EZMEZ", tasarım
  * §10): aynı konaklamada (rezervasyonun kartı ya da bu konuşmanın rezervasyonsuz kartı) ev sahibi reddettiyse / gönderiyorsa /
  * gönderimi doğrulanamadıysa / BAŞKA bir saati onayladıysa otomatik onay GİTMEZ — misafirin yeni sorusu ev sahibine kalır. Aynı saatin
  * onayı otomatik onayla çelişmez.

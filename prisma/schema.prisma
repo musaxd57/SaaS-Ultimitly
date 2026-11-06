@@ -316,7 +316,7 @@ model Membership {
   status         String    @default("active")
   /// Rol değişimi / çıkarma kuşağı artırır → o işletmedeki oturumlar düşer (dilim 2).
   epoch          Int       @default(0)
-  /// signup | operator | demo | seed | backfill | invite — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
+  /// signup | operator | demo | seed | backfill | repair | invite — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
   origin         String
   invitedById    String?
   revokedAt      DateTime?

@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
-import { membershipClaims, pickLoginMembership } from "@/lib/membership/session";
+import { membershipClaims, NO_MEMBERSHIP_REASON, pickLoginMembership } from "@/lib/membership/session";
+import { repairHomeMembershipIfMissing } from "@/lib/membership/write";
+import { reportError } from "@/lib/report-error";
 import { verifySession, readSessionCookie } from "@/lib/auth/session";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import { verifyPassword, PasswordHashBusyError } from "@/lib/auth/password";
@@ -192,8 +194,21 @@ export async function POST(req: NextRequest) {
 
   // M-2 dilim 2: girişle AYNI seçim (etkin üyelik); hiçbiri yoksa oturum basılmaz — kişi doğrulandı, giriş ekranı sade metni gösterir.
   // Ayrı sebep kodu (Opus S9): istemci aynı "giriş yapın" yoluna gider (`requiresLogin`), testler bu dalı 2FA dalından ayırır.
-  const membership = await pickLoginMembership(prisma, user);
-  if (!membership) return NextResponse.json({ ok: true, requiresLogin: true, reason: "no_membership" });
+  let membership = await pickLoginMembership(prisma, user);
+  // Kayan dağıtım artığı (kayıt eski kodda açıldı, üyelik satırı yok): girişteki AYNI onarım (kurucu 11-06, tasarım §13) — kişi belirteç +
+  // şifreyle kimliğini kanıtladı. Çıkarılmış üyeliği olan kişiye dokunulmaz.
+  if (!membership) {
+    // Belirteç bu noktada TÜKETİLDİ (hesap doğrulandı): onarım düşerse 500 değil "giriş yapın" — giriş aynı onarımı yeniden dener (Haiku 11-06).
+    try {
+      if (await repairHomeMembershipIfMissing(prisma, user.id)) {
+        void reportError("membership-verify-repair", new Error("home_membership_repaired_at_verify"));
+      }
+      membership = await pickLoginMembership(prisma, user); // eşzamanlı onarımın satırı da görülür
+    } catch (err) {
+      void reportError("membership-verify-repair-failed", err);
+    }
+  }
+  if (!membership) return NextResponse.json({ ok: true, requiresLogin: true, reason: NO_MEMBERSHIP_REASON });
   await setSessionCookie({
     userId: user.id,
     ...membershipClaims(membership),

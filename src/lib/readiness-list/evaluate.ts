@@ -6,7 +6,7 @@
 //  · Eksik veri asla "hazır" sayılmaz — bilinmeyen BİLİNMİYOR'dur, asla yeşil değil.
 //  · Her faktör dayanağını (kayıt + zaman) ve eksik kalan şartını söyler.
 //  · ATANMIŞ OLMAK hazırlık kanıtı DEĞİLDİR. Temizliğin tek kanıtı bugünkü erken giriş çekirdeğinin hükmüdür (`readinessDetailOf`:
-//    devir anından SONRA kimlikli "bitti" kaydı, 5 dk oturmuş) — misafire giden "Daireniz hazır" kararıyla AYNI kanıt yolu.
+//    devir anından SONRA kimlikli "bitti" kaydı, 5 dk oturmuş) — misafire giden "erken giriş onayı" kararıyla AYNI kanıt yolu.
 //  · H-2: erişim satırı gizlenmez; v1'de doğrulama yolu olmadığı için "kontrol edilmedi" — genel durum hiçbir zaman "HAZIR" olmaz,
 //    en iyi hâli "TEMİZLİK HAZIR". Kod DEĞERİ okunmaz / gösterilmez (yalnız giriş talimatı kalemi var / yok).
 // ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ function dayKeyLabel(key: string): string {
 /**
  * Bakım / kontrol görevinin bu girişe etkisi (kurucu / Codex 11-05 gece; tasarım docs/TASARIM-2026-11-06-… §5): acil → ENGEL · düşük
  * öncelik → BİLGİ · bu devre bağlı ya da tarihli (varışa kadar vadeli) bağsız → ENGEL · eski konaklamaya bağlı ya da tarihsiz → BİLİNMİYOR
- * ("bu girişi etkiliyor mu?"). Misafire giden otomatik "Daireniz hazır" kararı DEĞİŞMEDİ (her açık bakımda bekler — soru K-4).
+ * ("bu girişi etkiliyor mu?"). Misafire giden otomatik erken giriş onayı kararı DEĞİŞMEDİ (her açık bakımda bekler — soru K-4).
  */
 function issueStateOf(t: { relation?: "turnover" | "unlinked" | "other_stay"; priority?: string; dueAt: Date | null }): FactorState {
   if (t.priority === "urgent") return "blocking";
@@ -323,7 +323,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
   const tz = input.timeZone;
   const factors: Factor[] = [cleaningFactor(input.cleaning, tz, input.now, input.arrivalDayKey)];
   if (input.cleaningNote) {
-    // Sorun bildiriminin bugünkü tek yolu temizlik görevine yazılan not (çekirdek: otomatik "Daireniz hazır"ı durdurur) — burada
+    // Sorun bildiriminin bugünkü tek yolu temizlik görevine yazılan not (çekirdek: otomatik erken giriş onayını durdurur) — burada
     // BİLGİ: bakın. Ağırlığı (bilgi mi, "bilinmiyor" mu) kurucu sorusu J-10. Notu yazan + an gösterilir, İÇERİK gösterilmez.
     const n = input.cleaningNoteBy ?? null;
     factors.push(

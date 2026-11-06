@@ -8,7 +8,7 @@ import { tombstoneKeyHash, currentKeyFingerprint } from "@/lib/erasure";
 
 // ---------------------------------------------------------------------------
 // Giriş hazırlığı listesi — yükleyici (gerçek PostgreSQL). Kurucu H1 (11-05): kayıtlardan türer; eksik veri asla hazır değil; atanmış
-// olmak kanıt değil; temizlik hükmü misafire giden "Daireniz hazır" kararıyla AYNI yoldan (tek-konaklama yükleyicisi). Salt-okuma.
+// olmak kanıt değil; temizlik hükmü misafire giden "erken giriş onayı" kararıyla AYNI yoldan (tek-konaklama yükleyicisi). Salt-okuma.
 // ---------------------------------------------------------------------------
 
 const TZ = "Europe/Istanbul";
@@ -169,7 +169,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(JSON.stringify(rows)).not.toContain("sistem notu");
   });
 
-  // ---- Codex 11-05 teknik doğrulama: eski kanıt kendiliğinden geçerli kalmaz (misafire giden "Daireniz hazır"la AYNI çekirdek) ----
+  // ---- Codex 11-05 teknik doğrulama: eski kanıt kendiliğinden geçerli kalmaz (misafire giden "erken giriş onayı"yla AYNI çekirdek) ----
 
   it("🚨 Codex (kurucu örneği): 'bitti' 12:40'ta atıldı, SONRA geç çıkış 14:00'e onaylandı → eski 'bitti' kanıt DEĞİL (çıkıştan önce)", async () => {
     const { prev, next } = await sameDayTurnover();

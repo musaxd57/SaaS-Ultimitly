@@ -171,6 +171,9 @@ kendisinde mi). Ekipten çıkarma: `deactivatedAt` + `sessionEpoch` artışı �
   öncelikli bakımda da beklesin mi (bugünkü, güvenli), yoksa "Girişler"deki ayrımla aynı mı olsun? Örnek: 3 Eki'den kalan "dolap kulpu"
   (düşük öncelik) açıkken bugün temizlik 12:40'ta bitti → bugün: misafire otomatik "Daireniz hazır" GİTMEZ, ev sahibi elle yazar; ayrımla:
   GİDER. Önerim: bugünkü kalsın (güvenli taraf), ev sahibi listede gördüğü eski görevi kapatsın.
+  → **KARAR (kurucu 11-06):** "Daireniz hazır" ifadesi KALDIRILDI — onay yalnız gün + saati söyler (altı dil, `early-checkin/reply.ts`,
+  pinli). Bakım ayrımı bugünkü güvenli hâliyle kalır (her açık bakımda otomatik onay bekler). Kurucu: "kandırılma olmamalı, hata
+  olmamalı" → uzun vadeli yöntem ayrı tasarım belgesinde (`docs/TASARIM-2026-11-06-erken-giris-guvenilir-cevap.md`).
 
 ## 10. Uygulama durumu (11-06 gece — tasarımla FARKLAR dürüst kayıt)
 Migration'sız dilim yazıldı; hepsi `STAFF_NOTIFY_ENABLED` dışında anahtarsız (yalnız ev sahibi / personel ekranı; misafire giden metin
@@ -214,6 +217,7 @@ her sistem görevini siler ("devam ediyor" gibi). Kırmızı-önce: gece dilimin
 - **K-5 (yap, derin) → `bfe2b77d` + `c113a5d5`:** `docs/TASARIM-2026-11-06-qr-imzali-cihaz-gecisi.md` — ikinci çerez değil, var olan cihaz
   çerezinin imzalı uzantısı; selde bağlı cihaz okumaya ve göndermeye devam eder, geçiş erişim vermez, sıfırlanmış / süresi dolmuş geçiş
   bir şey kazandırmaz.
-- **K-4 (soru açık):** "Daireniz hazır" YALNIZ misafir erken giriş İSTEDİĞİNDE, ev sahibinin o daire için açtığı erken giriş kuralıyla
-  (taslak ya da otomatik) ve temizlik "bitti" kaydıyla gider; normal giriş saatinde böyle bir mesaj gönderilmez.
+- **K-4 (KARAR 11-06):** onay YALNIZ misafir erken giriş İSTEDİĞİNDE, ev sahibinin o daire için açtığı erken giriş kuralıyla (taslak ya
+  da otomatik) ve temizlik "bitti" kaydıyla gider; normal giriş saatinde böyle bir mesaj gönderilmez. "Daireniz hazır" ifadesi kaldırıldı
+  (metin: "Bugün (7 Kas) saat 12:00 itibarıyla giriş yapabilirsiniz.").
 

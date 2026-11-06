@@ -113,12 +113,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (login/register/forgot/resend; 415).
 - **Süper-admin e-postası JWT iddiasından okunur** — bugün `User.email`i değiştiren HİÇBİR yol yok (ölçüldü).
   🚨 **E-posta değiştirme özelliği eklenirse** `requireSession`/`requireAuth` e-postayı DB'den okumalı (ön koşul).
-- 🚨 **ROL DEĞİŞTİREN / PERSONEL DAVET EDEN akış eklenirse `sessionEpoch` ARTIRILIR (ön koşul, #211):** ara katmanın personel
-  yönlendirmesi JWT rolünü okur, kayan oturum rolü aynen yeniden imzalar (tazelemez) ve (app) sayfalarının çoğu rolü kendisi
-  kontrol etmez (yalnız API rolü DB'den okur) → yetkisi düşürülen yönetici gelen kutusunu görmeye devam ederdi. Bugün rolü
-  değiştiren yol YOK (personel yalnız seed/demo). ⚠️ M-2 (üyelik, dal `m2/*`, 11-06): dilim 1–2 rol değişimini ÜYELİK KUŞAĞIYLA düşürür
-  (oturum o işletmede geçersiz; "beni hatırla", tanınan cihaz ve WhatsApp bağı kalır). Bu kuralın metni kurucunun Ü-4 kararını bekliyor
-  (`docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12) — karar gelene kadar harfiyen `sessionEpoch` artıran bir yol EKLENMEZ, önce sorulur.
+- 🚨 **ROL DEĞİŞTİREN / EKİPTEN ÇIKARAN akış ÜYELİK KUŞAĞINI artırır — `sessionEpoch` DEĞİL (#211; kurucu 11-06 Ü-4 ile güncellendi):**
+  ara katmanın personel yönlendirmesi JWT rolünü okur, kayan oturum rolü aynen yeniden imzalar (tazelemez) ve (app) sayfalarının çoğu
+  rolü kendisi kontrol etmez → yetkisi düşürülen yönetici gelen kutusunu görmeye devam ederdi (#211'in sebebi). M-2 dilim 2'den beri her
+  istek (API + sayfa + düzen) oturumu `(kişi, JWT işletmesi)` üyeliğinin durum + kuşak + kimliğiyle doğrular: rol değişimi / çıkarma kuşağı
+  artırınca (bugün rolü yalnız demo yenilemesi değiştirir; ekipten çıkarma yolu dilim 6a ile AYNI kuralla gelir) YALNIZ o işletmedeki
+  oturum düşer (yeniden giriş taze rolü taşır); kişinin diğer işletmelerdeki oturumu, "beni hatırla"sı,
+  tanınan cihazı ve WhatsApp bağları etkilenmez (kurucu: "sadece düşürülen yerde düşsün"). `sessionEpoch` yalnız KİMLİK olaylarında artar
+  (şifre, 2FA, hesap). Rolü / üyeliği değiştiren yol yalnız tek yazıcıdan (`src/lib/membership/write.ts`, kuşak artışıyla; pin
+  `membership-single-writer.test.ts`). Tasarım `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12.
 - 2FA aktifliğinin tek koşulu `twoFactorEnabledAt`; bayat secret arıza değil → `/admin` "2FA'yı sıfırla"
   (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz. Sıfırlama kaydı AYNI işlemde ve ZORUNLU (`writeAuditInTx`, 10-01
   A02 F3 — yazılamazsa sıfırlama olmaz).

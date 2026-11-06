@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
 // "Girişler" — konaklama bazlı giriş hazırlığı (kurucu H1, 11-05; salt-okuma). Bugün + sonraki iki gün. Temizlik hükmü misafire giden
-// "Daireniz hazır" kararıyla AYNI kanıt yolundan (`lib/readiness-list/load.ts`); atanmış olmak kanıt değildir; bilinmeyen asla yeşil
+// "erken giriş onayı" kararıyla AYNI kanıt yolundan (`lib/readiness-list/load.ts`); atanmış olmak kanıt değildir; bilinmeyen asla yeşil
 // değildir; erişim v1'de "kontrol edilmedi" (H-2) — bu yüzden en iyi durum "TEMİZLİK HAZIR".
 // ---------------------------------------------------------------------------
 

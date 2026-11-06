@@ -218,7 +218,7 @@ async function decision(conversationId: string) {
 }
 
 const sentBody = () => String(mockSend.mock.calls[0]?.[1] ?? "");
-const APPROVAL = /The apartment is ready — you can check in today \(14 October\) from/;
+const APPROVAL = /You can check in today \(14 October\) from/;
 
 function at(now: Date) {
   vi.setSystemTime(now);
@@ -329,7 +329,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("09:00"), guard: guard("09:00") });
     const id = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 09:00. The early check-in fee is €30.")).toBe(true);
+    expect(sentBody().startsWith("You can check in today (14 October) from 09:00. The early check-in fee is €30.")).toBe(true);
     // Karar kaydı, hazırlığın çıkıştan ÖNCEKİ kanıtlı işarete dayandığını (önceki misafirin çıkışı doğrulandı) taşır.
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" }, dc: "1" });
 
@@ -735,7 +735,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("10:00"), guard: guard("10:00") });
     const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00. The early check-in fee is €30.")).toBe(true);
+    expect(sentBody().startsWith("You can check in today (14 October) from 10:00. The early check-in fee is €30.")).toBe(true);
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
   });
 
@@ -753,7 +753,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     });
     const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00.")).toBe(true);
+    expect(sentBody().startsWith("You can check in today (14 October) from 10:00.")).toBe(true);
     expect((await decision(id)).reason).toBe("early_checkin_verified");
 
     // KONTROL: kural taslakta (otomatik onay yok) → Türkçe erteleme de GİTMEZ, gerekçe dil. (Erteleme devir cümlesi
@@ -781,7 +781,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ reply: reply({ detectedLanguage: "tr" }), understanding: nlu("10:00"), guard: guard("10:00") });
     const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 10:00. The early check-in fee is €30.")).toBe(true);
+    expect(sentBody().startsWith("You can check in today (14 October) from 10:00. The early check-in fee is €30.")).toBe(true);
     expect(sentBody()).toContain("Lütfen dairede sigara içmeyin, teşekkürler.");
     expect((await decision(id)).reason).toBe("early_checkin_verified");
   });
@@ -867,7 +867,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
       });
       const a = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
       expect((await applyChannelAutoReply(a)).sent, invented).toBe(true);
-      expect(sentBody().startsWith("The apartment is ready — you can check in today (14 October) from 12:00. The early check-in fee is €30."), invented).toBe(true);
+      expect(sentBody().startsWith("You can check in today (14 October) from 12:00. The early check-in fee is €30."), invented).toBe(true);
       expect(sentBody()).not.toMatch(/€99|discount|20%/);
       expect(await decision(a)).toMatchObject({ reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
 

@@ -206,20 +206,66 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   `custom_data`'dan — iyi; silmedeki ikinci redaksiyon geçişi gözden geçirilecek) [M21].
 - Operatör betikleri işletmeyi kişinin e-postasından seçiyor → işletme kimliği açık parametre olacak [M21].
 
-## 12. Kurucu soruları (dilim 4–6'dan önce; dilim 1–3 bunlara bağlı değil)
-- **Ü-1** Başka bir işletme kendi işletmesini silince, YALNIZ orada üyeliği olan davetli kişinin hesabı da silinsin mi (bugünkü), yoksa
-  hesap "askıda" kalsın mı (GitHub / Slack böyle: örgüt silinir, üye hesabı kalır)? Önerim: askıda kalsın + sade bilgi e-postası.
-- **Ü-2** "Hesabı sil" üçe ayrılsın mı: "İşletmeyi sil" (sahip) · "İşletmeden ayrıl" (her üye; son sahip ayrılamaz) · "Kullanıcı hesabımı
-  sil" (kimlik)? Önerim: evet — bugün personelin kendi verisini sildirme yolu yok.
-- **Ü-3** Giriş / 2FA / şifre kayıtları (IP'li) işletme günlüğünden kişiye ait ayrı kayda alınsın mı? Önerim: evet (A'nın dökümü Ayşe'nin
-  B için çalıştığı saatleri göstermesin). Kapsam: giriş rotasının dört kaydı + oturum içi beş kimlik kaydı (§3). Ek soru (Opus S7 / R6):
-  geçerli ikinci faktörden SONRA verilen "hiçbir işletmeye bağlı değil" 403'ü kişiye bağlı bir iz bıraksın mı? Bugün iz yok — kod yakılmadığı
-  için çalınmış bir kurtarma kodu (parolayla birlikte) sessizce "sınanabilir"; bugün bu dala yalnız kayan dağıtım artığı düşer (pratik risk
-  yok), dilim 6a ile anlam kazanır. **Dilim 6a'dan ÖNCE karar.**
-- **Ü-4** Ekipten çıkarmada #211 kuralı (`sessionEpoch` artışı) yerine üyelik kuşağı artsın mı? Önerim: evet — `sessionEpoch` artışı
-  kişinin B'deki oturumlarını, "beni hatırla"sını ve WhatsApp bağlarını da düşürür; A'nın kararı B'deki işini bozmasın. Onaylanırsa
-  `docs/claude/kalici-kararlar.md` #211 metni "rol değişimi / çıkarma = üyelik kuşağı; `sessionEpoch` yalnız kimlik olayları" diye
-  güncellenir (dilim 1–2 kodu bugün zaten böyle çalışıyor — Opus S10).
-- **Ü-5** WhatsApp bağı işletme başına mı (aynı numara iki işletmede) yoksa kişi başına mı? Önerim: işletme başına + amaç alanı (ev
-  sahibi / personel) — gelen cevap hangi işletmeye ait olduğunu bağdan bilir.
-- **Ü-6** Davetle "sahip" rolü verilebilsin mi? Önerim: ilk sürümde hayır (yönetici / personel); sahiplik devri ayrı, onaylı akış.
+## 12. Kurucu kararları (11-06) — dilim 4–6 bunlara göre yazılır
+- **Ü-1 → KARAR: askıda kalır** (kurucu: "en iyi en güvenli akışı seç"). Seçilen akış:
+  - İşletme kendini silince, YALNIZ orada etkin üyeliği olan kişi SİLİNMEZ, **askıya** alınır: `User.suspendedAt` + `suspendedReason`
+    (`org_deleted`) aynı silme işleminde, işletme satırı silinmeden ÖNCE yazılır; ana işletme alanı boş olabilir hâle gelir (şemada
+    zorunlu → isteğe bağlı: dolu tabloda güvenli yön). Başka işletmede etkin üyeliği olan kişi askıya alınmaz (ana işletmesi oraya taşınır).
+  - Askıdaki kişi giriş yapabilir ama oturum ALMAZ (§13): "Bağlı olduğunuz işletme hesabını kapattı" + yapabilecekleri (davet kabul /
+    hesabı sil). Askıya alınırken sade bilgi e-postası gider.
+  - **Süre sınırı (KVKK, en az veri):** 12 ay içinde hiçbir işletmeye katılmazsa kimlik silinir; 30 gün önce hatırlatma e-postası.
+  - 🚨 Değişmez korunur: girişteki onarım (`repairHomeMembershipIfMissing`) askıdaki kişiyi ATLAR (yoksa onu silinen işletmenin yerine
+    ana işletmesine geri yazardı — §13). Sağlık sayacı ve onarım betiği de askıdakini saymaz (Opus S11).
+- **Ü-2 → kurucu "neden üçe ayrılsın?" diye sordu; açıklama (karar bekliyor):** bugün "Hesabı sil" İŞLETMEYİ siler (işletme + içindeki
+  herkes + bütün veri; yalnız sahip yapabilir). Üyelikle üç ayrı istek doğar, tek düğme üçünü de yanlış yapar:
+  1. **İşletmeyi kapat** (sahip): "Lale Daireleri'ni kapatıyorum" → işletme + verisi silinir; içindeki kişiler Ü-1'e göre askıya alınır.
+  2. **İşletmeden ayrıl** (her üye): temizlikçi Ayşe hem A'da hem B'de çalışıyor, A ile işi bitti → yalnız A'daki üyeliği biter; B'deki işi
+     ve hesabı SÜRER. (Son sahip ayrılamaz — önce sahipliği devreder ya da işletmeyi kapatır.)
+  3. **Kullanıcı hesabımı sil** (kişi, KVKK): Ayşe artık hiç çalışmayacak → kimliği silinir, bütün üyelikleri biter; işletmelerin kayıtları
+     (yaptığı temizlik görevleri) kalır ama adı silinir. Bugün personelin kendi verisini sildirme yolu YOK — KVKK açısından eksik.
+  Tek düğmede kalırsa: Ayşe'nin "hesabımı sil"i ya B'deki işini de bitirir (yanlış) ya da A'yı siler (felaket — sahipse). Önerim: üç ayrı yol.
+- **Ü-3 → KARAR: evet.** Giriş / 2FA / şifre / yeniden doğrulama kayıtları (IP'li) kişiye ait ayrı kayda gider; çıkarıldığı (ya da hiç
+  üyesi olmadığı) işletme bu kayıtları GÖRMEZ. Operatör (süper-admin) veritabanında / yönetim panelinde görür. Kapsam: giriş rotasının dört
+  kaydı + oturum içi beş kayıt (§3). Geçerli ikinci faktörden sonraki "hiçbir işletmeye bağlı değil" 403'ü de kişinin kaydına iz bırakır.
+  **Dilim 6a'dan ÖNCE uygulanır.**
+- **Ü-4 → KARAR: evet** (kurucu: "sadece düşürülen yerde düşsün"). Rol değişimi / ekipten çıkarma = YALNIZ o işletmedeki üyelik kuşağı
+  (o işletmedeki oturum düşer); `sessionEpoch` yalnız kimlik olaylarında artar (şifre, 2FA, hesap). Kişinin diğer işletmelerdeki oturumu,
+  "beni hatırla"sı ve WhatsApp bağları etkilenmez. Kalıcı karar #211 metni buna göre güncellendi (`docs/claude/kalici-kararlar.md`).
+- **Ü-5 → KARAR: evet.** WhatsApp bağı işletme başına + amaç alanı (ev sahibi / personel); gelen cevap hangi işletmeye ait olduğunu bağdan
+  bilir. Bağ üyelik kimliği + kuşağını taşır → çıkarma / rol değişimi bağı da kendiliğinden geçersiz kılar (Opus S6; dilim 3).
+- **Ü-6 → KARAR: davetle "sahip" rolü VERİLEBİLİR**, şu şartlarla (kurucu: "verilmeden önce verilecek yetki ve yapabilecekleri gösterilsin,
+  onay verilip gönderilebilsin"):
+  - Davet formunda seçilen rolün yetki listesi gösterilir (sahip: faturalandırma, işletmeyi kapatma, ekip yönetimi, bütün misafir verisi,
+    bağlantılar…). "Sahip" seçilince ayrı onay adımı: "Bu kişiye işletmenizin TAM yetkisini veriyorsunuz" + kutucuk; davet eden kişiden
+    taze yeniden doğrulama (şifre / 2FA — mevcut `reauth-guard`).
+  - Davet e-postası ve kabul sayfası da rolü ve yetkilerini gösterir; kabul eden kişi görerek kabul eder.
+  - Yeni sahip katılınca mevcut bütün sahiplere bilgi e-postası; işlem denetim kaydında. İşletmede her zaman en az bir sahip kalır.
+  - **Hukuk metni:** sorumluluk maddesi kullanım koşullarına (ve gerekiyorsa aydınlatma metnine) — özellik YAYINA GİRERKEN aynı turda
+    (metin olmayan bir özelliği anlatmasın); taslak ↓ avukat onayına:
+    > *Hesap sahibi, işletmesine eklediği kişileri ve bu kişilere verdiği rolleri kendisi belirler. Eklenen kişilerin, verilen rol
+    > kapsamında hesap üzerinden yaptığı işlemlerden hesap sahibi sorumludur. Lixus AI, hesap sahibinin yetkiyi yanlış kişiye vermesinden
+    > ya da yetkili kişinin işlemlerinden doğan sonuçlardan sorumlu değildir.*
+
+## 13. İşletmesi olmayan kişi — akış kararı (kurucu 11-06: "sen karar ver, uzun vadede en sürdürülebilir sistemi kur")
+**İlke:** işletme oturumu YALNIZ etkin bir üyelikten basılır. Üyeliği olmayan kişi için "işletmesiz oturum" BASILMAZ — işletme kapsamlı
+rotalar `session.organizationId` ile süzer; boş bir değer Prisma'da "süzgeç yok" demektir (bütün işletmelerin verisi). Bu sınıf hata ancak
+yapıyla önlenir: ileride gereken "hesap merkezi" (davet kabul, hesabı sil, işletme aç) AYRI bir kimlik belirteciyle (ayrı çerez adı, ayrı
+amaç iddiası) kurulur; `requireSession` / `requireAuth` onu ASLA kabul etmez (dilim 6a ile, eylemleri olduğunda).
+
+| Durum | Bugün | Kişi ne görür |
+|---|---|---|
+| HİÇ üyelik satırı yok (kayan dağıtım artığı — sistem hatası) | girişte / e-posta doğrulamada **onarılır** (`repairHomeMembershipIfMissing`, migration 94 ile aynı kural, köken `repair`); operasyon sinyali `reportError` | fark etmez, girer |
+| Satırları var, hiçbiri etkin değil (ekipten çıkarıldı — dilim 6a) | oturum yok, 403 + `reason: "no_membership"` | "Hesabınız şu an hiçbir işletmeye bağlı değil. Bir işletmeye katılmak için o işletmenin sahibinden davet isteyin." |
+| Askıda (işletme kapandı — Ü-1, dilim 6) | onarım ATLAR (askı işareti) | "Bağlı olduğunuz işletme hesabını kapattı…" + hesap merkezi |
+| Bekleyen davet (dilim 4–5) | davet bağlantısı kabulden sonra üyelik yazar | hesap merkezinde davet |
+
+- Onarım çağrılma anı: giriş — doğru ŞİFREDEN sonra, ikinci adımdan ÖNCE (kurtarma kodunun tüketilip tüketilmeyeceği son üyelik
+  durumuyla verilsin; sonra koşsa üyeliksiz sanılan kişinin kodu yakılmadan oturum basılırdı); e-posta doğrulama — belirteç + şifreden
+  sonra (onarım düşerse 500 değil "giriş yapın"; giriş yeniden dener). Onarım hiçbir şey VERMEZ: oturum yine ikinci adımdan sonra basılır,
+  yalnız hesabın sahip olması gereken satır geri yazılır. `requireSession` onarmaz (eski oturum 401 → yeniden giriş → onarım).
+- Eşzamanlı iki giriş: tekil bekçi tek satır bırakır; onarım yazmasa da seçim yeniden yapılır (ikinci giriş boşuna 403 almaz).
+- 🚨 Değişmez: "üyelik satırı yok" ⇔ "hiç üye olmadı" — üyelik satırı silinmez (tek yazıcı pini, yazıcının kendisi dahil); askıdaki kişi
+  ayrı işaretle atlanır. Bu değişmezi bozan bir yol eklenirse onarım da aynı turda değişir.
+- Sağlık sayacı (`users_without_membership`) ve onarım betiği kalır: girişe hiç gelmeyen artıkları (ör. seyrek giren personel) görür.
+- Pinler: `tests/integration/membership-session-pins.test.ts` (satırsız kişi onarılır · eşzamanlı iki giriş tek satır · çıkarılmış kişi
+  DİRİLMEZ, 403 + sebep · e-posta doğrulamada onarım).

@@ -398,7 +398,7 @@ describe("politika: hassas istekte ERTELEYEN cevap para taşıyamaz", () => {
   });
 
   it("doğrulanmış onay (KODDA kurulan metin, host'un ücretiyle) muaf kalır", () => {
-    const text = "The apartment is ready — you can check in today (14 October) from 12:00. The early check-in fee is €30.";
+    const text = "You can check in today (14 October) from 12:00. The early check-in fee is €30.";
     expect(evaluateAvailability(text, ASK, opts({ verifiedGrant: { text } })).reason).toBeNull();
   });
 
