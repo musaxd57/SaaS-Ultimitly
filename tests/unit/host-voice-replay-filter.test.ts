@@ -15,6 +15,10 @@ describe("tekrar oynatma — yasak ölçüm dosyası süzgeci", () => {
       "rag-2026-10-01-holdout.json",
       "qr-2026-10-02-sealed-set.json",
       "anlama-kör-2026-10-20.json",
+      // Her sözcük TEK BAŞINA da yakalanır (yukarıdaki gerçek adlar iki sözcük taşıyabiliyor — biri düşse öbürü örterdi).
+      "anlama-2026-10-21-rtblind.json",
+      "live-pipeline-2026-09-30-KABUL-referans.json",
+      "live-pipeline-2026-09-30-acceptance.json",
     ]) {
       expect(isForbiddenMeasurementFile(name), name).toBe(true);
     }
