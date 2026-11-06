@@ -388,6 +388,9 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
     const row = (await operatorLicenseQueue()).open.find((x) => x.id === r2.licenseId)!;
     expect(row.typedLegalName).toBe("Lale Turizm Yeni Unvan A.Ş.");
     expect(row.pendingUntil).not.toBeNull();
+    // Son günü boş bekleyen satır kuyruktan düşmez (incelemedekiyle aynı kural — Haiku 11-06).
+    await prisma.businessLicense.update({ where: { id: r2.licenseId }, data: { pendingUntil: null } });
+    expect((await operatorLicenseQueue()).open.find((x) => x.id === r2.licenseId)).toMatchObject({ status: "pending", pendingUntil: null });
   });
 
   it("P3-7 askıdaki belgede kuyruk, okumanın askıdan sonra olup olmadığını söyler (onay yolunun kuralıyla aynı)", async () => {

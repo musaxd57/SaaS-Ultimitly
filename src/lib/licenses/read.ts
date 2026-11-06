@@ -186,7 +186,8 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
   const rows = await prisma.businessLicense.findMany({
     where: {
       OR: [
-        { status: "pending", pendingUntil: { gt: now } },
+        // Son günü boş açık satır (yazıcı hep doldurur; eski / elle düzeltilmiş satır) kuyruktan düşmez — iki açık durum aynı kural (Haiku 11-06).
+        { status: "pending", OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] },
         { status: "under_review", OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] },
         { status: "suspended" },
         { status: "verified", OR: [{ lastRegistryOkAt: null }, { lastRegistryOkAt: { lte: recheckBefore } }] },
@@ -267,7 +268,7 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
       type: r.type,
       typeLabel: LICENSE_TYPE_INFO[r.type].label,
       number: r.number,
-      status: effectiveStatus({ status: r.status, pendingUntil: null }, now),
+      status: effectiveStatus({ status: r.status, pendingUntil: r.pendingUntil }, now),
       attributes: (r.attributes ?? {}) as Record<string, unknown>,
       holder: {
         kind: r.holder.kind,
