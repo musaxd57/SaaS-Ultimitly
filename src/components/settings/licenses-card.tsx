@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LICENSE_TEXT } from "@/lib/licenses/messages";
+import { LICENSE_TEXT, isWithdrawnDocument, withdrawnText } from "@/lib/licenses/messages";
 import { LICENSE_TYPE_INFO, LICENSE_TYPES, AGENCY_GROUPS, HOLDER_KIND_LABEL, type LicenseType, type HolderKind } from "@/lib/licenses/catalog";
 
 /**
@@ -107,8 +107,8 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
 
   async function withdraw(id: string, status: string) {
     // Kurucu 11-06: soru sakin ve bilgilendirici — tehdit gibi okunmaz ("işaret kalkar" yazmaz); geri dönüşün yolu söylenir.
-    // Eşleşmiş / askıdaki BELGE ile incelemedeki BAŞVURU ayrı söylenir; sonuç bildirimi de aynı ayrımla (sunucunun genel cümlesine bakılmaz).
-    const isDocument = status === "verified" || status === "suspended";
+    // Eşleşmiş / askıdaki BELGE ile incelemedeki BAŞVURU ayrı söylenir; soru ve sonuç bildirimi sunucuyla AYNI kuraldan (`isWithdrawnDocument`).
+    const isDocument = isWithdrawnDocument(status);
     const question = isDocument
       ? "Bu belgeyi geri çekmek istiyor musunuz? İstediğiniz zaman yeniden ekleyebilirsiniz; ekibimiz belgeyi yeniden kontrol eder."
       : "Başvuruyu geri çekmek istiyor musunuz? İstediğiniz zaman yeniden başvurabilirsiniz.";
@@ -119,7 +119,7 @@ export function LicensesCard({ properties }: { properties: { id: string; name: s
       const res = await fetch(`/api/licenses/${encodeURIComponent(id)}/withdraw`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
       if (!res.ok) setError(body.error ?? NETWORK);
-      else setNotice(isDocument ? LICENSE_TEXT.withdrawn : LICENSE_TEXT.applicationWithdrawn);
+      else setNotice(withdrawnText(status));
       await load();
     } catch {
       setError(NETWORK);

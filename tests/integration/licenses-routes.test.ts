@@ -174,7 +174,10 @@ describe("işletme belgesi rotaları", () => {
     session = asHost(a.orgId, { mfa: false });
     expect((await withdrawPost(jsonReq(`/api/licenses/${lic.id}/withdraw`, {}), idCtx(lic.id))).status).toBe(403);
     session = asHost(a.orgId);
-    expect((await withdrawPost(jsonReq(`/api/licenses/${lic.id}/withdraw`, {}), idCtx(lic.id))).status).toBe(200);
+    const ok = await withdrawPost(jsonReq(`/api/licenses/${lic.id}/withdraw`, {}), idCtx(lic.id));
+    expect(ok.status).toBe(200);
+    // İncelemedeki BAŞVURU geri çekildi — sunucunun cümlesi de onu söyler (11-06 Haiku: "Belgeyi geri çektiniz" diyordu).
+    expect(((await ok.json()) as { message?: string }).message).toBe("Başvuruyu geri çektiniz.");
   });
 
   it("🚨 operatör uçları: müşteri sahibi 401, 2FA'sız operatör 401, bürünmede 403, site dışı yazma 403, geçersiz eylem 400", async () => {

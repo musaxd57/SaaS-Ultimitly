@@ -278,7 +278,7 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
       withdrawLicense({ organizationId: o.orgId, userId: o.userId, licenseId: r1.licenseId }),
       decideLicense({ licenseId: r2.licenseId, operatorUserId: OP, action: "approve" }),
     ]);
-    expect(w).toEqual({ ok: true });
+    expect(w).toEqual({ ok: true, from: "verified" });
     expect(d).toEqual({ ok: true, status: "verified" });
     const holder = await prisma.licenseHolder.findFirstOrThrow({ where: { organizationId: o.orgId } });
     expect(holder.verifiedGuard).toBe(holder.taxIdHash);
@@ -430,7 +430,7 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
     for (let i = 0; i < 10; i++) {
       const r = await agencyApp(o, { number: `70${i}` });
       if (!r.ok) throw new Error(r.reason);
-      expect(await withdrawLicense({ organizationId: o.orgId, userId: o.userId, licenseId: r.licenseId })).toEqual({ ok: true });
+      expect(await withdrawLicense({ organizationId: o.orgId, userId: o.userId, licenseId: r.licenseId })).toEqual({ ok: true, from: "pending" });
     }
     expect(await agencyApp(o, { number: "799" })).toEqual({ ok: false, reason: "too_many_recent" });
     await prisma.businessLicense.updateMany({ where: { organizationId: o.orgId }, data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });

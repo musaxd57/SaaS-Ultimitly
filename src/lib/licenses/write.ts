@@ -315,7 +315,7 @@ export async function withdrawLicense(input: {
   userId: string;
   licenseId: string;
   now?: Date;
-}): Promise<{ ok: true } | { ok: false; reason: "not_found" | "not_open" | "conflict" }> {
+}): Promise<{ ok: true; from: LicenseStatus } | { ok: false; reason: "not_found" | "not_open" | "conflict" }> {
   const now = input.now ?? new Date();
   try {
     return await prisma.$transaction(async (tx) => {
@@ -333,7 +333,8 @@ export async function withdrawLicense(input: {
       await syncHolderGuard(tx, lic.holderId);
       await appendEvent(tx, { licenseId: lic.id, organizationId: lic.organizationId, fromStatus: lic.status, toStatus: to, reason: "withdraw", actorKind: "host", actorUserId: input.userId });
       await __licenseTestHooks.beforeCommit?.("withdraw", lic.id);
-      return { ok: true as const };
+      // Kilit altındaki ESKİ durum: sunucunun cümlesi belge mi başvuru mu geri çekildi diye buna bakar (11-06).
+      return { ok: true as const, from: lic.status };
     });
   } catch (err) {
     if (err instanceof CasConflict) return { ok: false, reason: "conflict" };

@@ -25,6 +25,18 @@ export const LICENSE_TEXT = {
   applicationWithdrawn: "Başvuruyu geri çektiniz.",
 } as const;
 
+/**
+ * Geri çekmede eşleşmiş / askıdaki BELGE ile incelemedeki BAŞVURU ayrı söylenir (kurucu 11-06 S-B). TEK kural: ekrandaki soru, ekranın
+ * bildirimi ve sunucunun cevabı bunu kullanır (sunucu geri çekilen satırın kilit altındaki ESKİ durumunu verir).
+ */
+export function isWithdrawnDocument(status: string): boolean {
+  return status === "verified" || status === "suspended";
+}
+
+export function withdrawnText(status: string): string {
+  return isWithdrawnDocument(status) ? LICENSE_TEXT.withdrawn : LICENSE_TEXT.applicationWithdrawn;
+}
+
 export const LICENSE_STATUS_LABEL: Record<LicenseStatus, string> = {
   pending: "İnceleniyor",
   // Çakışma ya da uyuşmazlık nedeniyle insana düşen başvuru ev sahibine farklı GÖSTERİLMEZ (sızıntı olmasın).

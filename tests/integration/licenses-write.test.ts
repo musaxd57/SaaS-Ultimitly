@@ -263,7 +263,7 @@ describe("işletme belgesi — tek yazıcı", () => {
       reason: "invalid",
       field: "source",
     });
-    expect(await withdrawLicense({ organizationId: o.orgId, userId: o.userId, licenseId: r.licenseId })).toEqual({ ok: true });
+    expect(await withdrawLicense({ organizationId: o.orgId, userId: o.userId, licenseId: r.licenseId })).toEqual({ ok: true, from: "pending" });
     expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: validReading() })).toEqual({ ok: false, reason: "not_open" });
   });
 
@@ -274,7 +274,7 @@ describe("işletme belgesi — tek yazıcı", () => {
     if (!ra.ok) throw new Error(ra.reason);
     await approveFlow(ra.licenseId);
     expect(await withdrawLicense({ organizationId: b.orgId, userId: b.userId, licenseId: ra.licenseId })).toEqual({ ok: false, reason: "not_found" });
-    expect(await withdrawLicense({ organizationId: a.orgId, userId: a.userId, licenseId: ra.licenseId })).toEqual({ ok: true });
+    expect(await withdrawLicense({ organizationId: a.orgId, userId: a.userId, licenseId: ra.licenseId })).toEqual({ ok: true, from: "verified" });
     const la = await prisma.businessLicense.findUniqueOrThrow({ where: { id: ra.licenseId }, include: { holder: true } });
     expect(la).toMatchObject({ status: "withdrawn", lockKey: null });
     expect(la.holder.verifiedGuard).toBeNull();

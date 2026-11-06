@@ -13,7 +13,7 @@ import {
   type LicenseAction,
 } from "@/lib/licenses/state";
 import { licenseMarks, marksForProperty, MARK_TTL_DAYS, type LicenseMarkInput } from "@/lib/licenses/capabilities";
-import { LICENSE_STATUS_LABEL, markText } from "@/lib/licenses/messages";
+import { LICENSE_STATUS_LABEL, isWithdrawnDocument, markText, withdrawnText } from "@/lib/licenses/messages";
 import { licenseSecret, licensesEnabled, sameTaxIdHash, taxIdHash } from "@/lib/licenses/secret";
 import { MAX_APPLICATIONS_PER_DAY } from "@/lib/licenses/state";
 import {
@@ -350,5 +350,14 @@ describe("kanıt (Opus 11-06)", () => {
 
   it("P3-18 günlük başvuru sınırı tasarımdaki 10 (sabitin kendisiyle ölçülmez)", () => {
     expect(MAX_APPLICATIONS_PER_DAY).toBe(10);
+  });
+
+  it("geri çekme cümlesi: eşleşmiş / askıdaki BELGE ile incelemedeki BAŞVURU ayrı söylenir (soru da bildirim de aynı kuralla — 11-06)", () => {
+    expect(withdrawnText("verified")).toBe("Belgeyi geri çektiniz.");
+    expect(withdrawnText("suspended")).toBe("Belgeyi geri çektiniz.");
+    expect(withdrawnText("pending")).toBe("Başvuruyu geri çektiniz.");
+    expect(withdrawnText("under_review")).toBe("Başvuruyu geri çektiniz.");
+    expect(isWithdrawnDocument("verified") && isWithdrawnDocument("suspended")).toBe(true);
+    expect(isWithdrawnDocument("pending") || isWithdrawnDocument("under_review")).toBe(false);
   });
 });

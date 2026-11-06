@@ -17,7 +17,7 @@ function row(id: string, status: string, statusLabel: string) {
     id,
     type: "agency",
     typeLabel: "Seyahat acentası belgesi",
-    number: id === "lic-doc" ? "12345" : "67890",
+    number: { "lic-doc": "12345", "lic-app": "67890", "lic-susp": "24680", "lic-review": "13579" }[id] ?? "00000",
     status,
     statusLabel,
     statusText: null,
@@ -89,7 +89,8 @@ describe("İşletme belgeleri — geri çekme sorusu ve bildirimi", () => {
     fireEvent.click(withdrawButtons()[0]);
     fireEvent.click(withdrawButtons()[1]);
     expect(confirm).toHaveBeenCalledTimes(2);
-    for (const [q] of confirm.mock.calls) expect(String(q)).not.toMatch(/işaret|kalkar|kaybed/i);
+    // Türkçe küçük harfe çevrilerek (büyük "İşaret" düz `/i` ile yakalanmaz — İ U+0130 ≠ I).
+    for (const [q] of confirm.mock.calls) expect(String(q).toLocaleLowerCase("tr")).not.toMatch(/işaret|kalkar|kaybed/);
     expect(fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
     expect(screen.queryByRole("status")).toBeNull();
   });

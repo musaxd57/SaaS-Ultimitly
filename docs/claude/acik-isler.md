@@ -178,7 +178,11 @@ YOL PLANI sorular D-1…D-7 + P0 avukat soruları → `docs/TASARIM-2026-11-06-m
 TARAF ETİKETLERİ tek soruda (A "ekibimiz" / B): alt yazı ("Otomatik asistan + ev sahibi") + Türkçe açıklama / ayraç / gönderen adı
 ("İşletme ekibi" — 08-08 kurumsal hitap kuralına aykırı; ekran 11-06'ya dek taranmıyordu, istisnası `tests/unit/guest-text-quality.test.ts`
 PENDING listesinde, metin değişince çıkarılır) + İngilizce gönderen adı ("Host team") · model yokken taslaklar (`ai/fallback.ts` iade +
-"insanla görüşmek istiyorum": "ev sahibimiz değerlendirecek / ev sahibimize ilettim" → ben dili, önce/sonra rapor 11-06 gece-2) · istemde
+"insanla görüşmek istiyorum": "ev sahibimiz değerlendirecek / ev sahibimize ilettim" → ben dili, önce/sonra rapor 11-06 gece-2) · QR "uygulamanın
+mesaj bölümünden bize yazın" cümlesi UYGULAMASI OLMAYAN misafire (elle / doğrudan / dosyadan rezervasyon; Opus 11-06 P2) — A kanala göre
+("bize her zamanki yoldan ulaşın") / B herkese "bize ulaşın" · "Erken giriş var mı?" → "Erken giriş ücreti ₺500." "evet" gibi okunabilir —
+"; müsaitliğe bağlıdır" eki mi, böyle mi (Opus 11-06 P2) · (küçük, soru değil) İspanyolca ücret cümlesi iki yerde farklı: `early-checkin/reply.ts`
+"La tarifa del check-in anticipado…" ↔ `decisions/core.ts` "La tarifa por entrada anticipada…" — birleştirmek kurucu onayıyla · istemde
 "bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …' yaz" örneği için ÜCRETLİ ölçüm onayı (ücretsiz ölçüm:
 `docs/olcum/host-voice-replay-2026-11-06.md`).
 Cevap gelmeden bu maddeler UYGULANMAZ.
