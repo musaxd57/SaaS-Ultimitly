@@ -21,7 +21,7 @@ import { createHash, createHmac, timingSafeEqual } from "crypto";
 /** İmza alanı ayrımı: aynı `AUTH_SECRET` ile imzalanan başka belirteç (uyarı adresi, ödeme dönüşü…) burada geçmez. */
 const DOMAIN = "lixus/guest-chat-pass/v1";
 export const STAY_COOKIE_PREFIX = "gcs_";
-/** Bir istekte en çok bu kadar `gcs_` çerezi denenir (her biri tek HMAC) — uzun çerez başlığıyla işlemci harcatılamaz. */
+/** Bir istekte bu QR anahtarının özetini taşıyan en çok bu kadar geçişin İMZASI denenir — uzun çerez başlığıyla işlemci harcatılamaz. */
 const MAX_COOKIES_TRIED = 6;
 const MAX_PASS_LENGTH = 400;
 
@@ -88,18 +88,36 @@ export function verifyDevicePass(pass: string | null, chatToken: string, now: Da
   return { reservationId: p.r, secretTag: p.s, expiresAt: p.x };
 }
 
+/** Geçişin gövdesindeki QR anahtarı özeti — İMZA DOĞRULANMADAN, yalnız aday seçmek için (ucuz; karar `verifyDevicePass`'te). */
+function claimedTokenTag(pass: string | null): string | null {
+  if (!pass || pass.length > MAX_PASS_LENGTH) return null;
+  const dot = pass.indexOf(".");
+  if (dot <= 0) return null;
+  try {
+    const t = (JSON.parse(Buffer.from(pass.slice(0, dot), "base64url").toString("utf8")) as { t?: unknown }).t;
+    return typeof t === "string" ? t : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * İstek çerezlerinden BU QR anahtarına ait geçerli geçişi bulur — veritabanı YOK (kaba IP tavanından önce koşar). Daire kimliği bu anda
- * bilinmediği için `gcs_*` çerezleri denenir (en çok `MAX_COOKIES_TRIED`); anahtar özeti tutan ilk geçerli geçiş döner.
+ * bilinmediği için `gcs_*` çerezleri taranır: önce gövdesi BU anahtarın özetini taşıyanlar seçilir (başka dairelerin çerezi sayılmaz —
+ * Haiku 11-06: eski "ilk 6 çerez" sınırı, çok daireli tarayıcıda doğru geçişe hiç varmayabiliyordu), imza yalnız onlarda ve en çok
+ * `MAX_COOKIES_TRIED` kez denenir (uzun çerez başlığıyla işlemci harcatılamaz).
  */
 export function readDevicePass(cookieHeader: string | null, chatToken: string, now: Date = new Date()): DevicePass | null {
   if (!cookieHeader || !devicePassAvailable()) return null;
+  const wanted = tag16(chatToken);
   let tried = 0;
   for (const part of cookieHeader.split(";")) {
     const eq = part.indexOf("=");
     if (eq === -1 || !part.slice(0, eq).trim().startsWith(STAY_COOKIE_PREFIX)) continue;
+    const pass = splitStayCookie(part.slice(eq + 1).trim()).pass;
+    if (claimedTokenTag(pass) !== wanted) continue;
     if (++tried > MAX_COOKIES_TRIED) break;
-    const verified = verifyDevicePass(splitStayCookie(part.slice(eq + 1).trim()).pass, chatToken, now);
+    const verified = verifyDevicePass(pass, chatToken, now);
     if (verified) return verified;
   }
   return null;

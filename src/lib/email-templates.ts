@@ -131,10 +131,16 @@ export function taskBlockedEmail(n: { reporterName: string; propertyName: string
  * Görev kişinin listesinden ÇIKTI (temizlikçi değişti / başka birine atandı — kurucu / Codex 11-06 K-1: "iş teklifi değil, Görevlendirmeniz
  * değişti"). Kişiye gider; misafir adı / mesajı TAŞIMAZ (daire + tür + gün). Metin sade: ne oldu.
  */
-export function assignmentRemovedEmail(n: { name: string; items: { propertyName: string; typeLabel: string; dueLabel: string | null }[] }): string {
-  const rows = n.items
-    .map((i) => `<li style="margin:0 0 6px;">${esc(i.propertyName)} · ${esc(i.typeLabel)}${i.dueLabel ? ` · ${esc(i.dueLabel)}` : ""}</li>`)
-    .join("");
+export function assignmentRemovedEmail(n: {
+  name: string;
+  items: { propertyName: string; typeLabel: string; dueLabel: string | null }[];
+  /** Listeye sığmayan görev sayısı (sessiz kesme yok). */
+  more?: number;
+}): string {
+  const rows =
+    n.items
+      .map((i) => `<li style="margin:0 0 6px;">${esc(i.propertyName)} · ${esc(i.typeLabel)}${i.dueLabel ? ` · ${esc(i.dueLabel)}` : ""}</li>`)
+      .join("") + (n.more && n.more > 0 ? `<li style="margin:0 0 6px;">… ve ${n.more} görev daha</li>` : "");
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">Görevlendirmeniz değişti</h2>
     <p style="margin:0 0 12px;color:#0f172a;font-size:15px;">Merhaba ${esc(n.name)}, şu işler artık sizin listenizde değil:</p>

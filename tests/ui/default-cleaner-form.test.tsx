@@ -171,6 +171,34 @@ describe("dairenin temizlikçisi kartı — seçerek aktarma (K-1)", () => {
     expect(bodies).toEqual([{ userId: "u-ayse" }, { userId: null }]);
   });
 
+  it("🚨 Haiku 11-06: sayfa yenilenip kayıt BAŞKA kişiye dönmüşse (ikinci yönetici değiştirdi) form ona döner, açık liste kapanır", async () => {
+    const { rerender } = render(<DefaultCleanerForm propertyId="p1" currentUserId="u-ayse" members={members} movable={movable} started={[]} />);
+    await select("u-mehmet");
+    await click("Kaydet");
+    expect(screen.queryByRole("region", { name: "Mevcut görevleri aktarma" })).not.toBeNull();
+    rerender(<DefaultCleanerForm propertyId="p1" currentUserId="u-mehmet" members={members} movable={[]} started={[]} />);
+    expect((screen.getByLabelText("Bu dairenin temizlikçisi") as HTMLSelectElement).value).toBe("u-mehmet");
+    expect(screen.queryByRole("region", { name: "Mevcut görevleri aktarma" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Kaydet" })).toBeNull();
+    expect(bodies).toEqual([]);
+  });
+
+  it("🚨 Haiku 11-06: liste açıkken bir iş listeden düşerse sayı ve gönderilen seçim YALNIZ listedekiler", async () => {
+    const { rerender } = render(<DefaultCleanerForm propertyId="p1" currentUserId="u-ayse" members={members} movable={movable} started={[]} />);
+    await select("u-mehmet");
+    await click("Kaydet");
+    rerender(<DefaultCleanerForm propertyId="p1" currentUserId="u-ayse" members={members} movable={[movable[0]!, movable[2]!]} started={[movable[1]!]} />);
+    await click("Kaydet ve seçilenleri aktar (2)");
+    expect(bodies).toEqual([{ userId: "u-mehmet", moveTaskIds: ["t1", "t3"] }]);
+  });
+
+  it("Haiku 11-06: liste üst sınıra takıldıysa ekran bunu SÖYLER (sessiz kesme yok)", async () => {
+    render(<DefaultCleanerForm propertyId="p1" currentUserId="u-ayse" members={members} movable={movable} started={[]} listTruncated />);
+    await select("u-mehmet");
+    await click("Kaydet");
+    expect(panel().textContent).toContain("Listede ilk 3 görev var; kalanları Görevler sayfasından değiştirin.");
+  });
+
   it("KONTROL — kişi 'Kimse'ye çekilirse liste açılmaz (eski kişinin işleri onda kalır)", async () => {
     render(<DefaultCleanerForm propertyId="p1" currentUserId="u-ayse" members={members} movable={movable} started={[]} />);
     await select("");

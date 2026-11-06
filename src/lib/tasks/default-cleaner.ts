@@ -157,11 +157,11 @@ export async function transferCandidates(
   propertyId: string,
   userId: string,
   now: Date,
-): Promise<{ movable: TransferTask[]; started: TransferTask[] }> {
+): Promise<{ movable: TransferTask[]; started: TransferTask[]; truncated: boolean }> {
   const org = await db.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
   const tz = orgTimezone(org?.timezone);
   const movableIds = new Set(await openFutureCleaningIds(db, organizationId, propertyId, userId, now));
-  const rows = await db.task.findMany({
+  const fetched = await db.task.findMany({
     where: {
       propertyId,
       property: { organizationId },
@@ -173,8 +173,11 @@ export async function transferCandidates(
     },
     select: { id: true, title: true, dueAt: true, status: true, checklistJson: true },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-    take: TRANSFER_LIST_LIMIT,
+    // Bir fazlası okunur: liste sınıra takıldıysa ekran bunu SÖYLER (sessiz kesme yok — Haiku 11-06).
+    take: TRANSFER_LIST_LIMIT + 1,
   });
+  const truncated = fetched.length > TRANSFER_LIST_LIMIT;
+  const rows = fetched.slice(0, TRANSFER_LIST_LIMIT);
   // Kilit altındaki taşımayla AYNI karar: "Yapılamıyor" her zaman geçer; diğerlerinde kontrol listesi işareti (sorgunun kaba elemesini
   // aşan biçimler dahil — `checklistTouched`) işi "başlanmış" yapar. Ekranda "aktarılabilir" görünüp sunucuda atlanan iş kalmasın.
   const isMovable = (r: (typeof rows)[number]) => movableIds.has(r.id) && (r.status === "blocked" || !checklistTouched(r.checklistJson));
@@ -188,6 +191,7 @@ export async function transferCandidates(
   return {
     movable: rows.filter(isMovable).map((r) => ({ ...shape(r), touched: false })),
     started: rows.filter((r) => !isMovable(r)).map(shape),
+    truncated,
   };
 }
 

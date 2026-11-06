@@ -242,6 +242,34 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
     expect(mail.sent.filter((m) => m.subject.startsWith("Görevlendirmeniz"))).toEqual([]);
   });
 
+  it("Haiku 11-06: aktarma listesi sınıra takılınca bunu SÖYLER (200 satır + truncated); sınırın altında söylemez", async () => {
+    const due = dayDate(addNights(TODAY, 3));
+    const mk = (n: number) =>
+      prisma.task.createMany({
+        data: Array.from({ length: n }, (_, i) => ({ propertyId, type: "cleaning", title: `T${i}`, origin: "system", status: "todo", dueAt: due, assignedToId: ayse.id })),
+      });
+    await mk(200);
+    let lists = await transferCandidates(prisma, orgId, propertyId, ayse.id, new Date());
+    expect([lists.movable.length, lists.truncated]).toEqual([200, false]);
+    await mk(1);
+    lists = await transferCandidates(prisma, orgId, propertyId, ayse.id, new Date());
+    expect([lists.movable.length, lists.truncated]).toEqual([200, true]);
+  });
+
+  it("Haiku 11-06: 'Görevlendirmeniz değişti' 50 satırdan fazlasını sessizce kesmez — '… ve N görev daha'", async () => {
+    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
+    const due = dayDate(addNights(TODAY, 3));
+    await prisma.task.createMany({
+      data: Array.from({ length: 52 }, (_, i) => ({ propertyId, type: "cleaning", title: `T${i}`, origin: "system", status: "todo", dueAt: due, assignedToId: mehmet.id })),
+    });
+    const ids = (await prisma.task.findMany({ where: { assignedToId: mehmet.id }, select: { id: true } })).map((t) => t.id);
+    expect(await notifyAssignmentRemoved(orgId, ayse.id, ids)).toBe("sent");
+    await settle();
+    const mailToAyse = mail.sent.find((m) => m.to === "ayse-k1@example.test")!;
+    expect(mailToAyse.html.match(/<li /g)).toHaveLength(51);
+    expect(mailToAyse.html).toContain("… ve 2 görev daha");
+  });
+
   it("🚨 eski sekmeden 'Başladım': görev başkasına geçtiyse 403 `not_assigned`, durum ve geçmiş YAZILMAZ", async () => {
     const t1 = await cleaningFor(1);
     await put(propertyId, { userId: mehmet.id, moveTaskIds: [t1.id] });

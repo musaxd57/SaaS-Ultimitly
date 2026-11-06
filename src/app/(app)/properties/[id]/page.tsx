@@ -109,7 +109,7 @@ export default async function PropertyDetailPage({
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         });
-        const empty = { movable: [], started: [] };
+        const empty = { movable: [], started: [], truncated: false };
         const lists = userId
           ? await transferCandidates(prisma, session.organizationId, property.id, userId, new Date()).catch(() => empty)
           : empty;
@@ -119,7 +119,7 @@ export default async function PropertyDetailPage({
           dueLabel: taskDueDayLabel(t.dueAt, tz),
           statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
         });
-        return { userId, members, movable: lists.movable.map(item), started: lists.started.map(item) };
+        return { userId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };
       })()
     : null;
   // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
@@ -398,6 +398,7 @@ export default async function PropertyDetailPage({
                   members={defaultCleaner.members}
                   movable={defaultCleaner.movable}
                   started={defaultCleaner.started}
+                  listTruncated={defaultCleaner.truncated}
                 />
               </CardContent>
             </Card>

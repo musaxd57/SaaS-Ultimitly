@@ -27,6 +27,7 @@ export function DefaultCleanerForm({
   members,
   movable,
   started,
+  listTruncated = false,
 }: {
   propertyId: string;
   currentUserId: string | null;
@@ -35,6 +36,8 @@ export function DefaultCleanerForm({
   movable: TransferItem[];
   /** Şu anki temizlikçide duran, başlanmış (aktarılmayan) gelecekteki temizlikler. */
   started: TransferItem[];
+  /** Liste üst sınıra takıldı (sessiz kesme yok — Haiku 11-06). */
+  listTruncated?: boolean;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(currentUserId ?? "");
@@ -42,6 +45,17 @@ export function DefaultCleanerForm({
   const [busy, setBusy] = useState(false);
   /** Aktarma sorusu açıkken: seçili görevler. */
   const [selected, setSelected] = useState<Set<string> | null>(null);
+  // Sayfa yenilenince sunucunun kaydı esastır (Haiku 11-06): başka bir yönetici kişiyi değiştirdiyse form ona döner ve açık soru kapanır —
+  // yoksa eski kişi görünür, yeni kişinin işleri "aktarılacak" diye listelenirdi. (Durum değişikliği çizim sırasında: React'in önerdiği kalıp.)
+  const [seenProp, setSeenProp] = useState(currentUserId ?? "");
+  if ((currentUserId ?? "") !== seenProp) {
+    setSeenProp(currentUserId ?? "");
+    setSaved(currentUserId ?? "");
+    setValue(currentUserId ?? "");
+    setSelected(null);
+  }
+  // Seçim YALNIZ şu an listede olan işlerden sayılır ve gönderilir (liste yenilenip bir iş başlanmış tarafa geçtiyse sayı yalan söylemesin).
+  const chosen = selected ? movable.filter((m) => selected.has(m.id)).map((m) => m.id) : [];
   const dirty = value !== saved;
   const nextName = members.find((m) => m.id === value)?.name ?? null;
 
@@ -137,11 +151,14 @@ export function DefaultCleanerForm({
               type="button"
               className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
               disabled={busy}
-              onClick={() => setSelected(selected.size === movable.length ? new Set() : new Set(movable.map((m) => m.id)))}
+              onClick={() => setSelected(chosen.length === movable.length ? new Set() : new Set(movable.map((m) => m.id)))}
             >
-              {selected.size === movable.length ? "Seçimi kaldır" : "Tümünü seç"}
+              {chosen.length === movable.length ? "Seçimi kaldır" : "Tümünü seç"}
             </button>
           </div>
+          {listTruncated ? (
+            <p className="text-xs text-muted-foreground">Listede ilk {movable.length} görev var; kalanları Görevler sayfasından değiştirin.</p>
+          ) : null}
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {movable.map((m) => (
               <li key={m.id}>
@@ -181,8 +198,8 @@ export function DefaultCleanerForm({
           ) : null}
           <p className="text-xs text-muted-foreground">Tamamlanan işler ve elle açtığınız görevler değişmez.</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" disabled={busy || selected.size === 0} onClick={() => void submit(value, [...selected])}>
-              Kaydet ve seçilenleri aktar ({selected.size})
+            <Button type="button" size="sm" disabled={busy || chosen.length === 0} onClick={() => void submit(value, chosen)}>
+              Kaydet ve seçilenleri aktar ({chosen.length})
             </Button>
             <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void submit(value, [])}>
               Yalnız kaydet

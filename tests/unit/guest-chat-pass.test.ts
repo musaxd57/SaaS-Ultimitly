@@ -80,11 +80,19 @@ describe("imzalı cihaz geçişi", () => {
     expect(readDevicePass(`x_p1=${mine}`, TOKEN)).toBeNull();
   });
 
-  it("uzun çerez başlığıyla işlemci harcatılamaz: en çok 6 `gcs_` çerezi denenir", () => {
+  it("Haiku 11-06: başka dairelerin / bozuk çerezleri SAYILMAZ — önlerinde 10 yabancı çerez olsa da doğru geçiş bulunur", () => {
     const mine = stayCookieValue(SECRET, "res_1", TOKEN, future());
-    const junk = Array.from({ length: 6 }, (_, i) => `gcs_j${i}=x.y.z`).join("; ");
-    expect(readDevicePass(`${junk}; gcs_p1=${mine}`, TOKEN)).toBeNull();
-    expect(readDevicePass(`gcs_p1=${mine}; ${junk}`, TOKEN)?.reservationId).toBe("res_1");
+    const others = Array.from({ length: 5 }, (_, i) => `gcs_o${i}=${stayCookieValue("b".repeat(64), `res_o${i}`, "u".repeat(64), future())}`);
+    const junk = Array.from({ length: 5 }, (_, i) => `gcs_j${i}=x.y.z`);
+    expect(readDevicePass([...others, ...junk, `gcs_p1=${mine}`].join("; "), TOKEN)?.reservationId).toBe("res_1");
+  });
+
+  it("uzun çerez başlığıyla işlemci harcatılamaz: bu anahtarın özetini taşıyan en çok 6 geçişin imzası denenir", () => {
+    const mine = stayCookieValue(SECRET, "res_1", TOKEN, future());
+    const [body, sig] = passOf(mine).split(".");
+    const forged = Array.from({ length: 6 }, (_, i) => `gcs_f${i}=${SECRET}.${body}.${sig.slice(0, -1)}${i}`).join("; ");
+    expect(readDevicePass(`${forged}; gcs_p1=${mine}`, TOKEN)).toBeNull();
+    expect(readDevicePass(`gcs_p1=${mine}; ${forged}`, TOKEN)?.reservationId).toBe("res_1");
   });
 
   it("bağ doğrulaması: yalnız AYNI konaklama + AYNI sır geçişi onaylar", () => {

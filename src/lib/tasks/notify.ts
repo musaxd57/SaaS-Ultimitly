@@ -101,6 +101,8 @@ export async function notifyTaskAssigned(organizationId: string, taskId: string)
 
 /** Aynı KİŞİYE saatte en çok bu kadar "görevlendirmeniz değişti" e-postası (ileri-geri atama kutuyu doldurmasın). */
 const UNASSIGN_MAILS_PER_USER_HOUR = 6;
+/** E-postada en çok bu kadar satır; fazlası "… ve N görev daha" diye sayılır. */
+const UNASSIGN_MAIL_LIST_LIMIT = 50;
 
 /**
  * Görevler kişinin listesinden çıktı (temizlikçi değişti, ev sahibi seçerek aktardı ya da karttan başka birine atadı) → kişiye TEK e-posta
@@ -111,15 +113,18 @@ export async function notifyAssignmentRemoved(organizationId: string, userId: st
   if (!staffNotifyEnabled() || isDemoOrg(organizationId) || taskIds.length === 0) return "skipped";
   const user = await prisma.user.findFirst({ where: { id: userId, organizationId }, select: { name: true, email: true } });
   if (!user) return "skipped";
+  // 🚨 Nullable kolon: `NOT: { assignedToId }` ATANMAMIŞ (NULL) satırı da dışarıda bırakırdı (11-04 dersi) — görev "Atanmadı"ya çekilince
+  // eski kişi hiç haber almazdı. Açık OR.
+  const where = { id: { in: [...taskIds] }, property: { organizationId }, OR: [{ assignedToId: null }, { assignedToId: { not: userId } }] };
   const tasks = await prisma.task.findMany({
-    // 🚨 Nullable kolon: `NOT: { assignedToId }` ATANMAMIŞ (NULL) satırı da dışarıda bırakırdı (11-04 dersi) — görev "Atanmadı"ya çekilince
-    // eski kişi hiç haber almazdı. Açık OR.
-    where: { id: { in: [...taskIds] }, property: { organizationId }, OR: [{ assignedToId: null }, { assignedToId: { not: userId } }] },
+    where,
     select: { type: true, dueAt: true, property: { select: { name: true } } },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-    take: 50,
+    take: UNASSIGN_MAIL_LIST_LIMIT,
   });
   if (tasks.length === 0) return "skipped";
+  // Liste sınırı aşıldıysa e-posta kalan sayıyı SÖYLER (sessiz kesme yok — Haiku 11-06).
+  const more = tasks.length === UNASSIGN_MAIL_LIST_LIMIT ? (await prisma.task.count({ where })) - tasks.length : 0;
   if (!(await rateLimit(`task-unassign-mail-user:${userId}`, UNASSIGN_MAILS_PER_USER_HOUR, 60 * 60_000)).ok) return "skipped";
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
   const tz = orgTimezone(org?.timezone);
@@ -131,7 +136,7 @@ export async function notifyAssignmentRemoved(organizationId: string, userId: st
   const names = [...new Set(items.map((i) => i.propertyName))];
   const subject = names.length === 1 ? `Görevlendirmeniz değişti: ${names[0]}` : "Görevlendirmeniz değişti";
   void emailService
-    .sendReporting(user.email, subject, assignmentRemovedEmail({ name: user.name, items }))
+    .sendReporting(user.email, subject, assignmentRemovedEmail({ name: user.name, items, more }))
     .then((res) => {
       if (!res.ok) void reportError("task-unassign-mail", new Error(`user=${userId} — 'görevlendirme değişti' bildirimi gönderilemedi`));
     })

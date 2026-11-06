@@ -34,7 +34,11 @@
 ## 4. Kalan riskler (bilerek)
 - Sel SÜRERKEN ilk kez açan (henüz geçişi olmayan) cihaz bekler — ilk açılış kaba tavandan geçmek zorunda.
 - Geçişi çalan, çerezi de çalmıştır (aynı değer): kazancı cihazın kendi kovası kadar (dakikada 60 okuma / 20 gönderme), erişimi bugünkü
-  çerez hırsızlığıyla aynı. Çerez `httpOnly`.
+  çerez hırsızlığıyla aynı. Çerez `httpOnly`. Çalınan geçişle (uydurma sırla da) o misafirin cihaz kovası doldurulabilir → misafirin
+  sorguları bekler; K-5'ten ÖNCE de çalınmış çerez aynı kovayı doldurabiliyordu (uydurma sırda saldırgan ayrıca kaba tavandan geçer —
+  Haiku 11-06, kabul edildi).
+- Bayat geçiş (bağ sıfırlandı, sohbet kodu bekleniyor) her istekte üç kovaya yazılır (geçiş kovası + kaba tavan + daire kovası) — 5 sn'lik
+  sorguda dakikada 12; sınırların hiçbirine yaklaşmaz; cihaz yeniden bağlanınca çerez yenilenir (Haiku 11-06, kabul edildi).
 - `AUTH_SECRET` değişirse bütün geçişler geçersiz olur → cihazlar eski yola düşer (kilitlenme yok), ilk doğrulanan yanıtta yenilenir.
 
 ## 5. Kanıt
