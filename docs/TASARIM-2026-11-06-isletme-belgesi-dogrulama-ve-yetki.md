@@ -5,6 +5,9 @@
 > **Girdi:** kurucunun mesajı + 3 ekran görüntüsü (ChatGPT özeti: A/B/C grupları, resmî kayıttan doğrulama, otomatik yetki, sürekli
 > denetim, belge devri, tur dosyası). ChatGPT'nin hukuki iddiaları Ek A'da kaynaklarıyla denetlendi ("ChatGPT de yanlış söylüyor
 > olabilir" — kurucu kuralı). Taslak bir Opus sert incelemesinden geçti (9 P1, 10 P2, 1 P3); uygulanışı §15.
+> **Kurucu kararları (11-06 akşam):** kapsam = **belgesi olan ev sahipleri** (acentalar doğrudan hedef değil; amaç belgelerden iş
+> fırsatı) · ödeme işletmede · devirde operatör · tek hesap · ilk adım Faz 1a · Bakanlık uyarısına otonom kaldırma (Bakanlık görüşmesinden
+> sonra) · Pro + Business. Ayrıntı §16; kurucunun paylaştığı ChatGPT önerisiyle karşılaştırma §17.
 > **Bağlayıcı kurallar:** SORMADAN SİSTEM KURULMAZ · KODDAN ÖNCE UZUN DÜŞÜN · EKSİK OKUMA HÜKÜM VERMEZ (F16) · PERİYODİK İŞİN ALARMI
 > GEÇİŞ TABANLIDIR · BİR YÜZEYİ KAPATIRKEN VERİNİN ÜRETİLDİĞİ YERİ KAPAT · müşteriye giden metin sade · mutlak iddia yok.
 
@@ -452,21 +455,21 @@ Codex'in ve kurucunun önerisi aynı satırlara yazılır; farklar satır satır
 
 | # | Karar | Seçenekler | Claude önerisi | Kurucu | Codex | Seçilen |
 |---|---|---|---|---|---|---|
-| K-1 | Kapsam | (a) yalnız "eşleşti" işareti · (b) + Lixus'ta konaklama ilanı / doğrudan rezervasyon · (c) + acentanın tur tanıtımı · (d) + otelin misafirine anlaşmalı acenta turu (asistan da önerir) | Çekirdek dördünü taşır; ilk açılan (a) | | | |
-| K-2 | Ödemeyi kim alır | (a) işletme kendi alır, Lixus yönlendirir · (b) Lixus tahsil eder | (a); (b) ancak avukat + ödeme kuruluşuyla | | | |
+| K-1 | Kapsam | (a) yalnız "eşleşti" işareti · (b) + Lixus'ta konaklama ilanı / doğrudan rezervasyon · (c) + acentanın tur tanıtımı · (d) + otelin misafirine anlaşmalı acenta turu (asistan da önerir) | Çekirdek dördünü taşır; ilk açılan (a) | **Belgesi olan EV SAHİPLERİ için**; acentalar doğrudan hedef değil; amaç: ev sahibinin belgelerinden iş fırsatı (§16) | | |
+| K-2 | Ödemeyi kim alır | (a) işletme kendi alır, Lixus yönlendirir · (b) Lixus tahsil eder | (a); (b) ancak avukat + ödeme kuruluşuyla | (a) — "aynen öyle" | | |
 | K-3 | Hangi yetki hangi kanıtı ister | İşaret · ilan · tur tanıtımı | İşaret ve ilan: K2 + K3 · tur tanıtımı: + ilk açılışta K4 | | | |
 | K-4 | K3'ün varsayılan yolu | (a) e-imzalı onay · (b) belge seti + operatör · (c) kayıtlı adrese onay isteği · (d) DNS | (a); (b) yedek; (c) alan doğrulanırsa ek; (d) yalnız destek | | | |
 | K-5 | "Bulunamadı / okunamadı" eşikleri | N okuma / 24 saat · T gün | Bulunamadı: 3 ardışık okuma + 24 saat · okunamadı: tur 7, konaklama 30 gün | | | |
-| K-6 | Devirde açık kayıtlar + devreden faaliyet | Otomatik iptal · eski sahip · yeni sahip · operatör | Otomatik iptal YOK; operatör iki tarafla; devir sürerken yeni tanıtım yok (yasadan sıkı) | | | |
+| K-6 | Devirde açık kayıtlar + devreden faaliyet | Otomatik iptal · eski sahip · yeni sahip · operatör | Otomatik iptal YOK; operatör iki tarafla; devir sürerken yeni tanıtım yok (yasadan sıkı) | Operatör iki tarafla; otomatik iptal yok ("make sense") | | |
 | K-7 | Devirde yorum / puan | Taşınır · taşınmaz · etiketli | "Önceki işletmeci dönemi" etiketiyle | | | |
 | K-8 | Belge görseli herkese açık mı | Görsel · numara + kaynak + tarih | Numara + kaynak + son kontrol tarihi; görsel yok | | | |
-| K-9 | Bir şirket kaç hesapta doğrulanmış olabilir | Tek · serbest | Tek (şube belgeleri merkezle aynı hesapta) | | | |
+| K-9 | Bir şirket kaç hesapta doğrulanmış olabilir | Tek · serbest | Tek (şube belgeleri merkezle aynı hesapta) | Tek hesap ("olur") | | |
 | K-10 | C grubu kısıtı | Tur türü kuralı + beyan · misafirden vatandaşlık | Kural + beyan; asistan C grubunu önermez | | | |
 | K-11 | Tur tanıtımının ilk açılışında operatör | Yok · ilk tur · her yeni tur türü | İlk tur + her yeni tür | | | |
 | K-12 | Yeniden okuma sıklığı | — | Acenta haftalık, konaklama aylık + işlem öncesi ≤ 7 gün | | | |
 | K-13 | Belge görüntüsü saklanır mı | Hiç · süreli | Faz 1a'da hiç; sonrası avukatla | | | |
 | K-14 | Yapay zekâ belge okuma | Yok · alan önerisi | Faz 1a–2'de yok | | | |
-| K-15 | İlk dilim | (a) Faz 1a · (b) bugünkü ev sahipleri için konut izin numarası | (a); (b) Bakanlık API'sine bağlı (herkese açık sorgu yok) | | | |
+| K-15 | İlk dilim | (a) Faz 1a · (b) bugünkü ev sahipleri için konut izin numarası | (a); (b) Bakanlık API'sine bağlı (herkese açık sorgu yok) | (a) Faz 1a ("uygun") | | |
 | K-16 | Turda Lixus'un rolü | (a) tanıtım + yönlendirme · (b) acentanın kendi kanalının yazılımı · (c) pazar yeri / satıcı | (a); (b) avukatla; (c) HAYIR | | | |
 | K-17 | Bakanlık Veri Doğrulama API'si | Şimdi · ilandan önce · hiç | Konaklama ilanı kapsamdaysa ilandan ÖNCE | | | |
 | K-18 | Operatör kim; dört göz | Tek · iki | Faz 1a tek operatör + 24 saat bekleme + sahiplere bildirim; tur tanıtımında ileride iki | | | |
@@ -474,12 +477,12 @@ Codex'in ve kurucunun önerisi aynı satırlara yazılır; farklar satır satır
 | K-20 | "Eşleşti" işaretinin yeri, metni, süresi | — | Mülk sayfası + (ileride) ilan; kaynağa göre metin; 30 gün okunmazsa kalkar | | | |
 | K-21 | Bekleyen başvurunun süresi; paralel başvuruda kazanan | — | 14 gün; hesap başına 3; K3'ü ilk bitiren | | | |
 | K-22 | Üçüncü kişiye (resmî adres) giden e-posta | İçerik · sıklık | Yalnız onay isteği; belge başına haftada 1; ilk denemeler kurucuyla | | | |
-| K-23 | Bakanlık uyarısı (24 saat) sorumlusu | Kurucu · operatör nöbeti | Kurucuya soru | | | |
+| K-23 | Bakanlık uyarısı (24 saat) sorumlusu | Kurucu · operatör nöbeti | Kurucuya soru | **Otonom**, anında kaldırılabilen bir sistem; Bakanlıkla görüşüldükten sonra tasarlanır | | |
 | K-24 | Hesap silinince olay / okuma kayıtları | Silinir · süreli saklanır | Avukat; önerim süreli saklama (iz silme riski) | | | |
 | K-25 | Yönetici (co-host) yetkilendirmesi | Faz 1b · sonra | Faz 1b (ilan özelliğinden önce şart) | | | |
 | K-26 | Grup / unvan değişikliği | Otomatik · insan | Grup daralırsa otomatik kısıt; genişleme ve unvan değişikliği insan | | | |
 | K-27 | API başvurusunu hangi tüzel kişi yapar | — | Avukat (satıcı yurt dışında mukim) | | | |
-| K-28 | Özellik hangi planda | Bütün planlar · üst plan | Kurucuya soru | | | |
+| K-28 | Özellik hangi planda | Bütün planlar · üst plan | Kurucuya soru | **Pro + Business** (son iki paket; kodda `pro`, `business`) | | |
 
 ## 14. Kurucuya sorular
 - **S1 — Bu özellik kimin için, hangi sırayla?** (K-1, K-16) Örnek: misafir "Kapadokya'da balon turu var mı?" yazınca asistan yalnız
@@ -526,6 +529,81 @@ emsali, avukat talebindeki yurt dışı bilgileri — hepsi doğru).
 askı ayrımı, "varsa iletişim", K2 ile K3 sonrası ayrı metinler, devir metninin alıcısı, oltalama cümlesi); 2'si gerekçeyle reddedildi —
 "kayıttaki unvan farklı" cümlesi sızıntı değil (resmî kayıt herkese açık, başka bir Lixus hesabından söz etmiyor); onay e-postasında
 başvuran hesabın adı belge sahibinin karar verebilmesi için gerekli.
+
+## 16. Kurucu kararları (11-06 akşam) ve kapsamın yeniden çerçevelenmesi
+
+| Soru | Kurucunun cevabı | Tasarıma etkisi |
+|---|---|---|
+| S1 kimin için | "Bu tarz bir belgesi olan **hostların** işine yarayacak özellik; direkt acentalar için değil — hostların sahip oldukları bu belgeleri en iyi şekilde kullanması için, **iş fırsatları** çıkarmak için." | Kullanıcı = Lixus'un ev sahibi müşterisi. Acenta pazar yeri YOK. Belge doğrulama bir amaç değil, **ev sahibinin belgesiyle yasal olarak yapabileceği işi açan kapı** (§16.1) |
+| S2 ödeme | "Aynen öyle" | Lixus tahsil etmez; ev sahibi kendi kanalından alır, Lixus yönlendirir |
+| S3 konaklama ilanı | "Sorun yok ama tam anlamadım" | Açıklama + yeniden soru: §16.2 |
+| S4 devirde açık kayıtlar | "Olur, dediğin make sense" | Operatör iki tarafla; otomatik iptal yok |
+| S5 tek hesap | "Olur" | Bir şirket aynı anda tek hesapta doğrulanmış |
+| S6 ilk adım | "Uygun" | Faz 1a (görüntüsüz doğrulama + "eşleşti" işareti) |
+| S7 Bakanlık uyarısı | "Otonom; buna Bakanlıkla görüşüldükten sonra bakarız, hemen kaldırılabilir bir sistem olsun" | Anında kaldırma sistemi; tasarımı Bakanlık görüşmesinden sonra (ilan özelliğinden ÖNCE) |
+| S8 plan | "Pro ve Business, son iki paket" | Free'de yok; kapı faturalandırma kapısıyla birlikte (§5.1) |
+| EK-1…EK-6, Ü-2 | "Unutmayalım; Codex'ten yardım alarak sonra cevaplayacağım" | Açık işlerde bekliyor |
+
+### 16.1 Belgesi olan ev sahibi için "iş fırsatı" — önerilen akış (kurucu onayına tabi)
+Belge doğrulandıktan sonra Lixus ev sahibine iki şey gösterir: **belgenizle neler yapabilirsiniz** (yetki tablosundan, §5.2) ve **nerede
+fırsat var** (misafirlerinin gerçekten ne istediğinden). Örnekler (kurgusal):
+1. **A grubu acenta belgesi olan ev sahibi** (bazı ev sahipleri acenta da işletiyor): "Belgenizle misafirlerinize tur, transfer ve paket tur
+   sunabilirsiniz; satış ve ödeme sizin kendi kanalınızda." Fırsat kartı: *"Son 90 günde misafirlerinizden 23'ü havalimanı transferi,
+   9'u Kapadokya turu sordu."* — anlama katmanı konuları SAYAR, misafir metni taşınmaz. Ev sahibi bir teklif tanımlar (ne, fiyat, kendi
+   satış bağlantısı); asistan ancak ev sahibinin açtığı teklifi, kodda kurulan metinle sunar.
+2. **C grubu belgesi olan ev sahibi:** yalnız Türk vatandaşlarına yurt içi tur → asistan kendiliğinden önermez (misafirin vatandaşlığını
+   bilmez); fırsat ev sahibine gösterilir, teklifi ev sahibi kendisi gönderir.
+3. **B grubu belgesi olan ev sahibi:** kendi turu yok; anlaşmalı A grubu acentanın turunu (ürün sahibi açıkça yazılı) tanıtıp satabilir →
+   anlaşma kaydı (Faz 3).
+4. **Turizm işletmesi / basit konaklama belgesi ya da konut izni olan ev sahibi:** mülk sayfasında "Bakanlık kaydıyla eşleşti" işareti;
+   ileride (S3'e bağlı) doğrudan rezervasyon sayfası.
+5. **Belgesi olmayan ev sahibi:** belgeye bağlı yetki yok; ileride anlaşmalı acentanın turunu tanıtma ve yönlendirme (hukuk).
+
+Asistanın misafire ev sahibinin kendi teklifini sunması müşteriye giden metni değiştirir → önce / sonra örneğiyle kurucu onayı (öneri):
+- Misafir: *"Havalimanından daireye nasıl gelebilirim?"*
+- Bugün: bilgi tabanındaki ulaşım bilgisi (ör. "Havalimanından taksiyle yaklaşık 45 dakika.").
+- Önerilen (yalnız ev sahibi transfer teklifini açmışsa ve belge kapısı geçiyorsa): *"Havalimanından taksiyle yaklaşık 45 dakika. Ev
+  sahibinizin transfer hizmeti de var: 1.200 TL. Rezervasyon için: [ev sahibinin bağlantısı]"* + acentanın unvanı ve belge numarası
+  (online satış kanalında gösterme yükümlülüğü, Ek A R7 — mesajda gerekip gerekmediği avukata). Fiyat ve bağlantı kodda, ev sahibinin
+  kaydından; yapay zekâ fiyat uydurmaz; ödeme yöntemi kuralı (`payment-method-guard`) geçerli.
+
+### 16.2 S3'ün açıklaması (kurucu "tam anlamadım" dedi)
+Bugün Lixus ilan yayınlamaz: ev sahibinin ilanı Airbnb / Booking'dedir; Lixus mesajlara yardım eder. Soru şu: **ileride Lixus'ta,
+misafirlerin görebileceği ve doğrudan rezervasyon yapabileceği bir ilan sayfası olacak mı?**
+- Örnek: `lixusai.com/lale-apart` — fotoğraflar, fiyat, takvim, "Rezervasyon yap" düğmesi.
+- **Olacaksa:** 2025–2026 kurallarıyla ilanı yayımlayan Lixus olur → dairenin izin / belge numarasını Bakanlık veri tabanından doğrulamak,
+  ilanda göstermek ve Bakanlık uyarısından sonra 24 saatte kaldırmak bizim yükümlülüğümüz olur (ilan başına ceza). Konut izni için tek
+  resmî yol Bakanlık'ın API'si (K-17).
+- **Olmayacaksa:** bu yükümlülük Airbnb / Booking'de kalır; bizim işimiz yalnız "eşleşti" işareti ve iş fırsatları.
+- Soru: böyle bir doğrudan rezervasyon sayfası planlıyor musunuz (şimdi değilse bile ileride)?
+
+## 17. Kurucunun paylaştığı ChatGPT önerisiyle karşılaştırma (11-06)
+**Aynı yerde buluşanlar:** kullanıcı / şirket / tesis / belge / iş ortaklığı ayrı kayıtlar · üç doğrulama (belge gerçek mi · kişi yetkili mi ·
+o hizmeti sunmaya yetkisi var mı) · devirde ön izin yüklenir ama yetki verilmez, sicilde tamamlanınca yeniden doğrulanır, eski kayıtlar
+ayrıca incelenir · yetki sunucuda denetlenir (yalnız düğme gizlemek değil) · belge fotoğrafı müşteriye gösterilmez; numara + grup + son
+kontrol tarihi · iki aşamalı doğrulama · belge / temsilci / sözleşme değişince yeniden onay · düzenli yeniden kontrol + denetim geçmişi.
+
+**Farklar ve gerekçeler:**
+- **Satış / tahsilat:** ChatGPT tablosu "tur satışı", "rezervasyon · ödeme" açıyor. Bizde Lixus tahsil etmez (kurucu S2) ve turu
+  satmaz; satış ev sahibinin (acenta olarak) kendi kanalında, Lixus tanıtır ve yönlendirir (yönetmelik m.17/3). ChatGPT'nin kendi notu
+  da ("pazar yeri mi, aracı mı, satıcı mı — önce hukuken netleşmeli") aynı yere varıyor.
+- **KEP ile yetki teyidi:** araştırmada KEP'in genel zorunluluğu ve herkese açık rehberi bulunamadı (Ek A R8) → yöntem olarak almadık;
+  e-imza ortak.
+- **Belge depolama:** ChatGPT "şifreli özel depolama + antivirüs" diyor. Bizde Faz 1a'da görüntü hiç saklanmıyor, çünkü bütün altyapımız
+  yurt dışında ve bu KVKK aktarımı olur (§11.3). Sonraki bir fazda saklanırsa şifreli depolama + antivirüs + sihirli bayt + indirme kuralı
+  birlikte uygulanır.
+- **Dayanak maddesi:** ChatGPT grupları yönetmeliğin 5–7. maddelerine, araştırmamız 1618 m.3'e bağlıyor. İkisi çelişmez (yönetmelik
+  kanunu açar); avukat teyidi.
+- **"Yetkili kişiler" ayrı kayıt:** bizde hesaba verilen e-imzalı yetkilendirme olarak var (kim imzaladı, temsil şekli, tarih); temsilci
+  değişince yeniden onay.
+
+**ChatGPT'den aldığımız yeni bilgiler (doğrulanmalı):**
+- **Üçüncü kişiye ait alan adı, bir acentanın online satış kanalı olacaksa TÜRSAB noter onaylı "alan adı kullanım muvafakatnamesi"
+  istiyor.** Bu, K-16(b) için önemli: ev sahibinin (acentanın) satış sayfası `lixusai.com` altında olursa her acenta-ev sahibi için
+  Lixus'un noter onaylı muvafakatname vermesi gerekebilir; ev sahibinin kendi alan adı daha basit. → avukat / TÜRSAB.
+- **TÜRSAB Dijital Doğrulama Sistemi (DDS):** kayıtlı web adresini gösteriyor (Ek A R2'de ikincil kaynakta vardı) → K3'te destek kanıtı.
+- **Bakanlık, otel sorgu verilerinin belirli aralıklarla güncellendiğini ve hukuki sonuç doğuracak durumlarda yazılı teyit gerektiğini**
+  belirtiyor → "eşleşti" dili (mutlak "doğrulandı" değil) ve "bulunamadı" toleransı (§4.1) bunu destekliyor.
 
 ## Ek A — Araştırma: hukuki bilgiler (kaynaklı, güven düzeyiyle)
 Opus araştırma ajanı, 11-06. Bu ortamın ağ ayarı `mevzuat.gov.tr` ve `tursab.org.tr`'yi doğrudan açtırmadı; bulgular resmî metinlerden

@@ -168,6 +168,13 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
+**🔔 Bekleyen kurucu soruları (kurucu 11-06: "unutmayalım; Codex'ten yardım alarak sonra cevaplayacağım"):** erken giriş EK-1 (E1–E5
+sırası) · EK-2 (zarf kelime ağı yasağına girer mi) · EK-4 (onayda daire adı) · EK-5 (Karar Motoruyla tek ses) · EK-6 (erişim kontrolü +
+ilk onaylar gölgede) → `docs/TASARIM-2026-11-06-erken-giris-guvenilir-cevap.md` · üyelik Ü-2 (hesabı sil üçe) →
+`docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12 · işletme belgesi S3 (doğrudan rezervasyon sayfası olacak mı) + §16.1 iş fırsatı akışı
+ve asistan örneği + Faz 1a'nın başlama zamanı (migration) → `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §16.
+Cevap gelmeden bu maddeler UYGULANMAZ.
+
 **🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım
 sağlayıcılarını Merkezi Turizm Veri Tabanına API ile veri göndermeye zorluyor olabilir — Lixus otellere PMS olarak satılırsa doğrudan
 ilgili. Tam metin okunmadı → avukat + ayrı tasarım (`docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §11.5). İşletme
