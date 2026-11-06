@@ -6,7 +6,13 @@
  * ------------------------------------------------------------------------- */
 
 const FORBIDDEN_NAME = /blind|holdout|kabul|acceptance|sealed|(?:^|[-_.])k[oö]r(?:[-_.]|$)/i;
+/** Tekrar oynatmaların kendi çıktıları: kısaltılmış örnek cevaplar taşır, okunursa kısaltılmış kopya YENİ cevap sayılır (11-06 ölçüldü). */
+const REPLAY_OUTPUT = /^(?:host-voice-replay|host-contact-replay)-/;
 
 export function isForbiddenMeasurementFile(name: string): boolean {
   return FORBIDDEN_NAME.test(name);
+}
+
+export function isReplayOutput(name: string): boolean {
+  return REPLAY_OUTPUT.test(name);
 }

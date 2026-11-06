@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isForbiddenMeasurementFile } from "../eval/measurement-files";
+import { isForbiddenMeasurementFile, isReplayOutput } from "../eval/measurement-files";
 
 // ---------------------------------------------------------------------------
 // Ev sahibi sesi tekrar oynatması (ücretsiz ölçüm, kurucu 11-06) yasak setleri OKUMAZ: adında kör / kabul / blind / holdout / acceptance /
@@ -29,5 +29,12 @@ describe("tekrar oynatma — yasak ölçüm dosyası süzgeci", () => {
     ]) {
       expect(isForbiddenMeasurementFile(name), name).toBe(false);
     }
+  });
+
+  it("tekrar oynatmaların kendi çıktıları (kısaltılmış örnek cevap taşır) okunmaz; sıradan ölçüm dosyası okunur", () => {
+    expect(isReplayOutput("host-voice-replay-2026-11-06.json")).toBe(true);
+    expect(isReplayOutput("host-contact-replay-2026-10-30.json")).toBe(true);
+    expect(isReplayOutput("ev-sahibi-cevabi-2026-10-31-gpt-5.1-host-answer-compose-dev.json")).toBe(false);
+    expect(isReplayOutput("live-pipeline-2026-10-30-host-voice.json")).toBe(false);
   });
 });

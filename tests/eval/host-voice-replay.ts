@@ -22,13 +22,11 @@ import { stripHostContactFiller } from "../../src/lib/ai/host-contact-filler";
 import { hostVoiceViolation } from "../../src/lib/ai/host-voice-guard";
 import { vetoOutgoingReply } from "../../src/lib/ai/output-veto";
 import { admitsMissingKnowledge } from "../../src/lib/ai/absence";
-import { isForbiddenMeasurementFile } from "./measurement-files";
+import { isForbiddenMeasurementFile, isReplayOutput } from "./measurement-files";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 const REPO = path.resolve(__dirname, "..", "..");
 const OLCUM = path.join(REPO, "docs", "olcum");
-/** Tekrar oynatmaların kendi çıktıları (örnek cevaplar taşır) ölçüme girmez. */
-const REPLAY_OUTPUT = /^(?:host-voice-replay|host-contact-replay)-/;
 /** Ev sahibi sesi istem katmanı (K-1029-A) ve denetçi 10-30'da geldi. */
 const PROMPT_CHANGE_DAY = "2026-10-30";
 const GUEST_FIELDS = ["guest", "guestMessage", "asked", "message", "question"] as const;
@@ -47,7 +45,7 @@ function collect(): { samples: Sample[]; filesRead: number; filesSkipped: number
     .filter((n) => n.endsWith(".json"))
     .sort((a, b) => dayOf(a).localeCompare(dayOf(b)) || a.localeCompare(b));
   for (const f of files) {
-    if (REPLAY_OUTPUT.test(f)) continue;
+    if (isReplayOutput(f)) continue;
     if (isForbiddenMeasurementFile(f)) {
       filesSkipped++;
       continue;

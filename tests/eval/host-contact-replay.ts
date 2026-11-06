@@ -23,6 +23,7 @@ import { admitsMissingKnowledge, asksHypotheticalSituation } from "../../src/lib
 import { vetoOutgoingReply } from "../../src/lib/ai/output-veto";
 import { hostContactOpenWithoutLedger } from "../../src/lib/conversation-items/host-contact-settle";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
+import { isForbiddenMeasurementFile, isReplayOutput } from "./measurement-files";
 
 const REPO = path.resolve(__dirname, "..", "..");
 const OLCUM = path.join(REPO, "docs", "olcum");
@@ -39,7 +40,9 @@ const GUEST_FIELDS = ["guest", "guestMessage", "asked", "message", "question"] a
 function collect(): Sample[] {
   const seen = new Set<string>();
   const out: Sample[] = [];
-  for (const f of readdirSync(OLCUM).filter((n) => n.endsWith(".json")).sort()) {
+  // 11-06: yasak setler (kör / kabul / blind / holdout …) ve tekrar oynatmaların kendi çıktıları okunmaz — 10-30 koşusu ikisini de
+  // okuyordu (o günkü raporun örneklerinde yasak dosya yok; 11-06'da ev sahibi sesi çıktısının kısaltılmış örnekleri yeni cevap sayıldı).
+  for (const f of readdirSync(OLCUM).filter((n) => n.endsWith(".json") && !isForbiddenMeasurementFile(n) && !isReplayOutput(n)).sort()) {
     let data: unknown;
     try {
       data = JSON.parse(readFileSync(path.join(OLCUM, f), "utf8"));
