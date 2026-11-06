@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isForbiddenMeasurementFile } from "../eval/host-voice-replay";
+import { isForbiddenMeasurementFile } from "../eval/measurement-files";
 
 // ---------------------------------------------------------------------------
 // Ev sahibi sesi tekrar oynatması (ücretsiz ölçüm, kurucu 11-06) yasak setleri OKUMAZ: adında kör / kabul / blind / holdout / acceptance /

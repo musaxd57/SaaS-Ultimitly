@@ -7,6 +7,7 @@ import { suggestReplyFallback, detectGuestLanguage } from "@/lib/ai/fallback";
 import { REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { escalationReply } from "@/lib/guest-chat";
+import { GUEST_COPY, QR_SERVER_TEXT } from "@/components/guest-chat/guest-chat-copy";
 import { unverifiedActionClaims } from "../helpers/claim-detectors";
 
 // ---------------------------------------------------------------------------
@@ -649,14 +650,42 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
-    // Anti-vacuity: rotanın misafire dönen metinlerini gerçekten okuduğumuzu kanıtla (K10, 09-30: devir metni artık YOK —
-    // kalan sabit metinlerden biri başka cihaz uyarısı).
-    expect(qrCode).toMatch(/başka bir cihaz/i);
     for (const m of qrCode.matchAll(/"((?:[^"\\]|\\.)*)"/g)) expect(m[1]).not.toMatch(CORP);
+    // Kurucu 11-06 gece: rotanın misafire dönen sabit cevapları (çok mesaj · kod gerekli · başka cihaz) ekranın metinleriyle aynı dosyaya
+    // (`QR_SERVER_TEXT`) taşındı — aynı ev sahibi sesi denetimi orada da koşar. Anti-vakum (K10, 09-30: devir metni artık YOK): rota
+    // başka cihaz uyarısını GERÇEKTEN oradan alıyor ve taranan küme o uyarıyı içeriyor.
+    expect(qrCode).toMatch(/QR_SERVER_TEXT\.boundElsewhere/);
+    expect(QR_SERVER_TEXT.boundElsewhere).toMatch(/başka bir cihaz/i);
+    for (const [key, text] of Object.entries(QR_SERVER_TEXT)) {
+      expect(text, key).not.toMatch(CORP);
+      expect(text, key).not.toMatch(/!/);
+    }
     // QR'ın misafire giden tek devir sabiti (gerçek acil) de kurumsal ad taşımaz.
     expect(escalationReply({ critical: true }) ?? "").not.toMatch(CORP);
     // QR'ın misafire dönen sabit metinlerinde ünlem de yok.
     expect(qrCode).not.toMatch(/ev sahib[^"\n]*!/);
+
+    // Ekranın sabit metinleri (`GUEST_COPY`) — bu kapsam 11-06'ya dek YOKTU ve ilk koşuda üç Türkçe "İşletme ekibi" etiketi çıktı
+    // (açıklama · ayraç · gönderen). İstisna yalnız bu üçü: değişiklik kurucu sorusunda (rapor 11-06 gece-2, öneri "ekibimiz");
+    // istisna bayatlarsa (metin değişti) ters yön kırmızı olur ve listeden çıkarılır.
+    const PENDING_FOUNDER_QUESTION = new Set(["tr.disclosure", "tr.separatorHost", "tr.senderHost"]);
+    const copyStrings: [string, string][] = [];
+    for (const [locale, copy] of Object.entries(GUEST_COPY)) {
+      for (const [key, value] of Object.entries(copy)) {
+        if (typeof value === "string") copyStrings.push([`${locale}.${key}`, value]);
+        else if (typeof value === "function") copyStrings.push([`${locale}.${key}()`, String((value as (x: unknown) => string)("Lale"))]);
+      }
+    }
+    expect(copyStrings.length).toBeGreaterThan(40);
+    // Büyük harfle başlayan Türkçe ("İşletme ekibi …") düz `/i` ile YAKALANMAZ (İ U+0130 ≠ I) → Türkçe küçük harfe çevrilmiş hâli de sınanır.
+    const isCorp = (s: string) => CORP.test(s) || CORP.test(s.toLocaleLowerCase("tr"));
+    expect(CORP.test("İşletme ekibi görüşmeye katıldı")).toBe(false);
+    expect(isCorp("İşletme ekibi görüşmeye katıldı")).toBe(true);
+    for (const [id, text] of copyStrings) {
+      if (PENDING_FOUNDER_QUESTION.has(id)) expect(isCorp(text), `${id} — istisna bayat (metin değişti, listeden çıkarın)`).toBe(true);
+      else expect(isCorp(text), `${id}: ${text}`).toBe(false);
+    }
+    for (const [key, text] of Object.entries(QR_SERVER_TEXT)) expect(isCorp(text), key).toBe(false);
   });
 
   it("🚨 QR'ın SABİT metinleri MAKBUZSUZ İDDİA taşımaz (devir metniyle aynı sözleşme)", () => {

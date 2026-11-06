@@ -1,7 +1,10 @@
 /* ---------------------------------------------------------------------------
  * K-1029-A TEKRAR OYNATMA — "EV SAHİBİNİZE YAZIN" SÜZGECİ, ÜCRETSİZ ÖLÇÜM (tasarım S13, 10-30).
  *
- *   npx tsx --tsconfig tsconfig.json tests/eval/host-contact-replay.ts [--old <eski süzgeç klasörü>] [--label <eski sürüm adı>]
+ *   npx tsx --tsconfig tests/workers/tsconfig.json tests/eval/host-contact-replay.ts [--old <eski süzgeç klasörü>] [--label <eski sürüm adı>]
+ *
+ * (11-06: kök tsconfig'le artık koşmaz — `src/lib/ai/index.ts` 10-31'den beri `server-only` içe aktarır; `tests/workers/tsconfig.json`
+ * onu test saplamasına bağlar, vitest yapılandırmalarıyla aynı takma ad.)
  *
  * Model ÇAĞRILMAZ, veritabanı yok: `docs/olcum/*.json` yan dosyalarındaki GERÇEK model cevapları (geçmiş ölçümlerin çıktısı) yeni
  * süzgeçten geçirilir. Sayılanlar: kaç cevapta yönlendirme cümlesi var, kaç parça silindi (tür / biçim / genel mi), kaç cevabın TAMAMI

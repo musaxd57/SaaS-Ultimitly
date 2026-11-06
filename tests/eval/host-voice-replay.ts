@@ -2,7 +2,10 @@
  * EV SAHİBİNİN SESİ — TEKRAR OYNATMA, ÜCRETSİZ ÖLÇÜM (kurucu 11-06: "misafire 3. şahıs gitmesin ama yasaklamak AI cevaplarını bozmasın;
  * testler çalıştır, kontroller sağla").
  *
- *   npx tsx --tsconfig tsconfig.json tests/eval/host-voice-replay.ts
+ *   npx tsx --tsconfig tests/workers/tsconfig.json tests/eval/host-voice-replay.ts
+ *
+ * (`tests/workers/tsconfig.json` `server-only`yi test saplamasına bağlar — vitest yapılandırmalarıyla aynı takma ad. Kök tsconfig'le
+ * koşmaz: `src/lib/ai/index.ts` 10-31'den beri `server-only` içe aktarır, bu paket yalnız Next derlemesinde çözülür.)
  *
  * Model ÇAĞRILMAZ, veritabanı yok: `docs/olcum/*.json` yan dosyalarındaki GERÇEK model cevapları, gönderim kapısının metne bakan sırasıyla
  * geçirilir: önce "ev sahibinize yazın" süzgeci (`stripHostContactFiller`, cümleyi siler), sonra ev sahibinin sesi denetçisi
@@ -19,11 +22,11 @@ import { stripHostContactFiller } from "../../src/lib/ai/host-contact-filler";
 import { hostVoiceViolation } from "../../src/lib/ai/host-voice-guard";
 import { vetoOutgoingReply } from "../../src/lib/ai/output-veto";
 import { admitsMissingKnowledge } from "../../src/lib/ai/absence";
-import { execFileSync } from "node:child_process";
+import { isForbiddenMeasurementFile } from "./measurement-files";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 const REPO = path.resolve(__dirname, "..", "..");
 const OLCUM = path.join(REPO, "docs", "olcum");
-const FORBIDDEN_NAME = /blind|holdout|kabul|acceptance|sealed|(?:^|[-_.])k[oö]r(?:[-_.]|$)/i;
 /** Tekrar oynatmaların kendi çıktıları (örnek cevaplar taşır) ölçüme girmez. */
 const REPLAY_OUTPUT = /^(?:host-voice-replay|host-contact-replay)-/;
 /** Ev sahibi sesi istem katmanı (K-1029-A) ve denetçi 10-30'da geldi. */
@@ -31,10 +34,6 @@ const PROMPT_CHANGE_DAY = "2026-10-30";
 const GUEST_FIELDS = ["guest", "guestMessage", "asked", "message", "question"] as const;
 
 type Sample = { reply: string; guest: string | null; lang: string | null; file: string; day: string | null };
-
-export function isForbiddenMeasurementFile(name: string): boolean {
-  return FORBIDDEN_NAME.test(name);
-}
 
 function collect(): { samples: Sample[]; filesRead: number; filesSkipped: number } {
   const seen = new Set<string>();
@@ -170,14 +169,9 @@ function main(): void {
     `| ${name} | ${b.replies} | ${b.rawThird} (${pct(b.rawThird, b.replies)}) | ${b.filterHeldWhole} | ${b.rescuedByFilter} | ${b.held} (${pct(b.held, b.replies)}) | ${b.heldThird} | ${b.heldInternal} | ${b.heldReferral} | ${b.heldOnlyByVoice} (${pct(b.heldOnlyByVoice, b.replies)}) |`;
   const topOnlyVoice = [...onlyVoicePhrases.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
   const topPhrases = [...phrases.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
-  // Model çağrısı yok → çalışma kimliği yalnız kod sürümü (run-meta.ts sunucu modülü yükler; bu tekrar oynatma ona gerek duymaz).
-  let commit = "?";
-  try {
-    commit = execFileSync("git", ["-C", REPO, "rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
-  } catch {
-    /* git yoksa kimlik "?" */
-  }
-  const runtime = { commit, models: "yok (tekrar oynatma)" };
+  // Çalışma kimliği her ölçerdeki gibi (pin `eval-run-meta.test.ts`): kodun sürümü + o koddaki istem kimlikleri. Model çağrılmadığı için
+  // katman modelleri yalnız bilgi amaçlıdır.
+  const runtime = evalRuntime();
   const day = new Date().toISOString().slice(0, 10);
   const json = { day, filesRead, filesSkipped, all, before, after, undated, byLang, topPhrases, topOnlyVoice, heldExamples, onlyVoiceExamples, rescuedExamples, runtime };
   writeFileSync(path.join(OLCUM, `host-voice-replay-${day}.json`), `${JSON.stringify(json, null, 2)}\n`);
@@ -213,7 +207,9 @@ function main(): void {
     "## Ev sahibine kalan örnekler",
     ...heldExamples.map((e) => `- \`${e.file}\` (${e.kind}): ${e.reply}`),
     "",
-    `Çalışma: kod ${runtime.commit} · model çağrısı yok.`,
+    "Model ÇAĞRILMADI: aşağıdaki kimlik ölçümü üreten kodun sürümünü kaydeder (katman modelleri yalnız bilgi amaçlı).",
+    "",
+    evalRuntimeMarkdown(runtime),
     "",
   ].join("\n");
   writeFileSync(path.join(OLCUM, `host-voice-replay-${day}.md`), md);
