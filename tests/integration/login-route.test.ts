@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword, verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
@@ -57,7 +57,7 @@ describe("POST /api/auth/login", () => {
     __resetRateLimit();
     vi.clearAllMocks();
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Musa",
@@ -161,7 +161,7 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
     vi.clearAllMocks();
     secret = generateSecret();
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "TF",
@@ -339,7 +339,7 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
     __resetRateLimit();
     vi.clearAllMocks();
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Musa",
@@ -398,7 +398,7 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
 
   it("BAŞKA kullanıcının tanınan-cihaz çerezi işe yaramaz", { timeout: 60_000 }, async () => {
     await attackerFailures(21, "9.9.7");
-    const other = await prisma.user.create({
+    const other = await makeUser({
       data: {
         organizationId: (await prisma.organization.findFirstOrThrow()).id,
         name: "Saldırgan",
@@ -511,7 +511,7 @@ describe("login — mfa iddiası", () => {
 
   async function seed(with2fa: boolean) {
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "U",

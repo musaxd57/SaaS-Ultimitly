@@ -80,6 +80,13 @@ export interface SessionPayload {
   // change/reset kills stolen tokens. Legacy tokens (no claim) verify as 0, which
   // matches the DB default 0 → nobody is logged out on the deploy that adds this.
   sessionEpoch: number;
+  /**
+   * M-2 dilim 2 (tasarım docs/TASARIM-2026-11-06-uyelik-modeli-M2.md §3): oturumun AKTİF ÜYELİĞİ. `organizationId` artık "ana işletme"
+   * değil bu üyeliğin işletmesidir; her istekte üyelik satırı okunur (etkin mi, kuşak aynı mı, kimlik aynı mı). Kimlik, aynı kişi aynı
+   * işletmeye yeniden alınınca eski belirtecin DİRİLMESİNİ engeller (Opus M4). İddiasız eski belirteç: kuşak 0 = doldurulan üyelik kuşağı 0.
+   */
+  membershipId?: string;
+  membershipEpoch?: number;
   // Impersonation (operator panel): when a super-admin "enters" a customer org,
   // the session carries the customer's context above AND these actor fields —
   // the REAL operator behind it — so we can show a banner, keep super-admin
@@ -164,6 +171,8 @@ export async function verifySession(token: string | undefined): Promise<SessionP
         email: payload.email,
         name: (payload.name as string) ?? "",
         sessionEpoch: typeof payload.sessionEpoch === "number" ? payload.sessionEpoch : 0,
+        ...(typeof payload.membershipId === "string" ? { membershipId: payload.membershipId } : {}),
+        ...(typeof payload.membershipEpoch === "number" ? { membershipEpoch: payload.membershipEpoch } : {}),
         ...(typeof payload.actorUserId === "string" ? { actorUserId: payload.actorUserId } : {}),
         ...(typeof payload.actorEmail === "string" ? { actorEmail: payload.actorEmail } : {}),
         ...(typeof payload.actorName === "string" ? { actorName: payload.actorName } : {}),

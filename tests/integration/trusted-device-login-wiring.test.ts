@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
@@ -56,7 +56,7 @@ describe("login → trusted-device wiring", () => {
     vi.clearAllMocks();
     secret = generateSecret();
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: {
         organizationId: org.id,
         name: "W",

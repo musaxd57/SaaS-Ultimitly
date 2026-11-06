@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
@@ -47,7 +47,7 @@ function req() {
 
 async function seed(sub?: { provider: string; status: string }) {
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: {
       organizationId: org.id,
       name: "Owner",
@@ -112,7 +112,7 @@ describe("hesap silme — ödeme aboneliği kapısı (fail-closed)", () => {
     // müşteri 409 alır ve mesaj ona yaptığı şeyi TEKRAR yapmasını söyler — yıllık
     // planda ~12 ay sürebilecek çıkışsız bir döngü (bağımsız denetim, 08-01).
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: {
         organizationId: org.id,
         name: "Owner",

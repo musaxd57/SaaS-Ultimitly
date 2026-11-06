@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
 
@@ -35,11 +35,11 @@ let impersonated: SessionPayload;
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Müşteri Org" } });
-  const owner = await prisma.user.create({
+  const owner = await makeUser({
     data: { organizationId: org.id, email: "owner@x.com", name: "Sahip", passwordHash: "x", role: "owner", sessionEpoch: 1 },
   });
   const opOrg = await prisma.organization.create({ data: { name: "Lixus" } });
-  const operator = await prisma.user.create({
+  const operator = await makeUser({
     data: {
       organizationId: opOrg.id,
       email: OPERATOR,

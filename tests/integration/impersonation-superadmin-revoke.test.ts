@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ const OPERATOR = "ops@lixusai.com";
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Customer Org" } });
-  const customer = await prisma.user.create({
+  const customer = await makeUser({
     data: {
       organizationId: org.id,
       email: "customer@x.com",
@@ -40,7 +40,7 @@ async function seed() {
       sessionEpoch: 1,
     },
   });
-  const operator = await prisma.user.create({
+  const operator = await makeUser({
     data: {
       organizationId: org.id,
       email: OPERATOR,

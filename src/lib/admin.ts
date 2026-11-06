@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { setSessionCookie, clearSessionCookie, getSession, type SessionPayload } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
-import type { UserRole } from "@/lib/constants";
+import { membershipClaims, pickLoginMembership } from "@/lib/membership/session";
 
 // ---------------------------------------------------------------------------
 // Operator panel (agency model): a SUPER-ADMIN operator manages many customer
@@ -32,25 +32,29 @@ export async function enterOrganization(
   current: SessionPayload,
   organizationId: string,
 ): Promise<boolean> {
+  // M-2 dilim 2: hedef işletmenin kişileri ÜYELİKTEN (etkin üyelik; rol o işletmedeki rol). Sıralama "en eski üyelik" — doldurmada
+  // üyeliğin anı kullanıcının anıdır, bugünkü "en eski kullanıcı" ile aynı kişi seçilir (Opus M10).
   const target = await prisma.organization.findUnique({
     where: { id: organizationId },
     select: {
       id: true,
-      users: {
-        orderBy: { createdAt: "asc" },
-        select: { id: true, role: true, email: true, name: true, sessionEpoch: true },
+      memberships: {
+        where: { status: "active" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, role: true, epoch: true, user: { select: { id: true, email: true, name: true, sessionEpoch: true } } },
       },
     },
   });
   if (!target) return false;
-  // Prefer an actual owner, then a manager, then the oldest user. A string sort
+  // Prefer an actual owner, then a manager, then the oldest member. A string sort
   // on "role" alone wrongly picks "manager" before "owner" (alphabetical), which
   // would give the operator reduced powers inside the tenant.
-  const owner =
-    target.users.find((u) => u.role === "owner") ??
-    target.users.find((u) => u.role === "manager") ??
-    target.users[0];
-  if (!owner) return false;
+  const chosen =
+    target.memberships.find((m) => m.role === "owner") ??
+    target.memberships.find((m) => m.role === "manager") ??
+    target.memberships[0];
+  if (!chosen) return false;
+  const owner = { ...chosen.user, role: chosen.role };
 
   // Preserve the ORIGINAL operator when hopping customer→customer.
   const actorUserId = current.actorUserId ?? current.userId;
@@ -78,8 +82,7 @@ export async function enterOrganization(
 
   await setSessionCookie({
     userId: owner.id,
-    organizationId: target.id,
-    role: owner.role as UserRole,
+    ...membershipClaims({ id: chosen.id, organizationId: target.id, role: chosen.role, epoch: chosen.epoch }),
     email: owner.email,
     name: owner.name,
     sessionEpoch: owner.sessionEpoch,
@@ -107,14 +110,17 @@ export async function exitImpersonation(): Promise<boolean> {
   if (!current?.actorUserId) return false;
   const actor = await prisma.user.findUnique({
     where: { id: current.actorUserId },
-    select: { id: true, organizationId: true, role: true, email: true, name: true, sessionEpoch: true },
+    select: { id: true, organizationId: true, lastActiveOrganizationId: true, email: true, name: true, sessionEpoch: true },
   });
   // 🚨 U13 (Codex 10-07): operatörün oturum sürümü çerezdeki DENETLENMİŞ değerle eşleşmeli. `requireSession` sürümü isteğin başında
   // denetler; arada operatörün parolası değişir / sıfırlanırsa (sürüm artar) eski kod sürümü YENİDEN okuyup onunla imzalıyordu → iptal
   // edilmiş operatör oturumu tam yetkili çerezle canlanıyordu (uç hız sınırsız: çalınmış bürünme çereziyle tekrar tekrar denenebilir).
   // Sürüm yoksa (giriş her zaman yazar; damgasız eski çerez zaten dolmuş sayılır) ya da uyuşmazsa çıkış YOK — giriş ekranına.
   const verifiedEpoch = current.actorSessionEpoch;
-  if (!actor || typeof verifiedEpoch !== "number" || actor.sessionEpoch !== verifiedEpoch) {
+  // M-2 dilim 2 (Opus M4): operatör KENDİ etkin üyeliğiyle geri döner (son kullanılan → ana → en eski); hiç etkin üyeliği yoksa da
+  // müşteri işletmesinde KALMAZ — oturum temizlenir.
+  const actorMembership = actor ? await pickLoginMembership(prisma, actor) : null;
+  if (!actor || !actorMembership || typeof verifiedEpoch !== "number" || actor.sessionEpoch !== verifiedEpoch) {
     // Fail-safe: the operator's own user record is gone (or their session was revoked meanwhile), so we can't restore
     // their session — but we must NOT leave them trapped inside the customer org (still seeing that customer's guest PII).
     // Clear the session so they drop to the login screen and can sign back in as themselves.
@@ -125,12 +131,11 @@ export async function exitImpersonation(): Promise<boolean> {
     organizationId: current.organizationId,
     actorUserId: current.actorUserId,
     action: "impersonate.exit",
-    metadata: { restoredToOrg: actor.organizationId },
+    metadata: { restoredToOrg: actorMembership.organizationId },
   });
   await setSessionCookie({
     userId: actor.id,
-    organizationId: actor.organizationId,
-    role: actor.role as UserRole,
+    ...membershipClaims(actorMembership),
     email: actor.email,
     name: actor.name,
     // Denetlenen sürümle imzalanır (DB'den yeniden okunanla değil): bu satırdan SONRA işleyen bir iptal yeni çerezi de geçersiz kılar.

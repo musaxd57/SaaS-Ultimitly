@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { sessionMembershipInclude, membershipMatchesSession } from "@/lib/membership/session";
 import { isSuperAdmin } from "@/lib/admin";
 import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
@@ -32,9 +33,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // so it can't loop (redirecting to /login with a still-valid signature would).
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { sessionEpoch: true, organization: { select: { name: true } } },
+    // M-2 dilim 2: kabuk adı OTURUMUN işletmesinden (ana işletmeden değil — Opus M4) ve o işletmedeki üyelik burada da doğrulanır.
+    select: {
+      sessionEpoch: true,
+      memberships: {
+        ...sessionMembershipInclude(session.organizationId),
+        select: { id: true, role: true, status: true, epoch: true, organization: { select: { name: true } } },
+      },
+    },
   });
-  if (!user || !user.organization || user.sessionEpoch !== session.sessionEpoch) {
+  const membership = user?.memberships[0];
+  if (!user || !membershipMatchesSession(membership, session) || user.sessionEpoch !== session.sessionEpoch) {
     redirect("/api/auth/logout");
   }
   // Impersonation: also enforce the REAL operator's epoch, so a stolen
@@ -49,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       redirect("/api/auth/logout");
     }
   }
-  const org = user.organization;
+  const org = membership.organization;
 
   // Billing (Faz 2). DORMANT unless BILLING_ENFORCED=true. We do NOT hard-lock
   // the app: a lapsed org (trial ended / canceled) keeps full browsing + manual

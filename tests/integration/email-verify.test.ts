@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
 import { signSession, SESSION_COOKIE } from "@/lib/auth/session";
@@ -397,7 +397,7 @@ describe("registration → verification → login", () => {
     // 2FA atlatma kapısına dönüşmesini engeller.
     const org = await prisma.organization.create({ data: { name: "TwoFa" } });
     const { raw, hash } = makeVerifyToken();
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -484,7 +484,7 @@ describe("registration → verification → login", () => {
     // org'a taşınırdı (login-CSRF); operatörse aktif impersonation bağlamı düşerdi.
     const org = await prisma.organization.create({ data: { name: "Other" } });
     const { raw, hash } = makeVerifyToken();
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Hedef",
@@ -523,7 +523,7 @@ describe("registration → verification → login", () => {
     // consume must be conditionally atomic (updateMany WHERE hash still set).
     const org = await prisma.organization.create({ data: { name: "X" } });
     const { raw, hash } = makeVerifyToken();
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -567,7 +567,7 @@ describe("registration → verification → login", () => {
 
   it("HOST-INJECTION: a forged Host on RESEND does NOT poison the emailed verify link", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -594,7 +594,7 @@ describe("registration → verification → login", () => {
     vi.stubEnv("PASSWORD_HASH_MAX_QUEUE", "0");
     const { raw, hash } = makeVerifyToken();
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -622,7 +622,7 @@ describe("registration → verification → login", () => {
     // kalın puntoyla kurbana gidiyordu.
     const bait = "Hesabiniz askiya alindi 0850 000 00 00 arayin";
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: bait,
@@ -648,7 +648,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 U12 (kurucu 10-22): son 10 dakikada gönderilmiş geçerli bağlantı varsa yeni bağlantı ÜRETİLMEZ, e-posta gitmez; cevap yine 200", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "quiet@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     // İlk istek: bağlantı üretilir, e-posta gider.
@@ -669,7 +669,7 @@ describe("registration → verification → login", () => {
 
   it("U12: 10 dakika geçtikten sonra yeniden gönderme bugünkü gibi yeni bağlantı üretir", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "later@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "later@x.com" }));
@@ -683,7 +683,7 @@ describe("registration → verification → login", () => {
 
   it("U12 (Haiku 10-22): kuyruksuz yolda e-posta GİTMEDİYSE sessiz pencere uygulanmaz — kişi hemen yeniden ister, yeni bağlantı gelir", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "fail@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     mockSendReporting.mockResolvedValueOnce({ ok: false, error: "Resend HTTP 500" });
@@ -697,7 +697,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 E-POSTA BOMBASI (09-23): aynı adrese 24 saatte en fazla 6 doğrulama e-postası (15 dk'lık kovalar dolsa da)", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -727,7 +727,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 T7-AUTH-1: sessiz penceredeki basışlar GÖNDERİM kotasını yemez — gün içinde 6 gerçek e-posta yine gidebilir", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "patient@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     for (let round = 0; round < 6; round++) {
@@ -743,7 +743,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 T7-AUTH-1: gönderim kotası dolunca da cevap AYNI 200 — kayıtlı ve kayıtsız adres ayırt edilemez", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "full@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     const statuses = { real: [] as number[], ghost: [] as number[] };
@@ -760,7 +760,7 @@ describe("registration → verification → login", () => {
 
   it("KONTROL — istek sınırı hesaptan bağımsız: 15 dakikada 5. istek her adreste 429", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "spam@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     for (const email of ["spam@x.com", "ghost2@x.com"]) {
@@ -774,7 +774,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 T7-AUTH-1 EŞZAMANLI: aynı anda gelen 4 istek → TEK bağlantı, TEK e-posta, TEK hak (yarışı kaybeden hakkını iade eder)", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "race@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     const codes = await Promise.all(
@@ -789,7 +789,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 T7-AUTH-1 EŞZAMANLI: son hak boşken aynı anda gelen istekler sınırı AŞAMAZ", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "edge@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     // 5 hak kullanılmış (bugün 5 e-posta gitti) — 6. ve son hak boş.
@@ -809,7 +809,7 @@ describe("registration → verification → login", () => {
 
   it("🚨 T7-AUTH-1: sağlayıcı reddederse hak İADE edilir (gitmeyen e-posta kotadan düşmez)", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "refund@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     mockSendReporting.mockResolvedValueOnce({ ok: false, error: "Resend HTTP 500" });
@@ -831,7 +831,7 @@ describe("registration → verification → login", () => {
 
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Ada",
@@ -852,7 +852,7 @@ describe("registration → verification → login", () => {
 
   it("an EXISTING (pre-cutoff) user logs in fine even if unverified — founder NOT locked out", async () => {
     const org = await prisma.organization.create({ data: { name: "Lale" } });
-    await prisma.user.create({
+    await makeUser({
       data: {
         organizationId: org.id,
         name: "Founder",
@@ -922,7 +922,7 @@ describe("register + resend — durable outbox (flag ON)", () => {
 
   it("🚨 T7-AUTH-1: kuyruğa yazma düşerse cevap yine 200, bağlantı değişmez, kişi kilitlenmez — hemen yeniden istemek kuyruğa yazar", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "flaky@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     vi.mocked(enqueueIdentityEmail).mockRejectedValueOnce(new Error("db down"));
@@ -936,7 +936,7 @@ describe("register + resend — durable outbox (flag ON)", () => {
 
   it("🚨 T7-AUTH-1: kuyruklu yolda da günlük gönderim kotası gerçek gönderimde düşer — 24 saatte en fazla 6 e-posta kuyruğa yazılır", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "qbomb@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     for (let i = 0; i < 9; i++) {
@@ -949,7 +949,7 @@ describe("register + resend — durable outbox (flag ON)", () => {
 
   it("🚨 T7-AUTH-1 EŞZAMANLI (kuyruklu yol): aynı anda gelen 4 istek → kuyrukta TEK canlı e-posta", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    await prisma.user.create({
+    await makeUser({
       data: { organizationId: org.id, name: "Ada", email: "qrace@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
     });
     await Promise.all(Array.from({ length: 4 }, () => resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "qrace@x.com" }))));
@@ -1032,7 +1032,7 @@ describe("GET /api/auth/verify-email — eski bağlantı kurtarma", () => {
   it("🚨 YAN ETKİSİZ: token TÜKETİLMEZ, hesap doğrulanmaz, oturum BASILMAZ", async () => {
     const org = await prisma.organization.create({ data: { name: "Org" } });
     const raw = "canli-token-abc";
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: {
         organizationId: org.id,
         name: "U",

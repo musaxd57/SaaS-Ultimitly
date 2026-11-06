@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
@@ -18,9 +18,9 @@ import { enterOrganization } from "@/lib/admin";
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Müşteri Org" } });
-  await prisma.user.create({ data: { organizationId: org.id, email: "owner@x.com", name: "Sahip", passwordHash: "x", role: "owner" } });
+  await makeUser({ data: { organizationId: org.id, email: "owner@x.com", name: "Sahip", passwordHash: "x", role: "owner" } });
   const opOrg = await prisma.organization.create({ data: { name: "Lixus" } });
-  const op = await prisma.user.create({ data: { organizationId: opOrg.id, email: "ops@lixusai.com", name: "Op", passwordHash: "x", role: "owner" } });
+  const op = await makeUser({ data: { organizationId: opOrg.id, email: "ops@lixusai.com", name: "Op", passwordHash: "x", role: "owner" } });
   const operator: SessionPayload = {
     userId: op.id,
     organizationId: opOrg.id,

@@ -2,6 +2,7 @@ import { impersonationExpired, isImpersonating, isReadOnlyMethod, IMPERSONATION_
 import { NextResponse } from "next/server";
 import { getSession, type SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { sessionMembershipInclude, membershipMatchesSession } from "@/lib/membership/session";
 import { reportError } from "@/lib/report-error";
 import { isSuperAdmin } from "@/lib/admin";
 import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
@@ -28,12 +29,14 @@ export async function requireSession(): Promise<SessionPayload | null> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      // Also read the CURRENT role + org so authorization is DB-authoritative, not
-      // JWT-frozen: a manager demoted to staff (which does NOT bump the epoch)
-      // must lose manager powers immediately, not at token expiry.
-      select: { sessionEpoch: true, role: true, organizationId: true, twoFactorEnabledAt: true },
+      // M-2 dilim 2: rol, oturumun işletmesindeki ÜYELİKTEN (aynı sorguda) — DB-authoritative, JWT-frozen değil: rolü düşürülen kişi
+      // yetkisini hemen kaybeder (rol değişimi üyelik kuşağını da artırır → oturum yeniden doğrulanır).
+      select: { sessionEpoch: true, twoFactorEnabledAt: true, memberships: sessionMembershipInclude(session.organizationId) },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
+    // Üyelik yok / etkin değil / kuşak ya da kimlik farklı → oturum GEÇERSİZ (kişi bu işletmeden çıkarıldı ya da rolü değişti).
+    const membership = user.memberships[0];
+    if (!membershipMatchesSession(membership, session)) return null;
     // 🚨 `mfa` İDDİASI DB'YE KARŞI YENİDEN DOĞRULANIR (denetim, 08-09).
     //
     // `isSuperAdmin` (`admin-core.ts:74`) operatör yetkisinin TEK kapısıdır ve
@@ -56,10 +59,9 @@ export async function requireSession(): Promise<SessionPayload | null> {
     // impersonation'ı komple kırardı — ilk yazımım tam olarak bunu yapıyordu ve
     // mevcut regresyon pini ("yetki duruyorsa oturum geçerli") onu yakaladı.
     // Doğru kaynak aşağıdaki AKTÖR satırıdır; kontrol oraya taşındı.
-    // Overwrite role/org with the live DB values (usually identical). withManage's
-    // canManage() and every org-scoped query then see the current, not the stale, role.
-    session.role = user.role as SessionPayload["role"];
-    session.organizationId = user.organizationId;
+    // Rolü üyelikten yaz (genelde aynı). 🚨 İŞLETME ÜSTÜNE YAZILMAZ (M-2, Opus M4): eskiden `user.organizationId` (ana işletme) JWT'nin
+    // işletmesini eziyordu — üyelikte B'deki oturum sessizce A'da çalışırdı. İşletme JWT'dendir ve yukarıda o işletmedeki üyelik doğrulandı.
+    session.role = membership.role as SessionPayload["role"];
     // While impersonating, ALSO enforce the real operator's epoch — else a stolen
     // impersonation token would survive the operator resetting their OWN password
     // (which bumps only the operator's epoch, not the assumed customer's). Skipped

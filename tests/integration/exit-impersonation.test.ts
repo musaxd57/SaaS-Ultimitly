@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 // Drive exitImpersonation against a mocked session + cookie layer, real DB.
@@ -54,7 +54,7 @@ describe("exitImpersonation fail-safe", () => {
   it("restores the operator's own session on a normal exit", async () => {
     const custOrg = await prisma.organization.create({ data: { name: "Customer Org" } });
     const opOrg = await prisma.organization.create({ data: { name: "Operator Org" } });
-    const operator = await prisma.user.create({
+    const operator = await makeUser({
       data: { organizationId: opOrg.id, name: "Op", email: "op@x.com", passwordHash: "x", role: "owner" },
     });
     currentSession = {
@@ -103,7 +103,7 @@ describe("U13 — çıkış iptal edilmiş operatör oturumunu canlandırmaz", (
 
   async function seed(opEpoch: number) {
     const opOrg = await prisma.organization.create({ data: { name: "Op Org" } });
-    const op = await prisma.user.create({
+    const op = await makeUser({
       data: { organizationId: opOrg.id, name: "Op", email: "op@lixusai.com", passwordHash: "x", role: "owner", sessionEpoch: opEpoch },
     });
     const custOrg = await prisma.organization.create({ data: { name: "Cust Org" } });
@@ -156,11 +156,11 @@ describe("mfa iddiası impersonation geçişlerinde taşınır", () => {
 
   async function seedPair() {
     const opOrg = await prisma.organization.create({ data: { name: "Op Org" } });
-    const op = await prisma.user.create({
+    const op = await makeUser({
       data: { organizationId: opOrg.id, name: "Op", email: "op@lixusai.com", passwordHash: "x", role: "owner" },
     });
     const custOrg = await prisma.organization.create({ data: { name: "Cust Org" } });
-    const cust = await prisma.user.create({
+    const cust = await makeUser({
       data: { organizationId: custOrg.id, name: "C", email: "c@x.com", passwordHash: "x", role: "owner" },
     });
     return { op, opOrg, cust, custOrg };

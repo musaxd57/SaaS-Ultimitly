@@ -161,6 +161,18 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
 - Geri dönüş: ilk çıkarma yazıldıktan sonra dilim 3'ü geri almak YASAK (çıkarılan herkes aynadan geri girerdi) — geri dönüş = önce
   çıkarma / davet anahtarını kapat [M2].
 
+### 10.1 Uygulama durumu (dal `m2/membership`, push EDİLMEDİ — migration'lı, kurucu onayı)
+- **Dilim 1 ✓ `99c2e014`:** tablo + migration 93 (dolu veritabanında denendi; taze ve dolu veritabanında sapma sıfır) + tek yazıcı (kayıt,
+  operatör, demo, tohum) + geçici tek-üyelik bekçisi. 12 dosya / 123 test, kırmızı-önce 4, mutasyon 14/14.
+- **Dilim 2 (yazıldı, doğrulanıyor):** `requireSession` / `requireAuth` / `(app)/layout` üyelikten (işletme üstüne yazması SİLİNDİ, B2 üyelik
+  rolüyle, kabuk adı oturumun işletmesinden) · beyaz listede `membershipId` + `membershipEpoch` · giriş, e-posta doğrulama, bürünme
+  giriş / çıkış `pickLoginMembership` + `membershipClaims` · etkin üyeliği olmayan kişiye oturum basılmaz (sade metin) · migration 94
+  (doldurma tekrarı: yalnız HİÇ üyelik satırı olmayan kullanıcı; çıkarılmış üyelik dirilmez) · strict sağlık: üyelik satırı olmayan kullanıcı
+  → 503 · test yardımcısı `makeUser` (üretim yazıcısıyla), gerçek doğrulamadan geçen 15 test dosyası ona çevrildi.
+- 🚨 **Yayın sırası (Opus M10c):** dilim 1 TEK BAŞINA yayınlanır (yazıcı yeni hesaplara üyelik yazmaya başlar); dilim 2 SONRAKİ yayında
+  (migration 94, dilim 1 yayını sırasında eski kodun açtığı hesapları yakalar). İkisi tek yayında giderse o aralıkta açılan hesap giriş
+  yapamaz (sağlık denetimi bunu 503 ile gösterir; 94'ü elle yeniden koşmak düzeltir).
+
 ## 11. Riskler
 - Oturum doğrulaması her istekte bir satır daha okur — `requireSession` kullanıcıyı zaten okuyor, aynı sorguda `include`.
 - 179 test dosyası kullanıcıyı doğrudan yaratıyor; 30 dosya gerçek doğrulamadan geçiyor (bürünme / oturum kuşağı / hesap silme pinleri) →

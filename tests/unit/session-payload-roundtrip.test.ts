@@ -31,6 +31,9 @@ const FULL: Required<SessionPayload> = {
   email: "operator@example.com",
   name: "Operatör",
   sessionEpoch: 7,
+  // M-2 dilim 2: aktif üyelik — düşerse her istek "üyelik tutmuyor" sayılır ya da (kuşak) yeniden alınan üyelikte eski belirteç dirilir.
+  membershipId: "mem_1",
+  membershipEpoch: 2,
   actorUserId: "actor1",
   actorEmail: "actor@example.com",
   actorName: "Gerçek Operatör",

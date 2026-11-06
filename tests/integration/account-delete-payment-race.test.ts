@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
@@ -87,7 +87,7 @@ describe("ödeme S2 ters sıra — silme ön kontrolünden SONRA gelen ödemeli 
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     const org = await prisma.organization.create({ data: { name: "Org" } });
     orgId = org.id;
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: { organizationId: org.id, name: "Owner", email: "owner-s2@example.com", passwordHash: await hashPassword(PASSWORD), role: "owner", emailVerifiedAt: new Date() },
     });
     // Deneme satırı (silmeye engel değil) + az önce açılmış ödeme onayı: ilk ödemeli Paddle olayı işletmeyi onaydan bulur ve deneme

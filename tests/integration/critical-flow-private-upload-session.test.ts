@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, makeUser } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // KRİTİK AKIŞ — özel yükleme · yetkisiz nesne erişimi: ROTA + OTURUM + DB birlikte (kurucu talimatı 09-07 "Merkezi kritik akış
@@ -41,10 +41,10 @@ const STORAGE_ENV = {
 let seq = 0;
 async function tenantWithPhoto() {
   const { orgId, propertyId } = await makeOrgWithProperty();
-  const owner = await prisma.user.create({
+  const owner = await makeUser({
     data: { organizationId: orgId, name: "Sahip", email: `owner${++seq}@x.com`, passwordHash: "x", role: "owner" },
   });
-  const staff = await prisma.user.create({
+  const staff = await makeUser({
     data: { organizationId: orgId, name: "Personel", email: `staff${++seq}@x.com`, passwordHash: "x", role: "staff" },
   });
   const task = await prisma.task.create({

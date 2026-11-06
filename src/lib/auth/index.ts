@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { sessionMembershipInclude, membershipMatchesSession } from "@/lib/membership/session";
 // ⚠️ `@/lib/admin` DEĞİL, `@/lib/admin-core` — döngü kırıcı. `admin.ts` bu
 // modülü import ediyor; oradan almak `auth/index → admin → auth/index` döngüsü
 // kurar ve ÖLÇÜLDÜ: `exit-impersonation.test.ts`'in 5 testi anında kırıldı
@@ -83,18 +84,20 @@ export async function requireAuth(): Promise<SessionPayload> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      // DB-authoritative role/org (see requireSession): a demoted user loses
-      // powers on the page path too, not only on API routes.
-      select: { sessionEpoch: true, role: true, organizationId: true, twoFactorEnabledAt: true },
+      // DB-authoritative role (see requireSession): rol oturumun işletmesindeki ÜYELİKTEN (M-2 dilim 2), kullanıcı satırıyla tek gidişte.
+      select: { sessionEpoch: true, twoFactorEnabledAt: true, memberships: sessionMembershipInclude(session.organizationId) },
     });
+    const membership = user?.memberships[0];
     // 🚨 ROL DEĞİŞTİYSE OTURUM KAPANIR (Codex 09-30, B2): ara katmanın personel yönlendirmesi ÇEREZDEKİ role bakar ve (app)
     // sayfalarının çoğu rolü kendisi kontrol etmez → rolü düşürülen yöneticinin eski çerezi gelen kutusu sayfalarını açmaya
     // devam ederdi (burada rol personele çekilse de sayfa buna bakmıyordu). Uyuşmazlıkta çıkış: yeni giriş taze rolü taşır,
     // ara katman doğru yönlendirir. Bugün rolü değiştiren yol YOK; ileride eklenecek yol epoch da artırmalı (CLAUDE.md ön koşul).
-    if (!user || user.sessionEpoch !== session.sessionEpoch || user.role !== session.role) invalid = true;
-    else {
-      session.role = user.role as SessionPayload["role"];
-      session.organizationId = user.organizationId;
+    // M-2: üyelik etkin + kuşak / kimlik aynı olmalı; B2 kuralı ÜYELİK rolüyle (rol değiştiyse çıkış, yeni giriş taze rolü taşır).
+    // 🚨 İşletme ÜSTÜNE YAZILMAZ (Opus M4): JWT'nin işletmesindeki üyelik doğrulandı; ana işletmeye taşımak B'deki oturumu A'da açardı.
+    if (!user || user.sessionEpoch !== session.sessionEpoch || !membershipMatchesSession(membership, session) || membership.role !== session.role) {
+      invalid = true;
+    } else {
+      session.role = membership.role as SessionPayload["role"];
     }
     let actorRow: { sessionEpoch: number; twoFactorEnabledAt: Date | null } | null = null;
     if (!invalid && session.actorUserId && session.actorSessionEpoch !== undefined) {

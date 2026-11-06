@@ -4,6 +4,7 @@ import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
 import { upgradeStoredPasswordHash } from "@/lib/auth/password-upgrade";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie, setKnownDeviceCookie } from "@/lib/auth";
+import { membershipClaims, NO_ACTIVE_MEMBERSHIP_TEXT, pickLoginMembership } from "@/lib/membership/session";
 import {
   badRequest,
   jsonOk,
@@ -21,7 +22,6 @@ import { verifyTotpStep } from "@/lib/auth/totp";
 import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
 import { writeAudit } from "@/lib/audit";
 import { needsEmailVerification } from "@/lib/auth/email-verify";
-import type { UserRole } from "@/lib/constants";
 import { normalizeEmail } from "@/lib/email-identity";
 
 /** Hesap başına başarısız PAROLA denemesi (15 dk pencere). Peek ve tüketim AYNI sabiti kullanır. */
@@ -306,10 +306,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // M-2 dilim 2 (Opus M15): oturumun işletmesi = seçilen ETKİN üyelik (son kullanılan → ana → en eski). Hiçbiri yoksa oturum
+    // BASILMAZ — sade metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır; numaralandırma sızıntısı yok).
+    const membership = await pickLoginMembership(prisma, user);
+    if (!membership) return NextResponse.json({ error: NO_ACTIVE_MEMBERSHIP_TEXT }, { status: 403 });
     await setSessionCookie({
       userId: user.id,
-      organizationId: user.organizationId,
-      role: user.role as UserRole,
+      ...membershipClaims(membership),
       email: user.email,
       name: user.name,
       sessionEpoch: user.sessionEpoch,
@@ -337,9 +340,9 @@ export async function POST(req: NextRequest) {
     // fırlatmaz (`password-upgrade.ts`) — girişin sonucunu hiçbir koşulda değiştirmez.
     if (needsRehash) await upgradeStoredPasswordHash(user.id, user.passwordHash, parsed.data.password);
 
-    // Security breadcrumb: a successful sign-in (who + when). Non-fatal.
+    // Security breadcrumb: a successful sign-in (who + when). Non-fatal. M-2 (Opus M6): kayıt oturumun BASILDIĞI işletmeye.
     await writeAudit({
-      organizationId: user.organizationId,
+      organizationId: membership.organizationId,
       actorUserId: user.id,
       action: "auth.login_success",
       metadata: { ip: clientIp(req), twoFactor: Boolean(user.twoFactorEnabledAt) },

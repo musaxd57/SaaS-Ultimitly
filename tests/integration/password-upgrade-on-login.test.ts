@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
@@ -45,7 +45,7 @@ function loginReq(body: unknown, ip = "3.3.3.3") {
 
 async function seedUser(passwordHash: string, extra: Record<string, unknown> = {}) {
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  return prisma.user.create({
+  return makeUser({
     data: {
       organizationId: org.id,
       name: "U",

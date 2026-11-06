@@ -1,6 +1,18 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { createUserWithMembership, type MembershipRole } from "@/lib/membership/write";
 
 export { prisma };
+
+/**
+ * M-2 (dilim 2): kullanıcıyı ANA işletme üyeliğiyle birlikte yaratır — üretimdeki TEK yazıcıdan (`lib/membership/write.ts`). Oturum artık
+ * üyelikten doğrulandığı için GERÇEK oturum doğrulamasından geçen testler kullanıcıyı bununla açar (üyeliksiz kullanıcı giriş yapamaz —
+ * üretimdekiyle aynı). Biçim `prisma.user.create({ data })` ile aynı; rol verilmezse şemanın eski varsayılanı ("owner").
+ */
+export async function makeUser(args: { data: Omit<Prisma.UserUncheckedCreateInput, "role"> & { role?: MembershipRole } }) {
+  const { role = "owner", ...rest } = args.data;
+  return prisma.$transaction((tx) => createUserWithMembership(tx, { ...rest, role }, "seed"));
+}
 
 /** Wipe every table in FK-safe order. Call in beforeEach for test isolation. */
 export async function resetDb(): Promise<void> {

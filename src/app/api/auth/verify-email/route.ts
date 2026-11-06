@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
+import { membershipClaims, pickLoginMembership } from "@/lib/membership/session";
 import { verifySession, readSessionCookie } from "@/lib/auth/session";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import { verifyPassword, PasswordHashBusyError } from "@/lib/auth/password";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { readJsonCappedOrNull, passwordHashBusy, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
-import type { UserRole } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
     select: {
       id: true,
       organizationId: true,
+      lastActiveOrganizationId: true,
       role: true,
       email: true,
       name: true,
@@ -189,10 +190,12 @@ export async function POST(req: NextRequest) {
   // kapısına dönüşmesini engeller.
   if (user.twoFactorEnabledAt) return NextResponse.json({ ok: true, requiresLogin: true });
 
+  // M-2 dilim 2: girişle AYNI seçim (etkin üyelik); hiçbiri yoksa oturum basılmaz — kişi doğrulandı, giriş ekranı sade metni gösterir.
+  const membership = await pickLoginMembership(prisma, user);
+  if (!membership) return NextResponse.json({ ok: true, requiresLogin: true });
   await setSessionCookie({
     userId: user.id,
-    organizationId: user.organizationId,
-    role: user.role as UserRole,
+    ...membershipClaims(membership),
     email: user.email,
     name: user.name,
     sessionEpoch: user.sessionEpoch,

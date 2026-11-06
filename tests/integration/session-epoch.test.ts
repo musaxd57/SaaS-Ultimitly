@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser as makeMemberUser } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 // requireSession() (lib/api.ts) enforces the session epoch: after verifying the
@@ -17,7 +17,7 @@ import { requireSession } from "@/lib/api";
 
 async function makeUser(sessionEpoch: number) {
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  return prisma.user.create({
+  return makeMemberUser({
     data: {
       organizationId: org.id,
       name: "U",
@@ -83,7 +83,7 @@ describe("requireSession — session-epoch enforcement", () => {
 
   it("uses the DB-current role, not the JWT's — a demoted manager loses powers immediately", async () => {
     const org = await prisma.organization.create({ data: { name: "Org" } });
-    const user = await prisma.user.create({
+    const user = await makeMemberUser({
       data: { organizationId: org.id, name: "U", email: "demoted@x.com", passwordHash: "x", role: "staff", sessionEpoch: 1 },
     });
     // Stolen/old token still claims "manager"; the DB now says "staff".
