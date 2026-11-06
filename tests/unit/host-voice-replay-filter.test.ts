@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { isForbiddenMeasurementFile, isReplayOutput } from "../eval/measurement-files";
 
 // ---------------------------------------------------------------------------
@@ -40,5 +42,15 @@ describe("tekrar oynatma — yasak ölçüm dosyası süzgeci", () => {
     expect(isReplayOutput("host-contact-replay-2026-10-30.json")).toBe(true);
     expect(isReplayOutput("ev-sahibi-cevabi-2026-10-31-gpt-5.1-host-answer-compose-dev.json")).toBe(false);
     expect(isReplayOutput("live-pipeline-2026-10-30-host-voice.json")).toBe(false);
+  });
+
+  it("iki tekrar oynatma da dizini bu iki süzgeçten geçirerek okur (bağlantı pini — süzgeç tek başına doğru olup kullanılmayabilir)", () => {
+    // Ölçüm betikleri, ürün kodu değil: davranışsal koşu docs/olcum'u okur ve dosya yazar; burada yalnız bağlantı sınanır.
+    for (const f of ["tests/eval/host-voice-replay.ts", "tests/eval/host-contact-replay.ts"]) {
+      const src = readFileSync(join(process.cwd(), f), "utf8");
+      expect(src, f).toMatch(/readdirSync\(OLCUM\)/);
+      expect(src, f).toMatch(/isForbiddenMeasurementFile\([a-z]+\)/);
+      expect(src, f).toMatch(/isReplayOutput\([a-z]+\)/);
+    }
   });
 });

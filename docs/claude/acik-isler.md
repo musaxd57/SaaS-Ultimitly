@@ -174,9 +174,13 @@ ilk onaylar gölgede) → `docs/TASARIM-2026-11-06-erken-giris-guvenilir-cevap.m
 `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12 · işletme belgesi S3 (doğrudan rezervasyon sayfası olacak mı) + §16.1 iş fırsatı akışı
 ve asistan örneği + Ek B / P3-20 ev sahibi metinleri + Bakanlık tesis sorgusunun sütunları (işletmeci unvanı görünüyor mu — Codex) →
 `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §16, §18 (Faz 1a kodu 11-06 gece dalda, anahtar KAPALI) · misafir hizmetleri
-YOL PLANI sorular D-1…D-7 + P0 avukat soruları → `docs/TASARIM-2026-11-06-misafir-hizmetleri-ve-dogrudan-rezervasyon.md` (2. sürüm) · QR alt
-yazı etiketi ("Otomatik asistan + ev sahibi") ev sahibi ağzına çevrilsin mi · istemde "bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …'
-yaz" örneği için ÜCRETLİ ölçüm onayı (ücretsiz ölçüm: `docs/olcum/host-voice-replay-2026-11-06.md`).
+YOL PLANI sorular D-1…D-7 + P0 avukat soruları → `docs/TASARIM-2026-11-06-misafir-hizmetleri-ve-dogrudan-rezervasyon.md` (2. sürüm) · QR
+TARAF ETİKETLERİ tek soruda (A "ekibimiz" / B): alt yazı ("Otomatik asistan + ev sahibi") + Türkçe açıklama / ayraç / gönderen adı
+("İşletme ekibi" — 08-08 kurumsal hitap kuralına aykırı; ekran 11-06'ya dek taranmıyordu, istisnası `tests/unit/guest-text-quality.test.ts`
+PENDING listesinde, metin değişince çıkarılır) + İngilizce gönderen adı ("Host team") · model yokken taslaklar (`ai/fallback.ts` iade +
+"insanla görüşmek istiyorum": "ev sahibimiz değerlendirecek / ev sahibimize ilettim" → ben dili, önce/sonra rapor 11-06 gece-2) · istemde
+"bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …' yaz" örneği için ÜCRETLİ ölçüm onayı (ücretsiz ölçüm:
+`docs/olcum/host-voice-replay-2026-11-06.md`).
 Cevap gelmeden bu maddeler UYGULANMAZ.
 
 **🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım
