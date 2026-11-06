@@ -84,7 +84,7 @@ export async function requireAuth(): Promise<SessionPayload> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      // DB-authoritative role (see requireSession): rol oturumun işletmesindeki ÜYELİKTEN (M-2 dilim 2), kullanıcı satırıyla tek gidişte.
+      // DB-authoritative role (see requireSession): rol oturumun işletmesindeki ÜYELİKTEN (M-2 dilim 2) — tek Prisma çağrısı, iki SQL sorgusu.
       select: { sessionEpoch: true, twoFactorEnabledAt: true, memberships: sessionMembershipInclude(session.organizationId) },
     });
     const membership = user?.memberships[0];
@@ -98,6 +98,9 @@ export async function requireAuth(): Promise<SessionPayload> {
       invalid = true;
     } else {
       session.role = membership.role as SessionPayload["role"];
+      // Doğrulanan üyeliğin kimliği + kuşağı (Opus S3; `requireSession` ile aynı — sayfa yolu imzalamaz, oturum nesnesi tutarlı kalır).
+      session.membershipId = membership.id;
+      session.membershipEpoch = membership.epoch;
     }
     let actorRow: { sessionEpoch: number; twoFactorEnabledAt: Date | null } | null = null;
     if (!invalid && session.actorUserId && session.actorSessionEpoch !== undefined) {

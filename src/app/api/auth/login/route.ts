@@ -19,7 +19,7 @@ import { rateLimit, rateLimitPeek, clientIp, rateLimitClientKey } from "@/lib/ra
 import { KNOWN_DEVICE_COOKIE, verifyKnownDeviceToken } from "@/lib/auth/known-device";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
-import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
+import { consumeRecoveryCode, recoveryCodeIsUsable, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
 import { writeAudit } from "@/lib/audit";
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 import { normalizeEmail } from "@/lib/email-identity";
@@ -176,6 +176,10 @@ export async function POST(req: NextRequest) {
     // The trusted-device cookie is bound to this epoch, so resetting 2FA
     // (disable→re-enable) invalidates every previously-remembered device.
     const twoFaEpoch = user.twoFactorEnabledAt ? user.twoFactorEnabledAt.getTime() : 0;
+    // M-2 dilim 2 (Opus M15): oturumun işletmesi = seçilen ETKİN üyelik (son kullanılan → ana → en eski). Seçim ikinci adımdan ÖNCE
+    // okunur ama sonucu yalnız ikinci adımdan SONRA söylenir (↓403 — numaralandırma yok). Önce okunmasının tek sebebi kurtarma kodu:
+    // gidecek işletmesi olmayan kişinin tek kullanımlık kodu YAKILMAZ (Opus S7).
+    const membership = await pickLoginMembership(prisma, user);
     let trustedDevice = false;
     if (user.twoFactorEnabledAt) {
       // Fail-closed: any error reading the trusted-device cookie → ask for 2FA.
@@ -250,7 +254,10 @@ export async function POST(req: NextRequest) {
           // Single-use recovery code as the second factor (lost/changed phone).
           // consumeRecoveryCode is the atomic arbiter — a used/foreign/garbled
           // code burns nothing and rejects; a valid one is dead from now on.
-          const used = await consumeRecoveryCode(user.id, recoveryCode);
+          // M-2 (Opus S7): gidecek etkin üyelik YOKSA kod yakılmaz — geçerliliği tüketmeden sınanır; geçerliyse ↓403 (kod kullanılabilir kalır).
+          const used = membership
+            ? await consumeRecoveryCode(user.id, recoveryCode)
+            : await recoveryCodeIsUsable(user.id, recoveryCode);
           if (!used) {
             await noteSecondFactorFailure("recovery");
             return NextResponse.json(
@@ -258,13 +265,16 @@ export async function POST(req: NextRequest) {
               { status: 401 },
             );
           }
-          // Security breadcrumb + a nudge signal: how many codes are left.
-          await writeAudit({
-            organizationId: user.organizationId,
-            actorUserId: user.id,
-            action: "account.2fa_recovery_used",
-            metadata: { remaining: await remainingRecoveryCodes(user.id), ip: clientIp(req) },
-          });
+          // Security breadcrumb + a nudge signal: how many codes are left. Yalnız kod GERÇEKTEN kullanıldıysa (üyeliksiz dalda yakılmadı).
+          if (membership) {
+            await writeAudit({
+              organizationId: user.organizationId,
+              actorUserId: user.id,
+              action: "account.2fa_recovery_used",
+              // Sayım okunamazsa giriş DÜŞMEZ (kod zaten yakıldı; 500 kişiyi kodsuz ve oturumsuz bırakırdı — Haiku 11-06).
+              metadata: { remaining: await remainingRecoveryCodes(user.id).catch(() => null), ip: clientIp(req) },
+            });
+          }
         } else {
           // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY was
           // rotated after launch), don't 500 — treat it as an invalid code so the
@@ -306,9 +316,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // M-2 dilim 2 (Opus M15): oturumun işletmesi = seçilen ETKİN üyelik (son kullanılan → ana → en eski). Hiçbiri yoksa oturum
-    // BASILMAZ — sade metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır; numaralandırma sızıntısı yok).
-    const membership = await pickLoginMembership(prisma, user);
+    // Etkin üyelik yoksa (↑seçim) oturum BASILMAZ — sade metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır; numaralandırma yok).
     if (!membership) return NextResponse.json({ error: NO_ACTIVE_MEMBERSHIP_TEXT }, { status: 403 });
     await setSessionCookie({
       userId: user.id,
@@ -340,9 +348,11 @@ export async function POST(req: NextRequest) {
     // fırlatmaz (`password-upgrade.ts`) — girişin sonucunu hiçbir koşulda değiştirmez.
     if (needsRehash) await upgradeStoredPasswordHash(user.id, user.passwordHash, parsed.data.password);
 
-    // Security breadcrumb: a successful sign-in (who + when). Non-fatal. M-2 (Opus M6): kayıt oturumun BASILDIĞI işletmeye.
+    // Security breadcrumb: a successful sign-in (who + when). Non-fatal. M-2 (Opus S8): BÜTÜN kimlik kayıtları (başarılı / başarısız
+    // giriş, 2FA, kurtarma kodu) Ü-3 kararına kadar kişinin ANA işletmesine — tek kural. Başarısızlık üyelik seçilmeden yazılır; başarıyı
+    // seçilen işletmeye yazmak iki kuralı yan yana koyardı (çok üyelikte A'nın dökümüne B'nin denemeleri düşerdi). Ü-3 dilim 6c'den önce.
     await writeAudit({
-      organizationId: membership.organizationId,
+      organizationId: user.organizationId,
       actorUserId: user.id,
       action: "auth.login_success",
       metadata: { ip: clientIp(req), twoFactor: Boolean(user.twoFactorEnabledAt) },

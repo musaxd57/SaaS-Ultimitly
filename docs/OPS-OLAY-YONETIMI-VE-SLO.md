@@ -21,7 +21,8 @@ kadar SLO yalnız hedeftir, ölçüm değildir.
 
 ## 2. Olay sırasında: ilk 15 dakika
 
-1. **Ne bozuk?** `/api/health` (DB) → `/api/health?strict=1` (senkron + kuyruk) → `/api/health?live=1` (süreç ayakta mı; DB'ye
+1. **Ne bozuk?** `/api/health` (DB) → `/api/health?strict=1` (senkron + kuyruk; üyelik dalından sonra `users_without_membership` da —
+   onarım `docs/RAILWAY-ACILIS-2026-10-15.md` "Üyelik (M-2)") → `/api/health?live=1` (süreç ayakta mı; DB'ye
    dokunmaz). `live` 200 ama `/api/health` 503 ise sorun veritabanında. Yeniden başlatmak çözmez.
 2. **Uyarılar:** `ERROR_ALERT_EMAIL` kutusu (bağlam başına 10 dk'da bir e-posta) · Sentry (`SENTRY_DSN` ayarlıysa) · operatör paneli
    → Operasyon Teşhisi → takip numarasıyla olay araması.

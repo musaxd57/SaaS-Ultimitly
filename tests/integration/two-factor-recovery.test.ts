@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
@@ -58,7 +58,8 @@ function tfaReq(body: unknown) {
 async function makeTfaUser(email = "tf@example.com") {
   const secret = generateSecret();
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  const user = await prisma.user.create({
+  // Üretim yazıcısıyla (M-2): giriş rotası etkin üyelik ister; üyeliksiz tohum giriş testlerini YANLIŞ sebeple (403) düşürürdü (Opus S1).
+  const user = await makeUser({
     data: {
       organizationId: org.id,
       name: "TF",
@@ -277,6 +278,23 @@ describe("POST /api/auth/login — recovery code as the second factor", () => {
     const res = await loginPost(loginReq({ email: "tf@example.com", password: "correct-horse" }, "7.7.7.6"));
     expect(res.status).toBe(200);
     expect((await res.json()).twoFactorRequired).toBe(true);
+  });
+
+  it("🚨 M-2 (Opus S7): etkin üyeliği olmayan kişinin GEÇERLİ kurtarma kodu YAKILMAZ → 403; hatalı kod 401; üyelik dönünce aynı kod girer", async () => {
+    const { userId } = await makeTfaUser();
+    const [code] = await regenerateRecoveryCodes(userId);
+    await prisma.membership.updateMany({ where: { userId }, data: { status: "revoked", epoch: { increment: 1 } } });
+    const blocked = await loginPost(loginReq({ email: "tf@example.com", password: "correct-horse", recoveryCode: code }, "7.7.7.8"));
+    expect(blocked.status).toBe(403);
+    expect(await remainingRecoveryCodes(userId)).toBe(RECOVERY_CODE_COUNT); // yakılmadı
+    expect(await prisma.auditLog.count({ where: { action: "account.2fa_recovery_used" } })).toBe(0);
+    // Hatalı kod yine 401 (403'e yalnız GEÇERLİ ikinci faktörle varılır — numaralandırma yok).
+    const bad = await loginPost(loginReq({ email: "tf@example.com", password: "correct-horse", recoveryCode: "AAAA-BBBB-CCCC" }, "7.7.7.9"));
+    expect(bad.status).toBe(401);
+    await prisma.membership.updateMany({ where: { userId }, data: { status: "active" } });
+    const ok = await loginPost(loginReq({ email: "tf@example.com", password: "correct-horse", recoveryCode: code }, "7.7.7.10"));
+    expect(ok.status).toBe(200);
+    expect(await remainingRecoveryCodes(userId)).toBe(RECOVERY_CODE_COUNT - 1);
   });
 
   it("recovery code does NOT bypass the password check", async () => {

@@ -15,7 +15,7 @@ import { signSession, verifySession, SESSION_COOKIE, type SessionPayload } from 
 const jar = vi.hoisted(() => ({ token: undefined as string | undefined, set: [] as { name: string; value: string }[] }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
-    get: (_name: string) => (jar.token ? { value: jar.token } : undefined),
+    get: () => (jar.token ? { value: jar.token } : undefined),
     set: (a: string | { name: string; value: string }, b?: string) => {
       const entry = typeof a === "string" ? { name: a, value: b ?? "" } : a;
       jar.set.push(entry);
@@ -42,6 +42,7 @@ import { enterOrganization, exitImpersonation } from "@/lib/admin";
 import { GET as health } from "@/app/api/health/route";
 import { clearProbeCache } from "@/lib/health-probe";
 import { __resetStrictQueueState } from "@/lib/outbox/health";
+import { __resetStrictMembershipState } from "@/lib/membership/health";
 
 async function seedOwner(email = "sahip-ms@example.test", password?: string) {
   const org = await prisma.organization.create({ data: { name: "Lale A" } });
@@ -186,6 +187,7 @@ describe("M-2 dilim 2 — oturum üyelikten doğrulanır", () => {
     await prisma.systemLock.create({ data: { name: "scheduled-sync", lockedUntil: new Date(0) } });
     clearProbeCache();
     __resetStrictQueueState();
+    __resetStrictMembershipState();
     const { membership } = await seedOwner();
     await prisma.membership.update({ where: { id: membership.id }, data: { status: "revoked" } });
     const before = await (await health(new NextRequest("http://localhost/api/health?strict=1"))).json();
@@ -193,8 +195,11 @@ describe("M-2 dilim 2 — oturum üyelikten doğrulanır", () => {
     const org = await prisma.organization.create({ data: { name: "Eski kod" } });
     await prisma.user.create({ data: { organizationId: org.id, name: "Üyeliksiz", email: "uyeliksiz@example.test", passwordHash: "x", role: "owner" } });
     clearProbeCache();
+    // Üyelik yoklaması 30 sn önbellekli (Opus S2) → yeni satır önbellek süresi dolana kadar görünmez; testte süre beklenmez, sıfırlanır.
+    __resetStrictMembershipState();
     const after = await health(new NextRequest("http://localhost/api/health?strict=1"));
-    expect(await after.json()).toMatchObject({ membership: "missing" });
+    expect(after.status).toBe(503);
+    expect(await after.json()).toMatchObject({ ok: false, membership: "missing", reason: "users_without_membership" });
   });
 
   it("migration 94: yalnız HİÇ üyeliği olmayan kullanıcıya üyelik yazar; çıkarılmış üyelik DİRİLMEZ; tekrar koşulabilir", async () => {

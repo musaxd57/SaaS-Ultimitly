@@ -191,8 +191,9 @@ export async function POST(req: NextRequest) {
   if (user.twoFactorEnabledAt) return NextResponse.json({ ok: true, requiresLogin: true });
 
   // M-2 dilim 2: girişle AYNI seçim (etkin üyelik); hiçbiri yoksa oturum basılmaz — kişi doğrulandı, giriş ekranı sade metni gösterir.
+  // Ayrı sebep kodu (Opus S9): istemci aynı "giriş yapın" yoluna gider (`requiresLogin`), testler bu dalı 2FA dalından ayırır.
   const membership = await pickLoginMembership(prisma, user);
-  if (!membership) return NextResponse.json({ ok: true, requiresLogin: true });
+  if (!membership) return NextResponse.json({ ok: true, requiresLogin: true, reason: "no_membership" });
   await setSessionCookie({
     userId: user.id,
     ...membershipClaims(membership),

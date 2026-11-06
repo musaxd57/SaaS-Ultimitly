@@ -17,7 +17,7 @@ Kurulum (≈10 dk):
 |---|---|---|---|---|
 | Lixus — ayakta | HTTP(s) | `https://www.lixusai.com/api/health?live=1` | — | süreç cevap vermiyor (çöktü / yayın bozuk) |
 | Lixus — veritabanı | Keyword | `https://www.lixusai.com/api/health` | `"ok":true` (yoksa uyar) | veritabanına ulaşılamıyor |
-| Lixus — senkron + kuyruk | Keyword | `https://www.lixusai.com/api/health?strict=1` | `"ok":true` (yoksa uyar) | 15 dk'dır senkron yok ya da kuyruk takıldı |
+| Lixus — senkron + kuyruk | Keyword | `https://www.lixusai.com/api/health?strict=1` | `"ok":true` (yoksa uyar) | 15 dk'dır senkron yok ya da kuyruk takıldı ya da (üyelik dalı birleşince) üyelik satırı olmayan kullanıcı var — gövdedeki `reason` hangisi olduğunu söyler (`sync_stale` · `queue_stalled` · `users_without_membership` → `docs/RAILWAY-ACILIS-2026-10-15.md` "Üyelik (M-2)") |
 
 3. Her izleyicide aralık 5 dk; "senkron + kuyruk" için **Alert after: 3 failures** (geçici gecikmede sizi uyandırmasın).
 4. Alert Contacts: e-posta + mobil uygulama.

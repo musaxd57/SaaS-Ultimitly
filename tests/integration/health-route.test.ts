@@ -12,6 +12,7 @@ vi.mock("@/lib/hospitable", () => ({
 
 import { GET } from "@/app/api/health/route";
 import { __resetStrictQueueState } from "@/lib/outbox/health";
+import { __resetStrictMembershipState } from "@/lib/membership/health";
 import { runScheduledSync } from "@/lib/scheduled-sync";
 import { clearProbeCache } from "@/lib/health-probe";
 
@@ -44,6 +45,7 @@ describe("GET /api/health", () => {
   beforeEach(() => {
     clearProbeCache();
     __resetStrictQueueState();
+    __resetStrictMembershipState();
   });
   beforeEach(async () => {
     await resetDb();

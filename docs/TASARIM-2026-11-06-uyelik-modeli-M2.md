@@ -67,15 +67,20 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
 ## 3. Oturum ve aktif işletme [M4, M14, M15]
 - JWT'ye `membershipId` + `membershipEpoch` girer (kimlik farklı olunca yeniden davet eski token'ı DİRİLTEMEZ — ABA [M4]).
   `verifySession` beyaz listesine eklenir; sayı değilse 0 (`sessionEpoch` emsali); `session-payload-roundtrip.test.ts` `FULL`'a eklenir.
-- **Tek doğrulayıcı** `resolveSessionMembership(session)`: kullanıcı + `(userId, session.organizationId)` üyeliği TEK sorguda;
+- **Tek doğrulayıcı** `resolveSessionMembership(session)`: kullanıcı + `(userId, session.organizationId)` üyeliği tek Prisma çağrısında (iki
+  SQL sorgusu — iç içe seçim ayrı sorgudur, Opus S12);
   `requireSession`, `requireAuth`, `(app)/layout` üçü de bunu kullanır. Üyelik yok / `revoked` / kuşak ya da kimlik farklı → oturum
   GEÇERSİZ. Rol üyelikten. **İki `organizationId` üstüne-yazması SİLİNİR** (pin: JWT'de B, ana A → `requireSession` B döner). Sayfa
   yolunda `membership.role !== session.role` → çıkış (B2 anlamı korunur).
 - Eski (iddiasız) token: kuşak 0 = doldurulan üyelik kuşağı 0 → sessizce geçerli. **Toplu `sessionEpoch` artırma YAPILMAZ** (WhatsApp
   bağları, "beni hatırla" ve tanınan cihaz çerezleri ölürdü).
 - **Giriş / e-posta doğrulama:** tek seçim `pickLoginMembership(userId)` = son kullanılan AKTİFSE o → ana AKTİFSE o → en eski aktif →
-  hiçbiri yoksa oturum BASILMAZ, sade metin: "Hesabınız şu an hiçbir işletmeye bağlı değil. Davet bağlantınız varsa ona tıklayın."
-  (bu dala yalnız doğru şifre + 2FA ile ulaşılır — numaralandırma yok). Giriş kaydı seçilen işletmeye [M6].
+  hiçbiri yoksa oturum BASILMAZ, sade metin: "Hesabınız şu an hiçbir işletmeye bağlı değil." (davet ipucu yok — bugün bu dala yalnız
+  kayan dağıtım artığı düşer; Opus S5) (bu dala yalnız doğru şifre + 2FA ile ulaşılır — numaralandırma yok). Etkin üyelik yoksa
+  kurtarma kodu YAKILMAZ: geçerliliği tüketmeden sınanır, sonra 403 (Opus S7). ~~Giriş kaydı seçilen işletmeye [M6].~~ → **Ü-3
+  kararına kadar BÜTÜN kimlik kayıtları (başarılı / başarısız giriş, 2FA, kurtarma kodu) kişinin ANA işletmesine — tek kural (Opus S8;
+  başarısızlık üyelik seçilmeden yazılır, iki kural yan yana A'nın dökümüne B'nin denemelerini taşırdı). Ü-3 dilim 6c'den ÖNCE karara
+  bağlanır** (çok üyelikte ana işletme, kişinin başka işletmedeki girişlerini görür).
 - **İşletme değiştir** (dilim 6c): `POST /api/account/switch-organization` + `withAuth`; **bürünme oturumu REDDEDİLİR** (operatör
   işletmeler arası yalnız `/api/admin/enter`); denetim kaydı yalnız HEDEF işletmeye, kaynak kimliği taşımadan; yanıttan sonra tam sayfa
   yükleme (istemci önbelleği 30 sn — `staleTimes`).
@@ -171,7 +176,23 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
   → 503 · test yardımcısı `makeUser` (üretim yazıcısıyla), gerçek doğrulamadan geçen 15 test dosyası ona çevrildi.
 - 🚨 **Yayın sırası (Opus M10c):** dilim 1 TEK BAŞINA yayınlanır (yazıcı yeni hesaplara üyelik yazmaya başlar); dilim 2 SONRAKİ yayında
   (migration 94, dilim 1 yayını sırasında eski kodun açtığı hesapları yakalar). İkisi tek yayında giderse o aralıkta açılan hesap giriş
-  yapamaz (sağlık denetimi bunu 503 ile gösterir; 94'ü elle yeniden koşmak düzeltir).
+  yapamaz (sağlık denetimi bunu 503 ile gösterir; onarım betiği `scripts/membership-backfill.ts`: önce salt-okuma, sonra
+  `MEMBERSHIP_BACKFILL_APPLY=1` + `MEMBERSHIP_BACKFILL_EXPECT=<sayı>` — 94'ün ifadesi dosyadan, sayı değiştiyse yazmaz).
+- **Dilim 2 Opus incelemesi (S1–S12, `scratchpad` raporu; üretim istek yolunda P1 açık YOK)** — kalıcı notlar:
+  - 🚨 **S3 ön koşulu (dilim 4–6'dan ÖNCE):** iddiasız (üyelik kimliği taşımayan) eski belirteçler kuşak 0 sayılır ve kimlik denetimini atlar.
+    Bugün üyelik satırını SİLEN yol yok (çıkarma = `revoked` + kuşak; tek yazıcı pini silmeyi de yasaklar), açık kapalı. Satırı silip aynı
+    (kişi, işletme) için yeniden yaratan herhangi bir yol eklenmeden ÖNCE iddiasız belirteçlere son tarih konur (emsal
+    `LEGACY_SESSION_COOKIE_READ_UNTIL`) — yalnız yeniden giriş ister; cihaz güveni ve WhatsApp bağları `sessionEpoch`e bağlı, etkilenmez.
+    Ayrıca `requireSession` / `requireAuth` doğruladığı üyeliğin kimliğini / kuşağını oturuma yazar → parola / 2FA yeniden imzaları belirteci
+    yükseltir (pin `membership-session-pins.test.ts`). Son tarihten ≥14 gün ÖNCE (oturum penceresi): `requireSession` iddiasız belirteci
+    bir kez yeniden imzalar (yalnız API yolu — sayfa yolu çerez yazamaz; bürünme belirteci hariç, ≤2 sa yaşar) → son tarih yalnız 14 gündür
+    hiç API çağırmamış belirteci düşürür. Bugün YAPILMADI: silme yolu olmadan faydası yok, her kimlikli API yanıtına çerez yazımı ekler
+    (çerez sayımı ölçen 5 test dosyası). Son tarihle aynı turda, ayrı yayında.
+  - **S6:** WhatsApp ev sahibi kanalı (`host-channel/binding.ts`, `answer.ts`) yetkiyi hâlâ aynadan (`User.organizationId` / `User.role`)
+    veriyor — "oturum üyelikten" yalnız web oturumunu kapsar; kanal dilim 3'te `activeMembership`'e bağlanır (M1 listesi).
+  - **S10:** kalıcı karar #211 ("rol değişince `sessionEpoch` artar") ile üyelik kuşağı mekanizması ayrıştı → kurucu sorusu Ü-4'e eklendi.
+  - **S11:** "hiç üyelik satırı yok = arıza" sayacı ve onarım betiği, Ü-1 "askıda hesap" seçilirse o tasarımla birlikte yeniden tanımlanır
+    (yoksa askıdaki hesap kalıcı 503 verir ve betik onu ana işletmesine geri yazar).
 
 ## 11. Riskler
 - Oturum doğrulaması her istekte bir satır daha okur — `requireSession` kullanıcıyı zaten okuyor, aynı sorguda `include`.
@@ -189,7 +210,9 @@ User += lastActiveOrganizationId String? → Organization (SetNull)   // iki ili
 - **Ü-3** Giriş / 2FA / şifre kayıtları (IP'li) işletme günlüğünden kişiye ait ayrı kayda alınsın mı? Önerim: evet (A'nın dökümü Ayşe'nin
   B için çalıştığı saatleri göstermesin).
 - **Ü-4** Ekipten çıkarmada #211 kuralı (`sessionEpoch` artışı) yerine üyelik kuşağı artsın mı? Önerim: evet — `sessionEpoch` artışı
-  kişinin B'deki oturumlarını, "beni hatırla"sını ve WhatsApp bağlarını da düşürür; A'nın kararı B'deki işini bozmasın.
+  kişinin B'deki oturumlarını, "beni hatırla"sını ve WhatsApp bağlarını da düşürür; A'nın kararı B'deki işini bozmasın. Onaylanırsa
+  `docs/claude/kalici-kararlar.md` #211 metni "rol değişimi / çıkarma = üyelik kuşağı; `sessionEpoch` yalnız kimlik olayları" diye
+  güncellenir (dilim 1–2 kodu bugün zaten böyle çalışıyor — Opus S10).
 - **Ü-5** WhatsApp bağı işletme başına mı (aynı numara iki işletmede) yoksa kişi başına mı? Önerim: işletme başına + amaç alanı (ev
   sahibi / personel) — gelen cevap hangi işletmeye ait olduğunu bağdan bilir.
 - **Ü-6** Davetle "sahip" rolü verilebilsin mi? Önerim: ilk sürümde hayır (yönetici / personel); sahiplik devri ayrı, onaylı akış.

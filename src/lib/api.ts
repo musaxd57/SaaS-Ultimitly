@@ -29,8 +29,8 @@ export async function requireSession(): Promise<SessionPayload | null> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      // M-2 dilim 2: rol, oturumun işletmesindeki ÜYELİKTEN (aynı sorguda) — DB-authoritative, JWT-frozen değil: rolü düşürülen kişi
-      // yetkisini hemen kaybeder (rol değişimi üyelik kuşağını da artırır → oturum yeniden doğrulanır).
+      // M-2 dilim 2: rol, oturumun işletmesindeki ÜYELİKTEN (aynı Prisma çağrısı, ayrı SQL sorgusu) — DB-authoritative, JWT-frozen değil:
+      // rolü düşürülen kişi yetkisini hemen kaybeder (rol değişimi üyelik kuşağını da artırır → oturum yeniden doğrulanır).
       select: { sessionEpoch: true, twoFactorEnabledAt: true, memberships: sessionMembershipInclude(session.organizationId) },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
@@ -62,6 +62,10 @@ export async function requireSession(): Promise<SessionPayload | null> {
     // Rolü üyelikten yaz (genelde aynı). 🚨 İŞLETME ÜSTÜNE YAZILMAZ (M-2, Opus M4): eskiden `user.organizationId` (ana işletme) JWT'nin
     // işletmesini eziyordu — üyelikte B'deki oturum sessizce A'da çalışırdı. İşletme JWT'dendir ve yukarıda o işletmedeki üyelik doğrulandı.
     session.role = membership.role as SessionPayload["role"];
+    // Doğrulanan üyeliğin kimliği + kuşağı oturuma yazılır (Opus S3): bu oturumu yeniden imzalayan yol (parola / 2FA değişimi `...session`
+    // yayar) belirteci iddialı biçime YÜKSELTİR. Değer yukarıda DB satırıyla eşleşti (iddiasız eski belirteçte kuşak 0 = satır kuşağı).
+    session.membershipId = membership.id;
+    session.membershipEpoch = membership.epoch;
     // While impersonating, ALSO enforce the real operator's epoch — else a stolen
     // impersonation token would survive the operator resetting their OWN password
     // (which bumps only the operator's epoch, not the assumed customer's). Skipped

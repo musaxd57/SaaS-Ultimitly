@@ -19,7 +19,10 @@ export interface SessionMembershipRow {
   epoch: number;
 }
 
-/** Kullanıcı sorgusuna eklenen üyelik seçimi — kullanıcı satırıyla TEK gidişte okunur. */
+/**
+ * Kullanıcı sorgusuna eklenen üyelik seçimi — TEK Prisma çağrısı, İKİ SQL sorgusu (iç içe seçim `relationJoins` olmadan ayrı sorgu; Opus
+ * S12). İki satır da bu istekte yeniden okunur; aralarında işlemsel tutarlılık gerekmez (her biri kendi başına doğrulanır).
+ */
 export function sessionMembershipInclude(organizationId: string) {
   return {
     where: { organizationId },
@@ -72,5 +75,8 @@ export function membershipClaims(m: LoginMembership): { organizationId: string; 
   return { organizationId: m.organizationId, role: m.role as UserRole, membershipId: m.id, membershipEpoch: m.epoch };
 }
 
-/** Hiç etkin üyeliği olmayan kişiye girişte gösterilen metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır). */
-export const NO_ACTIVE_MEMBERSHIP_TEXT = "Hesabınız şu an hiçbir işletmeye bağlı değil. Davet bağlantınız varsa ona tıklayın.";
+/**
+ * Hiç etkin üyeliği olmayan kişiye girişte gösterilen metin (bu dala yalnız doğru şifre + ikinci faktörle ulaşılır). Davet ipucu YOK (Opus
+ * S5): bugün bu dala yalnız kayan dağıtım artığı (sistem arızası) düşer, davet yoktur; çıkarılan kişinin metni dilim 6a ile birlikte yazılır.
+ */
+export const NO_ACTIVE_MEMBERSHIP_TEXT = "Hesabınız şu an hiçbir işletmeye bağlı değil.";

@@ -37,6 +37,11 @@ const base: SessionPayload = {
   sessionEpoch: 0,
 };
 
+/** M-2 dilim 2: `requireAuth` kullanıcı satırıyla birlikte oturumun işletmesindeki ÜYELİĞİ okur — taklit satırı da onu taşır (rol aynı). */
+function member<T extends { role: string }>(row: T) {
+  return { ...row, memberships: [{ id: "m1", role: row.role, status: "active", epoch: 0 }] };
+}
+
 describe("requireAuth — fail-open session, fail-closed capability", () => {
   beforeEach(async () => {
     findUnique.mockReset();
@@ -53,26 +58,49 @@ describe("requireAuth — fail-open session, fail-closed capability", () => {
   it("🚨 rolü DEĞİŞMİŞ oturum (düşürülen yönetici → personel) çıkışa yönlenir (Codex 09-30 B2)", async () => {
     // Eskiden rol burada personele çekilip sayfa render ediliyordu — ama ara katman çerezdeki (eski) role bakıyor ve
     // (app) sayfalarının çoğu rolü kendisi kontrol etmiyor → gelen kutusu açık kalıyordu. Yeni giriş taze rolü taşır.
-    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "staff", organizationId: "o1" });
+    findUnique.mockResolvedValue(member({ sessionEpoch: 0, role: "staff", organizationId: "o1" }));
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
   });
 
   it("KONTROL — rol ve epoch aynıysa oturum sürer (yönetici yönetici kalır)", async () => {
-    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "manager", organizationId: "o1" });
+    findUnique.mockResolvedValue(member({ sessionEpoch: 0, role: "manager", organizationId: "o1" }));
     const s = await requireAuth();
     expect(s.role).toBe("manager");
   });
 
   it("keeps owner when the DB confirms it and the epoch matches", async () => {
     TOKEN = await signSession({ ...base, role: "owner" });
-    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1" });
+    findUnique.mockResolvedValue(member({ sessionEpoch: 0, role: "owner", organizationId: "o1" }));
     const s = await requireAuth();
     expect(s.role).toBe("owner");
   });
 
   it("redirects to logout on an epoch mismatch (stolen/reset token, DB reachable)", async () => {
-    findUnique.mockResolvedValue({ sessionEpoch: 5, role: "manager", organizationId: "o1" });
+    findUnique.mockResolvedValue(member({ sessionEpoch: 5, role: "manager", organizationId: "o1" }));
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("M-2: oturumun işletmesinde üyelik YOKSA çıkış (ana işletmeye taşınmaz)", async () => {
+    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "manager", organizationId: "o1", memberships: [] });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("M-2: üyelik çıkarılmışsa (revoked) çıkış", async () => {
+    findUnique.mockResolvedValue({ sessionEpoch: 0, memberships: [{ id: "m1", role: "manager", status: "revoked", epoch: 0 }] });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("M-2: üyelik kuşağı belirteçtekinden farklıysa (rol değişti) çıkış", async () => {
+    findUnique.mockResolvedValue({ sessionEpoch: 0, memberships: [{ id: "m1", role: "manager", status: "active", epoch: 1 }] });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("M-2: belirteç başka bir üyelik kimliği taşıyorsa çıkış; aynı kimlikte geçer", async () => {
+    findUnique.mockResolvedValue({ sessionEpoch: 0, memberships: [{ id: "m1", role: "manager", status: "active", epoch: 0 }] });
+    TOKEN = await signSession({ ...base, membershipId: "m-eski" });
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+    TOKEN = await signSession({ ...base, membershipId: "m1" });
+    expect((await requireAuth()).role).toBe("manager");
   });
 
   it("redirects to logout when the user no longer exists", async () => {
@@ -136,12 +164,12 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     // ölçtüğü şeyin (SUPERADMIN_EMAILS'ten silmenin etkisi) tek değişken
     // kalması için diğer değişkeni sabitlemek. Yeni eklenen boyut ayrıca
     // kendi testleriyle pinli (↑"mfa iddiası sayfa yolunda da doğrulanır").
-    findUnique.mockResolvedValue({
+    findUnique.mockResolvedValue(member({
       sessionEpoch: 0,
       role: "owner",
       organizationId: "o1",
       twoFactorEnabledAt: new Date(),
-    });
+    }));
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -156,7 +184,7 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
     // Müşteri satırı sağlıklı; AKTÖR satırında 2FA yok.
     findUnique
-      .mockResolvedValueOnce({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() })
+      .mockResolvedValueOnce(member({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() }))
       .mockResolvedValueOnce({ sessionEpoch: 0, twoFactorEnabledAt: null });
     TOKEN = await signSession(impersonation);
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
@@ -167,12 +195,12 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     // `actorSessionEpoch` yok → aktör satırı HİÇ okunmaz → iddia doğrulanamaz.
     const legacy = { ...impersonation } as Record<string, unknown>;
     delete legacy.actorSessionEpoch;
-    findUnique.mockResolvedValue({
+    findUnique.mockResolvedValue(member({
       sessionEpoch: 0,
       role: "owner",
       organizationId: "o1",
       twoFactorEnabledAt: new Date(),
-    });
+    }));
     TOKEN = await signSession(legacy as unknown as SessionPayload);
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
   });
@@ -250,12 +278,12 @@ describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
   });
 
   it("2FA silinmiş hesapta iddia DÜŞER (oturum YAŞAR)", async () => {
-    findUnique.mockResolvedValue({
+    findUnique.mockResolvedValue(member({
       sessionEpoch: 0,
       role: "owner",
       organizationId: "o1",
       twoFactorEnabledAt: null,
-    });
+    }));
     const s = await requireAuth();
     expect(s.organizationId).toBe("o1"); // kimse çıkışa atılmadı
     expect(s.mfa).toBe(false); // operatör yetkisi kapandı
@@ -263,12 +291,12 @@ describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
 
   it("KONTROL: 2FA AÇIKKEN iddia KORUNUR", async () => {
     // Bu olmadan "iddiayı her zaman düşür" mutasyonu da yeşil geçerdi.
-    findUnique.mockResolvedValue({
+    findUnique.mockResolvedValue(member({
       sessionEpoch: 0,
       role: "owner",
       organizationId: "o1",
       twoFactorEnabledAt: new Date(),
-    });
+    }));
     expect((await requireAuth()).mfa).toBe(true);
   });
 
@@ -312,7 +340,7 @@ describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)",
 
   it("KONTROL: DB sağlıklı + 2FA açıkken kurucu yetkisi KORUNUR (aşırı-uygulama değil)", async () => {
     // Bu olmadan "iddiayı her zaman düşür" mutasyonu da yeşil geçerdi.
-    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() });
+    findUnique.mockResolvedValue(member({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() }));
     const s = await requireAuth();
     expect(isSuperAdmin(s)).toBe(true);
     expect(s.role).toBe("owner");
@@ -322,7 +350,7 @@ describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)",
     // Müşteri satırı okunur, AKTÖR satırı okunurken arıza → kısmi doğrulama yeterli
     // değil; normal müşteri oturumunun fail-open tavizi impersonation'a UYGULANMAZ.
     findUnique
-      .mockResolvedValueOnce({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() })
+      .mockResolvedValueOnce(member({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() }))
       .mockRejectedValueOnce(new Error("db down"));
     TOKEN = await signSession({
       ...base,

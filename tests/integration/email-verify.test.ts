@@ -30,6 +30,7 @@ vi.mock("@/lib/email", () => ({
   emailService: { send: vi.fn(async () => {}), sendReporting: vi.fn(async () => ({ ok: true })) },
 }));
 import { emailService } from "@/lib/email";
+import { setSessionCookie } from "@/lib/auth";
 
 // Outbox (Tur-4): the inline kick is mocked so its fire-and-forget drain can't
 // race the assertions — the flag-ON tests drain EXPLICITLY.
@@ -412,11 +413,14 @@ describe("registration → verification → login", () => {
 
     const res = await verifyEmail(verifyReq(raw));
     expect(res.status).toBe(200);
-    expect((await res.json()).requiresLogin).toBe(true);
-    // Hesap yine de doğrulandı — yalnız oturum çerezi basılmadı.
+    // Üyeliksiz daldan AYRI gövde (o dal `reason: "no_membership"` taşır, `membership-session-pins.test.ts`) — tohumda etkin üyelik var,
+    // yani bu cevabı yalnız 2FA koruması verebilir (Opus S9: iki dal aynı gövdeyi döndürünce koruma silinse de test yeşil kalıyordu).
+    expect(await res.json()).toEqual({ ok: true, requiresLogin: true });
+    // Hesap yine de doğrulandı — yalnız oturum çerezi basılmadı. Çerez `next/headers` üzerinden yazılır (yanıt nesnesinden değil) →
+    // iddia taklit edilen yazıcı üzerinden (eski `res.cookies.get("session")` iddiası her koşulda boştu, hiçbir şeyi ölçmüyordu).
     const u = await prisma.user.findUnique({ where: { email: "twofa@x.com" } });
     expect(u?.emailVerifiedAt).not.toBeNull();
-    expect(res.cookies.get("session")).toBeUndefined();
+    expect(vi.mocked(setSessionCookie)).not.toHaveBeenCalled();
   });
 
   it("PAROLA SIFIRLAMA canlı doğrulama token'ını da öldürür (İKİ yol da)", () => {

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { clearProbeCache, readProbeCache, sharedProbe, writeProbeCache, type ProbeSnapshot } from "@/lib/health-probe";
 import { strictQueueState } from "@/lib/outbox/health";
+import { strictMembershipState } from "@/lib/membership/health";
 
 export const dynamic = "force-dynamic";
 
@@ -56,16 +57,11 @@ type Health = {
   /**
    * Yalnız strict modda (M-2 dilim 2, Opus M10): HİÇ üyelik satırı olmayan kullanıcı var mı — kayan dağıtımda eski kodun açtığı hesap; oturum
    * artık üyelikten doğrulandığı için böyle biri giriş YAPAMAZ → sayfalar. Yalnız ÇIKARILMIŞ üyeliği olan kişi (ileride ekipten çıkarma)
-   * meşru bir durumdur, SAYILMAZ. Okunamazsa "unknown" (sayfalamaz).
+   * meşru bir durumdur, SAYILMAZ. Okunamazsa "unknown" (sayfalamaz). Okuma 30 sn önbellekli + paylaşılan (`membership/health.ts`, Opus S2).
    */
   membership?: "ok" | "missing" | "unknown";
   reason?: "db_unreachable" | "sync_stale" | "sync_unknown" | "queue_stalled" | "users_without_membership";
 };
-
-/** HİÇ üyelik satırı olmayan kullanıcı sayısı (tek sorgu, dizinli). */
-async function usersWithoutMembership(): Promise<number> {
-  return prisma.user.count({ where: { memberships: { none: {} } } });
-}
 
 function respond(body: Health, status: 200 | 503) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -146,8 +142,7 @@ export async function GET(req: NextRequest) {
   if (strict) {
     const queue = await strictQueueState();
     if (queue === "stalled") return respond({ ok: false, db: "up", sync, lastSyncAgeSec, queue, reason: "queue_stalled" }, 503);
-    const orphans = await usersWithoutMembership().catch(() => null);
-    const membership: Health["membership"] = orphans === null ? "unknown" : orphans > 0 ? "missing" : "ok";
+    const membership = await strictMembershipState();
     if (membership === "missing") {
       return respond({ ok: false, db: "up", sync, lastSyncAgeSec, queue, membership, reason: "users_without_membership" }, 503);
     }
