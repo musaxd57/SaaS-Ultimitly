@@ -12,13 +12,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    ama İKİ AYRI yayında: önce 93 (dilim 1) tek başına, sonra 94 + dilim 2 (sayım 92 → 93 → 94; 92 numarası `{daire}` tasarımına
    ayrıldı, klasörü yok — o migration önce gelirse her sayı +1). Sebep ve onarım ↓"Üyelik (M-2)". **95** (`95_business_licenses`,
    işletme belgesi Faz 1a, kurucu onayı 11-06): yalnız dört YENİ tablo — dolu tabloya dokunmaz; anahtarı kapalıyken hiçbir okuyucusu yok
-   (↓"İşletme belgesi (Faz 1a)").
+   (↓"İşletme belgesi (Faz 1a)"); hepsi uygulanınca sayım **95** (00…95, 92 hariç).
    **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
    (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn (10-18: 78 aynı prova veritabanında ayrıca uygulandı, 1,4 sn, sapma sıfır); `migrate diff` sapma sıfır. Statik tarama
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–91 içeriyor; üyelik dalı birleşince migration 59–94 (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–95 içeriyor (93–94 üyelik, 95 işletme belgesi; 92 numarası boş — tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi

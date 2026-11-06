@@ -172,7 +172,10 @@ boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-s
 sırası) · EK-2 (zarf kelime ağı yasağına girer mi) · EK-4 (onayda daire adı) · EK-5 (Karar Motoruyla tek ses) · EK-6 (erişim kontrolü +
 ilk onaylar gölgede) → `docs/TASARIM-2026-11-06-erken-giris-guvenilir-cevap.md` · üyelik Ü-2 (hesabı sil üçe) →
 `docs/TASARIM-2026-11-06-uyelik-modeli-M2.md` §12 · işletme belgesi S3 (doğrudan rezervasyon sayfası olacak mı) + §16.1 iş fırsatı akışı
-ve asistan örneği + Faz 1a'nın başlama zamanı (migration) → `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §16.
+ve asistan örneği + Ek B / P3-20 ev sahibi metinleri + Bakanlık tesis sorgusunun sütunları (işletmeci unvanı görünüyor mu — Codex) →
+`docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §16, §18 (Faz 1a kodu 11-06 gece dalda, anahtar KAPALI) · misafir hizmetleri
+Q1–Q4 → `docs/TASARIM-2026-11-06-misafir-hizmetleri-ve-dogrudan-rezervasyon.md` · misafire giden üçüncü şahıs metinlerinin ev sahibi ağzına
+çevrilmesi (erken giriş politika cümlesi 7 dil, QR sohbet "ev sahibinizle…" cümleleri; önce / sonra örnekleri raporda) — kurucu onayı.
 Cevap gelmeden bu maddeler UYGULANMAZ.
 
 **🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım

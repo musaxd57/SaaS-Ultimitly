@@ -198,14 +198,25 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
       numberNorm: true,
       holder: { select: { id: true, kind: true, legalName: true, legalNameNorm: true, taxIdLast2: true, taxIdHash: true } },
       units: { take: 200, select: { property: { select: { id: true, name: true, address: true, city: true } } } },
+      // Onay yolunun (`write.ts` lastEvidence) baktığı pencereyle aynı: okuma taşıyan son olay; kanıt AYRI sorguda (Haiku 11-06: ortak
+      // 20 olaylık pencerede çok okuma kanıtı ekrandan düşürüyordu, sunucu ise görüyordu).
       events: {
-        where: { actorKind: "operator", reason: { in: ["registry_read", "suspend", "ownership_proof"] } },
+        where: { actorKind: "operator", reason: { in: ["registry_read", "suspend"] } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 20,
+        take: 10,
         select: { reason: true, createdAt: true, evidence: true },
       },
     },
   });
+  const proofs = rows.length
+    ? await prisma.licenseEvent.findMany({
+        where: { licenseId: { in: rows.map((r) => r.id) }, actorKind: "operator", reason: "ownership_proof" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { licenseId: true, createdAt: true, evidence: true },
+      })
+    : [];
+  const lastProofOf = new Map<string, { createdAt: Date; evidence: unknown }>();
+  for (const p of proofs) if (!lastProofOf.has(p.licenseId)) lastProofOf.set(p.licenseId, p);
   // Aynı şirket (vergi no özeti) başka hesapta doğrulanmış mı — YALNIZ operatöre görünür.
   const hashes = [...new Set(rows.map((r) => r.holder.taxIdHash))];
   const guarded = hashes.length
@@ -217,7 +228,7 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
   for (const r of rows) {
     if (!isLicenseType(r.type)) continue;
     const readEv = r.events.find((e) => (e.evidence as { reading?: unknown } | null)?.reading);
-    const proofEv = r.events.find((e) => e.reason === "ownership_proof");
+    const proofEv = lastProofOf.get(r.id);
     const owner = guardOwner.get(r.holder.taxIdHash);
     const reading = readEv ? (readEv.evidence as { reading: ReadingEvidence }).reading : null;
     const current = reading

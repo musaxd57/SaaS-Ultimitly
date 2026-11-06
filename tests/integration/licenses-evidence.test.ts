@@ -356,6 +356,11 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
     const row = q.open.find((x) => x.id === r.licenseId)!;
     expect(row.lastReading?.value.match.legalName).toBe(true);
     expect(row.lastReading?.current).toEqual({ number: true, legalName: false });
+    // Kanıttan sonra çok sayıda okuma olsa da kuyruk kanıtı gösterir (Haiku 11-06: ortak olay penceresi kanıtı düşürüyordu).
+    await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: proof() });
+    for (let i = 0; i < 21; i++) await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: { source: "ktb_agency_search", query: "12345", outcome: "unreadable" } });
+    const qp = (await operatorLicenseQueue()).open.find((x) => x.id === r.licenseId)!;
+    expect(qp.lastProof?.value).toMatchObject({ method: "esign_declaration", taxIdMatched: true });
 
     const t = await createLicenseApplication({
       organizationId: o.orgId,

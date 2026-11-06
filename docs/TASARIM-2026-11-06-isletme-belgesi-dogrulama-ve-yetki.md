@@ -607,6 +607,48 @@ kontrol tarihi · iki aşamalı doğrulama · belge / temsilci / sözleşme değ
 - **Bakanlık, otel sorgu verilerinin belirli aralıklarla güncellendiğini ve hukuki sonuç doğuracak durumlarda yazılı teyit gerektiğini**
   belirtiyor → "eşleşti" dili (mutlak "doğrulandı" değil) ve "bulunamadı" toleransı (§4.1) bunu destekliyor.
 
+## 18. Faz 1a — uygulanan (11-06 gece; kod dalda, anahtar KAPALI, Railway kapalı)
+Kurucu: "Faz1a'ya başla … migration onayım var." Kod `src/lib/licenses/` (tek yazıcı `write.ts`), migration 95 (yalnız dört yeni tablo),
+ev sahibi kartı Ayarlar › İşletme belgeleri, operatör kuyruğu `/admin/licenses`, işaret ayarlar kartında + konaklama belgesinde dairenin
+sayfasında. Açmak: `BUSINESS_LICENSES_ENABLED=1` + ayrı `LICENSE_HMAC_SECRET` (Railway belgesi "İşletme belgesi (Faz 1a)").
+
+**Opus derin incelemesi (11-06 gece) → uygulanış:**
+
+| # | Bulgu | Uygulanış |
+|---|---|---|
+| P1-1 | Geri çekme rotası kiracılar arası kapsam pininde yoktu | Pine eklendi (davranışsal test: başka işletmenin belgesi 404) |
+| P1-2 | "Vergi numarası teyitli" kutusu: işaretlemek yetiyordu | Kutu kaldırıldı; operatör belgede gördüğü numarayı YAZAR, kod özetini başvurudakiyle sabit zamanlı karşılaştırır, yalnız sonuç saklanır. Şahıs işletmesinde yalnız TC kimlik numarası (eski 10 haneli numara aynı kişiye ikinci kimlik açardı) |
+| P1-3 | Tesis belgesinde ev sahibinin seçtiği her daire işaret alıyordu | Kuyruk daireleri adresiyle gösterir; onay, operatörün kayıttaki tesisle eşleştirdiği dairelerle verilir; teyitsiz daire aynı işlemde belgeden çıkar |
+| P2-4 / P2-7 | Eşzamanlı işlemler bekçiyi yanlış boşaltabiliyor, okuma kararla yarışabiliyordu | Belge satırı + (bekçi değişebilecekse) hak sahibi satırı kilidi, sıra hep belge → hak sahibi; unvan güncellemesi "bekçi boş" koşulu yazmanın içinde. İki yarış testi belirlenimli buluşma kancasıyla |
+| P2-5 | Kayıtta başka numaranın iptali de askıya alıyordu | Askı yalnız kayıttaki numara bu belgeninse |
+| P2-6 | Yenilemede grup karşılaştırılmıyordu | A'dan daralma hemen uygulanır; genişleme / yan geçiş işareti kaldırır (aşağıda sapma 1) |
+| P2-8 | Sorgu alanı belge numarasıyla dolu geldiği için eşleşme kendini doğruluyordu | Eşleşme kayıtta GÖRÜNEN numarayla; sorgu serbest metin (numara ya da unvan), önceden doldurulmaz; sonuç önceden seçilmez |
+| P3-11 | Askıdan dönüş askıdan önceki okumayla olabiliyordu | Yalnız askıdan SONRAKİ okumayla |
+| P3-12 | Uyuşmayan geçerli okuma işareti bırakıyordu | İşaret hemen kalkar, belge yeniden kontrol listesine düşer (sapma 2) |
+| P3-15 | Paket düşünce işaret sürüyordu | Pro / Business değilse işaret görünmez; belge listede kalır |
+| P3-17 | Ayraçlı TC kimlik yazımı geçiyordu | Rakam arası ayraç / görünmez karakter / tam genişlikli rakam yakalanır; kayıt alanlarında da |
+| P3-18 | Geri çek + yeniden başvur döngüsü kuyruğu doldurabilirdi | Son 24 saatte en çok 10 başvuru (veritabanından) + saatte 30 deneme |
+| P3-19 | Kuyruk eşleşmenin saklı (bayat) değerini gösteriyordu | Bugünkü değer yeniden hesaplanır |
+| P3-20 | Metinler ("şirketi temsil" şahısta yanlış; kart girişi; geri çekme sorusu) | Düzeltildi — Ek B ile birlikte kurucu onayına tabi |
+
+Gerekçeli onayla (kayıt eski unvanda) doğrulanmış belgenin yenilenebilmesi için onayda kabul edilen kayıt unvanı saklanır (`registryNameNorm`,
+migration 95'in içinde — henüz hiçbir yere uygulanmadı); sonraki okumalar bununla ya da hak sahibinin unvanıyla karşılaştırılır.
+
+**Tasarımdan bilinçli sapmalar / netleştirmeler (kurucu + Codex görsün):**
+1. §4.1 "grup genişledi → operatör onayına kadar eski (dar) yetki" — Faz 1a'nın tek yetkisi işaret ve işaret grubu ADIYLA söyler; kayıt A
+   derken "C grubu … eşleşti" göstermek yanlış olur → işaret kalkar, operatör askı + taze okuma + dönüşle yeni grubu kabul eder. Faz 3'te
+   (ilan / tanıtım) "eski dar yetki sürer" kuralı yetkilere uygulanır.
+2. §4.1 "uyuşmazlık → inceleme bayrağı, mevcut yayın sürer" — Faz 1a'da yayın yok; uyuşan son okuma olmadan işaret gösterilmez (§5.1
+   şüphede kapalı). Belge `verified` kalır, yeniden okunmayı bekler.
+3. Bakanlık tesis sorgusunda işletmeci unvanı görünüyor mu DOĞRULANMADI → tesis okumasında tesis adı + kayıttaki numara zorunlu, unvan
+   isteğe bağlı; unvan yoksa onay yazılı gerekçeyle (bağı K3 kurar). ❓ Codex / kurucu: sorgu sonucunda hangi sütunlar var?
+4. K3 Faz 1a'da Lixus dışında yapılır; Lixus yalnız yöntemi, kısa kaydı ve vergi numarası eşleşmesini saklar. Ev sahibine "şimdi şu
+   belgeyi gönderin" diyen ekran / e-posta YOK — metin kurucu onayına tabi (Ek B).
+
+**Açık kalanlar (Faz 1b ve sonrası):** konut izni (7464, Bakanlık API'si) · onaydan sonra daireye ekleme (bugün aynı numara için yeni başvuru
+"zaten kaydınız var" der) · mülk silinince dairesiz kalan tesis belgesi (işaret zaten çıkmaz; kuyrukta ayrıca gösterilmeli) · hesap
+silmede belge kayıtlarının saklama süresi (K-24, avukat) · kuyruk önceliği (çakışmalı başvurular öne) · otomatik okuma (Faz 2).
+
 ## Ek A — Araştırma: hukuki bilgiler (kaynaklı, güven düzeyiyle)
 Opus araştırma ajanı, 11-06. Bu ortamın ağ ayarı `mevzuat.gov.tr` ve `tursab.org.tr`'yi doğrudan açtırmadı; bulgular resmî metinlerden
 arama alıntılarıyla derlendi, "(ikincil)" yalnız ikincil kaynakta bulunanı gösterir. Avukat onayı yerine geçmez.
