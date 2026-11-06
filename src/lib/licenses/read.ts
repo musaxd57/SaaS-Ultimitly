@@ -164,7 +164,17 @@ export type OperatorLicenseRow = {
    * Son okuma + eşleşmenin BUGÜNKÜ değeri (Opus 11-06 P3-19): okumadan sonra hak sahibinin unvanı değiştiyse saklanan eşleşme bayattır;
    * doğrulanmış belgede onayda kabul edilen kayıt unvanı da sayılır.
    */
-  lastReading: { at: string; value: ReadingEvidence; current: { number: boolean; legalName: boolean } } | null;
+  lastReading: {
+    at: string;
+    value: ReadingEvidence;
+    current: { number: boolean; legalName: boolean };
+    /** Askıdaki belgede: bu okuma askıdan SONRA mı (değilse askıdan dönüş yeni okuma ister — Opus 11-06 ikinci tur P3-7); öbür durumlarda null. */
+    afterSuspend: boolean | null;
+  } | null;
+  /** Açık başvurunun son günü (bekleyen / incelemedeki 14 gün). */
+  pendingUntil: string | null;
+  /** Doğrulanmış hak sahibinin unvanı değişmediği için başvuruda yazılıp KAYDEDİLMEYEN unvan (Opus 11-06 ikinci tur P3-12). */
+  typedLegalName: string | null;
   lastProof: { at: string; value: ProofEvidence } | null;
   lastRegistryOkAt: string | null;
   createdAt: string;
@@ -177,7 +187,7 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
     where: {
       OR: [
         { status: "pending", pendingUntil: { gt: now } },
-        { status: "under_review" },
+        { status: "under_review", OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] },
         { status: "suspended" },
         { status: "verified", OR: [{ lastRegistryOkAt: null }, { lastRegistryOkAt: { lte: recheckBefore } }] },
       ],
@@ -192,6 +202,7 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
       status: true,
       attributes: true,
       lastRegistryOkAt: true,
+      pendingUntil: true,
       createdAt: true,
       organization: { select: { name: true } },
       registryNameNorm: true,
@@ -217,6 +228,15 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
     : [];
   const lastProofOf = new Map<string, { createdAt: Date; evidence: unknown }>();
   for (const p of proofs) if (!lastProofOf.has(p.licenseId)) lastProofOf.set(p.licenseId, p);
+  const openIds = rows.filter((r) => r.status === "pending" || r.status === "under_review").map((r) => r.id);
+  const applications = openIds.length
+    ? await prisma.licenseEvent.findMany({ where: { licenseId: { in: openIds }, reason: "application" }, select: { licenseId: true, evidence: true } })
+    : [];
+  const typedNameOf = new Map<string, string>();
+  for (const a of applications) {
+    const t = (a.evidence as { typedLegalName?: unknown } | null)?.typedLegalName;
+    if (typeof t === "string") typedNameOf.set(a.licenseId, t);
+  }
   // Aynı şirket (vergi no özeti) başka hesapta doğrulanmış mı — YALNIZ operatöre görünür.
   const hashes = [...new Set(rows.map((r) => r.holder.taxIdHash))];
   const guarded = hashes.length
@@ -257,7 +277,18 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
       },
       units: r.units.map((u) => ({ id: u.property.id, name: u.property.name, address: u.property.address, city: u.property.city })),
       sources: LICENSE_TYPE_INFO[r.type].sources.filter(isRegistrySourceId).map((id) => ({ id, label: REGISTRY_SOURCES[id].label, url: REGISTRY_SOURCES[id].url })),
-      lastReading: readEv && reading && current ? { at: readEv.createdAt.toISOString(), value: reading, current } : null,
+      lastReading:
+        readEv && reading && current
+          ? {
+              at: readEv.createdAt.toISOString(),
+              value: reading,
+              current,
+              // Onay yolunun kuralı (`write.ts` lastEvidence): en yeni okuma / askı olayı bir okumaysa askıdan sonradır.
+              afterSuspend: r.status === "suspended" ? r.events[0]?.reason === "registry_read" && !!(r.events[0]?.evidence as { reading?: unknown } | null)?.reading : null,
+            }
+          : null,
+      pendingUntil: r.pendingUntil ? r.pendingUntil.toISOString() : null,
+      typedLegalName: typedNameOf.get(r.id) ?? null,
       lastProof: proofEv ? { at: proofEv.createdAt.toISOString(), value: (proofEv.evidence as { proof: ProofEvidence }).proof } : null,
       lastRegistryOkAt: r.lastRegistryOkAt ? r.lastRegistryOkAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),

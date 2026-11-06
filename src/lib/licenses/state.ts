@@ -3,8 +3,8 @@
 //
 // · Bekleyen başvuru (`pending`) hiçbir şeyi KİLİTLEMEZ (Opus P1-1): paralel, 14 gün süreli, hesap başına en çok 3 açık başvuru.
 //   Kilit (bekçi sütunu) yalnız `verified` / `suspended` durumunda — bir belge aynı anda yalnız bir hesapta doğrulanmış olabilir.
-// · Süresi dolmuş bekleyen satır TEMBEL değerlendirilir (zamanlayıcı yok): okuyan herkes `effectiveStatus` ile "expired" görür, ilk
-//   yazma onu kalıcı olarak `expired`e çeker.
+// · Süresi dolmuş açık satır (bekleyen ya da incelemedeki) TEMBEL değerlendirilir (zamanlayıcı yok): okuyan herkes `effectiveStatus` ile
+//   "expired" görür, ilk yazma onu kalıcı olarak `expired`e çeker.
 // · Geçiş tablosu kapalıdır: tabloda olmayan her (durum, eylem) çifti reddedilir.
 // ---------------------------------------------------------------------------
 
@@ -33,7 +33,9 @@ export type LicenseAction = "approve" | "reject" | "review" | "suspend" | "reins
 
 const TRANSITIONS: Record<LicenseStatus, Partial<Record<LicenseAction, LicenseStatus>>> = {
   pending: { approve: "verified", reject: "rejected", review: "under_review", withdraw: "withdrawn", expire: "expired" },
-  under_review: { approve: "verified", reject: "rejected", withdraw: "withdrawn" },
+  // İncelemedeki başvuru da başvurudan 14 gün sonra dolar (Opus 11-06 ikinci tur P3-9): dolmasaydı ev sahibi 14. günden sonra hâlâ
+  // "İnceleniyor" görerek çakışmayı / elle incelemeyi sezebilirdi — bekleyenle incelemedeki dışarıdan ayırt edilemez.
+  under_review: { approve: "verified", reject: "rejected", withdraw: "withdrawn", expire: "expired" },
   verified: { suspend: "suspended", withdraw: "withdrawn" },
   suspended: { reinstate: "verified", reject: "rejected", withdraw: "withdrawn" },
   rejected: {},
@@ -54,12 +56,12 @@ export function pendingUntilFrom(now: Date): Date {
   return new Date(now.getTime() + PENDING_TTL_DAYS * DAY_MS);
 }
 
-/** Bekleyen başvurunun süresi doldu mu (tembel değerlendirme). */
+/** Açık başvurunun (bekleyen ya da incelemedeki) süresi doldu mu (tembel değerlendirme). */
 export function isPendingExpired(row: { status: string; pendingUntil: Date | null }, now: Date): boolean {
-  return row.status === "pending" && row.pendingUntil !== null && row.pendingUntil.getTime() <= now.getTime();
+  return isLicenseStatus(row.status) && OPEN_STATUSES.has(row.status) && row.pendingUntil !== null && row.pendingUntil.getTime() <= now.getTime();
 }
 
-/** Okuyanın görmesi gereken durum: süresi dolmuş bekleyen → "expired". */
+/** Okuyanın görmesi gereken durum: süresi dolmuş açık başvuru → "expired". */
 export function effectiveStatus(row: { status: string; pendingUntil: Date | null }, now: Date): LicenseStatus {
   if (isPendingExpired(row, now)) return "expired";
   return isLicenseStatus(row.status) ? row.status : "rejected";

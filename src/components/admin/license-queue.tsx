@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { HOLDER_KIND_LABEL, isHolderKind } from "@/lib/licenses/catalog";
 
 /**
  * Operatör: işletme belgesi kuyruğu (Faz 1a). Resmî kaydı operatör AÇAR (bağlantılar yalnız katalogdaki resmî adresler), gördüğü alanları
@@ -34,9 +35,11 @@ type Row = {
   holder: { kind: string; legalName: string; taxIdMasked: string; verifiedElsewhere: boolean };
   units: { id: string; name: string; address: string | null; city: string | null }[];
   sources: { id: string; label: string; url: string }[];
-  lastReading: { at: string; value: Reading; current: { number: boolean; legalName: boolean } } | null;
+  lastReading: { at: string; value: Reading; current: { number: boolean; legalName: boolean }; afterSuspend: boolean | null } | null;
   lastProof: { at: string; value: Proof } | null;
   lastRegistryOkAt: string | null;
+  pendingUntil: string | null;
+  typedLegalName: string | null;
   createdAt: string;
 };
 
@@ -135,9 +138,14 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
         <span className="rounded bg-muted px-2 py-0.5 text-xs">{row.status}</span>
       </div>
       <div className="text-muted-foreground">
-        {row.holder.legalName} · {row.holder.taxIdMasked} · başvuru {new Date(row.createdAt).toLocaleDateString("tr-TR")}
+        {/* Belge sahibinin türü görünür: vergi levhasındaki türle karşılaştırılır (şahıs işletmesi "şirket" seçip eski 10 haneli numarayla
+            ikinci kimlik açamasın — Opus 11-06 ikinci tur P3-3). */}
+        {row.holder.legalName} · {isHolderKind(row.holder.kind) ? HOLDER_KIND_LABEL[row.holder.kind] : row.holder.kind} · {row.holder.taxIdMasked} · başvuru{" "}
+        {new Date(row.createdAt).toLocaleDateString("tr-TR")}
+        {row.pendingUntil && (row.status === "pending" || row.status === "under_review") ? ` · son gün ${new Date(row.pendingUntil).toLocaleDateString("tr-TR")}` : ""}
         {row.lastRegistryOkAt ? ` · son eşleşme ${new Date(row.lastRegistryOkAt).toLocaleDateString("tr-TR")}` : ""}
       </div>
+      {row.typedLegalName && <div className="text-xs">Başvuruda yazılan unvan (kayıtlı unvan değişmedi): {row.typedLegalName}</div>}
       {row.units.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted-foreground">
           {row.units.map((u) => (
@@ -167,6 +175,9 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
             ? ` · ${[row.lastReading.value.fields.address, row.lastReading.value.fields.district, row.lastReading.value.fields.city].filter(Boolean).join(", ")}`
             : ""}
           {row.lastReading.value.fields.group ? ` · grup ${row.lastReading.value.fields.group}` : ""}
+          {row.lastReading.afterSuspend === false && (
+            <span className="font-medium"> · askıdan sonra okuma yok — dönüş için kaydı yeniden okuyun</span>
+          )}
         </div>
       )}
       {row.lastProof && (
@@ -200,7 +211,7 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
           {found && <Input placeholder="Kayıttaki belge numarası (kopyalayın)" value={fields.number ?? ""} onChange={(e) => setField("number", e.target.value)} />}
           {found && (
             <Input
-              placeholder={isAgency ? "Kayıttaki ticari unvan (kopyalayın)" : "Kayıttaki işletmeci unvanı (görünüyorsa)"}
+              placeholder={isAgency ? "Kayıttaki ticari unvan (kopyalayın)" : "Kayıttaki işletmeci unvanı (görünüyorsa; onayda yazıldıysa her okumada yazın)"}
               value={fields.legalName ?? ""}
               onChange={(e) => setField("legalName", e.target.value)}
             />
@@ -223,14 +234,23 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
           disabled={busy || !outcome}
           onClick={() =>
             void run(
-              () =>
-                post(`${base}/reading`, {
+              async () => {
+                const r = await post(`${base}/reading`, {
                   source,
                   query,
                   outcome,
                   fields: found ? Object.fromEntries(Object.entries(fields).filter(([k, v]) => v.trim() && (isAgency ? AGENCY_KEYS.has(k) : FACILITY_KEYS.has(k)))) : {},
                   note,
-                }),
+                });
+                // Başarılı okumadan sonra form boşalır: bir tık daha kaydı yeniden okumadan "taze" okuma yazamasın (Opus 11-06 ikinci tur P3-6).
+                if (r.ok) {
+                  setQuery("");
+                  setOutcome("");
+                  setFields({});
+                  setNote("");
+                }
+                return r;
+              },
               (b) => (b.autoSuspended ? "Okuma kaydedildi — kayıtta iptal: belge askıya alındı." : b.markCleared ? "Okuma kaydedildi — kayıt belgeyle uyuşmuyor: işaret kaldırıldı." : "Okuma kaydedildi."),
             )
           }
@@ -268,7 +288,10 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
             void run(
               async () => {
                 const r = await post(`${base}/proof`, { method, evidenceRef, taxId });
-                if (r.ok) setTaxId("");
+                if (r.ok) {
+                  setTaxId("");
+                  setEvidenceRef("");
+                }
                 return r;
               },
               (b) => (b.taxIdMatched ? "Kanıt kaydedildi — vergi numarası eşleşti." : "Kanıt kaydedildi — vergi numarası başvurudakiyle EŞLEŞMEDİ."),
@@ -304,7 +327,14 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
             size="sm"
             disabled={busy}
             onClick={() =>
-              void run(() => post(`${base}/decision`, { action: "approve", nameOverride: nameOverride || undefined, ...(isAgency ? {} : { confirmedUnitIds: confirmedUnits }) }), "Onaylandı.")
+              void run(async () => {
+                const r = await post(`${base}/decision`, { action: "approve", nameOverride: nameOverride || undefined, ...(isAgency ? {} : { confirmedUnitIds: confirmedUnits }) });
+                if (r.ok) {
+                  setNameOverride("");
+                  setConfirmedUnits([]);
+                }
+                return r;
+              }, "Onaylandı.")
             }
           >
             Onayla

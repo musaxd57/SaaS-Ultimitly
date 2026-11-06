@@ -48,6 +48,9 @@ süreç içi zamanlayıcı tıkı (2 dk) ve e-posta yoklayıcısı (15 sn) kopya
   silemez (KVKK).
 5. **Uzun org senkronu:** senkron kilidinin süresi 15 dk; tek işletmenin senkronu bunu aşarsa ikinci koşu paralel yazabilir (kod bunu
   kabul ediyor, tek kopyada da geçerli). Büyük müşteri gelmeden önce ölçülmeli.
+6. **İşletme belgesi olay sırası (11-06):** `LicenseEvent` sırası `createdAt` ile belirleniyor ve Prisma bu zamanı UYGULAMANIN saatinden
+  yazıyor (sondayla doğrulandı). Tek kopyada belge satır kilidi sırayı korur; iki kopyada saat kayması "askıdan sonraki okuma" gibi kararları
+  bozabilir → olaylara belge başına sıra numarası ya da veritabanı saati (`docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §18).
 
 ## 4. Maliyet ve getiri (özet)
 

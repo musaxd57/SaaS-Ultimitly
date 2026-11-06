@@ -56,16 +56,53 @@ export type ReadingEvidence = {
 /** Saklanan kanıt: vergi numarasının KENDİSİ yok, yalnız karşılaştırma sonucu. */
 export type ProofEvidence = { method: ProofMethod; evidenceRef: string; taxIdMatched: boolean };
 
+/** Rakam grupları arasındaki ayraç: boşluk, nokta, eğik çizgi, tire ailesi. */
+const DIGIT_GROUP_SEPARATOR = /[\s./\-\u2010-\u2015]/;
+const isAsciiDigit = (c: string) => c >= "0" && c <= "9";
+
+/** Ayraçla bağlı rakam gruplarında art arda grupların toplamı TAM 11 ve ilki 1-9 ile başlıyor mu (iki işaretçi, doğrusal). */
+function chainHasTcknWindow(groups: string[]): boolean {
+  let lo = 0;
+  let sum = 0;
+  for (let hi = 0; hi < groups.length; hi++) {
+    sum += groups[hi].length;
+    while (sum > 11 && lo <= hi) sum -= groups[lo++].length;
+    if (sum === 11 && groups[lo][0] !== "0") return true;
+  }
+  return false;
+}
+
 /**
- * 11 haneli TC kimlik numarasına benzeyen dizi (serbest metinde TCKN saklanmaz — tasarım §3.3; Haiku 11-06 #7). Rakamlar arasındaki
- * boşluk / nokta / tire / eğik çizgi ve görünmez karakterler yok sayılır ("100 000 001 46" de yakalanır — Opus 11-06 P3-17).
+ * 11 haneli TC kimlik numarasına benzeyen dizi (serbest metinde TCKN saklanmaz — tasarım §3.3; Haiku 11-06 #7). Rakam grupları ayraçla
+ * (boşluk / nokta / tire / eğik çizgi) bölünmüş yazılsa da yakalanır ("100 000 001 46" — Opus 11-06 P3-17); görünmez karakter ayraç
+ * sayılır, tam genişlikli rakam ASCII'ye iner. 🚨 Ayraçları silip bütün metni BİRLEŞTİRMEK yanlıştı (Opus 11-06 ikinci tur P2-1): yandaki
+ * sayıyla birleşen TCKN 12+ hane olup kaçıyordu ("Daire 5 10000000146"). Bunun yerine ayraçla bağlı grup zincirinde toplamı tam 11 olan
+ * her ardışık pencere aranır — tek grup olarak yazılmış 11 hane (eski kural) de bir penceredir. Doğrusal tarama, düzenli ifade yok.
  */
 export function containsTcknLike(s: string): boolean {
-  const joined = s
-    .normalize("NFKC")
-    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
-    .replace(/(\d)[\s./-]+(?=\d)/g, "$1");
-  return /(?:^|\D)[1-9]\d{10}(?:\D|$)/.test(joined);
+  const t = s.normalize("NFKC").replace(/[\p{Cc}\p{Cf}]/gu, " ");
+  const n = t.length;
+  let chain: string[] = [];
+  let i = 0;
+  while (i < n) {
+    if (!isAsciiDigit(t[i])) {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < n && isAsciiDigit(t[j])) j += 1;
+    chain.push(t.slice(i, j));
+    let k = j;
+    while (k < n && DIGIT_GROUP_SEPARATOR.test(t[k])) k += 1;
+    if (k > j && k < n && isAsciiDigit(t[k])) {
+      i = k; // ayraçla bağlı sonraki grup — zincir sürer
+      continue;
+    }
+    if (chainHasTcknWindow(chain)) return true;
+    chain = [];
+    i = k > j ? k : j;
+  }
+  return false;
 }
 
 function short(v: unknown, max: number): string | undefined | null {
@@ -261,7 +298,7 @@ export type VerifiedReadingVerdict =
 
 /**
  * Doğrulanmış belgeye yeni okuma (tasarım §4.1). Hüküm yalnız tam okumadan: bulunamadı / okunamadı → hiçbir şey (F16). Açık iptal ancak
- * kayıttaki numara bu belgeninkiyse askı (Opus 11-06 P2-5). Geçerli okuma yalnız numara + unvan + grup tutarsa işareti tazeler; grup
+ * kayıttaki numara bu belgeninkiyse askı (Opus 11-06 P2-5); başka numaranın iptali yalnız işareti kaldırır. Geçerli okuma yalnız numara + unvan + grup tutarsa işareti tazeler; grup
  * A'dan daraldıysa yeni (dar) grup hemen uygulanır; genişleme / yan geçiş operatöre kalır (Opus 11-06 P2-6).
  */
 export function verifiedReadingVerdict(args: {
@@ -272,7 +309,9 @@ export function verifiedReadingVerdict(args: {
   reading: ReadingEvidence;
 }): VerifiedReadingVerdict {
   const r = args.reading;
-  if (r.outcome === "cancelled") return r.match.number ? { kind: "suspend" } : { kind: "none" };
+  // Başka numaranın iptali askıya almaz; ama kayıt bu belgeyle uyuşmadığı için işaret de kalmaz (Opus 11-06 ikinci tur P3-5: numara
+  // kopyalanırken yapılan bir yazım hatası iptal edilmiş belgeyi 30 gün işaretli bırakıyordu).
+  if (r.outcome === "cancelled") return r.match.number ? { kind: "suspend" } : { kind: "clear", why: "number" };
   if (r.outcome !== "valid") return { kind: "none" };
   if (!r.match.number) return { kind: "clear", why: "number" };
   if (!registryNameStillMatches(r, args.acceptedNameNorm, args.holderNameNorm)) return { kind: "clear", why: "name" };

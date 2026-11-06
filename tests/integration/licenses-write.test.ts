@@ -339,7 +339,12 @@ describe("işletme belgesi — tek yazıcı", () => {
     expect(await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "approve", nameOverride: `Yetkili ${T} beyan etti` })).toEqual({ ok: false, reason: "invalid" });
     // KONTROL: 10 haneli VKN ve tarih / sayfa numarası serbest.
     expect((await recordOwnershipProof({ licenseId: r.licenseId, operatorUserId: OP, proof: { ...strongProof(), evidenceRef: "VKN 1234567890, TSG 2025/123 s.4" } })).ok).toBe(true);
-    expect(await prisma.licenseEvent.count({ where: { licenseId: r.licenseId, evidence: { string_contains: T } } })).toBe(0);
+    // Olayların TAMAMI metne çevrilip aranır: `string_contains` yalnız JSON dizesinde eşleşir, nesne kanıtta hep 0 döndürüyordu (Opus 11-06
+    // ikinci tur P3-1 — boş iddia).
+    const events = await prisma.licenseEvent.findMany({ where: { licenseId: r.licenseId } });
+    expect(events.length).toBeGreaterThan(1);
+    expect(JSON.stringify(events)).toContain("1234567890");
+    expect(JSON.stringify(events)).not.toContain(T);
   });
 
   it("🚨 hesap dökümü (KVKK): hak sahibi + belge var; vergi no özeti / şifresi YOK; çakışmayla incelemede olan 'pending' görünür; operatör günlüğü YOK", async () => {

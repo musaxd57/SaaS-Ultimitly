@@ -45,6 +45,7 @@ const EXEMPT: Record<string, string> = {
   "billing/page.tsx": "Yalnız yönlendirme; veri çizmez",
   "admin/page.tsx": "Operatör paneli: kendi kapısı isSuperAdmin (allowlist + mfa); personel middleware'de yönlendirilir",
   "admin/ai-quality/page.tsx": "Operatör kalite konsolu: kendi kapısı isSuperAdmin; personel middleware'de yönlendirilir",
+  "admin/licenses/page.tsx": "Operatör işletme belgesi kuyruğu: kendi kapısı isSuperAdmin (allowlist + mfa) + bürünmede açılmaz; personel middleware'de yönlendirilir",
 };
 
 function pages(dir: string): string[] {

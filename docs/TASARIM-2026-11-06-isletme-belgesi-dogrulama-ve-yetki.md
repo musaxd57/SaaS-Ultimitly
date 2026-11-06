@@ -645,9 +645,26 @@ migration 95'in içinde — henüz hiçbir yere uygulanmadı); sonraki okumalar 
 4. K3 Faz 1a'da Lixus dışında yapılır; Lixus yalnız yöntemi, kısa kaydı ve vergi numarası eşleşmesini saklar. Ev sahibine "şimdi şu
    belgeyi gönderin" diyen ekran / e-posta YOK — metin kurucu onayına tabi (Ek B).
 
+5. `incelemede` de başvurudan 14 gün sonra dolar (§4 tablosunda süre yazmıyordu): dolmasaydı ev sahibi 14. günden sonra hâlâ
+   "İnceleniyor" görerek çakışmayı ya da elle incelemeyi sezebilirdi. Operatör 14 gün içinde karar verir; süre dolarsa ev sahibi yeniden
+   başvurur. Kuyrukta her açık satırın son günü görünür.
+
+**Opus ikinci doğrulama turu (11-06 gece) → uygulanış:** P1 yok. P2-1: düzeltmede yazılan TC kimlik dedektörü ayraçları silip bütün metni
+birleştirdiği için yandaki sayıyla birleşen numarayı kaçırıyordu ("Daire 5 10000000146") → ayraçla bağlı rakam gruplarında toplamı tam 11
+olan pencere aranır (doğrusal, düzenli ifadesiz). P3: boş bir test iddiası düzeltildi · ev sahibinin yazdığı belge numarası kendi vergi /
+TC numarası olamaz, unvanda ve nitelikte TC kimliğe benzeyen numara reddedilir · kuyrukta belge sahibinin türü (şirket / şahıs) görünür ·
+başka numaranın iptali işareti kaldırır · başarılı kayıttan sonra formlar boşalır · askıdaki satırda okumanın askıdan sonra olup olmadığı
+görünür · onayda daire ad / adres anlık görüntüsü olayda saklanır · `incelemede` 14 günde dolar (sapma 5) · süpürme satırları kimlik
+sırasıyla kilitler · doğrulanmış hak sahibinin değişmeyen unvanı yerine yazılan unvan başvuru olayında kalır, kuyrukta görünür.
+Bilinçli bırakılan: paket düşünce kart "Eşleşti" demeyi sürdürür ama işaret görünmez (belge doğrulanmıştır; yetki pakete bağlıdır).
+
 **Açık kalanlar (Faz 1b ve sonrası):** konut izni (7464, Bakanlık API'si) · onaydan sonra daireye ekleme (bugün aynı numara için yeni başvuru
-"zaten kaydınız var" der) · mülk silinince dairesiz kalan tesis belgesi (işaret zaten çıkmaz; kuyrukta ayrıca gösterilmeli) · hesap
-silmede belge kayıtlarının saklama süresi (K-24, avukat) · kuyruk önceliği (çakışmalı başvurular öne) · otomatik okuma (Faz 2).
+"zaten kaydınız var" der) · 🚨 İLANDAN ÖNCE: daire onaydan sonra adını / adresini değiştirirse işaret o daireye bağlı kalıyor (yalnız ev
+sahibinin kendi panelinde görünür; onay anındaki ad / adres olayda saklı) — ilan açılmadan önce değişiklikte birim teyidi düşmeli · mülk
+silinince dairesiz kalan tesis belgesi (işaret zaten çıkmaz; kuyrukta ayrıca gösterilmeli) · hesap silmede belge kayıtlarının saklama süresi
+(K-24, avukat) · kuyruk önceliği (çakışmalı başvurular öne) · otomatik okuma (Faz 2) · 🚨 YATAY ÖLÇEKTEN ÖNCE: olay sırası `createdAt` ile
+belirleniyor ve bu zamanı Prisma UYGULAMANIN saatinden yazıyor (11-06 sondayla doğrulandı); tek kopyada belge satır kilidi sırayı
+korur, birden çok kopyada saat kayması sırayı bozabilir → olaylara belge başına sıra numarası (ya da veritabanı saati) gerekir.
 
 ## Ek A — Araştırma: hukuki bilgiler (kaynaklı, güven düzeyiyle)
 Opus araştırma ajanı, 11-06. Bu ortamın ağ ayarı `mevzuat.gov.tr` ve `tursab.org.tr`'yi doğrudan açtırmadı; bulgular resmî metinlerden

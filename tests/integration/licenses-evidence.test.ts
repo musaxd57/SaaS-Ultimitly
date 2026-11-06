@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { prisma, resetDb } from "../helpers/db";
 import { __licenseTestHooks, createLicenseApplication, decideLicense, recordOwnershipProof, recordRegistryReading, withdrawLicense } from "@/lib/licenses/write";
 import { listOrgLicenses, orgLicenseMarks, operatorLicenseQueue, propertyLicenseMarkTexts } from "@/lib/licenses/read";
+import { buildOrganizationDataExport } from "@/lib/data-export";
 
 // ---------------------------------------------------------------------------
 // İŞLETME BELGESİ Faz 1a — Opus 11-06 derin incelemesi düzeltmeleri (kanıtın kendisi doğrulanır, yarışlar kapalı):
@@ -149,6 +150,8 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
     expect(l.attributes).toEqual({ facilityType: "Apart otel", starClass: "3" });
     const ev = await prisma.licenseEvent.findFirstOrThrow({ where: { licenseId: r.licenseId, reason: "approve" } });
     expect(ev.evidence).toMatchObject({ units: { confirmed: [p2.id], removed: [o.propertyId] } });
+    // Teyit anındaki ad / adres olayda (Opus 11-06 ikinci tur P3-8 — daire sonradan değişirse karşılaştırılabilsin).
+    expect((ev.evidence as { units: { confirmedSnapshot: unknown } }).units.confirmedSnapshot).toEqual([{ id: p2.id, name: "Lale 2", address: "Örnek Sk. 5", city: "Muğla" }]);
     expect(await propertyLicenseMarkTexts(o.orgId, p2.id)).toHaveLength(1);
     expect(await propertyLicenseMarkTexts(o.orgId, o.propertyId)).toHaveLength(0);
     // Aynı (unvansız) kayıt yeniden okununca işaret tazelenir.
@@ -181,15 +184,16 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
     expect(await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: reading({ query: "12.345" }, { number: "12 345" }) })).toMatchObject({ match: { number: true } });
   });
 
-  it("🚨 P2-5 doğrulanmış belge: kayıtta BAŞKA numaranın iptali askıya almaz; bu numaranın iptali alır", async () => {
+  it("🚨 P2-5 doğrulanmış belge: kayıtta BAŞKA numaranın iptali askıya almaz (yalnız işareti kaldırır); bu numaranın iptali askıya alır", async () => {
     const o = await seedOrg();
     const r = await agencyApp(o);
     if (!r.ok) throw new Error(r.reason);
     await verify(r.licenseId);
     const wrong = await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: reading({ outcome: "cancelled" }, { number: "54321", legalName: "Başka Tur Ltd. Şti.", group: undefined, statusText: "İptal" }) });
-    expect(wrong).toMatchObject({ ok: true, autoSuspended: false, renewed: false, markCleared: false });
+    // Opus 11-06 ikinci tur P3-5: numara kopyalanırken yazım hatası iptal edilmiş belgeyi 30 gün işaretli bırakmasın.
+    expect(wrong).toMatchObject({ ok: true, autoSuspended: false, renewed: false, markCleared: true });
     expect((await lic(r.licenseId)).status).toBe("verified");
-    expect(await orgLicenseMarks(o.orgId)).toHaveLength(1);
+    expect(await orgLicenseMarks(o.orgId)).toHaveLength(0);
     const right = await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: reading({ outcome: "cancelled" }, { group: undefined, statusText: "İptal" }) });
     expect(right).toMatchObject({ ok: true, autoSuspended: true });
     expect((await lic(r.licenseId)).status).toBe("suspended");
@@ -318,6 +322,90 @@ describe("işletme belgesi — kanıtın kendisi doğrulanır (Opus 11-06)", () 
       expect(decision).toEqual({ ok: false, reason: "not_ready", missing: ["reading_not_valid"] });
       expect(l.status).toBe("pending");
     }
+  });
+
+  it("🚨 P3-2 ev sahibinin yazdığı alanlarda TC kimlik numarası saklanmaz: belge numarası yerine kendi numarası, unvanda ya da nitelikte numara", async () => {
+    const o = await seedOrg("Şahıs");
+    const base = {
+      organizationId: o.orgId,
+      userId: o.userId,
+      type: "simple_accommodation",
+      number: "48-2026-0001",
+      attributes: {},
+      holder: { kind: "sole_proprietor", legalName: "Ayşe Örnek", taxId: TCKN },
+      propertyIds: [o.propertyId],
+    } as const;
+    expect(await createLicenseApplication({ ...base, number: TCKN })).toEqual({ ok: false, reason: "invalid_number" });
+    expect(await createLicenseApplication({ ...base, number: "100-000-001-46" })).toEqual({ ok: false, reason: "invalid_number" });
+    expect(await createLicenseApplication({ ...base, holder: { ...base.holder, legalName: `Ayşe Örnek ${TCKN}` } })).toEqual({ ok: false, reason: "invalid_name" });
+    expect(await createLicenseApplication({ ...base, type: "tourism_operation", attributes: { facilityType: `Apart ${TCKN}` } })).toEqual({ ok: false, reason: "invalid_attributes" });
+    expect(await prisma.businessLicense.count()).toBe(0);
+    // KONTROL: düzgün başvuru geçer.
+    expect((await createLicenseApplication(base)).ok).toBe(true);
+  });
+
+  it("🚨 P3-9 incelemedeki (çakışmalı) başvuru da 14 günde dolar — ev sahibi bekleyenle AYNI şeyi görür, süpürülür, karar verilmez", async () => {
+    const a = await seedOrg("Lale");
+    const b = await seedOrg("Başka");
+    const ra = await agencyApp(a);
+    const rb = await agencyApp(b, { holder: { kind: "company", legalName: "Rakip Tur A.Ş.", taxId: "9999999999" } });
+    if (!ra.ok || !rb.ok) throw new Error("başvuru");
+    await verify(ra.licenseId);
+    await recordRegistryReading({ licenseId: rb.licenseId, operatorUserId: OP, reading: reading({}, { legalName: "Rakip Tur A.Ş." }) });
+    await recordOwnershipProof({ licenseId: rb.licenseId, operatorUserId: OP, proof: proof("9999999999") });
+    expect(await decideLicense({ licenseId: rb.licenseId, operatorUserId: OP, action: "approve" })).toEqual({ ok: false, reason: "lock_conflict" });
+    // Kıyas için B'nin bir de sıradan bekleyen başvurusu.
+    const plain = await agencyApp(b, { number: "777", holder: { kind: "company", legalName: "Rakip Tur A.Ş.", taxId: "9999999999" } });
+    if (!plain.ok) throw new Error(plain.reason);
+    const past = new Date(Date.now() - 1000);
+    await prisma.businessLicense.updateMany({ where: { organizationId: b.orgId }, data: { pendingUntil: past } });
+    const rows = await listOrgLicenses(b.orgId);
+    const view = (id: string) => {
+      const x = rows.find((row) => row.id === id)!;
+      return { status: x.status, statusLabel: x.statusLabel, statusText: x.statusText };
+    };
+    expect(view(rb.licenseId)).toEqual({ status: "expired", statusLabel: "Süresi doldu", statusText: expect.any(String) });
+    expect(view(rb.licenseId)).toEqual(view(plain.licenseId));
+    // Hesap dökümü de aynı şeyi söyler (süpürülmemiş olsa da "expired").
+    expect((await buildOrganizationDataExport(b.orgId))?.businessLicenses.licenses.map((l) => l.status)).toEqual(["expired", "expired"]);
+    expect(await decideLicense({ licenseId: rb.licenseId, operatorUserId: OP, action: "reject", reason: "mismatch" })).toEqual({ ok: false, reason: "not_open" });
+    expect((await operatorLicenseQueue()).open.map((x) => x.id)).not.toContain(rb.licenseId);
+    // İlk yazma süpürür: geri çekme kalıcı olarak "expired"e çeker.
+    expect(await withdrawLicense({ organizationId: b.orgId, userId: b.userId, licenseId: rb.licenseId })).toEqual({ ok: false, reason: "not_open" });
+    expect(await lic(rb.licenseId)).toMatchObject({ status: "expired", lockKey: null });
+    expect(await prisma.licenseEvent.count({ where: { licenseId: rb.licenseId, reason: "expire", fromStatus: "under_review" } })).toBe(1);
+  });
+
+  it("P3-12 doğrulanmış hak sahibinin unvanı başvuruyla değişmez; yazılan unvan kaybolmaz — operatör kuyrukta görür", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    await verify(r.licenseId);
+    const r2 = await agencyApp(o, { number: "999", holder: { kind: "company", legalName: "Lale Turizm Yeni Unvan A.Ş.", taxId: "1234567890" } });
+    if (!r2.ok) throw new Error(r2.reason);
+    const holder = await prisma.licenseHolder.findFirstOrThrow({ where: { organizationId: o.orgId } });
+    expect(holder.legalName).toBe("Lale Turizm Ticaret Limited Şirketi");
+    const row = (await operatorLicenseQueue()).open.find((x) => x.id === r2.licenseId)!;
+    expect(row.typedLegalName).toBe("Lale Turizm Yeni Unvan A.Ş.");
+    expect(row.pendingUntil).not.toBeNull();
+  });
+
+  it("P3-7 askıdaki belgede kuyruk, okumanın askıdan sonra olup olmadığını söyler (onay yolunun kuralıyla aynı)", async () => {
+    const o = await seedOrg();
+    const r = await agencyApp(o);
+    if (!r.ok) throw new Error(r.reason);
+    await verify(r.licenseId);
+    await decideLicense({ licenseId: r.licenseId, operatorUserId: OP, action: "suspend", reason: "operator" });
+    const before = (await operatorLicenseQueue()).open.find((x) => x.id === r.licenseId)!;
+    expect(before.lastReading).toMatchObject({ afterSuspend: false });
+    await recordRegistryReading({ licenseId: r.licenseId, operatorUserId: OP, reading: reading() });
+    const after = (await operatorLicenseQueue()).open.find((x) => x.id === r.licenseId)!;
+    expect(after.lastReading).toMatchObject({ afterSuspend: true, current: { number: true, legalName: true } });
+    // Bekleyen başvuruda alan yok (null).
+    const p = await agencyApp(o, { number: "888" });
+    if (!p.ok) throw new Error(p.reason);
+    await recordRegistryReading({ licenseId: p.licenseId, operatorUserId: OP, reading: reading({ query: "888" }, { number: "888" }) });
+    expect((await operatorLicenseQueue()).open.find((x) => x.id === p.licenseId)?.lastReading?.afterSuspend).toBeNull();
   });
 
   it("P3-15 paket düşünce 'eşleşti' işareti görünmez (belge ve durumu listede kalır); Pro'da yeniden görünür", async () => {

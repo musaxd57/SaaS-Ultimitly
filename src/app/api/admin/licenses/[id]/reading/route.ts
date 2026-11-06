@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import { badRequest, jsonOk, notFound, readJsonCappedOrNull, requireSession, unauthorized } from "@/lib/api";
+import { badRequest, forbidden, jsonOk, notFound, readJsonCappedOrNull, requireSession, unauthorized } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
+import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 import { recordRegistryReading } from "@/lib/licenses/write";
 import { OPERATOR_ERROR_TEXT, operatorUserId, operatorWritePreamble } from "@/lib/licenses/operator-route";
 
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Bürünmede yazma yok (K8 — salt-okunur destek görünümü); ön kapı da denetler, bu satır bürünme pininin aradığı açık kontroldür.
+  if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
   const blocked = await operatorWritePreamble(req, session);
   if (blocked) return blocked;
   const { id } = await ctx.params;

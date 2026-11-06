@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
+import { effectiveStatus } from "@/lib/licenses/state";
 
 // ---------------------------------------------------------------------------
 // SINGLE-SOURCE organization data export (Codex 07-23 #5). Both KVKK data-access
@@ -351,6 +352,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
         type: true,
         number: true,
         status: true,
+        pendingUntil: true,
         attributes: true,
         verifiedAt: true,
         lastRegistryOkAt: true,
@@ -376,7 +378,11 @@ export async function buildOrganizationDataExport(organizationId: string) {
     // "under_review" çakışma sebebiyle de oluşur → ev sahibine "İnceleniyor" gibi "pending" görünür (başka hesap hakkında sızıntı yok).
     businessLicenses: {
       holders: licenseHolders,
-      licenses: businessLicenses.map((l) => ({ ...l, status: l.status === "under_review" ? "pending" : l.status })),
+      // Ev sahibinin listesindeki durumla AYNI: süresi dolmuş açık başvuru "expired" (süpürülmemiş olsa da), incelemedeki "pending".
+      licenses: businessLicenses.map(({ pendingUntil, ...l }) => {
+        const status = effectiveStatus({ status: l.status, pendingUntil }, new Date());
+        return { ...l, status: status === "under_review" ? "pending" : status };
+      }),
     },
   };
 }

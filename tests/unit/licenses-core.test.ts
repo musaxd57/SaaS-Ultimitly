@@ -129,6 +129,7 @@ describe("durum makinesi", () => {
       "under_review:approve": "verified",
       "under_review:reject": "rejected",
       "under_review:withdraw": "withdrawn",
+      "under_review:expire": "expired",
       "verified:suspend": "suspended",
       "verified:withdraw": "withdrawn",
       "suspended:reinstate": "verified",
@@ -146,7 +147,10 @@ describe("durum makinesi", () => {
     const row = { status: "pending", pendingUntil: until };
     expect(effectiveStatus(row, new Date(until.getTime() - 1))).toBe("pending");
     expect(effectiveStatus(row, until)).toBe("expired");
-    expect(isPendingExpired({ status: "under_review", pendingUntil: until }, new Date(until.getTime() + DAY))).toBe(false);
+    // İncelemedeki başvuru da aynı günde dolar (Opus 11-06 ikinci tur P3-9 — dışarıdan bekleyenden ayırt edilemesin); doğrulanmış belge dolmaz.
+    expect(isPendingExpired({ status: "under_review", pendingUntil: until }, new Date(until.getTime() + DAY))).toBe(true);
+    expect(effectiveStatus({ status: "under_review", pendingUntil: until }, until)).toBe("expired");
+    expect(isPendingExpired({ status: "verified", pendingUntil: until }, new Date(until.getTime() + DAY))).toBe(false);
   });
 
   it("🚨 kilit yalnız doğrulanmış / askıdaki belgede — bekleyen başvuru KİLİTLEMEZ (rakip önünü tıkayamaz)", () => {
@@ -269,7 +273,13 @@ describe("kanıt (Opus 11-06)", () => {
     for (const t of ["10000000146", "100 000 001 46", "100.000.001.46", "1000-0000-146", "1\u200b0000000146", "１０００００００１４６"]) {
       expect(containsTcknLike(`kimlik ${t} yazıldı`), t).toBe(true);
     }
-    for (const t of ["VKN 1234567890", "TSG 2025/123 s.4", "12.03.2025 10:30", "0532 123 45 67", "+90 532 123 45 67"]) expect(containsTcknLike(t), t).toBe(false);
+    for (const t of ["VKN 1234567890", "TSG 2025/123 s.4", "12.03.2025 10:30", "0532 123 45 67", "+90 532 123 45 67", "1.200.000 TL", "06.11.2026 14.30.15", "4111 1111 1111 1111", "123456789012"]) {
+      expect(containsTcknLike(t), t).toBe(false);
+    }
+    // 🚨 Opus 11-06 ikinci tur P2-1: ayraçları silip birleştirmek yandaki sayıyla birleşen TCKN'yi 12+ haneye çıkarıp kaçırıyordu.
+    for (const t of ["Daire 5 10000000146", "TSG 2025/123 10000000146", "imza 06.11.2026 10000000146", "10000000146 / 2025", "No: 3 - 10000000146", "No: 3 — 10000000146", "1000000014-6"]) {
+      expect(containsTcknLike(t), t).toBe(true);
+    }
     expect(read({ legalName: "Lale 100 000 001 46 Ltd." })).toEqual({ ok: false, error: "fields" });
     expect(read({}, { query: "10000000146" })).toEqual({ ok: false, error: "query" });
     // Belgenin kendi numarası TCKN'ye benzese de sorgu olarak kabul edilir.
@@ -281,6 +291,8 @@ describe("kanıt (Opus 11-06)", () => {
     containsTcknLike("1" + " ".repeat(50_000) + "x");
     containsTcknLike("1 ".repeat(25_000));
     containsTcknLike("9".repeat(50_000));
+    containsTcknLike("0 ".repeat(25_000));
+    containsTcknLike("1 ".repeat(25_000) + "x");
     expect(performance.now() - t0).toBeLessThan(500);
   });
 
@@ -308,7 +320,7 @@ describe("kanıt (Opus 11-06)", () => {
   it("P2-5 / P2-6 / P3-12 doğrulanmış belgeye okuma: başka numaranın iptali hiçbir şey; bu numaranın iptali askı; grup daralma / genişleme; uyuşmazlık işareti kaldırır", () => {
     const v = (fields: Record<string, unknown>, over: Record<string, unknown> = {}, attrs: unknown = { group: "A" }, accepted: string | null = agency.holderNameNorm) =>
       verifiedReadingVerdict({ type: "agency", attributes: attrs, acceptedNameNorm: accepted, holderNameNorm: agency.holderNameNorm, reading: ok(read(fields, over)) });
-    expect(v({ number: "54321", group: undefined }, { outcome: "cancelled" })).toEqual({ kind: "none" });
+    expect(v({ number: "54321", group: undefined }, { outcome: "cancelled" })).toEqual({ kind: "clear", why: "number" });
     expect(v({ group: undefined }, { outcome: "cancelled" })).toEqual({ kind: "suspend" });
     expect(v({})).toEqual({ kind: "renew", attributes: { group: "A" }, registryNameNorm: agency.holderNameNorm, groupNarrowed: false });
     expect(v({ group: "C" })).toMatchObject({ kind: "renew", attributes: { group: "C" }, groupNarrowed: true });

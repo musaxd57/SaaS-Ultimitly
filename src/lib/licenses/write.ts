@@ -148,21 +148,25 @@ async function syncHolderGuard(tx: Tx, holderId: string) {
   if (holder.verifiedGuard !== want) await tx.licenseHolder.update({ where: { id: holderId }, data: { verifiedGuard: want } });
 }
 
-/** Süresi dolmuş bekleyen başvuruları `expired`e çeker (tembel; işletme başına sınırlı parti). */
+/**
+ * Süresi dolmuş açık başvuruları (bekleyen / incelemedeki) `expired`e çeker (tembel; işletme başına sınırlı parti). Satırlar kimlik
+ * sırasıyla güncellenir: eşzamanlı iki süpürme satır kilitlerini aynı sırayla alır, birbirini kilitleyemez (Opus 11-06 ikinci tur P3-11).
+ */
 export async function expireStalePending(tx: Tx, organizationId: string, now: Date): Promise<number> {
   const stale = await tx.businessLicense.findMany({
-    where: { organizationId, status: "pending", pendingUntil: { lte: now } },
+    where: { organizationId, status: { in: [...OPEN_STATUSES] }, pendingUntil: { lte: now } },
+    orderBy: { id: "asc" },
     select: { id: true, organizationId: true, holderId: true, type: true, numberNorm: true, status: true, version: true },
     take: EXPIRE_BATCH,
   });
   let n = 0;
   for (const lic of stale) {
     const res = await tx.businessLicense.updateMany({
-      where: { id: lic.id, status: "pending", version: lic.version },
+      where: { id: lic.id, status: lic.status, version: lic.version },
       data: { status: "expired", version: { increment: 1 }, lockKey: null },
     });
     if (res.count !== 1) continue;
-    await appendEvent(tx, { licenseId: lic.id, organizationId: lic.organizationId, fromStatus: "pending", toStatus: "expired", reason: "expire", actorKind: "system" });
+    await appendEvent(tx, { licenseId: lic.id, organizationId: lic.organizationId, fromStatus: lic.status, toStatus: "expired", reason: "expire", actorKind: "system" });
     n += 1;
   }
   return n;
@@ -211,8 +215,13 @@ export async function createLicenseApplication(
   if (!legalName || legalName.length < 2 || !legalNameNorm) return { ok: false, reason: "invalid_name" };
   const tax = parseTaxId(kind, input.holder.taxId);
   if (!tax) return { ok: false, reason: "invalid_tax_id" };
+  // Ev sahibinin yazdığı alanlarda da TC kimlik numarası saklanmaz (Opus 11-06 ikinci tur P3-2): belge numarası yerine kendi vergi /
+  // TC numarasını yazan ya da unvana numara ekleyen başvuru düz metin olarak numara, bekçi anahtarı ve dökümde kalırdı.
+  if (numberNorm === tax.digits) return { ok: false, reason: "invalid_number" };
+  if (containsTcknLike(legalName)) return { ok: false, reason: "invalid_name" };
   const attrs = parseAttributes(type, input.attributes);
   if (!attrs.ok) return { ok: false, reason: "invalid_attributes" };
+  if (Object.values(attrs.value).some((v) => typeof v === "string" && containsTcknLike(v))) return { ok: false, reason: "invalid_attributes" };
   const rawUnits = input.propertyIds ?? [];
   if (!Array.isArray(rawUnits) || rawUnits.some((p) => typeof p !== "string" || !p || p.length > 64)) return { ok: false, reason: "invalid_units" };
   const propertyIds = [...new Set(rawUnits as string[])];
@@ -259,10 +268,16 @@ export async function createLicenseApplication(
         },
         select: { id: true, kind: true, legalNameNorm: true, verifiedGuard: true },
       });
-    } else if (!holder.verifiedGuard && (holder.legalNameNorm !== legalNameNorm || holder.kind !== kind)) {
-      // Doğrulanmış hak sahibinin unvanı başvuruyla DEĞİŞMEZ (kayıtla eşleşmiş ad korunur; fark operatörde görünür). Koşul YAZMANIN
-      // içinde de: araya giren bir onay bekçiyi doldurduysa bu güncelleme hiçbir satıra dokunmaz (Opus 11-06 P2-4).
-      await tx.licenseHolder.updateMany({ where: { id: holder.id, verifiedGuard: null }, data: { kind, legalName, legalNameNorm } });
+    }
+    let typedLegalName: string | null = null;
+    if (holder.legalNameNorm !== legalNameNorm || holder.kind !== kind) {
+      // Doğrulanmış hak sahibinin unvanı başvuruyla DEĞİŞMEZ (kayıtla eşleşmiş ad korunur). Koşul YAZMANIN içinde de: araya giren bir onay
+      // bekçiyi doldurduysa bu güncelleme hiçbir satıra dokunmaz (Opus 11-06 P2-4). Değişmediyse yazılan unvan başvuru olayında kalır,
+      // operatör kuyrukta görür (Opus 11-06 ikinci tur P3-12: sessizce kayboluyordu).
+      const res = holder.verifiedGuard
+        ? { count: 0 }
+        : await tx.licenseHolder.updateMany({ where: { id: holder.id, verifiedGuard: null }, data: { kind, legalName, legalNameNorm } });
+      if (res.count === 0 && holder.legalNameNorm !== legalNameNorm) typedLegalName = legalName;
     }
     const lic = await tx.businessLicense.create({
       data: {
@@ -287,7 +302,7 @@ export async function createLicenseApplication(
       reason: "application",
       actorKind: "host",
       actorUserId: userId,
-      evidence: { units: propertyIds.length },
+      evidence: { units: propertyIds.length, ...(typedLegalName ? { typedLegalName } : {}) },
     });
     return { ok: true as const, licenseId: lic.id };
   });
@@ -581,6 +596,10 @@ export async function decideLicense(input: DecisionInput): Promise<DecisionResul
         if (!ready.ok) return { ok: false as const, reason: "not_ready" as const, missing: ready.missing };
         const reading = ev.lastReading!.value;
         if (units && units.remove.length) await tx.licenseUnit.deleteMany({ where: { licenseId: lic.id, propertyId: { in: units.remove } } });
+        // Teyit anındaki daire adı / adresi olayda kalır: sonradan değişirse (Faz 1b ilan öncesi) karşılaştırılabilsin (Opus 11-06 ikinci tur P3-8).
+        const confirmedSnapshot = units?.keep.length
+          ? await tx.property.findMany({ where: { id: { in: units.keep } }, orderBy: { id: "asc" }, select: { id: true, name: true, address: true, city: true } })
+          : null;
         patch = {
           // Resmî kayıttaki nitelik kazanır (ev sahibi A yazdı, kayıt C diyorsa C).
           attributes: attributesFromReading(lic.type, lic.attributes, reading) as Prisma.InputJsonValue,
@@ -594,7 +613,7 @@ export async function decideLicense(input: DecisionInput): Promise<DecisionResul
         evidence = {
           nameOverride: lastReading!.value.match.legalName ? null : nameOverride,
           proofMethod: ev.lastProof!.value.method,
-          ...(units ? { units: { confirmed: units.keep, removed: units.remove } } : {}),
+          ...(units ? { units: { confirmed: units.keep, removed: units.remove, confirmedSnapshot } } : {}),
         };
       } else if (input.action === "reject") {
         if (typeof input.reason !== "string" || !(REJECT_REASONS as readonly string[]).includes(input.reason)) return { ok: false as const, reason: "invalid" as const };
