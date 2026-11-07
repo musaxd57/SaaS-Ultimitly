@@ -41,11 +41,32 @@ import { todayKey, addNights } from "@/modules/availability/core";
 const TODAY = todayKey(new Date(), "Europe/Istanbul");
 const dayDate = (key: string) => new Date(`${key}T12:00:00Z`);
 const settle = () => new Promise((r) => setTimeout(r, 60));
-/** Görev açılışının (otomatik atama) e-postası arka planda düşer — kutu ancak o bittikten SONRA boşaltılır. */
-const clearMail = async () => {
+/**
+ * Bildirim e-postaları arka planda düşer (istek beklemez). SABİT süreyle beklenmez — CI 1773 (11-06): yüklü makinede 60 ms yetmedi,
+ * görev açılışının "Yeni Görev" e-postası kutu boşaltıldıktan SONRA düştü ve sonraki iddiaya karıştı (150 ms gecikme benzetiminde eski
+ * hâl 6 testte kırmızı). Beklenen e-posta (alıcı + konu) GELENE kadar beklenir; ardından kısa pencere: fazladan (yanlış) bir gönderim
+ * varsa o sürede düşer ve iddiaya girer. E-posta tetikleyen her test kendi e-postası düşmeden BİTMEZ (sonraki testin kutusuna sızmasın).
+ */
+type Mail = (typeof mail.sent)[number];
+const AYSE = "ayse-k1@example.test";
+const MEHMET = "mehmet-k1@example.test";
+const newTask = (to: string) => (m: Mail) => m.to === to && m.subject.startsWith("Yeni Görev: ");
+const changed = (to: string) => (m: Mail) => m.to === to && m.subject.startsWith("Görevlendirmeniz değişti");
+async function untilMail(pred: (m: Mail) => boolean, n = 1) {
+  await vi.waitFor(
+    () => {
+      const got = mail.sent.filter(pred).length;
+      if (got < n) throw new Error(`beklenen e-posta: ${got}/${n}`);
+    },
+    { timeout: 5_000, interval: 10 },
+  );
   await settle();
+}
+/** Önceki adımın e-postası düştükten SONRA kutu boşaltılır. */
+async function clearMailAfter(pred: (m: Mail) => boolean, n = 1) {
+  await untilMail(pred, n);
   mail.sent.length = 0;
-};
+}
 
 function put(propertyId: string, body: unknown) {
   return PUT(
@@ -186,9 +207,10 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     const t1 = await cleaningFor(1, "Deniz Yılmaz");
     await cleaningFor(4, "Deniz Yılmaz");
-    await clearMail();
+    await clearMailAfter(newTask(AYSE), 2); // iki açılış
     await put(propertyId, { userId: mehmet.id, moveTaskIds: [t1.id] });
-    await settle();
+    await untilMail(changed(AYSE));
+    await untilMail(newTask(MEHMET));
     const toAyse = mail.sent.filter((m) => m.to === "ayse-k1@example.test");
     expect(toAyse.map((m) => m.subject)).toEqual(["Görevlendirmeniz değişti: Test Property"]);
     expect(toAyse[0].html).toContain("şu işler artık sizin listenizde değil");
@@ -205,7 +227,7 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
     expect(mail.sent).toEqual([]);
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     await cleaningFor(4);
-    await clearMail();
+    await clearMailAfter(newTask(MEHMET)); // açılış: yeni varsayılan Mehmet
     await put(propertyId, { userId: ayse.id, moveTaskIds: [] });
     await settle();
     expect(mail.sent).toEqual([]);
@@ -214,29 +236,31 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
   it("🚨 panodan 'Atanmadı'ya çekilen görev → eski kişiye 'Görevlendirmeniz değişti' (boş atama da 'artık sizde değil' — NULL sorgu dersi)", async () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     const t1 = await cleaningFor(1);
-    await clearMail();
+    await clearMailAfter(newTask(AYSE)); // açılış
     expect((await patchTask(t1.id, { assignedToId: "" })).status).toBe(200);
-    await settle();
+    await untilMail(changed(AYSE));
     expect(mail.sent.map((m) => [m.to, m.subject])).toEqual([["ayse-k1@example.test", "Görevlendirmeniz değişti: Test Property"]]);
   });
 
   it("panodan başka birine atanan görev → eskiye 'değişti', yeniye 'Yeni Görev'; kendini çıkaran yöneticiye hiçbir şey gitmez", async () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     const t1 = await cleaningFor(1);
-    await clearMail();
+    await clearMailAfter(newTask(AYSE)); // açılış
     await patchTask(t1.id, { assignedToId: mehmet.id });
-    await settle();
+    await untilMail(changed(AYSE));
+    await untilMail(newTask(MEHMET));
     expect(mail.sent.map((m) => m.to).sort()).toEqual(["ayse-k1@example.test", "mehmet-k1@example.test"]);
     await patchTask(t1.id, { assignedToId: owner.id });
-    await clearMail();
+    await clearMailAfter(changed(MEHMET)); // kendine atayan sahibe e-posta gitmez
     await patchTask(t1.id, { assignedToId: ayse.id });
-    await settle();
+    await untilMail(newTask(AYSE));
     expect(mail.sent.map((m) => m.to)).toEqual(["ayse-k1@example.test"]);
   });
 
   it("bildirim: arada GERİ atanmış görev söylenmez (kişide duruyorsa 'artık sizde değil' yazılmaz)", async () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     const t1 = await cleaningFor(1);
+    await untilMail(newTask(AYSE)); // açılışın e-postası bu testte düşsün (sonraki testin kutusuna sızmasın)
     expect(await notifyAssignmentRemoved(orgId, ayse.id, [t1.id])).toBe("skipped");
     await settle();
     expect(mail.sent.filter((m) => m.subject.startsWith("Görevlendirmeniz"))).toEqual([]);
@@ -264,8 +288,8 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
     });
     const ids = (await prisma.task.findMany({ where: { assignedToId: mehmet.id }, select: { id: true } })).map((t) => t.id);
     expect(await notifyAssignmentRemoved(orgId, ayse.id, ids)).toBe("sent");
-    await settle();
-    const mailToAyse = mail.sent.find((m) => m.to === "ayse-k1@example.test")!;
+    await untilMail(changed(AYSE));
+    const mailToAyse = mail.sent.find(changed(AYSE))!;
     expect(mailToAyse.html.match(/<li /g)).toHaveLength(51);
     expect(mailToAyse.html).toContain("… ve 2 görev daha");
   });
