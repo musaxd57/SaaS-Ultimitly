@@ -1,0 +1,2526 @@
+{
+  "probes": [
+    {
+      "group": "checkout_time",
+      "text": "Çıkış saat kaçta?",
+      "role": "anchor",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati check-out",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Evi saat kaça kadar boşaltmamız gerekiyor?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati checkout",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Check-out time?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati check-out",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "What time do we need to leave the apartment?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati checkout",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Wann ist der Check-out?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati check-out",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Во сколько выезд?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati checkout",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Son gün daireden en geç kaçta çıkmalıyız?",
+      "role": "same",
+      "need": {
+        "kind": "checkout_time",
+        "query": "çıkış saati check-out",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Çıkışı iki saat geciktirebilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "late_checkout",
+        "query": "geç çıkış talebi",
+        "language": "other",
+        "stayChange": true
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "13:00'te çıkabilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "late_checkout",
+        "query": "geç çıkış saat 13:00",
+        "language": "tr",
+        "stayChange": true
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Cumartesi çıkış saati farklı mı?",
+      "role": "near",
+      "need": {
+        "kind": "checkout_time",
+        "query": "cumartesi çıkış saati",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Çıkışta anahtarı nereye bırakalım?",
+      "role": "near",
+      "need": {
+        "kind": "access_keys",
+        "query": "çıkışta anahtar teslimi nereye bırakılır",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkout_time",
+      "text": "Can we have a late checkout?",
+      "role": "near",
+      "need": {
+        "kind": "late_checkout",
+        "query": "geç çıkış talebi",
+        "language": "en",
+        "stayChange": true
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Çöpleri nereye atıyoruz?",
+      "role": "anchor",
+      "need": {
+        "kind": "trash",
+        "query": "çöp atma noktası nereye",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Atıkları nerede bırakabiliriz?",
+      "role": "same",
+      "need": {
+        "kind": "trash",
+        "query": "çöp atıkları nereye bırakılır",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Where do we put the garbage?",
+      "role": "same",
+      "need": {
+        "kind": "trash",
+        "query": "çöp nereye atılır",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Çöp konteyneri nerede?",
+      "role": "same",
+      "need": {
+        "kind": "trash",
+        "query": "çöp konteyneri yeri çöp atma",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Wo werfen wir den Müll weg?",
+      "role": "same",
+      "need": {
+        "kind": "trash",
+        "query": "çöp atma noktası çöp kutusu",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Cam şişeler için ayrı kutu var mı?",
+      "role": "near",
+      "need": {
+        "kind": "trash",
+        "query": "cam şişe geri dönüşüm çöp kutusu",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Çöp çok kötü kokuyor, alır mısınız?",
+      "role": "near",
+      "need": {
+        "kind": "trash",
+        "query": "çöp alınması kötü koku",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Çöpleri hangi gün topluyorlar?",
+      "role": "near",
+      "need": {
+        "kind": "trash",
+        "query": "çöp toplama günleri",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "trash",
+      "text": "Is there recycling?",
+      "role": "near",
+      "need": {
+        "kind": "trash",
+        "query": "geri dönüşüm çöp atık",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "Wi-Fi şifresi neydi?",
+      "role": "anchor",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi şifresi",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "İnternet şifresini alabilir miyim?",
+      "role": "same",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi internet şifresi",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "What's the wifi password?",
+      "role": "same",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi şifresi",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "WLAN Passwort bitte?",
+      "role": "same",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi şifresi",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "Пароль от вайфая?",
+      "role": "same",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi şifresi",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "Wi-Fi çalışmıyor, bağlanamıyoruz.",
+      "role": "near",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi çalışmıyor bağlantı sorunu",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "İnternet hızı ne kadar?",
+      "role": "near",
+      "need": {
+        "kind": "wifi",
+        "query": "internet hızı wifi hızı",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "Wi-Fi ağının adı ne?",
+      "role": "near",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi ağı adı ssid",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "wifi_password",
+      "text": "The wifi keeps disconnecting.",
+      "role": "near",
+      "need": {
+        "kind": "wifi",
+        "query": "wifi kopuyor bağlantı sorunu",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Otopark var mı?",
+      "role": "anchor",
+      "need": {
+        "kind": "parking",
+        "query": "otopark park yeri",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Arabayı nereye park edebiliriz?",
+      "role": "same",
+      "need": {
+        "kind": "parking",
+        "query": "otopark park yeri",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Is there parking?",
+      "role": "same",
+      "need": {
+        "kind": "parking",
+        "query": "otopark park yeri",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Gibt es einen Parkplatz?",
+      "role": "same",
+      "need": {
+        "kind": "parking",
+        "query": "otopark park yeri",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Aracımızı bırakabileceğimiz bir yer var mı?",
+      "role": "same",
+      "need": {
+        "kind": "parking",
+        "query": "otopark park yeri",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Otopark ücretli mi?",
+      "role": "near",
+      "need": {
+        "kind": "parking",
+        "query": "otopark ücreti park yeri ücretli mi",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "İki araba için yer var mı?",
+      "role": "near",
+      "need": {
+        "kind": "parking",
+        "query": "iki araba için otopark park yeri",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "Elektrikli araç şarj istasyonu var mı?",
+      "role": "near",
+      "need": {
+        "kind": "parking",
+        "query": "elektrikli araç şarj istasyonu park yeri",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "parking",
+      "text": "How much is parking per day?",
+      "role": "near",
+      "need": {
+        "kind": "parking",
+        "query": "otopark günlük ücret fiyat",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Havuz kaçta kapanıyor?",
+      "role": "anchor",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz çalışma saatleri kapanış saati",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Havuz ne zamana kadar açık?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz çalışma saatleri ne zamana kadar açık",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Until when is the pool open?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz açık olduğu saatler",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Bis wann ist der Pool geöffnet?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz çalışma saatleri açık olduğu saatler",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Akşam havuza kaça kadar girebiliriz?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz kullanım saatleri akşam",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Havuz cumartesi kaçta kapanıyor?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz açılış kapanış saatleri cumartesi",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Havuz ısıtmalı mı?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz ısıtmalı mı",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Sauna kaçta kapanıyor?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "sauna çalışma saatleri kaçta kapanıyor",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Havuza çocuklar girebilir mi?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz kullanımı çocuklar",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pool_hours",
+      "text": "Is the pool open in winter?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "havuz kışın açık mı",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Köpeğimizi getirebilir miyiz?",
+      "role": "anchor",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan köpek kabul",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Evcil hayvan kabul ediyor musunuz?",
+      "role": "same",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan kabul politikası",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Are pets allowed?",
+      "role": "same",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan kabul politikası",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Dürfen wir unseren Hund mitbringen?",
+      "role": "same",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan köpek kabul",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Kedi getirebilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan kedi kabul",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Köpek için ek ücret var mı?",
+      "role": "near",
+      "need": {
+        "kind": "pets",
+        "query": "köpek evcil hayvan ek ücret politikası",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Köpeği evde yalnız bırakabilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "pets",
+        "query": "evcil hayvan köpek yalnız bırakma",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "pets",
+      "text": "Is there a dog park nearby?",
+      "role": "near",
+      "need": {
+        "kind": "local_recommendations",
+        "query": "yakındaki köpek parkı",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Giriş saat kaçta?",
+      "role": "anchor",
+      "need": {
+        "kind": "checkin_time",
+        "query": "giriş saati check-in",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Kaçta yerleşebiliriz?",
+      "role": "same",
+      "need": {
+        "kind": "checkin_time",
+        "query": "giriş saati yerleşme",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "What time is check-in?",
+      "role": "same",
+      "need": {
+        "kind": "checkin_time",
+        "query": "giriş saati check-in",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Ab wann können wir einchecken?",
+      "role": "same",
+      "need": {
+        "kind": "checkin_time",
+        "query": "giriş saati check-in",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Daireye en erken kaçta girebiliyoruz normalde?",
+      "role": "same",
+      "need": {
+        "kind": "checkin_time",
+        "query": "giriş saati en erken saat",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Erken giriş yapabilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "early_checkin",
+        "query": "erken giriş",
+        "language": "tr",
+        "stayChange": true
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Saat 11'de gelsek olur mu?",
+      "role": "near",
+      "need": {
+        "kind": "early_checkin",
+        "query": "erken giriş saat 11",
+        "language": "tr",
+        "stayChange": true
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Gece 2'de varırsak sorun olur mu?",
+      "role": "near",
+      "need": {
+        "kind": "checkin_time",
+        "query": "gece geç giriş saati",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "checkin_time",
+      "text": "Bavulları erken bırakabilir miyiz?",
+      "role": "near",
+      "need": {
+        "kind": "luggage",
+        "query": "erken bavul bırakma bagaj bırakma",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Kahvaltı var mı?",
+      "role": "anchor",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı var mı",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Gibt es Frühstück?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı var mı",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Is there breakfast?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı var mı",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Sabahları kahvaltı veriliyor mu?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı var mı",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Kahvaltı kaçta?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı saati",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Fiyata kahvaltı dahil mi?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı dahil mi",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Is breakfast included?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı dahil mi",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Glutensiz kahvaltı hazırlanabilir mi?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "glutensiz kahvaltı imkanları",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "breakfast",
+      "text": "Kahvaltıyı odaya getirebilir misiniz?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "kahvaltı odaya servis",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Havlu var mı?",
+      "role": "anchor",
+      "need": {
+        "kind": "amenities",
+        "query": "havlu var mı",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Do you provide towels?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havlu mevcut mu",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Havlu getirmemiz gerekiyor mu?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havlu sağlanıyor mu",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Gibt es Handtücher?",
+      "role": "same",
+      "need": {
+        "kind": "amenities",
+        "query": "havlu var mı sağlanıyor mu",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Havluları değiştirebilir misiniz?",
+      "role": "near",
+      "need": {
+        "kind": "cleaning_linen",
+        "query": "havlu değişimi temizlik",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Plaj havlusu var mı?",
+      "role": "near",
+      "need": {
+        "kind": "amenities",
+        "query": "plaj havlusu var mı",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "towels",
+      "text": "Havlular kirli geldi.",
+      "role": "near",
+      "need": {
+        "kind": "complaint_issue",
+        "query": "kirli havlu şikayet",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Klima nasıl çalışıyor?",
+      "role": "anchor",
+      "need": {
+        "kind": "appliance_help",
+        "query": "klima kullanım talimatı",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "How do I turn on the AC?",
+      "role": "same",
+      "need": {
+        "kind": "appliance_help",
+        "query": "klima açma kullanma",
+        "language": "en",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Klimayı nasıl açıyoruz?",
+      "role": "same",
+      "need": {
+        "kind": "appliance_help",
+        "query": "klima kullanımı açma kapama",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Wie schalte ich die Klimaanlage ein?",
+      "role": "same",
+      "need": {
+        "kind": "appliance_help",
+        "query": "klima klima açma kullanma",
+        "language": "de",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Klima çalışmıyor.",
+      "role": "near",
+      "need": {
+        "kind": "complaint_issue",
+        "query": "klima arızası çalışmıyor",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Klima kumandası nerede?",
+      "role": "near",
+      "need": {
+        "kind": "appliance_help",
+        "query": "klima kumandası nerede",
+        "language": "tr",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Klima su damlatıyor.",
+      "role": "near",
+      "need": {
+        "kind": "complaint_issue",
+        "query": "klima su damlatıyor arıza",
+        "language": "other",
+        "stayChange": false
+      }
+    },
+    {
+      "group": "ac_use",
+      "text": "Can you fix the air conditioner?",
+      "role": "near",
+      "need": {
+        "kind": "complaint_issue",
+        "query": "klima arızası tamir",
+        "language": "en",
+        "stayChange": false
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Evi saat kaça kadar boşaltmamız gerekiyor?",
+      "label": "same",
+      "cosRaw": 0.4139666925377215,
+      "cosQuery": 0.9312748516964601,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Check-out time?",
+      "label": "same",
+      "cosRaw": 0.40652280604799396,
+      "cosQuery": 0.9999999999999992,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "What time do we need to leave the apartment?",
+      "label": "same",
+      "cosRaw": 0.3711131614690208,
+      "cosQuery": 0.9312748516964601,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Wann ist der Check-out?",
+      "label": "same",
+      "cosRaw": 0.34317552516379046,
+      "cosQuery": 0.9999999999999992,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Во сколько выезд?",
+      "label": "same",
+      "cosRaw": 0.4331113722674439,
+      "cosQuery": 0.9313087620610543,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Son gün daireden en geç kaçta çıkmalıyız?",
+      "label": "same",
+      "cosRaw": 0.5015626528639096,
+      "cosQuery": 0.9999994549831673,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Çıkışı iki saat geciktirebilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.7417755101840235,
+      "cosQuery": 0.5877802429564933,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "13:00'te çıkabilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.5830325550974667,
+      "cosQuery": 0.6818098535591658,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Cumartesi çıkış saati farklı mı?",
+      "label": "near",
+      "cosRaw": 0.6451705560074619,
+      "cosQuery": 0.6360116306409138,
+      "gate": "condition_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Çıkışta anahtarı nereye bırakalım?",
+      "label": "near",
+      "cosRaw": 0.6004655584223774,
+      "cosQuery": 0.5426406061520783,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Can we have a late checkout?",
+      "label": "near",
+      "cosRaw": 0.305639001724809,
+      "cosQuery": 0.5877802429564933,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.28342977155340693,
+      "cosQuery": 0.3320478116238946,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.22245438095339265,
+      "cosQuery": 0.24517464343348477,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.316022908341157,
+      "cosQuery": 0.18801279798174497,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.3707205016116858,
+      "cosQuery": 0.4932118052417083,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.26298839121099393,
+      "cosQuery": 0.234232406689729,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.6647831986183936,
+      "cosQuery": 0.736092344044492,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.3479893577427121,
+      "cosQuery": 0.2862370930484206,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.2456522851262308,
+      "cosQuery": 0.27892429359715337,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çıkış saat kaçta?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.23503161840990922,
+      "cosQuery": 0.30513470148381144,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.28342977155340693,
+      "cosQuery": 0.3320478116238946,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Atıkları nerede bırakabiliriz?",
+      "label": "same",
+      "cosRaw": 0.7199407606542261,
+      "cosQuery": 0.7372411939824948,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Where do we put the garbage?",
+      "label": "same",
+      "cosRaw": 0.47577671066419347,
+      "cosQuery": 0.8228944700619841,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Çöp konteyneri nerede?",
+      "label": "same",
+      "cosRaw": 0.5989024350894965,
+      "cosQuery": 0.7302651010387671,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Wo werfen wir den Müll weg?",
+      "label": "same",
+      "cosRaw": 0.5262155280647967,
+      "cosQuery": 0.8321670134867718,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Cam şişeler için ayrı kutu var mı?",
+      "label": "near",
+      "cosRaw": 0.36143516995707414,
+      "cosQuery": 0.4862465174469679,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Çöp çok kötü kokuyor, alır mısınız?",
+      "label": "near",
+      "cosRaw": 0.4812822455358445,
+      "cosQuery": 0.6160630324617384,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Çöpleri hangi gün topluyorlar?",
+      "label": "near",
+      "cosRaw": 0.7386676843375058,
+      "cosQuery": 0.6116105711558508,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Is there recycling?",
+      "label": "near",
+      "cosRaw": 0.4202910765264891,
+      "cosQuery": 0.5655504067864555,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.18637291067806833,
+      "cosQuery": 0.12652594323520433,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.25073406777393853,
+      "cosQuery": 0.2695508412952498,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.2680836573539957,
+      "cosQuery": 0.3126460178758647,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.34863246388306995,
+      "cosQuery": 0.3104593993005061,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.1832197975911474,
+      "cosQuery": 0.22829362237186598,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.2270775857382509,
+      "cosQuery": 0.3004332087097049,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.23680649451887292,
+      "cosQuery": 0.27319802537925153,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Çöpleri nereye atıyoruz?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.29049311002971334,
+      "cosQuery": 0.2981527894937202,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.22245438095339265,
+      "cosQuery": 0.24517464343348477,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.18637291067806833,
+      "cosQuery": 0.12652594323520433,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "İnternet şifresini alabilir miyim?",
+      "label": "same",
+      "cosRaw": 0.6265276062978398,
+      "cosQuery": 0.8574830214232496,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "What's the wifi password?",
+      "label": "same",
+      "cosRaw": 0.5816076036099082,
+      "cosQuery": 1,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "WLAN Passwort bitte?",
+      "label": "same",
+      "cosRaw": 0.5531966989294897,
+      "cosQuery": 1,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Пароль от вайфая?",
+      "label": "same",
+      "cosRaw": 0.3960345390045103,
+      "cosQuery": 1,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Wi-Fi çalışmıyor, bağlanamıyoruz.",
+      "label": "near",
+      "cosRaw": 0.5119195352348591,
+      "cosQuery": 0.49948467029028537,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "İnternet hızı ne kadar?",
+      "label": "near",
+      "cosRaw": 0.42922003364810674,
+      "cosQuery": 0.5316577875686488,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Wi-Fi ağının adı ne?",
+      "label": "near",
+      "cosRaw": 0.6860128424627151,
+      "cosQuery": 0.6579014970856031,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "The wifi keeps disconnecting.",
+      "label": "near",
+      "cosRaw": 0.3125075013803381,
+      "cosQuery": 0.5470203578347979,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.22497027077104031,
+      "cosQuery": 0.18640689677645506,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.22478972813486384,
+      "cosQuery": 0.2163200173809829,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.18951062794366472,
+      "cosQuery": 0.16682171435504292,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.29575847797426874,
+      "cosQuery": 0.28850258071116563,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.2569737292607952,
+      "cosQuery": 0.2504436284032197,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.33862704663715837,
+      "cosQuery": 0.21627601704092017,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Wi-Fi şifresi neydi?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.19994921821260098,
+      "cosQuery": 0.21093497796226401,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.316022908341157,
+      "cosQuery": 0.18801279798174497,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.25073406777393853,
+      "cosQuery": 0.2695508412952498,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.22497027077104031,
+      "cosQuery": 0.18640689677645506,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Arabayı nereye park edebiliriz?",
+      "label": "same",
+      "cosRaw": 0.504544004699662,
+      "cosQuery": 0.9999999999999993,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Is there parking?",
+      "label": "same",
+      "cosRaw": 0.4619847204558299,
+      "cosQuery": 0.9999999999999993,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Gibt es einen Parkplatz?",
+      "label": "same",
+      "cosRaw": 0.47385779115539894,
+      "cosQuery": 0.9999999999999993,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Aracımızı bırakabileceğimiz bir yer var mı?",
+      "label": "same",
+      "cosRaw": 0.3598199941269608,
+      "cosQuery": 0.9999999999999993,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Otopark ücretli mi?",
+      "label": "near",
+      "cosRaw": 0.8599891596151407,
+      "cosQuery": 0.6660161769480842,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "İki araba için yer var mı?",
+      "label": "near",
+      "cosRaw": 0.3941247859828063,
+      "cosQuery": 0.5493870534638005,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Elektrikli araç şarj istasyonu var mı?",
+      "label": "near",
+      "cosRaw": 0.37354806177087774,
+      "cosQuery": 0.4225804271444487,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "How much is parking per day?",
+      "label": "near",
+      "cosRaw": 0.38060017816243613,
+      "cosQuery": 0.5916246512122415,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.2729591261080421,
+      "cosQuery": 0.1459754945472757,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.31315791028247897,
+      "cosQuery": 0.2433361230524693,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.27147139503574264,
+      "cosQuery": 0.24131311849661144,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.25651818153077205,
+      "cosQuery": 0.1253389976972909,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.36499480730035594,
+      "cosQuery": 0.13374649934490004,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Otopark var mı?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.16679077218923263,
+      "cosQuery": 0.14819981124021273,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.3707205016116858,
+      "cosQuery": 0.4932118052417083,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.2680836573539957,
+      "cosQuery": 0.3126460178758647,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.22478972813486384,
+      "cosQuery": 0.2163200173809829,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.2729591261080421,
+      "cosQuery": 0.1459754945472757,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Havuz ne zamana kadar açık?",
+      "label": "same",
+      "cosRaw": 0.7653227628091614,
+      "cosQuery": 0.8723033402707947,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Until when is the pool open?",
+      "label": "same",
+      "cosRaw": 0.2983417729709743,
+      "cosQuery": 0.7762367319300199,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Bis wann ist der Pool geöffnet?",
+      "label": "same",
+      "cosRaw": 0.2634599076746214,
+      "cosQuery": 0.8759326768458354,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Akşam havuza kaça kadar girebiliriz?",
+      "label": "same",
+      "cosRaw": 0.6435897734206085,
+      "cosQuery": 0.7845960931972484,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Havuz cumartesi kaçta kapanıyor?",
+      "label": "near",
+      "cosRaw": 0.778532811914234,
+      "cosQuery": 0.7943791530858687,
+      "gate": "condition_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Havuz ısıtmalı mı?",
+      "label": "near",
+      "cosRaw": 0.5908659692718787,
+      "cosQuery": 0.4961182340742827,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Sauna kaçta kapanıyor?",
+      "label": "near",
+      "cosRaw": 0.5763556682864879,
+      "cosQuery": 0.6311677524421752,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Havuza çocuklar girebilir mi?",
+      "label": "near",
+      "cosRaw": 0.5171544086364522,
+      "cosQuery": 0.5550029027249491,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Is the pool open in winter?",
+      "label": "near",
+      "cosRaw": 0.2740626496867475,
+      "cosQuery": 0.5791301646160176,
+      "gate": "condition_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.258334373627326,
+      "cosQuery": 0.24861323052085624,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.2404767996630731,
+      "cosQuery": 0.44995189563940047,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.21242539709493993,
+      "cosQuery": 0.33520986456489016,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.5469584581278096,
+      "cosQuery": 0.4622663496596903,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havuz kaçta kapanıyor?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.2276314403344975,
+      "cosQuery": 0.29754734854438675,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.26298839121099393,
+      "cosQuery": 0.234232406689729,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.34863246388306995,
+      "cosQuery": 0.3104593993005061,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.18951062794366472,
+      "cosQuery": 0.16682171435504292,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.31315791028247897,
+      "cosQuery": 0.2433361230524693,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.258334373627326,
+      "cosQuery": 0.24861323052085624,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Evcil hayvan kabul ediyor musunuz?",
+      "label": "same",
+      "cosRaw": 0.4772615321623916,
+      "cosQuery": 0.7483953389357584,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Are pets allowed?",
+      "label": "same",
+      "cosRaw": 0.3842124807712782,
+      "cosQuery": 0.7483953389357584,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Dürfen wir unseren Hund mitbringen?",
+      "label": "same",
+      "cosRaw": 0.5152554022694531,
+      "cosQuery": 0.9999999999999998,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Kedi getirebilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.7023499900561515,
+      "cosQuery": 0.8666717299150777,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Köpek için ek ücret var mı?",
+      "label": "near",
+      "cosRaw": 0.5692409049790862,
+      "cosQuery": 0.6706651308948982,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Köpeği evde yalnız bırakabilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.7380411921925595,
+      "cosQuery": 0.7513600074909456,
+      "gate": "condition_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Is there a dog park nearby?",
+      "label": "near",
+      "cosRaw": 0.2430454414892832,
+      "cosQuery": 0.5008836278376817,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.2578967251267749,
+      "cosQuery": 0.21321538783890964,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.23213145167055751,
+      "cosQuery": 0.2592194721178258,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.29074696547885537,
+      "cosQuery": 0.30400916936453726,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Köpeğimizi getirebilir miyiz?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.17071671867328578,
+      "cosQuery": 0.227614745240488,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.6647831986183936,
+      "cosQuery": 0.736092344044492,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.1832197975911474,
+      "cosQuery": 0.22829362237186598,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.29575847797426874,
+      "cosQuery": 0.28850258071116563,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.27147139503574264,
+      "cosQuery": 0.24131311849661144,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.2404767996630731,
+      "cosQuery": 0.44995189563940047,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.2578967251267749,
+      "cosQuery": 0.21321538783890964,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Kaçta yerleşebiliriz?",
+      "label": "same",
+      "cosRaw": 0.35034161245679735,
+      "cosQuery": 0.7704058723631584,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "What time is check-in?",
+      "label": "same",
+      "cosRaw": 0.4859060006383152,
+      "cosQuery": 1,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Ab wann können wir einchecken?",
+      "label": "same",
+      "cosRaw": 0.39656871005663724,
+      "cosQuery": 1,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Daireye en erken kaçta girebiliyoruz normalde?",
+      "label": "same",
+      "cosRaw": 0.4074723962158599,
+      "cosQuery": 0.7362030128995615,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Erken giriş yapabilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.6348431637318835,
+      "cosQuery": 0.6173528779775976,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Saat 11'de gelsek olur mu?",
+      "label": "near",
+      "cosRaw": 0.5648643138177624,
+      "cosQuery": 0.6970503380379399,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Gece 2'de varırsak sorun olur mu?",
+      "label": "near",
+      "cosRaw": 0.39517661932774456,
+      "cosQuery": 0.7304456115007908,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Bavulları erken bırakabilir miyiz?",
+      "label": "near",
+      "cosRaw": 0.37707321933744337,
+      "cosQuery": 0.3335758059025974,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.35912617983722517,
+      "cosQuery": 0.28755298346198505,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.23915814412244818,
+      "cosQuery": 0.2555200677535012,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Giriş saat kaçta?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.2103052089768063,
+      "cosQuery": 0.2631568737101188,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.3479893577427121,
+      "cosQuery": 0.2862370930484206,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.2270775857382509,
+      "cosQuery": 0.3004332087097049,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.2569737292607952,
+      "cosQuery": 0.2504436284032197,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.25651818153077205,
+      "cosQuery": 0.1253389976972909,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.21242539709493993,
+      "cosQuery": 0.33520986456489016,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.23213145167055751,
+      "cosQuery": 0.2592194721178258,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.35912617983722517,
+      "cosQuery": 0.28755298346198505,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Gibt es Frühstück?",
+      "label": "same",
+      "cosRaw": 0.5653035179481046,
+      "cosQuery": 0.9999992611873656,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Is there breakfast?",
+      "label": "same",
+      "cosRaw": 0.6191523058068087,
+      "cosQuery": 0.9999992611873656,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Sabahları kahvaltı veriliyor mu?",
+      "label": "same",
+      "cosRaw": 0.8109155494821664,
+      "cosQuery": 0.9999992611873656,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Kahvaltı kaçta?",
+      "label": "near",
+      "cosRaw": 0.8415313495996293,
+      "cosQuery": 0.764233427985965,
+      "gate": "aspect_not_answered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Fiyata kahvaltı dahil mi?",
+      "label": "near",
+      "cosRaw": 0.7323689874435622,
+      "cosQuery": 0.8427291999999844,
+      "gate": "condition_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Is breakfast included?",
+      "label": "near",
+      "cosRaw": 0.5628606098544406,
+      "cosQuery": 0.8427174012905176,
+      "gate": "condition_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Glutensiz kahvaltı hazırlanabilir mi?",
+      "label": "near",
+      "cosRaw": 0.6052077754159061,
+      "cosQuery": 0.39983917395106,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Kahvaltıyı odaya getirebilir misiniz?",
+      "label": "near",
+      "cosRaw": 0.7148362472526681,
+      "cosQuery": 0.7274122779378525,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.3944019068714515,
+      "cosQuery": 0.5429665726783545,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Kahvaltı var mı?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.2029178074985718,
+      "cosQuery": 0.26761306001314167,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.2456522851262308,
+      "cosQuery": 0.27892429359715337,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.23680649451887292,
+      "cosQuery": 0.27319802537925153,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.33862704663715837,
+      "cosQuery": 0.21627601704092017,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.36499480730035594,
+      "cosQuery": 0.13374649934490004,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.5469584581278096,
+      "cosQuery": 0.4622663496596903,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.29074696547885537,
+      "cosQuery": 0.30400916936453726,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.23915814412244818,
+      "cosQuery": 0.2555200677535012,
+      "gate": "kind_mismatch",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.3944019068714515,
+      "cosQuery": 0.5429665726783545,
+      "gate": "terms_not_covered",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Do you provide towels?",
+      "label": "same",
+      "cosRaw": 0.27102131088325604,
+      "cosQuery": 0.7470804249875824,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Havlu getirmemiz gerekiyor mu?",
+      "label": "same",
+      "cosRaw": 0.7643767594982017,
+      "cosQuery": 0.7771043923270955,
+      "gate": "ok",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Gibt es Handtücher?",
+      "label": "same",
+      "cosRaw": 0.2509813864284416,
+      "cosQuery": 0.8039871721002767,
+      "gate": "ok",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Havluları değiştirebilir misiniz?",
+      "label": "near",
+      "cosRaw": 0.4906256561164046,
+      "cosQuery": 0.5958194903688081,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Plaj havlusu var mı?",
+      "label": "near",
+      "cosRaw": 0.6606084298209873,
+      "cosQuery": 0.5913182649846478,
+      "gate": "terms_not_covered",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Havlular kirli geldi.",
+      "label": "near",
+      "cosRaw": 0.5106876165927698,
+      "cosQuery": 0.5367070979617298,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Havlu var mı?",
+      "other": "Klima nasıl çalışıyor?",
+      "label": "cross",
+      "cosRaw": 0.29207011656175713,
+      "cosQuery": 0.2825295274551471,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Çıkış saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.23503161840990922,
+      "cosQuery": 0.30513470148381144,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Çöpleri nereye atıyoruz?",
+      "label": "cross",
+      "cosRaw": 0.29049311002971334,
+      "cosQuery": 0.2981527894937202,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Wi-Fi şifresi neydi?",
+      "label": "cross",
+      "cosRaw": 0.19994921821260098,
+      "cosQuery": 0.21093497796226401,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Otopark var mı?",
+      "label": "cross",
+      "cosRaw": 0.16679077218923263,
+      "cosQuery": 0.14819981124021273,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Havuz kaçta kapanıyor?",
+      "label": "cross",
+      "cosRaw": 0.2276314403344975,
+      "cosQuery": 0.29754734854438675,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Köpeğimizi getirebilir miyiz?",
+      "label": "cross",
+      "cosRaw": 0.17071671867328578,
+      "cosQuery": 0.227614745240488,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Giriş saat kaçta?",
+      "label": "cross",
+      "cosRaw": 0.2103052089768063,
+      "cosQuery": 0.2631568737101188,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Kahvaltı var mı?",
+      "label": "cross",
+      "cosRaw": 0.2029178074985718,
+      "cosQuery": 0.26761306001314167,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Havlu var mı?",
+      "label": "cross",
+      "cosRaw": 0.29207011656175713,
+      "cosQuery": 0.2825295274551471,
+      "gate": "kind_mismatch",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "How do I turn on the AC?",
+      "label": "same",
+      "cosRaw": 0.35860297352119597,
+      "cosQuery": 0.8000461510789942,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Klimayı nasıl açıyoruz?",
+      "label": "same",
+      "cosRaw": 0.7225557454552263,
+      "cosQuery": 0.7945209746498785,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Wie schalte ich die Klimaanlage ein?",
+      "label": "same",
+      "cosRaw": 0.46457112644628507,
+      "cosQuery": 0.7858160746649546,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Klima çalışmıyor.",
+      "label": "near",
+      "cosRaw": 0.6360169630986384,
+      "cosQuery": 0.5521917116402646,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Klima kumandası nerede?",
+      "label": "near",
+      "cosRaw": 0.5700309038404718,
+      "cosQuery": 0.5534566959385119,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Klima su damlatıyor.",
+      "label": "near",
+      "cosRaw": 0.5656169912041962,
+      "cosQuery": 0.5548006537778972,
+      "gate": "kind_not_reusable",
+      "sameLanguage": true
+    },
+    {
+      "anchor": "Klima nasıl çalışıyor?",
+      "other": "Can you fix the air conditioner?",
+      "label": "near",
+      "cosRaw": 0.3195730247847123,
+      "cosQuery": 0.6241522625085232,
+      "gate": "kind_not_reusable",
+      "sameLanguage": false
+    }
+  ]
+}

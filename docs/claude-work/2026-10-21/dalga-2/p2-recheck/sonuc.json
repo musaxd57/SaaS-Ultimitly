@@ -1,0 +1,862 @@
+[
+ {
+  "id": 0,
+  "file": "src/app/api/account/2fa/route.ts",
+  "line": 184,
+  "title": "enable dalında decryptSecret korumasız: çözülemeyen sır 500 ve genel hata döndürür",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 184'te `const secret = decryptSecret(armedSecret);` try/catch olmadan çağrılıyor. Satır 96-436 arasındaki dış try'ın catch'i (434-436) `serverError(undefined, err)` döndürür, yani çözme hatası genel 500 olur. Karşılaştırma: `disable` (271-282) ve `recovery_codes` (382-393) dalları decryptSecret'i try/catch'e alıp başarısızlıkta `reportUnreadableSecret` çağırır ve `badRequest({ code: SECRET_UNREADABLE_MSG })` döner. `enable` dalında bu işlem yok; tutarsızlık gerçek. Etkisi sınırlı: yalnızca kurulumu yarım kalmış, sırrı bozuk kullanıcıyı etkiler. Fail-closed davranış korunuyor (2FA açılmıyor), güvenlik açığı yok, bu yüzden P2 ve düşük güven makul. Kullanıcı yeniden `setup` çalıştırarak sırrı yenileyebilir, yani kilitlenme de yok.",
+  "fix": "184. satırdaki çağrıyı `let secret: string | null = null; try { secret = decryptSecret(armedSecret); } catch { secret = null; } if (!secret) { reportUnreadableSecret(session.userId); return badRequest({ code: SECRET_UNREADABLE_MSG }); }` biçiminde sarın. enable dalında 2FA henüz aktif olmadığından mesajı 'Kurulumu yeniden başlatın' yönünde uyarlamak daha doğru olur."
+ },
+ {
+  "id": 1,
+  "file": "src/app/api/billing/consent/route.ts",
+  "line": 91,
+  "title": "Canlı abonelik kontrolü yalnız 'canceled' yazımını iptal sayıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Satır 91'de koşul `live?.provider === \"paddle\" && live.providerRef && live.status !== \"canceled\"`. Yalnızca tek yazımlı \"canceled\" iptal sayılıyor. Bu kısım doğru. Satır 84-86'daki yorum, predikatın UI'daki (`canManagePaddleSub`) ile birebir aynı olduğunu söylüyor. Bu dosyada account/delete kodu yok, bu yüzden \"canceled/cancelled/expired\" kümesini kullandığı doğrulanamıyor. Şemadaki ya da webhook'un yazdığı status değerleri de bu dosyadan görülmüyor. Webhook yalnızca \"canceled\" yazıyorsa \"cancelled\" ve \"expired\" hiç oluşmaz ve hata etkisiz kalır. Yani satırın dar olduğu doğru ama gerçek bir hataya yol açtığı kanıtlanamıyor. Güven düşük, asıl sorun ortak sabit eksikliğinden kaynaklanan tutarsızlık riski.",
+  "fix": "Bitmiş durumları (canceled/cancelled/expired) tek bir ortak sabitte tutun, örneğin `ENDED_SUB_STATUSES`, ve bu rota, account/delete ile settings UI aynı sabiti kullansın. Satır 91 şu hale gelsin: `live?.provider === \"paddle\" && live.providerRef && !ENDED_SUB_STATUSES.has(live.status)`. Önce webhook'un ve şemanın gerçekte hangi status değerlerini yazdığını kontrol edin."
+ },
+ {
+  "id": 3,
+  "file": "src/app/api/chat/[token]/route.ts",
+  "line": 773,
+  "title": "Yapay zekâ duraklatılmış sohbette tehlike mesajı ev sahibine e-posta uyarısı üretmiyor",
+  "lens": "dogruluk",
+  "verdict": "refuted",
+  "evidence": "Bulgu, handoff dalında tehlike uyarısının hiç üretilmediğini iddia ediyor. Ancak kodda bu dal tam olarak bunu yapıyor: 773-801. satırlar. Satır 773'te `if (await guestChatAiPausedForStay(...)) {`, satır 774'te `const paused = await record(null, true);` var. Satır 778'de `if (hazardEvidenceOf(message).level === \"clear\")` kontrolü yapılıyor. Bunun içinde 779-790'da `recordRiskEvent({... finalDecision: \"human_review\", riskType: \"safety_emergency\", reason: \"physical_hazard\" ...})` karar kaydı yazılıyor. 791-798'de `sendQrEscalationAlertBounded({... eventId: qrEscalationEventId(paused.inboundMessageId, message, true), reason: \"ai_escalated\", critical: true})` çağrılıyor. Ardından 800'de `finalize({ handoff: true })` dönüyor, misafire metin gitmiyor. Yorum satırları 775-777 de bunu belgeliyor (\"Claude kod incelemesi 10-21\"). Bulgunun alıntıladığı kod parçası eksik: `if` bloğunu 3 satırda keserek devamındaki tehlike işlemesini göstermiyor. Bulgunun önerdiği düzeltme zaten uygulanmış durumda.",
+  "fix": "Değişiklik gerekmez; handoff dalında tehlike kontrolü, karar kaydı ve kritik uyarı zaten var (satır 778-799). Bulgu kapatılmalı."
+ },
+ {
+  "id": 4,
+  "file": "src/app/api/guest-chats/[id]/reply/route.ts",
+  "line": 35,
+  "title": "Kayıt başarısız olursa claim bırakılmıyor; yeniden deneme yalancı \"az önce gönderildi\" alıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 35'te `claimOutboundSend(convo.id, text)` ile claim alınıyor; satır 47-67'deki `prisma.$transaction` (kilit, `message.create`, `conversation.update`) try/catch içinde değil ve hata durumunda claim bırakılmıyor. Transaction DB hatasıyla düşerse claim TTL dolana kadar kalır; aynı metni tekrar gönderince satır 36-37'deki `duplicate` dalı 409 \"Bu mesaj az önce gönderildi — tekrar gönderilmedi.\" döner, oysa mesaj hiç kaydedilmemiştir. Satır 32-34'teki yorum (\"short TTL self-heals a failed create\") sorunu kabul ediyor ama kısa TTL yine de yeniden denemeyi yanlış şekilde engelliyor. Etki küçük, TTL kısa ve yalnızca DB hatasında oluşuyor; bu yüzden P2 makul. Kardeş rotanın release yaptığı iddiasını bu dosyadan doğrulayamadım; bulgunun ana noktası yine de geçerli.",
+  "fix": "Transaction'ı try/catch içine alın; hata olursa outbound-claim modülündeki release karşılığını (ör. `releaseOutboundSend(convo.id, text)`) çağırıp hatayı yeniden fırlatın veya 500 döndürün. Başarılı olursa claim kalsın (çift tıklama koruması sürsün)."
+ },
+ {
+  "id": 2,
+  "file": "src/app/api/calendar-sources/[id]/route.ts",
+  "line": 56,
+  "title": "Eşzamanlı çift silmede kaynak silme hatası yakalanmıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 8-12'deki findFirst kontrolü transaction'ın dışında. Satır 51-58'de ise `tx.calendarSource.delete({ where: { id } })` (satır 56) kaydın varlığını bir daha kontrol etmeden siliyor. İki DELETE aynı anda gelirse ikisi de satır 12'yi geçer. İlk transaction kaynağı siler. İkincinin `updateMany` çağrısı 0 satır etkiler, ardından `delete` P2025 (kayıt yok) fırlatır. Bu hata try/catch ile yakalanmıyor, bu yüzden 404 yerine büyük olasılıkla 500 döner. Satır 60'taki `writeAudit` yalnızca başarılı ilk istekte çalışır. Veri bütünlüğü bozulmaz, çünkü ikinci transaction geri alınır. Etki yalnızca yanlış durum kodudur ve gerçek önemi P3'e yakındır. `withManage` içinde genel bir hata eşlemesi olup olmadığı dosyadan görünmüyor.",
+  "fix": "Transaction içinde `const del = await tx.calendarSource.deleteMany({ where: { id } }); if (del.count === 0) return null;` kullanın. Transaction'dan null dönerse rota `notFound()` döndürsün ve audit yazılmasın. Alternatif olarak `delete` çağrısını try/catch'e alıp `Prisma.PrismaClientKnownRequestError` kodu P2025 ise `notFound()` döndürün."
+ },
+ {
+  "id": 6,
+  "file": "src/app/api/conversations/cleanup-duplicates/route.ts",
+  "line": 19,
+  "title": "İki yıkıcı temizlik paralel çalışıyor ve senkron kilidi alınmıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Olgusal kısım doğru: 19-22. satırlarda `const [conversations, reservations] = await Promise.all([cleanupDuplicateConversations(session.organizationId), cleanupStaleReservations(session.organizationId)]);` iki yıkıcı temizliği eşzamanlı başlatıyor. Dosyada `withSyncLock` kullanımı veya import'u yok; tek koruma 16. satırdaki `rateLimit` (org başına dakikada 4 istek), bu da sync ile çakışmayı veya aynı org'a paralel istekleri engellemez. Zarar iddiası ise bu dosyadan doğrulanamıyor: `conversations-cleanup` ve `reservations-cleanup` içeriği görünmüyor. Konuşmaların reservationId FK'si taşıyıp taşımadığı, silmelerin transaction içinde olup olmadığı ve sync'in `withSyncLock` ile çakışıp çakışmadığı bilinmiyor. Yani gerçek bir FK yarışı veya veri kaybı gösterilmiş değil. 29. satırdaki fail-closed yorumu ve 'Never loses a message' notu, kütüphane tarafında koruma olabileceğini düşündürüyor. Bulgunun kendi güveni de low.",
+  "fix": "Önce `cleanup-duplicates` ile `reservations-cleanup` içindeki sorguların ortak FK'leri (conversation.reservationId) nasıl ele aldığını kontrol edin. Gerçek bir bağımlılık varsa `Promise.all` yerine sıralı çağırın (önce `await cleanupDuplicateConversations(...)`, sonra `await cleanupStaleReservations(...)`). Sync ile çakışma endişesi geçerliyse tüm bloğu `hospitable/sync` rotasındaki `withSyncLock` ile sarın ve kilit doluysa `ok:false` (409) dönün. Bağımlılık yoksa mevcut hali kabul edilebilir."
+ },
+ {
+  "id": 7,
+  "file": "src/app/api/kb/route.ts",
+  "line": 81,
+  "title": "Plan kalem sınırı sayım-sonra-yaz ile eşzamanlı isteklerde aşılabiliyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 81-83'te `count` ayrı bir sorgu olarak çalışıyor, satır 84'te `activeCount >= limits.kbItemsPerProperty` kontrolü yapılıyor, satır 96'da ise `create` ayrı bir çağrıyla yazıyor. Üçü arasında transaction, kilit veya DB kısıtı yok. İki eşzamanlı istek 14/15 görürse ikisi de kontrolü geçip create eder ve 16 aktif kalem oluşur. Satır 85-88'deki yorum yalnızca aynı `requestId` ile yeniden denemeyi ele alıyor; farklı kimlikli ya da kimliksiz eşzamanlı istekleri korumuyor. `clientRequestId` benzersizliği (satır 116) yalnızca aynı kimliği tekilleştiriyor, sınırı korumuyor. Bulgu geçerli ama etkisi sınırlı: sınır en fazla birkaç kalem aşılır, güvenlik veya veri bütünlüğü sorunu yok. P2 uygun, hatta düşük de olabilir. PATCH tarafı bu dosyada yok, doğrulanamadı.",
+  "fix": "Sayım ve create'i tek `prisma.$transaction` içinde yapın. Önce mülk satırını kilitleyin (`SELECT ... FROM \"Property\" WHERE id = $1 FOR UPDATE` veya `pg_advisory_xact_lock(hashtext(propertyId))`), sonra count'u transaction içinde çalıştırıp sınır kontrolünden sonra create edin. Aynı kilit desenini `kb/[id]` PATCH'teki pasiften aktife geçişe de uygulayın."
+ },
+ {
+  "id": 5,
+  "file": "src/app/api/guest-chats/[id]/resume-ai/route.ts",
+  "line": 25,
+  "title": "Devir durumu kilitsiz okunup işaret yazılıyor; ev sahibi cevabıyla yarışırsa yapay zekâ yanlışlıkla açılıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Okuma (satır 25-35) ile yazma (satır 41-56) arasında kilit veya aynı transaction yok. Bu doğru, ama bu yalnızca ikinci iddiayı destekliyor: hızlı çift tıklamada iki resume işareti oluşabilir. Her iki istek de satır 38-39'daki `paused` kontrolünü geçebilir. İşaret ardışık olduğu için zararsızdır ve durum yine 'aktif' kalır. Ana senaryo ise gerçek bir hata değil. Ev sahibi cevabı işaretten önce damgalanırsa sonuç 'cevap, sonra kullanıcının açık resume kararı' sıralamasıyla aynıdır ve bu geçerli bir serileştirmedir. Resume zaten kullanıcının bilinçli eylemidir (satır 7-9: 'only this explicit action flips it back on'). Ev sahibi devralmışken yapay zekânın yanlışlıkla açıldığı, tutarsız bir durum oluşmuyor. Sıralama kısmı doğru: satır 31'de `orderBy: { createdAt: \"asc\" }` için `id` tie-break yok ve `take` sınırı da yok. Bu, ihtimali düşük bir sıralama belirsizliği ve performans sorunudur. Bu dosyada `acquireGuestChatThreadLock` kullanımı görünmüyor, varlığı da buradan doğrulanamıyor.",
+  "fix": "Önerilen kilit zorunlu değil, düşük öncelikli sertleştirme olarak yapılabilir. Okuma ve yazmayı etkileşimli `prisma.$transaction(async tx => {...})` içine alın. Varsa `acquireGuestChatThreadLock` ile kilitleyin ve `paused` durumunu kilit altında yeniden hesaplayın. Böylece çift tıklama tek işaret üretir. Mesaj sorgusuna `orderBy: [{ createdAt: \"asc\" }, { id: \"asc\" }]` ekleyin. Tüm sohbeti çekmek yerine yalnızca devir olaylarını okuyun veya `guestChatAiPausedForStay` benzeri tek satırlık bir okuma kullanın."
+ },
+ {
+  "id": 8,
+  "file": "src/app/api/tasks/[id]/route.ts",
+  "line": 236,
+  "title": "Görev silmede fotoğraf anahtarları işlem DIŞINDA okunuyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "236-243. satırlarda `photoRows` `prisma.taskUpdate.findMany` ile işlem DIŞINDA okunuyor, `$transaction` ise 244. satırda başlıyor. Görev satırı 247-249'da `FOR UPDATE OF t` ile işlemin içinde, okumadan sonra kilitleniyor. PATCH tarafı (178-186) aynı görev için `photoUrl` taşıyan `taskUpdate.create` yazabiliyor. Sıra şöyle olabilir: DELETE `photoRows` okur (yeni fotoğraf yok) → PATCH işlemi commit olur (fotoğraflı TaskUpdate eklenir) → DELETE işlemi kilidi alır ve `deleteMany` kaskadla bu yeni satırı da siler. 255-256'daki `enqueueUnreferencedPhotoDeletions` yalnızca bayat `photoRows` listesiyle çağrıldığı için yeni nesne kuyruğa yazılmaz ve kovada sahipsiz kalır. PATCH'in 82. satırdaki `isAcceptablePhotoUrl` kontrolü bu anahtarı kabul edeceği için senaryo geçerli. Pencere dar ama yarış gerçek.",
+  "fix": "`photoRows` okumasını `$transaction` içine, 247-249'daki `FOR UPDATE` kilidinden sonra ve `deleteMany`'den önce taşıyın: `const photoRows = await tx.taskUpdate.findMany({ where: { taskId: id, task: { property: { organizationId: session.organizationId } }, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } }, select: { photoUrl: true } });`. Böylece kilit sonrası commit edilmiş tüm satırlar görülür ve kuyruğa yazılır."
+ },
+ {
+  "id": 9,
+  "file": "src/app/api/properties/[id]/route.ts",
+  "line": 113,
+  "title": "Mülk silmede kuyruk iptal hedefleri kilitten ÖNCE okunuyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 113-116'da `Promise.all([prisma.conversation.findMany(...), prisma.reservation.findMany(...)])` işlem (tx) DIŞINDA çalışıyor. `convIds`, `resIds` ve `srcRefs` (117-119) bu eski görüntüden türetilip `targets` olarak kuruluyor (120-124). Property `FOR UPDATE` kilidi ise ancak satır 127-130'da, `$transaction` içinde alınıyor. 113-116 okuması ile 130 kilidi arasında bir senkron ya da iCal yeni rezervasyon/konuşma eklerse, bunların kimlikleri `targets` içinde olmaz. 131-139'daki `messageOutbox.updateMany` bu satırların outbox kayıtlarını iptal etmez. Ardından 150'deki `property.deleteMany` kaskadla satırları siler ve MessageOutbox'ta FK olmadığı için bekleyen kayıtlar sahipsiz kalır. Kodun kendisi de bu kalıbı biliyor: fotoğraf anahtarları 145. satırdaki yoruma göre bilerek 'kilitten SONRA' okunuyor, konuşma/rezervasyon okuması ise öyle yapılmamış. Etki dardır: 110-112 yorumları worker'ın varlık vetosunu (conversation_gone / reservation_gone) ikinci katman olarak belirtiyor, dolayısıyla gerçek bir mesaj gönderimi engelleniyor. Yine de birincil iptal yolundaki yarış gerçek. Kilit alındıktan sonra yeni ekleme yapacak bir işlem, Property satırındaki FK key-share kilidi yüzünden bekler, bu yüzden kilit sonrası okuma boşluğu kapatır.",
+  "fix": "`convs`/`ress` okumalarını `$transaction` içine, Property `FOR UPDATE` sorgusundan (satır 130) hemen sonraya taşıyın ve `tx.conversation.findMany` / `tx.reservation.findMany` kullanın. `convIds`, `resIds`, `srcRefs` ve `targets` değerlerini tx içinde, kilit alındıktan sonra hesaplayıp `messageOutbox.updateMany` koşulunu bu kümeden kurun. Dıştaki `Promise.all` bloğunu kaldırın."
+ },
+ {
+  "id": 10,
+  "file": "src/app/api/reservations/route.ts",
+  "line": 88,
+  "title": "Rezervasyon yazıldıktan sonra kural uygulaması düşerse 500 döner, yeniden deneme çift kayıt açar",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma bu dosyada doğru görünüyor. Satır 60-77'de `prisma.reservation.create` ayrı ve commit edilmiş bir yazma. Satır 88'deki `await applyReservationCreatedRules(reservation.id);` ise try/catch olmadan çağrılıyor. Bu çağrı fırlatırsa `withManage` 500 döndürür, satır kalır ve 201 yanıtı (satır 90) hiç gönderilmez. Tekrar denemede `sourceReference` boşsa (satır 74: `|| null`) `@@unique([propertyId, sourceReference])` NULL değerlerde çakışmaz, satır 79'daki P2002 koruması devreye girmez ve ikinci rezervasyon açılır. `sourceReference` doluysa yeniden deneme 400 verir, yani risk yalnızca referanssız elle girişlerle sınırlı. İddianın iki kısmı doğrulanamıyor: `applyReservationCreatedRules` içeride hataları yutuyor olabilir (dosyası görünmüyor), ve içe aktarma rotasındaki `taskSideEffect` ayrımı bu dosyada yok. Çiftlenme kullanıcının bilinçli yeniden göndermesine bağlı, otomatik bir yeniden deneme değil. Bu yüzden P2 ve düşük güven makul, ama kusur koşullu.",
+  "fix": "Yan etkiyi try/catch içine alın: `try { await applyReservationCreatedRules(reservation.id); } catch (err) { reportError(err, { reservationId: reservation.id }); }`. Ardından yine 201 dönün. Görev oluşturma sonradan yeniden denenebilsin diye bir yeniden işleme/kuyruk mekanizması düşünün. İsteğe bağlı olarak `Idempotency-Key` başlığıyla çift kaydı da engelleyin."
+ },
+ {
+  "id": 11,
+  "file": "src/app/api/reservations/import/route.ts",
+  "line": 605,
+  "title": "Güncelleme yazımında 'scrubbed' kararı bayat; anonimleştirilmiş satıra PII geri yazılabilir",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 433'te `const scrubbed = existing.guestName === ANON_NAME;` değeri sınıflandırma sırasında, TX dışında hesaplanıyor ve satır 445'te `act({... scrubbed ...})` ile taşınıyor. Satır 600-603'te TX içinde `prev` okunuyor ama yalnızca `arrivalDate, departureDate` seçiliyor; guestName okunmuyor. Satır 604-617'deki `updateMany` WHERE'i (`id, calendarSourceId: null, channel: \"ics\", status: { not: \"cancelled\" }`) anonimlik koşulu içermiyor. `c.scrubbed` false ise (satır 609-615) guestName, guestNameSource ve notes dosyadan yazılıyor. Retention süpürgesi sınıflandırma ile TX arasında satırı ANON_NAME yaparsa, bayat `scrubbed=false` yüzünden gerçek ad ve not anonim satıra geri yazılır. `acquireErasureLock` yalnızca silme/tombstone yarışını serileştiriyor, retention anonimleştirmesini kapsadığına dair bir işaret yok. Pencere dar ama gerçek (önizleme ve sınıflandırma satır başına DB gidiş-dönüşü yaptığı için büyük dosyalarda geniş), bu yüzden bulgu geçerli; düşük güven notu yerinde.",
+  "fix": "TX içinde `prev` sorgusunun select'ine `guestName: true` ekleyip `const scrubbedNow = c.scrubbed || prev?.guestName === ANON_NAME;` hesaplayın ve 609. satırdaki koşulda `c.scrubbed` yerine bunu kullanın. Alternatif/ek olarak ad-not yazımını atomik yapmak için iki aşamalı güncelleme yapın: tarihler için mevcut updateMany, ad/not için ayrı bir `updateMany` ve WHERE'ine `guestName: { not: ANON_NAME }` koşulu ekleyin."
+ },
+ {
+  "id": 12,
+  "file": "src/app/api/webhooks/paddle/route.ts",
+  "line": 604,
+  "title": "Fatura paidAt değeri olay zamanı yerine işleme zamanı",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 604'te `paidAt: new Date()` yazılıyor (satır 595-605 `prisma.invoice.create`). `applyTransactionEvent` zaten imzalı `occurredAt` parametresini alıyor (satır 536) ve `resolveOrgId`'e geçiriyor (satır 544); ancak fatura yazımında kullanılmıyor. Dosyanın kendi yorumları (satır 68-70) Paddle kesintisi/yeniden gönderim sonrası saatler sonra gelen teslimatı gerçek bir senaryo olarak kabul ediyor; bu durumda paidAt işleme anını gösterir, gerçek ödeme anı kaybolur. Aynı dosyada `pastDueSince` için (satır 312) `occurredAt ?? new Date()` kalıbı zaten kullanılıyor. Not: `occurred_at` olay zamanıdır, `transaction.completed` için ödeme anına çok yakındır; Paddle'ın `billed_at` alanı da alternatif olabilir, ama işleme zamanından kesinlikle daha doğrudur.",
+  "fix": "Satır 604'ü `paidAt: occurredAt ?? new Date(),` olarak değiştirin (isteğe bağlı olarak önce data.billed_at / transaction'ın completed zamanı varsa onu tercih edin)."
+ },
+ {
+  "id": 14,
+  "file": "src/lib/ai/absence.ts",
+  "line": 126,
+  "title": "Öznesiz \"can't find / don't see anything\" kalıpları misafire yönelik normal cümleleri yokluk itirafı sayıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "126. satır `/(?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\\p{L}])/u` ve 141. satır `/(?:don't|do not) see anything/u` özne ya da sol sınır çapası taşımıyor. \"If you can't find the lockbox, it is behind the plant on the left.\" metni katlandıktan sonra `can't find` kısmıyla eşleşiyor. \"If you don't see anything on the screen, press the green button.\" da `don't see anything` ile eşleşiyor. İkisi de `ALL_ABSENCE_PATTERNS` (460) üzerinden `admitsMissingKnowledge` içinde true döner (624). Dosyanın kendi niyeti bunun tersi: 161-162. satırlardaki yorum, \"If we don't see any issues…\" cümlesinin özne ve nesne şartıyla eşleşmemesi gerektiğini söylüyor. 164. satırdaki kalıp bu şartı taşıyor ve `(?<![\\p{L}])(?:i|we)` ile başlıyor. Ancak 126, 127 ve 141 çapasız kalmış. Başlık (34-37. satırlar) yanlış pozitifleri açıkça hata sayıyor. Bu yüzden dayanaklı bir yönerge cevabı gereksiz yere devredilir.",
+  "fix": "126, 127 ve 141. satırlara 1. şahıs çapası ekle: `/(?<![\\p{L}])(?:i|we)(?: am|'m|'re| are)? (?:can't|cannot|can not|couldn't|could not|not able to|unable to) (?:find|locate|see)(?![\\p{L}])/u` ve `/(?<![\\p{L}])(?:i|we) (?:don't|do not) see anything/u`. 2. şahıs ve koşul cümleleri (\"if you can't find\", \"you don't see anything\") böylece dışarıda kalır. Header'daki \"I couldn't locate that detail\" ve \"I'm not able to find that\" ölçümleri 1. şahıs olduğu için yakalanmaya devam eder. Aynı ölçümler için iki yönlü test eklenmeli."
+ },
+ {
+  "id": 15,
+  "file": "src/lib/ai/fallback.ts",
+  "line": 220,
+  "title": "Niyet kelime listesinde alt dize eşleşmesi: \"key\" ve \"tv\" başka sözcüklerin içinde tutuyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 220: `checkin: [..., \"anahtar\", \"key\", ..., \"access\"]`. `includesAnyFold` varsayılan `allowWordGap=false` ile düz `hay.includes(needle)` kullanıyor (satır 779: `allowWordGap ? phraseHit(...) : hay.includes(needle)`). `detectIntent` (satır 1522-1527) sırası: complaint, refund, early_departure, human_request, early_checkin, late_checkout, checkin, checkout, wifi, parking. Yani checkin, parking'den önce denenir. \"Keyifli bir konaklama oldu, otopark var mı?\" mesajında ve \"We are from Turkey, is there parking?\" mesajında önceki intent listelerinden hiçbiri eşleşmez. \"keyifli\" ve \"turkey\" içindeki alt dize \"key\" checkin'i tetikler, parking'e hiç inilmez. `suggestReplyFallback` bu durumda \"Giriş saatimiz …\" cevabını üretir (satır 2773-2784). Amenity listesindeki \"tv\" (satır 226) de aynı alt dize sorununa sahip, ancak amenity sırada en sonda olduğu için etkisi daha küçük.",
+  "fix": "Kısa ve belirsiz anahtar sözcükler (\"key\", \"tv\", \"access\") için harf/rakam sınırı denetimi kullanın, ör. `(?<![\\p{L}\\p{N}])key(?![\\p{L}\\p{N}])`. Bunu `includesAnyFold` içinde yalnızca bu sözcüklere uygulayın ya da `KEYWORDS`'te ayrı bir WHOLE_WORD listesi tutun. Türkçe \"anahtar\", \"giriş\" gibi uzun sözcükler alt dize eşleşmesiyle kalabilir."
+ },
+ {
+  "id": 13,
+  "file": "src/lib/ai-suggestions/core.ts",
+  "line": 799,
+  "title": "Devam düşürmesinde kopyalanan söz fiil kaydını (WeakMap) kaybediyor; varış sözü süre sanılıp düşebilir",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma gerçek: 799. satırda `found[host] = { ...q, topic: p.topic }` yeni bir nesne üretiyor. `promiseVerbs`/`scopeRanges` kayıtları 1136-1137. satırlarda yalnız özgün nesneye bağlanıyor. host > i ise `forEach` sonra kopyayı p olarak okur; `promiseVerbs.get(p) ?? \"\"` boş döner ve 808. satırdaki `arrival` false olur. Yine de bildirilen senaryo pratikte oluşmuyor. 795. satırda `findIndex` ilk uyumlu host'u seçer; A günlü/saatli ve B ile uyumluysa host A olur, C kopyalanmaz. C'nin host olması için A ile B'nin `samePromiseFamily` bakımından uyumsuz olması gerekir. Kopya C, B'nin topic'ini taşır. 809. satırdaki düşürme ise kopya C'nin aynı A ile uyumlu olmasını ister. Tür aynı kalır; iki konu farklıysa uyumsuzluk sürer. Geriye yalnızca C'nin `actor` değerinin null olduğu yapay bir durum kalıyor. Oysa 'tesisatçı' ifadesi `ACTOR_VISIT` ile 'visit' okunur. Ayrıca host < i ise kopya zaten ziyaret edilmiş indekse yazılır ve sorun çıkmaz. Sonuç: kod kırılgan ama tarif edilen hata gerçekçi girdilerde neredeyse hiç tetiklenmez.",
+  "fix": "Düşük öncelikli sağlamlaştırma: kopya yerine topic'i yerinde atayın (`q.topic = p.topic`; HostPromise zaten mutable). Ya da kopyadan sonra `promiseVerbs.set(copy, promiseVerbs.get(q) ?? \"\")` ve `scopeRanges.set(copy, scopeRanges.get(q)!)` ile kayıtları taşıyın. Alternatif olarak `arrival` bilgisini HostPromise alanı yapın."
+ },
+ {
+  "id": 16,
+  "file": "src/lib/ai/fallback.ts",
+  "line": 219,
+  "title": "\"late check-in\" geç çıkış, \"early check-out\" erken giriş sayılıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 218-219: `early_checkin: [\"erken giriş\", \"erken giris\", \"early check\", \"erken check\", \"early arrival\"]` ve `late_checkout: [\"geç çıkış\", \"gec cikis\", \"late check\", \"geç check\", \"gec check\", \"late departure\"]`. Eşleşme `includesAnyFold` içinde düz `hay.includes(needle)` ile yapılıyor (allowWordGap=false), yani alt dize eşleşmesi. Sıralama (satır 1522-1525): complaint, refund, early_departure, human_request, early_checkin, late_checkout, checkin, checkout. \"late check-in mümkün mü?\" mesajında önceki niyetler eşleşmez. early_checkin'de \"early check\" yok, ama late_checkout'taki \"late check\" alt dizesi \"late check-in\" içinde geçer; sonuç late_checkout olur ve checkin hiç denenmez. \"geç check-in\" için de aynı şey olur. \"early check-out\" mesajı early_departure listesinde yok (\"check out early\" ve \"checking out early\" var, \"early check-out\" yok). Sonra early_checkin'deki \"early check\" onu yakalar ve niyet early_checkin olur. Satır 2767-2771'de late_checkout taslağı \"Çıkış saatimiz … Geç çıkış … mümkün olabilir\" der, yani sorulan girişi cevaplamaz.",
+  "fix": "Genel \"late check\" / \"geç check\" / \"gec check\" / \"early check\" / \"erken check\" kalıplarını yön ekli biçimlerle değiştir. late_checkout için \"late check-out\", \"late check out\", \"late checkout\", \"geç check-out\", \"geç checkout\"; early_checkin için \"early check-in\", \"early check in\", \"early checkin\", \"erken check-in\" yazılsın. \"early check-out/checkout\" ve \"erken check-out\" ise early_departure listesine eklenmeli ya da checkout niyetine bırakılmalı. \"late check-in\" / \"geç check-in\" de early_checkin veya checkin tarafında karşılanmalı. İsteğe bağlı olarak önüne \"late check-in\" ve \"early check-out\" için karşı niyeti dışlayan bir kontrol konabilir."
+ },
+ {
+  "id": 17,
+  "file": "src/lib/ai/emergency-number.ts",
+  "line": 115,
+  "title": "HOST_DISPUTE içindeki \"hote\" alternatifi \"hotel\" sözcüğünü de yakalıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Asıl mekanizma doğru. Satır 115'te `…|proprietaire\\p{L}*|hote|anfitrion|…` alternatifinin ardında sözcük sonu sınırı yok. Başta `L` (`(?<![\\p{L}\\p{N}])`) var, sonda yok. Bu yüzden katlanmış \"our hotel is far, what's the police number?\" metninde \"hotel\" içindeki \"hote\" öneki eşleşir. `host(?!el|es)` \"hotel\"i yakalamaz çünkü \"hotel\" \"host\" ile başlamaz; ama çıplak `hote` yakalar. Sonuç: `hostDisputeSignal` true döner ve satır 170'teki `return null` numarayı engeller. Fransızca \"hôtel\" de aksan sökülünce \"hotel\" olur ve aynı şekilde tetikler. Bulgunun Türkçe örneği yanlış: \"Otelden çıktık\" katlanınca \"otelden\" olur, içinde \"hote\" yoktur (\"h\" yok), dolayısıyla tetiklemez. Etki da sınırlı: numara verilmemesi eski davranıştır ve konuşma ev sahibine kalır.",
+  "fix": "`hote` alternatifini sözcük sonu sınırıyla değiştirin: `hotes?(?![\\p{L}\\p{N}])`. Bu hem \"hote\" hem \"hotes\" için ev sahibi anlamını korur, \"hotel\" ve \"hotels\"i dışarıda bırakır. İsterseniz `hote(?!l)\\p{L}*` da kullanılabilir. Ayrıca \"Our hotel is far, what's the police number?\" için bir regresyon testi ekleyin."
+ },
+ {
+  "id": 19,
+  "file": "src/lib/ai/openai-compat.ts",
+  "line": 56,
+  "title": "Taban URL normalizasyonu yalnız resolveCompatKey'de yapılıyor; diğer iki fonksiyon ham değerle karşılaştırıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Tutarsızlık dosyada gerçek. resolveCompatKey 45. satırda `resolveCompatBaseUrl(baseUrl) === OPENAI_BASE_URL` ile normalize ederek karşılaştırıyor. compatModelMatchesEndpoint 56. satırda `if (baseUrl !== OPENAI_BASE_URL) return true;`, applyCompatModelParams ise 83. satırda `if (baseUrl !== OPENAI_BASE_URL) payload.chat_template_kwargs = ...` ile ham değeri karşılaştırıyor. Ham `https://api.openai.com/v1/` verilirse 56. satır `true` döner, slug kontrolü atlanır. 83. satır ise OpenAI'ye `chat_template_kwargs` ekler ve 400 üretir. Ancak bulgunun senaryosu varsayımsal: çağıranların bu dosyada görünmüyor, ham env geçip geçmediği doğrulanamıyor. 31. satırdaki `resolveCompatBaseUrl` zaten çağıranların normalize etmesi için tasarlanmış. Ayrıca 'sessiz arıza' iddiası abartılı: OpenAI'nin 400 veya 404 dönmesi loglanabilir, sessiz değildir. Gerçek ama koşullu bir savunma-derinliği eksiği, bu yüzden P2 ve 'partly'.",
+  "fix": "compatModelMatchesEndpoint ve applyCompatModelParams içinde karşılaştırmadan önce `resolveCompatBaseUrl(baseUrl)` ile normalize edin. Örn. `if (resolveCompatBaseUrl(baseUrl) !== OPENAI_BASE_URL) ...`. Fonksiyon idempotent olduğu için güvenlidir. Alternatif olarak tüm çağıranların normalize edilmiş değeri geçtiğini doğrulayın ve bunu JSDoc'ta sözleşme olarak yazın."
+ },
+ {
+  "id": 18,
+  "file": "src/lib/ai/gas-detector-alarm.ts",
+  "line": 94,
+  "title": "Olumsuzlama penceresi \"çalışmıyor ve ötüyor\" bildirimini siliyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Cümle katlanınca \"the co alarm is not working and beeping\" olur. Ses aralığı \"beeping\" (SOUNDING.en). liveSound içinde `before` = \"...is not working and \" çıkar (satır 282). Satır 94'teki PLAIN_NEG `not\\s((?:\\p{L}{1,12}\\s){0,2})$` kalıbı \"not\" + \"working \" + \"and \" dizisini sonuna kadar eşler, yani iki sözcük sınırına tam oturur. neg[1] = \"working and \" olur. Satır 291'de `neg && !STOP_VERB.test(...) && !DE_STOP_SEPARABLE.test(before)` koşulu sağlanır: STOP_VERB yalnız stop/quit/para/arrete gibi fiillere bakar, \"working\" ya da \"and\" onlardan değildir. Sonuç `return false` olur. Cümle tek başınadır; devam cümlesi (satır 371) ve geriye atıf (satır 397) için komşu cümle yoktur. Bu yüzden gasDetectorSounding false döner. Olumsuzlama kapsamı bağlaçtan sonra bitmediği için \"çalışmıyor ve ötüyor\" tipi gerçek bildirim kaçar. Bulgu doğru.",
+  "fix": "liveSound içinde (satır 291) neg[1] içinde bağlaç varsa olumsuzlamayı yok say. Örnek: `const CONJ_IN_NEG = /(?:^|\\s)(?:and|but|und|aber|et|mais|y|pero|ve|ama|&)\\s/u;` tanımla ve koşulu `neg && !CONJ_IN_NEG.test(neg[1]) && !STOP_VERB.test(...) && ...` yap. \"not beeping and buzzing\" gibi yanlış pozitif riskini önlemek için bağlaçtan önceki sözcük bir ses fiiliyse (ANY_SOUND ile) olumsuzlama geçerli kalsın. Her iki durum için test ekle."
+ },
+ {
+  "id": 20,
+  "file": "src/lib/ai/hazard-evidence.ts",
+  "line": 63,
+  "title": "Katlanmış \"ac\" (Türkçe \"aç\") klima/AC cihazı sayılıp duman açık tehlike oluyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma gerçek: satır 63'te `${NL}(?:ac|a/c|...)${NR}` tek başına `ac` kelimesini eşliyor. Metin foldTurkishAscii ile katlandığı için (ç→c) \"aç\" fiili \"ac\" olur. clauseVerdict'te (satır 603-606) `kinds.has(\"smoke\") && (... SMOKE_APPLIANCE.test(text) ...)` doğruysa duman `clear` olur. Ancak bulgudaki iki örnek tam bu haliyle tetiklenmez. \"Yemek yanınca duman çıktı, pencereyi aç\" ve \"Aç kaldık, ocaktan duman çıkıyor\" cümlelerinde virgül var. CLAUSE_SPLIT (satır 418) virgülden böler. SMOKE_APPLIANCE yalnız cümlecik metninde (`text`) aranır (`next` sadece INTENSITY/MELT/SPREAD için kullanılır). Bu yüzden \"ac\" ile \"duman\" ayrı cümleciklerde kalır ve duman `clear` olmaz. Yanlış pozitif yalnız aynı cümlecikte, virgülsüz yazılan metinde oluşur. Örnek: \"pencereyi aç duman çıkıyor\" veya \"aç kaldık ocaktan duman çıkıyor\". Gerçek bir hata ama örnekler yanlış ve etkisi bulguda anlatılandan dar.",
+  "fix": "Satır 63'teki çıplak `ac` seçeneğini kaldırın. Türkçe için `klima${LB}` zaten var. İngilizce için `a/c`, `air\\s*con${LB}`, `air\\s+conditioner` yeterli. Gerekirse `ac` yalnız `\\bac\\s+unit` gibi bağlamla (ör. `ac\\s+(?:unit|vent)`) ya da katlamadan önceki büyük harfli \"AC\" ile eşlensin."
+ },
+ {
+  "id": 21,
+  "file": "src/lib/ai/hazard-evidence.ts",
+  "line": 409,
+  "title": "Eşleşmemiş düz çift tırnak (inç işareti) iki tırnak arasındaki gerçek tehlike cümlesini siliyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Kalıp dosyada 409. satırda değil 415. satırda: `const QUOTED = /[“\"«„][^“”\"«»„\\n]{1,80}[”\"»“]/gu;`. 631. satırda boşluklar teke indirilir ve satır sonları kalkar. 632. satırda `contextual.replace(QUOTED, \" \")` çalışır. Açan ve kapatan sınıfta düz `\"` var. Açanın önünde sözcük/rakam sınırı kontrolü yok, kapatanın ardında da yok. `55\" TV'den duman çıkıyor ve mutfakta yangın var, kapı 2\" kalınlıkta` metninde ilk `\"` açan, ikincisi kapatan sayılır. Aradaki ` TV'den duman çıkıyor ve mutfakta yangın var, kapı 2` yaklaşık 52 karakterdir; içinde tırnak ve `\\n` yok, `'` de dışlanmamış. Bu yüzden ≤80 koşulu sağlanır ve parça silinir. `duman` ve `yangın` sözcükleri 636. satırdaki `clausesOf(folded)` çağrısından önce kaybolur. Sonuç `none` olur. Gaz/duman dedektörü yolu `contextual` üzerinde çalıştığı için bu kaybı kurtarmaz. Mekanizma gerçek. Tek sınırlama: mesajda iki inç işaretinin arasında tehlike metni bulunması gerekir, bu nadir bir durumdur.",
+  "fix": "Düz `\"` için açanın önüne `(?<![\\p{L}\\p{N}])` şartı koyun; rakam/harften hemen sonra gelen `\"` inç işareti sayılır ve alıntı açmaz. Gerekirse kapatan `\"` için de ardına `(?![\\p{L}\\p{N}])` ekleyin. Typografik `“ ” « » „` tırnakları olduğu gibi kalabilir. Örnek: `/(?:(?<![\\p{L}\\p{N}])\"|[“«„])[^“”\"«»„\\n]{1,80}(?:\"(?![\\p{L}\\p{N}])|[”»“])/gu`."
+ },
+ {
+  "id": 22,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 840,
+  "title": "countGuestAsks: ardışık '!!' soru işareti sayılıyor, çok-soru dalı yanlış açılıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 840: `text.replace(/[?？!！]{2,}/g, \"?\").match(/[?？]/g)`. Karakter sınıfı `?` ile birlikte `!` ve `！` karakterlerini de içeriyor ve `{2,}` yalnızca uzunluğa bakıyor, içinde soru işareti olup olmadığını kontrol etmiyor. Bu yüzden \"Harika!! Süper!! Teşekkürler!!\" metnindeki her \"!!\" bir \"?\" olur. Ardından `.match(/[?？]/g)` 3 sonuç verir ve satır 871'deki `Math.max(questionMarks, lines, 1)` 3 döndürür. Satır 1689'da `asks >= 2` olduğu için lengthHint, \"Misafir 3 ayrı konu/soru yazmış … 'tek konu, tek mesaj' … kuralları GEÇERSİZDİR\" metnini basar. Mesajda hiç soru yok ve sıradan bir teşekkür bile bu dalı açıyor. Yalnızca çift ünlem yazılan mesajlarda tetiklenir; tek '!' etkilenmez. Yine de mantık hatası gerçek, finding doğru.",
+  "fix": "Yalnızca en az bir soru işareti içeren dizileri tek '?' yapın: `text.replace(/[?？][?？!！]*/g, \"?\")`. Baştaki '!' karakterleri zaten sayılmadığı için eşleşmeye gerek yok. Bu desen doğrusal çalışır. Önerilen `/[?？!！]*[?？][?？!！]*/g` ise '?' içermeyen uzun '!!!!' dizilerinde karesel geri izleme yapabilir, bu yüzden tercih edilmemeli. Birim teste \"Harika!! Süper!! Teşekkürler!!\" → 1, \"Nasılsınız??\" → 1 ve \"Saat kaçta?! Otopark var mı?\" → 2 senaryolarını ekleyin."
+ },
+ {
+  "id": 24,
+  "file": "src/lib/ai/output-veto.ts",
+  "line": 618,
+  "title": "Ev sahibi karar bekletmesi görünmez karakter temizlenmemiş ham metne uygulanıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Satır 618'de `hostDecisionHoldEnabled() && defersDecisionToHost(reply)` ve satır 643'te `(hostDecisionHoldEnabled() && defersDecisionToHost(reply))` gerçekten ham `reply` ile çağrılıyor. Aynı fonksiyonlarda diğer tüm kalıplar `vetoForms(reply)` çıktısına (satır 602 ve 642) uygulanıyor. `vetoForms` (satır 630) U+200B gibi Default_Ignorable ve Cf karakterlerini siliyor, yorumu da bunun gece-4 S4-07 için yapıldığını söylüyor. Tutarsızlık gerçek. Ancak `defersDecisionToHost` `@/lib/ai/availability-claims` dosyasında tanımlı ve o dosya burada yok. Fonksiyon kendi içinde görünmez karakterleri temizliyorsa kaçış olmaz. Bulgunun kendi fix_hint'i de bu durumda yok sayılmasını söylüyor. Bu yüzden bypass bu dosyadan kanıtlanamıyor. Ayrıca özellik varsayılan kapalı bir bayrağın arkasında.",
+  "fix": "Önce `availability-claims.ts` içindeki `defersDecisionToHost` incelenmeli, kendi içinde normalleştirme yapıp yapmadığına bakılmalı. Yapmıyorsa satır 618 ve 643'te `reply` yerine `vetoForms`'tan gelen `text` verilmeli: `defersDecisionToHost(text)`. 643'te `text` zaten mevcut. 618'de ise `const { text, lower } = vetoForms(reply);` zaten satır 602'de tanımlı, aynı değişken kullanılabilir. Yapıyorsa değişiklik gerekmez, savunma amaçlı tutarlılık için yine de `text` geçirilebilir."
+ },
+ {
+  "id": 23,
+  "file": "src/lib/ai/provider-health.ts",
+  "line": 141,
+  "title": "Alarm temizleme hatası yutuluyor, süreç bayrağı yine de indiriliyor; alarm durumu açık kalıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 140-141: `alertMayBeActive[channel] = false; void clearAlertState(ALERT[channel].key).catch(() => {});`. Bayrak silme işleminden ÖNCE indiriliyor ve `catch(() => {})` hatayı hiçbir yere bildirmeden yutuyor. clearAlertState DB hatasıyla düşerse satır silinmez, ama bayrak false kaldığı için satır 139'daki `if (!alertMayBeActive[channel]) return;` sonraki başarılarda silmeyi bir daha denemez. Bayrak yalnız satır 127'de, yani yeni bir kalıcı arızada, tekrar true olur. Aynı arıza geri gelirse alertOnTransition satırı hâlâ aktif görür ve geçiş tabanlı olduğu için e-posta atmaz. Dosya başlığındaki 'tek silme' tasarımı yeniden denemeyi zaten dışarıda bırakıyor. Sınırlama: alert-state.ts dosyası görünmüyor. clearAlertState'in gerçekten reject edebildiği ve alertOnTransition'ın satır varlığına göre bastırdığı varsayımına dayanıyor. İkisi de `.catch` ve 'geçiş' adından makul biçimde çıkıyor. Ayrıca bu durum yalnızca silme anında DB hatası olursa ortaya çıkıyor, bu nedenle nadirdir.",
+  "fix": "Bayrağı yalnız silme başarılı olursa kapalı bırakın. Hata olursa true'ya geri alın ve loglayın: `void clearAlertState(key).catch((e) => { alertMayBeActive[channel] = true; void reportError(`${ALERT[channel].context} (alarm temizleme)`, e).catch(() => {}); });`. İsterseniz bayrağı başarıdan sonra indirin (`.then(() => { alertMayBeActive[channel] = false; })`). Eşzamanlı çağrılarda gereksiz çift silmeyi önlemek için ayrı bir 'clearing in-flight' bayrağı eklenebilir."
+ },
+ {
+  "id": 25,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 693,
+  "title": "sameDay geçersiz tarihte RangeError fırlatıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Satır 694: `return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10);` Geçersiz bir Date için `toISOString()` gerçekten RangeError fırlatır. Çağrı yeri satır 714-715: `adjacency.previousSameDay ?? sameDay(...)` ve `adjacency.nextSameDay ?? sameDay(...)`. `sameDay` try/catch ile sarılı değil. Kardeş yardımcılar korumalı: `dayOf` (satır 690) `Number.isNaN(at.getTime())` kontrolü yapar, `fmtDate` try/catch kullanır, `stayNights` `Number.isFinite` kontrolü yapar. Savunmasızlık ve tutarsızlık gerçek. Ancak erişilebilirlik zayıf: `sameDay` yalnızca kodda hesaplanan `previousSameDay`/`nextSameDay` undefined iken çalışan eski bir yedek yoldur. Tarihler büyük olasılıkla Prisma `DateTime` alanlarından gelir ve bunlar geçersiz Date olamaz. Bozuk iCal verisi DB'ye girmeden önce elenir. Bu yüzden 'bozuk iCal ile istem çöker' senaryosu varsayımsaldır ve P2 şiddeti abartılıdır.",
+  "fix": "`sameDay` içinde önce `const x = new Date(a), y = new Date(b); if (Number.isNaN(x.getTime()) || Number.isNaN(y.getTime())) return false;` kontrolü yapın. Ardından `toISOString` ile karşılaştırın. Daha doğrusu, `dayOf`'taki gibi `calendarDateOf(x, timeZone).key` ile org dilimine göre karşılaştırın. Böylece yedek yol da tek tarih kuralını kullanır."
+ },
+ {
+  "id": 26,
+  "file": "src/lib/auth/password-policy.ts",
+  "line": 48,
+  "title": "Minimum parola uzunluğu NFC'ye değil ham UTF-16 uzunluğuna bakıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 48: `if (password.length < PASSWORD_MIN_LENGTH) ...` kontrolü ham, normalize edilmemiş dizgeye bakıyor. Satır 17-20 ve 8-10'daki yorumlara göre parola NFC biçiminde saklanıyor/karşılaştırılıyor. NFD'de 'ş' = 's' + U+0327 olduğundan 7 'ş' ham `.length` değeriyle 14 çıkar ve 8 sınırını geçer. NFC'ye çevrilince 7 karakter kalır, yani saklanan parola asgari uzunluk kuralını ihlal eder. Satır 49'daki üst sınır kontrolü `passwordExceedsByteLimit` içinde `normalizePassword` kullandığı için (satır 37) iki kontrol tutarsız. Etkisi sınırlı (en fazla birkaç karakter eksik), bu yüzden düşük önem ve düşük güven makul, ama bulgu doğru.",
+  "fix": "Uzunluğu saklanacak biçim üzerinden ölçün: `const normalized = normalizePassword(password); if (Array.from(normalized).length < PASSWORD_MIN_LENGTH) return `Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`;`. Böylece NFD girişler NFC'ye göre sayılır ve astral karakterler (emoji vb.) kod noktası olarak 1 sayılır. Ardından `passwordExceedsByteLimit(password)` kontrolü aynen kalabilir."
+ },
+ {
+  "id": 29,
+  "file": "src/lib/ai/retrieval/rerank.ts",
+  "line": 148,
+  "title": "Sürüm kuralı kendine ya da karşılıklı halef döngüsünde bütün kalemleri düşürüyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 147-148: `const ids = new Set(items.map((i) => i.id)); const kept = items.filter((i) => !(i.supersededById && ids.has(i.supersededById)));`. Kalemin `supersededById`'si kendi id'sine eşitse, id zaten `ids` içinde olduğu için kalem düşer. A→B ve B→A döngüsünde de ikisi birbirinin id'sini içerdiğinden ikisi de düşer. Yorum (16-18) yalnızca halef kümede yoksa eski kalemin korunacağını söylüyor ve halefin kendisinin düşürülmesini ya da döngüyü ele almıyor. Filtrede self-reference ya da döngü koruması yok. Bu yüzden bozuk veri durumunda o konudaki tüm bilgi kaybolur. Etki yalnızca bozuk veride ortaya çıkıyor ve güven düşük olduğundan P2 makul. Normal zincirde (A→B→C, hepsi kümede) A ve B düşer, C kalır; bu doğru davranış.",
+  "fix": "Filtreyi kendine referansı yok sayacak şekilde yazın: `i.supersededById && i.supersededById !== i.id && ids.has(i.supersededById)`. Döngü için, düşürmeden önce halef zincirini izleyip döngüdeki kalemlerden en yenisini (`updatedAt`) koruyun. Ya da yazma aşamasında self/döngü referansını doğrulayıp reddedin."
+ },
+ {
+  "id": 27,
+  "file": "src/lib/auth/password-reset-challenge.ts",
+  "line": 159,
+  "title": "Eşzamanlı yanlış denemelerde 'bütçe tükendi' alarmı birden fazla kez atılabilir",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Talep (119-128. satırlar) `updateMany` ile atomik, ama artırılan değer geri dönmüyor; sayaç 130-140. satırlardaki ayrı `findUnique` ile okunuyor. 3 hak kalmışken (attempts=2, max=5) üç eşzamanlı istek de `attempts < maxAttempts` koşuluyla talebi kazanabilir (2→3→4→5). Üçü de okumayı tüm artışlardan sonra yaparsa `row.attempts` hepsinde 5 görünür. Bu durumda 159. satırdaki `if (row.attempts >= row.maxAttempts)` üç istekte de sağlanır ve `signalExhausted` (160. satır) üç kez çalışır: üç `account.password_reset_blocked` denetim kaydı ve üç reportError. 152-154. satırlardaki 'challenge başına BİR KEZ' garantisi bu yüzden bozulur. Yorum 156-158 yalnızca tek istekli akıştaki +1 hatasını ele alıyor, eşzamanlılığı değil. Etkisi düşük: yalnızca bir kez 3-5 denemelik kısa bir pencerede, yinelenen audit kaydı ve alarm oluşuyor; bütçe tavanı aşılmıyor. Not: önerilen ikinci çözüm (`attempts === maxAttempts`) tek başına işe yaramaz, çünkü yukarıdaki senaryoda üç okuma da 5 değerini görür.",
+  "fix": "Artırılan değeri talebin kendisinden al. Örneğin `$queryRaw` ile `UPDATE \"PasswordResetChallenge\" SET attempts = attempts + 1 WHERE \"tokenHash\"=$1 AND \"consumedAt\" IS NULL AND \"invalidatedAt\" IS NULL AND \"expiresAt\" > $2 AND attempts < \"maxAttempts\" RETURNING id, \"userId\", \"codeHash\", attempts, \"maxAttempts\"` yaz. Her istek kendi artış sonrası değerini alır ve alarmı `attempts === maxAttempts` eşitliğiyle yalnızca bir istek atar. Alternatif: şemaya `exhaustedAlertedAt` ekleyip alarmı `updateMany({where:{id, exhaustedAlertedAt:null}, data:{exhaustedAlertedAt: now}})` sonucu `count===1` olan istekle sınırla."
+ },
+ {
+  "id": 28,
+  "file": "src/lib/ai/retrieval/select.ts",
+  "line": 398,
+  "title": "2 karakterlik alt sorgular (\"tv\", \"ac\", \"wc\") başka sorular varken sessizce düşüyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "398. satırda `const keep = (p: string) => p.length >= 3 && contentStems(p).length > 0;` var. \"Wifi şifresi ne? TV?\" mesajı normalize edilince \"wifi sifresi ne? tv?\" olur. 400. satırdaki `HARD_SPLIT` bunu \"wifi sifresi ne\" ve \"tv\" olarak böler. \"tv\" 2 karakter olduğu için 401. satırdaki `.filter(keep)` onu eler, `segs` yalnızca [[\"wifi sifresi ne\"]] kalır. 403. satırda `total` 1 çıkar, `total === 0` geri dönüşü (404) çalışmaz ve 405. satır yalnızca wifi alt sorgusunu döndürür. `retrievalQueries` (486. satır) aynı listeyi kullandığı için \"tv\" seçime, anlamsal hazırlığa ve yeniden sıralayıcıya hiç girmez. Geri dönüş (404) yalnızca hiç alt sorgu kalmadığında çalışır; yani yalnızca \"TV?\" yazılan mesajı kurtarır, çok sorulu mesajı kurtarmaz. Bulgu bu davranış açısından doğru. `contentStems(\"tv\")` ve `contentStems(\"ac\")` çıktılarının boş olmadığı varsayımı dosyada görünmüyor, `text.ts`/`lexicon.ts`'ten doğrulanmalı.",
+  "fix": "398. satırdaki `p.length >= 3` koşulunu kaldırın ya da `p.length >= 2` yapın. Asıl ölçüt `contentStems(p).length > 0` kalsın. 505. satırdaki `sq.length < 3` kontrolünü de aynı şekilde gevşetin ki ek sorgularda tutarlılık bozulmasın. Ardından \"tv\", \"ac\", \"wc\" için çok sorulu mesaj testi ekleyip 2 harfli gürültü parçalarının (\"ne\", \"mi\") durak sözcük süzgecinden geçmeye devam ettiğini doğrulayın."
+ },
+ {
+  "id": 30,
+  "file": "src/lib/channels/hospitable-ingest.ts",
+  "line": 209,
+  "title": "Boş string conversation_id, null yerine boş string kimliğe dönüşüyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 209: `conversationExternalId: canonicalStr(r.conversation_id) ?? (r.conversation_id != null ? String(r.conversation_id) : null)`. `canonicalStr` içeriği bu dosyada yok. Çağrı yerlerinden (örn. satır 175, 184) boş/anlamsız dizelerde null döndürdüğü anlaşılıyor. `conversation_id: \"\"` gelirse `canonicalStr` null döner ve `??` yedek dalı çalışır. `\"\" != null` true olduğundan `String(\"\")` yani \"\" döner; null dönmez. Boşluklu dize (\"  \") da aynı yoldan ham haliyle geçer. Nesne ya da dizi gelirse `String(...)` \"[object Object]\" gibi bir değer üretir. Satır 199-200 ve 219 aynı dosyada boş dizenin eşleşme anahtarı olmasını açıkça engelliyor (`g?.id ? String(g.id) : null`, `String(m.id).length`). Satır 209 bu kuralı atlıyor. Çekirdeğin \"\" değerine nasıl tepki verdiği bu dosyadan görünmüyor. Yani etki varsayımsal, ama tutarsızlık ve hata gerçek.",
+  "fix": "Yedek dalı yalnız sayı tipiyle sınırla ve boş sonucu null'a çevir: `conversationExternalId: canonicalStr(r.conversation_id) ?? (typeof r.conversation_id === \"number\" && Number.isFinite(r.conversation_id) ? String(r.conversation_id) : null)`. Alternatif olarak sonucu `const v = ...; v && v.trim() ? v : null` ile süzmek de olur."
+ },
+ {
+  "id": 32,
+  "file": "src/lib/channels/health.ts",
+  "line": 54,
+  "title": "`kind in CONNECTION_ERROR_TEXT` prototip anahtarlarını da geçerli sayar",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 53-54: `const kind = (row.lastReadErrorKind ?? \"unknown\") as IngestErrorKind; ... errorKind: kind in CONNECTION_ERROR_TEXT ? kind : \"unknown\"`. `lastReadErrorKind` satır 45'te serbest `string | null` olarak tanımlı; `as IngestErrorKind` yalnız tip düzeyinde bir dönüşümdür, çalışma zamanında hiçbir şeyi doğrulamaz. `CONNECTION_ERROR_TEXT` (satır 26) düz bir nesne literalidir, yani prototipi Object.prototype'tır. `in` operatörü prototip zincirini de tarar, bu yüzden \"constructor\", \"toString\", \"hasOwnProperty\", \"__proto__\" gibi değerler için true döner. Böyle bir değer `errorKind` olarak geçer. Satır 94'teki `CONNECTION_ERROR_TEXT[h.errorKind ?? \"unknown\"]` o zaman bir fonksiyon veya nesne döndürür ve satır 95'teki şablon metni bozuk (ör. \"function Object() { [native code] }\") çıkar. Ayrıca satır 67'de `TRANSIENT.has(...)` false döner, bu da kalıcı hata sayılmasına ve gereksiz uyarıya yol açar. Gerçek bir hata, ancak etkisi düşük: yazıcı bugün kapalı kümeden yazıyor ve bu değerin DB'ye girmesi için başka bir hata gerekir. Bulgunun P2/low değerlendirmesi makul.",
+  "fix": "Satır 54'te `in` yerine kendi özellik denetimi kullanın: `Object.prototype.hasOwnProperty.call(CONNECTION_ERROR_TEXT, kind) ? kind : \"unknown\"`. Alternatif olarak geçerli türleri bir `ReadonlySet<string>` (ör. `new Set(Object.keys(CONNECTION_ERROR_TEXT))`) içinde tutup `set.has(kind)` ile denetleyin."
+ },
+ {
+  "id": 31,
+  "file": "src/lib/billing/trial-identity.ts",
+  "line": 160,
+  "title": "recordTrialIdentities 'asla fırlatmaz' sözleşmesine rağmen hazırlık adımını try dışında çağırıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 158-160: `recordTrialIdentities` içinde `if (!(await readyForRecording(now))) return {... ok:false};` çağrısı hiçbir try/catch içinde değil. Satır 151'deki yorum ise 'Asla fırlatmaz' diyor. `readyForRecording` (237-242) önce `enabledAtIfKeyMatches(now)` çağırıyor. Bu fonksiyonun içinde (210-231) `identityKeyFingerprint()` anahtar yoksa fırlatır (satır 126), `prisma.systemLock.createMany` ve `findMany` da DB hatasında fırlatır. Bu çağrıların hiçbiri yakalanmıyor. `backfillTrialIdentitiesOnce` kendi try/catch'ine sahip, ama `enabledAtIfKeyMatches` ondan önce, korumasız çağrılıyor. Kardeş fonksiyon `recordVerifiedCalendarIdentity` aynı `readyForRecording` çağrısını satır 263-265'te try içinde yapıyor. Yalnızca `recordTrialIdentities` korumasız kalmış. `recordKeys`'in (172-192) try'ı hazırlık adımını kapsamıyor. Bu yüzden DB geçici hatası ya da eksik ENCRYPTION_KEY/AUTH_SECRET durumunda fonksiyon fırlatır; metadata.ts sarsa bile sözleşmeye güvenen başka bir çağıran düşebilir.",
+  "fix": "Satır 160'ı try/catch içine alın: `try { if (!(await readyForRecording(now))) return { reused:false, flagged:false, ok:false }; } catch (err) { void reportError(`trial-identity ready org=${organizationId}`, err); return { reused:false, flagged:false, ok:false }; }` ve ardından `recordKeys` çağrısına devam edin."
+ },
+ {
+  "id": 33,
+  "file": "src/lib/conversation-items/flow.ts",
+  "line": 118,
+  "title": "Yerine geçme, aynı turda vazgeçilmiş öğenin bayat 'open' durumuyla çalışıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "flow.ts satır 116-118: `const persisted = await upsertTurnItems(...)`, ardından `await applyWithdrawals(...)`, ardından `await supersedeOlderItems(db, { ...base, turnItems: persisted, ... })`. `persisted`, vazgeçmeler uygulanmadan ÖNCE alınan anlık görüntüdür ve `applyWithdrawals` sonrasında yeniden okunmaz. Dosyada yeniden okuma yalnızca satır 122-124'te (`fresh`) ve `supersedeOlderItems` çağrısından SONRA yapılıyor. Bu yüzden aynı turda vazgeçilen öğe, `supersedeOlderItems`e hâlâ eski durumuyla gidiyor. Bu kısım doğru. Ancak iddianın ikinci yarısı, yani store.ts'deki `if (!OPEN_STATUSES.includes(newer.status)) continue;` satırı ve `supersedeOlderItems`in durumu DB'den doğrulamayıp yalnızca gelen nesneye bakması, bana verilen dosyada yok. Bu yüzden zararın gerçekten oluştuğunu (eski Wi-Fi öğesinin vazgeçilmiş öğe yüzünden `superseded` olması) doğrulayamıyorum. `supersedeOlderItems` durumu içeride yeniden okuyorsa sorun yoktur.",
+  "fix": "`applyWithdrawals` sonrasında turun öğelerini DB'den yeniden okuyup (veya `applyWithdrawals`in güncel satırları döndürmesini sağlayıp) `supersedeOlderItems`e `turnItems` olarak güncel hâlini verin. Alternatif olarak `supersedeOlderItems` içinde `newer` öğelerinin durumunu DB'den doğrulayıp `withdrawn` olanları atlayın. Önce store.ts'deki gerçek davranışı kontrol edin."
+ },
+ {
+  "id": 34,
+  "file": "src/lib/conversation-items/relation.ts",
+  "line": 1572,
+  "title": "ACCESS_WORDS'te katlanmış metinde asla eşleşmeyen 'amı' alternatifi — 'çıkamıyoruz' erişim sayılmıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Hata gerçek: satır 1582'de `ACCESS_WORDS.test(fold(t))` çağrılıyor ve fold satır 105'te `.replace(/ı/g, \"i\")` ile ı'yı i yapıyor. Satır 1572'deki `cik(?:aca|acak|ama|amı|abil|...)` içindeki 'amı' katlanmış metinde hiçbir zaman eşleşemez, yani ölü bir alternatiftir. 'çıkamıyoruz' katlanınca 'cikamiyoruz' olur. Bu metin 'ama' ile eşleşmez ('cikami…' ≠ 'cikama…'), 'cikar\\p{L}{0,8}' ile de eşleşmez, dolayısıyla tek başına geçen 'çıkamıyoruz' erişim sayılmaz. Buna karşılık 'çıkamayız' ('cikamayiz') 'ama' ile eşleşir. Ancak bulgudaki örnek senaryo yanlış: 'Otopark kapısı açılmıyor, çıkamıyoruz' metninde 'kapi\\p{L}{0,8}' ve 'otopark\\p{L}{0,6}' zaten eşleşir. `worded` bu yüzden true olur ve istek access olgusunu alır. Sonuç, ölü alternatifin etkisi yalnızca istek metninde başka erişim sözcüğü olmadığında ('Nasıl çıkamıyoruz?' gibi), dar bir durumda ortaya çıkar. Ayrıca satır 1572'deki 'diyafon', 'giris' gibi diğer alternatifler katlanmış biçimde yazılmış ve doğru.",
+  "fix": "Satır 1572'de `amı` yerine katlanmış biçim olan `ami` yazılsın: `cik(?:aca|acak|ama|ami|abil|alim|iyor|madan|is)`. 'cikamiyoruz', 'cikamiyor' ve 'cikamayiz' için, yanında kapı/otopark gibi başka bir erişim sözcüğü bulunmayan birim testler eklensin. Şiddet P2'den P3'e indirilebilir; örnek senaryo geçerli değil, çünkü o metinde 'kapı' ve 'otopark' zaten eşleşiyor."
+ },
+ {
+  "id": 35,
+  "file": "src/lib/conversation-items/store.ts",
+  "line": 343,
+  "title": "'Ev sahibi yazdı' türetmesi iki okuma yolunda farklı: tutarsız host_replied",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Tutarsızlık yapısal olarak var. Her iki yol da aynı `HOST_OUTBOUND_WHERE` süzgecini kullanıyor (satır 305-311). Bu süzgeç `authorType: null` ve AI listesinde olmayan `senderName` satırlarını `systemEventType` bakmadan kabul ediyor. `listConversationItems` ise (345-361) yalnızca EN SON eşleşen satırı çekiyor (`findFirst ... orderBy createdAt desc`, select'te `systemEventType` var) ve ikinci bir süzgeç uyguluyor: `hostAt = lastHost && historyAuthorOf(lastHost) === \"host\" ? lastHost.createdAt : null` (361). Son satır host sayılmazsa `hostAt` null oluyor. Oysa daha eski gerçek bir host yanıtı olabilir; o yok sayılıyor ve öğeler 'açık' görünüyor. `stillOpenForHost` (380-389, 395, 402) aynı süzgeçle `_max.createdAt` alıyor ve `historyAuthorOf` uygulamıyor. Aynı otomatik mesaj orada host yanıtı sayılıyor. İki yol aynı konuşma için farklı `hostAt` üretebilir. Ancak `historyAuthorOf` bu dosyada görünmüyor (message-author.ts). Onun `systemEventType` dolu satırı gerçekten 'host' dışı saydığı varsayım. Senaryo da yalnızca eski, `authorType` null, `systemEventType` dolu ve gönderen adı AI listesinde olmayan nadir satırlarda oluşuyor. Bu yüzden etki düşük. Ayrıca bulgudaki satır numarası (343) yanlış, ilgili kod 361'de.",
+  "fix": "Her iki yolda aynı 'host yazdı' tanımını kullanın. Seçenek 1: `HOST_OUTBOUND_WHERE` içine `systemEventType: null` ekleyin; `historyAuthorOf` kuralı da buna uysun. Böylece `findFirst` yalnızca gerçek host satırlarını döndürür ve `groupBy` otomatik/sistem mesajlarını saymaz. Seçenek 2: `listConversationItems` içinde `historyAuthorOf` sonrası null'a düşmek yerine, `findMany` ile son birkaç satırı alıp `historyAuthorOf === 'host'` olan en yeni satırı seçin. Bunu `stillOpenForHost` için de uygulayın. Her durumda bu iki yolu ortak bir yardımcı fonksiyona toplayıp tek bir testle kilitleyin."
+ },
+ {
+  "id": 37,
+  "file": "src/lib/decisions/turn.ts",
+  "line": 140,
+  "title": "openDecisionsForTurn tx içinde çağrılırsa DB hatası yutulup tx zehirli kalıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma teknik olarak doğru: 19. satırda `type Db = PrismaClient | Prisma.TransactionClient;` tx geçirilmesine izin veriyor. 140-143. satırlardaki `} catch (err) { void reportError(...); return []; }` her hatayı yutuyor. Postgres'te interaktif tx içinde başarısız bir sorgu tx'i abort eder (25P02), dolayısıyla çağıran `[]` alıp devam ederse sonraki yazmalar düşer. Ancak bulgu abartılı: (1) Dosyada tx ile çağrıldığını gösteren bir şey yok, çağıranlar bu dosyada görünmüyor. (2) Yutma kasıtlı, 16. satır \"Asla fırlatmaz (oto-yanıt geçişini düşüremez)\" diyor. (3) Hata `reportError` ile raporlanıyor, yani \"sessizce\" kaybolmuyor. (4) `[]` dönüşü \"kart açılmadı\" bilgisini veriyor, çağıranın bunu açıldı sanması varsayım. Gerçek risk yalnızca bir çağıran `db` olarak tx verirse doğar.",
+  "fix": "Önce çağıranları kontrol edin. Hepsi global `prisma` kullanıyorsa `db` tipini `PrismaClient`'a daraltın (19. satır). Tx destekleniyorsa catch'te yutmayın, hatayı fırlatın veya çağıranın savepoint ya da kendi try/catch'iyle yönetmesini sağlayın. Alternatif olarak kart açma işlemini tx dışında ayrı bir bağlantıyla çalıştırın."
+ },
+ {
+  "id": 36,
+  "file": "src/lib/decisions/store.ts",
+  "line": 140,
+  "title": "Tx içinde P2002 yakalanıp aynı tx'te sorguya devam ediliyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Kalıp gerçek ama etkisi bu dosyadan doğrulanamıyor. Satır 27'de `type Db = PrismaClient | Prisma.TransactionClient;` var. Satır 144-148: `catch (err) { if (!isUnique(err)) throw err; row = await db.decisionRequest.findUnique({ where }); ... }`. Postgres'te interaktif tx içinde başarısız INSERT (P2002) tx'i aborted yapar, Prisma savepoint kullanmaz. `db` tx istemcisiyse bu `findUnique` 25P02 ile patlar. `resolveDecisionByPolicy` (213-215) P2002'yi yutar ama sonra 224'teki `findMany` aynı sebeple patlar. Sorunlar: (1) Çağıranların tx kullanıp kullanmadığı bu dosyada yok; `PrismaClient` ile çağrılırsa kod doğru çalışır. (2) Bahsedilen `openDecisionsForTurn` bu dosyada yok, hatanın yutulup `[]` dönmesi ve bildirimin gitmemesi doğrulanamıyor. (3) Satır numaraları kaymış: 140 `lang: input.lang`, 209-211 ise `status/decidedTime/decidedAt` alanları; asıl catch blokları 144-149 ve 213-215. (4) Yarış penceresi dar: önce `findUnique` (109), sonra `create` yapılıyor. Tx içinde olunca hata yutulmasa da throw edip tx'i bozar.",
+  "fix": "Önce çağıranların `db` olarak tx verip vermediğini kontrol edin. Tx veriyorsa `create` + P2002 yakalama yerine `createMany({ data, skipDuplicates: true })` ya da `INSERT ... ON CONFLICT DO NOTHING` kullanın, ardından `findUnique` yapın; ya da bu fonksiyonları tx dışında çağırın. `resolveDecisionByPolicy`'de de aynısını uygulayın. Tx dışı çağrı sözleşmesini `Db` tipinde daraltarak (`PrismaClient`) ya da yorumla belgeleyin."
+ },
+ {
+  "id": 38,
+  "file": "src/lib/decisions/store.ts",
+  "line": 234,
+  "title": "Pivot mesaj bulunamazsa bekleyen TÜM kartlar 'superseded' yapılıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma doğru: 236. satırda `const pivot = order.get(input.messageId) ?? null;`, 238. satırda `isOlder(order.get(o.messageId) ?? null, pivot, o, { createdAt: new Date(input.now.getTime() + 1), id: \"\" })`. `isOlder` (260-264) iki mesajdan biri null ise `[cardA, cardB]` kart zamanlarına düşer. `cardB.createdAt` = now+1 olduğundan her bekleyen kartın `createdAt` değeri küçük çıkar ve hepsi 'superseded' olur. Ancak bu bilinçli bir geri dönüş: 258. satır yorumu 'iki mesajdan biri bulunamazsa kartların kendi sırası (eski kural)' diyor. Pivot, bu çağrının kendi `input.messageId` mesajıdır ve konuşmaya yeni işlenmiş bir misafir mesajıdır. `messageOrder` onu yalnız mesaj silinmişse veya başka konuşmaya aitse bulamaz, bu da çok nadir bir durumdur. Dolayısıyla bulgunun anlattığı 'daha yeni talebin kartı kapanır' sonucu yalnızca bu uç durumda oluşur. 'Ev sahibi o talebi artık göremez' ifadesi de ancak o durumda doğru olur.",
+  "fix": "Davranışı sıkılaştırmak istenirse `pivot === null` iken döngüye girmeden `return` edin, yani mesaj sırası bilinmiyorsa hiçbir kartı kapatmayın. Alternatif olarak bu mesajın kartının gerçek `(createdAt, id)` değerini (`existing?.createdAt` ya da yeni oluşturulan satır) karşı taraf olarak kullanın; `now+1` uydurması kaldırılsın. Bunun öncelikli bir düzeltme olmadığını not edin: tetikleyici nadir ve geri dönüş belgelenmiş."
+ },
+ {
+  "id": 39,
+  "file": "src/lib/eval-real/labeling.ts",
+  "line": 99,
+  "title": "LABEL_KEYS düz nesne: 'constructor' gibi girdi geçerli etiket sayılıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Temel mekanizma doğru. `LABEL_KEYS` düz nesne literali (satır 18-27) ve arama `const label = LABEL_KEYS[action.key.trim().toLowerCase()];` (satır 98) prototip zincirini de tarıyor. Bu yüzden 'constructor' girişi `Object` fonksiyonunu döndürür, `!label` yanlış olur ve satır 101'de `labels[item.id] = <fonksiyon>` yazılıp indeks ilerler. Aynı şekilde '__proto__' de truthy bir nesne döndürür. Ancak bulgudaki ayrıntılar kısmen yanlış: (1) 'valueof' örneği geçersiz, çünkü `toLowerCase()` sonrası 'valueof' Object.prototype üzerinde yok (üye adı `valueOf`). Küçük harfle ulaşılabilenler yalnızca 'constructor' ve '__proto__'. (2) 'Sessizce etiketsiz kalır' abartılı: JSON.stringify fonksiyon değerini düşürür, öğe sonra `buildRealDataset` içinde `excluded.unlabeled` olarak sayılır (satır 141-142) ve `resumeIndex` yeniden sorar. '__proto__' ise nesne olarak yazılırsa `bindLabelFile` (satır 82-84) 'tanınmayan değer' diye FIRLATIR. Yani veri bozulması yok, en fazla bir öğenin atlanması ya da yükleme hatası olur. Ayrıca kod satırı 99 değil 98. Operatörün bunu yazma olasılığı da çok düşük.",
+  "fix": "Aramayı yalnızca kendi anahtarlarla sınırlayın: `const k = action.key.trim().toLowerCase(); const label = Object.hasOwn(LABEL_KEYS, k) ? LABEL_KEYS[k] : undefined;`. Alternatif olarak `LABEL_KEYS`'i `Object.freeze(Object.assign(Object.create(null), {...}))` ya da `Map` yapın. Tutarlılık için `bindLabelFile` içindeki `Object.values(LABEL_KEYS).includes` kontrolünü de bu yapıya uyarlayın."
+ },
+ {
+  "id": 40,
+  "file": "src/lib/ingest/write-service.ts",
+  "line": 260,
+  "title": "Transaction içinde P2002 yakalanıp aynı db ile sorgu atılıyor",
+  "lens": "dogruluk",
+  "verdict": "partly",
+  "evidence": "Mekanizma doğru: 229-265 arasında create bir try/catch içinde, catch'te (260-262) aynı `db` ile `findFirst` atılıyor: `if (isUniqueViolation(err, [\"propertyId\",\"sourceReference\"])) { const raced = await db.reservation.findFirst(...)`. Prisma interaktif transaction'ında (PostgreSQL) başarısız bir ifade transaction'ı 'aborted' yapar; sonraki sorgu 25P02 ile patlar ve `raced` benimsenmez. `db` tipi `ErasureDb` ve yorumlar (satır 210 'aynı TX', satır 22 'aynı işlemde') fonksiyonun tx içinde çağrıldığını güçlü şekilde gösteriyor. Ayrıca satır 134 ile 230 arasında NS-43 kilidi yok; kilit yalnız `importCanonicalThread` içinde (satır 286). Ancak bulgu abartılı: çağıran kod bu dosyada görünmüyor, dolayısıyla `db`'nin gerçekten tx olduğu kanıtlanamıyor. Etkisi de sınırlı: yarış kaybedilirse hata fırlar, TX geri alınır, sonraki senkron geçişinde satır bulunur (kendi kendine iyileşir; veri bozulması yok). Dedupe dalı tx içinde fiilen ölü kod olur.",
+  "fix": "Tx içinde P2002'yi yakalayıp aynı tx ile sorgulamayın. Seçenekler: (1) `create` öncesinde `acquireConversationIdentityLock(db, propertyId, srcRef)` ya da benzer bir advisory xact lock alıp `findFirst` + `create`'i kilit altında yapmak; (2) `INSERT ... ON CONFLICT DO NOTHING` (raw) ya da `createMany({ skipDuplicates: true })` sonrası `findFirst` ile id okumak; (3) create'i savepoint içine almak (`SAVEPOINT`/`ROLLBACK TO SAVEPOINT`). Çağıranlar tx kullanmıyorsa mevcut catch yeterlidir; bu durumda yalnızca sözleşmeyi yoruma yazın."
+ },
+ {
+  "id": 41,
+  "file": "src/lib/ingest/write-service.ts",
+  "line": 289,
+  "title": "Sağlayıcı lastMessageAt vermezse her senkronda 'şimdi' kullanılıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 289: `const lastMessageAt = reservation.lastMessageAt ?? new Date();`. Bu değer önce satır 390'da `activityAt` olarak kullanılır (`tailIsAutomation && lastMessage?.createdAt ? lastMessage.createdAt : lastMessageAt`). Satır 394'te `createCursor` için yedek olur. Satır 576'da ise koşulsuz yazılır: `db.conversation.update({ ... data: { lastMessageAt: activityAt, syncCursorAt: lastMessageAt } })`. Sağlayıcı `lastMessageAt` vermezse (`??` yedeği buna karşı konmuş, yani alan null olabiliyor) mevcut konuşmanın `lastMessageAt` ve `syncCursorAt` değerleri her geçişte 'şimdi'ye yazılır. Gerçek son mesaj zamanı kaybolur. Satır 576 mevcut değeri korumaz ve mesajların `createdAt` değerine bakmaz. Satır 292'de zaten sıralanmış `ordered` listesi var, ama yedek olarak kullanılmıyor. Bulgu mekanik olarak doğru. Tek belirsizlik, adaptörün pratikte null verip vermediği; bu dosyadan görülemiyor, bu yüzden güven düşük.",
+  "fix": "Yedeği `reservation.lastMessageAt ?? ordered[ordered.length - 1]?.createdAt ?? null` olarak hesaplayın; `new Date()` kullanmayın. Değer null ise satır 576'daki update'te `lastMessageAt` ve `syncCursorAt` alanlarını hiç yazmayın, böylece mevcut değerler korunur. Yeni konuşma oluştururken (satır 413) ise yalnızca o durumda bir başlangıç değeri verin: `createCursor ?? new Date()`."
+ },
+ {
+  "id": 42,
+  "file": "src/lib/import/ics.ts",
+  "line": 105,
+  "title": "Saatsiz ISO tarih UTC gece yarısına kuruluyor, öğlen çapası uygulanmıyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Satır 103'teki `iso` regex'i saatsiz `2026-10-10` değerini kabul eder. Bu değer 40. satırdaki `^\\d{8}$` koluna girmez (tire var). 63. satırdaki `dtMatch` koluna girmez (T yok). 98. satırdaki `localIso` koluna da girmez (saat bölümü zorunlu). Akış 105-106. satıra düşer: `const fallback = new Date(clean); return isNaN(...) ? null : fallback;`. ECMAScript, tarih-yalnız ISO dizesini UTC 00:00 olarak okur, yani 10 Ekim 00:00Z elde edilir. Aynı fonksiyonda `YYYYMMDD` (satır 50), TZID'siz floating (satır 89) ve geçersiz TZID (satır 84) yolları `Date.UTC(..., 12)` öğlen çapası kullanır. Satır 49'daki yorum çapanın bilinçli olarak UTC-11…+11 aralığında günü garanti ettiğini söyler. Tireli saatsiz tarih bu kuralın dışında kalıyor ve UTC'nin batısındaki bir dilimde takvim günü bir gün geri kayar. Bulgu doğru. Etkisi dar ve tetikleyici kaynak ender, bu yüzden düşük güven ve P2 uygun.",
+  "fix": "105. satırdan önce, yalnız tarih içeren değer için öğlen çapası ekleyin: `const dateOnly = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(clean); if (dateOnly) return new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 12, 0, 0));`. Takvim geçerliliği 104. satırda zaten doğrulanıyor. Ofsetli ya da Z'li saatli ISO değerleri `new Date(clean)` ile olduğu gibi kalabilir."
+ },
+ {
+  "id": 43,
+  "file": "src/lib/import/csv.ts",
+  "line": 180,
+  "title": "\"0.500\" gibi tutar binlik grup sayılıp 500 okunuyor",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "\"0.500\" girdisini adım adım izledim. `cleaned` = \"0.500\", `lastSep` = 1. Satır 177'de `afterLast` = \"500\" olur ve uzunluğu 3'tür. Satır 178'de `sepCount` = 1. Satır 179'da `leadingDigits` = `\"0\".length` = 1 çıkar. Satır 180'deki `const isThousands = afterLast.length === 3 && (sepCount > 1 || leadingDigits <= 3);` ifadesi true döner, çünkü 1 <= 3. Satır 182'de ayraç silinir ve \"0500\" elde edilir. `parseFloat` bunu 500 yapar, oysa ondalık okuma 0,5 olurdu. Baştaki grup `0` olduğu için bu gerçek bir binlik grubu olamaz, ama koşul baştaki grubun değerine hiç bakmıyor. Satır 155-157'deki yorum \"1-3 haneli baştaki grup\" diyor; kod bunu sıfır dahil uyguluyor. Hata sessiz kalır, çünkü sonuç geçerli bir sayıdır ve rota satırı reddetmez. Girdi pratikte nadir, bu yüzden düşük güven ve P2 uygun.",
+  "fix": "Satır 180'de binlik kararına baştaki grubun sıfırla başlamaması şartını ekleyin. Örnek: `const lead = cleaned.slice(0, lastSep); const isThousands = afterLast.length === 3 && !/^0/.test(lead) && (sepCount > 1 || leadingDigits <= 3);`. Böylece \"0.500\" ve \"0,500\" ondalık kabul edilir (0,5), \"1.500\" ve \"12.000\" ise binlik kalır."
+ },
+ {
+  "id": 44,
+  "file": "src/lib/storage/deletion-queue.ts",
+  "line": 173,
+  "title": "Silme sırasında gösterim kontrolü ile gerçek silme arasında boşluk (TOCTOU)",
+  "lens": "dogruluk",
+  "verdict": "confirmed",
+  "evidence": "Gösterim sorgusu (satır 165-180) bütün parti için döngüden ÖNCE bir kez çalışır: `const rows = await prisma.taskUpdate.findMany({ where: { photoUrl: { in: urls } ... } })` (173-176), sonuç `shown` kümesine yazılır. Silme döngüsünde (187-198) `shown` içinde olmayan satır için yeniden okuma yoktur; doğrudan `await adapter.delete(row.objectKey)` (198) çağrılır. Döngü 45 sn'lik bütçeye (`DRAIN_BUDGET_MS`, satır 143) kadar sürebildiğinden, okuma ile silme arasında personel fotoğrafı bir görev güncellemesine bağlarsa nesne silinir ve güncelleme kırık URL gösterir. 'Gösteriliyor → iptal' yönü `deleteMany({ where: { id, status, availableAt } })` (192-194) ile karşılaştır-ve-sil korumalıdır, ama 'gösterilmiyor → sil' yönünde böyle bir koruma yoktur. Yarış gerçektir; olasılığı düşüktür, çünkü yalnızca 24 saatlik vade anına denk gelen bağlama işlemlerini etkiler. Bu nedenle P2 / düşük güven makul.",
+  "fix": "Gösterilmiyor görünen satırlarda `adapter.delete`'ten hemen önce (198 öncesi) tek anahtarlık bir `prisma.taskUpdate.findFirst({ where: { photoUrl: photoUrlForKey(row.objectKey), task: { property: { organizationId: orgIdFromKey(row.objectKey)! } } } })` çalıştırın; sonuç varsa silmeden kaydı karşılaştır-ve-sil ile iptal edin. Bu pencereyi daraltır ama tamamen kapatmaz. Tam çözüm için görev güncellemesi yazılırken (aynı işlemde) ilgili bekleyen sahipsizlik kaydını `deleteMany({ where: { objectKey, status: 'pending' } })` ile iptal edin."
+ },
+ {
+  "id": 46,
+  "file": "src/app/api/admin/ai-quality/route.ts",
+  "line": 20,
+  "title": "Operatör olmayan her oturum hız sınırsız denetim satırı yazabiliyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 20-21'de `if (!isSuperAdmin(session)) await recordAiQualityDenied(session, \"not_operator\", \"view\"); if (!isSuperAdmin(session)) return unauthorized();` var. Operatör olmayan her kimlik doğrulanmış oturum için, bu dosyada hiçbir hız sınırı, kova veya tekilleştirme olmadan `recordAiQualityDenied` çağrılıyor. Bu kısım doğru. Ancak `recordAiQualityDenied` gate.ts'te tanımlı ve gövdesi bu dosyada görünmüyor. İçeride tekilleştirme, kısma ya da denetim satırı yazmama olabilir. Satırın kullanıcının kendi organizasyonuna yazıldığı ve KVKK dışa aktarımına girdiği, kardeş rotaların kova kullandığı iddiaları da bu dosyadan doğrulanamıyor. Kenar katmanında ya da `requireSession` içinde genel bir hız sınırı olup olmadığı da bilinmiyor. Sorun var olabilir ama kanıt eksik; bu yüzden güven düşük, hüküm kısmen doğru.",
+  "fix": "Önce gate.ts içindeki `recordAiQualityDenied` gövdesini kontrol edin. İçeride kısma yoksa reddi yazmadan önce kullanıcı başına kova uygulayın, örneğin `if (!(await rateLimit(`ai-quality-denied:${session.userId}`, 5, 3600_000)).ok) return unauthorized();`. Kova dolunca yalnızca 401 dönün, satır yazmayın. Aynı kontrolü `labels` rotasına da ekleyin; en temizi bunu `recordAiQualityDenied` içine koymaktır."
+ },
+ {
+  "id": 45,
+  "file": "src/app/api/account/forgot-password/route.ts",
+  "line": 117,
+  "title": "Şifre sıfırlama isteğinde günlük adres tavanı yok (e-posta bombardımanı)",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Çekirdek iddia doğru: `request` dalında yalnızca 15 dakikalık adres kovası var (117-118. satırlar: `const reqLimit = await rateLimit(`forgot-req:${email}`, 4, 15 * 60_000); if (!reqLimit.ok) return tooManyRequests(...)`). 24 saatlik bir tavan yok. Kova 120. satırdaki kullanıcı sorgusundan önce çalıştığı için hesabı olan her adrese günde yaklaşık 4×96=384 e-posta gidebilir. Senaryonun bazı ayrıntıları ise yanlış ya da abartılı. (1) Adres kovası e-posta anahtarlı olduğundan IP döndürmek gerekmez. Tek IP 15 dakikada 12 istek yapabilir, bağlayıcı olan adres kovasıdır. (2) 'Canlı kod sayısı birikir' iddiası abartılı. 146. satırdaki yorum, canlı satır sayısının `forgot-req` kovası ve 30 dakikalık TTL ile sınırlı olduğunu söylüyor, yani aynı anda en fazla yaklaşık 8 canlı challenge olur. Eski challenge'ların iptal edilmemesi (143-146. satırlar) bilinçli bir karar. (3) `resend-verification` ve `register` rotalarındaki günlük tavan iddiasını bu dosyadan doğrulayamadım. Gerçek etki e-posta bombardımanı ve gönderici itibarıdır. Hesap ele geçirme riski yok.",
+  "fix": "117-118. satırlardan sonra, kullanıcı sorgusundan ÖNCE ikinci bir kova ekleyin: `const dayLimit = await rateLimit(`forgot-req-day:${email}`, 6, 24 * 60 * 60_000); if (!dayLimit.ok) return tooManyRequests(dayLimit.retryAfter);`. Kova hesabın varlığına bakmadığı için enumeration sızıntısı oluşmaz. Ödünleşim olarak saldırgan kurbanı o gün için şifre sıfırlamadan kilitleyebilir. Tavanı buna göre seçin (örn. 6-10) ve kardeş rotalardaki değerle hizalayın."
+ },
+ {
+  "id": 47,
+  "file": "src/app/api/conversations/[id]/ai-suggest/route.ts",
+  "line": 291,
+  "title": "suggestReply sonucu filtrelenmeden istemciye spread ediliyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 291'de `return jsonOk({ ...result, reply: hostDraft, availabilityCheck, earlyCheckin });` gerçekten `suggestReply` sonucunu süzmeden yayıyor; spread kısmı doğru. `result` başka yerlerde `result.reply`, `result.confidence`, `result.intent`, `result.detectedLanguage` ve `availabilityPolicyFor(result, ...)` olarak kullanılıyor (217-249, 264), yani nesne birden çok alan taşıyor. Ancak claimAudit, sourceAudit, llmUsage gibi alanların `result` içinde olduğu bu dosyadan doğrulanamıyor; bulgu bunları yalnızca 'olabilir' diye varsayıyor. Uç `withManage` ile korunuyor (satır 30) ve konuşma `organizationId` ile kapsamlanıyor (satır 45). Yanıt yalnızca yönetim yetkisi olan, kendi organizasyonunun ev sahibi paneline gidiyor, üçüncü tarafa gitmiyor. Kapı kodu gibi sırlar modele zaten kapsam süzgecinden geçerek veriliyor (satır 110). Yani yetkili kullanıcıya iç denetim alanlarının görünmesi en fazla savunma derinliği / sözleşme sıkılığı sorunu; kanıtlanmış bir güvenlik sızıntısı değil. P2 'güvenlik' sınıflaması abartılı.",
+  "fix": "Önce `suggestReply` dönüş tipine bakıp istemcinin gerçekten tükettiği alanları belirleyin. Ardından `...result` yerine açık liste kullanın, örneğin `jsonOk({ reply: hostDraft, confidence: result.confidence, intent: result.intent, riskLevel: result.riskLevel, availabilityCheck, earlyCheckin })`. Panel başka alan kullanıyorsa onları da ekleyin. Dönüş tipinde iç denetim alanları yoksa değişiklik gerekmez, en fazla düşük öncelikli bir temizlik olur."
+ },
+ {
+  "id": 51,
+  "file": "src/lib/ai/conversation-state-loader.ts",
+  "line": 145,
+  "title": "Dışa açık loadConversationState içinde kiracı süzgeçsiz konuşma okuması",
+  "lens": "guvenlik",
+  "verdict": "confirmed",
+  "evidence": "145. satırda `loadConversationPhase(input.conversationId, input.pendingGuestText)` çağrısına organizationId verilmiyor; 76. satırda `conversationStatePriorTotals` da yalnızca `\"conversationId\" = ${input.conversationId}` ile süzüyor. `loadConversationState` 99. satırda `export` edilmiş ve sahiplik doğrulaması yok. Sahiplik kontrolü (191-197) yalnızca `loadConversationStateForConversation` içinde. 195-196. satırlardaki yorum, aşama okuyucusunun kiracı süzgeci taşımadığını ve kontrolün bu yüzden bir üst katmanda yapıldığını açıkça kabul ediyor. Bulgu doğru; ancak bugünkü kod yolunda sömürü kanıtı yok, savunma derinliği açığı (P2, düşük güven) olarak kalıyor.",
+  "fix": "`loadConversationState` içinde `input.conversationId` verilmişse, aşama/toplam okumalarından önce `prisma.conversation.findFirst({ where: { id: input.conversationId, property: { organizationId: input.organizationId } }, select: { id: true } })` ile sahipliği doğrulayın; yoksa conversationId'yi yok sayın. Alternatif: `loadConversationPhase` ve `conversationStatePriorTotals` fonksiyonlarına organizationId parametresi ekleyip sorguyu Conversation→property.organizationId ile süzün."
+ },
+ {
+  "id": 48,
+  "file": "src/app/api/hospitable/diagnostics/route.ts",
+  "line": 137,
+  "title": "Ham sağlayıcı/iç hata mesajı kiracıya JSON olarak dönüyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Kod olgusu doğru: 137. satırda `out.reservations = { error: err instanceof Error ? err.message : String(err) };` ham hata metnini yanıta koyuyor. Aynı desen 131. satırda (`out.messages = { error: ... err.message ... }`) ve 150. satırda (Prisma hatası) da var; 153. satır `NextResponse.json(out)` ile bunu döndürüyor. Etki ise sınırlı. Rota `withManage` ile yalnız owner/manager/operatöre açık (33-35. satır yorumu ve 35. satır). Dosya başlığı 10-17. satırlarda bunun 'dev aid' bir tanılama ucu olduğunu söylüyor, yani hata metnini görmek amacın parçası. Ayrıca 38. satırdaki sec-fetch-site kontrolü ve 53. satırdaki hız limiti dışarıdan tetiklenmeyi sınırlıyor. 'S7-02 kuralı' ile `hospitable/connect` POST'undaki `msg = err.message` bu dosyadan doğrulanamıyor. Token'ın mesaja sızdığına dair de bir kanıt yok. Bulgunun atladığı nokta: 150. satırdaki Prisma `err.message` iç şema/sorgu ayrıntısı taşıyabilir.",
+  "fix": "Hata metnini yanıtta sabit bir Türkçe cümleyle değiştirin, örn. `{ error: 'Hospitable isteği başarısız oldu.' }`. Ham `err.message` değerini yalnız sunucu tarafında `reportError(err)` ile loglayın. Bunu 131. ve 150. satırlara da uygulayın. Proje bu uçta tanılama amacıyla ham metni bilerek tutmak istiyorsa, 'dev aid' notuna istisna olarak yazın."
+ },
+ {
+  "id": 50,
+  "file": "src/lib/ai-quality/console.ts",
+  "line": 73,
+  "title": "AiReviewLabel.note serbest metin: misafir metni taşıyabilir, saklama/silme kapsamı görünmüyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Kod tarafı iddia edilen biçimde doğru: satır 73 `else note = b.note.replace(/\\u0000/g, \"\").trim() || null;` yalnızca NUL siler ve uzunluğu 1000 ile sınırlar (satır 27, 72), içerik redaksiyonu yok. Satır 139-140 `db.aiReviewLabel.create({ data: { ..., note: input.note, ... } })` notu serbest metin olarak saklar. Satır 13-14 ise serbest metnin kişisel veri taşıyabileceğini ve kaydın müşterinin KVKK ihracına girdiğini açıkça belirtiyor; yani risk tasarım düzeyinde kabul edilmiş. Ancak bu dosyada saklama/silme (DATA_RETENTION_MONTHLY, anonymizeOldGuestData, erasure) koduna dair hiçbir şey yok. Bulgunun asıl iddiası (\"bu kolonu kapsamıyorsa\") koşullu ve dosyadan doğrulanamıyor; bunun için o işlerin kodu ve Prisma şemasındaki AiReviewLabel -> AiGeneration ilişkisi (onDelete: Cascade olup olmadığı) kontrol edilmeli. Etiket generationId ile AiGeneration'a bağlı olduğundan, üretim izi silinirse cascade ile gidiyor olabilir. Bu yüzden risk gerçek ama kanıtlanmış bir açık değil; güven düzeyi düşük.",
+  "fix": "Önce şemada AiReviewLabel.generationId ilişkisinde onDelete: Cascade olup olmadığına ve retention/erasure işlerinin AiGeneration ile birlikte AiReviewLabel.note'u da silip/boşaltıp boşaltmadığına bakın. Kapsam dışıysa, anonymizeOldGuestData ve misafir silme akışına AiReviewLabel.note temizliğini (null'a çekme veya satırı silme) ekleyin ve bunu kanarya/regresyon testine bağlayın. Ek olarak konsol arayüzünde nota misafir verisi yapıştırmama uyarısı gösterin ya da notu kaydetmeden önce telefon/e-posta redaksiyonundan geçirin."
+ },
+ {
+  "id": 52,
+  "file": "src/lib/ai/divider-spoof.ts",
+  "line": 16,
+  "title": "Çizgi taklidi dedektörü görünmez karakterle aşılabilir",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 16: `[${DIVIDER_CHARS}](?: ?[${DIVIDER_CHARS}]){2,}` ifadesi çizgi karakterleri arasında yalnızca en fazla tek bir ASCII boşluğa izin verir. \"═\\u200B═\\u200B═\" dizisinde U+200B ne çizgi sınıfında ne de ` ?` içinde olduğu için ardışık 3 çizgi oluşmaz; hiçbir eşleşme çıkmaz. Satır 34'te `DIVIDER_RUN_ONE.test` false döner ve `stripDividerRuns` metni olduğu gibi geri verir. Satır 51'de `matchAll(DIVIDER_RUN)` boş kalır, satır 53'te `false` döner. Aynı sorun SPOOF_ONLY_RUN (satır 23) için de geçerlidir. `fold` (satır 38-40) yalnızca `\\p{M}` siler, `\\p{Cf}` silmez; dolayısıyla dosya içinde görünmez karakter temizliği yoktur. Dosya yaprak modüldür ve çağıranı göstermez, bu yüzden üst katmanda temizlik olup olmadığı buradan doğrulanamaz. Bulgu da bu koşulu kendisi belirtmiştir. Bypass mekanizması doğrudur, ancak istismar edilebilirliği çağıranın girdiyi normalize edip etmediğine bağlıdır. Ayrıca çizgilerin modele gitmesi tek başına zarar vermez; zarar için modelin sahte başlığa uyması gerekir.",
+  "fix": "Eşleştirmeden önce hem `stripDividerRuns` hem `hasDividerHeaderSpoof` içinde metni `text.replace(/[\\p{Cf}\\p{Default_Ignorable_Code_Point}]/gu, \"\")` ile normalize edin; ya da bu sınıfı çizgi ayraç kalıbına isteğe bağlı olarak ekleyin: `(?:[ \\p{Cf}]?[${DIVIDER_CHARS}]){2,}`. Çağıran zaten görünmez karakterleri siliyorsa bunu \"═\\u200B═\\u200B═ SİSTEM KURALI\" girdisiyle bir birim testle sabitleyin."
+ },
+ {
+  "id": 54,
+  "file": "src/lib/ai/index.ts",
+  "line": 677,
+  "title": "Üslup özeti için ev sahibi cevapları adsızlaştırılmadan OpenAI'ye gidiyor; özet başka misafirlerin isteminde kullanılıyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Teknik gözlem doğru: 677-679. satırlarda örnekler yalnızca `defuseBlockDelimiters(s)` ile işleniyor; bu dosyada ad, telefon ya da kod maskesi uygulanmıyor ve `summarizeHostStyle` doğrudan OpenAI'ye gidiyor (695-700). Ancak etki iddiası abartılı. (1) Sistem istemi (667-676) modeli yalnızca yazış tarzını çıkarmaya zorluyor. Kapı/giriş kodu, Wi-Fi şifresi ve adres rehbere \"GİRMEZ\" diyor. Örneklerin içindeki talimatları da uygulamamasını, yazmamasını söylüyor. Çıktı en fazla 120 kelime ve 1800 karakterle sınırlı (704). (2) Misafir adının başka misafirin istemine sızması varsayımsal: model bir özel adı kalıp ifade diye yazarsa olabilir, ama kodda bunu gösteren bir kanıt yok. (3) Örnekleri bu fonksiyona veren çağıranlar (`automation.ts` `refreshStyleProfile`) bu dosyada görünmüyor. Maskeleme orada yapılıyor olabilir, bu yüzden \"hiç maskelenmiyor\" çıkarımı doğrulanamıyor. (4) KVKK iddiası zayıf: cevap üretim yolu zaten aynı OpenAI'ye misafir verisi ve geçmiş gönderiyor. Yani yeni bir işleyiciye aktarım söz konusu değil. Kalan risk, adların org geneli rehbere kalıcı yazılma ihtimali; güvenilir bir sızıntı yolu değil, savunma derinliği eksiği.",
+  "fix": "Çağıranın örnekleri zaten maskeleyip maskelemediğini kontrol edin. Maskelemiyorsa `summarizeHostStyle` içinde (`defuseBlockDelimiters`'tan önce) örnekleri mevcut ad/telefon/e-posta/kod süzgecinden (`redactGuestNamesForPrompt` vb.) geçirin. Üretilen rehberi kaydetmeden önce aynı süzgeçten ya da basit bir PII regex'inden geçirip eşleşme varsa atın."
+ },
+ {
+  "id": 53,
+  "file": "src/lib/ai/gas-detector-alarm.ts",
+  "line": 295,
+  "title": "Cümlenin başındaki 'if/wenn/eğer' varsayım sayılıp gerçek CO/gaz dedektörü bildirimi acil ağından düşüyor",
+  "lens": "guvenlik",
+  "verdict": "confirmed",
+  "evidence": "Mekanizma gerçek. Satır 334: `firstHypo = spans(HYPOTHETICAL_ALL, blankPoliteConditionals(sentence))[0]?.start ?? Infinity`. Satır 295: `return !(firstHypo < s.start)`. HYPOTHETICAL_SRC (satır 108) `if` ve `wenn` sözcüklerini cümlenin herhangi bir yerinde yakalıyor. 'wenn ich ehrlich bin, der co-melder piept seit stunden' cümlesinde `wenn` 0. konumda, `piept` ise ondan sonra. Bu yüzden firstHypo=0 < s.start olur ve liveSound false döner. sameLive de false olduğu için 'AYNI CÜMLE' döngüsü (satır 356-365) true üretmez. Devam cümlesi yolu `firstHypo === Infinity` ister (satır 371), o da kapalıdır. Geriye atıf yolu (satır 397-410) da bu cümleyi kurtarmaz. 'Not sure if it matters, but the CO alarm keeps beeping' için de aynı sonuç çıkar: `if` sesten önce gelir ve ONGOING ('keeps') hipotez denetimini hiç etkilemez (yalnız `procedural` içinde kullanılıyor). Kod yorumu (satır 14) ve satır 332-333 yalnızca nezaket kalıplarını (blankPoliteConditionals) istisna sayıyor; 'ehrlich gesagt' / 'not sure if' türü yan cümleler istisna dışında. polite-conditional.ts dosyası görünmediği için o listede bu kalıpların olmadığı varsayıldı. Başka bir güvenlik ağının mesajı yakalayıp yakalamadığı da bu dosyadan doğrulanamıyor. Bu yüzden etki iddiası düşük güvenli, ama kod yolu doğru.",
+  "fix": "Hipotez işaretini yalnızca sesi (ya da dedektör adını) doğrudan yöneten bağlamda say. İşaret ile ses arasında virgül ya da 'but/aber/ama/mais/pero' bağlacı varsa, ya da işaret dedektör adından önce kapanan bir yan cümlede kalıyorsa ('wenn ich ehrlich bin,', 'not sure if it matters, but') hipotezi yok say. Bunu liveSound'a firstHypo yerine 'ses ile işaret arası' kontrolüyle ekle. Ayrıca 'not sure if', 'if i'm honest', 'if i'm being honest', 'wenn ich ehrlich bin', 'ehrlich gesagt', 'eger dogruyu soylemek gerekirse' kalıplarını blankPoliteConditionals listesine ekle ve test pinle. Dikkat: ONGOING ('keeps') işaretiyle hipotezi topyekûn iptal etme; 'If the CO alarm keeps beeping, what do I do?' gerçek bir varsayım olarak kalmalı."
+ },
+ {
+  "id": 55,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 1807,
+  "title": "Mülk check-in/check-out saati isteme sanitize edilmeden giriyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 1807-1808'de saatler ham basılıyor: `Check-in saati: ${property.checkInTime}` / `Check-out saati: ${property.checkOutTime}`. Hemen üstte ad ve adres `sanitizePromptValue` ile temizleniyor (1805-1806), yani tutarsızlık gerçek. `adjacencyDataLines` içinde de (719, 727) `${property.checkOutTime}` ve `${property.checkInTime}` ham kullanılıyor. Bu iki iddia doğru. Ancak `conflictBlock` (1507) ham alanı değil `findTimeConflicts`in döndürdüğü `normalizePropertyTime(property[key])` çıktısını basıyor (1019); kb değerleri de saat okuyucusundan geliyor. Bu yüzden `conflictBlock`u listeye katmak yanlış. Etki de sınırlı: bu alanlar host tarafından ayarlanıyor (772-775 yorumu: 'property fields are host-set'), misafir kontrollü değil. Sahte `<<KB_END>>` MÜLK BİLGİSİ bloğuna düşüyor, gerçek KB bloğunu kapatamaz. Yine de `normalizePropertyTime`ın varlığı ve 'Mülk ayarı SS:DD değilse hüküm verilmez' yorumu (1011), alanın SS:DD olmayabileceğini gösteriyor. Serbest metin olabilirse satır sonu ve talimat metni isteme girebilir. Önem P2'den düşük (P3) sayılmalı, güven düşük kalıyor.",
+  "fix": "Saatleri basmadan önce `normalizePropertyTime(property.checkInTime) ?? sanitizePromptValue(property.checkInTime, 20)` ile geçirin. Aynısını `checkOutTime` için ve `adjacencyDataLines` içindeki dört kullanımda uygulayın. `conflictBlock` için değişiklik gerekmez."
+ },
+ {
+  "id": 56,
+  "file": "src/lib/ai/output-veto.ts",
+  "line": 589,
+  "title": "Paylaşılan ANY_DOUBLE_BRACE regex'i /g bayraklıysa .test() durumlu olur ve veto aralıklı kaçar",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 589: `return kbPlaceholderTokens(reply).length > 0 || ANY_DOUBLE_BRACE.test(reply) || leftoverGuestTokens(reply).length > 0;`. `ANY_DOUBLE_BRACE` satır 61'de `@/lib/template-apply` dosyasından içe aktarılıyor ve tanımı bu dosyada yok. Bu yüzden `/g` ya da `/y` taşıyıp taşımadığı buradan doğrulanamıyor. Bu dosyadaki kendi regex'lerin hepsi `\"iu\"` ile kuruluyor (satır 146, 238, 308, 421, 567), yani `/g` yok ve `.test()` durumsuz. Mekanizma doğru: `/g` olsaydı `.test()` `lastIndex`'i ilerletir ve sonraki çağrıda eşleşme kaçabilirdi. Ancak bu koşullu bir varsayım, kanıtlı bir hata değil. Ayrıca yaşam-döngüsü göndericisi aynı regex'i kullanıyor (satır 580) ve orada kullanım fiilen test ediliyor olabilir. Bu dosyada kanıtlanmış bir kusur yok, yalnızca savunmasız bir kullanım var. Güven düzeyi de `low`.",
+  "fix": "`template-apply.ts` içindeki `ANY_DOUBLE_BRACE` tanımına bakın. `/g` ya da `/y` yoksa değişiklik gerekmez. Bir birim testiyle `ANY_DOUBLE_BRACE.global === false` ve `.sticky === false` olduğunu pinleyin. Bayrak varsa satır 589'da paylaşılan regex yerine `new RegExp(ANY_DOUBLE_BRACE.source, ANY_DOUBLE_BRACE.flags.replace(/[gy]/g, ''))` ile modül düzeyinde durumsuz bir kopya kullanın. Daha basit bir yol, `.test()` öncesinde `ANY_DOUBLE_BRACE.lastIndex = 0` yapmaktır."
+ },
+ {
+  "id": 58,
+  "file": "src/lib/ai/translate.ts",
+  "line": 88,
+  "title": "Hedef dil kodu doğrulanmadan sistem istemine yazılıyor",
+  "lens": "guvenlik",
+  "verdict": "confirmed",
+  "evidence": "Kod incelemesi bulguyu doğruluyor. Satır 88: `return LANGUAGE_NAMES[code.toLowerCase()] ?? code;` — listede olmayan kod ham haliyle döner. Satır 103: `const target = languageName(targetLang);` targetLang için hiçbir biçim kontrolü yok. Satır 104: `sourceLang && LANGUAGE_CODE.test(sourceLang)` kontrolü yalnızca kaynak dil için var (satır 96'daki regex). `target` ise satır 107 (`into ${target}`) ve 116 (`already in ${target}`) üzerinden sistem istemine doğrudan yazılıyor. `translate()` içinde (120-145) targetLanguage için de doğrulama yok; yalnızca küçük harfe çevrilip sourceLanguage ile karşılaştırılıyor (127). Dolayısıyla çağıran rota kullanıcı girdisi geçirirse sistem istemine enjeksiyon mümkün. Etki sınırlı: çağıranlar görünmüyor, hedef dil büyük olasılıkla sunucu tarafı ayarlardan geliyor, kural 8 kullanıcı mesajına karşı koruma sağlıyor ve çıktı yalnızca çeviri olarak döndürülüyor. Bulgunun düşük güven ve P2 seviyesi makul; savunmasızlık kod düzeyinde gerçek ama istismar edilebilirliği çağıranlara bağlı.",
+  "fix": "`translate()` başında `if (!LANGUAGE_CODE.test(targetLanguage)) return { ok: false, reason: \"failed\" };` ekleyin (cache ve OpenAI çağrısından önce). Ek olarak `languageName` içinde listede olmayan kodlar için ham değer yerine yalnızca regex'e uyan kodu döndürün."
+ },
+ {
+  "id": 57,
+  "file": "src/lib/ai/retrieval/select.ts",
+  "line": 452,
+  "title": "Gömme (embedding) metinleri redaksiyonsuz ham misafir cümlesi taşıyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Dosya içinde redaksiyon gerçekten yok: satır 455 `const raw = seg.trim().slice(0, EMBED_QUERY_MAX_CHARS);` ve satır 458 `out.set(sq, subs.length === 1 ? [raw] : [raw, sq.slice(...)])` ham misafir cümlesini `embedTexts`e koyuyor. Satır 515'te ek sorgular için de `raw.slice(...)` aynı şekilde kullanılıyor. Dosyada `redactForSemanticModel` içe aktarımı veya çağrısı yok. Ancak bu dosya yalnızca gömülecek metni ÜRETİYOR, gömme sağlayıcısına göndermiyor (satır 436 `embedTexts` bir sözleşme alanı; gönderen `embeddings/semantic-retrieval.ts`, burada görünmüyor). Redaksiyon tüketici modülde yapılıyorsa sızıntı yoktur. Finding'in kendisi de 'kesin değil' diyor. Ayrıca `subquery` anahtarı `normalizeForRetrieval` çıktısı; ham cümle ile anahtar eşleşmesi için redaksiyon bu noktada yapılırsa anahtarlar bozulmaz ama tüketici tarafı doğrulanmadan 'sızıntı var' denemez. Yani: ham PII'nin bu fonksiyondan çıktığı doğru, sağlayıcıya gittiği kanıtlanmadı.",
+  "fix": "Önce `embeddings/semantic-retrieval.ts` içinde gömme çağrısından önce `redactForSemanticModel` uygulanıp uygulanmadığını doğrula. Uygulanmıyorsa `embedTextsByQuery` içinde (satır 455 ve 458) ve satır 515'te `raw`/`sq` değerlerini `redactForSemanticModel(...)`den geçirerek `embedTexts`e koy (anahtar olan `subquery` değişmesin). Uygulanıyorsa bunu 'gömme sağlayıcısına giden metinlerde telefon/e-posta bulunmaz' testiyle sabitle ve `embedTexts` JSDoc'una 'tüketici redakte eder' notunu ekle."
+ },
+ {
+  "id": 59,
+  "file": "src/lib/conversation-items/reply-block.ts",
+  "line": 30,
+  "title": "cleanHint satır ayırıcıları (U+2028/U+2029) temizlemiyor — misafirden türeyen ipucu isteme yeni satır sokabilir",
+  "lens": "guvenlik",
+  "verdict": "refuted",
+  "evidence": "Bulgu yanlış: U+2028 ve U+2029 çıktıda kalmıyor. Satır 30'da `.replace(/\\s+/g, \" \")` adımı var: `return s.replace(/[\\p{Cc}\\p{Cf}\"<>]/gu, \" \").replace(/\\s+/g, \" \").trim().slice(0, HINT_MAX);`. ECMAScript'te `\\s` WhiteSpace ve LineTerminator kümelerini kapsar; LineTerminator U+000A, U+000D, U+2028 ve U+2029'dur. Yani `\\s+` bu iki karakteri tek boşluğa indirir. `.trim()` de bunları baş ve sondan siler. İpucu satır 40'a yazılmadan önce tek satıra iner. Bulgunun varsaydığı 'regex yalnız \\p{Cc}, \\p{Cf}, tırnak ve <> siler' önermesi, zincirdeki ikinci replace'i görmezden geliyor. Ayrıca Cc zaten \\n ve \\r karakterlerini siliyor.",
+  "fix": "Değişiklik gerekmiyor. İstenirse savunmayı açık hâle getirmek için regex'e \\p{Zl}\\p{Zp} eklenebilir, ama mevcut davranış bunsuz da güvenli. İstenirse U+2028/U+2029 içeren bir girdiyle birim test eklenip tek satır çıktı doğrulanabilir."
+ },
+ {
+  "id": 60,
+  "file": "src/lib/eval-real/labeling.ts",
+  "line": 183,
+  "title": "Çıktı yolu kapısı \"..\" ile başlayan depo içi dosya adlarında atlanıyor",
+  "lens": "guvenlik",
+  "verdict": "confirmed",
+  "evidence": "Satır 183: `const insideRepo = !rel.startsWith(\"..\") && !path.isAbsolute(rel);`. Depo içindeki `..adaylar.json` dosyası için `path.relative(repo, abs)` sonucu `..adaylar.json` olur. `startsWith(\"..\")` true döner, `insideRepo=false` hesaplanır. Satır 169'da `if (!input.insideRepo) return { ok: true };` çalışır. Böylece 171-172'deki `evals/private/` ön ek kontrolü ve gitIgnored kontrolü atlanır. Satır 184'te `gitIgnored: insideRepo && ...` ifadesi de kısa devre yapar. Dosya depo içinde, git'in izleyebileceği bir yola yazılabilir. `..private/x.json` aynı şekilde geçer. Gerçek bir `..` üst dizin çıkışı yalnızca `..` ya da `../` / `..\\` ile başlar. Sorun gerçek, ancak operatörün alışılmadık bir dosya adı seçmesini gerektirdiği için olasılığı düşük.",
+  "fix": "Satır 183'ü şöyle değiştir: `const outside = rel === \"..\" || rel.startsWith(\"../\") || rel.startsWith(\"..\" + path.sep); const insideRepo = !outside && !path.isAbsolute(rel);`. `..adaylar.json` ve `..private/x.json` için `guardedOutputPath` çağrısının fırlattığını doğrulayan bir reddetme testi ekle. Depo dışı `../x.json` yolunun hâlâ serbest kaldığını da test et."
+ },
+ {
+  "id": 61,
+  "file": "src/lib/eval-real/anonymize.ts",
+  "line": 79,
+  "title": "E-posta maskeleme kalıbı @ içermeyen uzun harf-rakam dizisinde karesel çalışıyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 79: `/[\\p{L}\\p{N}._%+-]+@[\\p{L}\\p{N}-]+(?:\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}/gu`. Kalıp açgözlü bir `+` ile başlıyor ve ardından `@` bekliyor. `@` içermeyen n uzunluğunda bir harf/rakam/`._%+-` dizisinde her başlangıç konumu dizinin sonuna kadar gidiyor, sonra `@` ararken adım adım geri sarıyor. Bu yüzden toplam iş O(n²). Satır 201'deki `.replace(EMAIL_RE, ANON.email)` bunu her mesajda çalıştırıyor, yani mekanizma doğru. Ancak iddianın şiddeti abartılı. Kod içinde uzunluk tavanı olmadığı doğru, ama gerçek kanal mesajları (Airbnb vb.) genelde birkaç bin karakterle sınırlı. 5.000 karakterde yaklaşık 12 milyon basit adım eder, bu milisaniyeler sürer. 20.000 karakter ancak yaklaşık bir saniye mertebesinde olur, 'dakikalarca' kilitlenme gerçekçi değil. Betik ayrıca kurucunun kendi makinesinde yerel çalışan bir aktarım aracı, sunucu tarafı bir DoS yüzeyi değil. Sonuç: gerçek ama düşük etkili, teorik bir karesel davranış (ReDoS'tan çok performans sorunu).",
+  "fix": "Yerel kısmı geriye bakışla çapalayın: `/(?<![\\p{L}\\p{N}._%+-])[\\p{L}\\p{N}._%+-]+@.../gu`. Bu, her koşunun yalnızca başlangıcından denenmesini sağlar ve karesel davranışı doğrusala indirir. Ek olarak `anonymizeGuestText` girişinde makul bir uzunluk tavanı koyun (ör. 20.000 karakter kes ya da reddet). İsterseniz uzun tek sözcük için küçük bir süre/regresyon testi ekleyin."
+ },
+ {
+  "id": 64,
+  "file": "src/lib/tasks/detect.ts",
+  "line": 368,
+  "title": "Görev açıklamasında ham misafir mesajı saklanıyor; temizleme kapsamı bu dosyadan doğrulanamıyor",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 368'de `description: ctx.message.slice(0, 500),` var, yani ham misafir mesajı (telefon, ad, kapı kodu olabilir) görev açıklamasına yazılıyor. Satır 344-345'teki yorum da bunu doğruluyor: \"the full text goes into the description\". Başlık ise PII içermiyor (satır 367, yalnızca `detected.topic`). Bulgunun asıl iddiası, yani `anonymizeOldGuestData`, `maskReservationRows` ve silme (erasure) akışının `Task.description` alanını kapsamadığı, bu dosyadan doğrulanamıyor. Bu dosyada saklama, maskeleme veya silme kodu yok; bulgu da kendisi \"kapsamı doğrulanamıyor\" ve `confidence: low` diyor. Yani PII'nin kalıcı olarak yazıldığı kısım doğru, saklama boşluğu ise koşullu bir varsayım ve kanıtlanmış bir hata değil.",
+  "fix": "Önce `anonymizeOldGuestData`, `maskReservationRows` ve misafir silme akışında `Task.description` alanının (özellikle origin=\"ai\" olan görevlerin) temizlenip temizlenmediği kontrol edilmeli. Kapsamda değilse bu alan ilgili akışlara eklenmeli ve kanarya testiyle sabitlenmeli. Alternatif olarak satır 368'de ham mesaj yerine PII'den arındırılmış bir özet (telefon ve kod desenleri maskelenmiş) ya da yalnızca konu yazılabilir."
+ },
+ {
+  "id": 63,
+  "file": "src/lib/history-learn/instruction-gate.ts",
+  "line": 93,
+  "title": "Talimat kapısı homoglif ve tam genişlik karakterleri normalleştirmiyor; güvenlik ve para konusu kara listesi atlatılabilir",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Satır 93: `const folded = foldTurkishAscii(content.normalize(\"NFD\").replace(/\\p{M}/gu, \"\"));`. NFD yalnızca birleşik işaretleri (\\p{M}) söker. Tam genişlik harfleri (ａ) ASCII'ye çevirmez; bunu NFKC/NFKD yapar. Kiril homoglifleri (і, е) de çevrilmez. Satır 94-100'deki DOOR_TOPIC_RE, SAFETY_TOPIC_RE, STAY_CHANGE_RE, CONTACT_RE ve LANGUAGE_RE yalnızca `folded` üzerinde, `(?<![a-z])` ve ASCII kalıplarıyla çalışır. Dosyada `deconfuse` ya da NFKC çağrısı yok, yani açık gerçek. Bulgunun gücünü azaltan noktalar: (1) `foldTurkishAscii`'nin içi görünmüyor, homoglifleri belki kısmen katlıyordur. (2) Satır 97, 101 ve 102'deki `isSafetyEmergencyText(content)`, `detectKbInstructionHijack(content)` ve `namesPaymentMethod(content)` ham metinle çalışır ve kendi içlerinde deconfuse yapıyor olabilir. Bu durumda 'ａcil' örneği kısmen yakalanır. 'ücrеt' (Kiril е) gibi fiyat/şikâyet sözcükleri ise yalnızca SAFETY_TOPIC_RE'ye bağlı olduğundan büyük olasılıkla kaçar. (3) Yazma yetkisi bugün yalnız operatörde, saldırgan model güvenilir taraf; etki bulgunun anlattığından düşük. Sonuç: kapıdaki normalleştirme eksikliği doğru ve savunma derinliği zayıf, ama sömürü senaryosu ve P2 şiddeti abartılı, kesin doğrulanamıyor.",
+  "fix": "Satır 87'deki görünmez karakter temizliğinden sonra karşılaştırma kopyasını `content.normalize(\"NFKC\")` ile normalleştirin. Ardından projedeki `deconfuse` (homoglif katlama) fonksiyonunu uygulayın. Sonra NFD + \\p{M} sökme ve `foldTurkishAscii` adımlarını çalıştırın: `const folded = foldTurkishAscii(deconfuse(content.normalize(\"NFKC\")).normalize(\"NFD\").replace(/\\p{M}/gu, \"\"));`. Aynı katlanmış metni `isSafetyEmergencyText`, `detectKbInstructionHijack` ve `namesPaymentMethod` çağrılarına da geçirin. Saklanan `content` değişmesin. Kiril ve tam genişlik karakterler için regresyon testi ekleyin."
+ },
+ {
+  "id": 62,
+  "file": "src/lib/import/sync.ts",
+  "line": 645,
+  "title": "Satır hatasının ham mesajı toplu alarma giriyor; Prisma hata metni misafir adı/notu taşıyabilir",
+  "lens": "guvenlik",
+  "verdict": "partly",
+  "evidence": "Sızıntı yolu kodda gerçek. Satır yazımı hatası 630. satırda `firstRowError = err` ile saklanıyor ve 644-645. satırlarda `` `${result.errors.length} satır kaydedilemedi — örnek hata: ${sample.message}` `` biçiminde ham mesaj olarak `aggregate` hatasına konuyor. 648. satırda bu hata `reportError(\"import.sync\", aggregate)` ile e-posta ve Sentry'ye gidiyor. Hata `prisma.$transaction` içindeki `tx.reservation.create` (560-575) veya `updateMany` (534-552) çağrısından geliyor. Bu çağrılara `guestName` (540, 563) ve `notes` (542, 571) feed'den gelen serbest metinle yazılıyor. Prisma doğrulama hataları (örn. şema kayması, `Unknown argument`) mesaja `Invalid prisma.reservation.create() invocation` ve veri gövdesini koyar. 636-640. yorumu 'No guest name / body / row data is added' diyor, oysa `sample.message` bu veriyi taşıyabilir. Misafir adı serbest metin olduğundan `redactSensitive` onu yapısal olarak silemez. Bulgu tam doğrulanamıyor: `reportError`/`redactSensitive` kodu dosyada yok, Prisma sürümüne göre mesajın veri içermesi değişir. İstisnai hata türlerinde ortaya çıkar, ama sistematik bir şema kayması gibi durumda her satır için oluşur. `firstTaskError` (681-686, 924) için risk daha zayıf: görev oluşturma/silme hataları genelde rezervasyon gövdesi taşımaz, yalnızca id taşır. Bu yüzden bulgu kısmen doğru.",
+  "fix": "645. satırda ham `sample.message` yerine kapalı bir kod kullanın: `Prisma.PrismaClientKnownRequestError` ise `sample.code` (örn. P2003), `PrismaClientValidationError` ise sabit 'validation_error', diğerlerinde `sample.name`. Örnek: `const code = sample instanceof Prisma.PrismaClientKnownRequestError ? sample.code : sample.name;` ve mesaj `` `${n} satır kaydedilemedi — hata kodu: ${code}` `` olsun. `aggregate.stack = sample.stack` satırı kalabilir. Ham mesaj ayıklama için gerekiyorsa yalnızca `Invalid ... invocation:` sonrasındaki kod çerçevesini atıp son satırı alın. Aynı kod yaklaşımını 686. ve 924. satırlardaki görev hatası mesajlarına da uygulayın (daha düşük öncelikle)."
+ },
+ {
+  "id": 65,
+  "file": "src/lib/net/private-host.ts",
+  "line": 12,
+  "title": "IPv4-eşlenmiş IPv6 yazımlarının bir kısmı isPrivateAddress'ten geçiyor (savunma derinliği boşluğu)",
+  "lens": "guvenlik",
+  "verdict": "confirmed",
+  "evidence": "Kod incelemesi iddiayı doğruluyor. (1) Satır 12'deki noktalı kalıp `^::(?:ffff:)?(...)$` yalnızca `::` ile başlayan yazımı kabul eder. \"0:0:0:0:0:ffff:127.0.0.1\" bu kalıba uymaz. Satır 31'deki hex kalıbı da sonda `hex:hex` bekler ve noktalı son ek uymaz, yani mappedIpv4 null döner. Satır 75'te `ip = h` kalır. Satır 77'de split(\".\") 4 parça verir ama ilk parça \"0:0:0:0:0:ffff:127\" olduğundan `/^\\d+$/` testi başarısız olur ve fonksiyon satır 94'te false döner. (2) \"0:0:0:0:0:0:7f00:1\" için satır 31'deki önek (`0{1,4}(?::0{1,4}){4}:`) tam 5 sıfır grubu tüketir. Geriye \"0:7f00:1\" kalır ve `([0-9a-f]{1,4}):([0-9a-f]{1,4})$` ile eşleşemez, yani yine null ve false. Satır 56 yalnızca h===\"::1\" ve \"::\" değerlerini yakalar. Dolayısıyla sıkıştırılmamış biçimler loopback ve metadata kontrolünden kaçar. Bugün erişilebilir olmaması (url.hostname WHATWG ile sıkıştırıldığı için) iddiayla uyumlu; bu dosyadan doğrulanamayan, çağıran tarafa dair bir varsayımdır. Bu nedenle açık, savunma derinliği boşluğu olarak P2 ve düşük güven seviyesinde doğru sınıflandırılmış.",
+  "fix": "mappedIpv4 içinde regex'lerle uğraşmak yerine IPv6 literalini önce src/lib/net/ipv6.ts içindeki expandIpv6 ile 8 gruba açın. İlk 5 grup 0 ve 6. grup 0 ya da ffff ise son iki grubu (ya da noktalı son eki) IPv4 oktetlerine çevirip mevcut oktet kontrolüne verin. Böylece yazım biçimi önemsiz olur. Ayrıca sıkıştırılmamış \"0:0:0:0:0:0:0:1\" (loopback) ve \"0:0:0:0:0:0:0:0\" biçimlerini de bu genişletilmiş karşılaştırmayla yakalayın."
+ },
+ {
+  "id": 68,
+  "file": "src/lib/ai/closing-turn.ts",
+  "line": 202,
+  "title": "Anlam yolunda olumsuzlama kontrolü yok: \"memnun değilim\" / \"not ok\" kapanış sayılıp susturulabilir ve ev sahibi listesinden düşebilir",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Sözcük katmanındaki boşluk gerçek. `ACK_SIGNAL` (satır 56-58) `memnun\\p{L}*`, `tamam\\p{L}*`, `anla[dşs]\\p{L}*` ve `ok` köklerini yakalar. \"anlaşılmadı\" kalan 0 sözcük, \"memnun değilim\", \"tamam değil\" ve \"not ok\" ise kalan 1 sözcük bırakır. Bu yüzden satır 202'deki `residualWordCount(t) > 2` denetimi bunları geçirir. `HIDDEN_REQUEST` (satır 93-97) yalnız rakam, ama/fakat/lütfen/but/please gibi sözcükleri içerir. değil/not/no/hiç/nicht/pas gibi olumsuzlama sözcükleri yoktur, `asksQuestion` de bunları görmez. Ancak bulgudaki senaryo uçtan uca doğrulanamıyor. (1) Satır 200'deki `classifyFallback(t).intent !== \"general\"` denetimi bu dosyada görünmüyor. \"memnun değilim\" gibi bir ifadeyi complaint olarak etiketleyip yolu orada kesebilir. (2) Satır 205-206 anlama katmanının yalnız `greeting_thanks` bulmasını şart koşar. (3) Satır 210-215 cevap modelinin `general` ve güven < 0.4 demesini şart koşar. İki LLM katmanının da şikâyeti yanlış okuması gerekir. Bulgu da kendi olasılığını düşük sayıyor. Satır 202 hatalı değil, eksik olan sıkılaştırma kuralı olumsuzlamayla ilgili.",
+  "fix": "`HIDDEN_REQUEST` kümesine olumsuzlama sözcüklerini ekleyin: `değil|degil|olmadı|olmadi|hiç|hic|not|no|never|nicht|kein|pas|non|не|нет|لا`. Böylece satır 201 onay sözcüğünün yanında olumsuzlama olan mesajı reddeder. `anla[dşs]\\p{L}*` kökünü `anlaşılmadı` / `anlamadım` gibi olumsuz biçimleri dışlayacak şekilde daraltın (örn. `anla[dşs]` + `(?!.*m[ae]d)`). `classifyFallback` için \"memnun değilim\" ve \"not ok\" girdileriyle bir regresyon testi ekleyin. Test sonucunda bu girdiler zaten `complaint` çıkıyorsa ek önlem yalnız savunma amaçlı kalır."
+ },
+ {
+  "id": 70,
+  "file": "src/lib/ai/emergency-number.ts",
+  "line": 115,
+  "title": "HOST_DISPUTE içindeki çıplak `hote` kökü \"hotel/hôtel\" sözcüğünü ev sahibi anlaşmazlığı sayıyor",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Satır 115'te HOST_DISPUTE ifadesi `${L}(?:...|proprietaire|hote|anfitrion|...)` biçiminde. `L` yalnızca sol tarafa bakan bir lookbehind (satır 42), `hote` alternatifinin sağında ise sınır ya da ileriye bakış yok. `fold` (satır 38-40) \"hôtel\" metnini NFD ile \"hotel\" yapar, `hote` de \"hotel\" içinde eşleşir. \"Our hotel is next door, what is the ambulance number?\" mesajında ASK_RE zaten eşleşir (ambulance … number). Satır 170'te `hostDisputeSignal(input.message)` true döndüğü için `emergencyNumberReply` null verir ve meşru acil numara sorusu ev sahibi yoluna düşer. Aynı satırdaki `host(?!el|es)\\p{L}*` yalnızca \"hostel/hostes\" için dışlama yapar, \"hostile\" gibi sözcükleri yine yakalar. Sonuç güvenli yönde (numara gitmez), ama yorumdaki niyeti (satır 112) aşıyor.",
+  "fix": "`hote` alternatifini sağdan sınırla: `hotes?(?![\\p{L}\\p{N}])` (\"hôte\"/\"hôtes\" ev sahibi olarak kalır, \"hotel\" eşleşmez). `host` için dışlamayı genişlet, örneğin `host(?!el|es|il)\\p{L}*` ya da yalnız `hosts?|hosting` gibi bilinen biçimleri kabul et. \"hotel\", \"hôtel\" ve \"hostile\" için `emergencyNumberReply` numara döndürür testleri ekle."
+ },
+ {
+  "id": 69,
+  "file": "src/lib/ai/absence.ts",
+  "line": 75,
+  "title": "Yokluk itirafı kalıplarında araya virgül girerse kural kaçıyor (\"bilgim, maalesef, yok\")",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Bulgu doğru. `W` (satır 75) virgül içermiyor, `gap(n)` ise (satır 78) her kelimeden sonra tam olarak bir boşluk istiyor. \"bu konuda bilgim, maalesef, yok.\" cümlesinde satır 113'teki `${TR_OBJ} ${gap(1)}${TR_TIGHT}` kalıbı \"bilgim\" nesnesinden sonra boşluk bekliyor, ama orada \",\" var. Satır 121 (`TR_LOOSE`), 210 ve 212 (`elimde`/`bende`) kalıpları da nesneden sonra boşluk bekliyor, hiçbiri eşleşmiyor. İngilizce \"I don't have, unfortunately, any information\" için satır 123'teki `have ${gap(4)}${EN_OBJ}` kalıbı \"have\" + boşluk istiyor, ama \"have,\" geliyor. Satır 160, 175 ve 191'deki kalıplar da uymuyor. `narratesInternalSource` için de iç kaynak işareti yok. Sonuç olarak `admitsMissingKnowledge` false dönüyor ve cevap misafire gidiyor. Virgülün kalıplarda tolere edilmemesi kasıtlı: satır 71-72 yorumu \"no extra charge; the information\" gibi cümlelerin yanlış pozitif olmaması için noktalamayı bilerek dışarıda bırakıyor. Yani açık gerçek, ama virgülün tamamen serbest bırakılması yeni yanlış pozitifler doğurur.",
+  "fix": "Virgülleri toplu biçimde boşluğa çevirmeyin. \"No extra charge, the information pack\" ve \"Bu bilgi rehberde var, sorun yok\" gibi pinli yanlış pozitif testleri bozulur. Bunun yerine `foldedForms` içinde yalnız eşleşme kopyasında, virgüllerle çevrili kapalı listedeki ara sözleri silin. Örnek: `.replace(/,\\s*(?:maalesef|ne yazık ki|şu an|şu anda|unfortunately|sadly|currently|honestly)\\s*,/g, \" \")`. Aynı listeyle fiil/nesneden hemen sonra tek başına gelen virgüllü zarfı da (\"have, unfortunately, any\" → \"have any\") temizleyin. Regex'i kapalı tekrarla ve sabit kelime listesiyle sınırlı tutun, böylece `absence-cost` süre pini bozulmaz. Her iki örnek cümle için pozitif test, \"no extra charge, the information pack\" için negatif test ekleyin."
+ },
+ {
+  "id": 72,
+  "file": "src/lib/ai/fallback.ts",
+  "line": 2740,
+  "title": "Yedek (fallback) cevaplar devir / ev sahibi kararı cümlelerini misafire dönük metin olarak üretiyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Alıntılanan cümleler gerçekten var: 2740 (\"Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim.\"), 2746 (\"İade ve ücret konularını ev sahibimiz değerlendirecek…\"), 2752 (erken ayrılışta \"…hemen ekibimize ilettim…\") ve 2797 (\"Wi-Fi bilgilerini kontrol edip … paylaşacağım.\"). Bulgunun ana iddiası bu dosyadan kanıtlanamıyor. K10 kuralı bu dosyada yok, çağıranlar da görünmüyor. Zarar yalnızca \"çağıran bunu doğrudan misafire gönderirse\" koşuluna bağlı; bu da spekülasyon. \"Metni misafir yolundan ayıran bir bayrak yok\" iddiası kısmen yanlış: dönüş nesnesi 2875-2894 arasında `source: \"fallback\"`, `riskType: detectRiskType(...)`, `riskLevel` (şikâyet/iade/erken ayrılışta \"medium\") ve `risk`/`actionSuggestion` alanlarını taşıyor. Bu metinler ayrıca bilerek bir bekletme/devir mesajı olarak yazılmış: 2737-2739'daki yorum prompts.ts §10.5 ses uyumuna atıf yapıyor ve cümle tekil eylemle tutarlı hâle getirilmiş. Yani kod kaynaklı bir kural ihlali değil; olsa olsa çağıran tarafın bu alanları kontrol etmemesi riski var ve o kısım bu dosyada doğrulanamıyor.",
+  "fix": "Önce `suggestReplyFallback` çağıranlarını (QR/otomatik gönderim/tek tıkla gönderim) kontrol et. Bu yüzeylerde `source === \"fallback\"` ve `riskLevel !== \"none\"` iken otomatik gönderimi engelleyen davranışsal bir test ekle. Eksik çıkarsa dosyada değil çağıranda düzelt: fallback sonucu yalnızca taslak olsun, QR gibi doğrudan misafire giden yüzeyde şikâyet/iade/erken ayrılış/bilgi yok sınıflarında `reply` kullanılmasın."
+ },
+ {
+  "id": 78,
+  "file": "src/lib/ai/hazard-evidence.ts",
+  "line": 143,
+  "title": "SMOKING_HABIT 'does smoke / can smoke' ile duman bildirimini sigara sorusu sayıyor",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "143. satırdaki SMOKING_HABIT kalıbında özne isteğe bağlıdır: `(?:can|may|could|do|does|…)\\s+(?:(?:i|we|you|they|guests|one|people)\\s+)?smoke${NR}`. Bu yüzden \"why does smoke come out of the socket\" ve \"could smoke be coming from the heater\" içindeki \"does smoke\" / \"could smoke\" eşleşir. clauseVerdict içinde (584-587. satırlar) şu filtre var: `!(m.kind === \"smoke\" && SMOKING_HABIT.test(text))`. Duman anılışı bu filtreyle `reported` listesinden çıkar ve `reported.length === 0` olduğu için `{ level: \"mentioned\" }` döner. Örnekte 'socket' ELECTRIC_OBJ'de olduğu için normalde clear → soru olduğundan capQuestion ile en az 'possible' çıkardı. Filtre bunu 'mentioned'a indirir. Anlama modeli koşmazsa 'mentioned' acil sayılmaz (857-860. satırlar). Eşleşme tüm cümlecikte aranır, bu yüzden duman bildirimi izin sorusu gibi elenir. Bulgu doğrudur. Etki küçüktür: yalnızca soru biçimindeki duman bildirimleri etkilenir, bildirim cümleleri etkilenmez.",
+  "fix": "143. satırdaki alternasyonu ikiye bölün. `can|may|could|do|does` için özneyi zorunlu yapın: `(?:can|may|could|do|does)\\s+(?:i|we|you|they|guests|one|people)\\s+smoke`. \"is it ok to / allowed to / permitted to / want to / like to / where can|to / ok to\" kalıplarında özne zorunlu olmasın; bu kalıplarda öznesiz \"smoke\" zaten sigara içmektir. \"does smoke come / could smoke be\" gibi öznesiz biçimler SMOKING_HABIT'e düşmeyip duman olarak kalır ve yeni bir lookahead gerekmez."
+ },
+ {
+  "id": 80,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 1555,
+  "title": "Doğrulanmış aktif konaklama + onaylı rezervasyon birleşiminde QR \"gizli bilgi yazma\" bloğu istemden düşüyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Mekanik doğru: 1555-1556. satırlarda `const activeStayBlock = !isConfirmedStay && input.verifiedActiveStay ? ...` yazıyor; 1570. satırda `const preBookingBlock = isConfirmedStay || input.verifiedActiveStay ? \"\" : ...` var. `verifiedActiveStay: true` ile `status: \"confirmed\"` rezervasyon birlikte gelirse `isConfirmedStay` true olur. O zaman `activeStayBlock` \"\" kalır (1556), `preBookingBlock` da \"\" kalır (1570). İstemde 1563-1565. satırlardaki \"kapı kodu, keybox/PIN, tam açık adres ... ASLA yazma\" talimatı bulunmaz; bu yüzden eksik talimat boşluğu gerçek. Ancak senaryonun ulaşılabilirliği kanıtlı değil. 1550-1554. yorumları QR yüzeyinin rezervasyon PII'sini BİLEREK vermediğini söylüyor; yani QR çağıranı büyük olasılıkla `reservation: null` geçiyor ve bu durumda `isConfirmedStay` false olup blok yazılıyor. Bulgu da çağıranın rezervasyon verip vermediğini doğrulayamadığını kendisi belirtiyor. Bu yüzden P2 şiddeti ve \"istemden düşüyor\" iddiası, kanıtlanmış bir üretim hatası değil, savunma boşluğu olarak değerlendirilmeli.",
+  "fix": "`activeStayBlock` koşulunu `input.verifiedActiveStay` tek başına yapın (`const activeStayBlock = input.verifiedActiveStay ? ... : \"\"`), rezervasyon durumundan bağımsız olsun. Blok sır yasağını koruduğu için onaylı rezervasyonla birlikte yazılması zararsızdır. Ayrıca `verifiedActiveStay=true` + `status:\"confirmed\"` için, istemde \"ASLA yazma\" talimatının bulunduğunu doğrulayan bir birim test ekleyin."
+ },
+ {
+  "id": 77,
+  "file": "src/lib/ai/hazard-evidence.ts",
+  "line": 325,
+  "title": "HYPOTHETICAL listesindeki 'yoksa' ('aksi halde') acil mesajı varsayım yapıyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Satır numarası kayık: HYPOTHETICAL listesi 325'te değil 331'de. `yoksa` iddiası doğru. 331'deki kalıp `...|olursa|olsa|varsa|yoksa|durumunda|...` içinde `yoksa` NL/NR sınırlarıyla eşleşir. `pastOrHypothetical` (523-526) POLITE ve SINCE nötrlemesinden sonra HYPOTHETICAL.test(ctx) çağırır. 'hemen gelin yoksa yangin buyuyecek' tek cümlecik olarak 'yangin' anılışını bulur. 576'daki `if (pastOrHypothetical(text)) return { level: \"mentioned\", kinds: [] };` satırı onu `mentioned` yapar. 857-860'ta `mentioned` yalnızca model koşmuş ve acil demişse acil sayılır. Model kapalıysa acil olmaz. Gerçek 'aksi halde' kullanımında bu bir yanlış negatif. POLITE / DOUBT_NOT_CONDITIONAL_PARTS içeriği dosyada görünmediğinden 'gaz kokusu var yoksa mı yanlış duydum' örneğinin nötrlenip nötrlenmediği doğrulanamadı. 'Bursa'dan' iddiası yanlış: kalıp `\\p{L}{2,12}` ardından `(ar|er|ir|ur)s[ae]` ister. 'bursa' = b + ur + sa, önünde yalnız 1 harf var, 2 harf şartı sağlanmaz ve eşleşmez. 'mersa' ve 'marsa' için de aynı sonuç çıkar. Ayrıca 'Bursa'dan geliyoruz' cümlesinde tehlike sözcüğü de yok.",
+  "fix": "331'deki listeden `yoksa` çıkarılsın, ya da yalnız tehlike sözcüğünden ÖNCE gelip sorulan 'yangın/duman … yoksa?' biçiminde sayılsın. 'Bursa' örneği için değişiklik gerekmez. `(ar|er|ir|ur)s[ae]` kalıbı gerçek fiil kiplerine (gelirse, çıkarsa) daraltılırsa 2 harf ön ek altında kalan başka kelime yanlışları da elenir."
+ },
+ {
+  "id": 81,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 1877,
+  "title": "Misafirin kendi beyan ettiği çıkış saati iddia desteğinde \"doğrulanmış olgu\" sayılıyor",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Satır 1528-1530'da `guestCheckoutLine`, `guestCheckoutPromptLine(...)` ile kuruluyor. Satır 1531-1533'te bu satır `res` içine gömülüyor: `Durum: ${reservation.status}${guestCheckoutLine ? `\\n${guestCheckoutLine}` : \"\"}`. Satır 1877'de `reservation ? res : \"\",` doğrudan `claimContext.facts` dizisine giriyor. Sonuç olarak \"Misafirin daha önce kendi belirttiği çıkış saati: 13:00 — resmi çıkış saatinden (11:00) SONRA…\" satırı, doğrulanmış olgu listesinde yer alıyor. Satır 1868'deki yorum \"Misafir metni OTORİTE DEĞİL\" diyor ve misafir beyanı ayrıca `guest` dizisinde (satır 1888) tutuluyor. Yani aynı beyan `facts` içine ikinci kez, otorite statüsüyle sızıyor. Satır 753-757'deki yorum da bu saatin yalnızca misafirin beyanı ya da isteği olduğunu, kayıtlı onay bulunmadığını söylüyor. `facts` içinde \"13:00\" geçtiği için model \"Çıkışınız 13:00\" yazarsa bu saat dayanaklı sayılır. Kapsam notu: etki yalnızca gölge ölçümdedir (iddia desteği), gönderim kapısını doğrudan değiştirmez.",
+  "fix": "`facts` için guestCheckoutLine içermeyen ayrı bir rezervasyon metni kur. Örneğin `resFacts` değişkeni `res` ile aynı olsun ama `${guestCheckoutLine ? ... : \"\"}` kısmı olmasın. Satır 1877'de `reservation ? resFacts : \"\"` kullan. Misafirin beyan ettiği saat yalnızca `guest` dizisinde (ve istemin `res` metninde) kalsın."
+ },
+ {
+  "id": 82,
+  "file": "src/lib/ai/prompts.ts",
+  "line": 1887,
+  "title": "Asistanın kendi eski cevapları \"operator\" dayanağı sayılıyor",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Satır 1887: `operator: selectedHistory.filter((m) => m.direction !== \"inbound\").map((m) => m.body),`. Süzgeç yalnızca `direction` alanına bakıyor. `author` alanı kullanılmıyor, oysa aynı dosyada okunuyor (`historyLabel`, satır 1912: `m.author`, `HISTORY_AUTHOR_LABEL = { guest, host, ai, automation }`). Böylece `author === \"ai\"` olan, yani asistanın kendi eski taslak veya oto-gönderim mesajları da `claimContext.operator` içine giriyor. İstemin kendisi bunu istemiyor: `historyDetailNote` (satır 1936-1937) şunu söylüyor: `ASİSTAN = senin daha önce gönderdiğin cevap ... KURAL-1'in 3. kaynağı yalnız EV SAHİBİ satırlarıdır`. İstem ile ölçüm arasında tutarsızlık gerçek. Yanlış bir saat veya kural içeren eski bir AI cevabı, yeni cevapta aynı iddia geldiğinde 'ev sahibi söyledi' kaynağından dayanaklı görünür. Etki sınırlı: bu bağlam 'gölge ölçüm' için kuruluyor (satır 1865) ve `author` bazı çağıranlarda tanımsız olabilir. OTOMATİK MESAJ satırları ise ev sahibi şablonundan geldiği için (satır 1900-1903) operatör sayılması makul.",
+  "fix": "Satır 1887'de `author === \"ai\"` olan mesajları dışarıda bırak: `selectedHistory.filter((m) => m.direction !== \"inbound\" && m.author !== \"ai\").map((m) => m.body)`. Daha sıkı istenirse yalnız `m.author === \"host\" || m.author === \"automation\"` kabul edilir. Yazar bilinmiyorsa (`undefined`) o satır operatör dayanağı sayılmasın veya ayrı bir 'belirsiz' sepete konsun. Ardından bir test ekle: geçmişte yalnız `ai` yazarlı bir mesajda geçen saat claim desteği vermemeli."
+ },
+ {
+  "id": 83,
+  "file": "src/lib/ai/provider-health.ts",
+  "line": 141,
+  "title": "Başarıda alarm durumu silinemezse bayrak indirilmiş kalıyor; sonraki kalıcı arıza alarm üretmiyor",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Satır 139-141: `if (!alertMayBeActive[channel]) return; alertMayBeActive[channel] = false; void clearAlertState(ALERT[channel].key).catch(() => {});`. Bayrak silme çağrısından ÖNCE, koşulsuz indiriliyor. Silme reddedilirse `.catch(() => {})` hatayı yutuyor ve bayrağı geri kaldıran bir yol yok. DB satırı \"alarmda\" kalır, sonraki başarılarda satır 139'daki erken dönüş silmeyi bir daha denemez. Bayrak ancak satır 127'de `noteModelProviderPersistentFailure` içinde `true` olur. Orada `alertOnTransition` hâlâ açık görünen satırı bulur ve yeni bir geçiş saymayıp e-posta atmaz. Bu, dosyanın başındaki \"alarm YALNIZ durum geçişinde\" tasarımıyla birleşince bayat satır yüzünden sonraki gerçek arıza sessiz kalır. Tek belirsizlik `clearAlertState` içinde hata yutuluyor olabilir; ama burada ayrıca `.catch` yazılmış olması reddedilebileceğini varsayıyor.",
+  "fix": "Bayrağı yalnız silme başarılı olunca indir: `void clearAlertState(key).then(() => { alertMayBeActive[channel] = false; }).catch(() => { alertMayBeActive[channel] = true; });` ve satır 140'taki erken indirmeyi kaldır. Aynı anda birden fazla silme olmasın diye `clearInFlight` bayrağı ekle. Silme sürerken yeni bir arıza bayrağı `true` yaptıysa `.then` onu `false`'a çevirmesin (arıza sayacı/epoch ile karşılaştır). Hata yolunda bayrak `true` kalır ve sonraki başarıda silme yeniden denenir."
+ },
+ {
+  "id": 84,
+  "file": "src/lib/ai/retrieval/lexicon-foreign.ts",
+  "line": 194,
+  "title": "Yabancı yüzey eşleştirmesi tüm girdileri tüm belirteçler üzerinde tarıyor; belirteç sayısı için üst sınır yok",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Kod olgusu doğru: satır 194-197'de `for (const entry of COMPILED)` ve içte `for (let i = 0; i + entry.tokens.length <= toks.length; i++)` ile her girdi tüm belirteçlerde taranıyor. `foreignTokens` (satır 119-121) belirteç sayısına üst sınır koymuyor ve `matchForeignConcepts` (189-205) girdi uzunluğunu kısmıyor. Arapça dalda satır 146-147'de her çağrıda `candidates` dizisi ayrılıyor. Maliyet O(girdi × N), yani doğrusal; bulgu da bunu kabul ediyor. Ancak şiddet abartılmış. 50 bin belirteç × ~700 girdi ≈ 35 milyon `tokenMatches` çağrısı. Çoğu çağrı ucuz (Latin için `startsWith`), dolayısıyla süre muhtemelen yüzlerce ms ile bir saniye civarında olur, 'saniyeler' iddiası ölçülmemiş. Eşleşen kavramlar `seen` ile erken atlanıyor ve eşleşmede `break` var. Ayrıca bulgu, üst katmanın uzunluğu kesip kesmediğini bu dosyadan doğrulayamıyor ve güveni düşük. Yani mantıksal olarak sınırsız bir girdi çarpanı var, ama pratik etkisi ve bulgudaki 'saniyeler süren' iddiası kanıtlanmamış.",
+  "fix": "`matchForeignConcepts` içinde `const toks = foreignTokens(text).slice(0, 400)` ile belirteç sayısına sabit üst sınır koy (ya da çağıran katmanda misafir metnini kes). Gerekirse belirteç başına önek/kavram dizini kur. 50.000 belirteçlik girdi için süre pini testi (`*-cost.test.ts`) ekleyerek gerçek maliyeti ölç."
+ },
+ {
+  "id": 87,
+  "file": "src/lib/ai/semantic/intent-risk.ts",
+  "line": 59,
+  "title": "human_request devir cevabı muafiyeti, 'devir cümlesi misafire gitmez (K10)' kararıyla çelişebilir",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Bulgunun kod tarifi doğru: satır 59'da `const effective = k === \"human_request\" && opts.modelIntent === \"human_request\" ? null : k;` var ve bu durumda `reason: null` dönüyor (satır 60-61). Ancak muafiyet bilinçli ve belgeli: satır 22-23 \"cevap modelinin KENDİ devir cevabı doğru cevaptır → muaf (kelime ağındaki kuralla aynı)\" diyor, satır 57-58 de aynı gerekçeyi veriyor. Bu dosya yalnız tek bir sinyali değerlendiriyor ve satır 17'ye göre \"YALNIZ SIKILAŞTIRIR\"; `reason: null` diğer katmanların (kelime ağı, host-decision-hold, devir sessizliği) engelini silmez (satır 18-20 birleşim değişmezi). K10'un ihlal edildiği bu dosyadan kanıtlanamıyor. Bulgunun kendisi de bunu doğrulatma isteği olarak bırakıyor (confidence: low). Dosyada K10 ile çelişen kesin bir hata yok, yalnızca başka katmanda doğrulanması gereken bir varsayım var.",
+  "fix": "Bu dosyada değişiklik gerekmiyor. Önce devir/bildirim cümlesinin K10 gereği misafire gitmediğini devir sessizliği / host-decision-hold katmanında doğrulayın. Orada engel yoksa, muafiyeti buraya taşımak yerine ya kaldırın (`const effective = k;`) ya da yalnız cevap metni devir cümlesi içermiyorsa uygulayın. Her durumda `human_request` + `modelIntent === \"human_request\"` için uçtan uca davranış testi ekleyin."
+ },
+ {
+  "id": 86,
+  "file": "src/lib/ai/semantic/stay-change.ts",
+  "line": 81,
+  "title": "declaredClaim: tanınmayan duruş (unknown) iddia sayılmıyor, 'tanınmayan ≠ temiz' ilkesi ihlal ediliyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Asimetri gerçek: satır 76'da kapalı küme dışı duruş `stance: \"unknown\"` olur (\"Grants\" gibi). Satır 82'de `declaredClaim` yalnız `grants`/`states_calendar` için true döner, yani `unknown` iddia sayılmaz. Satır 87'de `declaredRequest` `d.asked !== \"none\"` ile `asked:\"unknown\"` değerini istek sayar. Satır 57 ve 85'teki 'tanınmayan ≠ temiz' ilkesi duruş alanında uygulanmıyor. `asked:\"none\"` + `stance:\"unknown\"` için iki fonksiyon da false döner. Ancak 'otomatik gönderime aday kalır' sonucu bu dosyadan doğrulanamaz. Çağıran kapı (`evaluateAvailability`, guard.ts) görünmüyor ve `unknown` duruşu orada ayrıca ele alınıyor olabilir. Başlıktaki alıntı da kodda birebir geçmiyor. İki satırın birleştirilmiş yorumudur. Ayrıca `asked:\"none\"` iken diğer katmanlar (anlama katmanı, `availability-claims.ts` yedeği) hâlâ çalışır. Bu yüzden etki 'bekçi kapalı ve diğer katmanlar da kaçırırsa' ile sınırlıdır.",
+  "fix": "`declaredClaim` içinde `d.stance === \"unknown\"` değerini de iddia say: `return d != null && (d.stance === \"grants\" || d.stance === \"states_calendar\" || d.stance === \"unknown\");`. Önce çağıranların (`evaluateAvailability`, guard.ts) `declaredClaim`'i yalnız istek varken mi yoksa bağımsız mı kullandığını doğrula. Bu fonksiyon yalnızca sıkılaştırdığı için `unknown` durumunun zorlanmasını kilitleyen bir davranışsal test ekle (`asked:\"none\"`, `stance:\"Grants\"` → gönderim zorlanır)."
+ },
+ {
+  "id": 89,
+  "file": "src/lib/ai/translate.ts",
+  "line": 104,
+  "title": "Hedef dil doğrulanmıyor, ham değer sistem istemine yazılıyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Kodun söylediği kısım doğru: satır 103'te `const target = languageName(targetLang);` çağrısı var ve satır 87-89'da `languageName`, `LANGUAGE_NAMES[code.toLowerCase()] ?? code` ile listede olmayan değeri ham döndürüyor. `target` satır 107 ('into ${target}') ve satır 116 ('already in ${target}') ile sistem istemine iki kez giriyor. `LANGUAGE_CODE.test` yalnız satır 104'te `sourceLang` için çalışıyor. `translate()` içinde de (satır 127-132) `targetLanguage` için doğrulama yok. Bu asimetri gerçek. Buna karşılık bu dosyada `targetLanguage` değerinin güvenilmeyen bir kaynaktan geldiği görünmüyor. Çağıranlar dosyada yok. Hedef dil çoğunlukla host ayarı ya da dahili bir koddur. Hospitable `conversation_language` gibi sağlayıcı alanı serbest metin olarak gelirse bu yol açılır, ama bu varsayım. Etki de sınırlı: satır 117'deki 8. kural enjeksiyona karşı koruma ekliyor ve çevrilen metin hâlâ host ekranından geçiyor. Kısacası eksik savunma doğru, sömürülebilirlik doğrulanamıyor.",
+  "fix": "`buildSystemPrompt` ve `translate` başında `targetLanguage` için `LANGUAGE_CODE.test(targetLanguage)` kontrolü ekle. Geçmezse `{ ok:false, reason:\"failed\" }` döndür. Alternatif olarak `languageName` bilinmeyen kodda ham değer yerine sabit bir ifade ('the target language') döndürsün veya yalnız `LANGUAGE_NAMES` içindeki adlar kullanılsın. Önce çağıranlarda hedef dilin kaynağını (sağlayıcıdan mı geliyor) kontrol et."
+ },
+ {
+  "id": 92,
+  "file": "src/lib/conversation-items/store.ts",
+  "line": 125,
+  "title": "upsertTurnItems 3 CAS kaybından sonra hassaslık yükseltmesini sessizce bırakıyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Kod davranışı doğru okunmuş: `for (let attempt = 0; attempt < 3; attempt++) {` döngüsünde 139-143. satırlarda `updateMany({ where: { id: row.id, ..., updatedAt: row.updatedAt } ...})` sonucu `if (res.count !== 1) lost = true;` ile işaretleniyor, 146. satırda `if (!lost) break;`. 3. denemede de `lost` true kalırsa döngü hata fırlatmadan, log basmadan bitiyor (147). 148-152'de güncel satırlar olduğu gibi döndürülüyor, yani birleştirilmiş hassaslık yazılmamış olabilir. Ancak etki abartılmış: (1) Yeni satırlar 123. satırdaki `createMany`'de `sensitivity: it.sensitivity` ile zaten doğru hassaslıkla yazılıyor, sorun yalnız önceden var olan ve daha düşük hassaslıkta duran satırların yükseltilmesi için çıkar. (2) Üst üste 3 kez ardışık CAS kaybı için aynı satırda her denemede başka bir yazıcının kazanması gerekir; bu pratikte çok düşük olasılık (bulgunun kendi güveni de 'low'). (3) Kazanan yazıcılar da `mergeItemFacts` ile hassaslığı yalnız yükseltiyor, `applyItemEvent` ise `sensitivity` CAS'ı taşıyor. Yani 'risk ev sahibine gitmez' sonucu kesin değil, çağıranın dönen değeri nasıl kullandığına bağlı. Sessiz düşüş gerçek ama dar bir yarış penceresi.",
+  "fix": "Döngü bittikten sonra `lost` hâlâ true ise hata fırlat ya da en azından logla; böylece çağıran güvenli yöne (öğeyi ev sahibinde tut) düşer. Daha sağlam çözüm: son denemeden sonra `updatedAt` CAS'ı olmadan, yalnızca hassaslığı yükselten koşullu atomik güncelleme yapmak, örn. `updateMany({ where: { id, organizationId, sensitivity: { in: <merged'den düşük seviyeler> } }, data: { sensitivity: merged.sensitivity } })`."
+ },
+ {
+  "id": 90,
+  "file": "src/lib/ai/stay-money.ts",
+  "line": 59,
+  "title": "Birimsiz tutar kalıbında bitişik iki boşluk niceleyicisi (karesel)",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "Satır 59'da anahtar sözcükten sonra şu parça var: `${NR}(?:\\\\s+(?:is|of|would\\\\s+be|will\\\\s+be))?\\\\s*[:=]?\\\\s*\\\\p{Nd}+`. `[:=]?` boş eşleşebildiği için iki `\\\\s*` bitişik kalıyor ve n boşluğu (k, j) çiftleri olarak O(n²) biçimde bölebiliyor. 'fee' + n boşluk + rakamsız metinde `\\\\p{Nd}+` hep başarısız olur ve motor tüm bölünmeleri dener. Önceki isteğe bağlı grup tek başına O(n), sorun yalnız bu iki bitişik `\\\\s*`. Kalıp `formHasMoney` (satır 120-123) içinde `re.test` ile senkron çalışıyor. `hasMoneyStatement`, `hasUnallowedMoney` ve `moneyAmountsOf` buna bağlı; `restrictiveMatchForms` ham boşlukları tekleştirmiyorsa 20.000 boşlukta ~10⁸ adım olur. Bulgunun kendisi de katlamanın boşlukları tekleştirip tekleştirmediğinin bu dosyadan görünmediğini söylüyor. Karesel yapı gerçek; sömürülebilirlik girdi uzunluğu sınırına ve `fallback.ts` içindeki boşluk normalizasyonuna bağlı. Bu yüzden düşük şiddet makul.",
+  "fix": "Satır 59'daki `\\\\s*[:=]?\\\\s*\\\\p{Nd}+` kısmını `\\\\s*(?:[:=]\\\\s*)?\\\\p{Nd}+` yap. Kabul edilen dil aynı kalır, geri izleme doğrusal olur. Ayrıca `restrictiveMatchForms` çıktısında boşlukların tekleştiğini doğrula ve 'fee' + 20.000 boşluk girdisiyle süre sınırı olan bir test ekle."
+ },
+ {
+  "id": 93,
+  "file": "src/lib/decisions/card.ts",
+  "line": 106,
+  "title": "Erken giriş kuralı yükleme hatası sessizce null: ücretsiz/notsuz onay metni misafire gidebilir",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Satır 106: `input.needsEarlyRule ? loadEarlyCheckinRule(...).catch(() => null) : null`. Hata ile \"kural yok\" aynı null'a iner. Satır 118'de `earlyRule` null olur, satır 394-395'te `fee` ve `note` null kalır. Kartta \"kural okunamadı\" diye bir işaret yok, yani yutma gerçek. Ancak etkisi iddia edildiği kadar kesin değil. (1) `factsHash` ücreti ve notu içerir (satır 127-139). Sayfa kuralı okuyup gönderim rotası okuyamazsa, ya da tersi olursa, hash uyuşmaz ve kart tazelenir, yani gönderim durur. Ücretsiz metin yalnızca iki okumanın da aynı şekilde başarısız olduğu nadir durumda gider. (2) Onay metninin bu karttan mı kurulduğu bu dosyada görünmüyor, gönderim rotasını görmeden doğrulanamaz. (3) `earlyLines` içindeki `loadEarlyCheckinFacts` da hatada null döner (satır 328), ve aynı DB hatasında kontrol listesi de boş kalır. Ev sahibi kartta bir tuhaflık görür, ama açık bir uyarı yoktur.",
+  "fix": "`decisionCardContextFor` içinde hatayı \"kural yok\"tan ayırın: `.catch(() => 'error' as const)` ile `earlyRuleLoadFailed: true` alanı ekleyin. `buildDecisionCards` bu durumda karta \"Erken giriş ücret kuralı yüklenemedi, onaydan önce yenileyin\" satırı eklesin ve onayı/gönderimi kapatsın. Bu alanı `factsHash` girdisine de katın, böylece rota ile sayfa arasındaki fark yakalanır."
+ },
+ {
+  "id": 98,
+  "file": "src/lib/decisions/store.ts",
+  "line": 370,
+  "title": "Kuyrukta iptal/başarısız kalan ev sahibi mesajı karar kartını 'yanıtlandı' diye kapatıyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Bu dosyada bulgunun kod kısmı doğru: ev sahibi mesajı koşulu yalnız Message tablosuna bakıyor (satır 374-380: `HOST_OUTBOUND_WHERE = { direction: \"outbound\", OR: [{ authorType: \"host\" }, { authorType: null, ... }] }`). `withEffective` bu koşulla groupBy yapıyor (satır 458-467) ve `hostRepliedAfter: host !== null && host > at` hesaplıyor (satır 495). Outbox/teslim durumuna (canceled/failed/blocked) dair hiçbir süzgeç yok. `hostRepliedAfter` yardımcısı da (satır 397-406) aynı koşulu kullanıyor. `effective` 'yanıtlandı' olunca `isOpenDecision` süzgeci kartı rozetten, `openDecisionCounts`'tan ve `openDecisionsForOrg`'dan (satır 537, 583) düşürür. Ancak senaryonun ön koşulu, yani `enqueueOutbound`'un Message satırını outbox teslimatından önce yazması ve outbox'ın sonradan canceled/failed/blocked olması, bu dosyada görünmüyor; başka dosyadaki davranışa dayanıyor ve burada doğrulanamıyor. Ayrıca bulgu 370. satırı gösteriyor, ama orası `releaseDecisionNotification`; ilgili kod 374-380 ve 456-469 arasında. `messageOutbox` ilişkisinin Prisma şemasında olup olmadığı da bu dosyadan anlaşılmıyor.",
+  "fix": "Önce `enqueueOutbound` ve outbox şemasını kontrol et: Message gerçekten teslimattan önce yazılıyorsa ve Message→outbox ilişkisi varsa, `HOST_OUTBOUND_WHERE`'e (hem `withEffective` groupBy'ına hem `hostRepliedAfter`'a gidecek şekilde) teslim edilemeyen outbox'ı dışlayan bir koşul ekle, örn. `NOT: { outbox: { some: { status: { in: NOT_DELIVERED_STATUSES } } } }`. İlişki yoksa, başarısız/iptal teslimde Message'a `deliveryFailed` benzeri bir işaret yaz ve onu süz. Böylece teslim edilmemiş mesaj kartı kapatmaz. Değişikliğe iptal/başarısız/402 durumları için bir test ekle."
+ },
+ {
+  "id": 95,
+  "file": "src/lib/outbox/worker.ts",
+  "line": 701,
+  "title": "refreshLifecycleBody yedek rezervasyon seçimi lifecycleVeto öncelik kuralından farklı; başka dairenin metni gidebilir",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "lifecycleVeto (satır 577-582) rezervasyonu şu sırayla seçer: kendi reservationId'si (iptal değilse) → `siblings.find((r) => r.status === \"confirmed\")` → iptal olmayan → ilk kayıt. refreshLifecycleBody ise (satır 697-706) kendi kaydı çözülemezse `findFirst` ile `status: { not: \"cancelled\" }` ve `orderBy: [{ arrivalDate: \"asc\" }, { id: \"asc\" }]` kullanır; onaylı kopya tercihi yoktur. Satır 692-693'teki yorum '↑lifecycleVeto ile aynı seçim' diyor ama değil. Aynı sourceReference'ı paylaşan, başka mülkteki 'pending' kopya varışı daha erkense, veto ve checkinNotYetDue (satır 656-661, confirmed en erken varış) onaylı kopyaya göre karar verir. Gövde ise 708-718'de başka dairenin şablonundan kurulur ve 727-729'da satıra yazılıp gönderilir. Ek olarak satır 698-699'da `own` iptal edilmiş olsa bile kullanılır; veto ise iptal edilmiş kendi kaydını atlayıp onaylı kopyaya geçer. Bu da aynı uyumsuzluğun daha geniş bir halidir.",
+  "fix": "Rezervasyon seçimini (kendi reservationId'si iptal değilse → confirmed → iptal olmayan → ilk kayıt) tek bir ortak fonksiyona çıkar. lifecycleVeto ve refreshLifecycleBody ikisi de bu fonksiyonu kullansın; refreshLifecycleBody tek `findFirst` yerine kardeşleri `findMany` ile çekip bu sıralamayla seçsin. Ayrıca `own` yalnızca iptal değilse kullanılsın, böylece gövde veto'nun onayladığı rezervasyonun dairesinden kurulur."
+ },
+ {
+  "id": 96,
+  "file": "src/lib/outbox/worker.ts",
+  "line": 1002,
+  "title": "402 ile 'blocked' kalan AI cevabı günler sonra yeniden açılınca yaş sınırı yok",
+  "lens": "misafir",
+  "verdict": "confirmed",
+  "evidence": "reactivateBlockedOutbox'ta yaş sınırı yok (satır 1002): `where: { organizationId, status: \"blocked\", body: { not: ANON_BODY } }` koşulu `status: \"pending\"` ve `availableAt: now` yazıyor. `createdAt` veya yaşa hiç bakılmıyor. Yeniden açılan AI satırı sendTimeVeto'dan geçiyor. Oradaki engeller şunlar: auto_reply_disabled, orgSwitchCancelReason, billingCancelReason (yalnız uygulamanın kendi abonelik erişimi kapalıysa devreye girer, Hospitable 402'si bunu tetiklemez) ve replyVeto. replyVeto yalnızca `convo.status` problem/closed mu, `autoReplyHoldUntil` aktif mi ve `newer`/`newerGuest` sayımı (satır 523-548) > 0 mı diye bakıyor. Hiçbiri taslağın yaşına bakmıyor. 402 sonrası applyFailureEffect (satır 1436) yalnızca `skippedReason` ve `autoReplyAttemptedAt` yazıyor. Konuşma `new` durumunda kaldığı için satırı iptal etmiyor ve replyVeto'yu da tetiklemiyor. Telefonda çözülen ve panelde yeni mesaj bırakmayan bir soruda günler önceki taslak gider. Hafifleten durum: senkron host'un Airbnb vb. kanaldaki yazılı cevabını Message olarak içeri alırsa `newer>0` olur ve veto çalışır. Telefon veya yüz yüze çözüm bu korumaya takılmaz. Bu yüzden kapsam dar ve güven düşük, ama açık gerçek.",
+  "fix": "reactivateBlockedOutbox içinde `ai` ve `holding_ack` satırları için yaş eşiği koy (örn. createdAt < now-6s saat ise yeniden açma, `canceled` yap ve lastErrorCode='stale_blocked' yaz). İptal edilen satır için billing-veto yolundaki gibi gelen kutusuna not düş ve `autoReplyAttemptedAt`'ı tetik mesajına göre damgala. Alternatif olarak replyVeto'ya AI satırı için `row.createdAt` üzerinden azami bekleme süresi ekle: aşılırsa SUPERSEDED/`stale_ai_reply` döndür."
+ },
+ {
+  "id": 99,
+  "file": "src/lib/early-checkin/reply.ts",
+  "line": 88,
+  "title": "Kodla kurulan politika metni 'kararı ev sahibiniz verir' diyor; kurucunun '\"Ev sahibinizin kararıdır\" misafire gitmez' kuralıyla çelişiyor",
+  "lens": "misafir",
+  "verdict": "partly",
+  "evidence": "Dosyada iddianın metinsel kısmı doğru: 89. satırda `tr: \"Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır; kararı ev sahibiniz verir.\"`, 90-94. satırlarda da diğer dillerin karşılıkları var (\"your host decides\", \"Ihr Gastgeber entscheidet\" vb.). 106. satırda `earlyCheckinPolicyText` bu metni `${FEE[lang](...)} ${POLICY_DECIDES[lang]}` olarak koddan kuruyor ve misafire gidecek metne ekliyor. Ancak 87. satırdaki yorum amacı \"kararın dayanağı söylenir, karar SÖYLENMEZ — izin vermez, reddetmez, söz vermez\" diye koyuyor. \"Kararı ev sahibi verir\" ifadesi izin ya da ret içermiyor, yalnız kararın kimde olduğunu söylüyor. Bu yüzden kasıtlı bir tasarım olabilir. Kurucunun 10-01 kuralı, text-check.ts'deki `defers` engeli ve kapının bu metni muaf tutması bu dosyada görünmüyor. Yalnız 98-102. satırlardaki 'birebir metin muafiyeti' notu dolaylı bir muafiyet olduğunu düşündürüyor. Çelişkinin varlığı bu yüzden dosyadan doğrulanamıyor. Ayrıca bulgu 88. satırı gösteriyor, ifade aslında 89. satırda.",
+  "fix": "Önce text-check.ts'deki `defersDecisionToHost` kalıbını ve kurucu kararı 10-01'i kontrol edin. Çelişki gerçekse `POLICY_DECIDES` metinlerinden \"kararı ev sahibiniz verir\" parçasını çıkarıp yalnızca \"Erken girişin mümkün olup olmadığı o günkü temizliğe bağlıdır.\" bırakın (6 dilde). Ardından `earlyCheckinPolicyText` çıktısını `defersDecisionToHost` / host-decision-hold süzgecinden geçiren bir test (pin) ekleyin; böylece kod ile süzgeç tutarsız kalmaz."
+ }
+]

@@ -1,0 +1,76 @@
+diff --git a/src/lib/ai/no-instruction-filler.ts b/src/lib/ai/no-instruction-filler.ts
+index 882dae22..747550e9 100644
+--- a/src/lib/ai/no-instruction-filler.ts
++++ b/src/lib/ai/no-instruction-filler.ts
+@@ -118,6 +118,8 @@ function topicsOf(text: string): { all: string[]; devices: string[] } {
+  */
+ const DOOR_WORD =
+   /(?<![\p{L}])(?:kap[ıi](?:y[ıi]|y[ae]|d[ae]|d[ae]n|n[ıi]n)?(?!\s+(?:zil|kod|şifre|sifre|numara|kart|kilid|kilit))|doors?(?!\s+(?:code|codes|bell|lock|keypad))|(?:la|las)\s+puertas?|(?:la|les)\s+portes?|(?:die|der)\s+tür(?:e|en)?|двер(?:ь|и|ью)|الباب)(?![\p{L}])/iu;
++/** T1: "talimat yok" silinince kalan metnin olabileceği basit işler (↓ `removalAllowed`). */
++const SIMPLE_KEPT_TOPICS: ReadonlySet<string> = new Set(["keys", "door", "trash"]);
+ /** Silinen "talimat yok" konusu → kalan metinde onu karşılayan konular (kendisi + eşleri). */
+ const PAIRED_TOPICS: Readonly<Record<string, readonly string[]>> = { checkin: ["keys", "door"], checkout: ["keys", "door"] };
+ /**
+@@ -178,6 +180,12 @@ function removalAllowed(parts: readonly string[], kept: string): boolean {
+   // Silinen "talimat yok"un HER konusu kalan yönergede karşılanmalı (başka konudaki cevap onu "cevaplanmış" yapmaz — S4-09).
+   if (!r.all.every((t) => keptTopics.includes(t) || (PAIRED_TOPICS[t] ?? []).some((p) => keptTopics.includes(p)))) return false;
+   if (admitsMissingKnowledge(kept) || matchesNoInstructionClause(kept)) return false;
++  // T1 (gece-4 S4-02, kurucu onayıyla): "talimat yok" ardındaki kısım çoğu zaman yapay zekânın uydurmasıdır (bilgi tabanında yok) — kalan
++  // metin YALNIZ basit iş olabilir: anahtar / kapı / çöp (kurucunun örneği "anahtarı masaya bırakmanız yeterli"); sayı (saat, tutar) taşımaz;
++  // kural / izin / ücret / saat ("evcil hayvanlar kabul edilir", "geç çıkış yapabilirsiniz", "kahvaltı 09:00-11:00") silinip gönderilmez —
++  // cevap eskisi gibi tutulur, ev sahibi cevaplar. Giriş / çıkış konusu kendi başına basit iş sayılmaz (yanında anahtar / kapı olmalı).
++  const simple = keptTopics.filter((t) => !LIFECYCLE_TOPICS.has(t));
++  if (/\p{N}/u.test(kept) || simple.length === 0 || !simple.every((t) => SIMPLE_KEPT_TOPICS.has(t))) return false;
+   return true;
+ }
+ 
+diff --git a/tests/unit/no-instruction-filler.test.ts b/tests/unit/no-instruction-filler.test.ts
+index 3e37f58f..6f6b28bc 100644
+--- a/tests/unit/no-instruction-filler.test.ts
++++ b/tests/unit/no-instruction-filler.test.ts
+@@ -30,15 +30,10 @@ const STRIPPED: [string, string][] = [
+   ["Çıkış için özel talimatımız yok ama anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+   ["Çıkış için özel talimatımız yok, ve anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+   ["- Çıkış için özel talimatımız yok, anahtarı masaya bırakın.\n- Otopark ücretsiz.", "- Anahtarı masaya bırakın.\n- Otopark ücretsiz."],
+-  ["Anahtar masada, özel talimatımız yok ve kahvaltı 08.00-10.00 arasıdır.", "Anahtar masada, kahvaltı 08.00-10.00 arasıdır."],
+-  ["Çıkış 15.00'e kadar, özel talimatımız yok.", "Çıkış 15.00'e kadar."],
+   // Opus 10-17 B3: dolgu AYRI CÜMLE olarak yazıldıysa ve cevabın geri kalanı yönerge taşıyorsa o cümle düşer (eskiden bütün cevap tutuluyordu).
+   ["Çıkış için özel talimatımız yok. Anahtarı masaya bırakmanız yeterli.", "Anahtarı masaya bırakmanız yeterli."],
+-  ["Çıkış saati 11:00'dir. Ek bir talimatımız bulunmuyor.", "Çıkış saati 11:00'dir."],
+-  ["Check-out is at 11:00. There are no special instructions for check-out.", "Check-out is at 11:00."],
+   ["Çıkış için özel talimatımız yok:\n- Anahtarı masaya bırakın.", "- Anahtarı masaya bırakın."],
+   // Opus 10-17 B4: ortadaki yan cümle silinince TEK boşluk.
+-  ["Anahtar masada, özel talimatımız yok, kahvaltı 08.00-10.00 arasıdır.", "Anahtar masada, kahvaltı 08.00-10.00 arasıdır."],
+   ["Merhaba Alex, çıkış için özel talimatımız yok, anahtarı masaya bırakın.", "Merhaba Alex, anahtarı masaya bırakın."],
+   // Opus 10-17 B6: yedi dilin en doğal biçimleri.
+   ["Особых инструкций нет, ключ в почтовом ящике.", "Ключ в почтовом ящике."],
+@@ -55,6 +50,19 @@ const STRIPPED: [string, string][] = [
+ 
+ // Silinmez → cevap aynen kalır ve "bilgim yok" kuralı onu misafire göndermez.
+ const HELD: string[] = [
++  // T1 (gece-4 S4-02, kurucu onayıyla): kalan metin sayı (saat / tutar) taşıyorsa silinmez — "talimat yok" ardındaki saat / kural çoğu zaman
++  // uydurmadır; cevap eskisi gibi tutulur, ev sahibi cevaplar (10-17 öncesi davranış).
++  "Anahtar masada, özel talimatımız yok ve kahvaltı 08.00-10.00 arasıdır.",
++  "Çıkış 15.00'e kadar, özel talimatımız yok.",
++  "Çıkış saati 11:00'dir. Ek bir talimatımız bulunmuyor.",
++  "Check-out is at 11:00. There are no special instructions for check-out.",
++  "Anahtar masada, özel talimatımız yok, kahvaltı 08.00-10.00 arasıdır.",
++  // T1: kural / izin / ücret / saat uydurması silinip gönderilmez.
++  "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir.",
++  "Çıkış için özel talimatımız yok, geç çıkış yapabilirsiniz.",
++  "Çıkış için özel talimatımız yok, çıkışta bir ücret alınmaz.",
++  "Kahvaltı için özel talimatımız yok, kahvaltı 09:00-11:00 arasında servis edilir.",
++  "Çıkış için özel talimatımız yok, saat 14:00'e kadar kalabilirsiniz.",
+   // Kurucu: "televizyonla ilgili ayrı bir talimatım bulunmuyor … ev sahibinize ileteceğim … söylenemez".
+   "Televizyonla ilgili ayrı bir talimatım bulunmuyor, ev sahibinize ileteceğim.",
+   // Cihazdan söz eden "talimat yok" sorunun bilgisizliğidir: yanına başka konuda yönerge yazılsa da silinmez (soru sessizce "cevaplanmış" olurdu).
+@@ -147,7 +155,8 @@ describe("gece-4 S4-09 / S4-05 / S4-01 — silme yalnız AYNI konuda ve geriye k
+     expect(stripNoInstructionFiller(m)).toBe(m);
+   });
+   it("KONTROL: aynı konu / giriş-çıkış ↔ anahtar-kapı eşleşmesi silinmeye devam eder", () => {
+-    expect(stripNoInstructionFiller("Giriş saati 15:00'tir. Giriş için özel talimatımız yok.")).toBe("Giriş saati 15:00'tir.");
++    // T1: sayı taşıyan kalan metin silinmez (↑ HELD).
++    expect(stripNoInstructionFiller("Giriş saati 15:00'tir. Giriş için özel talimatımız yok.")).toBe("Giriş saati 15:00'tir. Giriş için özel talimatımız yok.");
+     expect(stripNoInstructionFiller("Çıkış için özel talimatımız yok, kapıyı çekip çıkmanız yeterli.")).toBe("Kapıyı çekip çıkmanız yeterli.");
+     expect(stripNoInstructionFiller("Es gibt keine besonderen Anweisungen für den Check-out, schließen Sie einfach die Tür.", "de")).toBe(
+       "Schließen Sie einfach die Tür.",

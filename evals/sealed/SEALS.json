@@ -1,0 +1,80 @@
+{
+  "stay-change-final.json": {
+    "sha256": "d178700d3561c521125bfa8ae8da9c52c8f10a2fba111b01b2f5748f2cab07b4",
+    "sealedAt": "2026-09-24",
+    "author": "kör ajan: depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md (genel kurallar) bağlamına otomatik yüklendi. Taslak kopyaları okunmadan silindi.",
+    "items": {
+      "requests": 180,
+      "replies": 180
+    },
+    "state": "burned",
+    "burnedAt": "2026-09-25",
+    "runSha": "f584075e15ceeb20146093c0a8d8c966438c01af",
+    "report": "docs/olcum/stay-change-FINAL-eval-2026-09-25.md"
+  },
+  "understanding-e2e-blind.json": {
+    "sha256": "e737258b7ddeda049b8aab769e073b41a4efffdc48fcea1c4f1a4d26047a384e",
+    "sealedAt": "2026-10-21",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucu karar kuralları (docs/TASARIM-2026-10-21-anlama-olcumu.md §4-§5 metni) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Taslak / doğrulama betikleri silindi.",
+    "items": {
+      "scenarios": 72,
+      "requests": 110,
+      "pairs": 13,
+      "multiTurn": 14
+    },
+    "state": "sealed"
+  },
+  "understanding-e2e-redteam-blind.json": {
+    "sha256": "3dc19dd2789796ec7a8619de75a79ea6e4bee565d3b7b562a502c48997149173",
+    "sealedAt": "2026-10-21",
+    "author": "kör ajan (Claude iş paketi, istek 3, Sonnet): depodaki kodu, istemleri ve geliştirme setini OKUMADI; yalnız biçim + kategori listesi + misafire giden metinde yasak dizeler kuralı verildi. Geliştirici dosyayı açmadı; yalnız sayılar, boyut ve SHA-256 hesaplandı.",
+    "items": {
+      "scenarios": 71,
+      "requests": 117,
+      "pairs": 1,
+      "multiTurn": 6
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-21",
+    "runSha": "069af573c69be60dc2627ff7d1f801eb98d159e5",
+    "report": "docs/olcum/anlama-e2e-kor-live-2026-10-21-rtblind.md"
+  },
+  "needs-blind-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun 10-23 sabah kuralları (Soru 9 / 11 metni, sade anlatım) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı.",
+    "sha256": "83c7487d2cb468be49d20b2ad1d4f848e9023918df8cda58a44f80096e83d8dc",
+    "items": {
+      "scenarios": 45,
+      "needs": 62,
+      "answered": 40,
+      "open": 22,
+      "kbSets": 5,
+      "languages": 5,
+      "bytes": 25775
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "b47f246f260a6696acaca4f8b0aacf9360b568f1",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md"
+  },
+  "needs-kabul-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun kuralları (Soru 9 / 11, bilgi-yok misafire gitmez, konaklama tarihine göre sezon) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı. Yanan 10-23 setinin yerine kabul seti (Codex: ayrıntılar geliştirmede kullanıldı → yeni, görülmemiş set).",
+    "sha256": "f30f4766cdb3e5fdf2a5b636ccadf17d497bd24a24f6271ebe97003c88c921b1",
+    "items": {
+      "scenarios": 50,
+      "needs": 71,
+      "answered": 55,
+      "open": 16,
+      "kbSets": 5,
+      "languages": 6,
+      "withStay": 15
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "9413d0419af888f401aaa32e37e715e4444b31f3",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md"
+  }
+}

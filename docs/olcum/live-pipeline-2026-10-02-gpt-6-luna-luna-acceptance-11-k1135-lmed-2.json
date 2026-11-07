@@ -1,0 +1,126 @@
+{
+  "suite": "live-pipeline",
+  "version": 11,
+  "meta": {
+    "model": "gpt-6-luna",
+    "commit": "b960f04",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.00096146,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 1,
+        "in": 3526,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-6-luna": {
+        "calls": 2,
+        "in": 22276,
+        "cached": 19824,
+        "out": 895,
+        "reasoning": 600
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "k11-35",
+      "cls": "fee_service",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bonjour Alex,\n\nPour le lit parapluie et son tarif, votre hôte pourra vous renseigner.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsDraft": false,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 12935,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "b960f04",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "medium"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna"
+      },
+      "style": {
+        "model": "gpt-6-luna"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "1a875b31d233",
+      "understanding": "f7b021ad9ffc",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}

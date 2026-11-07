@@ -1,0 +1,103 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+
+// ---------------------------------------------------------------------------
+// Söz kartı (kurucu 10-17 gece, söz → görev otomatik): kendiliğinden kaydedilen söz "Mesajınızdan kaydedildi" der ve "Yanlış, kaldır"
+// sunar (istekte `reason: "wrong"`); elle kaydedilen söz bugünkü "İptal". Açık saatin 30 dk payı içinde "zamanı geldi".
+// ---------------------------------------------------------------------------
+
+const router = { push: vi.fn(), refresh: vi.fn() };
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+const toastError = vi.fn();
+vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a), info: vi.fn() } }));
+
+import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+const autoRow: CommitmentRow = { id: "c1", kind: "towels", dueLabel: "yarın akşam", minutesLeft: 300, auto: true };
+const manualRow: CommitmentRow = { id: "c2", kind: "maintenance", topic: "ac", dueLabel: "17 Eki 10:00", minutesLeft: 0 };
+
+describe("CommitmentsCard — otomatik söz", () => {
+  it("🚨 otomatik söz: etiket + 'Yanlış, kaldır' → reason 'wrong' (+ ayrıca düz 'İptal' — O21); elle söz: etiket yok + yalnız 'İptal' → nedensiz", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const fetchMock = vi.fn(async (..._args: [string, RequestInit?]) => ({ ok: true, status: 200, json: async () => ({ ok: true }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow, manualRow]} readOnly={false} />);
+    expect(screen.getAllByTestId("commitment-auto-label")).toHaveLength(1);
+    expect(screen.getByText("Mesajınızdan kaydedildi")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yanlış, kaldır"));
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/conversations/conv1/commitments/c1");
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toEqual({ status: "cancelled", reason: "wrong" });
+    // İki satırda da "İptal" var (otomatik + elle); "Yanlış, kaldır" yalnız otomatikte.
+    expect(screen.getAllByText("İptal")).toHaveLength(2);
+    expect(screen.getAllByText("Yanlış, kaldır")).toHaveLength(1);
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("İptal")[0]!);
+    });
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/conversations/conv1/commitments/c1");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]![1]!.body))).toEqual({ status: "cancelled" });
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("İptal")[1]!);
+    });
+    expect(fetchMock.mock.calls[2]![0]).toBe("/api/conversations/conv1/commitments/c2");
+    expect(JSON.parse(String(fetchMock.mock.calls[2]![1]!.body))).toEqual({ status: "cancelled" });
+  });
+
+  it("gece-4 S1-18: söz zaten kapanmışsa (404 — başka sekme / görev bitti) hata gösterilmez, liste yenilenir; başka hata yine söylenir", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    router.refresh.mockClear();
+    toastError.mockClear();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: "Bulunamadı." }) })));
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow]} readOnly={false} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yanlış, kaldır"));
+    });
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(toastError).not.toHaveBeenCalled();
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })));
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow]} readOnly={false} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yanlış, kaldır"));
+    });
+    expect(toastError).toHaveBeenCalledWith("Kaldırılamadı. Lütfen tekrar deneyin.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("dilim / gün sözünde kalan süre GÖSTERİLMEZ: 'açık' / 'gecikti' (O12)", () => {
+    render(
+      <CommitmentsCard
+        conversationId="conv1"
+        commitments={[
+          { ...autoRow, id: "a", precise: false, minutesLeft: 300 },
+          { ...autoRow, id: "b", dueLabel: "dün akşam", precise: false, minutesLeft: -90 },
+        ]}
+        readOnly={false}
+      />,
+    );
+    expect(screen.getByText("açık")).toBeTruthy();
+    expect(screen.getByText("gecikti")).toBeTruthy();
+    expect(screen.queryByText(/sa .*kaldı|dk gecikti/u)).toBeNull();
+  });
+
+  it("kalan 0 → 'zamanı geldi' (gecikti değil); saatsiz sözün etiketi sunucunun metni ('yarın akşam')", () => {
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow, manualRow]} readOnly={false} />);
+    expect(screen.getByText("zamanı geldi")).toBeTruthy();
+    expect(screen.queryByText(/gecikti/u)).toBeNull();
+    expect(screen.getByText(/yarın akşam/u)).toBeTruthy();
+  });
+
+  it("salt-okunur (bürünme): etiket görünür, düğme YOK", () => {
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow]} readOnly />);
+    expect(screen.getByText("Mesajınızdan kaydedildi")).toBeTruthy();
+    expect(screen.queryByText("Yanlış, kaldır")).toBeNull();
+  });
+});

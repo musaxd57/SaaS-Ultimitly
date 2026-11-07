@@ -1,0 +1,849 @@
+From 07e0cbaa49618afdd2bd8dac64e777c7ffb90dda Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 14 Oct 2026 21:14:30 +0000
+Subject: [PATCH 1/4] KB ice aktarim tekrar guvenligi (migration 65, kurucu
+ 10-14 Istek kimligi; HAZIR YAMA, ana dala uygulanmadi): istemci kalem basina
+ kimlik yollar, ayni mulk ve kimlik ikinci kalem acmaz, ilk kalem doner; es
+ zamanli tekrar ve dolu plan sinirinda da
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ .../65_kb_client_request_id/migration.sql     |  10 ++
+ prisma/schema.prisma                          |   4 +
+ src/app/api/kb/route.ts                       |  58 +++++---
+ src/components/knowledge/kb-import-text.tsx   |  25 +++-
+ src/lib/validators.ts                         |  10 +-
+ .../integration/kb-create-request-id.test.ts  | 134 ++++++++++++++++++
+ tests/ui/kb-import-text.test.tsx              |  36 +++++
+ 7 files changed, 258 insertions(+), 19 deletions(-)
+ create mode 100644 prisma/migrations/65_kb_client_request_id/migration.sql
+ create mode 100644 tests/integration/kb-create-request-id.test.ts
+
+diff --git a/prisma/migrations/65_kb_client_request_id/migration.sql b/prisma/migrations/65_kb_client_request_id/migration.sql
+new file mode 100644
+index 0000000..15ade11
+--- /dev/null
++++ b/prisma/migrations/65_kb_client_request_id/migration.sql
+@@ -0,0 +1,10 @@
++-- 65: Bilgi tabanı içe aktarım tekrar güvenliği (kurucu 10-14 "İstek kimliği").
++-- Yeni NULL'lanabilir kolon (varsayılan yok → mevcut satırlar NULL; dolu tabloya zorunlu kolon EKLENMEDİ).
++-- Benzersiz dizin (mülk, kimlik): mevcut satırların HEPSİ NULL ve PostgreSQL'de NULL'lar birbiriyle çakışmaz → açılışta patlamaz.
++-- Tablo küçük (mülk başına plan tavanı 60 aktif kalem) → düz dizin (CONCURRENTLY değil; INVALID dizin riski daha kötü).
++
++-- AlterTable
++ALTER TABLE "KnowledgeBaseItem" ADD COLUMN     "clientRequestId" TEXT;
++
++-- CreateIndex
++CREATE UNIQUE INDEX "KnowledgeBaseItem_propertyId_clientRequestId_key" ON "KnowledgeBaseItem"("propertyId", "clientRequestId");
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 07de5fe..e2ab6cb 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -826,11 +826,15 @@ model KnowledgeBaseItem {
+   /// A5: bir öneri kabul edilince eski kalem yenisiyle işaretlenir (iz kaybı yok).
+   /// FK YOK — KB silme HARD DELETE'tir, FK silmeyi kilitlerdi (V0.4 provenance ile aynı gerekçe).
+   supersededById String?
++  /// İçe aktarma tekrar güvenliği (migration 65, kurucu 10-14 "İstek kimliği"): istemcinin kalem başına ürettiği rastgele kimlik.
++  /// Aynı mülk + aynı kimlik ikinci kalem AÇMAZ (bağlantı cevap anında koparsa yeniden deneme). Elle eklemede NULL (PG'de NULL'lar çakışmaz).
++  clientRequestId String?
+   createdAt      DateTime  @default(now())
+   updatedAt      DateTime  @updatedAt
+ 
+   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+ 
++  @@unique([propertyId, clientRequestId])
+   @@index([propertyId])
+   @@index([category])
+ }
+diff --git a/src/app/api/kb/route.ts b/src/app/api/kb/route.ts
+index 9effb11..8e28e2b 100644
+--- a/src/app/api/kb/route.ts
++++ b/src/app/api/kb/route.ts
+@@ -6,6 +6,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
+ import { KB_ITEM_CAP } from "@/lib/ai/limits";
+ import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
+ import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
++import { isUniqueViolation } from "@/lib/db-errors";
+ 
+ export const GET = withManage(async (session, req) => {
+   const { searchParams } = new URL(req.url);
+@@ -32,6 +33,18 @@ export const POST = withManage(async (session, req) => {
+     return badRequest({ propertyId: "Geçersiz mülk" });
+   }
+ 
++  // TEKRAR GÜVENLİĞİ (migration 65, kurucu 10-14 "İstek kimliği"): içe aktarımda bağlantı tam cevap anında koparsa istemci AYNI kimlikle
++  // yeniden dener → ilk istek kalemi yazdıysa O kalem döner (ikinci kalem yok; plan sınırı yeniden sayılmaz — kalem zaten sayılıyor).
++  // Arama mülk kapsamında (mülk yukarıda işletmeye bağlandı): başka işletmenin kimliği eşleşemez.
++  const priorFor = (requestId: string) =>
++    prisma.knowledgeBaseItem.findUnique({
++      where: { propertyId_clientRequestId: { propertyId: d.propertyId, clientRequestId: requestId } },
++    });
++  if (d.requestId) {
++    const prior = await priorFor(d.requestId);
++    if (prior) return jsonOk(prior, 200);
++  }
++
+   // PLAN SINIRLARI (billing/plan-limits.ts). İki ayrı kapı, ikisi de gerekli:
+   //  · ADET — paketleri ayrıştıran ölçü (Başlangıç 15 / Pro 30 / İşletme 60).
+   //  · KARAKTER — adet sınırının kaçış yolunu kapatır: yoksa host her şeyi TEK
+@@ -51,23 +64,34 @@ export const POST = withManage(async (session, req) => {
+     });
+   }
+ 
+-  const item = await prisma.knowledgeBaseItem.create({
+-    data: {
+-      propertyId: d.propertyId,
+-      category: d.category,
+-      title: d.title,
+-      content: d.content,
+-      language: d.language,
+-      isActive: d.isActive,
+-      // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
+-      // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
+-      // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
+-      // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
+-      source: "host_manual",
+-      reviewState: "approved",
+-      approvedAt: new Date(),
+-    },
+-  });
++  let item;
++  try {
++    item = await prisma.knowledgeBaseItem.create({
++      data: {
++        propertyId: d.propertyId,
++        category: d.category,
++        title: d.title,
++        content: d.content,
++        language: d.language,
++        isActive: d.isActive,
++        // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
++        // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
++        // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
++        // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
++        source: "host_manual",
++        reviewState: "approved",
++        approvedAt: new Date(),
++        clientRequestId: d.requestId ?? null,
++      },
++    });
++  } catch (err) {
++    // İki yeniden deneme AYNI ANDA geldiyse kaybeden, kazananın kalemini alır (yalnız BU benzersizlik ihlali; başkası fırlar).
++    if (d.requestId && isUniqueViolation(err, ["propertyId", "clientRequestId"])) {
++      const prior = await priorFor(d.requestId);
++      if (prior) return jsonOk(prior, 200);
++    }
++    throw err;
++  }
+   // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).
+   await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
+   // #189: anlamsal vektörler yazma anında (misafirin bir sonraki mesajı sözcüksele düşmesin; beklemez, fırlatmaz).
+diff --git a/src/components/knowledge/kb-import-text.tsx b/src/components/knowledge/kb-import-text.tsx
+index f127f68..6ae99d5 100644
+--- a/src/components/knowledge/kb-import-text.tsx
++++ b/src/components/knowledge/kb-import-text.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useState } from "react";
++import { useRef, useState } from "react";
+ import { useRouter } from "next/navigation";
+ import { ClipboardPaste, Loader2, Settings2, SkipForward } from "lucide-react";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+@@ -37,6 +37,15 @@ const SKIP_TEXT: Record<SkipReason, string> = {
+   duplicate: "aynı bilgi zaten önerildi (çelişen ikinci değer)",
+ };
+ 
++/**
++ * Kalem başına tekrar güvenliği kimliği (migration 65, kurucu 10-14 "İstek kimliği"): bağlantı tam cevap anında koparsa "tekrar dene"
++ * AYNI kimliği yollar, sunucu ilk denemenin yazdığı kalemi döndürür (ikinci kalem yok). `getRandomValues` (her tarayıcıda) — tahmin
++ * edilemez; başka işletmenin kimliği zaten mülk kapsamında eşleşemez.
++ */
++function newRequestId(): string {
++  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
++}
++
+ const FIELD_TEXT: Record<string, string> = {
+   checkInTime: "Giriş saati",
+   checkOutTime: "Çıkış saati",
+@@ -51,8 +60,20 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
+   const [selected, setSelected] = useState<Set<string>>(new Set());
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
++  // mülk + kategori → kimlik. Yeni önizleme / sıfırlama temizler (farklı metin = yeni kalem); mülk değişirse anahtar değişir.
++  const requestIds = useRef(new Map<string, string>());
++  const requestIdFor = (category: string) => {
++    const key = `${propertyId}:${category}`;
++    let id = requestIds.current.get(key);
++    if (!id) {
++      id = newRequestId();
++      requestIds.current.set(key, id);
++    }
++    return id;
++  };
+ 
+   function runPreview() {
++    requestIds.current.clear();
+     const result = extractKbSuggestions(text);
+     setPreview(result);
+     // Varsayılan: hepsi seçili. Host çıkarmak isterse işareti kaldırır —
+@@ -62,6 +83,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
+   }
+ 
+   function reset() {
++    requestIds.current.clear();
+     setText("");
+     setPreview(null);
+     setSelected(new Set());
+@@ -98,6 +120,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
+             content: item.content,
+             language: "tr",
+             isActive: true,
++            requestId: requestIdFor(item.category),
+           }),
+         });
+         if (res.ok) {
+diff --git a/src/lib/validators.ts b/src/lib/validators.ts
+index c636723..e4e136f 100644
+--- a/src/lib/validators.ts
++++ b/src/lib/validators.ts
+@@ -253,10 +253,18 @@ export const kbSchema = z.object({
+   // (Boolean("false")). Callers send real booleans; a stringy "false" should be
+   // rejected, not silently activate the item. default(true) still handles absent.
+   isActive: z.boolean().default(true),
++  /**
++   * İçe aktarma tekrar güvenliği (migration 65, kurucu 10-14): istemcinin kalem başına ürettiği rastgele kimlik — aynı mülkte aynı kimlik
++   * ikinci kalem açmaz. İsteğe bağlı (elle ekleme göndermez). Yalnız oluşturmada; düzenleme şeması kabul etmez.
++   */
++  requestId: z
++    .string()
++    .regex(/^[A-Za-z0-9_-]{16,64}$/u, "Geçersiz istek")
++    .optional(),
+ });
+ export type KbInput = z.infer<typeof kbSchema>;
+ 
+-export const kbUpdateSchema = kbSchema.partial().omit({ propertyId: true });
++export const kbUpdateSchema = kbSchema.partial().omit({ propertyId: true, requestId: true });
+ 
+ /** Helper to format a ZodError into a flat { field: message } map for the API. */
+ export function zodFieldErrors(error: z.ZodError): Record<string, string> {
+diff --git a/tests/integration/kb-create-request-id.test.ts b/tests/integration/kb-create-request-id.test.ts
+new file mode 100644
+index 0000000..4390938
+--- /dev/null
++++ b/tests/integration/kb-create-request-id.test.ts
+@@ -0,0 +1,134 @@
++import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
++import { NextRequest } from "next/server";
++import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
++import type { SessionPayload } from "@/lib/auth";
++
++let session: SessionPayload;
++vi.mock("@/lib/api", async (orig) => {
++  const actual = await orig<typeof import("@/lib/api")>();
++  return { ...actual, requireSession: vi.fn(async () => session) };
++});
++
++import { POST as CREATE } from "@/app/api/kb/route";
++import { PATCH } from "@/app/api/kb/[id]/route";
++import { planLimitsFor } from "@/lib/billing/plan-limits";
++
++// ---------------------------------------------------------------------------
++// KB İÇE AKTARIM TEKRAR GÜVENLİĞİ (migration 65, kurucu 10-14 "İstek kimliği"; Y10 dış incelemesinin açık kalanı).
++//
++// Eski girdi: "Metinden bilgi çıkar" → Ekle; sunucu kalemi YAZDI ama cevap misafirin (ev sahibinin) tarayıcısına ulaşmadan bağlantı koptu.
++// Eski sonuç: ekran kalemi "eklenemedi" sanıp önizlemede tutuyordu → "tekrar dene" AYNI kalemi İKİNCİ kez ekliyordu (iki Wi-Fi kaydı;
++// biri sonra düzeltilirse yapay zekâ eski değeri de okuyabilir). Yeni sonuç: istemci kalem başına kimlik yollar; aynı mülk + aynı kimlik
++// ikinci kalem açmaz, ilk kalem döner. Gerçek PostgreSQL + gerçek rota.
++// ---------------------------------------------------------------------------
++
++const createReq = (body: unknown) =>
++  new NextRequest("http://localhost/api/kb", {
++    method: "POST",
++    body: JSON.stringify(body),
++    headers: { "content-type": "application/json" },
++  });
++const patchReq = (body: unknown) =>
++  new NextRequest("http://localhost/api/kb/x", {
++    method: "PATCH",
++    body: JSON.stringify(body),
++    headers: { "content-type": "application/json" },
++  });
++
++const RID = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
++const wifi = (propertyId: string, extra: Record<string, unknown> = {}) => ({
++  propertyId,
++  category: "wifi",
++  title: "Wi-Fi",
++  content: "Ağ adı: Lale_5G — şifre ev sahibinde.",
++  language: "tr",
++  isActive: true,
++  ...extra,
++});
++
++describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
++  let orgId: string;
++  let propertyId: string;
++
++  beforeEach(async () => {
++    await resetDb();
++    const made = await makeOrgWithProperty();
++    orgId = made.orgId;
++    propertyId = made.propertyId;
++    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
++  });
++  afterAll(async () => {
++    await prisma.$disconnect();
++  });
++
++  const count = () => prisma.knowledgeBaseItem.count({ where: { propertyId } });
++
++  it("🚨 aynı kimlikle yeniden deneme İKİNCİ kalem açmaz; ilk kalem döner (200)", async () => {
++    const first = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    expect(first.status).toBe(201);
++    const a = (await first.json()) as { id: string };
++    const again = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    expect(again.status).toBe(200);
++    expect(((await again.json()) as { id: string }).id).toBe(a.id);
++    expect(await count()).toBe(1);
++  });
++
++  it("🚨 iki yeniden deneme AYNI ANDA → tek kalem, ikisi de aynı kalemi alır", async () => {
++    const [r1, r2] = await Promise.all([
++      CREATE(createReq(wifi(propertyId, { requestId: RID }))),
++      CREATE(createReq(wifi(propertyId, { requestId: RID }))),
++    ]);
++    expect([r1.status, r2.status].sort()).toEqual([200, 201]);
++    const ids = new Set([((await r1.json()) as { id: string }).id, ((await r2.json()) as { id: string }).id]);
++    expect(ids.size).toBe(1);
++    expect(await count()).toBe(1);
++  });
++
++  it("🚨 plan sınırı DOLUYKEN yeniden deneme: ilk deneme yazdıysa başarı döner (sınır hatası değil, ikinci kalem değil)", async () => {
++    const limit = planLimitsFor("business").kbItemsPerProperty;
++    for (let i = 0; i < limit - 1; i++) {
++      await prisma.knowledgeBaseItem.create({ data: { propertyId, title: `k${i}`, content: "x".repeat(10), isActive: true } });
++    }
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201); // sınır şimdi dolu
++    const retry = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    expect(retry.status).toBe(200);
++    expect(await count()).toBe(limit);
++    // Kontrol: YENİ kimlikle ekleme sınırdan döner.
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: "f".repeat(32) })))).status).toBe(400);
++  });
++
++  it("KONTROL: kimliksiz (elle ekleme) eski davranış — iki istek iki kalem", async () => {
++    expect((await CREATE(createReq(wifi(propertyId)))).status).toBe(201);
++    expect((await CREATE(createReq(wifi(propertyId)))).status).toBe(201);
++    expect(await count()).toBe(2);
++    const rows = await prisma.knowledgeBaseItem.findMany({ where: { propertyId } });
++    expect(rows.every((r) => r.clientRequestId === null)).toBe(true);
++  });
++
++  it("KONTROL: farklı kimlik = farklı kalem; aynı kimlik BAŞKA mülkte ayrı kalem", async () => {
++    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Daire B" } });
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201);
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: "b".repeat(32) })))).status).toBe(201);
++    expect((await CREATE(createReq(wifi(other.id, { requestId: RID })))).status).toBe(201);
++    expect(await count()).toBe(2);
++    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: other.id } })).toBe(1);
++  });
++
++  it("🚨 başka işletmenin mülküne kimlikle istek: mülk reddi (kimlik başka işletmenin kalemini DÖNDÜRMEZ)", async () => {
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201);
++    const foreign = await makeOrgWithProperty();
++    session = { ...session, organizationId: foreign.orgId };
++    const res = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    expect(res.status).toBe(400);
++    expect(JSON.stringify(await res.json())).not.toContain("Lale_5G");
++  });
++
++  it("biçimsiz kimlik reddedilir; düzenleme (PATCH) kimliği kabul etmez / değiştirmez", async () => {
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: "kısa" })))).status).toBe(400);
++    expect((await CREATE(createReq(wifi(propertyId, { requestId: "x".repeat(65) })))).status).toBe(400);
++    const made = (await (await CREATE(createReq(wifi(propertyId, { requestId: RID })))).json()) as { id: string };
++    await PATCH(patchReq({ title: "Wi-Fi 2", requestId: "c".repeat(32) }), { params: Promise.resolve({ id: made.id }) });
++    const row = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: made.id } });
++    expect(row.clientRequestId).toBe(RID);
++  });
++});
+diff --git a/tests/ui/kb-import-text.test.tsx b/tests/ui/kb-import-text.test.tsx
+index 18d5bce..abe29b2 100644
+--- a/tests/ui/kb-import-text.test.tsx
++++ b/tests/ui/kb-import-text.test.tsx
+@@ -211,6 +211,42 @@ describe("Y10 (10-14 dış inceleme): kısmi başarıdan sonra tekrar deneme yal
+     expect(all.slice(2)).toEqual([first[1]]);
+   });
+ 
++  // Migration 65 (kurucu 10-14 "İstek kimliği"): bağlantı TAM cevap anında koparsa sunucu kalemi yazmış olabilir; ekran bunu bilemez.
++  // Yeniden deneme AYNI kimliği yollar → sunucu ilk kalemi döndürür, ikinci kalem açılmaz (`tests/integration/kb-create-request-id`).
++  it("🚨 kopan istekte yeniden deneme AYNI istek kimliğini yollar; yeni önizleme YENİ kimlik üretir", async () => {
++    let n = 0;
++    const fetchMock = vi.fn(async () => {
++      n++;
++      if (n === 2) throw new TypeError("Failed to fetch");
++      return { ok: true, status: 201, json: async () => ({}) };
++    });
++    vi.stubGlobal("fetch", fetchMock);
++    openPanel();
++    paste(TWO);
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    const bodyOf = (c: unknown) => JSON.parse(String((c as [string, RequestInit])[1].body)) as { category: string; requestId?: string };
++    const bodies = fetchMock.mock.calls.map(bodyOf);
++    expect(bodies).toHaveLength(3);
++    for (const b of bodies) expect(b.requestId).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
++    // 2. istek (koptu) ile 3. istek (yeniden deneme) AYNI kalem, AYNI kimlik; ilk kalemin kimliği farklı.
++    expect(bodies[2].category).toBe(bodies[1].category);
++    expect(bodies[2].requestId).toBe(bodies[1].requestId);
++    expect(bodies[0].requestId).not.toBe(bodies[1].requestId);
++    // Yeni önizleme = yeni kimlik (eski kimlik eski kalemi döndürmesin).
++    paste(TWO);
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    const after = fetchMock.mock.calls.slice(3).map(bodyOf);
++    expect(after.length).toBe(2);
++    for (const a of after) expect([bodies[0].requestId, bodies[1].requestId]).not.toContain(a.requestId);
++  });
++
+   it("ekleme sürerken metin alanı ve Önizle KİLİTLİ (biten işlem yeni yazılanı silmez)", async () => {
+     let release!: () => void;
+     const gate = new Promise<void>((r) => (release = r));
+-- 
+2.43.0
+
+
+From e8d15d6f5f4c4d53454de4b0e1bdbffe8c5b6ddf Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 14 Oct 2026 21:16:25 +0000
+Subject: [PATCH 2/4] KB istek kimligi mutasyon bulgulari: duzenleme rotasi
+ kimlik alaniyla 500 vermez (sema disi), yeniden onizleme yeni kimlik uretir
+ (kopan istek sonrasi degisen metin eski kalemi dondurmez)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ .../integration/kb-create-request-id.test.ts  |  5 +++-
+ tests/ui/kb-import-text.test.tsx              | 26 +++++++++++++++++++
+ 2 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/tests/integration/kb-create-request-id.test.ts b/tests/integration/kb-create-request-id.test.ts
+index 4390938..baf3fd6 100644
+--- a/tests/integration/kb-create-request-id.test.ts
++++ b/tests/integration/kb-create-request-id.test.ts
+@@ -127,8 +127,11 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
+     expect((await CREATE(createReq(wifi(propertyId, { requestId: "kısa" })))).status).toBe(400);
+     expect((await CREATE(createReq(wifi(propertyId, { requestId: "x".repeat(65) })))).status).toBe(400);
+     const made = (await (await CREATE(createReq(wifi(propertyId, { requestId: RID })))).json()) as { id: string };
+-    await PATCH(patchReq({ title: "Wi-Fi 2", requestId: "c".repeat(32) }), { params: Promise.resolve({ id: made.id }) });
++    // Düzenleme rotası ayrıştırılan veriyi DOĞRUDAN yazar (`data: d`): alan şemadan çıkarılmasa bilinmeyen alan → 500 olurdu.
++    const patched = await PATCH(patchReq({ title: "Wi-Fi 2", requestId: "c".repeat(32) }), { params: Promise.resolve({ id: made.id }) });
++    expect(patched.status).toBe(200);
+     const row = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: made.id } });
++    expect(row.title).toBe("Wi-Fi 2");
+     expect(row.clientRequestId).toBe(RID);
+   });
+ });
+diff --git a/tests/ui/kb-import-text.test.tsx b/tests/ui/kb-import-text.test.tsx
+index abe29b2..0e3b444 100644
+--- a/tests/ui/kb-import-text.test.tsx
++++ b/tests/ui/kb-import-text.test.tsx
+@@ -247,6 +247,32 @@ describe("Y10 (10-14 dış inceleme): kısmi başarıdan sonra tekrar deneme yal
+     for (const a of after) expect([bodies[0].requestId, bodies[1].requestId]).not.toContain(a.requestId);
+   });
+ 
++  it("🚨 bağlantı koptu, ev sahibi metni DEĞİŞTİRİP yeniden önizledi → aynı kategori YENİ kimlikle gider (eski kalem yeni içeriğin yerine dönmez)", async () => {
++    let n = 0;
++    const fetchMock = vi.fn(async () => {
++      n++;
++      if (n === 2) throw new TypeError("Failed to fetch");
++      return { ok: true, status: 201, json: async () => ({}) };
++    });
++    vi.stubGlobal("fetch", fetchMock);
++    openPanel();
++    paste(TWO);
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    const bodyOf = (c: unknown) => JSON.parse(String((c as [string, RequestInit])[1].body)) as { category: string; content: string; requestId?: string };
++    const lost = bodyOf(fetchMock.mock.calls[1]);
++    // Panel sıfırlanmadı (hata) — ev sahibi aynı konuyu farklı yazıp yeniden önizliyor.
++    paste(["Çöpleri binanın arka bahçesindeki gri konteynere bırakabilirsiniz.", "Otopark bina önündedir, ücretlidir."].join("\n"));
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    const again = fetchMock.mock.calls.slice(2).map(bodyOf).find((b) => b.category === lost.category);
++    expect(again).toBeDefined();
++    expect(again!.content).not.toBe(lost.content);
++    expect(again!.requestId).not.toBe(lost.requestId);
++  });
++
+   it("ekleme sürerken metin alanı ve Önizle KİLİTLİ (biten işlem yeni yazılanı silmez)", async () => {
+     let release!: () => void;
+     const gate = new Promise<void>((r) => (release = r));
+-- 
+2.43.0
+
+
+From 46d4928a331d726dcbe1f7b08309fa049e690495 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 15 Oct 2026 03:20:54 +0000
+Subject: [PATCH 3/4] KB istek kimligi Haiku incelemesi: yeniden deneme hafiza
+ ve vektor esitlemesini tamamlar, es zamanli denemede plan siniri yanlis 400
+ vermez, kimlik kalemin icerigine baglanir (kategori tek basina degil),
+ migration notu duzeltildi; testler rotayi baglamla cagirir (tip denetimi)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ .../65_kb_client_request_id/migration.sql     |  3 +-
+ src/app/api/kb/route.ts                       | 15 +++++-
+ src/components/knowledge/kb-import-text.tsx   | 10 ++--
+ .../integration/kb-create-request-id.test.ts  | 47 ++++++++++++-------
+ 4 files changed, 51 insertions(+), 24 deletions(-)
+
+diff --git a/prisma/migrations/65_kb_client_request_id/migration.sql b/prisma/migrations/65_kb_client_request_id/migration.sql
+index 15ade11..181911f 100644
+--- a/prisma/migrations/65_kb_client_request_id/migration.sql
++++ b/prisma/migrations/65_kb_client_request_id/migration.sql
+@@ -1,7 +1,8 @@
+ -- 65: Bilgi tabanı içe aktarım tekrar güvenliği (kurucu 10-14 "İstek kimliği").
+ -- Yeni NULL'lanabilir kolon (varsayılan yok → mevcut satırlar NULL; dolu tabloya zorunlu kolon EKLENMEDİ).
+ -- Benzersiz dizin (mülk, kimlik): mevcut satırların HEPSİ NULL ve PostgreSQL'de NULL'lar birbiriyle çakışmaz → açılışta patlamaz.
+--- Tablo küçük (mülk başına plan tavanı 60 aktif kalem) → düz dizin (CONCURRENTLY değil; INVALID dizin riski daha kötü).
++-- Tablo küçük (canlıda yüzlerce satır: mülk başına plan tavanı 60 AKTİF kalem; pasif kalemler sayılmaz ama azdır) → düz dizin.
++-- Dizin kurulurken KB yazmaları kısa süre bekler, okuma etkilenmez; CONCURRENTLY değil (INVALID dizin riski daha kötü).
+ 
+ -- AlterTable
+ ALTER TABLE "KnowledgeBaseItem" ADD COLUMN     "clientRequestId" TEXT;
+diff --git a/src/app/api/kb/route.ts b/src/app/api/kb/route.ts
+index 8e28e2b..b1f6244 100644
+--- a/src/app/api/kb/route.ts
++++ b/src/app/api/kb/route.ts
+@@ -40,9 +40,16 @@ export const POST = withManage(async (session, req) => {
+     prisma.knowledgeBaseItem.findUnique({
+       where: { propertyId_clientRequestId: { propertyId: d.propertyId, clientRequestId: requestId } },
+     });
++  // Var olan kalem dönerken eşitlemeler YİNE koşar (Haiku 10-14): ilk istek kalemi yazıp hafıza / vektör eşitlemesinden önce kesildiyse
++  // yeniden deneme onları tamamlar. İkisi de tekrar güvenli (fırlatmaz, aynı sonucu yazar).
++  const replay = async (prior: NonNullable<Awaited<ReturnType<typeof priorFor>>>) => {
++    await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
++    warmPropertyKbVectorsBestEffort(d.propertyId);
++    return jsonOk(prior, 200);
++  };
+   if (d.requestId) {
+     const prior = await priorFor(d.requestId);
+-    if (prior) return jsonOk(prior, 200);
++    if (prior) return replay(prior);
+   }
+ 
+   // PLAN SINIRLARI (billing/plan-limits.ts). İki ayrı kapı, ikisi de gerekli:
+@@ -59,6 +66,10 @@ export const POST = withManage(async (session, req) => {
+     where: { propertyId: d.propertyId, isActive: true },
+   });
+   if (d.isActive && activeCount >= limits.kbItemsPerProperty) {
++    // Eş zamanlı iki deneme: sayımı dolduran kalem bu kimliğin kalemi olabilir (öteki deneme az önce yazdı) — o zaman sınır hatası
++    // değil, o kalem döner (Haiku 10-14).
++    const prior = d.requestId ? await priorFor(d.requestId) : null;
++    if (prior) return replay(prior);
+     return badRequest({
+       _: `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Kullanmadığınız kayıtları pasife alabilir veya planınızı yükseltebilirsiniz.`,
+     });
+@@ -88,7 +99,7 @@ export const POST = withManage(async (session, req) => {
+     // İki yeniden deneme AYNI ANDA geldiyse kaybeden, kazananın kalemini alır (yalnız BU benzersizlik ihlali; başkası fırlar).
+     if (d.requestId && isUniqueViolation(err, ["propertyId", "clientRequestId"])) {
+       const prior = await priorFor(d.requestId);
+-      if (prior) return jsonOk(prior, 200);
++      if (prior) return replay(prior);
+     }
+     throw err;
+   }
+diff --git a/src/components/knowledge/kb-import-text.tsx b/src/components/knowledge/kb-import-text.tsx
+index 6ae99d5..56f75ad 100644
+--- a/src/components/knowledge/kb-import-text.tsx
++++ b/src/components/knowledge/kb-import-text.tsx
+@@ -60,10 +60,12 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
+   const [selected, setSelected] = useState<Set<string>>(new Set());
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+-  // mülk + kategori → kimlik. Yeni önizleme / sıfırlama temizler (farklı metin = yeni kalem); mülk değişirse anahtar değişir.
++  // mülk + KALEMİN KENDİSİ (kategori + başlık + içerik) → kimlik. Yeni önizleme / sıfırlama temizler; mülk ya da içerik değişirse anahtar
++  // değişir. Kategori tek başına anahtar DEĞİL (Haiku 10-14): çıkarıcı bugün kategori başına tek kalem üretse de, ikinci kalem aynı kimliği
++  // alsaydı sunucu ilkini döndürür, ikincisi sessizce kaybolurdu.
+   const requestIds = useRef(new Map<string, string>());
+-  const requestIdFor = (category: string) => {
+-    const key = `${propertyId}:${category}`;
++  const requestIdFor = (item: { category: string; title: string; content: string }) => {
++    const key = JSON.stringify([propertyId, item.category, item.title, item.content]);
+     let id = requestIds.current.get(key);
+     if (!id) {
+       id = newRequestId();
+@@ -120,7 +122,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
+             content: item.content,
+             language: "tr",
+             isActive: true,
+-            requestId: requestIdFor(item.category),
++            requestId: requestIdFor(item),
+           }),
+         });
+         if (res.ok) {
+diff --git a/tests/integration/kb-create-request-id.test.ts b/tests/integration/kb-create-request-id.test.ts
+index baf3fd6..5f5cdfe 100644
+--- a/tests/integration/kb-create-request-id.test.ts
++++ b/tests/integration/kb-create-request-id.test.ts
+@@ -36,6 +36,7 @@ const patchReq = (body: unknown) =>
+   });
+ 
+ const RID = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
++const create = (body: unknown) => CREATE(createReq(body), { params: Promise.resolve({}) });
+ const wifi = (propertyId: string, extra: Record<string, unknown> = {}) => ({
+   propertyId,
+   category: "wifi",
+@@ -64,10 +65,10 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
+   const count = () => prisma.knowledgeBaseItem.count({ where: { propertyId } });
+ 
+   it("🚨 aynı kimlikle yeniden deneme İKİNCİ kalem açmaz; ilk kalem döner (200)", async () => {
+-    const first = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    const first = await create(wifi(propertyId, { requestId: RID }));
+     expect(first.status).toBe(201);
+     const a = (await first.json()) as { id: string };
+-    const again = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    const again = await create(wifi(propertyId, { requestId: RID }));
+     expect(again.status).toBe(200);
+     expect(((await again.json()) as { id: string }).id).toBe(a.id);
+     expect(await count()).toBe(1);
+@@ -75,8 +76,8 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
+ 
+   it("🚨 iki yeniden deneme AYNI ANDA → tek kalem, ikisi de aynı kalemi alır", async () => {
+     const [r1, r2] = await Promise.all([
+-      CREATE(createReq(wifi(propertyId, { requestId: RID }))),
+-      CREATE(createReq(wifi(propertyId, { requestId: RID }))),
++      create(wifi(propertyId, { requestId: RID })),
++      create(wifi(propertyId, { requestId: RID })),
+     ]);
+     expect([r1.status, r2.status].sort()).toEqual([200, 201]);
+     const ids = new Set([((await r1.json()) as { id: string }).id, ((await r2.json()) as { id: string }).id]);
+@@ -89,17 +90,29 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
+     for (let i = 0; i < limit - 1; i++) {
+       await prisma.knowledgeBaseItem.create({ data: { propertyId, title: `k${i}`, content: "x".repeat(10), isActive: true } });
+     }
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201); // sınır şimdi dolu
+-    const retry = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    expect((await create(wifi(propertyId, { requestId: RID }))).status).toBe(201); // sınır şimdi dolu
++    const retry = await create(wifi(propertyId, { requestId: RID }));
+     expect(retry.status).toBe(200);
+     expect(await count()).toBe(limit);
+     // Kontrol: YENİ kimlikle ekleme sınırdan döner.
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: "f".repeat(32) })))).status).toBe(400);
++    expect((await create(wifi(propertyId, { requestId: "f".repeat(32) }))).status).toBe(400);
++  });
++
++  it("🚨 ilk istek kalemi yazıp eşitlemeden önce kesildiyse yeniden deneme mülk hafızasını TAMAMLAR (Haiku 10-14)", async () => {
++    // İlk isteğin yalnız INSERT'i oldu (süreç hafıza eşitlemesinden önce düştü): kalem var, hafıza satırı yok.
++    const orphan = await prisma.knowledgeBaseItem.create({
++      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G.", isActive: true, source: "host_manual", reviewState: "approved", approvedAt: new Date(), clientRequestId: RID },
++    });
++    expect(await prisma.propertyMemory.count({ where: { propertyId, sourceRef: orphan.id } })).toBe(0);
++    const retry = await create(wifi(propertyId, { requestId: RID }));
++    expect(retry.status).toBe(200);
++    expect(((await retry.json()) as { id: string }).id).toBe(orphan.id);
++    expect(await prisma.propertyMemory.count({ where: { propertyId, sourceRef: orphan.id } })).toBe(1);
+   });
+ 
+   it("KONTROL: kimliksiz (elle ekleme) eski davranış — iki istek iki kalem", async () => {
+-    expect((await CREATE(createReq(wifi(propertyId)))).status).toBe(201);
+-    expect((await CREATE(createReq(wifi(propertyId)))).status).toBe(201);
++    expect((await create(wifi(propertyId))).status).toBe(201);
++    expect((await create(wifi(propertyId))).status).toBe(201);
+     expect(await count()).toBe(2);
+     const rows = await prisma.knowledgeBaseItem.findMany({ where: { propertyId } });
+     expect(rows.every((r) => r.clientRequestId === null)).toBe(true);
+@@ -107,26 +120,26 @@ describe("KB oluşturma — istek kimliğiyle tekrar güvenliği", () => {
+ 
+   it("KONTROL: farklı kimlik = farklı kalem; aynı kimlik BAŞKA mülkte ayrı kalem", async () => {
+     const other = await prisma.property.create({ data: { organizationId: orgId, name: "Daire B" } });
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201);
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: "b".repeat(32) })))).status).toBe(201);
+-    expect((await CREATE(createReq(wifi(other.id, { requestId: RID })))).status).toBe(201);
++    expect((await create(wifi(propertyId, { requestId: RID }))).status).toBe(201);
++    expect((await create(wifi(propertyId, { requestId: "b".repeat(32) }))).status).toBe(201);
++    expect((await create(wifi(other.id, { requestId: RID }))).status).toBe(201);
+     expect(await count()).toBe(2);
+     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: other.id } })).toBe(1);
+   });
+ 
+   it("🚨 başka işletmenin mülküne kimlikle istek: mülk reddi (kimlik başka işletmenin kalemini DÖNDÜRMEZ)", async () => {
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: RID })))).status).toBe(201);
++    expect((await create(wifi(propertyId, { requestId: RID }))).status).toBe(201);
+     const foreign = await makeOrgWithProperty();
+     session = { ...session, organizationId: foreign.orgId };
+-    const res = await CREATE(createReq(wifi(propertyId, { requestId: RID })));
++    const res = await create(wifi(propertyId, { requestId: RID }));
+     expect(res.status).toBe(400);
+     expect(JSON.stringify(await res.json())).not.toContain("Lale_5G");
+   });
+ 
+   it("biçimsiz kimlik reddedilir; düzenleme (PATCH) kimliği kabul etmez / değiştirmez", async () => {
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: "kısa" })))).status).toBe(400);
+-    expect((await CREATE(createReq(wifi(propertyId, { requestId: "x".repeat(65) })))).status).toBe(400);
+-    const made = (await (await CREATE(createReq(wifi(propertyId, { requestId: RID })))).json()) as { id: string };
++    expect((await create(wifi(propertyId, { requestId: "kısa" }))).status).toBe(400);
++    expect((await create(wifi(propertyId, { requestId: "x".repeat(65) }))).status).toBe(400);
++    const made = (await (await create(wifi(propertyId, { requestId: RID }))).json()) as { id: string };
+     // Düzenleme rotası ayrıştırılan veriyi DOĞRUDAN yazar (`data: d`): alan şemadan çıkarılmasa bilinmeyen alan → 500 olurdu.
+     const patched = await PATCH(patchReq({ title: "Wi-Fi 2", requestId: "c".repeat(32) }), { params: Promise.resolve({ id: made.id }) });
+     expect(patched.status).toBe(200);
+-- 
+2.43.0
+
+
+From 42b5d64f6836e679d06237409e01d8b10c2ea0c5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 15 Oct 2026 03:23:23 +0000
+Subject: [PATCH 4/4] KB istek kimligi mutasyon bulgulari: plan sinirinda es
+ zamanli deneme yarisinin belirlenimli testi, ayni kategoriden iki kalemde
+ ayri kimlik testi
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ .../kb-create-request-id-race.test.ts         | 61 +++++++++++++++++++
+ .../ui/kb-import-text-same-category.test.tsx  | 52 ++++++++++++++++
+ 2 files changed, 113 insertions(+)
+ create mode 100644 tests/integration/kb-create-request-id-race.test.ts
+ create mode 100644 tests/ui/kb-import-text-same-category.test.tsx
+
+diff --git a/tests/integration/kb-create-request-id-race.test.ts b/tests/integration/kb-create-request-id-race.test.ts
+new file mode 100644
+index 0000000..4d5b288
+--- /dev/null
++++ b/tests/integration/kb-create-request-id-race.test.ts
+@@ -0,0 +1,61 @@
++import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
++import { NextRequest } from "next/server";
++import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
++import type { SessionPayload } from "@/lib/auth";
++
++let session: SessionPayload;
++vi.mock("@/lib/api", async (orig) => {
++  const actual = await orig<typeof import("@/lib/api")>();
++  return { ...actual, requireSession: vi.fn(async () => session) };
++});
++
++import { POST as CREATE } from "@/app/api/kb/route";
++import { planLimitsFor } from "@/lib/billing/plan-limits";
++
++// ---------------------------------------------------------------------------
++// KB istek kimliği — eş zamanlı iki yeniden denemenin plan sınırındaki yarışı (Haiku 10-14). AYRI DOSYA: Prisma temsilcisine casus
++// sonraki testlere sızar (CLAUDE.md çalışma dersi). Yarış belirlenimli kurulur: ilk "var mı?" okuması boş döner (öteki deneme henüz
++// yazmamış), kalem ise sayım anında VAR (öteki deneme arada yazdı) → sınır dolu görünür. Beklenen: sınır hatası DEĞİL, o kalem döner.
++// ---------------------------------------------------------------------------
++
++const RID = "d4c3b2a1f0e9d8c7b6a5948372615049";
++const createReq = (body: unknown) =>
++  new NextRequest("http://localhost/api/kb", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
++
++describe("KB istek kimliği — plan sınırında eş zamanlı deneme", () => {
++  let propertyId: string;
++  beforeEach(async () => {
++    await resetDb();
++    const made = await makeOrgWithProperty();
++    propertyId = made.propertyId;
++    session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
++  });
++  afterEach(() => vi.restoreAllMocks());
++  afterAll(async () => {
++    await prisma.$disconnect();
++  });
++
++  it("🚨 ilk okuma boş, sayımda sınır dolu (öteki deneme yazdı) → 200 + o kalem, sınır hatası yok", async () => {
++    const limit = planLimitsFor("business").kbItemsPerProperty;
++    for (let i = 0; i < limit - 1; i++) {
++      await prisma.knowledgeBaseItem.create({ data: { propertyId, title: `k${i}`, content: "x".repeat(10), isActive: true } });
++    }
++    // Öteki denemenin yazdığı kalem (sınır şimdi dolu).
++    const winner = await prisma.knowledgeBaseItem.create({
++      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G.", isActive: true, clientRequestId: RID },
++    });
++    const real = prisma.knowledgeBaseItem.findUnique.bind(prisma.knowledgeBaseItem);
++    let calls = 0;
++    vi.spyOn(prisma.knowledgeBaseItem, "findUnique").mockImplementation(((args: never) => {
++      calls++;
++      return calls === 1 ? Promise.resolve(null) : real(args);
++    }) as never);
++    const res = await CREATE(
++      createReq({ propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ adı: Lale_5G.", isActive: true, requestId: RID }),
++      { params: Promise.resolve({}) },
++    );
++    expect(res.status).toBe(200);
++    expect(((await res.json()) as { id: string }).id).toBe(winner.id);
++    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(limit);
++  });
++});
+diff --git a/tests/ui/kb-import-text-same-category.test.tsx b/tests/ui/kb-import-text-same-category.test.tsx
+new file mode 100644
+index 0000000..8a3ab26
+--- /dev/null
++++ b/tests/ui/kb-import-text-same-category.test.tsx
+@@ -0,0 +1,52 @@
++// @vitest-environment jsdom
++import { describe, it, expect, vi, afterEach } from "vitest";
++import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
++
++// ---------------------------------------------------------------------------
++// KB istek kimliği kalemin KENDİSİNE bağlı (Haiku 10-14): çıkarıcı bugün kategori başına tek kalem üretiyor, ama yarın aynı kategoriden
++// iki kalem dönerse ikisi AYNI kimliği almamalı — yoksa sunucu ilkini döndürür, ikincisi sessizce kaybolurdu. Çıkarıcı burada sahte
++// (aynı kategoride iki kalem); ayrı dosya, çünkü modül sahtesi öteki ekran testlerini etkiler.
++// ---------------------------------------------------------------------------
++
++const router = { push: vi.fn(), refresh: vi.fn() };
++vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/" }));
++vi.mock("@/lib/kb-extract", async (orig) => {
++  const actual = await orig<typeof import("@/lib/kb-extract")>();
++  return {
++    ...actual,
++    extractKbSuggestions: () => ({
++      fields: [],
++      items: [
++        { category: "parking", title: "Otopark", content: "Otopark bina altındadır.", lines: [1] },
++        { category: "parking", title: "Otopark 2", content: "Misafir yeri 3 numaradır.", lines: [2] },
++      ],
++      skipped: [],
++      linesRead: 2,
++      truncated: false,
++    }),
++  };
++});
++
++import { KbImportText } from "@/components/knowledge/kb-import-text";
++
++describe("KB içe aktarım — aynı kategoriden iki kalem", () => {
++  afterEach(() => {
++    cleanup();
++    vi.unstubAllGlobals();
++  });
++
++  it("🚨 iki kalem iki AYRI istek kimliğiyle gider", async () => {
++    const fetchMock = vi.fn(async () => ({ ok: true, status: 201, json: async () => ({}) }));
++    vi.stubGlobal("fetch", fetchMock);
++    render(<KbImportText properties={[{ id: "p1", name: "Daire 1" }]} />);
++    fireEvent.click(screen.getByRole("button", { name: "Aç" }));
++    fireEvent.change(screen.getByLabelText("Metin"), { target: { value: "x\ny" } });
++    fireEvent.click(screen.getByRole("button", { name: "Önizle" }));
++    await act(async () => {
++      fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));
++    });
++    const bodies = fetchMock.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)) as { content: string; requestId: string });
++    expect(bodies.map((b) => b.content)).toEqual(["Otopark bina altındadır.", "Misafir yeri 3 numaradır."]);
++    expect(bodies[0].requestId).not.toBe(bodies[1].requestId);
++  });
++});
+-- 
+2.43.0
+

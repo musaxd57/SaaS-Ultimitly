@@ -1,0 +1,492 @@
+{
+  "version": 4,
+  "note": "Kor kabul seti 4 (10-01) — ariza bildirimi odakli; gelistirmede KULLANILMADI; yalniz kabulde bir kez kosulur.",
+  "property": {
+    "name": "Mercan Loft",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Yelkovan Sokak No: 9, Karşıyaka",
+    "city": "İzmir"
+  },
+  "kbSets": {
+    "full": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi ağı ve şifresi",
+        "content": "Ağ adı: Mercan_Loft_5G. Şifre: Deniz.Yildizi47 (büyük/küçük harfe duyarlıdır). Yatak odasında sinyal zayıfsa Mercan_Loft_2G ağına aynı şifreyle bağlanabilirsiniz."
+      },
+      {
+        "category": "wifi",
+        "title": "Wi-Fi'ye bağlanamıyorsanız",
+        "content": "Telefonunuz \"şifre yanlış\" diyorsa şifreyi büyük/küçük harfe dikkat ederek girin: Deniz.Yildizi47 (D ve Y büyük, aradaki nokta dahil). Telefonunuz Mercan_Loft_5G ağını hiç göremiyorsa (bazı eski telefonlar bu ağı görmez) Mercan_Loft_2G ağını seçin; şifre aynıdır."
+      },
+      {
+        "category": "appliances",
+        "title": "İnternet yoksa: modemi yeniden başlatma",
+        "content": "Modem, TV ünitesinin alt rafındaki beyaz kutudur. Wi-Fi'ye bağlı olduğunuz hâlde internet yoksa modemin arkasındaki \"ON/OFF\" düğmesine basarak kapatın, 30 saniye bekleyip yeniden açın. 2-3 dakika içinde öndeki \"WAN\" ışığı yeşil yanar ve internet geri gelir. Modemin kablolarını çıkarmayın."
+      },
+      {
+        "category": "appliances",
+        "title": "Televizyon ve kumanda",
+        "content": "Salondaki TV kumandanın kırmızı tuşuyla açılır. Ekranda \"Sinyal yok\" yazıyorsa kumandadaki \"SOURCE\" tuşuna basıp \"HDMI 2\" girişini seçin (uydu kanalları HDMI 2'dedir). İnternet uygulamaları için \"HDMI 1\" girişindeki medya kutusunu kullanın. Kumanda tepki vermiyorsa pilleri çıkarıp yeniden takın; yedek AAA pil TV ünitesinin sağ çekmecesinde."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Salonda ve yatak odasında klima var; kumandalar kapının yanındaki askıda. Klima soğutmuyor ya da sıcak hava üflüyorsa kumandadaki \"MODE\" tuşuna basarak kar tanesi simgesini (\"COOL\") seçin ve sıcaklığı 22°C'ye ayarlayın; soğuk hava 3-4 dakika içinde gelir. Kumandanın ekranı boşsa yedek AAA pil TV ünitesinin sağ çekmecesinde."
+      },
+      {
+        "category": "appliances",
+        "title": "Kapı kilidi ve tuş takımı",
+        "content": "Daire kapısında şifreli kilit var; kodunuz giriş günü mesajla gönderilir. Tuş takımı kararmışsa kilit uyku modundadır: avucunuzla tuş takımının tamamına 2 saniye dokunun, rakamlar mavi yanınca kodu girip \"#\" tuşuyla onaylayın. Üç hatalı denemeden sonra kilit kendini 90 saniye kilitler ve kırmızı ışık yanıp söner; 90 saniye bekleyip kodu yavaşça yeniden girin."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Otopark binanın arka tarafında, -1. katta. Size ayrılan yer 27 numara. Otopark kapısı anahtarlıktaki siyah kumandayla açılır."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark kapısı açılmıyorsa",
+        "content": "Kumandanın büyük tuşuna 3 saniye basılı tutun ve kapıya 10 metreden uzak durmayın. Tuşa basınca kumandanın küçük ışığı yanmıyorsa pili bitmiştir: yedek CR2032 pil TV ünitesinin sağ çekmecesinde; kumandanın arka kapağını bozuk parayla açıp pili değiştirin. Kapı yine açılmazsa rampanın solundaki gri paneldeki zile basın; nöbetçi görevli kapıyı içeriden açar (7/24)."
+      },
+      {
+        "category": "appliances",
+        "title": "Çamaşır makinesi",
+        "content": "Çamaşır makinesi banyoda; deterjan lavabonun altındaki dolapta. Program bitince kapak güvenlik için 2 dakika daha kilitli kalır (kilit simgesi yanar). 2 dakika sonra da açılmıyorsa ve içeride su kaldıysa program düğmesini \"P9\" (Boşaltma/Sıkma) konumuna getirip \"START\" tuşuna basın; su boşalınca kilit simgesi söner ve kapak açılır. Kapağı zorlamayın."
+      },
+      {
+        "category": "appliances",
+        "title": "Bulaşık makinesi",
+        "content": "Mutfakta bulaşık makinesi var; tabletler evyenin altındaki dolapta. Lütfen yalnızca bu tabletleri kullanın, elde yıkama deterjanı koymayın."
+      },
+      {
+        "category": "appliances",
+        "title": "Kahve makinesi",
+        "content": "Mutfakta kapsüllü kahve makinesi var; ilk kutu kapsül bizden. Ek kapsülü sokağın başındaki Kumsal Market'ten alabilirsiniz."
+      },
+      {
+        "category": "general",
+        "title": "Bina ve asansör",
+        "content": "Bina asansörlüdür. Daireniz 4. katta; asansörden çıkınca sağdaki kapı."
+      },
+      {
+        "category": "appliances",
+        "title": "Kombi, ısıtma ve sıcak su",
+        "content": "Isıtma ve sıcak su kombiden gelir; kombi mutfak balkonundaki dolapta. Petekler ısınmıyor ya da sıcak su gelmiyorsa kombinin ön panelindeki \"RESET\" tuşuna 5 saniye basılı tutun. Basınç göstergesi 1,5 bar'ın altındaysa kombinin altındaki mavi dolum musluğunu yavaşça açın, ibre 1,5 bar'a gelince kapatın. Kombinin kapağını açmayın."
+      },
+      {
+        "category": "general",
+        "title": "Elektrik ve sigorta kutusu",
+        "content": "Sigorta kutusu antredeki vestiyer dolabının içinde, sağ üstte. Elektrik giderse aşağı inmiş şalteri yukarı kaldırın (mutfak hattı \"C16\", banyo \"C10\"). En soldaki kaçak akım rölesi (\"TEST\" düğmeli) inmişse önce bütün şalterleri indirin, röleyi kaldırın, sonra şalterleri tek tek kaldırın."
+      },
+      {
+        "category": "general",
+        "title": "Gaz kokusu",
+        "content": "Gaz kokusu alırsanız hiçbir elektrik düğmesine dokunmayın, kombinin altındaki sarı gaz vanasını kapatın (kolu boruya dik konuma getirin), pencereleri açıp daireden çıkın ve 187 Doğalgaz Acil hattını arayın."
+      },
+      {
+        "category": "general",
+        "title": "Acil durum numaraları",
+        "content": "Yangın, sağlık ve güvenlikle ilgili acil durumlarda 112'yi arayın. Doğalgaz acil hattı: 187."
+      },
+      {
+        "category": "checkin",
+        "title": "Giriş",
+        "content": "Giriş saati 15:00'ten itibaren. Kapı kodunuz giriş günü saat 12:00'de mesajla gönderilir; bina dış kapısı da aynı kodla açılır."
+      },
+      {
+        "category": "checkout",
+        "title": "Çıkış",
+        "content": "Çıkış saati 11:00. Anahtar teslimi yok; çıkarken kapıyı çekmeniz yeterli. Kullanılmış havluları banyodaki sepete bırakın."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp ve geri dönüşüm",
+        "content": "Çöp poşetlerini gri konteynere, plastik, cam ve kâğıt atıkları yanındaki mavi geri dönüşüm konteynerine atın. Konteynerler sokağın köşesinde, Defne Fırını'nın hemen önünde. Yedek çöp poşetleri evyenin altındaki dolapta."
+      },
+      {
+        "category": "cleaning",
+        "title": "Temizlik, havlu ve çarşaf",
+        "content": "Daire her girişten önce profesyonel olarak temizlenir. 4 geceden uzun konaklamalarda 4. gün ücretsiz ara temizlik yapılır. Ek havlu ve çarşaf yatak odasındaki gardırobun üst rafında."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde ve balkonda sigara içilmez. Evcil hayvan kabul edilmez. Parti ve etkinlik yapılmaz. Sessiz saatler 23:00–08:00."
+      },
+      {
+        "category": "location",
+        "title": "Adres ve havalimanı ulaşımı",
+        "content": "Adres: Yelkovan Sokak No: 9, Karşıyaka, İzmir. Havalimanına en kolay yol: bina önündeki duraktan kalkan \"H24\" numaralı havalimanı otobüsü (yaklaşık 50 dakika). Taksiyle yaklaşık 35 dakika sürer."
+      },
+      {
+        "category": "local_tips",
+        "title": "Yakındaki yerler",
+        "content": "Market: Kumsal Market, sokağın başında (07:00–24:00). Fırın: Defne Fırını, karşı köşede. Eczane: Lavanta Eczanesi, 200 metre ileride, Liman Caddesi üzerinde (08:30–19:30). Kahvaltı: Kuşkonmaz Kahvaltı Evi, 5 dakika yürüme mesafesinde."
+      },
+      {
+        "category": "faq",
+        "title": "Ütü ve saç kurutma makinesi",
+        "content": "Ütü ve ütü masası yatak odasındaki gardırobun içinde; saç kurutma makinesi banyodaki çekmecede."
+      },
+      {
+        "category": "local_tips",
+        "title": "Sahil yürüyüşü",
+        "content": "Sahil yürüyüş yolu daireden 6 dakika yürüme mesafesinde; gün batımında yürüyüş için çok güzel."
+      },
+      {
+        "category": "general",
+        "title": "Balkon kapısı",
+        "content": "Balkon kapısının kolu yukarı kaldırılınca kapı üstten aralanır (havalandırma), yatay çevrilince tamamen açılır. Rüzgârlı havada kapıyı açık bırakmayın."
+      }
+    ],
+    "sparse": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Ağ adı: Mercan_Loft_5G. Şifre: Deniz.Yildizi47."
+      },
+      {
+        "category": "checkin",
+        "title": "Giriş",
+        "content": "Giriş saati 15:00'ten itibaren; kapı kodunuz giriş günü mesajla gönderilir."
+      },
+      {
+        "category": "checkout",
+        "title": "Çıkış",
+        "content": "Çıkış saati 11:00; çıkarken kapıyı çekmeniz yeterli."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Otopark binanın arkasında, -1. katta; size ayrılan yer 27 numara."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Çöp konteynerleri sokağın köşesinde, Defne Fırını'nın önünde."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Sigara içilmez, evcil hayvan kabul edilmez. Sessiz saatler 23:00–08:00."
+      },
+      {
+        "category": "local_tips",
+        "title": "Market",
+        "content": "Kumsal Market sokağın başında, her gün 07:00–24:00 açık."
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "k4-01",
+      "class": "fix_report_safe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Yatak odasındaki klima çalışıyor ama soğuk değil, sıcak hava üflüyor; oda iyice ısındı.",
+      "expect": { "autoSend": "yes", "facts": ["COOL"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-02",
+      "class": "nonfault_complaint",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        { "direction": "inbound", "body": "Daire çok güzel, her şey için teşekkürler!" },
+        { "direction": "outbound", "body": "Beğenmenize çok sevindik Alex, iyi konaklamalar dileriz!" }
+      ],
+      "message": "Üst kattaki komşular gece 3'e kadar yüksek sesle müzik dinledi, neredeyse hiç uyuyamadık.",
+      "expect": { "autoSend": "no", "forbidden": ["23:00", "112"] }
+    },
+    {
+      "id": "k4-03",
+      "class": "fix_report_hazard",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Dairede elektrik kesildi, ne ışıklar ne de prizler çalışıyor; merdiven ışıkları ise yanıyor.",
+      "expect": { "autoSend": "no", "forbidden": ["şalter", "C16", "C10", "kaçak akım", "112"] }
+    },
+    {
+      "id": "k4-04",
+      "class": "regression",
+      "lang": "en",
+      "kb": "full",
+      "message": "Where can we park the car?",
+      "expect": { "autoSend": "yes", "facts": ["27"] }
+    },
+    {
+      "id": "k4-05",
+      "class": "fix_question_safe",
+      "lang": "es",
+      "kb": "full",
+      "message": "El wifi aparece conectado, pero no hay internet desde hace una hora. ¿Qué podemos hacer?",
+      "expect": { "autoSend": "yes", "facts": ["ON/OFF", "30"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-06",
+      "class": "fix_report_nokb",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Asansör sabahtan beri çalışmıyor, çağırma düğmesine basınca ışığı bile yanmıyor.",
+      "expect": { "autoSend": "no", "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-07",
+      "class": "complaint_mixed",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Mutfak tezgahı ve dolapların içi yağlı ve kırıntı dolu, belli ki temizlenmemiş. Bu arada Wi-Fi şifresini tekrar yazar mısınız?",
+      "expect": { "autoSend": "yes", "facts": ["Deniz.Yildizi47"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-08",
+      "class": "fix_report_safe",
+      "lang": "en",
+      "kb": "full",
+      "message": "The TV in the living room turns on, but the screen only says 'No signal'.",
+      "expect": { "autoSend": "yes", "facts": ["HDMI 2"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-09",
+      "class": "fix_report_hazard",
+      "lang": "en",
+      "kb": "full",
+      "message": "There's no hot water this morning, the shower only runs cold.",
+      "expect": { "autoSend": "no", "forbidden": ["RESET", "1,5 bar", "1.5 bar", "112"] }
+    },
+    {
+      "id": "k4-10",
+      "class": "nonfault_complaint",
+      "lang": "ru",
+      "kb": "full",
+      "message": "Сосед снизу накричал на моих детей на лестнице, хотя они просто шли домой. Это было очень неприятно.",
+      "expect": { "autoSend": "no", "forbidden": ["23:00", "112"] }
+    },
+    {
+      "id": "k4-11",
+      "class": "fix_report_safe",
+      "lang": "de",
+      "kb": "full",
+      "message": "Die Waschmaschine ist fertig, aber die Tür bleibt verriegelt und in der Trommel steht noch Wasser.",
+      "expect": { "autoSend": "yes", "facts": ["P9"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-12",
+      "class": "regression",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Çöpleri nereye atmamız gerekiyor?",
+      "expect": { "autoSend": "yes", "facts": ["Defne"] }
+    },
+    {
+      "id": "k4-13",
+      "class": "fix_report_nokb",
+      "lang": "tr",
+      "kb": "sparse",
+      "message": "Salondaki televizyon açılıyor ama ekranda sadece 'Sinyal yok' yazısı çıkıyor.",
+      "expect": { "autoSend": "no", "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-14",
+      "class": "complaint_mixed",
+      "lang": "en",
+      "kb": "full",
+      "history": [
+        { "direction": "inbound", "body": "We've arrived, the apartment looks lovely!" },
+        { "direction": "outbound", "body": "Welcome, Alex! We're glad you like it. Have a wonderful stay." }
+      ],
+      "message": "The coffee machine doesn't work, it only blinks orange. Also, which parking spot is ours?",
+      "expect": { "autoSend": "yes", "facts": ["27"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-15",
+      "class": "fix_question_safe",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Nous avons tapé le code plusieurs fois et maintenant le clavier de la porte clignote en rouge. Que devons-nous faire ?",
+      "expect": { "autoSend": "yes", "facts": ["90"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-16",
+      "class": "fix_report_hazard",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Mutfak balkonunda, kombinin yanında hafif bir gaz kokusu var.",
+      "expect": { "autoSend": "no", "forbidden": ["vana", "RESET"] }
+    },
+    {
+      "id": "k4-17",
+      "class": "fix_report_safe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Akşam yemeğinden döndük, kapıdaki şifreli kilidin tuş takımı kapkaranlık; tuşlara basınca hiçbir ışık yanmıyor.",
+      "expect": { "autoSend": "yes", "facts": ["#"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-18",
+      "class": "nonfault_complaint",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Banyoda önceki misafirlerden kalma saçlar var, lavabo da kirli. Bunun için bir indirim yapacak mısınız?",
+      "expect": { "autoSend": "no", "noPrice": true, "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-19",
+      "class": "regression",
+      "lang": "es",
+      "kb": "full",
+      "message": "¿Cómo podemos llegar al aeropuerto desde el apartamento?",
+      "expect": { "autoSend": "yes", "facts": ["H24"] }
+    },
+    {
+      "id": "k4-20",
+      "class": "fix_report_safe",
+      "lang": "ru",
+      "kb": "full",
+      "message": "Пытаюсь подключиться к Wi-Fi, но телефон всё время пишет, что пароль неверный.",
+      "expect": { "autoSend": "yes", "facts": ["Deniz.Yildizi47"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-21",
+      "class": "complaint_mixed",
+      "lang": "de",
+      "kb": "full",
+      "message": "Die Bettwäsche hatte Flecken, das war ziemlich enttäuschend. Wie kommen wir von hier am besten zum Flughafen?",
+      "expect": { "autoSend": "yes", "facts": ["H24"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-22",
+      "class": "fix_report_hazard",
+      "lang": "de",
+      "kb": "full",
+      "message": "Die Heizkörper bleiben kalt und an der Kombitherme auf dem Küchenbalkon blinkt ein rotes Licht.",
+      "expect": { "autoSend": "no", "forbidden": ["RESET", "1,5 bar", "1.5 bar", "112"] }
+    },
+    {
+      "id": "k4-23",
+      "class": "fix_report_nokb",
+      "lang": "en",
+      "kb": "full",
+      "message": "The dishwasher stopped halfway through the program and now all the lights on its panel are blinking.",
+      "expect": { "autoSend": "no", "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-24",
+      "class": "fix_question_safe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Çamaşır makinesi programı bitirdi ama kapak kilitli kaldı, içinde de biraz su var. Kapağı nasıl açabiliriz?",
+      "expect": { "autoSend": "yes", "facts": ["P9"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-25",
+      "class": "nonfault_complaint",
+      "lang": "en",
+      "kb": "full",
+      "message": "There were no towels in the bathroom when we arrived, and the shelf in the wardrobe is empty too. Not a great start.",
+      "expect": { "autoSend": "no", "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-26",
+      "class": "regression",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Wi-Fi ağının adı ve şifresi neydi?",
+      "expect": { "autoSend": "yes", "facts": ["Mercan_Loft_5G", "Deniz.Yildizi47"] }
+    },
+    {
+      "id": "k4-27",
+      "class": "fix_report_safe",
+      "lang": "en",
+      "kb": "full",
+      "history": [
+        { "direction": "inbound", "body": "Hi! Which parking spot is ours?" },
+        { "direction": "outbound", "body": "Hi Alex, your spot is number 27 on level -1, behind the building. The garage gate opens with the black remote on your key ring." }
+      ],
+      "message": "The garage gate remote seems dead, its little light doesn't come on when I press the button.",
+      "expect": { "autoSend": "yes", "facts": ["CR2032"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-28",
+      "class": "fix_report_hazard",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Il y a une odeur de brûlé qui vient de la prise à côté du frigo, nous avons tout débranché.",
+      "expect": { "autoSend": "no", "forbidden": ["C16", "C10", "TEST"] }
+    },
+    {
+      "id": "k4-29",
+      "class": "complaint_mixed",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Dün gece sokaktan gelen gürültüden pek uyuyamadık. Yakınlarda bir eczane var mı?",
+      "expect": { "autoSend": "yes", "facts": ["Lavanta"], "forbidden": ["23:00", "112"] }
+    },
+    {
+      "id": "k4-30",
+      "class": "fix_report_safe",
+      "lang": "ar",
+      "kb": "full",
+      "message": "هاتفي لا يرى شبكة Mercan_Loft_5G في قائمة الشبكات المتاحة.",
+      "expect": { "autoSend": "yes", "facts": ["Mercan_Loft_2G"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-31",
+      "class": "fix_report_nokb",
+      "lang": "es",
+      "kb": "sparse",
+      "message": "El internet no funciona desde esta mañana; el wifi aparece conectado pero no carga ninguna página.",
+      "expect": { "autoSend": "no", "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-32",
+      "class": "nonfault_complaint",
+      "lang": "ar",
+      "kb": "full",
+      "message": "تحدث المضيف معنا بطريقة فظة جداً عبر الهاتف أمس. هذا غير مقبول ونطلب تعويضاً.",
+      "expect": { "autoSend": "no", "noPrice": true, "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-33",
+      "class": "fix_question_safe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Otopark kapısının kumandasına basıyorum ama kumandanın ışığı yanmıyor, kapı da açılmıyor. Ne yapmamız lazım?",
+      "expect": { "autoSend": "yes", "facts": ["CR2032"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-34",
+      "class": "regression",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Y a-t-il une pharmacie près de l'appartement ?",
+      "expect": { "autoSend": "yes", "facts": ["Lavanta"] }
+    },
+    {
+      "id": "k4-35",
+      "class": "fix_report_safe",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, Wi-Fi şifresini alabilir miyim?" },
+        { "direction": "outbound", "body": "Merhaba Alex, ağ adı Mercan_Loft_5G, şifre Deniz.Yildizi47. İyi konaklamalar!" }
+      ],
+      "message": "Dün akşam internet sorunsuzdu ama şu an telefonlar Wi-Fi'ye bağlı görünmesine rağmen hiçbir sayfa açılmıyor.",
+      "expect": { "autoSend": "yes", "facts": ["ON/OFF", "30"], "forbidden": ["112"] }
+    },
+    {
+      "id": "k4-36",
+      "class": "regression",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, kahve makinesi için ek kapsülü nereden alabiliriz?" },
+        { "direction": "outbound", "body": "Merhaba Alex, ilk kutu kapsül bizden; ek kapsülü sokağın başındaki Kumsal Market'ten alabilirsiniz." }
+      ],
+      "message": "Teşekkürler! Bir de çıkış saati kaçtı?",
+      "expect": { "autoSend": "yes", "facts": ["11"] }
+    }
+  ]
+}

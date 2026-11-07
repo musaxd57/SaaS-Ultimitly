@@ -1,0 +1,479 @@
+// Distributed fixed-window rate limiter. The AUTHORITY is a PostgreSQL counter
+// row (one atomic INSERT ... ON CONFLICT per hit, decided on the DB clock), so
+// limits hold across replicas AND survive deploys/restarts — the old in-memory
+// map silently reset on both. The map is kept as a per-instance FALLBACK: if the
+// DB is unreachable the endpoint still gets local protection instead of a 500
+// (fail-open only across instances, never fully open).
+
+import { isIP } from "node:net";
+import { randomBytes } from "node:crypto";
+import { prisma } from "@/lib/db";
+import { formatErrorForLog } from "@/lib/redact";
+import { expandIpv6 } from "@/lib/net/ipv6";
+
+type Bucket = { count: number; resetAt: number };
+
+const buckets = new Map<string, Bucket>();
+
+// ---------------------------------------------------------------------------
+// 🚨 BELLEK YEDEĞİ SINIRLI (Codex 11-05, 43fb93e incelemesi P2): veritabanına ulaşılamadığında yedek sayaç SINIRSIZ büyüyordu —
+// 5.000 kayıttan sonra HER yeni anahtar bütün haritayı tarıyordu ama süresi dolmamış kayıt için üst sınır yoktu (kontrollü denemede
+// 20.000 anahtar bellekte kaldı, son 10.000 ekleme ~150 milyon kayıt ziyareti). Şimdi:
+//  · SERT ÜST SINIR `MEMORY_MAX_KEYS` (ayrı anahtar);
+//  · SINIRLI MALİYETLİ TEMİZLİK: yeni anahtar başına en çok `MEMORY_SWEEP_STEP` kayıt (kalıcı imleç; tam tarama YOK);
+//  · ARIZA POLİTİKASI: tavan etkin kayıtlarla doluysa HİÇBİR etkin kayıt silinmez (silmek saldırgana yeni hak verirdi); yeni anahtar
+//    sabit boyutlu TAŞMA kovasında sayılır — çakışan anahtarlar sayacı PAYLAŞIR, yani çakışma sınırı yalnız SIKILAŞTIRIR, kimsenin
+//    hakkını sıfırlamaz. Taşmadan haritaya dönen anahtar taşma sayacını yanında götürür (geri dönüşte de sıfırlanma yok).
+// Bu kip yalnız veritabanı arızasında koşar (normal yolda otorite PostgreSQL satırıdır).
+// ---------------------------------------------------------------------------
+export const MEMORY_MAX_KEYS = 10_000;
+const MEMORY_SWEEP_STEP = 64;
+export const MEMORY_OVERFLOW_SLOTS = 1_024;
+/**
+ * Pencere sınıfı başına AYRI taşma dizisi (Opus 11-05 N4): tek dizide 60 sn'lik bir anahtar, 1 saatlik (ya da 1 günlük) bir anahtarın açtığı
+ * yuvayı paylaşıp o uzun pencere boyunca kilitli kalabiliyordu (yalnız bildirilen bekleme süresi kısalmıştı). Pencereler koddan gelir (az
+ * sayıda); yine de güvenlik ağı: `MAX_WINDOW_CLASSES` aşılırsa yeni sınıflar ortak bir dizide sayılır (yalnız sıkılaştırır).
+ */
+const overflowByWindow = new Map<number, (Bucket | undefined)[]>();
+const MAX_WINDOW_CLASSES = 64;
+const SHARED_WINDOW_CLASS = -1;
+function overflowArray(windowMs: number): (Bucket | undefined)[] {
+  const cls = overflowByWindow.has(windowMs) || overflowByWindow.size < MAX_WINDOW_CLASSES ? windowMs : SHARED_WINDOW_CLASS;
+  let arr = overflowByWindow.get(cls);
+  if (!arr) {
+    arr = new Array<Bucket | undefined>(MEMORY_OVERFLOW_SLOTS);
+    overflowByWindow.set(cls, arr);
+  }
+  return arr;
+}
+let sweepCursor: IterableIterator<[string, Bucket]> | null = null;
+let sweepVisits = 0;
+
+/**
+ * Süreç başına RASTGELE tohum (Opus 11-05 F4): sabit tohumla yuva eşlemesi önceden hesaplanabiliyordu — saldırgan belirli bir kurbanın
+ * anahtarıyla (ör. bilinen e-postanın giriş kovası) çakışan anahtarlar seçip o yuvayı doldurabilirdi.
+ */
+let overflowSeed = randomBytes(4).readUInt32LE(0);
+
+/** FNV-1a (32 bit, tohumlu) → taşma yuvası. Kriptografik değil: yalnız dağıtım; çakışma güvenli yönde (daha sıkı). */
+function overflowSlotOf(key: string): number {
+  let h = (0x811c9dc5 ^ overflowSeed) >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  // Son karıştırma (murmur3 fmix32, Opus 11-05 N4): FNV'de yuvayı belirleyen düşük bitler yalnız tohumun DÜŞÜK bitlerine bağlıydı (32 bitlik
+  // tohumun yalnız 10'u işe yarıyordu); karıştırmayla tohumun bütün bitleri yuvaya ulaşır.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) % MEMORY_OVERFLOW_SLOTS;
+}
+
+/**
+ * Anahtarın taşma yuvası. Pencere biliniyorsa O SINIFIN yuvası; bilinmiyorsa (bakma / iade çağrısı pencere söylemediyse) o yuvadaki EN DOLU
+ * etkin kova — bakışta yalnız sıkılaştırır.
+ */
+function activeOverflowFor(key: string, now: number, windowMs?: number): Bucket | null {
+  const slot = overflowSlotOf(key);
+  if (windowMs !== undefined) {
+    const b = overflowArray(windowMs)[slot];
+    return b && b.resetAt > now ? b : null;
+  }
+  let fullest: Bucket | null = null;
+  for (const arr of overflowByWindow.values()) {
+    const b = arr[slot];
+    if (b && b.resetAt > now && (!fullest || b.count > fullest.count)) fullest = b;
+  }
+  return fullest;
+}
+
+/** Anahtarın AÇIK penceresi: haritadaki kayıt; haritada yoksa (tavan doluyken sayılmışsa) taşma yuvası. */
+function activeMemoryBucket(key: string, now: number, windowMs?: number): Bucket | null {
+  const b = buckets.get(key);
+  if (b) return b.resetAt > now ? b : null;
+  return activeOverflowFor(key, now, windowMs);
+}
+
+/** Süresi dolmuş kayıtları adım adım siler: çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret (amortize sabit maliyet). */
+function sweepStep(now: number) {
+  if (buckets.size === 0) {
+    sweepCursor = null;
+    return;
+  }
+  if (!sweepCursor) sweepCursor = buckets.entries();
+  for (let n = 0; n < MEMORY_SWEEP_STEP; n++) {
+    const next = sweepCursor.next();
+    if (next.done) {
+      sweepCursor = null;
+      return;
+    }
+    sweepVisits++;
+    const [k, b] = next.value;
+    if (b.resetAt <= now) buckets.delete(k);
+  }
+}
+
+/** Gözlem (test + işletim): bellek yedeğinin boyutu. Veritabanı sağlıklıyken hepsi 0 kalır. */
+export function rateLimitMemoryStats(): { keys: number; overflowActive: number; sweepVisits: number } {
+  const now = Date.now();
+  let overflowActive = 0;
+  for (const arr of overflowByWindow.values()) for (const b of arr) if (b && b.resetAt > now) overflowActive++;
+  return { keys: buckets.size, overflowActive, sweepVisits };
+}
+
+type Verdict = { ok: boolean; retryAfter: number };
+
+/**
+ * Record one hit for `key` and report whether it is within `limit` per
+ * `windowMs`. When the limit is exceeded, `retryAfter` (seconds) tells the
+ * caller how long to wait.
+ *
+ * One statement per hit: insert the row (fresh window) or, if it exists,
+ * reset-in-place when expired else increment. All time math uses the DB clock
+ * in UTC — `resetAt` is a Prisma-convention timestamp(3) storing UTC wall time,
+ * so comparisons must use `now() AT TIME ZONE 'utc'`, NEVER bare `now()`
+ * (session timezone would silently shift windows by hours).
+ */
+export async function rateLimit(key: string, limit: number, windowMs: number): Promise<Verdict> {
+  const windowSeconds = windowMs / 1000;
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
+      INSERT INTO "RateLimitCounter" AS r ("key", "count", "resetAt")
+      VALUES (
+        ${key},
+        1,
+        (now() AT TIME ZONE 'utc') + make_interval(secs => ${windowSeconds}::float8)
+      )
+      ON CONFLICT ("key") DO UPDATE SET
+        "count" = CASE
+          WHEN r."resetAt" <= (now() AT TIME ZONE 'utc') THEN 1
+          ELSE r."count" + 1
+        END,
+        "resetAt" = CASE
+          WHEN r."resetAt" <= (now() AT TIME ZONE 'utc')
+            THEN (now() AT TIME ZONE 'utc') + make_interval(secs => ${windowSeconds}::float8)
+          ELSE r."resetAt"
+        END
+      RETURNING
+        r."count"::int AS count,
+        CEIL(GREATEST(1, EXTRACT(EPOCH FROM (r."resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry
+    `;
+    const row = rows[0];
+    if (!row) return memoryRateLimit(key, limit, windowMs); // defensive — RETURNING always yields 1 row
+    if (Number(row.count) <= limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Number(row.retry)) };
+  } catch (err) {
+    warnDbUnavailable(err);
+    return memoryRateLimit(key, limit, windowMs);
+  }
+}
+
+/**
+ * SALT-OKUMA: bu anahtarın AÇIK penceresinde sayaç `limit`e ulaştı mı — yani
+ * `rateLimit(key, limit, …)`e yapılacak BİR SONRAKİ çağrı reddedilir mi? TÜKETMEZ.
+ * Aynı anahtarı `rateLimit` ile tüketen bir kapının ÖNÜNDE "zaten dolu mu" sorusu için
+ * (login'in tanınan-cihaz kapısı, 09-23). Anlam iki yolda da `rateLimit`in reddiyle
+ * aynı: DB'de sayaç `limit`e ULAŞMIŞSA sonraki vuruş `limit+1` olur ve reddedilir;
+ * bellek yedeği de `count >= limit`te reddeder. DB hatasında bellek kovasına bakar
+ * (orada kayıt yoksa "dolu değil" — kapı bugünkü davranışa düşer, fail-open).
+ */
+export async function rateLimitPeek(key: string, limit: number, windowMs?: number): Promise<Verdict> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
+      SELECT
+        "count"::int AS count,
+        CEIL(GREATEST(1, EXTRACT(EPOCH FROM ("resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry
+      FROM "RateLimitCounter"
+      WHERE "key" = ${key} AND "resetAt" > (now() AT TIME ZONE 'utc')
+    `;
+    const row = rows[0];
+    if (!row || Number(row.count) < limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Number(row.retry)) };
+  } catch (err) {
+    warnDbUnavailable(err);
+    const now = Date.now();
+    const bucket = activeMemoryBucket(key, now, windowMs);
+    if (!bucket || bucket.count < limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+}
+
+/**
+ * Daha önce `rateLimit` ile AYRILMIŞ bir hakkı İADE eder (açık pencerede sayaç 1 azalır, sıfırın altına inmez). Atomik tek ifade:
+ * "önce ayır, iş düşerse iade et" deseni için (Tur 7 T7-AUTH-1 — doğrulama e-postası gönderim kotası). Önce bakıp sonra tüketmek
+ * (`rateLimitPeek` + `rateLimit`) eşzamanlı iki isteğe aynı boş hakkı kullandırırdı. DB hatasında bellek kovası.
+ */
+export async function rateLimitRelease(key: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      UPDATE "RateLimitCounter" SET "count" = GREATEST("count" - 1, 0)
+      WHERE "key" = ${key} AND "resetAt" > (now() AT TIME ZONE 'utc')
+    `;
+  } catch (err) {
+    warnDbUnavailable(err);
+    // İade YALNIZ anahtarın KENDİ kaydına yapılır; taşma yuvası PAYLAŞILIR → hiç gevşetilmez (Opus 11-06 N10: pencereli iade aynı sınıfın
+    // yuvasını azaltıyordu — örn. hiç tüketilmemiş bir anahtarın her istekteki iadesi, aynı yuvayı paylaşan günlük 2FA hata tavanını
+    // gevşetirdi). Taşmada sayılmış hak geri verilmez = sıkı yön ("taşma yalnız sıkılaştırır").
+    const now = Date.now();
+    const own = buckets.get(key);
+    if (own && own.resetAt > now && own.count > 0) own.count -= 1;
+  }
+}
+
+// Throttled operational warning — a DB outage would otherwise log per request.
+let lastDbWarnAt = 0;
+function warnDbUnavailable(err: unknown) {
+  const now = Date.now();
+  if (now - lastDbWarnAt < 60_000) return;
+  lastDbWarnAt = now;
+  // F10: sürücünün DETAIL satırı çakışan anahtarın DEĞERİNİ taşır (`login-acct:<e-posta>`) → merkezî redaksiyon.
+  console.error(`[rate-limit] DB sayacına ulaşılamadı, yerel (instance-içi) sayaç devrede :: ${formatErrorForLog(err, 300)}`);
+}
+
+/** The old per-instance limiter, now the DB-error fallback. Same semantics — bounded (↑ `MEMORY_MAX_KEYS`). */
+function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict {
+  const now = Date.now();
+  const blocked = (b: Bucket): Verdict => ({ ok: false, retryAfter: Math.max(1, Math.ceil((b.resetAt - now) / 1000)) });
+  const bucket = buckets.get(key);
+
+  if (bucket && bucket.resetAt > now) {
+    if (bucket.count >= limit) return blocked(bucket);
+    bucket.count += 1;
+    return { ok: true, retryAfter: 0 };
+  }
+
+  // Yeni pencere (anahtar yok ya da süresi doldu): önce sınırlı temizlik (çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret).
+  sweepStep(now);
+  if (bucket || buckets.size < MEMORY_MAX_KEYS) {
+    // Haritada değilken taşma yuvasında sayılmış isabetler yeni kayda TAŞINIR (sıfırlanma yok; çakışma payı yalnız sıkılaştırır).
+    // Pencere anahtarın KENDİ penceresidir (Opus 11-05 F4): yuvayı paylaşan BAŞKA politikadaki anahtarın (ör. 1 saatlik) penceresi
+    // dakikalık bir kovaya taşınmaz — sıkılaştırma en çok anahtarın kendi penceresi kadar sürer.
+    const carried = bucket ? null : activeOverflowFor(key, now, windowMs);
+    const start: Bucket = carried ? { count: carried.count + 1, resetAt: now + windowMs } : { count: 1, resetAt: now + windowMs };
+    buckets.set(key, start);
+    return start.count > limit ? blocked(start) : { ok: true, retryAfter: 0 };
+  }
+
+  // Tavan etkin kayıtlarla dolu: hiçbir etkin kayıt SİLİNMEZ; yeni anahtar KENDİ pencere sınıfının sabit boyutlu taşma yuvasında sayılır
+  // (yuvanın penceresi = anahtarın penceresi → kilit en çok kendi penceresi kadar sürer — N4).
+  const arr = overflowArray(windowMs);
+  const slot = overflowSlotOf(key);
+  let o = arr[slot];
+  if (!o || o.resetAt <= now) {
+    o = { count: 0, resetAt: now + windowMs };
+    arr[slot] = o;
+  }
+  if (o.count >= limit) return blocked(o);
+  o.count += 1;
+  return { ok: true, retryAfter: 0 };
+}
+
+/** Yalnız test: taşma tohumunu sabitle ve bir anahtarın yuvasını oku (çakışan anahtar kurmak için). */
+export function __setOverflowSeedForTest(seed: number): void {
+  overflowSeed = seed >>> 0;
+}
+export function __overflowSlotOfForTest(key: string): number {
+  return overflowSlotOf(key);
+}
+
+/**
+ * Delete counters whose window ended (they would be reset-in-place on a next
+ * hit anyway — this only bounds table size for keys that never return, e.g.
+ * one-off IPs). Called from the scheduled sync; safe to run anywhere, anytime.
+ */
+export async function sweepExpiredRateLimits(now: Date = new Date()): Promise<number> {
+  const r = await prisma.rateLimitCounter.deleteMany({
+    where: { resetAt: { lt: new Date(now.getTime() - 60_000) } },
+  });
+  return r.count;
+}
+
+/** Best-effort client IP from common proxy headers (Railway/Vercel set these).
+ *  Takes anything that carries `headers` (NextRequest, Request, or the server
+ *  component `headers()` result) so the operator diagnostics card can show the
+ *  SAME answer the rate limiter uses — a second implementation would drift. */
+export function clientIp(req: { headers: Headers }): string {
+  // Cloudflare's edge-verified client IP — but ONLY when the deployment says the
+  // origin is actually locked behind Cloudflare (TRUST_CF_HEADER=1). The Railway
+  // app domain is reachable DIRECTLY (that's how the Paddle webhook works), and a
+  // direct client can set cf-connecting-ip to any value per request, rotating its
+  // rate-limit identity at will. Default OFF = trust only the rightmost XFF hop,
+  // which the platform proxy appends and the client cannot control.
+  if (process.env.TRUST_CF_HEADER === "1") {
+    const cfIp = req.headers.get("cf-connecting-ip");
+    if (cfIp?.trim()) return cfIp.trim();
+  }
+
+  // Railway documents X-Real-IP as the edge-set client IP; if its proxy chain
+  // ever appends an INTERNAL hop as the rightmost XFF entry, every client would
+  // collapse into one shared rate-limit bucket. TRUST_X_REAL_IP=1 makes
+  // x-real-ip authoritative — but ONLY flip it after verifying a LIVE request's
+  // headers on the actual deployment (Codex 07-24 #6): if the platform passed a
+  // client-supplied x-real-ip through instead of overwriting it, trusting it
+  // would let a client rotate its rate-limit identity per request. Default OFF
+  // keeps today's rightmost-XFF behaviour.
+  if (process.env.TRUST_X_REAL_IP === "1") {
+    const realIp = req.headers.get("x-real-ip");
+    if (realIp?.trim()) return realIp.trim();
+  }
+
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = parseForwardedFor(xff);
+    if (parts.length) return pickClientHop(parts, trustedProxyHops());
+  }
+  // ⚠️ BAYRAK KAPALIYKEN `x-real-ip`'E DÜŞÜLMEZ (denetim, 08-01). Bayrağın
+  // varlık sebebi "bu başlık platformca eziliyor mu bilmiyoruz" — ama XFF
+  // taşımayan bir istekte bayrak yokmuş gibi davranılıyordu. Böyle bir yolda
+  // (doğrudan origin bağlantısı, ya da ileride bir edge değişikliği) saldırgan
+  // her istekte başlığı değiştirip hız-limiti kimliğini SINIRSIZCA döndürebilir,
+  // yani tüm per-IP limitleri fiilen kapanır. "unknown" ise herkesi tek kovaya
+  // koyar: limit GEVŞER ama TAKLİT EDİLEMEZ — yön kuralı gereği güvenli taraf.
+  return "unknown";
+}
+
+/**
+ * 🚨 HIZ SINIRI KOVASI İÇİN istemci kimliği (saldırgan gözüyle giriş turu, 09-23).
+ *
+ * `clientIp` TAM adresi döndürür ve kova anahtarı olarak IPv4'te doğrudur; IPv6'da
+ * DEĞİL: tek bir VPS/ev hattı standart olarak bir /64 alır (2^64 adres) ve her adres
+ * AYRI kova sayılıyordu → "IP başına N deneme" sınırı o saldırgan için fiilen YOKTU
+ * (parola püskürtme, sızıntı listesi deneme, e-posta bombası). /64 sektör standardıdır
+ * (tek abonenin en küçük ayrılmış bloğu); daha geniş gruplama (/56, /48) ilgisiz
+ * kullanıcıları — ör. bir şirket ağını — tek kovaya düşürürdü.
+ * ⚠️ YALNIZ KOVA ANAHTARI: kanıt/iz kayıtları (denetim `ip`, KVKK/ödeme onay kaydı) TAM
+ * adresi yazmaya devam eder (`clientIp`).
+ */
+export function rateLimitClientKey(req: { headers: Headers }): string {
+  return ipBucketKey(clientIp(req));
+}
+
+/** Saf: IPv4 aynen; IPv6 → "/64" öneki; IPv4-eşlemeli IPv6 → IPv4; başka her şey kısaltılmış hâliyle. */
+export function ipBucketKey(ip: string): string {
+  const raw = ip.trim();
+  const base = raw.split("%")[0]!; // bölge eki (fe80::1%eth0)
+  const kind = isIP(base);
+  if (kind === 4) return base;
+  // "unknown" ya da IP olmayan değer: aynen, ama kova tablosunu şişiremesin diye kısaltılmış.
+  if (kind !== 6) return raw.slice(0, 64);
+  const g = expandIpv6(base.toLowerCase());
+  if (!g) return raw.slice(0, 64);
+  // ::ffff:a.b.c.d — IPv4 istemcisinin IPv6 gösterimi. /64'e indirgenseydi TÜM IPv4
+  // istemcileri AYNI kovaya düşerdi (0:0:0:0::/64) — sınır meşru herkese kapanırdı.
+  if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
+    return `${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`;
+  }
+  return `${g.slice(0, 4).map((n) => n.toString(16)).join(":")}::/64`;
+}
+
+
+/**
+ * Tek bir XFF adımını kimlik olarak kullanılabilir hâle getir: köşeli parantezi
+ * ve PORTU at.
+ *
+ * NEDEN ÖNEMLİ: port bırakılırsa aynı istemcinin her TCP bağlantısı AYRI bir
+ * limit kovası olur — yani o istemci için hız limiti fiilen kapanır. Bugün
+ * gözlenen zincirde port yok, ama seçilen adım artık en dıştaki proxy'nin
+ * istemci için yazdığı giriş (hop sayımı sonrası) ve port taşıyabilecek olan tam
+ * da odur.
+ *
+ *  `[2001:db8::1]:443` → `2001:db8::1`   (parantezli IPv6 + port)
+ *  `[2001:db8::1]`     → `2001:db8::1`
+ *  `203.0.113.7:51324` → `203.0.113.7`   (IPv4 + port: TEK iki nokta)
+ *  `2001:db8::1`       → `2001:db8::1`   (çıplak IPv6: ≥2 iki nokta, DOKUNMA)
+ */
+function normalizeForwardedHop(raw: string): string {
+  if (!raw) return "";
+  if (raw.startsWith("[")) {
+    const end = raw.indexOf("]");
+    return end > 1 ? raw.slice(1, end) : raw;
+  }
+  const first = raw.indexOf(":");
+  // Tek iki nokta = "adres:port". Birden fazlaysa çıplak IPv6'dır, bölmek bozar.
+  if (first > 0 && first === raw.lastIndexOf(":")) return raw.slice(0, first);
+  return raw;
+}
+
+/** `a, b, c` → ["a","b","c"] (boş parçalar atılır, port/parantez temizlenir). */
+export function parseForwardedFor(xff: string): string[] {
+  return xff.split(",").map((s) => normalizeForwardedHop(s.trim())).filter(Boolean);
+}
+
+/**
+ * Kaç proxy'nin X-Forwarded-For'a KENDİ gördüğü adresi eklediği. Yalnız BİZİM
+ * altyapımızın eklediği adımlar sayılır — istemci ancak SOLA ekleme yapabilir,
+ * sağdaki N adımı yazan hep bizim proxy'lerimizdir.
+ *
+ * Default 1 = "en sağdakine güven" (bugüne kadarki davranış). Railway'de canlı
+ * zincir `<istemci>, <railway-edge>` biçiminde iki adım olduğu için doğru değer
+ * 2'dir; env verilmeden davranış DEĞİŞMEZ.
+ *
+ * ⚠️ HANGİ YÖNDE YANILMAK GÜVENLİ: DÜŞÜK tahmin güvenli, YÜKSEK tahmin tehlikeli.
+ *  • Az sayarsan (gerçek 3, sen 2) altyapının bir adresini seçersin → herkes tek
+ *    kovaya düşer; limit gevşer ama kimse kimliğini SEÇEMEZ.
+ *  • Fazla sayarsan (gerçek 2, sen 3) saldırgan zincire tam 1 sahte adres ekleyip
+ *    uzunluğu beklentine getirir ve seçilen adım ONUN yazdığı değer olur → her
+ *    istekte kimlik değiştirip limiti tamamen atlar.
+ * Bu yüzden emin değilsen KÜÇÜK değer seç; /admin teşhis kartı hangi ayarın hangi
+ * adresi seçtiğini önizler, karar oradan verilir.
+ *
+ * NOT (2026-07-31 araştırma): Railway'in edge'inin istemcinin gönderdiği XFF'i
+ * SİLİP silmediği topluluk kaynaklarında ÇELİŞKİLİ, resmî sayfalar da okunamadı.
+ * Sağdan sayım bu soruya BAĞIMLI DEĞİL: edge siliyorsa zincir zaten `<istemci>,
+ * <edge>`; silmiyorsa saldırganın eklediği çöp SOLDA birikir ve sağdan sayım yine
+ * doğru adımı bulur. "En soldakini al" kuralı ise yalnız silme doğruysa güvenli —
+ * o yüzden bilerek seçilmedi.
+ */
+export function trustedProxyHops(): number {
+  // SIKI ayrıştırma: `Number()` gevşektir (`0x2`→2, `2e0`→2, `2.9`→2) ve bir
+  // yazım hatasının sessizce "2" olarak okunması, güvenlik açısından fazla-tahmin
+  // yönünde (tehlikeli yön) bir sapma üretebilirdi. Yalnız düz tam sayı kabul,
+  // gerisi güvenli varsayılana (1) düşer.
+  const raw = process.env.TRUSTED_PROXY_HOPS?.trim();
+  if (!raw || !/^\d{1,2}$/.test(raw)) return 1;
+  const n = Number(raw);
+  // 🚨 ARALIK DIŞI DEĞER 10'A CLAMP'LENMEZ, 1'E DÜŞER (P1 #7, 08-09 (2)).
+  //
+  // Eski hâl `Math.min(n, 10)` idi ve bir YAZIM HATASINI TEHLİKELİ YÖNE
+  // yuvarlıyordu: `"11"` → 10, yani "on adım geri say". Bu dosyanın kendi
+  // asimetri kuralı bunun tersini söylüyor — AZ tahmin güvenli (herkes tek
+  // kovaya düşer, kimlik seçilemez), FAZLA tahmin TEHLİKELİ (saldırgan zinciri
+  // beklenen uzunluğa getirip seçilen adımı KENDİ yazar). Bir tavan aşımı
+  // "kullanıcı ne istediğini biliyor" değil "değer bozuk" demektir ve bozuk
+  // değerin gideceği yer güvenli varsayılandır.
+  //
+  // ⚠️ CANLIDA ETKİSİ YOK: Railway'de `TRUSTED_PROXY_HOPS=2`. Bu satır yalnız
+  // 11+ yazan bir yazım hatasının sonucunu değiştirir.
+  return n >= 1 && n <= 10 ? n : 1;
+}
+
+/**
+ * Zincirden istemcinin adresini seç.
+ *
+ * NEDEN SAĞDAN SAYIYORUZ: istemci istediği kadar sahte adresi SOLA ekleyebilir;
+ * sağdaki adımları bizim proxy'lerimiz yazar ve taklit edilemez. `hops` kadar
+ * adımı geriye sayınca, dış proxy'mizin GÖRDÜĞÜ adres çıkar.
+ *
+ * FAIL-SAFE: zincir beklenenden KISAysa (topoloji değişti, bir adım kayboldu)
+ * istemcinin yazdığı bir değere düşmek yerine en sağdakine döneriz — o zaman
+ * herkes tek kovaya düşer (limit gevşer) ama kimse kimliğini taklit EDEMEZ.
+ * Yanlış yönün güvenli tarafı budur.
+ */
+export function pickClientHop(parts: string[], hops: number): string {
+  if (parts.length === 0) return "unknown";
+  if (parts.length < hops) return parts[parts.length - 1]!;
+  return parts[parts.length - hops]!;
+}
+
+/** Test helper: clear the in-memory fallback buckets (the DB rows are wiped by
+ *  each test's resetDb). Kept synchronous — existing tests call it fire-and-forget. */
+export function __resetRateLimit() {
+  buckets.clear();
+  overflowByWindow.clear();
+  sweepCursor = null;
+  sweepVisits = 0;
+  lastDbWarnAt = 0; // uyarı kısıtı da (test: her test kendi uyarısını görebilsin)
+}

@@ -1,0 +1,24 @@
+# Keep the Docker build context clean and reproducible. In particular, never
+# copy the host's node_modules or .next into the image — npm ci inside the image
+# installs the correct platform binaries (SWC, Prisma engines) from scratch.
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+
+# Local databases and secrets must never be baked into the image.
+.env
+.env.*
+!.env.example
+*.db
+prisma/*.db
+prisma/dev.db
+prisma/test.db
+
+# Dev/CI noise
+tests
+.vscode
+.idea
+*.md
+!README.md

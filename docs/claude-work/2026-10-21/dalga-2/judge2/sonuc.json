@@ -1,0 +1,1202 @@
+[
+ {
+  "id": "d-gym-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Spor salonu 22:00'de kapanıyor.",
+    "subject": "Spor salonu",
+    "relation": "time",
+    "value": "22:00 kapanış",
+    "condition": "",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Spor salonu -1. kattadır ve 07:00–22:00 arası açıktır.",
+    "explanation": "KB says the gym is open until 22:00, so it closes at 22:00."
+   },
+   {
+    "requestId": "r1",
+    "text": "Spor salonu misafirler için ücretsiz.",
+    "subject": "Spor salonu",
+    "relation": "free",
+    "value": "ücretsiz",
+    "condition": "misafirler için",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Giriş kartınızla açılır; misafirler için ücretsizdir.",
+    "explanation": "KB states the gym is free for guests."
+   }
+  ]
+ },
+ {
+  "id": "d-pool-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Açık havuz her gün 09:00–20:00 arasında kullanılabilir.",
+    "subject": "outdoor pool",
+    "relation": "time",
+    "value": "09:00–20:00 daily",
+    "condition": "",
+    "support": "supported",
+    "kbId": "pool",
+    "kbQuote": "Açık havuz her gün 09:00–20:00 arası kullanılabilir.",
+    "explanation": "The KB states the same pool hours."
+   }
+  ]
+ },
+ {
+  "id": "d-sauna-fee-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Sauna use costs 150 TL per person.",
+    "subject": "sauna",
+    "relation": "fee",
+    "value": "150 TL per person",
+    "condition": "",
+    "support": "supported",
+    "kbId": "sauna",
+    "kbQuote": "Her rezervasyon 1 saatliktir ve kişi başı 150 TL'dir.",
+    "explanation": "The KB gives the same fee of 150 TL per person for the sauna."
+   },
+   {
+    "requestId": "r1",
+    "text": "Sauna requires notifying reception at least 2 hours in advance.",
+    "subject": "sauna",
+    "relation": "advance_notice",
+    "value": "at least 2 hours in advance, to reception",
+    "condition": "",
+    "support": "supported",
+    "kbId": "sauna",
+    "kbQuote": "Sauna yalnız rezervasyonla kullanılır: en az 2 saat önceden resepsiyona haber verin.",
+    "explanation": "The KB states the same advance notice requirement."
+   },
+   {
+    "requestId": "r1",
+    "text": "Each sauna reservation is 1 hour.",
+    "subject": "sauna reservation",
+    "relation": "duration",
+    "value": "1 hour",
+    "condition": "",
+    "support": "supported",
+    "kbId": "sauna",
+    "kbQuote": "Her rezervasyon 1 saatliktir ve kişi başı 150 TL'dir.",
+    "explanation": "The KB states the same 1-hour reservation duration."
+   }
+  ]
+ },
+ {
+  "id": "d-trash-time-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Çöpleri en geç 22:00'ye kadar çıkarabilirsiniz.",
+    "subject": "çöp çıkarma",
+    "relation": "time",
+    "value": "en geç 22:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "trash",
+    "kbQuote": "Çöpleri en geç 22:00'ye kadar çıkarın.",
+    "explanation": "The KB gives the same 22:00 deadline for taking out the trash."
+   }
+  ]
+ },
+ {
+  "id": "d-terrace-bbq-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Terasta mangal yapmak yasaktır.",
+    "subject": "mangal on the terrace",
+    "relation": "prohibition",
+    "value": "yasak",
+    "condition": "",
+    "support": "supported",
+    "kbId": "terrace",
+    "kbQuote": "Terasta mangal yasaktır; mangal yalnız bahçedeki mangal alanında 12:00–21:00 arası yapılabilir.",
+    "explanation": "KB states grilling is prohibited on the terrace."
+   },
+   {
+    "requestId": "r1",
+    "text": "Mangal yalnızca bahçedeki mangal alanında 12:00–21:00 saatleri arasında yapılabilir.",
+    "subject": "mangal in the garden grill area",
+    "relation": "time",
+    "value": "12:00–21:00",
+    "condition": "only in the garden grill area",
+    "support": "supported",
+    "kbId": "terrace",
+    "kbQuote": "Terasta mangal yasaktır; mangal yalnız bahçedeki mangal alanında 12:00–21:00 arası yapılabilir.",
+    "explanation": "KB gives the same location and hours."
+   }
+  ]
+ },
+ {
+  "id": "d-bike-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Bisiklet kiralama günlük 300 TL",
+    "subject": "bike rental",
+    "relation": "fee",
+    "value": "300 TL per day",
+    "condition": "",
+    "support": "supported",
+    "kbId": "bike",
+    "kbQuote": "Resepsiyondan bisiklet kiralayabilirsiniz: saatlik 75 TL, günlük 300 TL.",
+    "explanation": "The KB states the same daily rate of 300 TL."
+   },
+   {
+    "requestId": "r2",
+    "text": "Kask ücretsiz veriliyor",
+    "subject": "helmet",
+    "relation": "free",
+    "value": "free",
+    "condition": "",
+    "support": "supported",
+    "kbId": "bike",
+    "kbQuote": "Kask ücretsiz verilir.",
+    "explanation": "The KB says the helmet is provided free."
+   }
+  ]
+ },
+ {
+  "id": "d-transfer-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "The one-way airport transfer costs TRY 1,200.",
+    "subject": "airport transfer",
+    "relation": "fee",
+    "value": "TRY 1,200 one way",
+    "condition": "one-way",
+    "support": "supported",
+    "kbId": "transfer",
+    "kbQuote": "Havalimanı transferi tek yön 1.200 TL'dir ve en az 24 saat önceden resepsiyondan talep edilmelidir.",
+    "explanation": "The KB states the same one-way price of 1,200 TL."
+   },
+   {
+    "requestId": "r1",
+    "text": "The transfer must be requested from reception at least 24 hours in advance.",
+    "subject": "airport transfer",
+    "relation": "advance_notice",
+    "value": "at least 24 hours via reception",
+    "condition": "",
+    "support": "supported",
+    "kbId": "transfer",
+    "kbQuote": "Havalimanı transferi tek yön 1.200 TL'dir ve en az 24 saat önceden resepsiyondan talep edilmelidir.",
+    "explanation": "The KB states the same 24-hour advance request through reception."
+   }
+  ]
+ },
+ {
+  "id": "d-parking-second-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "İkinci araç için günlük 200 TL ücret alınıyor.",
+    "subject": "second vehicle parking",
+    "relation": "fee",
+    "value": "200 TL per day",
+    "condition": "second vehicle",
+    "support": "supported",
+    "kbId": "parking",
+    "kbQuote": "İkinci araç için günlük 200 TL ücret alınır.",
+    "explanation": "The KB states the same fee for the second vehicle."
+   }
+  ]
+ },
+ {
+  "id": "d-loft-pool-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "The rooftop pool is open daily until 19:00.",
+    "subject": "rooftop pool",
+    "relation": "time",
+    "value": "open until 19:00",
+    "condition": "daily",
+    "support": "supported",
+    "kbId": "pool",
+    "kbQuote": "The rooftop pool is open daily from 08:00 to 19:00.",
+    "explanation": "KB gives the same closing time of 19:00 daily."
+   }
+  ]
+ },
+ {
+  "id": "d-loft-spa-de",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Massages must be booked at least 3 hours in advance.",
+    "subject": "massage booking",
+    "relation": "advance_notice",
+    "value": "at least 3 hours",
+    "condition": "",
+    "support": "supported",
+    "kbId": "spa",
+    "kbQuote": "Massage appointments must be booked at least 3 hours in advance.",
+    "explanation": "KB states the same advance booking requirement."
+   },
+   {
+    "requestId": "r1",
+    "text": "A massage session lasts 60 minutes.",
+    "subject": "massage session",
+    "relation": "duration",
+    "value": "60 minutes",
+    "condition": "",
+    "support": "supported",
+    "kbId": "spa",
+    "kbQuote": "Each session lasts 60 minutes and costs 40 EUR.",
+    "explanation": "KB states the same session duration."
+   }
+  ]
+ },
+ {
+  "id": "d-breakfast-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Breakfast is not included in the booking.",
+    "subject": "breakfast",
+    "relation": "free",
+    "value": "not included in price",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "KB says breakfast is not included in the price."
+   },
+   {
+    "requestId": "r1",
+    "text": "Breakfast is available at the café on the lobby floor.",
+    "subject": "breakfast",
+    "relation": "location",
+    "value": "café on the lobby floor",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "KB gives the lobby-floor café as the location."
+   },
+   {
+    "requestId": "r1",
+    "text": "Breakfast is served from 08:00 to 11:00.",
+    "subject": "breakfast",
+    "relation": "time",
+    "value": "08:00–11:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "Serving hours match the KB."
+   },
+   {
+    "requestId": "r1",
+    "text": "Breakfast costs 350 TL per person.",
+    "subject": "breakfast",
+    "relation": "fee",
+    "value": "350 TL per person",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "Price matches the KB."
+   }
+  ]
+ },
+ {
+  "id": "d-loft-quiet-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Quiet hours are from 22:00 to 07:00.",
+    "subject": "quiet hours",
+    "relation": "time",
+    "value": "22:00 to 07:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "quiet",
+    "kbQuote": "Quiet hours are from 22:00 to 07:00.",
+    "explanation": "The KB states the same quiet hours."
+   },
+   {
+    "requestId": "r1",
+    "text": "Music on the balcony at 22:30 is not allowed.",
+    "subject": "music on the balcony",
+    "relation": "prohibition",
+    "value": "not allowed at 22:30",
+    "condition": "during quiet hours (22:00-07:00)",
+    "support": "supported",
+    "kbId": "quiet",
+    "kbQuote": "No music on the balcony during quiet hours.",
+    "explanation": "22:30 falls within quiet hours, so the KB prohibition applies."
+   }
+  ]
+ },
+ {
+  "id": "d-checkout-time-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Çıkış saati 11:00.",
+    "subject": "check-out",
+    "relation": "time",
+    "value": "11:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "checkout",
+    "kbQuote": "Çıkış saati 11:00'dir.",
+    "explanation": "KB states the same checkout time."
+   },
+   {
+    "requestId": "r2",
+    "text": "Anahtar kartını resepsiyona bırakabilirsiniz.",
+    "subject": "key card at check-out",
+    "relation": "location",
+    "value": "resepsiyon",
+    "condition": "at check-out",
+    "support": "supported",
+    "kbId": "checkout",
+    "kbQuote": "Çıkışta anahtar kartını resepsiyona bırakın.",
+    "explanation": "KB says to leave the key card at reception on check-out."
+   }
+  ]
+ },
+ {
+  "id": "d-pool-child-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Children under 12 may use the pool only when accompanied by an adult.",
+    "subject": "pool access for children under 12",
+    "relation": "obligation",
+    "value": "must be accompanied by an adult",
+    "condition": "children under 12",
+    "support": "supported",
+    "kbId": "pool",
+    "kbQuote": "12 yaş altı çocuklar havuza yalnız bir yetişkinle girebilir.",
+    "explanation": "The KB states the same adult-accompaniment rule for children under 12."
+   },
+   {
+    "requestId": "r1",
+    "text": "A 10-year-old cannot swim in the pool alone.",
+    "subject": "10-year-old guest's pool use",
+    "relation": "prohibition",
+    "value": "cannot swim alone",
+    "condition": "child is 10, under 12",
+    "support": "supported",
+    "kbId": "pool",
+    "kbQuote": "12 yaş altı çocuklar havuza yalnız bir yetişkinle girebilir.",
+    "explanation": "A 10-year-old is under 12, so the rule applies and the child needs an adult."
+   }
+  ]
+ },
+ {
+  "id": "d-ext-info-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Yangın söndürücü mutfak kapısının arkasında.",
+    "subject": "yangın söndürücü",
+    "relation": "location",
+    "value": "mutfak kapısının arkasında",
+    "condition": "",
+    "support": "supported",
+    "kbId": "safety",
+    "kbQuote": "Yangın söndürücü mutfak kapısının arkasındadır, ilk yardım çantası banyo dolabındadır.",
+    "explanation": "The KB gives the same location."
+   },
+   {
+    "requestId": "r2",
+    "text": "İlk yardım çantası banyo dolabında.",
+    "subject": "ilk yardım çantası",
+    "relation": "location",
+    "value": "banyo dolabında",
+    "condition": "",
+    "support": "supported",
+    "kbId": "safety",
+    "kbQuote": "Yangın söndürücü mutfak kapısının arkasındadır, ilk yardım çantası banyo dolabındadır.",
+    "explanation": "The KB gives the same location."
+   }
+  ]
+ },
+ {
+  "id": "d-pets-small-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "A 5 kg cat can be brought.",
+    "subject": "5 kg cat",
+    "relation": "permission",
+    "value": "allowed",
+    "condition": "pet under 10 kg",
+    "support": "supported",
+    "kbId": "pets",
+    "kbQuote": "10 kg altındaki köpek ve kediler kabul edilir; konaklama başına 500 TL temizlik ücreti alınır.",
+    "explanation": "KB accepts cats under 10 kg."
+   },
+   {
+    "requestId": "r1",
+    "text": "A cleaning fee of 500 TL per stay is charged for pets.",
+    "subject": "pet cleaning fee",
+    "relation": "fee",
+    "value": "500 TL per stay",
+    "condition": "",
+    "support": "supported",
+    "kbId": "pets",
+    "kbQuote": "10 kg altındaki köpek ve kediler kabul edilir; konaklama başına 500 TL temizlik ücreti alınır.",
+    "explanation": "KB states the same 500 TL per-stay cleaning fee."
+   }
+  ]
+ },
+ {
+  "id": "d-stove-light-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Turn the knob to the right to turn on the stove.",
+    "subject": "stove",
+    "relation": "method_steps",
+    "value": "turn the knob to the right",
+    "condition": "",
+    "support": "supported",
+    "kbId": "stove",
+    "kbQuote": "Ocak elektriklidir; düğmeyi sağa çevirerek açın, kırmızı ışık yanınca ısınmaya başlar.",
+    "explanation": "The KB gives the same instruction."
+   },
+   {
+    "requestId": "r1",
+    "text": "The stove starts heating when the red light comes on.",
+    "subject": "stove",
+    "relation": "other",
+    "value": "starts heating when the red light turns on",
+    "condition": "after turning the knob right",
+    "support": "supported",
+    "kbId": "stove",
+    "kbQuote": "Ocak elektriklidir; düğmeyi sağa çevirerek açın, kırmızı ışık yanınca ısınmaya başlar.",
+    "explanation": "The KB states the same thing."
+   }
+  ]
+ },
+ {
+  "id": "d-ac-trash-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Klima kumandası komodinin çekmecesinde.",
+    "subject": "AC remote",
+    "relation": "location",
+    "value": "in the nightstand drawer",
+    "condition": "",
+    "support": "supported",
+    "kbId": "ac",
+    "kbQuote": "Klima kumandası komodinin çekmecesindedir.",
+    "explanation": "KB states the same location."
+   },
+   {
+    "requestId": "r1",
+    "text": "Soğutma için MODE tuşuyla kar tanesi simgesini seçebilirsiniz.",
+    "subject": "AC cooling mode",
+    "relation": "method_steps",
+    "value": "select the snowflake icon with the MODE button",
+    "condition": "for cooling",
+    "support": "supported",
+    "kbId": "ac",
+    "kbQuote": "Soğutma için MODE tuşuyla kar tanesi simgesini seçin; 22 derece önerilir.",
+    "explanation": "KB gives the same instruction."
+   },
+   {
+    "requestId": "r1",
+    "text": "Pencereler açıkken klima otomatik olarak durur.",
+    "subject": "AC",
+    "relation": "other",
+    "value": "stops automatically",
+    "condition": "when windows are open",
+    "support": "supported",
+    "kbId": "ac",
+    "kbQuote": "Pencereler açıkken klima otomatik olarak durur.",
+    "explanation": "KB states the same behavior."
+   },
+   {
+    "requestId": "r2",
+    "text": "Çöp konteynerleri bina girişinin sağında.",
+    "subject": "trash containers",
+    "relation": "location",
+    "value": "to the right of the building entrance",
+    "condition": "",
+    "support": "supported",
+    "kbId": "trash",
+    "kbQuote": "Çöpler bina girişinin sağındaki konteynerlere atılır; geri dönüşüm kutusu mavi olandır.",
+    "explanation": "KB gives the same location."
+   }
+  ]
+ },
+ {
+  "id": "d-boiler-where-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Sıcak su kombiden geliyor.",
+    "subject": "sıcak su kaynağı",
+    "relation": "other",
+    "value": "kombi",
+    "condition": "",
+    "support": "supported",
+    "kbId": "boiler",
+    "kbQuote": "Sıcak su kombiden gelir; kombi mutfak balkonundadır.",
+    "explanation": "The KB states hot water comes from the boiler."
+   },
+   {
+    "requestId": "r1",
+    "text": "Kombi mutfak balkonunda.",
+    "subject": "kombi",
+    "relation": "location",
+    "value": "mutfak balkonu",
+    "condition": "",
+    "support": "supported",
+    "kbId": "boiler",
+    "kbQuote": "Sıcak su kombiden gelir; kombi mutfak balkonundadır.",
+    "explanation": "The KB gives the same location for the boiler."
+   }
+  ]
+ },
+ {
+  "id": "d-park-info-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Kapalı otoparka binanın arkasındaki rampadan girilir.",
+    "subject": "closed parking entrance",
+    "relation": "location",
+    "value": "rampa at the back of the building",
+    "condition": "",
+    "support": "supported",
+    "kbId": "parking",
+    "kbQuote": "Otoparka bina arkasındaki rampadan, giriş kartınızı okutarak girersiniz.",
+    "explanation": "The KB gives the same entrance location."
+   },
+   {
+    "requestId": "r1",
+    "text": "Otoparka giriş kartı okutularak girilir.",
+    "subject": "closed parking entrance",
+    "relation": "method_steps",
+    "value": "scan the access card",
+    "condition": "",
+    "support": "supported",
+    "kbId": "parking",
+    "kbQuote": "Otoparka bina arkasındaki rampadan, giriş kartınızı okutarak girersiniz.",
+    "explanation": "The KB states the same access method."
+   },
+   {
+    "requestId": "r1",
+    "text": "Park yeri numarası daire numarasıyla aynıdır.",
+    "subject": "parking spot number",
+    "relation": "other",
+    "value": "same as apartment number",
+    "condition": "",
+    "support": "supported",
+    "kbId": "parking",
+    "kbQuote": "yer numaranız daire numaranızla aynıdır",
+    "explanation": "The KB states the same rule."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "reply",
+    "relation": "other",
+    "value": "prepared by an automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the conversation, not a fact about the property."
+   }
+  ]
+ },
+ {
+  "id": "d-wifi-fix-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Modem is inside the TV unit in the living room.",
+    "subject": "modem",
+    "relation": "location",
+    "value": "salondaki TV ünitesinin içinde",
+    "condition": "",
+    "support": "supported",
+    "kbId": "wifi",
+    "kbQuote": "Bağlantı koparsa salondaki TV ünitesinin içindeki modemi fişten çekip 30 saniye bekleyin, sonra tekrar takın; ışıklar yeşile dönünce yeniden bağlanın.",
+    "explanation": "The KB gives the same modem location."
+   },
+   {
+    "requestId": "r2",
+    "text": "Unplug the modem, wait 30 seconds, then plug it back in.",
+    "subject": "modem reset",
+    "relation": "method_steps",
+    "value": "fişi çek, 30 saniye bekle, tekrar tak",
+    "condition": "",
+    "support": "supported",
+    "kbId": "wifi",
+    "kbQuote": "Bağlantı koparsa salondaki TV ünitesinin içindeki modemi fişten çekip 30 saniye bekleyin, sonra tekrar takın; ışıklar yeşile dönünce yeniden bağlanın.",
+    "explanation": "The KB gives the same reset steps."
+   },
+   {
+    "requestId": "r2",
+    "text": "Reconnect once the lights turn green.",
+    "subject": "modem reset",
+    "relation": "method_steps",
+    "value": "ışıklar yeşile dönünce yeniden bağlanın",
+    "condition": "after replugging",
+    "support": "supported",
+    "kbId": "wifi",
+    "kbQuote": "Bağlantı koparsa salondaki TV ünitesinin içindeki modemi fişten çekip 30 saniye bekleyin, sonra tekrar takın; ışıklar yeşile dönünce yeniden bağlanın.",
+    "explanation": "The KB states the same step."
+   }
+  ]
+ },
+ {
+  "id": "d-noise-wifi-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Wi-Fi ağının adı Lale-Rezidans.",
+    "subject": "Wi-Fi network name",
+    "relation": "other",
+    "value": "Lale-Rezidans",
+    "condition": "",
+    "support": "supported",
+    "kbId": "wifi",
+    "kbQuote": "Ağ adı Lale-Rezidans, şifre lale2026.",
+    "explanation": "The KB gives the same network name."
+   },
+   {
+    "requestId": "r2",
+    "text": "Wi-Fi şifresi lale2026.",
+    "subject": "Wi-Fi password",
+    "relation": "other",
+    "value": "lale2026",
+    "condition": "",
+    "support": "supported",
+    "kbId": "wifi",
+    "kbQuote": "Ağ adı Lale-Rezidans, şifre lale2026.",
+    "explanation": "The KB gives the same password."
+   }
+  ]
+ },
+ {
+  "id": "d-dirty-breakfast-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Breakfast is served at the café on the lobby level.",
+    "subject": "breakfast",
+    "relation": "location",
+    "value": "café on the lobby level",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "KB says breakfast is served in the café on the lobby floor."
+   },
+   {
+    "requestId": "r2",
+    "text": "Breakfast is served from 08:00 to 11:00.",
+    "subject": "breakfast",
+    "relation": "time",
+    "value": "08:00-11:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "KB gives the same serving hours."
+   }
+  ]
+ },
+ {
+  "id": "d-refund-checkout-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Çıkışta anahtar kartını resepsiyona bırakabilirsiniz.",
+    "subject": "anahtar kartı (çıkış)",
+    "relation": "location",
+    "value": "resepsiyon",
+    "condition": "çıkışta",
+    "support": "supported",
+    "kbId": "checkout",
+    "kbQuote": "Çıkışta anahtar kartını resepsiyona bırakın.",
+    "explanation": "The KB gives the same instruction: leave the key card at reception at checkout."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "yanıt",
+    "relation": "other",
+    "value": "otomatik asistan tarafından hazırlandı",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the conversation itself, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-two-msgs-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "En yakın market 200 metre ileride.",
+    "subject": "nearest market",
+    "relation": "location",
+    "value": "200 metres ahead",
+    "condition": "",
+    "support": "supported",
+    "kbId": "market",
+    "kbQuote": "En yakın market 200 metre ileride, 08:00–23:00 arası açıktır.",
+    "explanation": "The KB states the same distance for the nearest market."
+   },
+   {
+    "requestId": "none",
+    "text": "(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+    "subject": "reply",
+    "relation": "other",
+    "value": "prepared by automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the reply itself, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-human-breakfast-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Kahvaltı 08:00–11:00 saatleri arasında servis ediliyor.",
+    "subject": "Kahvaltı",
+    "relation": "time",
+    "value": "08:00–11:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "breakfast",
+    "kbQuote": "Kahvaltı lobi katındaki kafede 08:00–11:00 arası servis edilir ve fiyata dahil değildir; kişi başı 350 TL'dir.",
+    "explanation": "The KB gives the same service hours for breakfast."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "reply",
+    "relation": "other",
+    "value": "prepared by an automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the conversation, not a fact about the property."
+   }
+  ]
+ },
+ {
+  "id": "d-mt-withdraw-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Giriş saati 15:00'tir.",
+    "subject": "check-in",
+    "relation": "time",
+    "value": "15:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "checkin",
+    "kbQuote": "Giriş saati 15:00'tir.",
+    "explanation": "KB states the same check-in time."
+   }
+  ]
+ },
+ {
+  "id": "d-mt-pet-pool-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Evcil hayvanlar havuz alanına giremiyor.",
+    "subject": "pets in pool area",
+    "relation": "prohibition",
+    "value": "pets cannot enter the pool area",
+    "condition": "",
+    "support": "supported",
+    "kbId": "pets",
+    "kbQuote": "Evcil hayvanlar havuz alanına ve spor salonuna giremez.",
+    "explanation": "The KB states the same prohibition for pets in the pool area."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "reply origin",
+    "relation": "other",
+    "value": "prepared by automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "A statement about the conversation itself, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-mt-bike-hour-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Saatlik bisiklet kiralama ücreti 75 TL'dir.",
+    "subject": "bike rental hourly rate",
+    "relation": "fee",
+    "value": "75 TL per hour",
+    "condition": "",
+    "support": "supported",
+    "kbId": "bike",
+    "kbQuote": "Resepsiyondan bisiklet kiralayabilirsiniz: saatlik 75 TL, günlük 300 TL.",
+    "explanation": "KB gives the hourly bike rental fee as 75 TL."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "this reply",
+    "relation": "other",
+    "value": "prepared by an automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "Statement about the reply itself, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-loft-ext-info-en",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "The fire extinguisher is under the kitchen sink.",
+    "subject": "fire extinguisher",
+    "relation": "location",
+    "value": "under the kitchen sink",
+    "condition": "",
+    "support": "supported",
+    "kbId": "safety",
+    "kbQuote": "The fire extinguisher is under the kitchen sink; the first-aid kit is in the bathroom cabinet.",
+    "explanation": "The KB gives the same location for the fire extinguisher."
+   },
+   {
+    "requestId": "none",
+    "text": "This reply was prepared by an automated assistant.",
+    "subject": "this reply",
+    "relation": "other",
+    "value": "prepared by an automated assistant",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the conversation itself, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-mt-pool-gym-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Spor salonu -1. katta.",
+    "subject": "gym",
+    "relation": "location",
+    "value": "-1. kat",
+    "condition": "",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Spor salonu -1. kattadır ve 07:00–22:00 arası açıktır.",
+    "explanation": "KB states the gym is on floor -1."
+   },
+   {
+    "requestId": "r1",
+    "text": "Spor salonu 07:00–22:00 arası açık.",
+    "subject": "gym",
+    "relation": "time",
+    "value": "07:00–22:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Spor salonu -1. kattadır ve 07:00–22:00 arası açıktır.",
+    "explanation": "Opening hours match the KB."
+   },
+   {
+    "requestId": "r1",
+    "text": "Spor salonuna giriş kartıyla girilir.",
+    "subject": "gym",
+    "relation": "method_steps",
+    "value": "giriş kartıyla açılır",
+    "condition": "",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Giriş kartınızla açılır; misafirler için ücretsizdir.",
+    "explanation": "KB says it opens with the entry card."
+   },
+   {
+    "requestId": "r1",
+    "text": "Spor salonu misafirler için ücretsizdir.",
+    "subject": "gym",
+    "relation": "free",
+    "value": "ücretsiz",
+    "condition": "misafirler için",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Giriş kartınızla açılır; misafirler için ücretsizdir.",
+    "explanation": "KB says it is free for guests."
+   }
+  ]
+ },
+ {
+  "id": "d-ru-gym",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Спортзал открыт с 07:00 до 22:00.",
+    "subject": "gym",
+    "relation": "time",
+    "value": "07:00–22:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "gym",
+    "kbQuote": "Spor salonu -1. kattadır ve 07:00–22:00 arası açıktır.",
+    "explanation": "KB gives the same gym opening hours."
+   }
+  ]
+ },
+ {
+  "id": "d-laundry-tr",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "Çamaşır makinesi banyoda.",
+    "subject": "çamaşır makinesi",
+    "relation": "location",
+    "value": "banyoda",
+    "condition": "",
+    "support": "supported",
+    "kbId": "laundry",
+    "kbQuote": "Çamaşır makinesi banyodadır; deterjan dolabın üst rafındadır.",
+    "explanation": "The KB states the washing machine is in the bathroom."
+   },
+   {
+    "requestId": "r1",
+    "text": "Dairede çamaşır makinesi var.",
+    "subject": "çamaşır makinesi",
+    "relation": "availability",
+    "value": "var",
+    "condition": "",
+    "support": "supported",
+    "kbId": "laundry",
+    "kbQuote": "Çamaşır makinesi banyodadır; deterjan dolabın üst rafındadır.",
+    "explanation": "The KB's mention of the machine in the bathroom implies the apartment has one."
+   },
+   {
+    "requestId": "none",
+    "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+    "subject": "yanıt",
+    "relation": "other",
+    "value": "otomatik asistan tarafından hazırlandı",
+    "condition": "",
+    "support": "process",
+    "kbId": null,
+    "kbQuote": "",
+    "explanation": "This is a statement about the conversation, not a property fact."
+   }
+  ]
+ },
+ {
+  "id": "d-es-dishwasher",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Hold the ON/OFF button for 3 seconds to reset the dishwasher.",
+    "subject": "dishwasher reset",
+    "relation": "method_steps",
+    "value": "hold ON/OFF button for 3 seconds",
+    "condition": "when the dishwasher shows an error",
+    "support": "supported",
+    "kbId": "dishwasher",
+    "kbQuote": "Bulaşık makinesi hata verirse ON/OFF tuşuna 3 saniye basılı tutarak sıfırlayın; tabletler evyenin altındadır.",
+    "explanation": "KB states the same reset method for an error."
+   }
+  ]
+ },
+ {
+  "id": "d-de-noise-trash",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r2",
+    "text": "Die Müllcontainer befinden sich rechts neben dem Gebäudeeingang.",
+    "subject": "Müllcontainer",
+    "relation": "location",
+    "value": "rechts neben dem Gebäudeeingang",
+    "condition": "",
+    "support": "supported",
+    "kbId": "trash",
+    "kbQuote": "Çöpler bina girişinin sağındaki konteynerlere atılır; geri dönüşüm kutusu mavi olandır.",
+    "explanation": "KB says the containers are to the right of the building entrance."
+   },
+   {
+    "requestId": "r2",
+    "text": "Der blaue Container ist für Recycling.",
+    "subject": "blauer Container",
+    "relation": "other",
+    "value": "Recycling",
+    "condition": "",
+    "support": "supported",
+    "kbId": "trash",
+    "kbQuote": "Çöpler bina girişinin sağındaki konteynerlere atılır; geri dönüşüm kutusu mavi olandır.",
+    "explanation": "KB says the blue bin is the recycling bin."
+   },
+   {
+    "requestId": "r2",
+    "text": "Bitte bringen Sie den Müll spätestens bis 22:00 Uhr hinaus.",
+    "subject": "Müll hinausbringen",
+    "relation": "time",
+    "value": "spätestens bis 22:00 Uhr",
+    "condition": "",
+    "support": "supported",
+    "kbId": "trash",
+    "kbQuote": "Çöpleri en geç 22:00'ye kadar çıkarın.",
+    "explanation": "KB gives the same 22:00 deadline."
+   }
+  ]
+ },
+ {
+  "id": "d-ar-pool",
+  "claudeErrors": 0,
+  "gptErrors": 0,
+  "addressedDiff": [],
+  "claims": [
+   {
+    "requestId": "r1",
+    "text": "يُغلق المسبح الساعة 20:00.",
+    "subject": "outdoor pool",
+    "relation": "time",
+    "value": "closes at 20:00",
+    "condition": "",
+    "support": "supported",
+    "kbId": "pool",
+    "kbQuote": "Açık havuz her gün 09:00–20:00 arası kullanılabilir.",
+    "explanation": "The KB says the pool is available daily 09:00–20:00, so it closes at 20:00."
+   }
+  ]
+ }
+]

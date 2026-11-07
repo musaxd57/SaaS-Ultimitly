@@ -1,0 +1,681 @@
+{
+  "version": 1,
+  "_about": "Kör ihtiyaç (needs) seti — yazarı geliştiriciden bağımsız, yalnız ürün sahibinin kurallarından yazıldı; içerik geliştiriciye kapalı (2026-10-23).",
+  "property": {
+    "name": "Lale – Bahçe Katı Daire",
+    "guestDisplayName": "Lale Daire",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Mimoza Sokak No: 14",
+    "city": "Antalya"
+  },
+  "kbSets": {
+    "tam": [
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ adı Lale_Ev, şifre manolya4821. Bağlantı koparsa salondaki TV ünitesinin içindeki modemi 10 saniye kapatıp açın." },
+      { "category": "parking", "title": "Otopark", "content": "Binanın arkasındaki kapalı otoparkta 7 numaralı yer daireye aittir. Otopark kapısının kumandası anahtarlıkta asılıdır." },
+      { "category": "amenities", "title": "Havuz", "content": "Site havuzu hafta içi 09:00–22:00, hafta sonu (cumartesi ve pazar) 09:00–23:00 arası açıktır. Havuz havluları banyodaki mavi dolaptadır." },
+      { "category": "amenities", "title": "Spor salonu", "content": "B blok zemin kattaki spor salonu her gün 06:30–21:30 arası açıktır; yalnız pazar günleri 10:00'da açılır." },
+      { "category": "rules", "title": "Sessiz saatler", "content": "Sitede hafta içi 23:30'dan sonra, cuma ve cumartesi geceleri ise 01:00'den sonra yüksek ses yapılmamalıdır." },
+      { "category": "other", "title": "Çöp", "content": "Evsel çöpler bina girişinin solundaki gri konteynere, geri dönüşüm atıkları yanındaki mavi kutuya atılır." },
+      { "category": "appliances", "title": "Çamaşır makinesi", "content": "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kısa yıkama için 'Quick 30' programını seçin." },
+      { "category": "local", "title": "Market", "content": "En yakın market 200 metre ilerideki köşe bakkalıdır; pazartesi–cumartesi 08:00–21:00, pazar günleri 11:00–19:00 arası açıktır." },
+      { "category": "other", "title": "Plaj servisi", "content": "Siteden plaja ücretsiz servis yaz sezonunda (haziran–eylül) 09:30 ile 18:30 arasında saatte bir kalkar; sezon dışında yalnız 10:30 ve 16:30 seferleri vardır." },
+      { "category": "rules", "title": "Evcil hayvan", "content": "Küçük köpek ve kediler kabul edilir; evcil hayvanların havuz alanına girmesine izin verilmez." },
+      { "category": "checkin", "title": "Kapı şifresi", "content": "Daire kapısı şifreli kilitlidir; şifre giriş günü sabah mesajla gönderilir. Bina dış kapısı da aynı şifreyle açılır." }
+    ],
+    "seyrek": [
+      { "category": "wifi", "title": "İnternet", "content": "Wi-Fi adı Lale_Misafir, şifresi gunes2026." },
+      { "category": "checkin", "title": "Anahtar", "content": "Anahtar, daire kapısının yanındaki gri kilit kutusundadır; kutunun kodu giriş günü mesajla iletilir." },
+      { "category": "checkout", "title": "Çıkış", "content": "Çıkışta anahtarı kilit kutusuna geri koyup kutuyu kapatmanız yeterlidir." },
+      { "category": "amenities", "title": "Havuz", "content": "Sitede açık havuz vardır; havuz suyu ısıtmalıdır ve çocuklar için sığ bir bölümü bulunur." },
+      { "category": "parking", "title": "Park", "content": "Sokakta ücretsiz park yeri bulunur; site içine misafir aracı alınmaz." },
+      { "category": "amenities", "title": "Çatı terası", "content": "Çatı terası tüm misafirlerin kullanımına açıktır; terasta mangal yakmak yasaktır." }
+    ],
+    "ayri": [
+      { "category": "amenities", "title": "Havuz saatleri", "content": "Havuz her gün 08:00–20:00 arası açıktır." },
+      { "category": "rules", "title": "Hafta sonu düzenlemesi", "content": "Cumartesi ve pazar günleri havuz akşam 22:30'a kadar açık kalır." },
+      { "category": "amenities", "title": "Kahvaltı", "content": "Kahvaltı lobi katındaki salonda 07:30–10:00 arası servis edilir." },
+      { "category": "other", "title": "Yaz dönemi", "content": "Temmuz ve ağustos aylarında kahvaltı 07:00–10:30 arası servis edilir." },
+      { "category": "amenities", "title": "Sauna", "content": "Sauna her gün 16:00–21:00 arası kullanılabilir; havlu ve terlik sauna girişinde bulunur." },
+      { "category": "rules", "title": "Bakım günü", "content": "Salı günleri sauna bakım nedeniyle kapalıdır." },
+      { "category": "amenities", "title": "Bisiklet", "content": "Misafirler resepsiyondan ücretsiz bisiklet alabilir; bisikletler 09:00–18:00 arası teslim edilir." },
+      { "category": "other", "title": "Kış dönemi", "content": "Kasım başından mart sonuna kadar bisiklet verilmez." },
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ: Lale_Konuk, şifre: zeytin77." },
+      { "category": "amenities", "title": "Çamaşırhane", "content": "Ortak çamaşırhane bodrum kattadır; 09:30–19:30 arası açıktır, pazar günleri kapalıdır." }
+    ],
+    "istisna": [
+      { "category": "amenities", "title": "Havuz bakımı", "content": "Pazartesi günleri 10:00–14:00 arası havuz bakım nedeniyle kapalıdır." },
+      { "category": "amenities", "title": "Spor salonu", "content": "Pazar günleri spor salonu 18:00'de kapanır." },
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ adı Lale_Daire, şifre kiraz5512." },
+      { "category": "other", "title": "Geri dönüşüm", "content": "Geri dönüşüm kutuları yalnız çarşamba sabahları boşaltılır; o güne kadar balkondaki kutuda biriktirebilirsiniz." }
+    ],
+    "olumsuz": [
+      { "category": "amenities", "title": "Sauna ve hamam", "content": "Sitede sauna ve hamam bulunmamaktadır." },
+      { "category": "rules", "title": "Evcil hayvan", "content": "Dairede evcil hayvan kabul edilmemektedir." },
+      { "category": "amenities", "title": "Havuz", "content": "Havuz her gün 09:30–19:30 arası açıktır; cankurtaran yalnız hafta sonları görev yapar." },
+      { "category": "appliances", "title": "Klima", "content": "Klima kumandası yatak odasındaki komodinin çekmecesindedir; 'Mode' tuşuyla soğutmaya alabilirsiniz." },
+      { "category": "amenities", "title": "Kahvaltı", "content": "Kahvaltı servisi verilmemektedir; mutfakta çay ve kahve bulunur." },
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ adı Lale_Bahce, şifre incir3030." }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "b-tr-001",
+      "class": "rule_exception",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Merhaba, havuz akşam 22:00'ye kadar mı açık?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["22[:.]00", "23[:.]00", "hafta ?sonu|cumartesi|pazar(?!tesi)"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-002",
+      "class": "topic_only",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "Selam, havuz sabah kaçta açılıyo?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["s[ıi]tmal", "sığ", "a[çc][ıi]k havuz", "\\b\\d{1,2}[:.]\\d{2}\\b"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-003",
+      "class": "two_needs",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Wifi şifresi neydi? Bir de evde saç kurutma makinesi var mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "wifi", "want": "answered", "all": ["manolya4821"] },
+          { "kind": "amenities", "want": "open", "forbid": ["sa[çc] kurutma", "kurutma makinesi"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-004",
+      "class": "rule_exception",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Cumartesi akşamı havuz kaça kadar açık acaba?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["23[:.]00"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-005",
+      "class": "cross_facility",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Merhabalar, sauna kaçta açılıyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["sauna", "09[:.]00", "22[:.]00", "23[:.]00", "06[:.]30", "21[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-006",
+      "class": "source_question",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Bu bilgileri nereden biliyorsunuz? Bir de wifi şifresi neydi, unuttum.",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "about_assistant", "want": "open", "forbid": ["yapay zek", "asistan", "bilgi taban", "notlar", "kayna[ğgk]", "sistem"] },
+          { "kind": "wifi", "want": "answered", "all": ["manolya4821"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-007",
+      "class": "rule_exception_split",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Havuz akşam kaça kadar açık?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["20[:.]00", "22[:.]30", "hafta ?sonu|cumartesi|pazar(?!tesi)"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-008",
+      "class": "grounded",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "Wifi şifresi nedir?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "wifi", "want": "answered", "all": ["gunes2026"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-009",
+      "class": "prior_context",
+      "lang": "tr",
+      "kb": "tam",
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, bu cumartesi geliyoruz, iki gece kalacağız. Görüşmek üzere!" },
+        { "direction": "outbound", "body": "Merhaba, sizi ağırlamayı dört gözle bekliyoruz. Giriş saatimiz 15:00'tir." }
+      ],
+      "message": "Bir şey soracaktım, havuz akşam kaça kadar açık oluyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["23[:.]00"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-010",
+      "class": "cross_item",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Spor salonunda havlu var mı, yoksa yanımızda mı getirelim?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["mavi dolap", "06[:.]30", "21[:.]30", "zemin kat"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-011",
+      "class": "three_needs",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Selam, otopark nerede? Çöpü nereye atıyoruz? Bir de yakınlarda iyi bir balık restoranı önerir misiniz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "parking", "want": "answered", "all": ["\\b7\\b|yedi"] },
+          { "kind": "trash", "want": "answered", "all": ["gri"] },
+          { "kind": "local_recommendations", "want": "open", "forbid": ["restoran", "bal[ıi]k", "bakkal"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-012",
+      "class": "rule_exception_season",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Kahvaltı kaçta başlıyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["07[:.]30", "07[:.]00", "temmuz|a[ğg]ustos|yaz (aylar|d[öo]nem|sezon)"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-013",
+      "class": "negative_kb",
+      "lang": "tr",
+      "kb": "olumsuz",
+      "message": "Kahvaltı veriliyor mu?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["verilm|yok|bulunm|sunulm"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-014",
+      "class": "exception_only",
+      "lang": "tr",
+      "kb": "istisna",
+      "message": "Havuz her gün açık mı? Bir de wifi şifresini alabilir miyim?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["pazartesi", "14[:.]00"] },
+          { "kind": "wifi", "want": "answered", "all": ["kiraz5512"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-015",
+      "class": "cross_facility",
+      "lang": "tr",
+      "kb": "istisna",
+      "message": "Pazartesi spor salonu açık mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["14[:.]00", "10[:.]00", "18[:.]00", "bak[ıi]m", "spor salonu"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-016",
+      "class": "rule_exception",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Spor salonu sabah kaçta açılıyor? Erken antrenman yapmayı seviyorum.",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["06[:.]30", "10[:.]00", "pazar(?!tesi)"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-017",
+      "class": "topic_only",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Çamaşır makinesinde kurutma da var mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "appliance_help", "want": "open", "forbid": ["quick", "deterjan", "lavabo", "banyo"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-018",
+      "class": "source_question",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Sen bot musun yoksa gerçek bir insan mı? Kahvaltı kaçta bitiyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "about_assistant", "want": "open", "forbid": ["\\bbot", "yapay zek", "ger[çc]ek bir insan", "asistan", "otomatik"] },
+          { "kind": "amenities", "want": "answered", "all": ["10[:.]00", "10[:.]30", "temmuz|a[ğg]ustos|yaz (aylar|d[öo]nem|sezon)"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-019",
+      "class": "prior_context",
+      "lang": "tr",
+      "kb": "ayri",
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, 14 temmuzda giriş yapıyoruz, bir hafta kalacağız." },
+        { "direction": "outbound", "body": "Merhaba, rezervasyonunuz için teşekkür ederiz, görüşmek üzere!" }
+      ],
+      "message": "Kahvaltı sabah kaçta başlıyor, kaça kadar sürüyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["07[:.]00", "10[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-020",
+      "class": "two_needs",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "Çıkışta anahtarı nereye bırakıyoruz? Bir de çöpleri nereye atacağız?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "access_keys", "want": "answered", "all": ["kilit kutu"] },
+          { "kind": "trash", "want": "open", "forbid": ["çöp", "konteyner"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-021",
+      "class": "rule_exception_split",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Pazar akşamı havuz kaça kadar açık olacak?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["22[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-022",
+      "class": "grounded",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Çamaşır makinesi nerede, deterjan var mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "appliance_help", "want": "answered", "all": ["banyo", "lavabo"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-023",
+      "class": "topic_only",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "Çatı terasını akşam kaça kadar kullanabiliyoruz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["mangal", "t[üu]m misafir", "\\b\\d{1,2}[:.]\\d{2}\\b"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-024",
+      "class": "rule_exception_split",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Saunayı hangi saatlerde kullanabiliriz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["16[:.]00", "21[:.]00", "sal[ıi]"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-025",
+      "class": "cross_facility",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Çocuk havuzu kaça kadar açık?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["20[:.]00", "22[:.]30", "08[:.]00"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-026",
+      "class": "value_trap",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Spor salonu cumartesi akşamı kaça kadar açık?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["21[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-027",
+      "class": "two_needs",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Sauna kaçta açılıyor? Bir de küçük bir köpeğimiz var, getirebilir miyiz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["16[:.]00", "sal[ıi]"] },
+          { "kind": "pets", "want": "open", "forbid": ["k[öo]pe[ğg]", "evcil"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-028",
+      "class": "source_question",
+      "lang": "tr",
+      "kb": "olumsuz",
+      "message": "Bu cevapları otomatik mi veriyorsunuz? Sitede sauna var mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "about_assistant", "want": "open", "forbid": ["otomatik", "yapay zek", "asistan", "\\bbot", "manuel"] },
+          { "kind": "amenities", "want": "answered", "all": ["bulunm|yok|mevcut de[ğg]il"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-029",
+      "class": "rule_exception",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Pazar sabahı spora gitmek istiyorum, salon kaçta açılıyor? Bir de wifi şifresini tekrar yazar mısınız?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["10[:.]00"] },
+          { "kind": "wifi", "want": "answered", "all": ["manolya4821"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-030",
+      "class": "topic_only",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Plaj servisi tam olarak nereden kalkıyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "directions_transport", "want": "open", "forbid": ["09[:.]30", "18[:.]30", "10[:.]30", "16[:.]30", "[üu]cretsiz", "saatte bir"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-031",
+      "class": "rule_exception_season",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Bisiklet alabiliyor muyuz? Saat kaça kadar veriliyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["18[:.]00", "kas[ıi]m|mart"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-032",
+      "class": "two_needs",
+      "lang": "tr",
+      "kb": "olumsuz",
+      "message": "Klimanın kumandası nerede? Bir de ütü var mı?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "appliance_help", "want": "answered", "all": ["komodin"] },
+          { "kind": "amenities", "want": "open", "forbid": ["ütü"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-033",
+      "class": "grounded",
+      "lang": "tr",
+      "kb": "ayri",
+      "message": "Çamaşırhane nerede acaba?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["bodrum"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-034",
+      "class": "rule_exception",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Cuma gecesi arkadaşlarla balkonda oturacağız, gece kaça kadar ses yapabiliriz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "house_rules", "want": "answered", "all": ["01[:.]00"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-035",
+      "class": "cross_facility",
+      "lang": "tr",
+      "kb": "olumsuz",
+      "message": "Jakuzi var mı, varsa kaça kadar kullanılabiliyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["jakuzi", "09[:.]30", "19[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-036",
+      "class": "topic_only",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "İnternet hızı nasıl? Yarın görüntülü toplantım var, yeterli olur mu?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "wifi", "want": "open", "forbid": ["gunes2026", "lale_misafir"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-037",
+      "class": "source_question",
+      "lang": "tr",
+      "kb": "istisna",
+      "history": [
+        { "direction": "inbound", "body": "Havuz her gün açık mı?" },
+        { "direction": "outbound", "body": "Pazartesi günleri 10:00–14:00 arası havuz bakım nedeniyle kapalıdır." }
+      ],
+      "message": "Bunu nereden öğrendiniz, emin misiniz? Bir de wifi ağının adı neydi?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "about_assistant", "want": "open", "forbid": ["yapay zek", "asistan", "notlar", "kayna[ğgk]", "eminiz|eminim", "bak[ıi]m"] },
+          { "kind": "wifi", "want": "answered", "all": ["lale_daire"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-038",
+      "class": "two_needs",
+      "lang": "tr",
+      "kb": "tam",
+      "message": "Yakında market var mı, pazar günü açık mı? Bir de havalimanından eve nasıl geliriz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "local_recommendations", "want": "answered", "all": ["11[:.]00", "19[:.]00"] },
+          { "kind": "directions_transport", "want": "open", "forbid": ["havaliman|havaalan", "taksi", "otob[üu]s", "transfer"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-039",
+      "class": "prior_context",
+      "lang": "tr",
+      "kb": "tam",
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, 10 kasımda geliyoruz, 4 gece kalacağız." },
+        { "direction": "outbound", "body": "Merhaba, sizi bekliyoruz, iyi yolculuklar!" }
+      ],
+      "message": "Plaja servis var mı, saat kaçta kalkıyor?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "directions_transport", "want": "answered", "all": ["10[:.]30", "16[:.]30"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-040",
+      "class": "negative_kb",
+      "lang": "tr",
+      "kb": "olumsuz",
+      "message": "Merhaba, küçük köpeğimizi de getirebilir miyiz?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "pets", "want": "answered", "all": ["kabul edilm|kabul etm|izin verilm|getiremez|getirilemez|m[üu]mk[üu]n de[ğg]il|kabul ed[ie]lem"] }
+        ]
+      }
+    },
+    {
+      "id": "b-tr-041",
+      "class": "grounded",
+      "lang": "tr",
+      "kb": "seyrek",
+      "message": "Giriş saati kaçta?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "checkin_time", "want": "answered", "all": ["15[:.]00"] }
+        ]
+      }
+    },
+    {
+      "id": "b-en-001",
+      "class": "multi_lang",
+      "lang": "en",
+      "kb": "tam",
+      "message": "Hi there! Is the pool open until 10pm? Also, what's the wifi password again?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["22[:.]00|10(?:[:.]00)? ?p\\.?m", "23[:.]00|11(?:[:.]00)? ?p\\.?m", "weekend|saturday|sunday"] },
+          { "kind": "wifi", "want": "answered", "all": ["manolya4821"] }
+        ]
+      }
+    },
+    {
+      "id": "b-de-001",
+      "class": "multi_lang",
+      "lang": "de",
+      "kb": "ayri",
+      "message": "Hallo! Bis wann ist die Sauna geöffnet? Und gibt es hier in der Nähe eine gute Bäckerei?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["21[:.]00|21 ?uhr", "dienstag"] },
+          { "kind": "local_recommendations", "want": "open", "forbid": ["b[äa]cker", "bakery"] }
+        ]
+      }
+    },
+    {
+      "id": "b-ru-001",
+      "class": "multi_lang",
+      "lang": "ru",
+      "kb": "seyrek",
+      "message": "Здравствуйте! Во сколько открывается бассейн? И подскажите, пожалуйста, пароль от wifi.",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "open", "forbid": ["подогрев", "мелк", "\\b\\d{1,2}[:.]\\d{2}\\b"] },
+          { "kind": "wifi", "want": "answered", "all": ["gunes2026"] }
+        ]
+      }
+    },
+    {
+      "id": "b-es-001",
+      "class": "multi_lang",
+      "lang": "es",
+      "kb": "tam",
+      "message": "¡Hola! ¿A qué hora abre el gimnasio el domingo? ¿Y dónde está el aparcamiento?",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          { "kind": "amenities", "want": "answered", "all": ["10[:.]00|10 ?h\\b|10 ?a\\.?m|las 10\\b"] },
+          { "kind": "parking", "want": "answered", "all": ["\\b7\\b|siete"] }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1460 @@
+{
+  "suite": "house-rules",
+  "version": 1,
+  "meta": {
+    "status": "GEÇERLİ",
+    "failures": 0,
+    "commit": "232e24f",
+    "model": "gpt-6-luna",
+    "mode": "items+rules"
+  },
+  "rows": [
+    {
+      "id": "d-hr001",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr002",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr003",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr004",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr005",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr006",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr007",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr008",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr009",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr010",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr011",
+      "split": "dev",
+      "lang": "en",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr012",
+      "split": "dev",
+      "lang": "de",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr013",
+      "split": "dev",
+      "lang": "fr",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr014",
+      "split": "dev",
+      "lang": "es",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr015",
+      "split": "dev",
+      "lang": "ru",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr016",
+      "split": "dev",
+      "lang": "ar",
+      "expect": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr017",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr018",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr019",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr020",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr021",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr022",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr023",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr024",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr025",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr026",
+      "split": "dev",
+      "lang": "de",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr027",
+      "split": "dev",
+      "lang": "fr",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr028",
+      "split": "dev",
+      "lang": "ru",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr029",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr030",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr031",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr032",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr033",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr034",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr035",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr036",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": []
+    },
+    {
+      "id": "d-hr037",
+      "split": "dev",
+      "lang": "de",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr038",
+      "split": "dev",
+      "lang": "es",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr039",
+      "split": "dev",
+      "lang": "ar",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr040",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr041",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr042",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr043",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": true,
+      "predicted": []
+    },
+    {
+      "id": "d-hr044",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr045",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr046",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr047",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr048",
+      "split": "dev",
+      "lang": "fr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr049",
+      "split": "dev",
+      "lang": "ru",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr050",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr051",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr052",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr053",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr054",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr055",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr056",
+      "split": "dev",
+      "lang": "de",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr057",
+      "split": "dev",
+      "lang": "es",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr058",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr059",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr060",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr061",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr062",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr063",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr064",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr065",
+      "split": "dev",
+      "lang": "en",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr066",
+      "split": "dev",
+      "lang": "fr",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr067",
+      "split": "dev",
+      "lang": "ru",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_info"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_info"
+        }
+      ]
+    },
+    {
+      "id": "d-hr068",
+      "split": "dev",
+      "lang": "ar",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr069",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr070",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr071",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr072",
+      "split": "dev",
+      "lang": "en",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr073",
+      "split": "dev",
+      "lang": "fr",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr074",
+      "split": "dev",
+      "lang": "de",
+      "expect": [],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr075",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr076",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr077",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        },
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ],
+      "keyword": true,
+      "predicted": [
+        {
+          "topic": "visitors",
+          "stance": "asks_permission"
+        },
+        {
+          "topic": "smoking",
+          "stance": "asks_permission"
+        }
+      ]
+    },
+    {
+      "id": "d-hr078",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "pets",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr079",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "announces"
+        },
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "party_event",
+          "stance": "announces"
+        },
+        {
+          "topic": "quiet_hours",
+          "stance": "announces"
+        }
+      ]
+    },
+    {
+      "id": "d-hr080",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "extra_guests",
+          "stance": "announces"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "extra_guests",
+          "stance": "not_about_guest"
+        }
+      ]
+    },
+    {
+      "id": "d-hr081",
+      "split": "dev",
+      "lang": "en",
+      "expect": [
+        {
+          "topic": "visitors",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": []
+    },
+    {
+      "id": "d-hr082",
+      "split": "dev",
+      "lang": "tr",
+      "expect": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ],
+      "keyword": false,
+      "predicted": [
+        {
+          "topic": "quiet_hours",
+          "stance": "not_about_guest"
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "commit": "232e24f",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "(boş)",
+      "KB_RERANK_ENABLED": "(boş)",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "(boş)",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "(boş)",
+      "AI_HOUSE_RULES_SHADOW": "(boş)",
+      "AI_KB_FEE_RULE_ENABLED": "(boş)",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+      "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "990d40f68cf2",
+      "replyVariant": "ead9babb34d8",
+      "understanding": "90bdf31dec0d",
+      "understandingMode": "items"
+    }
+  }
+}

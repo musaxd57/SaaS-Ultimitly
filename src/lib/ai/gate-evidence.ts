@@ -1,0 +1,145 @@
+// ---------------------------------------------------------------------------
+// KAPI KANITI (09-25, mesaj anlama çekirdeği denetimi): "garip bir karar neden verildi?" sorusu karar kaydından
+// cevaplanabilsin. Kapı (`automation.ts autoReplyGateFailure`) on dört ayrı güvenlik kontrolünü tek `blocked`
+// gerekçesinde topluyordu: sözcüksel bir net mi (kelime ağı), modelin kendi etiketi mi, güven mi kapattı — kayıtta
+// ayırt edilemiyordu. Burada iki şey kaydedilir, ikisi de KARAR DEĞİL (kapı bu modülü okumaz):
+//  · `d` — `blocked` gerekçesinde kapıyı İLK kapatan kontrol (kapalı küme).
+//  · Sinyal ayrımı: SÖZCÜKSEL UYARILAR (`lx`, kelime ağının etiketleri — düşük kesinlikli, yalnız tutar) ile
+//    MODELİN hükmü (`mi/mt/ml`) ayrı alanlarda. Anlama katmanının risk niyeti zaten `ir` alanında.
+// Amaç ölçmek: "yalnız kelime ağının tuttuğu" mesajlar (model ve anlama katmanı risk görmedi) canlı trafikte ne
+// kadar — sözcüksel yetkiyi azaltma kararı bu sayıya dayanır (bugün değişmez: birleşim kuralı AYNEN).
+// PII YOK: yalnız kapalı-küme kodlar. Saf; tek bağımlılık eylem beyanı kod kümesi (`action-claims.ts`, o da saf).
+// ---------------------------------------------------------------------------
+import { actionClaimEvidence, cleanActionClaimEvidence, type ClaimedActionsDeclaration } from "./action-claims";
+
+/** `blocked` gerekçesinin ayrıntısı — kapının kontrol sırasıyla. */
+export const GATE_BLOCK_DETAILS = [
+  "not_model", // model cevabı yok (şablon/yedek)
+  "model_intent", // modelin niyeti şikâyet/iade/erken ayrılış
+  "lexical_intent", // kelime ağı: cevapsız mesajlarda şikâyet/iade/erken ayrılış/insan talebi
+  "lexical_risk", // kelime ağı: yüksek riskli etiket (acil, kural ihlali, ayrımcılık, …)
+  "lexical_injection", // son mesajda istem enjeksiyonu kalıbı
+  "context_injection", // geçmişte ya da misafir adında istem enjeksiyonu kalıbı
+  "model_risk_label", // modelin yüksek riskli etiketi
+  "model_risk_level", // modelin risk düzeyi orta/yüksek
+  "reply_absence", // cevap "bilgim yok" itirafı
+  "reply_output_veto", // cevapta yer tutucu / makbuzsuz eylem iddiası / acil arama yönergesi (kurucu 10-11)
+  "confidence_invalid",
+  "low_confidence",
+  // Konuşma öğeleri kipi (09-26): cevap yalnız beyan ettiği güvenli istekleri kapsar.
+  "items_undeclared", // beyan yok / bozuk
+  "items_touch_held", // bırakılan ya da bilinmeyen istek beyan edildi
+  "items_nothing_answered", // hiçbir güvenli istek cevaplanmadı (gönderecek bir şey yok)
+  "items_payment_held", // ödeme öğesi tutuluyken cevapta ödeme yöntemi / yeri
+  "items_complaint_dependent", // bu turun tutulan şikâyetine / iadesine / ev sahibi talebine bağlı istek cevaplanmış (kurucu kararı 10-01)
+  // Arıza çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"; `conversation-items/relation.ts`):
+  "items_fix_unverified", // cevaplanan arıza çözümü bilgi tabanına dayanmıyor (`kb:` kaynağı yok)
+  "items_fix_hazard", // cevaplanan arıza çözümü tehlike sınıfına değiyor (elektrik / gaz / sıcak su cihazı / yangın)
+  "items_fix_money", // arıza çözümü diye cevaplanan istekte tutar / muafiyet (kör set 7 k7-22: iade turunda "otopark günlük 200 TL")
+  "items_held_touched", // cevap ev sahibine bırakılan arızanın cihazına değiniyor (uydurma adım / "talimatım yok" — kör set 5)
+  // Kurucu 10-15 ("BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`): cevapta bilgi tabanında
+  // tarifi (arıza giderme) / konusu (kullanım) olmayan cihaz için adım — öğe kipinden bağımsız.
+  "reply_fix_unsupported",
+  // 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): fiziksel tehlike alarmı bağlamla kalktı ama cevap kaynaksız güvence verdi
+  // ("normaldir, güvenlidir") — bilgi tabanında dayanağı yoksa gitmez.
+  "hazard_reassurance",
+  // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`): okuyucu bu metni okudu ve —
+  "reply_offplatform_payment", // misafiri ev sahibine / daireye platform dışı ödemeye yönlendiriyor (T-d; üçüncü tarafa ödeme bilgisi değil)
+  "reply_offplatform_contact", // Airbnb'de onaysız / çıkıştan sonra platform dışı iletişim (Airbnb engeller)
+  // Opus 10-23 akşam C1 (ANAHTARSIZ): aynı konuşmada misafire giden gövdeye eklenecek İMZA telefon / e-posta / bağlantı taşıyor.
+  "signature_offplatform_contact",
+  "reply_apology", // özür / üzüntü / kusur kabulü / telafi sözü (T-a; özür kuralı açıkken)
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyor (okuyucu ya da kodun
+  // açık sözcük yedeği `absence.namesInternalSource`) — ANAHTARSIZ yedek; okuyucu açıksa bir kez yeniden yazdırılır.
+  "reply_internal_source",
+  // Kurucu 10-23 akşam 4.4 (seçenek A, ANAHTARSIZ kod yedeği): cevap evcil hayvandan söz ediyor ama bilgi tabanı kodla okunduğunda açıkça
+  // "ücretsiz kabul" demiyor (ücretli / koşullu / yasak / belirsiz) ya da yardımcı hayvandan söz ediyor — ev sahibine kalır.
+  "reply_pet_policy",
+  // R13-b / R13-c (kurucu kararı 10-28 gece, ANAHTARSIZ): cevap yalnız ev sahibine başvurma talimatı ("bir sorun olursa ev sahibinize yazın /
+  // arayın") — sohbet zaten ev sahibiyle ya da misafir sorunu zaten bildirdi (`ai/host-contact-filler.ts`).
+  "reply_host_contact_only",
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor", `ai/host-voice-guard.ts`, VARSAYILAN AÇIK): gönderilecek metinde ev sahibinden üçüncü kişi
+  // olarak söz, arka plan anlatımı ya da üçüncü taraf işletmeye gönderme kaldı.
+  "reply_host_voice",
+] as const;
+export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
+
+/** Kelime ağının üretebileceği etiketler (`detectRiskType` kümesi + bağlam enjeksiyonu). */
+export const LEXICAL_ALERTS = [
+  "prompt_injection",
+  "context_injection",
+  "safety_emergency",
+  "access_security",
+  "review_threat",
+  "platform_policy",
+  "money_refund",
+  "cancellation",
+  "discrimination",
+  "rule_violation",
+  "human_request",
+  "complaint",
+] as const;
+
+/**
+ * Modelin kapıyı kapatabilecek niyetleri ve risk etiketleri — TEK KAYNAK: kapı (`automation.ts`
+ * `NEVER_AUTO_REPLY_INTENTS` / `HIGH_STAKES_RISK_TYPES`) kümelerini buradan kurar, kanıt ile kapı ayrışamaz.
+ */
+export const NEVER_AUTO_REPLY_INTENT_LIST = ["complaint", "refund", "early_departure"] as const;
+export const HIGH_STAKES_RISK_TYPE_LIST = [
+  "money_refund", "cancellation", "review_threat", "platform_policy", "safety_emergency", "discrimination",
+  "access_security", "prompt_injection", "complaint", "human_request", "rule_violation",
+] as const;
+const MODEL_INTENTS: ReadonlySet<string> = new Set(NEVER_AUTO_REPLY_INTENT_LIST);
+const MODEL_RISK_TYPES: ReadonlySet<string> = new Set(HIGH_STAKES_RISK_TYPE_LIST);
+const MODEL_RISK_LEVELS: ReadonlySet<string> = new Set(["medium", "high"]);
+
+export interface GateEvidence {
+  /** `blocked` ayrıntısı (yalnız gerekçe `blocked` iken). */
+  d?: string;
+  /** Kelime ağı uyarıları — cevapsız misafir mesajları + bağlam (sıralı, tekil). */
+  lx: string[];
+  /** Modelin kapatıcı niyeti. */
+  mi?: string;
+  /** Modelin yüksek riskli etiketi. */
+  mt?: string;
+  /** Modelin orta/yüksek risk düzeyi. */
+  ml?: string;
+  /** Modelin eylem beyanı (MÇ §4): kapalı-küme kodlar ya da `["unknown"]`; beyan istenmediyse alan yok. */
+  ma?: string[];
+}
+
+const DETAIL_SET: ReadonlySet<string> = new Set(GATE_BLOCK_DETAILS);
+const ALERT_SET: ReadonlySet<string> = new Set(LEXICAL_ALERTS);
+
+/** Kanıtı yeniden kurar: tanınmayan her değer düşer (serbest metin sızamaz). */
+export function cleanGateEvidence(x: GateEvidence | undefined): GateEvidence | undefined {
+  if (!x || !Array.isArray(x.lx)) return undefined;
+  const lx = [...new Set(x.lx.filter((a) => ALERT_SET.has(a)))].sort();
+  return {
+    ...(typeof x.d === "string" && DETAIL_SET.has(x.d) ? { d: x.d } : {}),
+    lx,
+    ...(typeof x.mi === "string" && MODEL_INTENTS.has(x.mi) ? { mi: x.mi } : {}),
+    ...(typeof x.mt === "string" && MODEL_RISK_TYPES.has(x.mt) ? { mt: x.mt } : {}),
+    ...(typeof x.ml === "string" && MODEL_RISK_LEVELS.has(x.ml) ? { ml: x.ml } : {}),
+    ...(() => {
+      const ma = cleanActionClaimEvidence(x.ma);
+      return ma ? { ma } : {};
+    })(),
+  };
+}
+
+/** Model tarafı sinyaller (kapının kümeleriyle aynı; yalnız kapatıcı olanlar yazılır). */
+export function modelGateSignals(result: {
+  intent: string;
+  riskType?: string | null;
+  riskLevel: string;
+  claimedActions?: ClaimedActionsDeclaration | null;
+}): Pick<GateEvidence, "mi" | "mt" | "ml" | "ma"> {
+  const ma = actionClaimEvidence(result.claimedActions);
+  return {
+    ...(MODEL_INTENTS.has(result.intent) ? { mi: result.intent } : {}),
+    ...(result.riskType && MODEL_RISK_TYPES.has(result.riskType) ? { mt: result.riskType } : {}),
+    ...(MODEL_RISK_LEVELS.has(result.riskLevel) ? { ml: result.riskLevel } : {}),
+    ...(ma ? { ma } : {}),
+  };
+}

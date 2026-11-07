@@ -1,0 +1,134 @@
+import { NextResponse, type NextRequest } from "next/server";
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
+  readSessionCookie,
+  sessionCookieName,
+  signSession,
+  verifySession,
+} from "@/lib/auth/session";
+import { impersonationExpired } from "@/lib/auth/impersonation";
+import { classifyPath } from "@/lib/private-routes";
+
+// Oturum GEREKTİRMEYEN kimlik sayfaları (`AUTH_PATHS`) ve öteki açık yollar (`PUBLIC_PREFIXES`) yol sınıflarının yaprak modülünde
+// (`@/lib/private-routes`) — sayfa ağacına pinli (404 tasarım incelemesi 10-29 gece G1: sınıflanmamış yeni sayfa artık kırmızı).
+
+/**
+ * Oturum AÇIKKEN panele geri yollanan kimlik sayfaları.
+ *
+ * 🚨 `/sifremi-unuttum` BİLİNÇLİ OLARAK DIŞARIDA (08-02, Codex). Sıfırlama
+ * e-postasındaki bağlantı bu sayfaya gelir; hesabına o tarayıcıdan girmiş bir
+ * kullanıcı tıkladığında panele yönlendiriliyor ve sıfırlamayı HİÇ
+ * yapamıyordu. Üstelik tarayıcı, yönlendirme hedefinde fragment yoksa
+ * kaynağınkini TAŞIDIĞI için token `/dashboard#t=...` olarak adres çubuğunda
+ * kalıyordu — sayfanın `history.replaceState` temizliği orada çalışmaz.
+ *
+ * Güvenlik kaybı YOK: sayfa zaten public, çağırdığı uç nokta
+ * enumeration-safe ve oturumu olan biri aynı isteği çıkış yaparak ya da gizli
+ * pencereden zaten gönderebiliyordu — yani yeni bir yetenek açılmıyor. Kapattığı
+ * şey gerçek: "şifremden şüpheleniyorum, sıfırlayayım" tam olarak oturum
+ * AÇIKKEN yapılan bir taleptir.
+ *
+ * ⚠️ `/login` ve `/register` AYNEN KALIR: oradaki yönlendirme, giriş yapmış
+ * kullanıcıyı tekrar giriş formuna düşürmemek içindir ve bu değişiklik onlara
+ * DOKUNMAZ (test-pinli).
+ */
+const SIGNED_IN_REDIRECT_PATHS = ["/login", "/register"];
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const token = readSessionCookie((name) => req.cookies.get(name)?.value);
+  const session = await verifySession(token);
+  // K8 (kurucu kararı 09-28): süresi dolan bürünme (en çok 2 saat) hiçbir sayfayı görmez → çıkış rotası çerezleri temizler ve
+  // girişe yollar (`/api` ara katmandan geçmez, döngü olmaz). Veritabanı yok: yalnız imzalı başlangıç damgası.
+  if (session && impersonationExpired(session)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/api/auth/logout";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+  const matches = (paths: string[]) =>
+    paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  // İKİ AYRI SORU, tek bayrakta toplanmamalı: "bu sayfa oturumsuz görülebilir mi"
+  // (↓`isPublic`) ile "oturum açıkken panele mi yollanmalı" (↓) farklı şeyler.
+  // Tek `isAuthPage` bayrağı ikisini birden yönetiyordu; `/sifremi-unuttum`'u
+  // ondan çıkarmak sayfayı sessizce oturum-gerektiren hâle getirirdi.
+  // Yolun sınıfı TEK kaynaktan: açık (tanıtım, yasal, kimlik sayfaları, QR — `/guvenlik` VDP dahil, test-pinli), özel (`(app)` klasörleri)
+  // ya da bilinmeyen (Next gerçek 404 verir).
+  const routeClass = classifyPath(pathname);
+  const isPublic = routeClass === "public";
+
+  // Not signed in → panelin oturum gerektiren yolları (`(app)` klasörleri, sayfa ağacına pinli liste) girişe gider. Bilinmeyen adres
+  // GEÇER → Next gerçek 404 verir (kurucu 10-29 gece: "HTTP durum kodu kontrol edilsin"; önce her bilinmeyen adres 307 → /login idi,
+  // paylaşım görseli /opengraph-image de girişe yönleniyordu). Kayıt varlığı oturumsuz SORGULANMAZ: özel önek kayıttan bağımsız girişe
+  // gider. Bu katman yetki DEĞİL — asıl kapı `(app)/layout` requireAuth + sayfa / API kapıları.
+  if (!session && routeClass === "private") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
+    return NextResponse.redirect(url);
+  }
+
+  // Signed in → keep away from auth pages (şifre sıfırlama HARİÇ, ↑gerekçe).
+  if (session && matches(SIGNED_IN_REDIRECT_PATHS)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Staff (cleaning crew) may only use the Tasks surface — every other in-app page
+  // is owner/manager-only. Redirect them to /tasks so a staff member can't reach a
+  // server-rendered page that would show guest messages, prices, tokens, KB, etc.
+  // (The API routes enforce the SAME boundary DB-authoritatively; this is the page
+  // layer. The JWT role is sufficient for a UX redirect — every mutation still hits
+  // the fail-closed API guard.)
+  if (session && session.role === "staff" && !isPublic) {
+    // EXACT /tasks only: /tasks/new is a manager surface (it server-renders every
+    // property + user name for the assign form) — startsWith leaked it to staff.
+    const staffAllowed = pathname === "/tasks";
+    if (!staffAllowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/tasks";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  const res = NextResponse.next();
+
+  // SLIDING SESSION: while signed in and active, re-issue the cookie with a fresh
+  // SESSION_MAX_AGE (14-day) expiry so the window counts from the LAST activity,
+  // not the first login. Active users therefore never get logged out; the session
+  // only truly expires after 14 days of NO activity → then a full login is required.
+  // All session fields (incl. impersonation actor*) are preserved on re-sign.
+  if (session) {
+    const fresh = await signSession(session);
+    const name = sessionCookieName();
+    res.cookies.set(name, fresh, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_MAX_AGE,
+    });
+    // ① `__Host-` geçişi: eski (öneksiz) çerez geldiyse sil — bir sonraki istekte yalnız
+    // yeni ad kalır. Kimse çıkışa düşmez (oturum aynı istekte yeni adla yazıldı).
+    if (name !== SESSION_COOKIE && req.cookies.get(SESSION_COOKIE)) {
+      res.cookies.set(SESSION_COOKIE, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      });
+    }
+  }
+
+  return res;
+}
+
+export const config = {
+  // Run on everything except API routes, Next internals, and static files.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+};

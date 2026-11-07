@@ -1,0 +1,3699 @@
+{
+  "version": 1,
+  "note": "blind set — author did not read product code",
+  "property": {
+    "name": "Lale Rezidans",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "city": "Kıyıkent"
+  },
+  "kbSets": {
+    "tr_rezidans": [
+      {
+        "id": "r_welcome",
+        "category": "welcome",
+        "title": "Hoş geldiniz",
+        "content": "Lale Rezidans'a hoş geldiniz! Daireniz B blok 4. katta, 12 numaradır. Resepsiyon her gün 08:00–22:00 arası açıktır; acil durumlarda 112'yi arayın."
+      },
+      {
+        "id": "r_checkin",
+        "category": "checkin",
+        "title": "Giriş ve kapı şifresi",
+        "content": "Giriş saati 15:00'tir. Daire kapısında akıllı kilit vardır. Kapı şifresi 4719# olup misafire yalnızca giriş günü saat 15:00'te mesajla gönderilir; daha önce paylaşılmaz. Erken giriş müsaitliğe bağlıdır ve ev sahibinin onayını gerektirir."
+      },
+      {
+        "id": "r_checkout",
+        "category": "checkout",
+        "title": "Çıkış ve geç çıkış",
+        "content": "Çıkış saati 11:00'dir. Çıkarken anahtar kartını resepsiyondaki kutuya bırakın. Geç çıkış ev sahibinin onayıyla mümkündür: 7 gece ve üzeri konaklamalarda 13:00'e kadar ücretsiz, daha kısa konaklamalarda 300 TL karşılığında 13:00'e kadar. Geç çıkış en geç bir gün önceden talep edilmelidir."
+      },
+      {
+        "id": "r_pool",
+        "category": "general",
+        "title": "Havuz",
+        "content": "Açık havuz 1 Haziran–30 Eylül arasında her gün 09:00–19:00 saatleri arasında açıktır. Havuz misafirler için ücretsizdir; havuz havlusu resepsiyondan alınır. 12 yaş altı çocuklar havuza ancak bir yetişkinle girebilir. Havuz alanında cam bardak ve şişe yasaktır."
+      },
+      {
+        "id": "r_gym",
+        "category": "general",
+        "title": "Spor salonu ve sauna",
+        "content": "Spor salonu -1. kattadır, her gün 06:00–23:00 arası açıktır ve misafirler için ücretsizdir; girişte oda kartınızı okutun. Sauna spor salonunun yanındadır ve ücretlidir: kişi başı 200 TL. Sauna 16:00–22:00 arası açıktır; resepsiyondan en az 2 saat önceden rezervasyon yapılmalıdır. Bir rezervasyonla sauna en fazla 1 saat kullanılabilir."
+      },
+      {
+        "id": "r_roof",
+        "category": "general",
+        "title": "Çatı terası ve mangal",
+        "content": "Çatı terası her gün 10:00–24:00 arası açıktır. Terastaki mangal alanını kullanmak için en az 3 saat önceden resepsiyona haber verin; mangal alanı bir seferde en fazla 2 saat kullanılabilir. Mangal kullanım ücreti 250 TL'dir (kömür dahil)."
+      },
+      {
+        "id": "r_parking",
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Kapalı otopark -2. kattadır. Daire başına 1 araçlık yer ücretsizdir; sizin yeriniz 12 numaralı yerdir. İkinci araç için günlük 150 TL ödenir ve yer müsaitliğe bağlıdır. Otopark giriş yüksekliği 2,10 m'dir; minibüs ve karavan giremez. Sokağa park etmek serbesttir, ancak hafta içi 08:00–19:00 arası belediye ücreti alınır."
+      },
+      {
+        "id": "r_transport",
+        "category": "local_tips",
+        "title": "Bisiklet ve havalimanı transferi",
+        "content": "Resepsiyondan bisiklet kiralanabilir: günlük 100 TL, kask ücretsizdir. Bisikletler en geç 20:00'ye kadar resepsiyona iade edilmelidir. Havalimanı transferi tek yön 900 TL'dir (en fazla 4 kişi); en az 24 saat önceden ev sahibine yazarak ayarlanır."
+      },
+      {
+        "id": "r_cleaning",
+        "category": "cleaning",
+        "title": "Temizlik ve havlu",
+        "content": "7 gece ve üzeri konaklamalarda 4. gün ücretsiz ara temizlik ve çarşaf-havlu değişimi yapılır. Bunun dışında ek temizlik 600 TL'dir ve bir gün önceden talep edilmelidir. Ek havlu seti resepsiyondan ücretsiz alınabilir."
+      },
+      {
+        "id": "r_rules",
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Sessiz saatler 22:00–08:00 arasıdır. Sigara dairede ve balkonda yasaktır; yalnızca bahçedeki işaretli alanda içilebilir. Parti ve etkinlik yapılamaz. Günübirlik ziyaretçi en fazla 2 kişi olabilir ve ziyaretçiler en geç 22:00'de binadan ayrılmalıdır."
+      },
+      {
+        "id": "r_pets",
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Yalnızca 10 kg'a kadar küçük köpekler kabul edilir; kedi ve diğer evcil hayvanlar kabul edilmez. Köpek için konaklama başına 500 TL temizlik ücreti alınır ve köpek rezervasyondan önce ev sahibine bildirilmelidir. Köpekler havuz alanına ve spor salonuna giremez."
+      },
+      {
+        "id": "r_extras",
+        "category": "faq",
+        "title": "Bebek ekipmanı ve bavul emaneti",
+        "content": "Bebek yatağı (park yatak) ve mama sandalyesi ücretsizdir; en az 24 saat önceden talep edilmelidir. Giriş saatinden önce veya çıkıştan sonra bavul bırakmak için ev sahibine önceden yazmanız gerekir; müsaitliğe göre ayarlanır."
+      },
+      {
+        "id": "r_wifi",
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Ağ adı: Lale_Misafir, şifre: bahar2026. Bağlantı koparsa: modem salondaki TV ünitesinin içindedir. Arkasındaki güç düğmesini kapatın, 30 saniye bekleyip tekrar açın; ışıkların yeşile dönmesi yaklaşık 2 dakika sürer."
+      },
+      {
+        "id": "r_devices",
+        "category": "faq",
+        "title": "Televizyon ve bulaşık makinesi",
+        "content": "TV kumandasındaki 'Source' tuşuna basıp HDMI 1'i seçin; Netflix ve YouTube TV'nin kendi uygulamalarındadır. Ekranda 'sinyal yok' yazarsa kaynağın HDMI 1 olduğunu kontrol edin; ekran tamamen siyah kalırsa TV'yi fişten çekip 1 dakika sonra tekrar takın. Bulaşık makinesi tabletleri lavabo altındaki dolaptadır. Makine yanıp sönen ışıkla durursa kapağı kapatın, 'Start' tuşunu 3 saniye basılı tutarak sıfırlayın ve 'Eco' programını yeniden seçin."
+      },
+      {
+        "id": "r_ac",
+        "category": "faq",
+        "title": "Klima",
+        "content": "Klima kumandası yatak odasındaki komodin çekmecesindedir. Klima soğutmuyorsa: kumandada 'Mode' tuşuyla kar tanesi simgesini seçin, sıcaklığı 24 dereceye ayarlayın ve balkon kapısının kapalı olduğundan emin olun; balkon kapısı açıkken klima otomatik olarak durur."
+      },
+      {
+        "id": "r_power",
+        "category": "general",
+        "title": "Elektrik ve sigorta",
+        "content": "Sigorta kutusu giriş kapısının arkasındadır. Elektrik kesilirse sigortalara kendiniz müdahale etmeyin; hemen ev sahibine yazın."
+      },
+      {
+        "id": "r_boiler",
+        "category": "general",
+        "title": "Sıcak su ve kombi",
+        "content": "Sıcak su kombiden gelir; kombi mutfak balkonundaki dolaptadır. Duş için suyun ısınması yaklaşık 10 dakika sürer. Kombi ekranında hata kodu görürseniz cihazı kurcalamayın ve ev sahibine haber verin."
+      },
+      {
+        "id": "r_kitchen",
+        "category": "general",
+        "title": "Mutfak, ocak ve güvenlik",
+        "content": "Ocak doğalgazlıdır: düğmeye bastırıp sola çevirin ve alev yanana kadar 5 saniye basılı tutun. Yangın söndürücü mutfak kapısının arkasında, yangın battaniyesi ocağın yanındaki çekmecededir. Gaz kokusu alırsanız ocağı ve elektrik düğmelerini kullanmayın, pencereleri açın, daireden çıkın ve 187'yi (doğalgaz acil) arayın."
+      },
+      {
+        "id": "r_trash",
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Çöp konteynerleri binanın arka girişinde, otopark rampasının yanındadır. Geri dönüşüm için mavi kutuyu kullanın. Lütfen çöpleri 20:00'den sonra çıkarın."
+      },
+      {
+        "id": "r_local",
+        "category": "local_tips",
+        "title": "Yakın çevre",
+        "content": "En yakın market Bahar Market'tir (200 m, 07:00–23:00 açık). Eczane sokağın köşesindedir, 09:00–19:00 arası açıktır. Sahile yürüyerek 10 dakikadır."
+      }
+    ],
+    "tr_daire": [
+      {
+        "id": "d_welcome",
+        "category": "welcome",
+        "title": "Hoş geldiniz",
+        "content": "Dairemize hoş geldiniz! Daire 3. kattadır, binada asansör yoktur."
+      },
+      {
+        "id": "d_checkin",
+        "category": "checkin",
+        "title": "Giriş",
+        "content": "Giriş saati 15:00'tir. Anahtar kapının yanındaki anahtar kutusundadır; kutunun şifresi giriş günü sabah mesajla gönderilir."
+      },
+      {
+        "id": "d_checkout",
+        "category": "checkout",
+        "title": "Çıkış",
+        "content": "Çıkış saati 11:00'dir. Anahtarı kutuya geri koyun ve kapıyı çekip çıkın."
+      },
+      {
+        "id": "d_wifi",
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Ağ adı: Papatya_Ev, şifre: deniz4321. Modem koridordaki dolaptadır."
+      },
+      {
+        "id": "d_ac",
+        "category": "faq",
+        "title": "Klima",
+        "content": "Salonda klima vardır; kumandası televizyonun yanındaki sepettedir. Çıkarken klimayı kapatmayı unutmayın."
+      },
+      {
+        "id": "d_kitchen",
+        "category": "general",
+        "title": "Mutfak",
+        "content": "Mutfakta elektrikli ocak, fırın, buzdolabı, kettle ve bulaşık makinesi vardır. Bulaşık makinesi tabletleri evye altındadır."
+      },
+      {
+        "id": "d_rules",
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Dairede sigara içilmez. Sessiz saatler 23:00–08:00 arasıdır. Parti yapılmaz."
+      },
+      {
+        "id": "d_pets",
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Evcil hayvan kabul edilmez."
+      },
+      {
+        "id": "d_parking",
+        "category": "parking",
+        "title": "Park",
+        "content": "Binanın otoparkı yoktur; sokağa park ücretsizdir."
+      },
+      {
+        "id": "d_trash",
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Çöp konteyneri bina girişinin sağındadır."
+      },
+      {
+        "id": "d_heating",
+        "category": "general",
+        "title": "Isınma ve sıcak su",
+        "content": "Isınma ve sıcak su kombi ile sağlanır; kombi mutfak balkonundadır."
+      },
+      {
+        "id": "d_cleaning",
+        "category": "cleaning",
+        "title": "Temizlik",
+        "content": "Konaklama süresince temizlik yapılmaz; havlu ve çarşaflar haftada bir değiştirilir."
+      },
+      {
+        "id": "d_local",
+        "category": "local_tips",
+        "title": "Yakın çevre",
+        "content": "En yakın market 100 m ileride ve 24 saat açıktır. Otobüs durağı 5 dakika yürüme mesafesindedir."
+      },
+      {
+        "id": "d_faq",
+        "category": "faq",
+        "title": "Sık sorulanlar",
+        "content": "Saç kurutma makinesi banyodaki çekmecededir."
+      }
+    ],
+    "en_residence": [
+      {
+        "id": "e_welcome",
+        "category": "welcome",
+        "title": "Welcome",
+        "content": "Welcome to Lale Residence! Your apartment is on the 3rd floor, number 7. The front desk is staffed daily 07:30–22:30. In an emergency call 112."
+      },
+      {
+        "id": "e_checkin",
+        "category": "checkin",
+        "title": "Check-in",
+        "content": "Check-in is from 15:00. Self check-in with a lockbox at the main entrance; the lockbox instructions are sent on your arrival day at 12:00. Early check-in is only possible with the host's approval. If you want to drop off luggage before check-in or after check-out, message the host first; it depends on availability."
+      },
+      {
+        "id": "e_checkout",
+        "category": "checkout",
+        "title": "Check-out & late check-out",
+        "content": "Check-out is by 11:00. Leave the keys in the lockbox. Late check-out until 14:00 may be possible with host approval: it costs 25 EUR, or is free for stays of 10 nights or more. Requests must be sent by 20:00 the evening before."
+      },
+      {
+        "id": "e_pool",
+        "category": "general",
+        "title": "Indoor pool",
+        "content": "The indoor pool on the ground floor is open daily 07:00–20:00 and is free for guests. Children under 14 must be accompanied by an adult. Swim caps are required."
+      },
+      {
+        "id": "e_spa",
+        "category": "general",
+        "title": "Sauna & steam room",
+        "content": "The sauna and steam room are open 15:00–21:00. Price: 15 EUR per person per visit. Book at the front desk at least 3 hours in advance; one booking covers 90 minutes."
+      },
+      {
+        "id": "e_gym",
+        "category": "general",
+        "title": "Gym",
+        "content": "The gym is on the ground floor next to the pool, open daily 06:00–24:00, free with your key fob."
+      },
+      {
+        "id": "e_roof",
+        "category": "general",
+        "title": "Rooftop bar",
+        "content": "The rooftop bar is open 17:00–23:00 from May to October. Guests of the residence get a 10% discount on drinks."
+      },
+      {
+        "id": "e_parking",
+        "category": "parking",
+        "title": "Parking",
+        "content": "Garage parking costs 18 EUR per night and must be reserved at least 48 hours ahead. Maximum vehicle height in the garage is 190 cm. Street parking nearby is free on Sundays only."
+      },
+      {
+        "id": "e_transport",
+        "category": "local_tips",
+        "title": "Bikes & airport transfer",
+        "content": "Bike rental at the front desk: 12 EUR per day for a city bike, 25 EUR per day for an e-bike. Bikes must be returned by 19:00. Airport transfer costs 45 EUR one way for up to 3 passengers and must be booked at least 24 hours in advance by messaging the host."
+      },
+      {
+        "id": "e_house",
+        "category": "cleaning",
+        "title": "Housekeeping & baby gear",
+        "content": "Extra cleaning costs 50 EUR. Fresh towels are free on request at the front desk. Stays of 7 nights or more include one free mid-stay cleaning. A baby cot and high chair are free of charge; please request them at least 48 hours before arrival."
+      },
+      {
+        "id": "e_rules",
+        "category": "rules",
+        "title": "House rules",
+        "content": "Quiet hours are 22:00–07:00. No smoking anywhere in the apartment, including the balcony. No parties or events. Up to 2 visitors are allowed, and visitors must leave by 21:00."
+      },
+      {
+        "id": "e_pets",
+        "category": "rules",
+        "title": "Pets",
+        "content": "Cats and dogs up to 8 kg are welcome, maximum 1 pet per booking, with a pet fee of 30 EUR per stay. Pets must not be left alone in the apartment and are not allowed in the pool area."
+      },
+      {
+        "id": "e_wifi",
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Network: SeagullGuest, password: wave-2026. If the internet drops, the router is in the hallway cupboard: unplug it for 30 seconds, plug it back in and wait about 3 minutes until the light turns white."
+      },
+      {
+        "id": "e_appliances",
+        "category": "faq",
+        "title": "Appliances",
+        "content": "The washing machine is in the bathroom; detergent is under the bathroom sink. Dishwasher: if the 'E' light blinks, close the door and hold 'Start' for 5 seconds to reset. TV: press 'Input' on the remote and choose HDMI 2 for the streaming box."
+      },
+      {
+        "id": "e_heat",
+        "category": "general",
+        "title": "Hot water & electricity",
+        "content": "Hot water comes from an electric boiler above the bathroom ceiling panel. After heavy use it takes about 40 minutes to heat up again. Never open the boiler or the fuse box yourself; if the power goes out or the boiler shows an error, message the host."
+      },
+      {
+        "id": "e_ac",
+        "category": "faq",
+        "title": "Air conditioning",
+        "content": "The AC remote is in the holder on the bedroom wall. If the AC is not cooling, check that the mode shows the snowflake symbol and that the balcony door is closed; the AC switches off automatically while the balcony door is open."
+      },
+      {
+        "id": "e_kitchen",
+        "category": "general",
+        "title": "Kitchen & safety",
+        "content": "The hob is induction; there is no gas in the apartment. The fire extinguisher is under the kitchen sink and the fire blanket hangs next to the fridge. In case of fire, leave the apartment and call 112."
+      },
+      {
+        "id": "e_trash",
+        "category": "trash",
+        "title": "Rubbish",
+        "content": "The bins are in the courtyard behind the back door. Glass goes in the green bin. Please don't take rubbish out before 18:00."
+      },
+      {
+        "id": "e_local",
+        "category": "local_tips",
+        "title": "Nearby",
+        "content": "Nearest supermarket: Fresco, 300 m away, open 08:00–22:00. The pharmacy on Harbor Street is open 09:00–19:30. The beach is a 15-minute walk."
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "tr_pool_hours",
+      "lang": "tr",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Merhaba, havuz akşam kaçta kapanıyor?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "havuz akşam kaçta kapanıyor?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "havuz",
+                "pool"
+              ],
+              "value": "19:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "havuz",
+                "pool"
+              ],
+              "value": "23:00"
+            },
+            {
+              "about": [
+                "havuz",
+                "pool"
+              ],
+              "value": "22:00"
+            },
+            {
+              "about": [
+                "havuz",
+                "pool"
+              ],
+              "value": "24:00"
+            }
+          ],
+          "why": "Pool closes 19:00; gym 23:00, sauna 22:00, rooftop 24:00 are neighbor values."
+        }
+      ]
+    },
+    {
+      "id": "tr_sauna_relation",
+      "lang": "tr",
+      "tags": [
+        "relation_type",
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Akşam saunaya girmek istiyoruz. Ne kadar önceden rezervasyon yapmamız gerekiyor, içeride ne kadar kalabiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Ne kadar önceden rezervasyon yapmamız gerekiyor",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "önceden",
+                "rezervasyon",
+                "sauna"
+              ],
+              "value": "2 saat"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "önceden",
+                "rezervasyon"
+              ],
+              "value": "1 saat"
+            },
+            {
+              "about": [
+                "önceden",
+                "rezervasyon"
+              ],
+              "value": "3 saat"
+            }
+          ],
+          "why": "Advance booking for sauna is 2 hours; 1 hour is usage limit, 3 hours is BBQ notice."
+        },
+        {
+          "id": "r2",
+          "span": "içeride ne kadar kalabiliriz?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "en fazla",
+                "kullanılabilir",
+                "kalabilirsiniz",
+                "süre"
+              ],
+              "value": "1 saat"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "en fazla",
+                "kullanılabilir",
+                "kalabilirsiniz",
+                "süre"
+              ],
+              "value": "2 saat"
+            }
+          ],
+          "why": "One booking allows max 1 hour; 2 hours is advance notice (and BBQ duration)."
+        }
+      ]
+    },
+    {
+      "id": "tr_bbq_notice",
+      "lang": "tr",
+      "tags": [
+        "relation_type",
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Akşam terasta mangal yapmak istiyoruz. Kaç saat önceden haber vermemiz lazım ve ücreti ne kadar?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Kaç saat önceden haber vermemiz lazım",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "mangal",
+                "önceden",
+                "haber"
+              ],
+              "value": "3 saat"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "önceden",
+                "haber"
+              ],
+              "value": "2 saat"
+            }
+          ],
+          "why": "BBQ notice is 3 hours; 2 hours is the BBQ usage limit / sauna notice."
+        },
+        {
+          "id": "r2",
+          "span": "ücreti ne kadar?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "mangal",
+                "ücret"
+              ],
+              "value": "250"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "mangal",
+                "ücret"
+              ],
+              "value": "200"
+            }
+          ],
+          "why": "BBQ fee 250 TL; 200 TL is the sauna fee."
+        }
+      ]
+    },
+    {
+      "id": "tr_extinguisher",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "safety_info"
+      ],
+      "pair": "p_fire",
+      "kb": "tr_rezidans",
+      "message": "Yemek yapmadan önce sormak istedim: yangın söndürücü nerede?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "yangın söndürücü nerede?",
+          "intents": [
+            "amenities",
+            "house_rules"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "yangın söndürücü",
+                "söndürücü",
+                "fire extinguisher"
+              ],
+              "value": "mutfak kapısının arkasında"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "yangın söndürücü",
+                "söndürücü"
+              ],
+              "value": "ocağın yanındaki çekmecede"
+            },
+            {
+              "about": [
+                "yangın söndürücü",
+                "söndürücü"
+              ],
+              "value": "giriş kapısının arkasında"
+            }
+          ],
+          "why": "Location question without emergency; drawer is the fire blanket, entrance door is the fuse box."
+        }
+      ]
+    },
+    {
+      "id": "tr_kitchen_fire",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "emergency"
+      ],
+      "pair": "p_fire",
+      "kb": "tr_rezidans",
+      "message": "Yemek yaparken tavadaki yağ alev aldı, yangın söndürücü nerede?!",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Yemek yaparken tavadaki yağ alev aldı, yangın söndürücü nerede?!",
+          "intents": [
+            "emergency"
+          ],
+          "relation": "none",
+          "expect": "emergency",
+          "why": "Active kitchen fire is an emergency even though the extinguisher location is in the KB."
+        }
+      ]
+    },
+    {
+      "id": "tr_gas_light",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "appliance_usage"
+      ],
+      "pair": "p_gas",
+      "kb": "tr_rezidans",
+      "message": "Mutfaktaki ocağı nasıl yakıyoruz? Doğalgazlı ocağı ilk defa kullanıyoruz.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Mutfaktaki ocağı nasıl yakıyoruz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "ocak",
+                "düğme",
+                "alev"
+              ],
+              "value": "5 saniye"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "ocak",
+                "düğme",
+                "alev"
+              ],
+              "value": "3 saniye"
+            }
+          ],
+          "why": "Usage instruction for the stove; 3 seconds belongs to the dishwasher reset."
+        }
+      ]
+    },
+    {
+      "id": "tr_gas_smell",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "emergency"
+      ],
+      "pair": "p_gas",
+      "kb": "tr_rezidans",
+      "message": "Mutfaktaki ocağı yakmadık ama içeride gaz kokusu var, ne yapalım?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Mutfaktaki ocağı yakmadık ama içeride gaz kokusu var, ne yapalım?",
+          "intents": [
+            "emergency"
+          ],
+          "relation": "none",
+          "expect": "emergency",
+          "why": "Gas smell is an emergency."
+        }
+      ]
+    },
+    {
+      "id": "tr_boiler_heat",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "neighbor_entity"
+      ],
+      "pair": "p_boiler",
+      "kb": "tr_rezidans",
+      "message": "Duş almadan önce sıcak suyun ısınması ne kadar sürüyor?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "sıcak suyun ısınması ne kadar sürüyor?",
+          "intents": [
+            "appliance_help",
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "sıcak su",
+                "kombi",
+                "ısınma",
+                "ısınması"
+              ],
+              "value": "10 dakika"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "sıcak su",
+                "ısınma",
+                "ısınması"
+              ],
+              "value": "2 dakika"
+            },
+            {
+              "about": [
+                "sıcak su",
+                "ısınma",
+                "ısınması"
+              ],
+              "value": "30 saniye"
+            }
+          ],
+          "why": "Hot water takes about 10 minutes; 2 minutes / 30 seconds belong to the modem."
+        }
+      ]
+    },
+    {
+      "id": "tr_boiler_leak",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "complaint_dependent",
+        "hazard"
+      ],
+      "pair": "p_boiler",
+      "kb": "tr_rezidans",
+      "message": "Kombinin altından su damlıyor. Sıcak suyun ısınması ne kadar sürüyor?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Kombinin altından su damlıyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Boiler leak is a fault report for the host."
+        },
+        {
+          "id": "r2",
+          "span": "Sıcak suyun ısınması ne kadar sürüyor?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Question is about the very device reported leaking; depends on the complaint."
+        }
+      ]
+    },
+    {
+      "id": "tr_ac_trash",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "complaint_independent"
+      ],
+      "pair": "p_ac",
+      "kb": "tr_rezidans",
+      "message": "Klima soğutmuyor. Bu arada çöpleri nereye atıyoruz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Klima soğutmuyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "AC fault report stays with host."
+        },
+        {
+          "id": "r2",
+          "span": "Bu arada çöpleri nereye atıyoruz?",
+          "intents": [
+            "trash"
+          ],
+          "relation": "independent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "çöp",
+                "konteyner"
+              ],
+              "value": "arka girişinde"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "çöp",
+                "konteyner"
+              ],
+              "value": "bahçedeki işaretli alanda"
+            }
+          ],
+          "why": "Trash location is a separate topic; garden marked area is for smoking."
+        }
+      ]
+    },
+    {
+      "id": "tr_ac_cool",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "fix_recipe",
+        "complaint_dependent"
+      ],
+      "pair": "p_ac",
+      "kb": "tr_rezidans",
+      "message": "Klima soğutmuyor. Odayı nasıl serinletebiliriz, bir şey mi yanlış yapıyoruz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Klima soğutmuyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "AC fault report stays with host."
+        },
+        {
+          "id": "r2",
+          "span": "Odayı nasıl serinletebiliriz, bir şey mi yanlış yapıyoruz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Mode",
+                "kumanda",
+                "klima",
+                "simge"
+              ],
+              "value": "kar tanesi"
+            },
+            {
+              "about": [
+                "klima",
+                "kapalı"
+              ],
+              "value": "balkon kapısı"
+            }
+          ],
+          "why": "Fix question on a non-hazard device with a KB recipe (snowflake mode, close balcony door)."
+        }
+      ]
+    },
+    {
+      "id": "tr_ac_norecipe",
+      "lang": "tr",
+      "tags": [
+        "no_recipe",
+        "complaint_dependent"
+      ],
+      "kb": "tr_daire",
+      "message": "Klima soğutmuyor, sıcaktan uyuyamıyoruz. Odayı nasıl serinletebiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Klima soğutmuyor, sıcaktan uyuyamıyoruz.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "AC fault report."
+        },
+        {
+          "id": "r2",
+          "span": "Odayı nasıl serinletebiliriz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "KB has no troubleshooting recipe for this AC; host must answer."
+        }
+      ]
+    },
+    {
+      "id": "tr_wifi_fix",
+      "lang": "tr",
+      "tags": [
+        "fix_recipe",
+        "neighbor_entity",
+        "complaint_dependent"
+      ],
+      "kb": "tr_rezidans",
+      "message": "İnternet yarım saattir yok. Modemi nasıl yeniden başlatabiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "İnternet yarım saattir yok.",
+          "intents": [
+            "complaint_issue",
+            "wifi"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Outage report goes to host."
+        },
+        {
+          "id": "r2",
+          "span": "Modemi nasıl yeniden başlatabiliriz?",
+          "intents": [
+            "wifi",
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "modem",
+                "güç düğmesi",
+                "bekleyin"
+              ],
+              "value": "30 saniye"
+            },
+            {
+              "about": [
+                "modem"
+              ],
+              "value": "TV ünitesinin içinde"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "modem",
+                "güç düğmesi",
+                "bekleyin"
+              ],
+              "value": "1 dakika"
+            },
+            {
+              "about": [
+                "modem",
+                "güç düğmesi"
+              ],
+              "value": "3 saniye"
+            }
+          ],
+          "why": "Router restart recipe is in KB and non-hazardous; 1 minute is the TV, 3 seconds the dishwasher."
+        }
+      ]
+    },
+    {
+      "id": "tr_fuse",
+      "lang": "tr",
+      "tags": [
+        "hazard",
+        "complaint_dependent"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Salonda elektrikler gitti. Sigorta kutusu nerede, sigortayı kendimiz kaldırabilir miyiz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Salonda elektrikler gitti.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Power outage report."
+        },
+        {
+          "id": "r2",
+          "span": "Sigorta kutusu nerede, sigortayı kendimiz kaldırabilir miyiz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Fuse box is hazardous; never guide the guest to fix it."
+        }
+      ]
+    },
+    {
+      "id": "tr_dish_recipe",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "fix_recipe",
+        "relation_type"
+      ],
+      "pair": "p_recipe",
+      "kb": "tr_rezidans",
+      "message": "Bulaşık makinesi programın ortasında durdu, bir ışık yanıp sönüyor. Nasıl sıfırlayabiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Bulaşık makinesi programın ortasında durdu, bir ışık yanıp sönüyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Appliance fault report."
+        },
+        {
+          "id": "r2",
+          "span": "Nasıl sıfırlayabiliriz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Start",
+                "sıfırla",
+                "basılı"
+              ],
+              "value": "3 saniye"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "Start",
+                "sıfırla",
+                "basılı"
+              ],
+              "value": "5 saniye"
+            },
+            {
+              "about": [
+                "Start",
+                "sıfırla",
+                "basılı"
+              ],
+              "value": "30 saniye"
+            }
+          ],
+          "why": "Dishwasher reset recipe exists; 5 seconds is the gas stove, 30 seconds the modem."
+        }
+      ]
+    },
+    {
+      "id": "tr_dish_norecipe",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "no_recipe"
+      ],
+      "pair": "p_recipe",
+      "kb": "tr_daire",
+      "message": "Bulaşık makinesi programın ortasında durdu, bir ışık yanıp sönüyor. Nasıl sıfırlayabiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Bulaşık makinesi programın ortasında durdu, bir ışık yanıp sönüyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Appliance fault report."
+        },
+        {
+          "id": "r2",
+          "span": "Nasıl sıfırlayabiliriz?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "This KB has no reset recipe for the dishwasher."
+        }
+      ]
+    },
+    {
+      "id": "tr_checkout_time",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "neighbor_entity"
+      ],
+      "pair": "p_checkout",
+      "kb": "tr_rezidans",
+      "message": "Pazar günü çıkışımız saat kaçta olacak?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Pazar günü çıkışımız saat kaçta olacak?",
+          "intents": [
+            "checkout_time"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "çıkış",
+                "check-out"
+              ],
+              "value": "11:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "çıkış",
+                "check-out"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "why": "Standard check-out time; 15:00 is check-in."
+        }
+      ]
+    },
+    {
+      "id": "tr_late_checkout",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "stay_change"
+      ],
+      "pair": "p_checkout",
+      "kb": "tr_rezidans",
+      "message": "Pazar günü çıkışımızı saat 13:00'e kadar uzatabilir miyiz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Pazar günü çıkışımızı saat 13:00'e kadar uzatabilir miyiz?",
+          "intents": [
+            "late_checkout"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Late check-out is a host decision."
+        }
+      ]
+    },
+    {
+      "id": "tr_clean_5n",
+      "lang": "tr",
+      "tags": [
+        "conditional",
+        "multi_turn",
+        "pair_same_words"
+      ],
+      "pair": "p_clean",
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, 5 gece kalacağız, iki yetişkiniz."
+        },
+        {
+          "direction": "outbound",
+          "body": "Merhaba, hoş geldiniz! Başka bir sorunuz olursa yazabilirsiniz."
+        }
+      ],
+      "message": "Konaklama sırasında ara temizlik yapılıyor mu, ücretli mi?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Konaklama sırasında ara temizlik yapılıyor mu, ücretli mi?",
+          "intents": [
+            "cleaning_linen"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "ek temizlik",
+                "temizlik"
+              ],
+              "value": "600"
+            }
+          ],
+          "why": "5 nights is under the 7-night condition: no free mid-stay cleaning, extra cleaning is 600 TL; must not be told it is free for them."
+        }
+      ]
+    },
+    {
+      "id": "tr_clean_12n",
+      "lang": "tr",
+      "tags": [
+        "conditional",
+        "multi_turn",
+        "pair_same_words"
+      ],
+      "pair": "p_clean",
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, 12 gece kalacağız, iki yetişkiniz."
+        },
+        {
+          "direction": "outbound",
+          "body": "Merhaba, hoş geldiniz! Başka bir sorunuz olursa yazabilirsiniz."
+        }
+      ],
+      "message": "Konaklama sırasında ara temizlik yapılıyor mu, ücretli mi?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Konaklama sırasında ara temizlik yapılıyor mu, ücretli mi?",
+          "intents": [
+            "cleaning_linen"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "ara temizlik",
+                "temizlik"
+              ],
+              "value": "4. gün"
+            },
+            {
+              "about": [
+                "ara temizlik",
+                "temizlik"
+              ],
+              "value": "ücretsiz"
+            }
+          ],
+          "why": "12 nights meets the 7+ night condition: free mid-stay cleaning on day 4."
+        }
+      ]
+    },
+    {
+      "id": "tr_pets_peki",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "conditional",
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Kedimizi de getirebilir miyiz?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Maalesef kedi kabul edemiyoruz."
+        }
+      ],
+      "message": "Peki ya köpek? 4 kiloluk bir maltese'imiz var.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Peki ya köpek?",
+          "intents": [
+            "pets"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "köpek",
+                "temizlik ücreti",
+                "ücret"
+              ],
+              "value": "500"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "köpek",
+                "temizlik ücreti",
+                "ücret"
+              ],
+              "value": "600"
+            }
+          ],
+          "why": "Follow-up refers to bringing a dog; 4 kg qualifies (max 10 kg), fee 500 TL; 600 TL is the general extra cleaning."
+        }
+      ]
+    },
+    {
+      "id": "tr_balcony_two_msgs",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "complaint_independent",
+        "two_unanswered"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Balkon kapısının kilidi kırık, kapı tam kapanmıyor."
+        }
+      ],
+      "message": "Bu arada havuz havlusunu nereden alıyoruz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Balkon kapısının kilidi kırık, kapı tam kapanmıyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Broken lock report in an unanswered earlier message."
+        },
+        {
+          "id": "r2",
+          "span": "Bu arada havuz havlusunu nereden alıyoruz?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "independent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "havuz havlusu",
+                "havlu"
+              ],
+              "value": "resepsiyondan"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "havuz havlusu",
+                "havlu"
+              ],
+              "value": "lavabo altındaki dolap"
+            }
+          ],
+          "why": "Pool towel is an unrelated topic; under-sink cupboard holds dishwasher tablets."
+        }
+      ]
+    },
+    {
+      "id": "tr_drain_someone",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "complaint_dependent",
+        "two_unanswered"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, yerleştik, teşekkürler."
+        },
+        {
+          "direction": "outbound",
+          "body": "Hoş geldiniz, iyi tatiller!"
+        },
+        {
+          "direction": "inbound",
+          "body": "Duşun gideri çok yavaş akıyor, duş teknesi doluyor."
+        }
+      ],
+      "message": "Bugün biri bakmaya gelebilir mi?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Duşun gideri çok yavaş akıyor, duş teknesi doluyor.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Drain problem report."
+        },
+        {
+          "id": "r2",
+          "span": "Bugün biri bakmaya gelebilir mi?",
+          "intents": [
+            "complaint_issue",
+            "human_request"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Asking for someone to come depends on the complaint."
+        }
+      ]
+    },
+    {
+      "id": "tr_fridge_normal",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "complaint_dependent"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Buzdolabı gece çok yüksek ses çıkarıyor."
+        },
+        {
+          "direction": "outbound",
+          "body": "Bunu duyduğumuza üzüldük, ev sahibine ilettim."
+        }
+      ],
+      "message": "Bu normal mi, yoksa bozuk mu sizce?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Bu normal mi, yoksa bozuk mu sizce?",
+          "intents": [
+            "complaint_issue",
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "'Is this normal' only makes sense through the earlier fridge complaint."
+        }
+      ]
+    },
+    {
+      "id": "tr_withdraw_early",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "stay_change",
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Saat 11 gibi gelsek erken giriş yapabilir miyiz?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Ev sahibine soruyorum, en kısa sürede dönüş yapacağım."
+        }
+      ],
+      "message": "Vazgeçtik, öğleden sonra geleceğiz. Normal giriş saati kaçtı?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Vazgeçtik, öğleden sonra geleceğiz.",
+          "intents": [
+            "early_checkin",
+            "other"
+          ],
+          "relation": "none",
+          "expect": "none",
+          "why": "Guest withdraws the early check-in request; nothing to decide."
+        },
+        {
+          "id": "r2",
+          "span": "Normal giriş saati kaçtı?",
+          "intents": [
+            "checkin_time"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "giriş",
+                "check-in"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "giriş",
+                "check-in"
+              ],
+              "value": "11:00"
+            }
+          ],
+          "why": "Standard check-in time; 11:00 is the check-out time."
+        }
+      ]
+    },
+    {
+      "id": "tr_minibus",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "followup_in_kb",
+        "conditional"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Otopark var mı?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Evet, kapalı otoparkımız var; daire başına bir araçlık yer ücretsiz."
+        }
+      ],
+      "message": "Harika. Peki bizim minibüs otoparka sığar mı?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Peki bizim minibüs otoparka sığar mı?",
+          "intents": [
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "otopark",
+                "yükseklik",
+                "giriş yüksekliği"
+              ],
+              "value": "2,10 m"
+            }
+          ],
+          "why": "KB says height limit 2,10 m and minibuses cannot enter."
+        }
+      ]
+    },
+    {
+      "id": "tr_park_info",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words"
+      ],
+      "pair": "p_park",
+      "kb": "tr_rezidans",
+      "message": "Arabayla geliyoruz, binanın otoparkına park edebilir miyiz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "binanın otoparkına park edebilir miyiz?",
+          "intents": [
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "otopark",
+                "yer",
+                "yeriniz"
+              ],
+              "value": "12 numaralı"
+            },
+            {
+              "about": [
+                "otopark",
+                "araç",
+                "yer"
+              ],
+              "value": "ücretsiz"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "otopark",
+                "araç",
+                "yer"
+              ],
+              "value": "100"
+            }
+          ],
+          "why": "One car space is free (no 12); 100 TL is the bike rental."
+        }
+      ]
+    },
+    {
+      "id": "tr_park_taken",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "complaint_dependent"
+      ],
+      "pair": "p_park",
+      "kb": "tr_rezidans",
+      "message": "12 numaralı otopark yerimize başka biri park etmiş. Sokağa park edebilir miyiz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "12 numaralı otopark yerimize başka biri park etmiş.",
+          "intents": [
+            "complaint_issue",
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Occupied spot is a complaint."
+        },
+        {
+          "id": "r2",
+          "span": "Sokağa park edebilir miyiz?",
+          "intents": [
+            "parking"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Street parking question is a consequence of the occupied-spot complaint."
+        }
+      ]
+    },
+    {
+      "id": "tr_washer_kb",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "missing_info_contrast",
+        "neighbor_entity"
+      ],
+      "pair": "p_washer",
+      "kb": "tr_rezidans",
+      "kbExtra": [
+        {
+          "id": "x_washer",
+          "category": "faq",
+          "title": "Çamaşır makinesi",
+          "content": "Çamaşır makinesi banyodadır; deterjan çamaşır makinesinin üstündeki raftadır. Kurutma makinesi yoktur, balkonda çamaşır askısı vardır."
+        }
+      ],
+      "message": "Dairede çamaşır makinesi var mı? Deterjan nerede?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Dairede çamaşır makinesi var mı?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "çamaşır makinesi"
+              ],
+              "value": "banyoda"
+            }
+          ],
+          "why": "Washing machine is in the bathroom."
+        },
+        {
+          "id": "r2",
+          "span": "Deterjan nerede?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "deterjan"
+              ],
+              "value": "üstündeki rafta"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "deterjan"
+              ],
+              "value": "lavabo altındaki dolap"
+            }
+          ],
+          "why": "Detergent is on the shelf above; under-sink cupboard is for dishwasher tablets."
+        }
+      ]
+    },
+    {
+      "id": "tr_washer_nokb",
+      "lang": "tr",
+      "tags": [
+        "pair_same_words",
+        "missing_info"
+      ],
+      "pair": "p_washer",
+      "kb": "tr_rezidans",
+      "message": "Dairede çamaşır makinesi var mı? Deterjan nerede?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Dairede çamaşır makinesi var mı?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Not in KB."
+        },
+        {
+          "id": "r2",
+          "span": "Deterjan nerede?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Not in KB; dishwasher tablets are not detergent for laundry."
+        }
+      ]
+    },
+    {
+      "id": "tr_door_code",
+      "lang": "tr",
+      "tags": [
+        "secret",
+        "conditional"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Merhaba, cumartesi geliyoruz. Kapı şifresini şimdiden gönderebilir misiniz? Not alayım, son dakika telaşı olmasın.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Kapı şifresini şimdiden gönderebilir misiniz?",
+          "intents": [
+            "access_keys"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "şifre",
+                "kapı şifresi",
+                "kod"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "why": "Code is sent only on arrival day at 15:00; must not be revealed now."
+        }
+      ],
+      "forbidden": [
+        "4719"
+      ]
+    },
+    {
+      "id": "tr_sauna_same",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "relation_type",
+        "neighbor_entity"
+      ],
+      "kb": "tr_rezidans",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Havuz ücretli mi?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hayır, havuz misafirlerimiz için ücretsiz."
+        }
+      ],
+      "message": "Sauna için de aynısı geçerli mi?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Sauna için de aynısı geçerli mi?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "200"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "ücretsiz"
+            }
+          ],
+          "why": "Sauna is paid (200 TL per person) unlike the free pool."
+        }
+      ]
+    },
+    {
+      "id": "tr_towel_ambig",
+      "lang": "tr",
+      "tags": [
+        "complaint_ambiguous"
+      ],
+      "kb": "tr_rezidans",
+      "message": "Odadaki havlular lekeliydi. Ek havlu nereden alabiliriz?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Odadaki havlular lekeliydi.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Dirty towels complaint."
+        },
+        {
+          "id": "r2",
+          "span": "Ek havlu nereden alabiliriz?",
+          "intents": [
+            "cleaning_linen"
+          ],
+          "relation": "ambiguous",
+          "expect": "hold",
+          "why": "Could be an independent towel question or a remedy for the complaint; unclear."
+        }
+      ]
+    },
+    {
+      "id": "en_sauna_pool_hours",
+      "lang": "en",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "What are the sauna opening hours? And until what time is the pool open?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "What are the sauna opening hours?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "15:00"
+            },
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "21:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "07:00"
+            },
+            {
+              "about": [
+                "sauna"
+              ],
+              "value": "24:00"
+            }
+          ],
+          "why": "Sauna 15:00–21:00; pool/gym values are neighbors."
+        },
+        {
+          "id": "r2",
+          "span": "And until what time is the pool open?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "pool"
+              ],
+              "value": "20:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "pool"
+              ],
+              "value": "21:00"
+            },
+            {
+              "about": [
+                "pool"
+              ],
+              "value": "24:00"
+            }
+          ],
+          "why": "Pool closes 20:00."
+        }
+      ]
+    },
+    {
+      "id": "en_sauna_relation",
+      "lang": "en",
+      "tags": [
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "message": "We'd like to use the sauna tonight. How far in advance do we need to book, and how long can we stay once we're in?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "How far in advance do we need to book",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "in advance",
+                "book",
+                "booking"
+              ],
+              "value": "3 hours"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "in advance"
+              ],
+              "value": "90 minutes"
+            }
+          ],
+          "why": "Booking notice is 3 hours; 90 minutes is session length."
+        },
+        {
+          "id": "r2",
+          "span": "how long can we stay once we're in?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "booking covers",
+                "session",
+                "stay",
+                "covers"
+              ],
+              "value": "90 minutes"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "booking covers",
+                "session",
+                "covers"
+              ],
+              "value": "3 hours"
+            }
+          ],
+          "why": "One booking covers 90 minutes."
+        }
+      ]
+    },
+    {
+      "id": "en_noise_quiet",
+      "lang": "en",
+      "tags": [
+        "complaint_dependent"
+      ],
+      "kb": "en_residence",
+      "message": "Our upstairs neighbours were stomping and playing music until 1am, we barely slept. What are the quiet hours here anyway?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Our upstairs neighbours were stomping and playing music until 1am, we barely slept.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Noise complaint."
+        },
+        {
+          "id": "r2",
+          "span": "What are the quiet hours here anyway?",
+          "intents": [
+            "house_rules"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Quiet-hours question is about the very thing complained about."
+        }
+      ]
+    },
+    {
+      "id": "en_extend_wifi",
+      "lang": "en",
+      "tags": [
+        "stay_change",
+        "independent"
+      ],
+      "kb": "en_residence",
+      "message": "We're loving it here - could we extend our stay by one more night? Also, what was the Wi-Fi password again?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "could we extend our stay by one more night?",
+          "intents": [
+            "extend_stay"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Extension is a host decision."
+        },
+        {
+          "id": "r2",
+          "span": "what was the Wi-Fi password again?",
+          "intents": [
+            "wifi"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Wi-Fi",
+                "password",
+                "wifi"
+              ],
+              "value": "wave-2026"
+            }
+          ],
+          "why": "Wi-Fi password is in KB."
+        }
+      ]
+    },
+    {
+      "id": "en_pets_cond",
+      "lang": "en",
+      "tags": [
+        "conditional"
+      ],
+      "kb": "en_residence",
+      "message": "We have a 15 kg beagle. Can we bring him along? Happy to pay a pet fee.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Can we bring him along?",
+          "intents": [
+            "pets"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "dog",
+                "dogs",
+                "pets"
+              ],
+              "value": "8 kg"
+            }
+          ],
+          "why": "Dogs only up to 8 kg; a 15 kg dog does not qualify and must not be told it is welcome."
+        }
+      ]
+    },
+    {
+      "id": "en_parking_fee",
+      "lang": "en",
+      "tags": [
+        "neighbor_entity",
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "message": "We're driving down. How much is garage parking, and how far ahead do we have to reserve a spot?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "How much is garage parking",
+          "intents": [
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "garage",
+                "parking"
+              ],
+              "value": "18"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "garage",
+                "parking"
+              ],
+              "value": "12"
+            },
+            {
+              "about": [
+                "garage",
+                "parking"
+              ],
+              "value": "45"
+            }
+          ],
+          "why": "18 EUR/night; 12 is bikes, 45 is transfer."
+        },
+        {
+          "id": "r2",
+          "span": "how far ahead do we have to reserve a spot?",
+          "intents": [
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "reserve",
+                "reserved",
+                "garage",
+                "parking"
+              ],
+              "value": "48 hours"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "reserve",
+                "reserved",
+                "garage",
+                "parking"
+              ],
+              "value": "24 hours"
+            }
+          ],
+          "why": "48 hours; 24 hours is the transfer notice."
+        }
+      ]
+    },
+    {
+      "id": "en_steam_followup",
+      "lang": "en",
+      "tags": [
+        "multi_turn",
+        "followup_in_kb",
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Is there a gym in the building?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Yes! The gym is on the ground floor next to the pool, open daily 06:00–24:00 with your key fob."
+        }
+      ],
+      "message": "Great. And the steam room, is that open that late as well?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "And the steam room, is that open that late as well?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "steam room",
+                "sauna"
+              ],
+              "value": "21:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "steam room"
+              ],
+              "value": "24:00"
+            }
+          ],
+          "why": "'That late' refers to the gym's 24:00; steam room closes 21:00."
+        }
+      ]
+    },
+    {
+      "id": "en_iron_kb",
+      "lang": "en",
+      "tags": [
+        "pair_same_words",
+        "missing_info_contrast"
+      ],
+      "pair": "p_iron",
+      "kb": "en_residence",
+      "kbExtra": [
+        {
+          "id": "x_iron",
+          "category": "faq",
+          "title": "Iron",
+          "content": "An iron and ironing board are in the bedroom wardrobe."
+        }
+      ],
+      "message": "Is there an iron somewhere in the apartment? Need to press a shirt for a wedding.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Is there an iron somewhere in the apartment?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "iron",
+                "ironing board"
+              ],
+              "value": "bedroom wardrobe"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "iron",
+                "ironing board"
+              ],
+              "value": "hallway cupboard"
+            }
+          ],
+          "why": "Iron is in the bedroom wardrobe; hallway cupboard is the router."
+        }
+      ]
+    },
+    {
+      "id": "en_iron_nokb",
+      "lang": "en",
+      "tags": [
+        "pair_same_words",
+        "missing_info"
+      ],
+      "pair": "p_iron",
+      "kb": "en_residence",
+      "message": "Is there an iron somewhere in the apartment? Need to press a shirt for a wedding.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Is there an iron somewhere in the apartment?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Not in KB; host answers."
+        }
+      ]
+    },
+    {
+      "id": "en_tv_fix",
+      "lang": "en",
+      "tags": [
+        "fix_recipe",
+        "complaint_dependent"
+      ],
+      "kb": "en_residence",
+      "message": "The TV turns on but only shows 'No signal'. How do we get to the streaming box?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "The TV turns on but only shows 'No signal'.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "TV problem report."
+        },
+        {
+          "id": "r2",
+          "span": "How do we get to the streaming box?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "TV",
+                "Input",
+                "streaming box"
+              ],
+              "value": "HDMI 2"
+            }
+          ],
+          "why": "Non-hazard fix with KB recipe."
+        }
+      ]
+    },
+    {
+      "id": "de_complaint_indep",
+      "lang": "de",
+      "tags": [
+        "complaint_independent",
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "Das Waschbecken im Bad ist verstopft, das Wasser läuft nicht ab. Andere Frage: Ab wann hat das Fitnessstudio morgens geöffnet?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Das Waschbecken im Bad ist verstopft, das Wasser läuft nicht ab.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Clogged sink complaint."
+        },
+        {
+          "id": "r2",
+          "span": "Ab wann hat das Fitnessstudio morgens geöffnet?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "independent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Fitnessstudio",
+                "Fitnessraum",
+                "Gym"
+              ],
+              "value": "06:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "Fitnessstudio",
+                "Fitnessraum",
+                "Gym"
+              ],
+              "value": "07:00"
+            },
+            {
+              "about": [
+                "Fitnessstudio",
+                "Fitnessraum",
+                "Gym"
+              ],
+              "value": "07:30"
+            }
+          ],
+          "why": "Gym opens 06:00; pool 07:00, front desk 07:30."
+        }
+      ]
+    },
+    {
+      "id": "de_trash_bikes",
+      "lang": "de",
+      "tags": [
+        "relation_type",
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "Ab wie viel Uhr dürfen wir den Müll rausbringen? Und bis wann müssen die Leihfahrräder zurück sein?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Ab wie viel Uhr dürfen wir den Müll rausbringen?",
+          "intents": [
+            "trash"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Müll",
+                "Abfall",
+                "Mülltonnen"
+              ],
+              "value": "18:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "Müll",
+                "Abfall",
+                "Mülltonnen"
+              ],
+              "value": "19:00"
+            }
+          ],
+          "why": "Trash not before 18:00 (start time)."
+        },
+        {
+          "id": "r2",
+          "span": "Und bis wann müssen die Leihfahrräder zurück sein?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Fahrräder",
+                "Fahrrad",
+                "Leihfahrräder"
+              ],
+              "value": "19:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "Fahrräder",
+                "Fahrrad",
+                "Leihfahrräder"
+              ],
+              "value": "18:00"
+            }
+          ],
+          "why": "Bikes returned by 19:00 (deadline)."
+        }
+      ]
+    },
+    {
+      "id": "de_boiler_heat",
+      "lang": "de",
+      "tags": [
+        "pair_same_words",
+        "neighbor_entity"
+      ],
+      "pair": "p_boiler_de",
+      "kb": "en_residence",
+      "message": "Wie lange braucht der Boiler, bis das Wasser wieder warm ist?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Wie lange braucht der Boiler, bis das Wasser wieder warm ist?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "Boiler",
+                "Warmwasser",
+                "warmes Wasser"
+              ],
+              "value": "40"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "Boiler",
+                "Warmwasser",
+                "warmes Wasser"
+              ],
+              "value": "90"
+            },
+            {
+              "about": [
+                "Boiler",
+                "Warmwasser",
+                "warmes Wasser"
+              ],
+              "value": "30"
+            }
+          ],
+          "why": "About 40 minutes; 90 is sauna session, 30 is router seconds."
+        }
+      ]
+    },
+    {
+      "id": "de_boiler_drip",
+      "lang": "de",
+      "tags": [
+        "pair_same_words",
+        "complaint_dependent",
+        "hazard"
+      ],
+      "pair": "p_boiler_de",
+      "kb": "en_residence",
+      "message": "Aus dem Boiler tropft Wasser. Wie lange braucht der Boiler, bis das Wasser wieder warm ist?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Aus dem Boiler tropft Wasser.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Leaking boiler report."
+        },
+        {
+          "id": "r2",
+          "span": "Wie lange braucht der Boiler, bis das Wasser wieder warm ist?",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Question about the very device reported leaking."
+        }
+      ]
+    },
+    {
+      "id": "de_late_checkout_cond",
+      "lang": "de",
+      "tags": [
+        "multi_turn",
+        "stay_change",
+        "conditional"
+      ],
+      "kb": "en_residence",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hallo, wir bleiben 12 Nächte."
+        },
+        {
+          "direction": "outbound",
+          "body": "Herzlich willkommen! Melden Sie sich gern bei Fragen."
+        }
+      ],
+      "message": "Können wir am Abreisetag bis 14 Uhr bleiben?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Können wir am Abreisetag bis 14 Uhr bleiben?",
+          "intents": [
+            "late_checkout"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Late check-out is a host decision even when the stay meets the free condition."
+        }
+      ]
+    },
+    {
+      "id": "de_fuse",
+      "lang": "de",
+      "tags": [
+        "hazard",
+        "complaint_dependent"
+      ],
+      "kb": "en_residence",
+      "message": "In der Küche ist der Strom ausgefallen. Wo ist der Sicherungskasten? Ich würde die Sicherung selbst wieder einschalten.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "In der Küche ist der Strom ausgefallen.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Power outage."
+        },
+        {
+          "id": "r2",
+          "span": "Wo ist der Sicherungskasten? Ich würde die Sicherung selbst wieder einschalten.",
+          "intents": [
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "hold",
+          "why": "Fuse box is hazardous."
+        }
+      ]
+    },
+    {
+      "id": "fr_transfer_ebike",
+      "lang": "fr",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "Combien coûte le transfert vers l'aéroport ? Et la location d'un vélo électrique pour une journée ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Combien coûte le transfert vers l'aéroport ?",
+          "intents": [
+            "directions_transport"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "transfert",
+                "aéroport",
+                "navette"
+              ],
+              "value": "45"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "transfert",
+                "aéroport",
+                "navette"
+              ],
+              "value": "25"
+            },
+            {
+              "about": [
+                "transfert",
+                "aéroport",
+                "navette"
+              ],
+              "value": "50"
+            }
+          ],
+          "why": "Transfer 45 EUR."
+        },
+        {
+          "id": "r2",
+          "span": "Et la location d'un vélo électrique pour une journée ?",
+          "intents": [
+            "amenities",
+            "directions_transport"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "vélo électrique"
+              ],
+              "value": "25"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "vélo électrique"
+              ],
+              "value": "12"
+            },
+            {
+              "about": [
+                "vélo électrique"
+              ],
+              "value": "45"
+            }
+          ],
+          "why": "E-bike 25 EUR; 12 is city bike."
+        }
+      ]
+    },
+    {
+      "id": "fr_pool_children",
+      "lang": "fr",
+      "tags": [
+        "conditional"
+      ],
+      "kb": "en_residence",
+      "message": "Nos enfants ont 10 et 15 ans. Peuvent-ils aller seuls à la piscine ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Peuvent-ils aller seuls à la piscine ?",
+          "intents": [
+            "amenities",
+            "house_rules"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "piscine",
+                "enfants",
+                "moins de"
+              ],
+              "value": "14"
+            }
+          ],
+          "why": "Under-14 rule: the 10-year-old needs an adult, the 15-year-old does not."
+        }
+      ]
+    },
+    {
+      "id": "fr_visitors",
+      "lang": "fr",
+      "tags": [
+        "neighbor_entity",
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "message": "Deux amis vont passer nous voir ce soir. Peuvent-ils rester jusqu'à 23h ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Peuvent-ils rester jusqu'à 23h ?",
+          "intents": [
+            "house_rules"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "visiteurs",
+                "invités",
+                "amis"
+              ],
+              "value": "21:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "visiteurs",
+                "invités",
+                "amis"
+              ],
+              "value": "22:00"
+            }
+          ],
+          "why": "Visitors must leave by 21:00; 22:00 is the start of quiet hours."
+        }
+      ]
+    },
+    {
+      "id": "fr_checkout_time",
+      "lang": "fr",
+      "tags": [
+        "pair_same_words"
+      ],
+      "pair": "p_checkout_fr",
+      "kb": "en_residence",
+      "message": "À quelle heure doit-on libérer l'appartement dimanche ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "À quelle heure doit-on libérer l'appartement dimanche ?",
+          "intents": [
+            "checkout_time"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "départ",
+                "check-out",
+                "libérer"
+              ],
+              "value": "11:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "départ",
+                "check-out",
+                "libérer"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "why": "Standard check-out 11:00."
+        }
+      ]
+    },
+    {
+      "id": "fr_late_checkout",
+      "lang": "fr",
+      "tags": [
+        "pair_same_words",
+        "stay_change"
+      ],
+      "pair": "p_checkout_fr",
+      "kb": "en_residence",
+      "message": "Peut-on libérer l'appartement à 14h dimanche au lieu de 11h ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Peut-on libérer l'appartement à 14h dimanche au lieu de 11h ?",
+          "intents": [
+            "late_checkout"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Late check-out is a host decision."
+        }
+      ]
+    },
+    {
+      "id": "fr_ac_trash",
+      "lang": "fr",
+      "tags": [
+        "multi_turn",
+        "two_unanswered",
+        "complaint_independent",
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "La climatisation ne refroidit plus du tout."
+        }
+      ],
+      "message": "Sinon, à partir de quelle heure peut-on sortir les poubelles ?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "La climatisation ne refroidit plus du tout.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "AC complaint, no fix question asked."
+        },
+        {
+          "id": "r2",
+          "span": "Sinon, à partir de quelle heure peut-on sortir les poubelles ?",
+          "intents": [
+            "trash"
+          ],
+          "relation": "independent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "poubelles",
+                "déchets"
+              ],
+              "value": "18:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "poubelles",
+                "déchets"
+              ],
+              "value": "19:00"
+            }
+          ],
+          "why": "Separate topic; trash not before 18:00."
+        }
+      ]
+    },
+    {
+      "id": "es_rooftop_pool",
+      "lang": "es",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "¿Hasta qué hora está abierto el bar de la azotea? ¿Y la piscina?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "¿Hasta qué hora está abierto el bar de la azotea?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "azotea",
+                "bar"
+              ],
+              "value": "23:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "azotea",
+                "bar"
+              ],
+              "value": "20:00"
+            },
+            {
+              "about": [
+                "azotea",
+                "bar"
+              ],
+              "value": "24:00"
+            }
+          ],
+          "why": "Rooftop bar closes 23:00."
+        },
+        {
+          "id": "r2",
+          "span": "¿Y la piscina?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "piscina"
+              ],
+              "value": "20:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "piscina"
+              ],
+              "value": "23:00"
+            }
+          ],
+          "why": "Elliptical follow-up: pool closes 20:00."
+        }
+      ]
+    },
+    {
+      "id": "es_crib_transfer",
+      "lang": "es",
+      "tags": [
+        "relation_type",
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "¿Con cuánta antelación hay que pedir la cuna para el bebé? ¿Y el traslado al aeropuerto?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "¿Con cuánta antelación hay que pedir la cuna para el bebé?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "cuna"
+              ],
+              "value": "48"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "cuna"
+              ],
+              "value": "24"
+            }
+          ],
+          "why": "Cot needs 48 hours."
+        },
+        {
+          "id": "r2",
+          "span": "¿Y el traslado al aeropuerto?",
+          "intents": [
+            "directions_transport"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "traslado",
+                "aeropuerto"
+              ],
+              "value": "24"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "traslado",
+                "aeropuerto"
+              ],
+              "value": "48"
+            }
+          ],
+          "why": "Transfer needs 24 hours."
+        }
+      ]
+    },
+    {
+      "id": "es_wifi_fix",
+      "lang": "es",
+      "tags": [
+        "fix_recipe",
+        "complaint_dependent"
+      ],
+      "kb": "en_residence",
+      "message": "Se ha caído el wifi hace un rato. ¿Cómo reinicio el router?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Se ha caído el wifi hace un rato.",
+          "intents": [
+            "complaint_issue",
+            "wifi"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Outage report."
+        },
+        {
+          "id": "r2",
+          "span": "¿Cómo reinicio el router?",
+          "intents": [
+            "wifi",
+            "appliance_help"
+          ],
+          "relation": "dependent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "router",
+                "desenchufa",
+                "desenchufar"
+              ],
+              "value": "30"
+            }
+          ],
+          "why": "Router restart recipe exists."
+        }
+      ]
+    },
+    {
+      "id": "es_pet_followup",
+      "lang": "es",
+      "tags": [
+        "multi_turn",
+        "conditional"
+      ],
+      "kb": "en_residence",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "¿Podemos traer a nuestro gato?"
+        },
+        {
+          "direction": "outbound",
+          "body": "¡Sí! Se admiten gatos y perros pequeños, con una tarifa de 30 EUR por estancia."
+        }
+      ],
+      "message": "Genial. ¿Y el perro de mi hermana, que pesa 12 kg, también puede venir?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "¿Y el perro de mi hermana, que pesa 12 kg, también puede venir?",
+          "intents": [
+            "pets"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "perro",
+                "perros",
+                "mascota"
+              ],
+              "value": "8 kg"
+            }
+          ],
+          "why": "12 kg dog exceeds 8 kg limit (and max 1 pet); must not be told yes."
+        }
+      ]
+    },
+    {
+      "id": "es_sheets_towels",
+      "lang": "es",
+      "tags": [
+        "complaint_ambiguous"
+      ],
+      "kb": "en_residence",
+      "message": "Las sábanas tenían manchas cuando llegamos. ¿Nos podéis traer toallas limpias?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Las sábanas tenían manchas cuando llegamos.",
+          "intents": [
+            "complaint_issue"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Stained sheets complaint."
+        },
+        {
+          "id": "r2",
+          "span": "¿Nos podéis traer toallas limpias?",
+          "intents": [
+            "cleaning_linen"
+          ],
+          "relation": "ambiguous",
+          "expect": "hold",
+          "why": "May be a remedy for the complaint or a separate request."
+        }
+      ]
+    },
+    {
+      "id": "es_co_alarm",
+      "lang": "es",
+      "tags": [
+        "emergency"
+      ],
+      "kb": "en_residence",
+      "message": "¡Está sonando la alarma de monóxido de carbono y a mi hija le duele la cabeza! ¿Qué hacemos?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "¡Está sonando la alarma de monóxido de carbono y a mi hija le duele la cabeza! ¿Qué hacemos?",
+          "intents": [
+            "emergency"
+          ],
+          "relation": "none",
+          "expect": "emergency",
+          "why": "CO alarm with symptoms."
+        }
+      ]
+    },
+    {
+      "id": "ru_sauna_paid",
+      "lang": "ru",
+      "tags": [
+        "multi_turn",
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Бассейн платный?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Нет, бассейн для гостей бесплатный."
+        }
+      ],
+      "message": "А сауна тоже бесплатная?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "А сауна тоже бесплатная?",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "сауна",
+                "sauna"
+              ],
+              "value": "15"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "сауна",
+                "sauna"
+              ],
+              "value": "30"
+            }
+          ],
+          "why": "Sauna is paid, 15 EUR per person; free applies to pool only."
+        }
+      ]
+    },
+    {
+      "id": "ru_refund_transfer",
+      "lang": "ru",
+      "tags": [
+        "complaint_independent",
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "Хотим отменить последнюю ночь и получить возврат денег. И ещё: сколько стоит трансфер в аэропорт?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Хотим отменить последнюю ночь и получить возврат денег.",
+          "intents": [
+            "cancellation_refund"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Refund request."
+        },
+        {
+          "id": "r2",
+          "span": "сколько стоит трансфер в аэропорт?",
+          "intents": [
+            "directions_transport"
+          ],
+          "relation": "independent",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "трансфер",
+                "аэропорт"
+              ],
+              "value": "45"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "трансфер",
+                "аэропорт"
+              ],
+              "value": "50"
+            },
+            {
+              "about": [
+                "трансфер",
+                "аэропорт"
+              ],
+              "value": "25"
+            }
+          ],
+          "why": "Transfer 45 EUR."
+        }
+      ]
+    },
+    {
+      "id": "ru_luggage",
+      "lang": "ru",
+      "tags": [
+        "stay_change"
+      ],
+      "kb": "en_residence",
+      "message": "Мы выезжаем в 11, но самолёт только вечером. Можно оставить чемоданы у вас до 18:00?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Можно оставить чемоданы у вас до 18:00?",
+          "intents": [
+            "luggage"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Luggage after check-out is a host decision."
+        }
+      ]
+    },
+    {
+      "id": "ru_garage_height",
+      "lang": "ru",
+      "tags": [
+        "conditional"
+      ],
+      "kb": "en_residence",
+      "message": "У нас микроавтобус высотой 230 см. Он поместится в гараж?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "Он поместится в гараж?",
+          "intents": [
+            "parking"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "гараж",
+                "высота",
+                "garage"
+              ],
+              "value": "190"
+            }
+          ],
+          "why": "Max height 190 cm; 230 cm vehicle does not fit."
+        }
+      ]
+    },
+    {
+      "id": "ru_pharmacy_market",
+      "lang": "ru",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "До скольки работает аптека? А супермаркет до скольки?",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "До скольки работает аптека?",
+          "intents": [
+            "local_recommendations"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "аптека",
+                "pharmacy"
+              ],
+              "value": "19:30"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "аптека",
+                "pharmacy"
+              ],
+              "value": "22:00"
+            }
+          ],
+          "why": "Pharmacy 19:30."
+        },
+        {
+          "id": "r2",
+          "span": "А супермаркет до скольки?",
+          "intents": [
+            "local_recommendations"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "супермаркет",
+                "Fresco"
+              ],
+              "value": "22:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "супермаркет",
+                "Fresco"
+              ],
+              "value": "19:30"
+            }
+          ],
+          "why": "Supermarket 22:00."
+        }
+      ]
+    },
+    {
+      "id": "ar_gym_pool",
+      "lang": "ar",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "kb": "en_residence",
+      "message": "متى يفتح النادي الرياضي في الصباح؟ وهل يفتح المسبح في نفس الوقت؟",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "متى يفتح النادي الرياضي في الصباح؟",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "النادي الرياضي",
+                "صالة الرياضة",
+                "الجيم",
+                "gym"
+              ],
+              "value": "06:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "النادي الرياضي",
+                "صالة الرياضة",
+                "الجيم",
+                "gym"
+              ],
+              "value": "07:00"
+            }
+          ],
+          "why": "Gym opens 06:00."
+        },
+        {
+          "id": "r2",
+          "span": "وهل يفتح المسبح في نفس الوقت؟",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "المسبح",
+                "حمام السباحة",
+                "pool"
+              ],
+              "value": "07:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "المسبح",
+                "حمام السباحة",
+                "pool"
+              ],
+              "value": "06:00"
+            }
+          ],
+          "why": "Pool opens 07:00, not the same time."
+        }
+      ]
+    },
+    {
+      "id": "ar_checkin_time",
+      "lang": "ar",
+      "tags": [
+        "pair_same_words",
+        "neighbor_entity"
+      ],
+      "pair": "p_checkin_ar",
+      "kb": "en_residence",
+      "message": "ما هو موعد تسجيل الدخول؟ سنصل حوالي الساعة 4 عصراً.",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "ما هو موعد تسجيل الدخول؟",
+          "intents": [
+            "checkin_time"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "تسجيل الدخول",
+                "الدخول",
+                "check-in"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "تسجيل الدخول",
+                "الدخول",
+                "check-in"
+              ],
+              "value": "11:00"
+            },
+            {
+              "about": [
+                "تسجيل الدخول",
+                "الدخول",
+                "check-in"
+              ],
+              "value": "12:00"
+            }
+          ],
+          "why": "Check-in 15:00; 12:00 is when lockbox instructions are sent."
+        }
+      ]
+    },
+    {
+      "id": "ar_early_checkin",
+      "lang": "ar",
+      "tags": [
+        "pair_same_words",
+        "stay_change"
+      ],
+      "pair": "p_checkin_ar",
+      "kb": "en_residence",
+      "message": "ما هو موعد تسجيل الدخول؟ سنصل حوالي الساعة 10 صباحاً، هل يمكننا الدخول مبكراً؟",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "ما هو موعد تسجيل الدخول؟",
+          "intents": [
+            "checkin_time"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "تسجيل الدخول",
+                "الدخول",
+                "check-in"
+              ],
+              "value": "15:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "تسجيل الدخول",
+                "الدخول",
+                "check-in"
+              ],
+              "value": "12:00"
+            }
+          ],
+          "why": "Standard time is answerable."
+        },
+        {
+          "id": "r2",
+          "span": "هل يمكننا الدخول مبكراً؟",
+          "intents": [
+            "early_checkin"
+          ],
+          "relation": "none",
+          "expect": "hold",
+          "why": "Early check-in is a host decision."
+        }
+      ]
+    },
+    {
+      "id": "ar_thanks",
+      "lang": "ar",
+      "tags": [
+        "greeting"
+      ],
+      "kb": "en_residence",
+      "message": "شكراً جزيلاً على كل شيء، كانت إقامة رائعة!",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "شكراً جزيلاً على كل شيء، كانت إقامة رائعة!",
+          "intents": [
+            "greeting_thanks"
+          ],
+          "relation": "none",
+          "expect": "none",
+          "why": "Thanks only."
+        }
+      ]
+    },
+    {
+      "id": "ar_flood",
+      "lang": "ar",
+      "tags": [
+        "emergency"
+      ],
+      "kb": "en_residence",
+      "message": "الماء يتدفق بقوة من سقف الحمام والأرضية كلها غارقة بالماء!",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "الماء يتدفق بقوة من سقف الحمام والأرضية كلها غارقة بالماء!",
+          "intents": [
+            "emergency"
+          ],
+          "relation": "none",
+          "expect": "emergency",
+          "why": "Flooding."
+        }
+      ]
+    },
+    {
+      "id": "ar_roof_quiet",
+      "lang": "ar",
+      "tags": [
+        "neighbor_entity",
+        "relation_type"
+      ],
+      "kb": "en_residence",
+      "message": "حتى أي ساعة يمكننا الجلوس في بار السطح؟ ومتى تبدأ ساعات الهدوء؟",
+      "requests": [
+        {
+          "id": "r1",
+          "span": "حتى أي ساعة يمكننا الجلوس في بار السطح؟",
+          "intents": [
+            "amenities"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "بار السطح",
+                "السطح",
+                "rooftop"
+              ],
+              "value": "23:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "بار السطح",
+                "السطح",
+                "rooftop"
+              ],
+              "value": "22:00"
+            }
+          ],
+          "why": "Rooftop bar closes 23:00."
+        },
+        {
+          "id": "r2",
+          "span": "ومتى تبدأ ساعات الهدوء؟",
+          "intents": [
+            "house_rules"
+          ],
+          "relation": "none",
+          "expect": "answer",
+          "facts": [
+            {
+              "about": [
+                "ساعات الهدوء",
+                "الهدوء",
+                "quiet hours"
+              ],
+              "value": "22:00"
+            }
+          ],
+          "wrong": [
+            {
+              "about": [
+                "ساعات الهدوء",
+                "الهدوء",
+                "quiet hours"
+              ],
+              "value": "23:00"
+            }
+          ],
+          "why": "Quiet hours start 22:00."
+        }
+      ]
+    }
+  ]
+}

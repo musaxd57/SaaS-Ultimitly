@@ -1,0 +1,703 @@
+// ---------------------------------------------------------------------------
+// HOST ŞABLONU YER TUTUCULARI — TEK KAYNAK (09-10). Saf, DB'siz, yan etkisiz.
+//
+// Host bilgi tabanına / karşılama şablonuna `{isim}` ve `{daire}` yazabilir
+// (Ayarlar ekranı bunu açıkça öneriyor). Bu belirteçler modele GİRMEDEN ÖNCE
+// çözülür; çözülmezse misafire ham "{isim}" gider.
+//
+// 🚨 NEDEN TEK MODÜL: aynı ikame ÜÇ yerde ayrı ayrı yazılmıştı (oto-yanıt
+// göndericisi, inbox `ai-suggest` rotası, Gönderilenler önizlemesi) ve
+// DÖRDÜNCÜ yüzeyde — halka açık QR asistanında — HİÇ YOKTU (ölçüldü, 09-10).
+// Kopya kural üç yerde güncellenip dördüncüde unutulan kuraldır.
+//
+// 🚨 QR'DA GERÇEK MİSAFİR ADI KULLANILMAZ: QR bağlantısı dairenin içinde asılıdır
+// ve cihaz bağlaması konaklama başınadır — sohbeti açan kişi rezervasyon sahibi
+// OLMAYABİLİR (eş, arkadaş, temizlik görevlisi). Rezervasyon sahibinin adını ona
+// göstermek hem yanlış hitap hem PII sızıntısıdır → `GUEST_NAME_FALLBACK`.
+// (Inbox/oto-yanıt yolunda muhatap KANITLI olarak rezervasyon sahibidir; orada
+// gerçek ad kullanılır ve bu ayrım BİLİNÇLİDİR.)
+//
+// 🚨 YER TUTUCU GERÇEĞE DÖNÜŞMEZ: bu modül YALNIZ `{…}` ad/daire sınıfını çözer.
+// `[ŞİFRE]` / `<adres>` / `___` sınıfı DOLDURULMAMIŞ ALANDIR ve `prompts.ts`
+// `kbPlaceholderTokens` onu koddan "[NOT] DOLDURULMAMIŞ YER TUTUCU" diye
+// işaretler — buraya EKLENMEZ (uydurma değer üretmek yasak).
+// ---------------------------------------------------------------------------
+import { ANON_NAME } from "@/lib/anon-sentinels";
+
+/** Muhatabın rezervasyon sahibi olduğu KANITLI olmadığında kullanılan nötr hitap. */
+export const GUEST_NAME_FALLBACK = "misafirimiz";
+
+/**
+ * Süslü parantezli TEK belirteç. Anahtar ADI ayrıca katlanır — `/i` bayrağı
+ * Türkçe noktalı İ'yi katlamaz (ölçüldü: `{İSİM}` eski regex'te EŞLEŞMİYORDU) ve
+ * tek bir katlama da yetmez: `toLocaleLowerCase("tr")` "İSİM"→"isim" verir ama
+ * "ISIM"→"ısım"; standart katlama tersini yapar. `fallback.ts`teki İKİ KATLAMA
+ * kuralının aynısı — yalnızca EŞLEŞME EKLER.
+ */
+const TOKEN = /\{\s*(\p{L}+)\s*\}/gu;
+const NAME_KEYS = new Set(["isim", "ad", "name"]);
+const APARTMENT_KEYS = new Set(["daire", "apartment", "apt"]);
+
+function keyKind(raw: string): "name" | "apartment" | null {
+  const forms = [raw.toLocaleLowerCase("tr"), raw.toLowerCase()];
+  if (forms.some((f) => NAME_KEYS.has(f))) return "name";
+  if (forms.some((f) => APARTMENT_KEYS.has(f))) return "apartment";
+  return null;
+}
+
+/**
+ * Selamlama için ilk ad — yer tutucu adlarda (`null`) gerçek ad YOKTUR.
+ * Sağlayıcı, adı olmayan rezervasyonu "Rezervasyon 12345" / "Misafir" diye
+ * verir; bunları ad sanmak misafire "Merhaba Rezervasyon," yazdırır.
+ */
+export function guestFirstNameOf(guestIdentifier: string | null | undefined): string | null {
+  const whole = (guestIdentifier ?? "").trim();
+  const first = whole.split(/\s+/)[0];
+  if (!first) return null;
+  // Saklama / silme sentineli ("Eski misafir") ad DEĞİL (09-28 inceleme ajanı: "Merhaba Eski," yazıyordu).
+  if ([whole.toLocaleLowerCase("tr"), whole.toLowerCase()].includes(ANON_NAME.toLocaleLowerCase("tr"))) return null;
+  // ⚠️ BÜYÜK/KÜÇÜK HARFE DUYARLI DEĞİL (inceleme 09-10): sağlayıcı "rezervasyon 12345" (küçük)
+  // yazdığında eski kontrol kaçırıyor ve misafire "Merhaba rezervasyon," gidiyordu. Türkçe
+  // katlama şart: "MİSAFİR" → `toLowerCase()` ile "mi̇safir" olur, `toLocaleLowerCase("tr")` ile
+  // "misafir". ⚠️ Yalnız TAM eşleşme — ve bu eşleşme İLK SÖZCÜĞE bakar: "Misafir Ahmet"
+  // de `null` döner (7. tur incelemesi: eski yorum "…gerçek bir addır ve KORUNUR" diyordu,
+  // KODLA ÇELİŞİYORDU ve dosyanın kendi testi tersini pinliyor). Yön güvenli: sağlayıcı
+  // "Misafir" ön ekini yer tutucu olarak kullandığında hitap nötr kalır.
+  // 🚨 İKİ KATLAMA (inceleme turu 6, ÖLÇÜLDÜ): tek `toLocaleLowerCase("tr")` ASCII yazımı
+  // kaçırıyordu — "MISAFIR" → tr katlamada "mısafır", eşleşmiyor, misafire "Merhaba MISAFIR,"
+  // gidiyordu. Dosyanın kendi kuralı (keyKind/foldedForms/etiket dalı) zaten tr + standart çifti.
+  const folded = [first.toLocaleLowerCase("tr"), first.toLowerCase()];
+  if (folded.some((f) => f === "rezervasyon" || f === "misafir")) return null;
+  return first;
+}
+
+/** Ad karakteri: harf / birleşen işaret — görünmez "harf"ler (Hangul dolgu U+3164, U+115F, U+1160, U+FFA0) HARİÇ. */
+const NAME_CHAR = /^(?!\p{Default_Ignorable_Code_Point})[\p{L}\p{M}]$/u;
+/**
+ * Adın parçalarını birleştiren işaretler (iki inceleme 09-28, ölçüldü — ilk sürüm bunları keserek gerçek adı bozuyordu): tire (bölünmez,
+ * en tire, tam genişlik, Ermenice), kesme işaretleri (' ’ ‘ ` ʼ ′ ＇ — Özbekçe "G‘ayrat", Ukraynaca "В`ячеслав"), NOKTA (Türkçe "M.Ali"),
+ * Katalanca orta nokta (Gal·la), İbranice geresh / gershayim / maqaf (ג׳ני, בת־שבע), Japonca yabancı ad eşittiri (ジャン゠ポール, ＝, =).
+ */
+const NAME_JOINERS = new Set([
+  "-", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212", "\uFE63", "\uFF0D", "\u058A",
+  "'", "\u2019", "\u2018", "\u201B", "`", "\u00B4", "\u02BC", "\u2032", "\uFF07",
+  ".", "\uFF0E", "\u00B7", "\u00AD", "\u05F3", "\u05F4", "\u05BE", "\u30A0", "\uFF1D", "=",
+]);
+/**
+ * Üçüncü inceleme (09-28, ölçüldü — gerçek adlar kesiliyordu): İspanyol / Portekiz klavyesinin kesme işareti ´ ("O´Brien" → "O",
+ * "D´Angelo" → "D"), ‛ ("O‛Neil"), tire çeşitleri (U+2012 / 2014 / 2212 / FE63), tam genişlik nokta ("Ｍ．Ａｌｉ"), yumuşak tire
+ * ("Anna­Maria") birleştiricidir. ASCII / tam genişlik "=" YALNIZ iki katakana arasında (Japonca yabancı ad: ジャン=ポール) — Latin
+ * metinde "pets=allowed" ev sahibi bloğuna "ad" olarak giriyordu.
+ */
+const KATAKANA_ONLY_JOINERS = new Set(["=", "\uFF1D"]);
+const KATAKANA = /\p{Script_Extensions=Katakana}/u;
+/** Varyasyon seçicisi (Çince / Japonca ideogram varyantı: 葛󠄀城) — önündeki Han harfine aittir. */
+const VARIATION_SELECTOR = /^[\uFE00-\uFE0F\u{E0100}-\u{E01EF}]$/u;
+const HAN = /\p{Script_Extensions=Han}/u;
+/** Adın başında durabilen kesme işaretleri (Hawaii ‘Iolani / 'Iolani) — ardından harf gelirse. */
+const LEADING_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BB", "\u02BC"]);
+/**
+ * YAZIMIN İÇ DENETİM KARAKTERLERİ yalnız o yazımda adın İÇİNDE kalır (sayılmaz, parça açmaz): ZWNJ / ZWJ Arap ve Hint yazımlarında
+ * (Farsça "علی‌رضا", Sinhala "ශ්‍රී", eski Malayalam son ZWJ "ജയന്‍"), Tibet hece işareti (བསྟན་འཛིན), Moğolca serbest değişke seçicileri.
+ * Latin / Kiril / Yunan adında görünmez ayırıcıdır (kesilir). Yazım `Script_Extensions` ile okunur — harekeler (Arapça ünlü işaretleri)
+ * Script=Inherited'dır, Script_Extensions'ta Arapça.
+ */
+const JOINER_SCRIPTS = /[\p{Script_Extensions=Arabic}\p{Script_Extensions=Syriac}\p{Script_Extensions=Devanagari}\p{Script_Extensions=Bengali}\p{Script_Extensions=Gurmukhi}\p{Script_Extensions=Gujarati}\p{Script_Extensions=Oriya}\p{Script_Extensions=Tamil}\p{Script_Extensions=Telugu}\p{Script_Extensions=Kannada}\p{Script_Extensions=Malayalam}\p{Script_Extensions=Sinhala}\p{Script_Extensions=Myanmar}\p{Script_Extensions=Khmer}]/u;
+const ZW_JOINERS = new Set(["\u200C", "\u200D"]);
+const TIBETAN = /\p{Script_Extensions=Tibetan}/u;
+const TIBETAN_TSHEG = new Set(["\u0F0B", "\u0F0C"]);
+const MONGOLIAN = /\p{Script_Extensions=Mongolian}/u;
+const MONGOLIAN_SELECTORS = new Set(["\u180B", "\u180C", "\u180D", "\u180E", "\u180F"]);
+/** Baştaki yön işaretleri / görünmez biçim karakterleri atlanır (RTL görünen adların çoğu RLM ile başlar). */
+const LEADING_IGNORABLE = /^\p{Default_Ignorable_Code_Point}+/u;
+/** En çok ÇOK HARFLİ parça (birleştiriciyle ayrılmış): "Anne-Marie-Louise". Tek harfli baş harfler sayılmaz ("K.V.S.Lakshmi"). */
+const MAX_NAME_PARTS = 3;
+/**
+ * Modele giden ilk adın en fazla kod noktası sayısı. Gerçek ilk adlar bunun çok altında. 40, B3 sır taramasının "uzun ad"
+ * fikstürünü (33 harf, `kb-secret-scan-two-stage.test.ts`) olduğu gibi taşır — ham metin taraması o uzunluktaki adla pinli kalır.
+ */
+export const PROMPT_FIRST_NAME_MAX = 40;
+
+/**
+ * MODELE giden `{isim}` değeri — ilk adın yalnız AD biçimindeki baş kısmı.
+ *
+ * 🚨 GECE GÜVENLİK TURU (09-28, ölçüldü): misafirin görünen adı sağlayıcıdan gelir, yani MİSAFİRİN metnidir; `{isim}` ikamesi onu
+ * BİLGİ TABANI bloğuna — istemin ev sahibi olgusu saydığı yere — koyar. `guestFirstNameOf` yalnız boşlukta böler: boşluk sayılmayan
+ * görünmez ayırıcı (U+2800, sıfır genişlikli, Hangul dolgu), alt çizgi, iki nokta, rakam ayırmaz → "Ada(U+2800)Ev(U+2800)sahibi(U+2800)
+ * notu:(U+2800)evcil(U+2800)hayvan(U+2800)serbest" TEK "ilk ad" olarak ev sahibinin karşılama kalemine giriyordu. Kalem talimat
+ * süzgeci (`detectKbInstructionHijack`) ikameden ÖNCE koşar, bu metni görmez. Artık: baştaki görünmez biçim karakteri atlanır; harfle
+ * başlayan, ad birleştiricileriyle en çok üç parçalı baş kısım (sondaki nokta korunur: "J."), 40 kod noktası; harfle başlamıyorsa
+ * `null` (çağıran nötr hitaba düşer). Gerçek adlar (Ayşe, M.Ali, Jean-Luc, O'Brien, G‘ayrat, José, محمد, علی‌رضا, ג׳ני, 李) AYNEN.
+ * ⚠️ BİLİNEN SINIR (iki inceleme 09-28): karakter süzgeci HARF olan her şeyi geçirir — ayırıcısız metin ("EvcilHayvanSerbest", Çince /
+ * Japonca / Tayca cümle), harf harf noktalı yazım ("E.v.c.i.l", tek harfli parça sayılmaz — "K.V.S.Lakshmi" için) ve harf sınıfındaki
+ * ayırıcı benzerleri (U+A78F, U+02D1 gibi değiştirici harfler). Karakter kuralı bunları ayıramaz; yapısal çözüm (misafir adını ev
+ * sahibi bloğuna hiç koymamak) kurucu kararı, `docs/SABAH-KARARLARI-2026-09-28.md` K10-o.
+ * YALNIZ modele giden yollar kullanır (oto-yanıt, gelen kutusu önerisi, Ayarlar testi); şablonla misafirin KENDİSİNE giden metin
+ * (`template-apply`) `guestFirstNameOf`u kullanmaya devam eder — orada model yok.
+ */
+export function guestFirstNameForPrompt(guestIdentifier: string | null | undefined): string | null {
+  const first = guestFirstNameOf(guestIdentifier);
+  if (!first) return null;
+  const cps = Array.from(first.replace(LEADING_IGNORABLE, ""));
+  // Baştaki kesme işareti ("‘Iolani") yalnız ardından HARF gelirse kalır — gelmiyorsa aşağıdaki harf şartı null döndürür.
+  const start = LEADING_APOSTROPHES.has(cps[0]) ? 1 : 0;
+  if (cps.length <= start || !NAME_CHAR.test(cps[start]) || !/^\p{L}$/u.test(cps[start])) return null;
+  const out: string[] = cps.slice(0, start);
+  let parts = 1;
+  let partLen = 0; // geçerli parçanın harf sayısı (tek harfli baş harf parça saymaz)
+  const scriptInternal = (c: string, prev: string | undefined, next: string | undefined): boolean => {
+    if (!prev) return false;
+    if (ZW_JOINERS.has(c)) return JOINER_SCRIPTS.test(prev) && (next === undefined || JOINER_SCRIPTS.test(next));
+    if (TIBETAN_TSHEG.has(c)) return TIBETAN.test(prev) && next !== undefined && TIBETAN.test(next);
+    if (MONGOLIAN_SELECTORS.has(c)) return MONGOLIAN.test(prev) && (next === undefined || MONGOLIAN.test(next));
+    if (VARIATION_SELECTOR.test(c)) return HAN.test(prev);
+    return false;
+  };
+  for (let i = start; i < cps.length && out.length < PROMPT_FIRST_NAME_MAX; i++) {
+    const c = cps[i];
+    const next = cps[i + 1];
+    const prev = cps[i - 1];
+    if (NAME_CHAR.test(c)) {
+      out.push(c);
+      partLen += 1;
+      continue;
+    }
+    if (scriptInternal(c, prev, next)) {
+      out.push(c);
+      continue;
+    }
+    if (NAME_JOINERS.has(c) && (!KATAKANA_ONLY_JOINERS.has(c) || (prev !== undefined && KATAKANA.test(prev) && next !== undefined && KATAKANA.test(next)))) {
+      const countsAsPart = partLen >= 2;
+      if (next && NAME_CHAR.test(next) && (!countsAsPart || parts < MAX_NAME_PARTS)) {
+        if (countsAsPart) parts += 1;
+        partLen = 0;
+        out.push(c);
+        continue;
+      }
+      // Sondaki nokta ("J.") ve kesme işareti ("Rabi'") korunur.
+      if ((c === "." || c === "'" || c === "\u2019") && !(next && NAME_CHAR.test(next))) out.push(c);
+    }
+    break;
+  }
+  // Tavanda kesildiyse sonda birleştirici kalmasın (sondaki nokta / kesme işareti ve yazımın iç denetim karakteri hariç).
+  while (out.length > 0) {
+    const last = out[out.length - 1];
+    if (NAME_CHAR.test(last) || last === "." || last === "'" || last === "\u2019") break;
+    if (scriptInternal(last, out[out.length - 2], undefined)) break;
+    out.pop();
+  }
+  // `out` boş olamaz: `start`taki harf hiçbir koşulda atılmaz.
+  const name = out.join("");
+  // Baştaki görünmez karakter atıldıktan sonra da yer tutucu ad gerçek ad değildir ("\u200FMisafir").
+  const folded = [name.toLocaleLowerCase("tr"), name.toLowerCase()];
+  if (folded.some((f) => f === "rezervasyon" || f === "misafir")) return null;
+  return name;
+}
+
+/**
+ * Etiket eşleşmesi — KELİME BAŞINDA olmalı.
+ *
+ * 🚨 `/i` YETMİYORDU, İKİ AYRI KUSUR (inceleme 09-11, ölçüldü):
+ * (a) `/i` Türkçe noktalı İ'yi KATLAMAZ → "DAİRE 5 - 2 Yatak Odalı" etiket dalına HİÇ
+ *     girmiyordu ve iki sayılı ada düşüp `null` dönüyordu (host açıkça "DAİRE 5" yazmışken).
+ *     Çözüm `keyKind`teki İKİ KATLAMA kuralının aynısı (tr + standart).
+ * (b) Etiketler kelime sınırsızdı → "no" BAŞKA kelimenin içinde yakalanıyordu:
+ *     "Milano 12 | Daire 3" → **"12"** (doğrusu 3). Öndeki sınır şartı bunu eler.
+ * Not: sondaki sınır BİLİNÇLİ YOK — "Daire 5A" gibi adlarda "5" dönmeye devam eder.
+ */
+// Ayraç `\s*(?:[:.]\s*)?` = eski `\s*[:.]?\s*` ile AYNI dil; iki bitişik boşluk yıldızı etiketten sonraki uzun boşluk dizisinde
+// (ardından rakam gelmeyince) karesel geri izliyordu (09-28 ReDoS denetimi; CLAUDE.md "ikincisi isteğe bağlı ayraçta").
+const APARTMENT_STRONG_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|d(?=\s*[:.]))\s*(?:[:.]\s*)?(\d+)/u;
+/**
+ * ZAYIF etiketler — "no"/"#" bir BİNA numarasını da gösterebilir. 🚨 ÖNCELİK ŞART
+ * (inceleme turu 5, ölçüldü): "No:12 D:5" → eski tek regex ilk eşleşmeyi alıp **"12"**
+ * (bina) diyordu; doğrusu "5". Güçlü etiket önce denenir. "d" YALNIZ iki nokta/nokta ile
+ * ("D:5") — çıplak "d 5" bir kısaltma değil, rastgele harftir.
+ */
+const APARTMENT_WEAK_LABEL = /(?<![\p{L}\p{N}])(?:no|#)\s*(?:[:.]\s*)?(\d+)/u;
+
+/**
+ * Sayıdan SONRA gelen SAYAÇ sözcükleri — o sayı daire numarası DEĞİL, kapasite/ölçüdür.
+ * Yalnız ölçülen sınıf (kişi/yatak/oda/kat/banyo/metre); liste dar tutulur, her girdi pinli.
+ */
+// ⚠️ "m2" girdisi ÇIKARILDI: yakalama grubu `(\p{L}+)` yalnız HARF alır, yani `has("m2")`
+// hiçbir girdide true olamazdı (ölçüldü, ölü kod). "m" tek harfi bilinçli EKLENMEDİ (çok geniş).
+// 🚨 İNGİLİZCE EKSİKTİ (inceleme turu 6, ÖLÇÜLDÜ): etiket dalı `apart?ment|apt` ile İngilizceyi
+// kabul ediyordu ama sayaç listesi TR-only'ydi → "Luxury 2 Bedroom Flat" misafire "Daireniz 2"
+// diyordu (15 gerçekçi İngilizce adın 15'i yanlış numara üretti).
+const COUNTER_AFTER_NUMBER = new Set([
+  "kişilik", "kisilik", "kişi", "kisi", "misafir", "yatak", "yataklı", "yatakli",
+  "odalı", "odali", "oda", "kat", "katlı", "katli", "banyolu", "banyo",
+  "metre", "metrekare", "dönüm", "donum", "adet", "gece",
+  // İngilizce ilan sözcükleri
+  "bedroom", "bedrooms", "bed", "beds", "bath", "baths", "bathroom", "bathrooms",
+  "guest", "guests", "person", "people", "sleeps", "room", "rooms", "floor",
+  "sqm", "night", "nights",
+]);
+
+/** Mülk adının iki katlanmış biçimi (`keyKind` ile aynı sözleşme; yalnız EŞLEŞME EKLER). */
+function foldedForms(s: string): string[] {
+  const tr = s.toLocaleLowerCase("tr");
+  const std = s.toLowerCase();
+  return tr === std ? [tr] : [tr, std];
+}
+
+/**
+ * Misafire görünen daire numarası.
+ *
+ * SIRA: (1) GÜÇLÜ etiketten ("daire/apartment/apt/D:") sonraki sayı → (2) ZAYIF etiketten
+ * ("no/#") sonraki sayı — host niyetini AÇIKÇA yazmıştır; (3) mülk adında TEK sayı varsa o;
+ * (4) birden çok sayı varsa İKAME YAPILMAZ (belirteç görünür kalır).
+ *
+ * 🚨 SAYI YOKSA `null` (inceleme turu 5 — eskiden MÜLK ADININ TAMAMI dönüyordu ve ikame
+ * doğrudan yapılıyordu): "Cozy Seaside Flat" adlı bir mülkte KB'deki "Kapı kodu: {daire}"
+ * satırı misafire **"Kapı kodu: Cozy Seaside Flat"** olarak gidiyordu. Belirtecin görünür
+ * kalması, anlamsız bir ikameden iyidir (modülün kendi kuralı).
+ *
+ * 🚨 "SON SAYI" KURALI YANLIŞ CEVAP ÜRETİYORDU (inceleme 09-10, ölçüldü): Türkiye ilan
+ * adlarında "2+1", "3+1", "2. kat" normdur → "Lale 3 | 2+1 Deniz Manzaralı" → **"1"**,
+ * "Daire 5 - 2 Yatak Odalı" → **"2"**, "Lale 12 (2. kat)" → **"2"**. Misafire YANLIŞ
+ * daire numarası söyleniyor ve hiçbir sinyal üretilmiyordu. Belirsizde susmak, uydurmaktan
+ * iyidir (`null` → çağıran belirteci dokunulmadan bırakır).
+ *
+ * 🚨 TEK SAYI DA TEK BAŞINA YETMİYOR (inceleme 09-11, ölçüldü): "Trabzon 4 Kişilik Daire"
+ * → **"4"** (kapasite) ve "2024 Yılı Dairesi" → **"2024"** (yıl) misafire UYDURMA daire
+ * numarası söylüyordu. İki dar kural: sayıyı bir SAYAÇ sözcüğü izliyorsa ve sayı 3 haneden
+ * uzunsa (yıl/metrekare sınıfı; Türkiye'de daire numarası pratikte ≤3 hane) İKAME YAPILMAZ.
+ * Bedeli açık ve GÜVENLİ YÖNDE: gerçekten 4 haneli bir daire numarası varsa belirteç
+ * görünür kalır — yanlış numara söylemekten iyidir.
+ */
+/**
+ * Sayıyı HEMEN izleyen sözcük bir SAYAÇ mı? (araya başka RAKAM girerse BAKILMAZ)
+ *
+ * 🚨 ÇAPA ŞART (inceleme turu 6): "Daire 5 - 2 Yatak Odalı"da "5" doğru cevaptır; çapasız
+ * arama ("5"ten sonraki ilk harf öbeği) "yatak"ı bulup satırı düşürürdü. `[^\p{L}\p{N}]*`
+ * yalnız harf-olmayan VE rakam-olmayan karakterleri yutar → araya "2" girince eşleşme yok.
+ */
+/**
+ * Kendi sayısını ALABİLEN sayaçlar — KONUM etiketleri. "Daire 5 **Kat 2**"de "Kat" bir
+ * modifikatör değil, KENDİ numarası olan ikinci bir etikettir; "5" doğru cevaptır.
+ *
+ * 🚨 LİSTE DAR TUTULUR — push öncesi inceleme ÖLÇTÜ: kaçış TÜM sayaçlara verilince
+ * ardışık iki ölçü taşıyan adlarda KAPASİTE sayısı daire numarası olarak dönüyordu
+ * ("Daire 4 **Kişilik 2** Odalı" → "4"): "Kişilik"in ardındaki 2, "Odalı"ya aittir,
+ * yeni bir etiket DEĞİLDİR. 10 gerçekçi adın 10'unda misafire UYDURMA daire numarası
+ * (ve "Kapı kodu: 4") söyleniyordu. KAPASİTE sayaçları bu kaçışı ALMAZ.
+ */
+const COUNTER_TAKING_OWN_NUMBER = new Set(["kat", "floor"]);
+
+function followedByCounter(form: string, from: number): boolean {
+  const m = /^[^\p{L}\p{N}]*(\p{L}+)([^\p{L}\p{N}]*)(\d)?/u.exec(form.slice(from));
+  if (!m || !COUNTER_AFTER_NUMBER.has(m[1])) return false;
+  // Sayaç KENDİ SAYISINI alıyorsa modifikatör değil YENİ ETİKETTİR — ama yalnız KONUM
+  // etiketleri için (↑). 6. tur bu ayrımı yapmadan kaçışı taşıdı ve kanonik Türk adresini
+  // yok etti ("No:12 D:5 Kat:3" → null, doğrusu 5); kaçışı tüm sayaçlara vermek ise
+  // kapasite adlarında uydurma numara üretiyordu.
+  if (m[3] === undefined) return true; // sayacın kendi sayısı yok → önündeki sayıyı niteler
+  return !COUNTER_TAKING_OWN_NUMBER.has(m[1]); // kendi sayısı var: yalnız KONUM etiketi yeni etikettir
+}
+
+/**
+ * Sayıdan ÖNCE gelen SAYAÇ sözcükleri — İngilizce ilan başlıklarında sayaç genellikle
+ * sayının SOLUNDADIR ("Cozy Studio **Sleeps 4**", "Villa **for** 6") ve 6. turun
+ * yalnız-sağa bakan kontrolü bu biçimi HİÇ görmüyordu (ölçüldü: kapasite sayısı
+ * misafire "Daireniz 4" olarak gidiyordu). DAR liste: yalnız kapasite bildiren sözcükler.
+ */
+const COUNTER_BEFORE_NUMBER = new Set(["sleeps", "sleep", "for", "kapasite", "kapasitesi"]);
+
+/**
+ * Sayının SOLUNDAKİ son sözcük (eski `/(\p{L}+)[^\p{L}\p{N}]*$/u` ile BİREBİR): sondaki harf-dışı rakam-dışı dizi atlanır, ondan
+ * önceki harf dizisi alınır; araya rakam girerse sözcük yok. Sondan geriye doğrusal — çapasız kalıp uzun harf dizisinde her konumdan
+ * yeniden deniyordu (09-28 ReDoS denetimi: 16.000 harflik mülk adında 4,9 sn; ad senkronla sınırsız gelebilir).
+ */
+function precededByCounter(form: string, upto: number): boolean {
+  const s = form.slice(0, upto);
+  let end = s.length;
+  for (let ch = charBefore(s, end); ch && !WORD_CHAR.test(ch); ch = charBefore(s, end)) end -= ch.length;
+  let start = end;
+  for (let ch = charBefore(s, start); ch && LETTER_CHAR.test(ch); ch = charBefore(s, start)) start -= ch.length;
+  return start < end && COUNTER_BEFORE_NUMBER.has(s.slice(start, end));
+}
+
+const LETTER_CHAR = /^\p{L}$/u;
+const WORD_CHAR = /^[\p{L}\p{N}]$/u;
+/** `i` konumundan hemen önceki KOD NOKTASI (vekil çifti bütün; tek başına vekil de bir kod noktasıdır). */
+function charBefore(s: string, i: number): string {
+  if (i <= 0) return "";
+  const low = s.charCodeAt(i - 1);
+  if (i >= 2 && low >= 0xdc00 && low <= 0xdfff) {
+    const high = s.charCodeAt(i - 2);
+    if (high >= 0xd800 && high <= 0xdbff) return s.slice(i - 2, i);
+  }
+  return s.slice(i - 1, i);
+}
+
+export function apartmentNumberOf(propertyName: string): string | null {
+  // 🚨 SAYAÇ ve HANE kuralları ETİKETLİ yolda da çalışır (inceleme turu 6, ÖLÇÜLDÜ): eskiden
+  // etiket eşleşince ANINDA dönülüyordu, yani "Sahilde Daire 6 Kişilik" → "6" (kapasite) ve
+  // "Lale Rezidans No 2024" → "2024" (yıl) misafire UYDURMA numara olarak gidiyordu. Aynı adın
+  // etiketsiz hâli doğru davranıyordu — ölçülen asimetri. Hane sınırı yalnız ZAYIF etikette
+  // ("no/#" bina numarası da olabilir); GÜÇLÜ etikette ("Daire 1203") host niyeti açıktır.
+  for (const [label, weak] of [[APARTMENT_STRONG_LABEL, false], [APARTMENT_WEAK_LABEL, true]] as const) {
+    for (const form of foldedForms(propertyName)) {
+      const labelled = label.exec(form);
+      if (!labelled) continue;
+      const num = labelled[1];
+      if (weak && num.length > 3) return null;
+      if (followedByCounter(form, labelled.index + labelled[0].length)) return null;
+      return num;
+    }
+  }
+  const nums = propertyName.match(/\d+/g);
+  if (!nums) return null;
+  if (nums.length !== 1) return null;
+  const only = nums[0];
+  if (only.length > 3) return null;
+  for (const form of foldedForms(propertyName)) {
+    const at = form.indexOf(only);
+    if (at < 0) continue;
+    if (followedByCounter(form, at + only.length)) return null;
+    if (precededByCounter(form, at)) return null;
+  }
+  return only;
+}
+
+/** Metinde ad yer tutucusu var mı (host kendi selamlamasını yazmış mı)? */
+export function hasNamePlaceholder(text: string): boolean {
+  // Taze regex (global bayrak PAYLAŞILMAZ) → `lastIndex` tuzağı yok.
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    if (keyKind(m[1]) === "name") return true;
+  }
+  return false;
+}
+
+export interface GuestPlaceholderValues {
+  /**
+   * Çözülmüş ad (QR'da `GUEST_NAME_FALLBACK`). Verilmezse `{isim}` DOKUNULMAZ. `null` = AD BİLİNMİYOR (yer tutucu ad, kurucu
+   * kararı 09-28): belirteç yanındaki boşluk / virgülle birlikte kalkar — "Merhaba {isim}, bugün" → "Merhaba, bugün".
+   */
+  guestFirstName?: string | null;
+  /** Mülk adı; `{daire}` bundan türetilir. Verilmezse `{daire}` DOKUNULMAZ. */
+  propertyName?: string;
+}
+
+/**
+ * `{isim}`/`{ad}`/`{name}` → ad, `{daire}`/`{apartment}`/`{apt}` → daire numarası.
+ *
+ * 🚨 İKAME CALLBACK İLE (CLAUDE.md kuralı: "TEK GEÇİŞ `replace` + callback"):
+ * düz string ikamesinde değerdeki `$&`/`$1`/`` $` ``/`$$` kalıpları ÖZEL anlam
+ * kazanır ve misafirin kendi metnini bozar. Değer verilmeyen sınıf DOKUNULMAZ:
+ * yanlış bir değer uydurmaktansa belirteç görünür kalsın.
+ */
+export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValues): string {
+  const { guestFirstName, propertyName } = values;
+  if (guestFirstName === undefined && propertyName === undefined) return text;
+  if (guestFirstName === null) return fillWithoutName(text, values);
+  return text.replace(
+    new RegExp(TOKEN.source, "gu"),
+    (whole, key: string) => resolveGuestPlaceholder(key, values) ?? whole,
+  );
+}
+
+/** Satır içi boşluk: satır sonu HARİÇ her boşluk (NBSP / dar NBSP dahil — 09-28 inceleme: "Merhaba {isim}," "Merhaba ," oluyordu). */
+const isHorizontalSpace = (c: string | undefined): boolean => c !== undefined && c !== "\n" && c !== "\r" && /^\s$/u.test(c);
+const isLineBreak = (c: string | undefined): boolean => c === "\n" || c === "\r";
+const NAMELESS_LETTER = /^\p{L}$/u;
+/** Ad ekinin kesme işaretleri (ad kuralındaki kesme ailesiyle aynı: ' ’ ‘ ʼ ` ＇ ve İspanyol klavyesinin ´ işareti). */
+const NAME_SUFFIX_APOSTROPHES = new Set(["'", "’", "‘", "ʼ", "`", "＇", "´"]);
+const COMMAS = new Set([",", "،", "，", "、"]);
+/** Belirteçten SONRA gelince önündeki virgülü de düşüren noktalama ("Welcome, {name}!" → "Welcome!"). */
+const TERMINAL_PUNCT = new Set([".", "!", "?", ";", ":", "…", ")", "]", "}", "»", "\"", "”", "’", "'", "。", "！", "？", "؟", "۔"]);
+/** Satır başındaki belirteçle birlikte gidebilen tek noktalama ("{isim}! Hoş geldiniz" → "Hoş geldiniz"). */
+const LINE_START_PUNCT = new Set([...COMMAS, "!", ".", ":", ";"]);
+
+/**
+ * Adsız kalamayan saygı hitapları → ad bilinmezken yerine gelen isim (kurucu kararı 09-30: "Sayın" / "Dear"). "Sevgili" ve "Değerli"
+ * aynı sınıf: adsız "Sevgili," misafire "Sevgilim," gibi okunur.
+ */
+const HONORIFIC_NOUN: ReadonlyMap<string, string> = new Map([
+  ["sayın", "misafirimiz"],
+  ["sayin", "misafirimiz"],
+  ["sevgili", "misafirimiz"],
+  ["değerli", "misafirimiz"],
+  ["degerli", "misafirimiz"],
+  ["dear", "guest"],
+]);
+/** Addan SONRA gelen saygı sözü ("Sayın {isim} Bey"): varsa hitap zaten tamdır ("Sayın Bey,") — isim eklenmez. */
+const TITLE_AFTER_NAME = new Set(["hanım", "hanim", "bey", "hanımefendi", "hanimefendi", "beyefendi", "hn"]);
+
+/** `end`ten sonra (satır içi boşluktan sonra) addan sonraki saygı sözü var mı. Doğrusal. */
+function titleAfter(text: string, end: number): boolean {
+  let p = end;
+  while (p < text.length && isHorizontalSpace(text[p])) p += 1;
+  if (p === end) return false;
+  let q = p;
+  while (q < text.length && /\p{L}/u.test(text[q])) q += 1;
+  return q > p && TITLE_AFTER_NAME.has(text.slice(p, q).toLocaleLowerCase("tr"));
+}
+
+/** `cut`ten hemen önceki sözcük (satır içinde, `floor`un gerisine gitmeden) bir saygı hitabıysa yerine gelecek isim. Doğrusal. */
+function honorificNounBefore(text: string, cut: number, floor: number): string | null {
+  let w = cut;
+  while (w > floor && /\p{L}/u.test(text[w - 1])) w -= 1;
+  if (w === cut) return null;
+  if (w > 0 && /[\p{L}\p{N}]/u.test(text[w - 1])) return null;
+  return HONORIFIC_NOUN.get(text.slice(w, cut).toLocaleLowerCase("tr")) ?? HONORIFIC_NOUN.get(text.slice(w, cut).toLowerCase()) ?? null;
+}
+
+/**
+ * AD BİLİNMİYORKEN tek geçiş (kurucu kararı 09-28: "Merhaba Rezervasyon HM4K2," yerine "Merhaba,"). Ad belirteci; önündeki satır içi
+ * boşluk ve ardındaki ek ("{isim}'e") ile kalkar, çevresindeki noktalama doğal kalır (09-28 inceleme ajanı, ölçülen kusurlar kırmızı-önce):
+ *  · satır ortasında ardından virgül: "Merhaba {isim}, bugün" → "Merhaba, bugün"; önünde de virgül varsa tek virgül ("Hi, {name},
+ *    welcome" → "Hi, welcome" — eskiden "Hi,, welcome");
+ *  · ardından cümle sonu / satır sonu: "Hi {name}!" → "Hi!"; önünde virgül varsa o da gider ("Welcome, {name}!" → "Welcome!" —
+ *    eskiden "Welcome,!");
+ *  · ardından sözcük ya da başka bir şey: tek boşluk kalır ("Sevgili {isim} Hanım" → "Sevgili Hanım", "Merhaba {isim} 👋" →
+ *    "Merhaba 👋" — eskiden "Merhaba👋");
+ *  · satır başında: belirteç + ardındaki tek noktalama gider ("{isim}, hoş geldiniz" → "hoş geldiniz", "{isim}! Hoş geldiniz" →
+ *    "Hoş geldiniz"); satır bütünüyle boşalırsa satır da gider ("Line1\n{isim},\nLine3" → "Line1\nLine3").
+ * Ad dışı belirteçler (`{daire}`) her zamanki gibi çözülür.
+ * 🚨 DOĞRUSAL tarama — başı çapasız boşluk kalıbı (`[ \t]*\{…`) uzun boşluk dizisinde karesel iş yapardı (ReDoS kuralı, CLAUDE.md).
+ */
+function fillWithoutName(text: string, values: GuestPlaceholderValues): string {
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (keyKind(m[1]) !== "name") {
+      out += text.slice(last, start) + (resolveGuestPlaceholder(m[1], values) ?? m[0]);
+      last = end;
+      continue;
+    }
+    // Önceki parça + satır içi sondaki boşluğu (geriye doğru, doğrusal).
+    let cut = start;
+    while (cut > last && isHorizontalSpace(text[cut - 1])) cut -= 1;
+    // 🚨 SAYGI HİTABI (kurucu kararı 09-30): "Sayın {isim}," ad bilinmezken "Sayın, …" oluyordu (hitap adsız kalamaz) →
+    // "Sayın misafirimiz,"; "Dear {name}," → "Dear guest,". YALNIZ hitap sözcüğü belirtecin hemen önündeyse ve belirteçten sonra
+    // ek yoksa; hitapsız metne yeni hitap EKLENMEZ, ad biliniyorsa bu yol hiç koşmaz.
+    const honorific =
+      cut < start && !NAME_SUFFIX_APOSTROPHES.has(text[end]) && !titleAfter(text, end) ? honorificNounBefore(text, cut, last) : null;
+    if (honorific) {
+      out += text.slice(last, start) + honorific;
+      last = end;
+      continue;
+    }
+    const lineStart = cut === 0 || isLineBreak(text[cut - 1]);
+    // Belirtecin ardı: ek ("'e") → boşluk.
+    let q = end;
+    if (NAME_SUFFIX_APOSTROPHES.has(text[q]) && NAMELESS_LETTER.test(text[q + 1] ?? "")) {
+      q += 1;
+      while (q < text.length && NAMELESS_LETTER.test(text[q])) q += 1;
+    }
+    while (isHorizontalSpace(text[q])) q += 1;
+    const next = text[q];
+    if (lineStart) {
+      if (next !== undefined && LINE_START_PUNCT.has(next)) {
+        q += 1;
+        while (isHorizontalSpace(text[q])) q += 1;
+      }
+      if (q >= text.length || isLineBreak(text[q])) {
+        // Satır bütünüyle boşaldı: girintisi ve satır sonuyla birlikte gider.
+        out += text.slice(last, cut);
+        if (text[q] === "\r" && text[q + 1] === "\n") q += 2;
+        else if (q < text.length) q += 1;
+      } else {
+        out += text.slice(last, start); // girinti korunur, belirteç + ardı gider
+      }
+      last = q;
+      continue;
+    }
+    const precededByComma = COMMAS.has(text[cut - 1]);
+    if (next !== undefined && COMMAS.has(next)) {
+      let after = q + 1;
+      while (isHorizontalSpace(text[after])) after += 1;
+      // "Hi, {name}, welcome" → "Hi, welcome" (önceki virgül kalır); "Merhaba {isim}, bugün" → "Merhaba, bugün".
+      out += text.slice(last, cut) + (precededByComma ? " " : text.slice(q, after));
+      last = after;
+    } else if (next === undefined || isLineBreak(next) || TERMINAL_PUNCT.has(next)) {
+      let keep = cut;
+      if (precededByComma) {
+        keep = cut - 1; // "Welcome, {name}!" → "Welcome!"
+        while (keep > last && isHorizontalSpace(text[keep - 1])) keep -= 1;
+      }
+      out += text.slice(last, keep);
+      last = q;
+    } else {
+      out += text.slice(last, cut) + " ";
+      last = q;
+    }
+  }
+  return out + text.slice(last);
+}
+
+/**
+ * TEK bir `{…}` anahtarının karşılığı — çözülemiyorsa `null` (belirteç DOKUNULMAZ):
+ * tanınmayan belirteç ("{kod}"), değeri verilmeyen sınıf VE belirsiz daire numarası
+ * (mülk adında birden çok sayı). Yanlış numara söylemektense belirteç kalsın.
+ *
+ * 🚨 Neden AYRI export: inbox'ın şablon uygulama yolu `{{çiftParantez}}` sınıfını
+ * KENDİ tek geçişinde çözmek ZORUNDA — ikame edilen metin bir daha TARANMAZ, çünkü
+ * `{{guestName}}` değeri misafirin kontrolündedir (sağlayıcıdaki görünen ad) ve
+ * ikinci bir tarama o değerin içinden YENİ belirteç uydurabilirdi. O yol bu modülün
+ * `fillGuestPlaceholders`'ını ikinci bir geçiş olarak çağıramaz; anahtar çözümünü
+ * buradan alır, geçişi kendi yapar. Kural yine TEK YERDE yaşar.
+ */
+export function resolveGuestPlaceholder(key: string, values: GuestPlaceholderValues): string | null {
+  const { guestFirstName, propertyName } = values;
+  const kind = keyKind(key);
+  if (kind === "name" && guestFirstName !== undefined) return guestFirstName;
+  if (kind === "apartment" && propertyName !== undefined) return apartmentNumberOf(propertyName);
+  return null;
+}
+
+/** Bir KB kalemi listesinin içeriğini toplu çözer (kalemin diğer alanları AYNEN kalır). */
+/**
+ * 🚨 BAŞLIK da çözülür (inceleme turu 6, ÖLÇÜLDÜ): `packKnowledgeBase` isteme
+ * `- [KATEGORİ] ${title}: ${content}` yazıyor, yani başlık MODELE gidiyor. Yalnız `content`
+ * çözülünce host'un "Hoş geldiniz {isim}" başlığı ham belirteçle modele ulaşıyordu — 09-10'da
+ * `content` için kapatılan sınıfın ta kendisi, başlıkta açık kalmıştı.
+ */
+export function fillGuestPlaceholdersInItems<T extends { title?: string; content: string }>(
+  items: T[],
+  values: GuestPlaceholderValues,
+): T[] {
+  return items.map((k) => ({
+    ...k,
+    ...(typeof k.title === "string" ? { title: markUnresolvedApartment(fillGuestPlaceholders(k.title, values)) } : {}),
+    content: markUnresolvedApartment(fillGuestPlaceholders(k.content, values)),
+  }));
+}
+
+/**
+ * 🚨 ÇÖZÜLEMEYEN DAİRE NUMARASI TAHMİN EDİLMEZ (kurucu kararı 09-30). Mülk adından numara okunamadıysa (`apartmentNumberOf` null)
+ * `{daire}` MODELE ham gitmiyor — `[DAİRE NO]` olur: istem bunu koddan "DOLDURULMAMIŞ YER TUTUCU" diye işaretler (gerçek değer
+ * değil, uydurma), cevapta geçerse çıktı vetosu tutar. Yalnız bilgi tabanı KALEMLERİNE (yapay zekâ bağlamı) uygulanır; misafire
+ * AYNEN giden mesaj metni (`fillGuestPlaceholders`) belirteci korur ve gönderici onu görüp mesajı DURDURUR.
+ */
+export const UNRESOLVED_APARTMENT_MARK = "[DAİRE NO]";
+
+function markUnresolvedApartment(text: string): string {
+  return text.replace(new RegExp(TOKEN.source, "gu"), (whole, key: string) => (keyKind(key) === "apartment" ? UNRESOLVED_APARTMENT_MARK : whole));
+}
+
+/**
+ * Doldurmadan SONRA metinde kalan ad / daire belirteçleri (`{daire}` numara okunamadığı için çözülemediyse kalır; `{isim}`
+ * her durumda çözülür ya da kalkar). Misafire giden metin bunları TAŞIYAMAZ: yaşam döngüsü göndericisi ve çıktı vetosu aynı
+ * yüklemi kullanır (kurucu kararı 09-30: "yalnız o mesaj gönderilmez").
+ */
+export function leftoverGuestTokens(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    if (keyKind(m[1]) !== null) out.push(m[0]);
+  }
+  return out;
+}
+
+/**
+ * TANINMAYAN tek parantezli / yüzde işaretli belirteç — doldurmadan SONRA metinde kalmışsa misafire GİTMEZ (10-01, 15 ajan incelemesi A08,
+ * ölçüldü): yaşam döngüsü kapısı ve çıktı vetosu yalnız `[…]` / `{{…}}` / `{isim}`·`{daire}`i tanıyordu → "Kapı kodu: {kod}", "{wifi}",
+ * "{guest_name}", "{ KOD }", "%KOD%" karşılama / giriş mesajında misafire HAM gidiyordu. Bilinen ad / daire belirteci kalırsa
+ * `leftoverGuestTokens` da yakalar (burada tekrar sayılması zararsız). İçinde en az bir harf ("{1}", "%50" değil); satır aşmaz; sınırlı
+ * uzunluk (doğrusal). `kbPlaceholderTokens`a eklenmedi: o tarayıcı eski düzenli ifadeyle kâhin eşdeğerliğine pinli.
+ */
+export function unfilledTemplateTokens(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\{[^{}\n]{1,40}\}/gu)) {
+    // Bilinen ad / daire belirteci gönderimde DOLDURULUR (`fillGuestPlaceholders`) — Bilgi Tabanı rozeti doldurulmamış saymasın; doldurmadan
+    // sonra kalmışsa `leftoverGuestTokens` yakalar.
+    if (keyKind(m[0].slice(1, -1).trim()) !== null) continue;
+    if (/\p{L}/u.test(m[0])) out.push(m[0]);
+  }
+  for (const m of text.matchAll(/%[\p{L}_]{2,30}%/gu)) out.push(m[0]);
+  return out;
+}
+
+/** Bu mülk adıyla `{daire}` çözülebiliyor mu (numara adda tek ve belirgin mi) — mülk sayfası uyarısı ve gönderici aynı kural. */
+export function apartmentResolvable(propertyName: string): boolean {
+  return apartmentNumberOf(propertyName) !== null;
+}
+
+/** Metin bir daire belirteci (`{daire}` / `{apartment}` / `{apt}`) içeriyor mu. */
+export function usesApartmentToken(text: string): boolean {
+  for (const m of text.matchAll(new RegExp(TOKEN.source, "gu"))) {
+    if (keyKind(m[1]) === "apartment") return true;
+  }
+  return false;
+}
+
+/* ---------------------------------------------------------------------------
+ * DOLDURULMAMIŞ ALAN TESPİTİ.
+ *
+ * 🚨 `@/lib/ai/prompts` DEĞİL BURADA (09-11): o dosya `import "server-only"`
+ * taşıyor, yani bir İSTEMCİ bileşeni onu import EDEMEZ. Bilgi Tabanı ekranı
+ * (client) kaleme "Doldurulmamış alan" rozeti basabilmek için aynı yükleme
+ * ihtiyaç duyuyor ve rozet ile GERÇEK gönderim davranışı ayrışmamalı → yüklem
+ * saf modüle taşındı, üç tüketici de (istem notu · gönderici kapısı · rozet)
+ * AYNI kaynaktan okur.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `[ŞİFRE]`, `<adres>`, `____` sınıfı — host'un DOLDURMADIĞI alanlar.
+ * `{isim}`/`{daire}` BİLEREK DIŞARIDA: onlar gönderim anında çözülür.
+ * İçinde en az bir HARF şart: "[1]" madde imi yer tutucu değildir.
+ *
+ * 🚨 REGEX DEĞİL, DOĞRUSAL TARAYICI (09-23 denetimi, ölçüldü). Eski gerçekleme
+ * `/\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu` idi: iki sınırsız
+ * olumsuz sınıf arasında ZORUNLU bir harf → kapanışsız her açılışta bütün bölünme
+ * noktaları denenir, O(n³). "[ş" tekrarı 3.000 karakterde 8,1 sn; KB kalemi 20.000
+ * karaktere kadar kabul edildiği için ~40 DAKİKA tek iş parçacığı donması — ve bu
+ * yüklem halka açık QR yolunda (istem paketleme) koşuyor. Anlam BİREBİR aynı:
+ *   · `[`/`<` açılışından İLK kapanışa (`]`/`>`) kadar; arada satır sonu varsa eşleşme yok
+ *     (içte başka açılış serbest: "[ab[cd]" tek belirteç),
+ *   · aralıkta en az bir harf (`\p{L}`, BMP dışı vekil çift dahil),
+ *   · eşleşmeyen açılışta bir sonraki karakterden devam (regex'in soldan tarama sırası),
+ *   · `_{3,}` ardışık alt çizgi koşusu.
+ * Eşdeğerlik eski regex KÂHİN alınarak tohumlu rastgele testle pinli
+ * (`tests/unit/kb-placeholder-redos.test.ts`). Her açılış için kapanış aramasını
+ * yeniden yapmamak üzere tür başına "bilinen durak" ileri gider → toplam O(n).
+ */
+const LETTER = /\p{L}/u;
+export function kbPlaceholderTokens(content: string): string[] {
+  const n = content.length;
+  // nextLetter[i] = i'den itibaren ilk harfin BAŞLADIĞI indeks (yoksa n). BMP dışı harf
+  // vekil çiftin YÜKSEK yarısında işaretlenir (`codePointAt` orada çifti tek kod noktası
+  // okur); düşük yarı tek başına harf değildir — aralık kontrolü çiftin tamamını kapsar.
+  const nextLetter = new Int32Array(n + 1);
+  nextLetter[n] = n;
+  for (let i = n - 1; i >= 0; i--) {
+    nextLetter[i] = LETTER.test(String.fromCodePoint(content.codePointAt(i)!)) ? i : nextLetter[i + 1];
+  }
+  // Tür başına bilinen durak: son hesaplanan (kapanış | satır sonu | son) konumu.
+  const stop = { "[": -1, "<": -1 } as Record<"[" | "<", number>;
+  const out: string[] = [];
+  let i = 0;
+  while (i < n) {
+    const c = content[i];
+    if (c === "[" || c === "<") {
+      const close = c === "[" ? "]" : ">";
+      if (stop[c] <= i) {
+        let j = i + 1;
+        while (j < n && content[j] !== close && content[j] !== "\n") j++;
+        stop[c] = j;
+      }
+      const j = stop[c];
+      if (j < n && content[j] === close && nextLetter[i + 1] < j) {
+        out.push(content.slice(i, j + 1));
+        i = j + 1;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (c === "_") {
+      let j = i;
+      while (j < n && content[j] === "_") j++;
+      if (j - i >= 3) out.push(content.slice(i, j));
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return out;
+}

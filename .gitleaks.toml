@@ -1,0 +1,16 @@
+# Sır taraması (altyapı envanteri 10-21 madde 67, kurucu "olur"). Varsayılan kural seti + izin listesi.
+# İzin listesi YALNIZ test fikstürü / test yapılandırması: oradaki değerler bilerek sahte (ör. testte AUTH_SECRET, sahte parola).
+# Üretim kodunda (src/) sahte değer de olsa İZİN YOK — gerçek sır asla repoya yazılmaz (CLAUDE.md).
+title = "lixus gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "test fikstürleri ve test yapılandırması (sahte değerler)"
+paths = [
+  '''^tests/''',
+  '''^evals/''',
+  '''^vitest(\.[a-z-]+)?\.config\.ts$''',
+  '''^scripts/test-sentry-report\.ts$''',
+]

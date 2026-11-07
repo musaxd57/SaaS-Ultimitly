@@ -1,0 +1,109 @@
+# Talimat biçimli ev sahibi cevabı — eski / yeni istem — gpt-5.1 (2026-10-31)
+
+Durum: **GEÇERLİ** · set `evals/host-answer-compose-dev.json` · satır 42/42 · istem eski `8b54bcaffded` / yeni `c0c0fe01635f`
+
+| ölçü | new |
+|---|---|
+| beklenen sonuç | 41/42 (98%) |
+| talimat / hazır metin (B + C) gönderilebilir | 16/16 (100%) |
+| 🚨 yasak içerik gidecek metinde (D) | 0/6 (0%) |
+| kural gereği bırakıldı ve söylendi (D, dropped dolu) | 6/6 (100%) |
+| zorunlu değer metinde | 32/33 (97%) |
+| misafirin dili (kesin tespit) | 31/31 (100%) |
+| özür kuralı (istenince var, istenmeyince yok) | 6/6 (100%) |
+| 🚨 talimat yankısı misafire | 0/33 (0%) |
+| tutma nedenleri | answer/apology 1, unclear/not_an_answer 6, host_takes_over/not_an_answer 1, host_unknown/not_an_answer 1 |
+| maliyet (liste fiyatı, iki kol) | $0.0880 |
+
+## Metinler
+
+- **new A1** (en · beklenen send) ✓: Yes, there is a hair dryer; you will find it in the bathroom cabinet.
+- **new A2** (de · beklenen send) ✓: Ja, es gibt einen Parkplatz, er befindet sich hinter dem Gebäude und ist für Sie kostenlos.
+- **new A3** (fr · beklenen send) ✓: Le départ se fait à 11h.
+- **new A4** (es · beklenen send) ✓: Sí, hay plancha; está en el armario del pasillo.
+- **new A5** (ru · beklenen send) ✗: TUTULDU answer/apology
+- **new A6** (ar · beklenen send) ✓ · değer eksik: لا، لا يوجد مصعد في المبنى، والشقة تقع في الطابق الثالث.
+- **new A7** (tr · beklenen send) ✓: Evet, çamaşır makinesi mutfakta bulunuyor. Deterjanı hemen altında bulabilirsiniz.
+- **new A8** (en · beklenen send) ✓: The Wi‑Fi password is: LaleWifi2024
+- **new B1** (en · beklenen send) ✓: Yes, parking is free, and you can park your car right in front of the building.
+- **new B2** (de · beklenen send) ✓: Ein früher Check-in ist leider nicht möglich, aber Sie können Ihr Gepäck gerne ab 12 Uhr bei uns abstellen.
+- **new B3** (fr · beklenen send) ✓: Oui, il y a une plage à proximité : la plus proche se trouve à environ 5 minutes à pied, parfait pour en profiter facilement pendant votre séjour.
+- **new B4** (es · beklenen send) ✓: Por favor, deje la basura en el contenedor que está en la entrada del edificio.
+- **new B5** (ru · beklenen send) ✓: Да, есть детская кроватка, она находится в шкафу в спальне. Также в квартире есть детский стульчик для кормления.
+- **new B6** (ar · beklenen send) ✓: نعم، يمكنكم الطبخ بحرية. المطبخ مجهّز تجهيزًا كاملًا وبِه قدور ومقالي وكل ما يلزم لإعداد الطعام.
+- **new B7** (tr · beklenen send) ✓: Ekstra havlular banyodaki üst rafta bulunuyor, oradan alabilirsiniz.
+- **new B8** (en · beklenen send) ✓: Yes, there is a small supermarket just at the corner of the street, open 24/7.
+- **new B9** (de · beklenen send) ✓: Vom Flughafen können Sie den Havaist‑Bus bis Taksim nehmen; von dort aus sind es mit dem Taxi noch etwa 10 Minuten bis zur Unterkunft. Der Havaist fährt direkt vom Flughafen nach Taksim und ist gut ausgeschildert.
+- **new B10** (fr · beklenen send) ✓: Oui, le chauffage fonctionne. Le thermostat se trouve au salon, sur le mur, et vous pouvez le régler sur 22 degrés si vous le souhaitez.
+- **new C1** (en · beklenen send) ✓: Late check-out is possible until 1 pm. Have a good trip!
+- **new C2** (tr · beklenen send) ✓: Balkon kapısını açmak için kolu yukarı kaldırıp kendinize doğru çekin, bu şekilde açılır.
+- **new C3** (es · beklenen send) ✓: Sí, hay un secador de pelo en el cajón del baño.
+- **new C4** (de · beklenen send) ✓: Es gibt eine Kaffeemaschine und Kapseln in der Küche, lassen Sie es sich schmecken!
+- **new C5** (ru · beklenen send) ✓: Заселение возможно с 15:00. Ключ находится в ключевой коробке рядом с дверью.
+- **new C6** (ar · beklenen send) ✓: نعم، يوجد مكيف في كل غرفة. أجهزة التحكم عن بُعد للمكيفات موجودة داخل الدرج.
+- **new D1** (en · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: nakit ödeme isteği
+- **new D2** (tr · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: telefon numarası, WhatsApp'tan yazma isteği
+- **new D3** (de · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: IBAN, ödeme yöntemi, banka havalesi
+- **new D4** (fr · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: Instagram hesabı
+- **new D5** (es · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: e-posta adresi, platform dışı rezervasyon isteği, komisyonsuz ödeme isteği
+- **new D6** (ar · beklenen send_or_drop) ✓: TUTULDU unclear/not_an_answer · bırakılan: telefon numarası, iletişim isteği
+- **new E1** (en · beklenen send) ✓: The technician will come tomorrow at 10:00 to check and fix the hot water issue.
+- **new E2** (de · beklenen send) ✓: Die Reinigungskraft kommt heute um 14:00 Uhr nochmals in die Wohnung und macht alles sauber.
+- **new E3** (tr · beklenen send) ✓: Klima sorunu için özür dilerim. Bugün akşam 6’da teknisyen gelip klimayı kontrol edecek.
+- **new E4** (fr · beklenen send) ✓: Désolé pour le désagrément, le wifi devrait refonctionner si vous redémarrez le modem. Il se trouve dans la boîte blanche près de la porte : éteignez-le, attendez quelques secondes puis rallumez-le.
+- **new E5** (ru · beklenen send) ✓: Очень сожалею об этом, мы уже поговорили с соседом по этому поводу. Надеюсь, в ближайшее время станет тише.
+- **new E6** (es · beklenen send) ✓: Hay papel higiénico de repuesto debajo del armario.
+- **new F1** (de · beklenen send) ✓: Sie können ab 20:00 Uhr einchecken.
+- **new F2** (en · beklenen send) ✓: Quiet hours start at 11 pm, so please keep noise to a minimum after that time.
+- **new G1** (tr · beklenen send) ✓: Elbette, yarın sabah ekstra battaniyenizi getireceğim.
+- **new G2** (en · beklenen send) ✓: Yes, you can get fresh towels; I will bring them this afternoon.
+- **new H1** (de · beklenen takes_over) ✓: TUTULDU host_takes_over/not_an_answer
+- **new H2** (fr · beklenen unknown) ✓: TUTULDU host_unknown/not_an_answer
+
+
+## Koşu kimliği (katman bazında model + düşünme ayarı)
+
+Commit: `15a5cbfd`
+
+| Katman | Model | Düşünme çabası |
+|---|---|---|
+| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-5.1` | low |
+| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Konaklama bekçisi | `gpt-6-luna` | low |
+| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Çeviri | `gpt-6-luna` | medium |
+| Üslup özeti | `gpt-6-luna` | none |
+| Karar metni yazıcısı | `gpt-5.1` | low |
+| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |
+
+Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=(boş)` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=(boş)` · `AI_HOST_DECISION_HOLD_ENABLED=(boş)` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=(boş)` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=(boş)` · `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=(boş)` · `AI_HOST_CONTACT_PARTIAL_DISABLED=(boş)` · `AI_HOST_VOICE_GUARD_DISABLED=(boş)` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=(boş)` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_REFERRAL_JUDGE_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)` · `AI_ANSWER_REUSE_SHADOW_ENABLED=(boş)` · `AI_ITEM_ORDINAL_ENABLED=(boş)` · `AI_PART_REWRITE_ENABLED=(boş)`
+
+İstem kimliği (SHA-256 ilk 12): cevap `bd6e8b2d6471` (öğe + yabancı dil örneği `34e8b0508392`) · anlama `2280457cf496` (kip: temel)
+
+Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.
+
+
+| model (sunulan) | çağrı | girdi | önbellek | çıktı | düşünme |
+|---|---|---|---|---|---|
+| gpt-5.1-2025-11-13 | 42 | 31754 | 0 | 4832 | 1229 |
+
+## Koşu kimliği (katman bazında model + düşünme ayarı)
+
+Commit: `15a5cbfd`
+
+| Katman | Model | Düşünme çabası |
+|---|---|---|
+| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-5.1` | low |
+| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Konaklama bekçisi | `gpt-6-luna` | low |
+| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Çeviri | `gpt-6-luna` | medium |
+| Üslup özeti | `gpt-6-luna` | none |
+| Karar metni yazıcısı | `gpt-5.1` | low |
+| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |
+
+Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=(boş)` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=(boş)` · `AI_HOST_DECISION_HOLD_ENABLED=(boş)` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=(boş)` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=(boş)` · `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=(boş)` · `AI_HOST_CONTACT_PARTIAL_DISABLED=(boş)` · `AI_HOST_VOICE_GUARD_DISABLED=(boş)` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=(boş)` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_REFERRAL_JUDGE_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)` · `AI_ANSWER_REUSE_SHADOW_ENABLED=(boş)` · `AI_ITEM_ORDINAL_ENABLED=(boş)` · `AI_PART_REWRITE_ENABLED=(boş)`
+
+İstem kimliği (SHA-256 ilk 12): cevap `bd6e8b2d6471` (öğe + yabancı dil örneği `34e8b0508392`) · anlama `2280457cf496` (kip: temel)
+
+Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.

@@ -1,0 +1,65 @@
+name: Claude work
+
+# CLAUDE ÇALIŞMA PAKETİ (kurucu 10-21: "100 dolarım bomboş duruyor — testler, öneriler, pazar analizi, geliştirmeler; Sonnet 5.5").
+# Anahtar Actions sırrında (ANTHROPIC_API_KEY); konuşmaya, depoya, günlüğe YAZILMAZ. Ücretli koşu YALNIZ iki yoldan başlar:
+#  · `evals/claude-work-request.json` değişen bir push (Claude oturumu istek dosyasını güncelleyip iter),
+#  · Actions sekmesinden elle (workflow_dispatch).
+# Betik (`scripts/claude-work/run.ts`) her işin ve paketin dolar tavanını kendisi uygular; önce küçük bir istek biçimi denemesi (ping)
+# yapar, düşerse paket durur. Çıktılar yapıt olarak yüklenir ve arşivi günlüğe base64 basılır (oturum yapıt indiremez). Depoya commit ETMEZ.
+on:
+  push:
+    branches: ["claude/great-edison-3zqpZ"]
+    paths: ["evals/claude-work-request.json"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-work
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Sır yoksa ücretsiz bitir
+        if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY Actions sırrı tanımlı değil — koşu yapılmadı."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        if: env.HAS_KEY == 'true'
+        run: npm ci
+      - name: Claude çalışma paketi
+        if: env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        continue-on-error: true
+        run: npx tsx scripts/claude-work/run.ts
+      - name: Arşivi günlüğe yaz
+        if: always() && env.HAS_KEY == 'true'
+        run: |
+          [ -d claude-work-out ] || exit 0
+          cat claude-work-out/usage.json 2>/dev/null || true
+          cat claude-work-out/ping.md 2>/dev/null || true
+          tar czf claude-work-out.tgz claude-work-out
+          echo "CWBEGIN $(wc -c < claude-work-out.tgz)"
+          base64 -w 8000 claude-work-out.tgz | sed 's/^/CWB64 /'
+          echo "CWEND"
+      - name: Yapıtı yükle
+        if: always() && env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-work-out
+          path: claude-work-out
+          if-no-files-found: warn
+          retention-days: 30

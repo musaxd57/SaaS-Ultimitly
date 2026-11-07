@@ -1,0 +1,175 @@
+{
+  "description": "Doğrulanmış cevap tekrarı (kurucu fikri 10-23 + Codex notu) — benzerlik ölçümü GELİŞTİRME seti. Her grup tek bir standart ihtiyaçtır: 'same' = aynı ihtiyacın başka sözcükle / başka dilde sorulması (tekrar kullanılabilir), 'near' = benzeyen ama FARKLI ihtiyaç (karar isteyen istek, koşullu değişke, başka alt soru, şikâyet) — tekrar KULLANILAMAZ. İlk 'same' grubun çapasıdır. Kurgusal; gerçek misafir / işletme verisi yok. Kör (mühürlü) set ayrıca yazılmadan anahtar açılmaz. 'answer' = grubun kayıtlı cevap parçası (çapa sorusuna doğrulanmış cevap, Türkçe).",
+  "groups": [
+    {
+      "id": "checkout_time",
+      "same": [
+        "Çıkış saat kaçta?",
+        "Evi saat kaça kadar boşaltmamız gerekiyor?",
+        "Check-out time?",
+        "What time do we need to leave the apartment?",
+        "Wann ist der Check-out?",
+        "Во сколько выезд?",
+        "Son gün daireden en geç kaçta çıkmalıyız?"
+      ],
+      "near": [
+        "Çıkışı iki saat geciktirebilir miyiz?",
+        "13:00'te çıkabilir miyiz?",
+        "Cumartesi çıkış saati farklı mı?",
+        "Çıkışta anahtarı nereye bırakalım?",
+        "Can we have a late checkout?"
+      ],
+      "answer": "Çıkış saati 11:00."
+    },
+    {
+      "id": "trash",
+      "same": [
+        "Çöpleri nereye atıyoruz?",
+        "Atıkları nerede bırakabiliriz?",
+        "Where do we put the garbage?",
+        "Çöp konteyneri nerede?",
+        "Wo werfen wir den Müll weg?"
+      ],
+      "near": [
+        "Cam şişeler için ayrı kutu var mı?",
+        "Çöp çok kötü kokuyor, alır mısınız?",
+        "Çöpleri hangi gün topluyorlar?",
+        "Is there recycling?"
+      ],
+      "answer": "Çöpleri bina girişinin sağındaki konteynere atabilirsiniz."
+    },
+    {
+      "id": "wifi_password",
+      "same": [
+        "Wi-Fi şifresi neydi?",
+        "İnternet şifresini alabilir miyim?",
+        "What's the wifi password?",
+        "WLAN Passwort bitte?",
+        "Пароль от вайфая?"
+      ],
+      "near": [
+        "Wi-Fi çalışmıyor, bağlanamıyoruz.",
+        "İnternet hızı ne kadar?",
+        "Wi-Fi ağının adı ne?",
+        "The wifi keeps disconnecting."
+      ],
+      "answer": "Wi-Fi şifresi Lale2025."
+    },
+    {
+      "id": "parking",
+      "same": [
+        "Otopark var mı?",
+        "Arabayı nereye park edebiliriz?",
+        "Is there parking?",
+        "Gibt es einen Parkplatz?",
+        "Aracımızı bırakabileceğimiz bir yer var mı?"
+      ],
+      "near": [
+        "Otopark ücretli mi?",
+        "İki araba için yer var mı?",
+        "Elektrikli araç şarj istasyonu var mı?",
+        "How much is parking per day?"
+      ],
+      "answer": "Binanın önünde ücretsiz otopark var."
+    },
+    {
+      "id": "pool_hours",
+      "same": [
+        "Havuz kaçta kapanıyor?",
+        "Havuz ne zamana kadar açık?",
+        "Until when is the pool open?",
+        "Bis wann ist der Pool geöffnet?",
+        "Akşam havuza kaça kadar girebiliriz?"
+      ],
+      "near": [
+        "Havuz cumartesi kaçta kapanıyor?",
+        "Havuz ısıtmalı mı?",
+        "Sauna kaçta kapanıyor?",
+        "Havuza çocuklar girebilir mi?",
+        "Is the pool open in winter?"
+      ],
+      "answer": "Havuz her gün 20:00'de kapanıyor."
+    },
+    {
+      "id": "pets",
+      "same": [
+        "Köpeğimizi getirebilir miyiz?",
+        "Evcil hayvan kabul ediyor musunuz?",
+        "Are pets allowed?",
+        "Dürfen wir unseren Hund mitbringen?"
+      ],
+      "near": [
+        "Kedi getirebilir miyiz?",
+        "Köpek için ek ücret var mı?",
+        "Köpeği evde yalnız bırakabilir miyiz?",
+        "Is there a dog park nearby?"
+      ],
+      "answer": "Köpek kabul edilmez."
+    },
+    {
+      "id": "checkin_time",
+      "same": [
+        "Giriş saat kaçta?",
+        "Kaçta yerleşebiliriz?",
+        "What time is check-in?",
+        "Ab wann können wir einchecken?",
+        "Daireye en erken kaçta girebiliyoruz normalde?"
+      ],
+      "near": [
+        "Erken giriş yapabilir miyiz?",
+        "Saat 11'de gelsek olur mu?",
+        "Gece 2'de varırsak sorun olur mu?",
+        "Bavulları erken bırakabilir miyiz?"
+      ],
+      "answer": "Giriş saati 15:00."
+    },
+    {
+      "id": "breakfast",
+      "same": [
+        "Kahvaltı var mı?",
+        "Gibt es Frühstück?",
+        "Is there breakfast?",
+        "Sabahları kahvaltı veriliyor mu?"
+      ],
+      "near": [
+        "Kahvaltı kaçta?",
+        "Fiyata kahvaltı dahil mi?",
+        "Is breakfast included?",
+        "Glutensiz kahvaltı hazırlanabilir mi?",
+        "Kahvaltıyı odaya getirebilir misiniz?"
+      ],
+      "answer": "Evet, kahvaltı var."
+    },
+    {
+      "id": "towels",
+      "same": [
+        "Havlu var mı?",
+        "Do you provide towels?",
+        "Havlu getirmemiz gerekiyor mu?",
+        "Gibt es Handtücher?"
+      ],
+      "near": [
+        "Havluları değiştirebilir misiniz?",
+        "Plaj havlusu var mı?",
+        "Havlular kirli geldi."
+      ],
+      "answer": "Evet, havlular dairede hazır."
+    },
+    {
+      "id": "ac_use",
+      "same": [
+        "Klima nasıl çalışıyor?",
+        "How do I turn on the AC?",
+        "Klimayı nasıl açıyoruz?",
+        "Wie schalte ich die Klimaanlage ein?"
+      ],
+      "near": [
+        "Klima çalışmıyor.",
+        "Klima kumandası nerede?",
+        "Klima su damlatıyor.",
+        "Can you fix the air conditioner?"
+      ],
+      "answer": "Klimayı kumandadaki açma düğmesine basarak açabilirsiniz."
+    }
+  ]
+}

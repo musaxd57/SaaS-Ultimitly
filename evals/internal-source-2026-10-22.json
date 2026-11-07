@@ -1,0 +1,324 @@
+{
+ "version": 1,
+ "note": "Kurucu 10-22 akşam önce/sonra seti: iç kaynak anlatımı ('bilgi tabanımda … yazıyor') ve iç daire adı. Mülk İÇ adı bilerek iç kod taşır; misafire görünen ad 'Kat 3 Daire 12' (yalnız yeni kod okur). Bilgi tabanı before-after setiyle aynı (sentetik, Lale fikstürü).",
+ "property": {
+  "name": "Lale – arka cephe (iç kod L5)",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir",
+  "guestDisplayName": "Kat 3 Daire 12"
+ },
+ "kbSets": {
+  "full": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale-5G, şifre: Lale2025! Yatak odasında sinyal zayıfsa aynı şifreyle Lale-2G ağına bağlanabilirsiniz. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "checkin",
+    "title": "Giriş ve anahtar kutusu",
+    "content": "Giriş saati 15:00'tir. Anahtar, bina kapısının solundaki gri anahtar kutusundadır; kutunun şifresi 4721. Şifreyi girip kapağı aşağı çekin, anahtarı aldıktan sonra kapağı kapatıp rakamları karıştırın. Bina kapısı aynı anahtarla açılır."
+   },
+   {
+    "category": "checkin",
+    "title": "Daire konumu ve asansör",
+    "content": "Daire 3. kattadır, kapı numarası 12. Binada 4 kişilik asansör vardır; merdivenler asansörün hemen yanındadır."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış ve anahtar iadesi",
+    "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı aynı anahtar kutusuna bırakıp rakamları karıştırın. Pencereleri ve klimayı kapatmanız yeterli; kirli havluları banyoya bırakabilirsiniz."
+   },
+   {
+    "category": "checkout",
+    "title": "Bavul bırakma",
+    "content": "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz. Giriş saatinden önce bavul bırakma imkânı yoktur."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın kendi otoparkı yoktur. 200 m ileride, Gül Sokak üzerinde ücretli açık otopark vardır; günlük ücret 150 TL'dir, ödeme gişede nakit veya kartla yapılır. Bina önüne park etmek yasaktır."
+   },
+   {
+    "category": "rules",
+    "title": "Sessiz saatler",
+    "content": "Sessiz saatler 23:00-08:00 arasıdır. Bu saatlerde müzik açmamanızı ve balkonda yüksek sesle konuşmamanızı rica ederiz."
+   },
+   {
+    "category": "rules",
+    "title": "Ev kuralları",
+    "content": "Dairede ve balkonda sigara içmek yasaktır. Parti ve etkinlik düzenlenemez. Evcil hayvan kabul edilmez. Rezervasyonda belirtilen kişi sayısından fazla kişi konaklayamaz."
+   },
+   {
+    "category": "rules",
+    "title": "Balkon",
+    "content": "Balkonda mangal ve açık ateş yasaktır. Çamaşır askısını balkonda kullanabilirsiniz; lütfen korkuluğa bir şey asmayın."
+   },
+   {
+    "category": "cleaning",
+    "title": "Havlu ve çarşaf değişimi",
+    "content": "Havlular 3 günde bir ücretsiz değiştirilir, çarşaflar haftada bir. Yedek havlular yatak odasındaki dolabın üst rafındadır."
+   },
+   {
+    "category": "cleaning",
+    "title": "Temizlik ücreti ve ara temizlik",
+    "content": "Temizlik ücreti rezervasyon toplamına dahildir, konaklama sırasında ayrıca ödeme alınmaz. Konaklama ortasında ek ara temizlik 400 TL karşılığında yapılabilir."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyodadır. Deterjan ve yumuşatıcı makinenin üstündeki dolaptadır. Günlük yıkama için 30 derece programını seçin. Kurutma makinesi yoktur; balkonda katlanır çamaşır askısı bulunur."
+   },
+   {
+    "category": "amenities",
+    "title": "Klima",
+    "content": "Klima kumandası salondaki TV ünitesinin çekmecesindedir. MODE tuşuyla soğutma (kar tanesi) ya da ısıtma (güneş) seçebilirsiniz; önerilen sıcaklık 24 derecedir. Çıkarken klimayı kapatmanızı rica ederiz."
+   },
+   {
+    "category": "amenities",
+    "title": "Saç kurutma makinesi ve ütü",
+    "content": "Saç kurutma makinesi banyodaki lavabo dolabında, ütü ve ütü masası yatak odasındaki gardırobun içindedir."
+   },
+   {
+    "category": "amenities",
+    "title": "Bebek yatağı",
+    "content": "Talep üzerine ücretsiz bebek yatağı ve mama sandalyesi sağlanır. Varıştan en az 48 saat önce bildirmeniz yeterlidir."
+   },
+   {
+    "category": "amenities",
+    "title": "Mutfak",
+    "content": "Mutfakta buzdolabı, ocak, fırın, su ısıtıcısı, tencere-tava ve yemek takımı vardır. Tuz, şeker, çay ve zeytinyağı temel malzeme olarak bulunur."
+   },
+   {
+    "category": "other",
+    "title": "Çöp",
+    "content": "Çöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır. Geri dönüşüm için mavi konteyneri kullanın. Çöpler her akşam 21:00'de toplanır. Yedek çöp poşetleri lavabo altındaki dolaptadır."
+   },
+   {
+    "category": "location",
+    "title": "Market ve eczane",
+    "content": "En yakın market 100 m ileride köşedeki Kardelen Market'tir, her gün 07:00-23:30 açıktır. En yakın eczane 300 m uzaklıkta, ana cadde üzerindeki Papatya Eczanesi'dir."
+   },
+   {
+    "category": "transport",
+    "title": "Havalimanı ulaşımı",
+    "content": "Havalimanından Havaş otobüsleri iç hatlar terminali çıkışından kalkar ve Alsancak'a yaklaşık 45 dakikada ulaşır. Alsancak durağından daireye yürüyerek 10 dakikadır. Taksiyle havalimanından daireye yaklaşık 35 dakika sürer."
+   },
+   {
+    "category": "location",
+    "title": "Plaj",
+    "content": "En yakın plaj 800 m uzaklıktadır, yürüyerek yaklaşık 10 dakika. Plaj havluları ve iki şemsiye giriş dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Acil durumlar",
+    "content": "Acil durumlarda 112'yi arayın (ambulans, itfaiye, polis). Gaz kokusu alırsanız pencereleri açın, elektrik düğmelerine dokunmayın, binayı terk edip 187'yi arayın. Sigorta kutusu giriş kapısının yanındaki duvar dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Ev sahibine ulaşma",
+    "content": "Ev sahibine her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz. Bu saatler dışında mesaj bırakın, en kısa sürede dönüş yapılır."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "is-tr-otopark-kart",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Otopark ücretini nasıl ödüyoruz, kart geçiyor mu?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "150"
+    ]
+   }
+  },
+  {
+   "id": "is-tr-wifi-emin",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Wifi şifresi neydi? Nereden bakıyorsunuz, doğru olduğundan emin misiniz?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "is-tr-cikis-sistem",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Çıkış saati kaçta? Sistemde ne yazıyor tam olarak?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "is-tr-havlu-kayit",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Havlular ne sıklıkla değişiyor, kayıtlarınızda ne görünüyor?",
+   "expect": {
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "is-tr-market-bilgi",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "En yakın market kaçta açılıyor? Bu bilgiyi nereden aldınız?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "07:00"
+    ]
+   }
+  },
+  {
+   "id": "is-en-wifi-source",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "What's the wifi password? Where do you get your information from?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "is-en-parking-system",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "Is parking paid? What does your system say about it?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "150"
+    ]
+   }
+  },
+  {
+   "id": "is-en-checkout-records",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "What time is checkout according to your records?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "is-en-bot-how",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "Are you a bot? How do you know all this about the flat? Anyway, when are quiet hours?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "23:00"
+    ]
+   }
+  },
+  {
+   "id": "is-de-wlan-quelle",
+   "class": "grounded",
+   "lang": "de",
+   "kb": "full",
+   "message": "Wie lautet das WLAN-Passwort? Woher haben Sie diese Information?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "pn-tr-daire-adi",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Hangi dairede kalıyoruz, dairenin adı ne?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "pn-en-apartment-name",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "What's the name of the apartment we're staying in? I need it for a delivery.",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "pn-tr-kurye",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Kurye için daire bilgisi lazım, kaçıncı kat ve hangi kapı?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "12"
+    ]
+   }
+  },
+  {
+   "id": "c-tr-wifi",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Wifi şifresi ne?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "c-en-checkin",
+   "class": "grounded",
+   "lang": "en",
+   "kb": "full",
+   "message": "What time is check-in?",
+   "expect": {
+    "autoSend": "yes",
+    "facts": [
+     "15:00"
+    ]
+   }
+  },
+  {
+   "id": "c-tr-cop",
+   "class": "grounded",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Çöpleri nereye atıyoruz?",
+   "expect": {
+    "autoSend": "yes"
+   }
+  }
+ ]
+}

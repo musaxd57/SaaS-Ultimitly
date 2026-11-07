@@ -1,0 +1,667 @@
+{
+  "day": "2026-11-06",
+  "filesRead": 264,
+  "filesSkipped": 91,
+  "all": {
+    "replies": 3680,
+    "rawThird": 1935,
+    "filterHeldWhole": 230,
+    "rescuedByFilter": 19,
+    "held": 1693,
+    "heldThird": 1692,
+    "heldInternal": 0,
+    "heldReferral": 1,
+    "heldOnlyByVoice": 274
+  },
+  "before": {
+    "replies": 3274,
+    "rawThird": 1825,
+    "filterHeldWhole": 224,
+    "rescuedByFilter": 19,
+    "held": 1588,
+    "heldThird": 1587,
+    "heldInternal": 0,
+    "heldReferral": 1,
+    "heldOnlyByVoice": 261
+  },
+  "after": {
+    "replies": 406,
+    "rawThird": 110,
+    "filterHeldWhole": 6,
+    "rescuedByFilter": 0,
+    "held": 105,
+    "heldThird": 105,
+    "heldInternal": 0,
+    "heldReferral": 0,
+    "heldOnlyByVoice": 13
+  },
+  "undated": {
+    "replies": 0,
+    "rawThird": 0,
+    "filterHeldWhole": 0,
+    "rescuedByFilter": 0,
+    "held": 0,
+    "heldThird": 0,
+    "heldInternal": 0,
+    "heldReferral": 0,
+    "heldOnlyByVoice": 0
+  },
+  "byLang": {
+    "?": {
+      "replies": 42,
+      "rawThird": 12,
+      "filterHeldWhole": 4,
+      "rescuedByFilter": 0,
+      "held": 8,
+      "heldThird": 8,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 4
+    },
+    "tr": {
+      "replies": 1911,
+      "rawThird": 1120,
+      "filterHeldWhole": 124,
+      "rescuedByFilter": 16,
+      "held": 983,
+      "heldThird": 982,
+      "heldInternal": 0,
+      "heldReferral": 1,
+      "heldOnlyByVoice": 132
+    },
+    "en": {
+      "replies": 845,
+      "rawThird": 463,
+      "filterHeldWhole": 25,
+      "rescuedByFilter": 3,
+      "held": 439,
+      "heldThird": 439,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 48
+    },
+    "de": {
+      "replies": 326,
+      "rawThird": 151,
+      "filterHeldWhole": 5,
+      "rescuedByFilter": 0,
+      "held": 146,
+      "heldThird": 146,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 39
+    },
+    "fr": {
+      "replies": 83,
+      "rawThird": 9,
+      "filterHeldWhole": 0,
+      "rescuedByFilter": 0,
+      "held": 9,
+      "heldThird": 9,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 2
+    },
+    "es": {
+      "replies": 147,
+      "rawThird": 64,
+      "filterHeldWhole": 1,
+      "rescuedByFilter": 0,
+      "held": 63,
+      "heldThird": 63,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 17
+    },
+    "ru": {
+      "replies": 233,
+      "rawThird": 109,
+      "filterHeldWhole": 71,
+      "rescuedByFilter": 0,
+      "held": 38,
+      "heldThird": 38,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 31
+    },
+    "ar": {
+      "replies": 93,
+      "rawThird": 7,
+      "filterHeldWhole": 0,
+      "rescuedByFilter": 0,
+      "held": 7,
+      "heldThird": 7,
+      "heldInternal": 0,
+      "heldReferral": 0,
+      "heldOnlyByVoice": 1
+    }
+  },
+  "topPhrases": [
+    [
+      "mesajınız kaydedildi; ev sahibiniz görebilir.",
+      155
+    ],
+    [
+      "your message has been recorded and is visible to your host.",
+      58
+    ],
+    [
+      "sıcak suyla ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      12
+    ],
+    [
+      "ıhre nachricht wurde gespeichert; ıhr gastgeber kann sie sehen.",
+      10
+    ],
+    [
+      "saat 11:00'de erken giriş, dairenin temizliğinin tamamlanmasına ve ev sahibinizin onayına…",
+      10
+    ],
+    [
+      "your message has been recorded; your host can see it.",
+      9
+    ],
+    [
+      "müsaitlik ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      8
+    ],
+    [
+      "ıhre nachricht wurde gespeichert und ist für ıhren gastgeber sichtbar.",
+      7
+    ],
+    [
+      "sorun devam ederse mesajınız kaydedildi; ev sahibiniz görebilir.",
+      7
+    ],
+    [
+      "rutubet kokusuyla ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      6
+    ],
+    [
+      "bu konu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      6
+    ],
+    [
+      "ıhre nachricht wurde gespeichert; ıhr gastgeber kann sie einsehen.",
+      6
+    ],
+    [
+      "bunun için özür dileriz; duş gideriyle ilgili mesajınız kaydedildi, ev sahibiniz görebili…",
+      5
+    ],
+    [
+      "iade ve ücretle ilgili konular ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibin…",
+      5
+    ],
+    [
+      "kapı kilidiyle ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      5
+    ],
+    [
+      "erken giriş, dairenin temizliğinin tamamlanmasına ve ev sahibinizin onayına bağlıdır.",
+      5
+    ],
+    [
+      "saat 12:00'de erken giriş, dairenin temizliğinin tamamlanmasına ve ev sahibinizin onayına…",
+      5
+    ],
+    [
+      "your message has been recorded and your host can see it.",
+      4
+    ],
+    [
+      "ein check-out um 13:00 uhr hängt von der verfügbarkeit und dem reinigungsplan ab und lieg…",
+      4
+    ],
+    [
+      "temizlikle ilgili geri bildiriminiz kaydedildi; ev sahibiniz görebilir.",
+      4
+    ]
+  ],
+  "topOnlyVoice": [
+    [
+      "otopark ücreti konusunda bu konu ev sahibinizin kararıdır.",
+      3
+    ],
+    [
+      "ev sahibinize her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz.",
+      3
+    ],
+    [
+      "merhaba alex, ev sahibinize her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz.",
+      3
+    ],
+    [
+      "ваше сообщение зафиксировано, хозяин квартиры сможет его увидеть.",
+      2
+    ],
+    [
+      "iptal ve ücret iadesi konusu ev sahibinizin ve rezervasyon yaptığınız platformun iptal politikalarına göre de…",
+      2
+    ],
+    [
+      "your host can give you the most accurate information about the distance to the archaeology museum from the fl…",
+      2
+    ],
+    [
+      "your host can provide the exact distance to the archaeology museum.",
+      2
+    ],
+    [
+      "your host can give you the most accurate directions from the airport to the apartment.",
+      2
+    ],
+    [
+      "заселение около 10:00 возможно только при наличии готовности квартиры, это решение принимает хозяин; ваш запр…",
+      2
+    ],
+    [
+      "ücret konusu ev sahibinizin kararıdır.",
+      2
+    ],
+    [
+      "your host can provide directions from the airport.",
+      2
+    ],
+    [
+      "otopark ücretiyle ilgili bu konu ev sahibinizin kararıdır.",
+      2
+    ],
+    [
+      "gecelik fiyat konusunda karar ev sahibinize aittir.",
+      2
+    ],
+    [
+      "über die kosten entscheidet ıhr gastgeber.",
+      2
+    ],
+    [
+      "your host can provide the distance to the archaeology museum.",
+      2
+    ],
+    [
+      "your host can give you the most accurate information about nearby ev charging options.",
+      2
+    ],
+    [
+      "your host can provide definitive information about nearby ev chargers.",
+      2
+    ],
+    [
+      "ıhr gastgeber kann ıhnen zum parkplatz verlässliche auskunft geben.",
+      2
+    ],
+    [
+      "точную информацию о сауне может предоставить хозяин.",
+      2
+    ],
+    [
+      "стоимость — решение хозяина.",
+      2
+    ],
+    [
+      "ev sahibine her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz.",
+      2
+    ],
+    [
+      "bulaşık makinesiyle ilgili kesin bilgiyi ev sahibiniz paylaşabilir.",
+      1
+    ],
+    [
+      "otopark hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      1
+    ],
+    [
+      "otopark imkânı hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      1
+    ],
+    [
+      "otoparkla ilgili net bilgiyi ev sahibiniz size iletebilir.",
+      1
+    ]
+  ],
+  "heldExamples": [
+    {
+      "file": "eval-2026-09-11.json",
+      "reply": "Bulaşık makinesiyle ilgili kesin bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-2026-09-11.json",
+      "reply": "Merhaba, Wi-Fi şifresi için kayıtlarımda net bir bilgi görünmüyor; bu detaylar onaylı rezervasyon sonrasında ev sahibiniz tarafından paylaşılacaktır.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-2026-09-11.json",
+      "reply": "Bunun için özür dileriz. Sıcak suyla ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-2026-09-11.json",
+      "reply": "Merhaba, çıkış saatiyle ilgili kayıtlarım tutarsız; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otopark hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otopark imkânı hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otoparkla ilgili net bilgiyi ev sahibiniz size iletebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otopark ücreti konusu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Merhaba Alex, çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Spor salonu imkânı hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Havuzla ilgili net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "For information about EV charging options nearby, your host can give you the most accurate details.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Yakın çevredeki restoranlar konusunda ev sahibiniz size en uygun önerileri paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Fiyatlarla ilgili detaylar rezervasyon yaptığınız platform üzerinden güncel olarak görülebilir; bu konu ev sahibinizin kararıdır.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Zum Thema Parken kann Ihnen Ihre Gastgeberin am besten eine genaue Auskunft geben.",
+      "kind": "host_third_person"
+    }
+  ],
+  "onlyVoiceExamples": [
+    {
+      "file": "eval-2026-09-11.json",
+      "reply": "Bulaşık makinesiyle ilgili kesin bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otopark hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otopark imkânı hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "eval-retrieval-2026-09-11.json",
+      "reply": "Otoparkla ilgili net bilgiyi ev sahibiniz size iletebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Spor salonu imkânı hakkında net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Havuzla ilgili net bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "For information about EV charging options nearby, your host can give you the most accurate details.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Yakın çevredeki restoranlar konusunda ev sahibiniz size en uygun önerileri paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Fiyatlarla ilgili detaylar rezervasyon yaptığınız platform üzerinden güncel olarak görülebilir; bu konu ev sahibinizin kararıdır.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Zum Thema Parken kann Ihnen Ihre Gastgeberin am besten eine genaue Auskunft geben.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "I can only say that the apartment is in Alsancak, at Menekşe Sokak No: 14. For exact directions from the airport, your host can give you the most accurate guidance.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Bisiklet kiralama konusunda en doğru bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "По поводу сауны точную информацию может подтвердить ваш хозяин.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Merhaba Alex, ev sahibiyle doğrudan iletişim için bu platformdaki mesajlaşma kanalını kullanmanız gerekiyor. Telefon numarası paylaşmadan tüm sorularınızı buradan yanıtlayabilirim.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Kahve makinesiyle ilgili net bilgiyi ev sahibiniz size iletebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Здравствуйте, Alex, приносим извинения за эту ситуацию. Спасибо, что сообщили, отсутствие горячей воды уже второй день — это важно. Ваше сообщение зафиксировано, хозяин квартиры сможет его увидеть.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Merhaba Alex, bilgilendirdiğiniz için teşekkür ederiz. İptal ve ücret iadesi konusu ev sahibinizin ve rezervasyon yaptığınız platformun iptal politikalarına göre değerlendirilir; bu nedenle bu konu ev sahibinizin kararı…",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "Hi Alex, thanks for letting me know. Any change to shorten your stay and a possible refund is up to the booking platform’s and your host’s policy; this is your host’s decision.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "reply": "İade ve ücretlendirme konuları ev sahibinizin kararındadır; bu konuda net bilgiyi yalnızca ev sahibiniz ve rezervasyon yaptığınız platform üzerinden alabilirsiniz.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Spor salonu imkânı hakkında kesin bilgiyi ev sahibiniz size iletebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Yakınlardaki restoranlar ve özellikle balık için en uygun yeri ev sahibiniz size net olarak önerebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Konak’a toplu ulaşım konusunda en net bilgiyi size ev sahibiniz verebilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Otopark konusunda kesin bilgiyi ev sahibiniz paylaşabilir.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Your host can give you the most accurate information about the distance to the archaeology museum from the flat.",
+      "kind": "host_third_person"
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "reply": "Merhaba Alex, giriş anahtarıyla ilgili detaylar için ev sahibiniz size en doğru bilgiyi verebilir.",
+      "kind": "host_third_person"
+    }
+  ],
+  "rescuedExamples": [
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "before": "Bu konuda en net bilgiyi yerel ulaşım uygulamalarından veya Konak yönüne giden otobüs hatlarını gösteren güncel belediye kaynaklarından alabilirsiniz; ev sahib…",
+      "after": "Bu konuda en net bilgiyi yerel ulaşım uygulamalarından veya Konak yönüne giden otobüs hatlarını gösteren güncel belediye kaynaklarından alabilirsiniz."
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil.json",
+      "before": "Merhaba Alex, güvenlik nedeniyle yalnızca kendi dairenizin giriş bilgilerini paylaşabiliyorum. Arkadaşınızın kaldığı daireyle ilgili kapı kodu için doğrudan ke…",
+      "after": "Merhaba Alex, güvenlik nedeniyle yalnızca kendi dairenizin giriş bilgilerini paylaşabiliyorum."
+    },
+    {
+      "file": "model-reply-compare-2026-09-25-gpt-5.1-dil2.json",
+      "before": "Merhaba Alex, güvenlik nedeniyle sadece kendi dairenizin giriş bilgilerini paylaşabiliyorum. Arkadaşınızın kaldığı daireyle ilgili kapı kodu için kendisinin ev…",
+      "after": "Merhaba Alex, güvenlik nedeniyle sadece kendi dairenizin giriş bilgilerini paylaşabiliyorum."
+    },
+    {
+      "file": "model-reply-compare-2026-09-30-gpt-6-luna-B2-low.json",
+      "before": "The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir. For directions from the airport, please ask your host.",
+      "after": "The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir."
+    },
+    {
+      "file": "conversation-state-eval-2026-10-09-gpt-6-luna-6.json",
+      "before": "Hello, Leaving around 8:00 tomorrow is fine; the information says to let the host know if you’re checking out early. Before you leave, return the key to the k…",
+      "after": "Hello, Leaving around 8:00 tomorrow is fine. Before you leave, return the key to the key box, close the windows and turn off the air conditioning, and leave u…"
+    },
+    {
+      "file": "founder-initial-8-eval-2026-10-09-gpt-6-luna-2.json",
+      "before": "Kodun değişip değişmediği bilgisi kayıtlarımda yok; ev sahibinizden öğrenebilirsiniz.",
+      "after": "Kodun değişip değişmediği bilgisi kayıtlarımda yok."
+    },
+    {
+      "file": "founder-initial-8-eval-2026-10-09-gpt-6-luna-3.json",
+      "before": "Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz.",
+      "after": "Bu bilgi kayıtlarımda yok."
+    },
+    {
+      "file": "founder-initial-8-eval-2026-10-09-gpt-6-luna-5.json",
+      "before": "Anahtar kutusu kodunun değişip değişmediği bilgisi kayıtlarımda yok; bu konuda ev sahibinizden bilgi alabilirsiniz.",
+      "after": "Anahtar kutusu kodunun değişip değişmediği bilgisi kayıtlarımda yok."
+    }
+  ],
+  "runtime": {
+    "commit": "f289e27f",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "(boş)",
+      "KB_RERANK_ENABLED": "(boş)",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "(boş)",
+      "AI_STAY_GUARD_ENABLED": "(boş)",
+      "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "(boş)",
+      "AI_HOUSE_RULES_SHADOW": "(boş)",
+      "AI_KB_FEE_RULE_ENABLED": "(boş)",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+      "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "(boş)",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "(boş)",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "bd6e8b2d6471",
+      "replyVariant": "34e8b0508392",
+      "understanding": "2280457cf496",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "temel"
+    }
+  }
+}

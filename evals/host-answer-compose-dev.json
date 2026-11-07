@@ -1,0 +1,474 @@
+{
+ "note": "Talimat biçimli ev sahibi cevabı geliştirme seti (tasarım §3.6b, kurucu 10-31). Yazar: Claude (geliştirme seti — kör değil).",
+ "cases": [
+  {
+   "id": "A1",
+   "lang": "en",
+   "guest": [
+    "Is there a hair dryer?"
+   ],
+   "host": "var, banyo dolabında",
+   "expect": "send"
+  },
+  {
+   "id": "A2",
+   "lang": "de",
+   "guest": [
+    "Gibt es einen Parkplatz?"
+   ],
+   "host": "var, ücretsiz, binanın arkasında",
+   "expect": "send"
+  },
+  {
+   "id": "A3",
+   "lang": "fr",
+   "guest": [
+    "À quelle heure est le check-out ?"
+   ],
+   "host": "11",
+   "expect": "send",
+   "must": [
+    "11"
+   ]
+  },
+  {
+   "id": "A4",
+   "lang": "es",
+   "guest": [
+    "¿Hay plancha?"
+   ],
+   "host": "ütü var, koridor dolabında",
+   "expect": "send"
+  },
+  {
+   "id": "A5",
+   "lang": "ru",
+   "guest": [
+    "Можно ли с собакой?"
+   ],
+   "host": "küçük köpek olur, büyük olmaz",
+   "expect": "send"
+  },
+  {
+   "id": "A6",
+   "lang": "ar",
+   "guest": [
+    "هل يوجد مصعد؟"
+   ],
+   "host": "asansör yok, 3. kat",
+   "expect": "send",
+   "must": [
+    "3"
+   ]
+  },
+  {
+   "id": "A7",
+   "lang": "tr",
+   "guest": [
+    "Çamaşır makinesi var mı?"
+   ],
+   "host": "var mutfakta, deterjan altında",
+   "expect": "send"
+  },
+  {
+   "id": "A8",
+   "lang": "en",
+   "guest": [
+    "What's the wifi password?"
+   ],
+   "host": "LaleWifi2024",
+   "expect": "send",
+   "must": [
+    "LaleWifi2024"
+   ]
+  },
+  {
+   "id": "B1",
+   "lang": "en",
+   "guest": [
+    "Is parking free?"
+   ],
+   "host": "ona otoparkın ücretsiz olduğunu güzelce yaz, binanın önüne park edebilir",
+   "expect": "send"
+  },
+  {
+   "id": "B2",
+   "lang": "de",
+   "guest": [
+    "Können wir früher einchecken?"
+   ],
+   "host": "erken giriş olmaz ama bavullarını 12den sonra bırakabileceğini kibarca söyle",
+   "expect": "send",
+   "must": [
+    "12"
+   ]
+  },
+  {
+   "id": "B3",
+   "lang": "fr",
+   "guest": [
+    "Y a-t-il une plage à proximité ?"
+   ],
+   "host": "en yakın plaj 5 dakika yürüme, bunu sıcak bir dille anlat",
+   "expect": "send",
+   "must": [
+    "5"
+   ]
+  },
+  {
+   "id": "B4",
+   "lang": "es",
+   "guest": [
+    "¿Dónde dejamos la basura?"
+   ],
+   "host": "çöpleri binanın girişindeki konteynere atmalarını rica et, kısa tut",
+   "expect": "send"
+  },
+  {
+   "id": "B5",
+   "lang": "ru",
+   "guest": [
+    "Есть ли детская кроватка?"
+   ],
+   "host": "bebek yatağı var, yatak odasındaki dolapta olduğunu söyle, bir de mama sandalyesi olduğunu ekle",
+   "expect": "send"
+  },
+  {
+   "id": "B6",
+   "lang": "ar",
+   "guest": [
+    "هل يمكننا الطبخ؟"
+   ],
+   "host": "mutfak tam donanımlı, tencere tava her şey var de",
+   "expect": "send"
+  },
+  {
+   "id": "B7",
+   "lang": "tr",
+   "guest": [
+    "Ekstra havlu alabilir miyiz?"
+   ],
+   "host": "ekstra havlu banyodaki üst rafta, oradan alabileceklerini söyle",
+   "expect": "send"
+  },
+  {
+   "id": "B8",
+   "lang": "en",
+   "guest": [
+    "Is there a supermarket nearby?"
+   ],
+   "host": "ona sokağın köşesinde 7/24 açık market olduğunu yaz",
+   "expect": "send",
+   "must": [
+    "24"
+   ]
+  },
+  {
+   "id": "B9",
+   "lang": "de",
+   "guest": [
+    "Wie kommen wir vom Flughafen?"
+   ],
+   "host": "havalimanından Havaist otobüsü var Taksim'e kadar, oradan taksiyle 10 dakika. bunu açıkla",
+   "expect": "send",
+   "must": [
+    "10"
+   ]
+  },
+  {
+   "id": "B10",
+   "lang": "fr",
+   "guest": [
+    "Le chauffage fonctionne-t-il ?"
+   ],
+   "host": "kombi çalışıyor, termostat salonda duvarda, 22ye ayarlayabilirler de",
+   "expect": "send",
+   "must": [
+    "22"
+   ]
+  },
+  {
+   "id": "C1",
+   "lang": "en",
+   "guest": [
+    "Can we check out at 1 pm?"
+   ],
+   "host": "mesaj şöyle gitsin: Geç çıkış 13:00'e kadar olur, iyi yolculuklar",
+   "expect": "send",
+   "mustAny": [
+    [
+     "13",
+     "1"
+    ]
+   ]
+  },
+  {
+   "id": "C2",
+   "lang": "tr",
+   "guest": [
+    "Balkon kapısı nasıl açılıyor?"
+   ],
+   "host": "şunu gönder: Balkon kapısının kolunu yukarı kaldırıp çekin, sonra açılır.",
+   "expect": "send"
+  },
+  {
+   "id": "C3",
+   "lang": "es",
+   "guest": [
+    "¿Hay secador de pelo?"
+   ],
+   "host": "aynen şunu yaz: Yes, there is a hairdryer in the bathroom drawer.",
+   "expect": "send"
+  },
+  {
+   "id": "C4",
+   "lang": "de",
+   "guest": [
+    "Gibt es Kaffee?"
+   ],
+   "host": "şöyle cevap ver: Kahve makinesi ve kapsüller mutfakta, afiyet olsun!",
+   "expect": "send"
+  },
+  {
+   "id": "C5",
+   "lang": "ru",
+   "guest": [
+    "Во сколько заезд?"
+   ],
+   "host": "cevap: Giriş 15:00'ten itibaren, anahtar kutusu kapının yanında",
+   "expect": "send",
+   "must": [
+    "15"
+   ]
+  },
+  {
+   "id": "C6",
+   "lang": "ar",
+   "guest": [
+    "هل يوجد مكيف؟"
+   ],
+   "host": "mesaj: Her odada klima var, kumandalar çekmecede.",
+   "expect": "send"
+  },
+  {
+   "id": "D1",
+   "lang": "en",
+   "guest": [
+    "Can I pay the cleaning fee in cash?"
+   ],
+   "host": "nakit verebilir, kapıda alırım de",
+   "expect": "send_or_drop",
+   "forbid": [
+    "cash",
+    "at the door",
+    "in person"
+   ]
+  },
+  {
+   "id": "D2",
+   "lang": "tr",
+   "guest": [
+    "Size nasıl ulaşabilirim?"
+   ],
+   "host": "whatsapptan yazsın, 0532 111 22 33",
+   "expect": "send_or_drop",
+   "forbid": [
+    "whatsapp",
+    "0532",
+    "532"
+   ]
+  },
+  {
+   "id": "D3",
+   "lang": "de",
+   "guest": [
+    "Gibt es einen Rabatt bei Überweisung?"
+   ],
+   "host": "IBAN'a havale yaparsa %10 indirim yap de: TR12 0006 1000 0000 1234 5678 90",
+   "expect": "send_or_drop",
+   "forbid": [
+    "iban",
+    "tr12",
+    "1234"
+   ]
+  },
+  {
+   "id": "D4",
+   "lang": "fr",
+   "guest": [
+    "Avez-vous un Instagram pour voir d'autres photos ?"
+   ],
+   "host": "instagramımız @laleevleri, oradan baksın",
+   "expect": "send_or_drop",
+   "forbid": [
+    "instagram",
+    "@"
+   ]
+  },
+  {
+   "id": "D5",
+   "lang": "es",
+   "guest": [
+    "¿Puedo reservar directamente con ustedes la próxima vez?"
+   ],
+   "host": "bir dahakine direkt bana yazsın, komisyonsuz anlaşırız, mailim lale@example.com",
+   "expect": "send_or_drop",
+   "forbid": [
+    "@",
+    "example.com",
+    "comisi"
+   ]
+  },
+  {
+   "id": "D6",
+   "lang": "ar",
+   "guest": [
+    "هل يمكنني الاتصال بك؟"
+   ],
+   "host": "beni arasın: +90 555 444 33 22",
+   "expect": "send_or_drop",
+   "forbid": [
+    "555",
+    "+90"
+   ]
+  },
+  {
+   "id": "E1",
+   "lang": "en",
+   "guest": [
+    "The shower is cold, no hot water!"
+   ],
+   "host": "teknisyen yarın sabah 10da gelecek",
+   "expect": "send",
+   "must": [
+    "10"
+   ],
+   "apology": "forbidden"
+  },
+  {
+   "id": "E2",
+   "lang": "de",
+   "guest": [
+    "Die Wohnung war bei Ankunft nicht sauber."
+   ],
+   "host": "temizlikçi bugün 14te tekrar gelecek",
+   "expect": "send",
+   "must": [
+    "14"
+   ],
+   "apology": "forbidden"
+  },
+  {
+   "id": "E3",
+   "lang": "tr",
+   "guest": [
+    "Klima çalışmıyor"
+   ],
+   "host": "özür dileyerek yaz, teknisyen bugün akşam 6da gelecek",
+   "expect": "send",
+   "mustAny": [
+    [
+     "18",
+     "6"
+    ]
+   ],
+   "apology": "required"
+  },
+  {
+   "id": "E4",
+   "lang": "fr",
+   "guest": [
+    "Le wifi ne marche pas."
+   ],
+   "host": "kusura bakmasınlar, modemi yeniden başlatsınlar, kapının yanındaki beyaz kutu",
+   "expect": "send",
+   "apology": "required"
+  },
+  {
+   "id": "E5",
+   "lang": "ru",
+   "guest": [
+    "В квартире шумно ночью."
+   ],
+   "host": "çok üzgünüm de, komşuyla konuştuk",
+   "expect": "send",
+   "apology": "required"
+  },
+  {
+   "id": "E6",
+   "lang": "es",
+   "guest": [
+    "Falta papel higiénico."
+   ],
+   "host": "dolabın altında yedek var",
+   "expect": "send",
+   "apology": "forbidden"
+  },
+  {
+   "id": "F1",
+   "lang": "de",
+   "guest": [
+    "Wann können wir einchecken?"
+   ],
+   "host": "akşam 8den sonra girebilir",
+   "expect": "send",
+   "mustAny": [
+    [
+     "20",
+     "8"
+    ]
+   ]
+  },
+  {
+   "id": "F2",
+   "lang": "en",
+   "guest": [
+    "When is quiet time?"
+   ],
+   "host": "gece 11den sonra sessiz olsunlar",
+   "expect": "send",
+   "mustAny": [
+    [
+     "23",
+     "11"
+    ]
+   ]
+  },
+  {
+   "id": "G1",
+   "lang": "tr",
+   "guest": [
+    "Ek battaniye alabilir miyiz?"
+   ],
+   "host": "yarın sabah getireceğim",
+   "expect": "send"
+  },
+  {
+   "id": "G2",
+   "lang": "en",
+   "guest": [
+    "Can we get fresh towels?"
+   ],
+   "host": "bugün öğleden sonra göndereceğim",
+   "expect": "send"
+  },
+  {
+   "id": "H1",
+   "lang": "de",
+   "guest": [
+    "Können wir den Aufenthalt verlängern?"
+   ],
+   "host": "ben yazarım",
+   "expect": "takes_over"
+  },
+  {
+   "id": "H2",
+   "lang": "fr",
+   "guest": [
+    "Y a-t-il un sèche-linge ?"
+   ],
+   "host": "bilmiyorum bakmam lazım",
+   "expect": "unknown"
+  }
+ ]
+}

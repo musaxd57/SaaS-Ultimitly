@@ -1,0 +1,1730 @@
+{
+  "suite": "live-pipeline",
+  "version": 6,
+  "meta": {
+    "model": "gpt-6-luna",
+    "commit": "020a899",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.2301609,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 42,
+        "in": 8513,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 102,
+        "in": 187209,
+        "cached": 111104,
+        "out": 9699,
+        "reasoning": 0
+      },
+      "gpt-6-luna": {
+        "calls": 40,
+        "in": 806036,
+        "cached": 671619,
+        "out": 7647,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "k6-01",
+      "cls": "mixed_norecipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nAracınızı binanın arkasındaki kapalı otoparkta, asansörün tam karşısındaki P-14 numaralı yere park edebilirsiniz. Otopark ücretsizdir; kapı kumandası anahtarlıkta asılıdır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nAracınızı binanın arkasındaki kapalı otoparkta, asansörün tam karşısındaki P-14 numaralı yere park edebilirsiniz. Otopark ücretsizdir; kapı kumandası anahtarlıkta asılıdır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.92
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "ms": 8791,
+      "retried": false
+    },
+    {
+      "id": "k6-02",
+      "cls": "mixed_norecipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati en geç 11:00’dir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati en geç 11:00’dir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "ms": 6990,
+      "retried": false
+    },
+    {
+      "id": "k6-03",
+      "cls": "mixed_norecipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEvsel çöpleri sokağın başındaki C-7 numaralı yeşil konteynere, cam, plastik ve kâğıtları yanındaki C-8 numaralı mavi konteynere atabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEvsel çöpleri sokağın başındaki C-7 numaralı yeşil konteynere, cam, plastik ve kâğıtları yanındaki C-8 numaralı mavi konteynere atabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.91
+      },
+      "sources": {
+        "verified": [
+          "kb:trash"
+        ],
+        "declared": 1
+      },
+      "ms": 7307,
+      "retried": false
+    },
+    {
+      "id": "k6-04",
+      "cls": "mixed_norecipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEn yakın eczane Yaprakdere Eczanesi; Hastane Caddesi üzerinde, yürüyerek yaklaşık 5 dakika uzaklıkta. Tost makinesiyle ilgili bir kullanım bilgisi bulunmadığından, ev sahibiniz bu konuda size kesin bilgi verebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:local_tips"
+        ],
+        "declared": 1
+      },
+      "ms": 5435,
+      "retried": false
+    },
+    {
+      "id": "k6-05",
+      "cls": "mixed_norecipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Çay makinesinin üst demliğiyle ilgili bilgi rehberimde yer almıyor. 23:30’da varış için anahtarlar, bahçe kapısının hemen içindeki mavi anahtar dolabında; dolabın şifresi varış günü sabah ayrı bir mesajla gönderiliyor. 22:00’den sonra gelen misafirler anahtarı kapağında B-17 yazan bölmeden aynı şifreyle alabilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.93
+      },
+      "sources": {
+        "verified": [
+          "kb:checkin"
+        ],
+        "declared": 1
+      },
+      "ms": 6174,
+      "retried": false
+    },
+    {
+      "id": "k6-06",
+      "cls": "mixed_norecipe_question",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe Wi-Fi password is KasLikya!729. It is case-sensitive.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe Wi-Fi password is KasLikya!729. It is case-sensitive.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 6637,
+      "retried": false
+    },
+    {
+      "id": "k6-07",
+      "cls": "mixed_norecipe_question",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nZum kabellosen Lautsprecher habe ich keine Angaben. Die nächstgelegene Badestelle ist die Mavikum-Bucht, etwa acht Gehminuten entfernt. Der Zugang erfolgt über eine Treppe zu einer kleinen Kiesbucht; dort gibt es keine Liegestühle. Badeschuhe werden empfohlen.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.88
+      },
+      "sources": {
+        "verified": [
+          "kb:local_tips"
+        ],
+        "declared": 1
+      },
+      "ms": 5602,
+      "retried": false
+    },
+    {
+      "id": "k6-08",
+      "cls": "mixed_norecipe_question",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nPour rejoindre l’aéroport de Dalaman en transports en commun, prenez la navette KAS-12 à la gare routière de Kaş. Elle part à 10 h 30, 13 h 30, 17 h et 20 h 30.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nPour rejoindre l’aéroport de Dalaman en transports en commun, prenez la navette KAS-12 à la gare routière de Kaş. Elle part à 10 h 30, 13 h 30, 17 h et 20 h 30.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "ms": 7612,
+      "retried": false
+    },
+    {
+      "id": "k6-09",
+      "cls": "mixed_norecipe_question",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "La batidora y la batidora de mano están en el armario inferior derecho de la encimera. El supermercado más cercano es Mandalin Market, a 200 m por la carretera de la costa; abre todos los días hasta las 24:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "La batidora y la batidora de mano están en el armario inferior derecho de la encimera. El supermercado más cercano es Mandalin Market, a 200 m por la carretera de la costa; abre todos los días hasta las 24:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": true,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.92
+      },
+      "sources": {
+        "verified": [
+          "kb:faq",
+          "kb:local_tips"
+        ],
+        "declared": 2
+      },
+      "ms": 6373,
+      "retried": false
+    },
+    {
+      "id": "k6-10",
+      "cls": "mixed_norecipe_question",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nPueden aparcar en la plaza P-14, situada en el aparcamiento detrás del edificio. El aparcamiento es gratuito.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hola Alex,\n\nPueden aparcar en la plaza P-14, situada en el aparcamiento detrás del edificio. El aparcamiento es gratuito.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "ms": 7082,
+      "retried": false
+    },
+    {
+      "id": "k6-11",
+      "cls": "mixed_norecipe_question",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nПриносим извинения за проблему с Wi-Fi. Сеть называется «Begonvil_Guest», пароль — KasLikya!729. Освободить квартиру в день выезда нужно не позднее 11:00; ключи оставьте, пожалуйста, в керамической чаше на кухонной столешнице.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 1,
+      "factsSent": false,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.92
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi",
+          "kb:checkout",
+          "property:checkOutTime"
+        ],
+        "declared": 3
+      },
+      "ms": 5159,
+      "retried": false
+    },
+    {
+      "id": "k6-12",
+      "cls": "mixed_norecipe_question",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "مرحباً Alex،\n\nكلمة مرور شبكة Wi-Fi هي KasLikya!729، مع مراعاة الأحرف الكبيرة والصغيرة.\n\n(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+      "draft": "مرحباً Alex،\n\nكلمة مرور شبكة Wi-Fi هي KasLikya!729، مع مراعاة الأحرف الكبيرة والصغيرة.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.92
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 6329,
+      "retried": false
+    },
+    {
+      "id": "k6-13",
+      "cls": "mixed_recipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Televizyonda “Sinyal yok” yazıyorsa kumandadaki SOURCE tuşuna basıp HDMI 2’yi seçin. Görüntü hâlâ gelmezse uydu alıcısının ön ışığına bakın; kırmızıysa küçük siyah kumandadaki POWER tuşuna basıp 30 saniye bekleyin. En yakın yüzme yeri Mavikum Koyu; yürüyerek 8 dakika uzaklıkta. Burası merdivenle inilen küçük çakıllı bir koy ve şezlong yok; deniz ayakkabısı önerilir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Televizyonda “Sinyal yok” yazıyorsa kumandadaki SOURCE tuşuna basıp HDMI 2’yi seçin. Görüntü hâlâ gelmezse uydu alıcısının ön ışığına bakın; kırmızıysa küçük siyah kumandadaki POWER tuşuna basıp 30 saniye bekleyin. En yakın yüzme yeri Mavikum Koyu; yürüyerek 8 dakika uzaklıkta. Burası merdivenle inilen küçük çakıllı bir koy ve şezlong yok; deniz ayakkabısı önerilir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:faq",
+          "kb:local_tips"
+        ],
+        "declared": 2
+      },
+      "ms": 6935,
+      "retried": false
+    },
+    {
+      "id": "k6-14",
+      "cls": "mixed_recipe_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKapağı klik sesi gelene kadar bastırıp ON/OFF tuşuna basın, P3 programını seçip START'a basın. Cam şişeleri sokağın başındaki C-8 numaralı mavi geri dönüşüm konteynerine atabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKapağı klik sesi gelene kadar bastırıp ON/OFF tuşuna basın, P3 programını seçip START'a basın. Cam şişeleri sokağın başındaki C-8 numaralı mavi geri dönüşüm konteynerine atabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:general",
+          "kb:trash"
+        ],
+        "declared": 2
+      },
+      "ms": 7436,
+      "retried": false
+    },
+    {
+      "id": "k6-15",
+      "cls": "mixed_recipe_question",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Stellen Sie die Klimaanlage mit der MODE-Taste auf das Schneeflockensymbol (COOL) und die Temperatur auf 24 °C. Wenn auf dem Display ein Sonnensymbol zu sehen ist, befindet sich die Anlage im Heizmodus. Am Abreisetag ist der Check-out spätestens um 11:00 Uhr.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Stellen Sie die Klimaanlage mit der MODE-Taste auf das Schneeflockensymbol (COOL) und die Temperatur auf 24 °C. Wenn auf dem Display ein Sonnensymbol zu sehen ist, befindet sich die Anlage im Heizmodus. Am Abreisetag ist der Check-out spätestens um 11:00 Uhr.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.91
+      },
+      "sources": {
+        "verified": [
+          "kb:general",
+          "kb:checkout"
+        ],
+        "declared": 2
+      },
+      "ms": 7007,
+      "retried": false
+    },
+    {
+      "id": "k6-16",
+      "cls": "mixed_recipe_question",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nEspere 2 minutos, ya que el bloqueo puede mantenerse durante ese tiempo tras finalizar el programa. Si la puerta sigue sin abrirse, mantenga pulsado START/PAUSE durante 3 segundos; cuando se apague el símbolo del candado, podrá abrirla. La farmacia más cercana es Yaprakdere Eczanesi, en la calle Hastane Caddesi, a 5 minutos a pie. Abre de lunes a viernes de 08:30 a 20:00 y los sábados de 09:00 a 19:00; los domingos y por la noche, encontrará la lista de farmacias de guardia en la puerta.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hola Alex,\n\nEspere 2 minutos, ya que el bloqueo puede mantenerse durante ese tiempo tras finalizar el programa. Si la puerta sigue sin abrirse, mantenga pulsado START/PAUSE durante 3 segundos; cuando se apague el símbolo del candado, podrá abrirla. La farmacia más cercana es Yaprakdere Eczanesi, en la calle Hastane Caddesi, a 5 minutos a pie. Abre de lunes a viernes de 08:30 a 20:00 y los sábados de 09:00 a 19:00; los domingos y por la noche, encontrará la lista de farmacias de guardia en la puerta.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:faq",
+          "kb:local_tips"
+        ],
+        "declared": 2
+      },
+      "ms": 7582,
+      "retried": false
+    },
+    {
+      "id": "k6-17",
+      "cls": "mixed_recipe_question",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nЕсли пульт потолочного вентилятора совсем не реагирует, откройте крышку батарейного отсека и проверьте четыре DIP-переключателя: они должны быть установлены в положение 0101. Если нужно, установите их в это положение, закройте крышку и нажмите POWER. Пароль Wi-Fi: KasLikya!729; учитывайте регистр букв.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nЕсли пульт потолочного вентилятора совсем не реагирует, откройте крышку батарейного отсека и проверьте четыре DIP-переключателя: они должны быть установлены в положение 0101. Если нужно, установите их в это положение, закройте крышку и нажмите POWER. Пароль Wi-Fi: KasLikya!729; учитывайте регистр букв.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general",
+          "kb:wifi"
+        ],
+        "declared": 2
+      },
+      "ms": 7000,
+      "retried": false
+    },
+    {
+      "id": "k6-18",
+      "cls": "fix_report_recipe",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nModemin arkasındaki siyah ON/OFF düğmesine basarak kapatın, 60 saniye bekleyip tekrar açın. WAN ışığı 5 dakika sonra hâlâ kırmızıysa modem yanındaki küçük beyaz fiber kutusunu da kapatın, 60 saniye sonra yeniden açın ve ardından modemi bir kez daha yeniden başlatın.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nModemin arkasındaki siyah ON/OFF düğmesine basarak kapatın, 60 saniye bekleyip tekrar açın. WAN ışığı 5 dakika sonra hâlâ kırmızıysa modem yanındaki küçük beyaz fiber kutusunu da kapatın, 60 saniye sonra yeniden açın ve ardından modemi bir kez daha yeniden başlatın.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 7199,
+      "retried": false
+    },
+    {
+      "id": "k6-19",
+      "cls": "fix_report_recipe",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKumandanın pili bitmiş olabilir. Arka kapağını bozuk parayla açıp, anahtarlıktaki küçük şeffaf poşette bulunan yedek CR2032 pili takabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKumandanın pili bitmiş olabilir. Arka kapağını bozuk parayla açıp, anahtarlıktaki küçük şeffaf poşette bulunan yedek CR2032 pili takabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "ms": 5911,
+      "retried": false
+    },
+    {
+      "id": "k6-20",
+      "cls": "fix_report_recipe",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "The cooktop’s child lock may be on. Please press and hold the key symbol for 3 seconds until the small red dot goes out, then switch the hob on using the ON/OFF field.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": false,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:faq"
+        ],
+        "declared": 1
+      },
+      "ms": 4547,
+      "retried": false
+    },
+    {
+      "id": "k6-21",
+      "cls": "fix_report_recipe",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nAppuyez sur la touche SOURCE de la télécommande du téléviseur, puis sélectionnez HDMI 2. Si l’image ne revient pas, vérifiez le voyant à l’avant du récepteur satellite : s’il est rouge, appuyez sur POWER sur sa petite télécommande noire et attendez 30 secondes.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nAppuyez sur la touche SOURCE de la télécommande du téléviseur, puis sélectionnez HDMI 2. Si l’image ne revient pas, vérifiez le voyant à l’avant du récepteur satellite : s’il est rouge, appuyez sur POWER sur sa petite télécommande noire et attendez 30 secondes.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:faq"
+        ],
+        "declared": 1
+      },
+      "ms": 6036,
+      "retried": false
+    },
+    {
+      "id": "k6-22",
+      "cls": "fix_report_recipe",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nПроверьте, что на пульте выбран режим охлаждения — значок снежинки (COOL), и установлена температура 24 °C. Если на дисплее пульта отображается значок солнца, кондиционер работает в режиме обогрева.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nПроверьте, что на пульте выбран режим охлаждения — значок снежинки (COOL), и установлена температура 24 °C. Если на дисплее пульта отображается значок солнца, кондиционер работает в режиме обогрева.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": false,
+      "factsDraft": false,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6612,
+      "retried": false
+    },
+    {
+      "id": "k6-23",
+      "cls": "fix_report_recipe",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "مرحباً Alex،\n\nانتظروا دقيقتين بعد انتهاء البرنامج، إذ قد يبقى قفل الباب مغلقًا خلال هذه المدة. إذا لم يُفتح بعد ذلك، اضغطوا مع الاستمرار على زر START/PAUSE لمدة 3 ثوانٍ، ثم افتحوا الباب عندما ينطفئ رمز القفل.\n\n(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+      "draft": "مرحباً Alex،\n\nانتظروا دقيقتين بعد انتهاء البرنامج، إذ قد يبقى قفل الباب مغلقًا خلال هذه المدة. إذا لم يُفتح بعد ذلك، اضغطوا مع الاستمرار على زر START/PAUSE لمدة 3 ثوانٍ، ثم افتحوا الباب عندما ينطفئ رمز القفل.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:faq"
+        ],
+        "declared": 1
+      },
+      "ms": 6180,
+      "retried": false
+    },
+    {
+      "id": "k6-24",
+      "cls": "fix_question_recipe",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKumandanın ekranı boşsa pillerini değiştirin; yedek AAA piller TV ünitesinin üst çekmecesinde.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKumandanın ekranı boşsa pillerini değiştirin; yedek AAA piller TV ünitesinin üst çekmecesinde.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6038,
+      "retried": false
+    },
+    {
+      "id": "k6-25",
+      "cls": "fix_question_recipe",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nAlt sepeti çıkarın, tabandaki silindir filtreyi saat yönünün tersine çevirerek çıkarıp musluk altında yıkayın ve yerine takın. Ardından P3 programını yeniden başlatın.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nAlt sepeti çıkarın, tabandaki silindir filtreyi saat yönünün tersine çevirerek çıkarıp musluk altında yıkayın ve yerine takın. Ardından P3 programını yeniden başlatın.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6442,
+      "retried": false
+    },
+    {
+      "id": "k6-26",
+      "cls": "fix_question_recipe",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe white remote should be in the bedside drawer. Please open its battery cover and check that the four small DIP switches are set to 0101, matching the fan receiver. If needed, set them to 0101, close the cover, and press POWER again.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe white remote should be in the bedside drawer. Please open its battery cover and check that the four small DIP switches are set to 0101, matching the fan receiver. If needed, set them to 0101, close the cover, and press POWER again.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6257,
+      "retried": false
+    },
+    {
+      "id": "k6-27",
+      "cls": "fix_question_recipe",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nLe modem se trouve sur l’étagère derrière le meuble TV. Appuyez sur le bouton noir ON/OFF situé à l’arrière, attendez 60 secondes, puis rallumez-le. Si le voyant WAN reste rouge après 5 minutes, redémarrez également le petit boîtier blanc à fibre à côté du modem en l’éteignant 60 secondes, puis redémarrez le modem une fois de plus.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nLe modem se trouve sur l’étagère derrière le meuble TV. Appuyez sur le bouton noir ON/OFF situé à l’arrière, attendez 60 secondes, puis rallumez-le. Si le voyant WAN reste rouge après 5 minutes, redémarrez également le petit boîtier blanc à fibre à côté du modem en l’éteignant 60 secondes, puis redémarrez le modem une fois de plus.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 6190,
+      "retried": false
+    },
+    {
+      "id": "k6-28",
+      "cls": "fix_norecipe_only",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nDavlumbazla ilgili yaşadığınız sorun için özür dileriz. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 5183,
+      "retried": false
+    },
+    {
+      "id": "k6-29",
+      "cls": "fix_norecipe_only",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nKlima sorunu için özür dileriz. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 4333,
+      "retried": false
+    },
+    {
+      "id": "k6-30",
+      "cls": "fix_norecipe_only",
+      "lang": "de",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nEs tut mir leid, dass die Kaffeemaschine nicht richtig funktioniert. Ihre Nachricht dazu wurde gespeichert und ist für Ihren Gastgeber sichtbar.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.88
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 4558,
+      "retried": false
+    },
+    {
+      "id": "k6-31",
+      "cls": "fix_norecipe_only",
+      "lang": "es",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nLo siento por el problema con la imagen. He registrado su mensaje sobre el proyector; su anfitrión puede verlo.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.88
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 4649,
+      "retried": false
+    },
+    {
+      "id": "k6-32",
+      "cls": "fix_norecipe_only",
+      "lang": "ar",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nنعتذر عن مشكلة الثلاجة. تم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 5165,
+      "retried": false
+    },
+    {
+      "id": "k6-33",
+      "cls": "fix_hazard",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nSigorta kutusu giriş kapısının arkasındaki beyaz kapaklı panelde. Elektrik kesintisi için aşağı inmiş şalteri yukarı kaldırın. TEST yazılı kaçak akım rölesi inmişse önce bütün şalterleri indirin, röleyi kaldırın, sonra şalterleri tek tek kaldırın; tekrar atarsa son kaldırdığınız şalteri kapalı bırakın. Sokakta da elektrik yoksa bölgesel kesintidir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6378,
+      "retried": false
+    },
+    {
+      "id": "k6-34",
+      "cls": "fix_hazard",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nPlease hold the RESET button for 3 seconds. If the pressure gauge is below 1 bar, slowly open the blue tap beneath the boiler; close it when the gauge reaches 1.5 bar, then press RESET again.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 4941,
+      "retried": false
+    },
+    {
+      "id": "k6-35",
+      "cls": "fix_hazard",
+      "lang": "ru",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nНе прикасайтесь к выключателям и не зажигайте спички или зажигалку. Перекройте жёлтый газовый кран под котлом, откройте окна, выйдите из квартиры и позвоните в аварийную газовую службу по номеру 187. Ваше сообщение сохранено; хозяин сможет его увидеть.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "status": "problem",
+      "escalated": true,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "high",
+        "riskType": "safety_emergency",
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 4630,
+      "retried": false
+    },
+    {
+      "id": "k6-36",
+      "cls": "nonfault_complaint",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Havlu ve çarşafla ilgili yaşadığınız durum için özür dileriz. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 5372,
+      "retried": false
+    },
+    {
+      "id": "k6-37",
+      "cls": "nonfault_complaint",
+      "lang": "de",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nEs tut uns leid, dass Sie durch den Lärm nicht schlafen können. Ihre Beschwerde ist gespeichert und für Ihren Gastgeber sichtbar.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 2,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 2
+      },
+      "ms": 5168,
+      "retried": false
+    },
+    {
+      "id": "k6-38",
+      "cls": "nonfault_complaint",
+      "lang": "ar",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nنعتذر عن ذلك. تم تسجيل ملاحظتكم بشأن أسلوب الاستقبال ونظافة الشقة، ويمكن للمضيف الاطلاع عليها. قرار استرداد أي مبلغ يعود إلى مضيفكم.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 1,
+      "factsSent": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "medium",
+        "riskType": "money_refund",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 4447,
+      "retried": false
+    },
+    {
+      "id": "k6-39",
+      "cls": "regression",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi şifresi KasLikya!729. En yakın market olan Mandalin Market her gün 24:00'e kadar açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi şifresi KasLikya!729. En yakın market olan Mandalin Market her gün 24:00'e kadar açık.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.99
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi",
+          "kb:local_tips"
+        ],
+        "declared": 2
+      },
+      "ms": 5837,
+      "retried": false
+    },
+    {
+      "id": "k6-40",
+      "cls": "regression",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nVous pouvez garer votre voiture à la place P-14, dans le parking couvert situé derrière le bâtiment. La télécommande se trouve sur le trousseau de clés. Pour les déchets ménagers, utilisez le conteneur vert C-7 au début de la rue ; le conteneur bleu C-8 juste à côté est destiné au verre, au plastique et au papier.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nVous pouvez garer votre voiture à la place P-14, dans le parking couvert situé derrière le bâtiment. La télécommande se trouve sur le trousseau de clés. Pour les déchets ménagers, utilisez le conteneur vert C-7 au début de la rue ; le conteneur bleu C-8 juste à côté est destiné au verre, au plastique et au papier.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "kb:trash"
+        ],
+        "declared": 2
+      },
+      "ms": 5885,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "020a899",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "none"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1"
+      },
+      "style": {
+        "model": "gpt-6-luna"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "1a875b31d233",
+      "understanding": "7110591352fb",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}

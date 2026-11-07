@@ -1,0 +1,426 @@
+{
+ "arm": "gpt-6-luna/low",
+ "repeat": 2,
+ "rows": [
+  {
+   "id": "codex-1-bar-cevap-degil",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    2478,
+    2468
+   ]
+  },
+  {
+   "id": "codex-2-bar-bilgisi-havuza-tasindi",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    1794,
+    1465
+   ]
+  },
+  {
+   "id": "codex-3-bar-sorusu",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1385,
+    1138
+   ]
+  },
+  {
+   "id": "s9-istisna-tek-basina",
+   "expect": "hold",
+   "got": [
+    "exception_only",
+    "exception_only"
+   ],
+   "ms": [
+    3637,
+    2535
+   ]
+  },
+  {
+   "id": "s9-genel-ve-istisna",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1508,
+    2041
+   ]
+  },
+  {
+   "id": "s9-hafta-sonu-soruldu",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1490,
+    1648
+   ]
+  },
+  {
+   "id": "s9-onceki-mesaj-cumartesi",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1858,
+    1928
+   ]
+  },
+  {
+   "id": "s9-genel-kural-yok",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2305,
+    1835
+   ]
+  },
+  {
+   "id": "s9-baska-konuda-gun",
+   "expect": "hold",
+   "got": [
+    "exception_only",
+    "exception_only"
+   ],
+   "ms": [
+    2794,
+    2045
+   ]
+  },
+  {
+   "id": "s9-istisna-baska-kalemde",
+   "expect": "hold",
+   "got": [
+    "exception_only",
+    "exception_only"
+   ],
+   "ms": [
+    2561,
+    3406
+   ]
+  },
+  {
+   "id": "evet-hayir-ucret",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1669,
+    1648
+   ]
+  },
+  {
+   "id": "oteki-soru-yarim-degil-wifi",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1643,
+    1872
+   ]
+  },
+  {
+   "id": "oteki-soru-yarim-degil-giris",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1453,
+    1597
+   ]
+  },
+  {
+   "id": "yanlis-numara",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2285,
+    2110
+   ]
+  },
+  {
+   "id": "dahil-mi-dogru",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1321,
+    1428
+   ]
+  },
+  {
+   "id": "ek-olgu",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "unsupported"
+   ],
+   "ms": [
+    3682,
+    1235
+   ]
+  },
+  {
+   "id": "e-v3-kaca-kadar-bitis-yeter",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1695,
+    1618
+   ]
+  },
+  {
+   "id": "saat-baska-tesise",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2206,
+    1703
+   ]
+  },
+  {
+   "id": "ayni-konu-cevap-degil-isitma",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    3058,
+    1699
+   ]
+  },
+  {
+   "id": "ayni-konu-cevap-degil-saat",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    1534,
+    1488
+   ]
+  },
+  {
+   "id": "olumsuz-dogru",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1573,
+    1688
+   ]
+  },
+  {
+   "id": "kosul-dusmus",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3790,
+    3951
+   ]
+  },
+  {
+   "id": "yeniden-ifade",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1942,
+    2096
+   ]
+  },
+  {
+   "id": "ceviri-en",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1721,
+    2156
+   ]
+  },
+  {
+   "id": "ceviri-de-tam",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2500,
+    1848
+   ]
+  },
+  {
+   "id": "ceviri-de-bugun",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    5523,
+    5452
+   ]
+  },
+  {
+   "id": "ek-soz",
+   "expect": "hold",
+   "got": [
+    "unsupported",
+    "unsupported"
+   ],
+   "ms": [
+    2464,
+    3092
+   ]
+  },
+  {
+   "id": "yarim-tarif",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "partial"
+   ],
+   "ms": [
+    3079,
+    3625
+   ]
+  },
+  {
+   "id": "olmayan-tesis",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    2029,
+    2051
+   ]
+  },
+  {
+   "id": "bavul-dogru",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2264,
+    2296
+   ]
+  },
+  {
+   "id": "bavul-uydurma-sure",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2441,
+    2259
+   ]
+  },
+  {
+   "id": "ic-istisna-atlanmis",
+   "expect": "hold",
+   "got": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    3911,
+    4191
+   ]
+  },
+  {
+   "id": "parantez-istisna",
+   "expect": "keep",
+   "got": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2065,
+    2168
+   ]
+  },
+  {
+   "id": "opus-g2-parantez-arizali",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3718,
+    2292
+   ]
+  },
+  {
+   "id": "opus-g2-parantez-bayram-ucretli",
+   "expect": "hold",
+   "got": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    4280,
+    5245
+   ]
+  }
+ ]
+}

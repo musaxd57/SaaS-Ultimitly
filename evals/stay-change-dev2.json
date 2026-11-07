@@ -1,0 +1,3186 @@
+{
+ "version": 1,
+ "suite": "stay-change",
+ "note": "Konaklama değişikliği / müsaitlik anlam katmanı eval seti — 'dev2' bölümü (2026-10-02). SENTETİK — gerçek misafir verisi, gerçek işletme adı, telefon, kod ya da e-posta YOK (mülk adları kurgusal). Bu bir GELİŞTİRME setidir: geliştirme sırasında okunacak ve ayarda kullanılabilir, bu yüzden açma/kabul kararına kanıt DEĞİLDİR (kabul ayrı, görülmemiş kör setle). Amaç modellerin zayıf noktalarını bulmak: göreli saatler ('bir saat önce', 'öğleden sonra 1 gibi', 'after lunch', 'avant midi'), am/pm'siz ve 12/24 saat, başka sorular arasına gömülü istek, girişten önce / çıkıştan sonra bagaj, takip mesajları, yazım hatası ve Türkçe karaktersiz metin, misafirin mülkün standardından FARKLI bir saat anması, vazgeçilmiş/olumsuz istek, karşı-olgusal cümle, duyuru, gece geç varış, erken ayrılış ve konaklamayı kısaltma, olanak müsaitliği, sözcük tuzakları ('uzatma kablosu', 'extension cord', 'freier Parkplatz'); cevaplarda saat bazlı kabul, yarı-söz, koşullu söz, örtük izin (kapı kodunun erken çalışması, 'temizlikçi 14:00'te geliyor'), takip onayı ('Evet, olur!' / 'Yes, that works!' — aynı metin bir satırda izin, standart saate denk gelen başka satırda tarafsız), erteleme cümlesiyle birlikte izin, ücretli izin, teklifi değiştiren ya da belirli güne onaylayan cevap (izin), ret gibi görünen takvim gerekçesi (iddia) ve takvimi göremediğini söyleyen erteleme. Etiket sözlüğü: requests.kind ∈ {extend, early, late, date_change, availability, none} — early = standart girişten ÖNCE giriş/varış/erişim/bagaj bırakma; late = standart çıkıştan SONRA çıkış/ayrılış/bagaj; extend = ek gece; date_change = rezerve tarihleri kaydırma; availability = belirli tarihler boş mu / yeniden rezervasyon; none = geri kalan her şey (standart saati sormak, standart girişte ya da sonra gelmek, gece geç varış, erken ayrılış/kısaltma, vazgeçilmiş istek, karşı-olgusal, olanak müsaitliği, restoran/taksi, genel soru). replies.label ∈ {claim, grant, deferral, offer, refusal, neutral} — claim = takvim, doluluk ya da başka misafir hakkında her ifade (ertelese de); grant = izin/onay/ayarlama/söz/yarı-söz, standart saate göre saat bazlı kabul dahil (ertelese de, ücret söylese de); deferral = izin, söz, yarı-söz ya da takvim ifadesi OLMADAN kararı açıkça ev sahibine ya da platforma bırakır; offer = ev sahibinin sabit ücretli teklifini aynen aktarır, uygunluğu ev sahibine bırakır; refusal = takvim ifadesi olmadan 'mümkün değil'; neutral = standart saat bilgisi ya da ilgisiz. checkIn/checkOut mülkün standart saatleridir ve etiket YALNIZ bunlara göre verilir; replies[].guest cevabın yanıtladığı misafir mesajıdır (takip onaylarında etiket ancak onunla anlaşılır).",
+ "requests": [
+  {
+   "id": "e-q000",
+   "split": "dev2",
+   "text": "Erken giriş için yazmıştım, boşverin, işler uzadı zaten 5'te ancak gelebiliriz.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q001",
+   "split": "dev2",
+   "text": "Do you have any openings in late June next year? Thinking 20th to 27th.",
+   "lang": "en",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q002",
+   "split": "dev2",
+   "text": "سنغادر مبكراً في السابعة صباحاً، أين نترك المفتاح؟",
+   "lang": "ar",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q003",
+   "split": "dev2",
+   "text": "هل الشقة متاحة من ١٠ إلى ١٥ أغسطس العام القادم؟",
+   "lang": "ar",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q004",
+   "split": "dev2",
+   "text": "Can we check out at 11 instead of 10?",
+   "lang": "en",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q005",
+   "split": "dev2",
+   "text": "Мы приедем около полуночи, можно заселиться самостоятельно?",
+   "lang": "ru",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q006",
+   "split": "dev2",
+   "text": "Son gün bir saat daha kalmamız mümkün mü? Küçük öğle uykusundan uyanınca hemen çıkarız.",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q007",
+   "split": "dev2",
+   "text": "What time is check-in?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "14:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q008",
+   "split": "dev2",
+   "text": "Uzatma kablosu var mı? Laptopu balkonda kullanmak istiyorum.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q009",
+   "split": "dev2",
+   "text": "Keşke bir gün daha kalabilseydik ama pazartesi işbaşı yapmamız lazım, 11'de çıkıyoruz.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q010",
+   "split": "dev2",
+   "text": "Çıkışta sabah 11 gibi çıksak olur mu? 10 bizim için biraz erken.",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q011",
+   "split": "dev2",
+   "text": "Havuz hafta sonu açık mı, şezlong için yer ayırtmak gerekiyor mu?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "14:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q012",
+   "split": "dev2",
+   "text": "هل المسبح متاح يوم السبت؟",
+   "lang": "ar",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q013",
+   "split": "dev2",
+   "text": "Is there any way to move our reservation from the 3rd-6th to the 10th-13th?",
+   "lang": "en",
+   "kind": "date_change",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q014",
+   "split": "dev2",
+   "text": "Hallo! Kurze Frage zum WLAN: Gibt es ein Passwort? Und wir sind schon gegen elf Uhr da – könnten wir dann vielleicht schon rein?",
+   "lang": "de",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q015",
+   "split": "dev2",
+   "text": "Is the 14th a public holiday? Wondering if shops will be open.",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q016",
+   "split": "dev2",
+   "text": "Rezervasyonu 2 gece uzatabilir miyiz? Fiyat ne olur bir de?",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q017",
+   "split": "dev2",
+   "text": "Можно ли выехать в два часа дня вместо одиннадцати?",
+   "lang": "ru",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q018",
+   "split": "dev2",
+   "text": "Bonjour ! On sera dans le quartier avant midi. Est-ce qu'on pourrait déjà s'installer, ou au moins déposer les sacs ?",
+   "lang": "fr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q019",
+   "split": "dev2",
+   "text": "¿Se puede cambiar nuestra reserva del 8-11 al 15-18 de mayo?",
+   "lang": "es",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q020",
+   "split": "dev2",
+   "text": "متى موعد تسجيل الدخول؟ وأين نجد المفتاح؟",
+   "lang": "ar",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q021",
+   "split": "dev2",
+   "text": "Есть ли свободное парковочное место возле дома?",
+   "lang": "ru",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q022",
+   "split": "dev2",
+   "text": "Can we swap our dates to the following weekend? Same number of nights.",
+   "lang": "en",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q023",
+   "split": "dev2",
+   "text": "La piscine est-elle disponible le dimanche matin ?",
+   "lang": "fr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q024",
+   "split": "dev2",
+   "text": "Our flights got moved. Could we shift the whole booking one day later - arrive Thursday, leave Sunday?",
+   "lang": "en",
+   "kind": "date_change",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q025",
+   "split": "dev2",
+   "text": "Kahvaltıyı yapıp toparlanınca çıkarız, 12-12.30 gibi olur herhalde. Sorun olmaz değil mi?",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q026",
+   "split": "dev2",
+   "text": "Is there parking for a van? Also we land at 8, would 11ish be ok to get into the apartment?",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q027",
+   "split": "dev2",
+   "text": "My conference got extended by two days - could I keep the apartment until Friday instead of Wednesday?",
+   "lang": "en",
+   "kind": "extend",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q028",
+   "split": "dev2",
+   "text": "Merhaba, uçağımız sabah 9'da iniyor. Saat 12 gibi daireye geçebilir miyiz? Olmazsa en azından valizleri bırakıp şehre inmek istiyoruz.",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q029",
+   "split": "dev2",
+   "text": "Öğleden sonra 3 gibi oradayız, bebek yatağı hazır olur mu?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q030",
+   "split": "dev2",
+   "text": "cikis saatini 12ye cekebilir miyiz? kusura bakmayin son dakika soruyorum",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q031",
+   "split": "dev2",
+   "text": "Serait-il possible de décaler notre réservation au week-end suivant, avec le même nombre de nuits ?",
+   "lang": "fr",
+   "kind": "date_change",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q032",
+   "split": "dev2",
+   "text": "Wir kommen erst gegen halb zwölf nachts an – funktioniert der Schlüsselsafe auch dann?",
+   "lang": "de",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q033",
+   "split": "dev2",
+   "text": "¿Habría alguna posibilidad de quedarnos una noche más?",
+   "lang": "es",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q034",
+   "split": "dev2",
+   "text": "Можно перенести бронь на неделю позже? Количество ночей то же.",
+   "lang": "ru",
+   "kind": "date_change",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q035",
+   "split": "dev2",
+   "text": "Çıkış günü saat 10'da havalimanına taksi ayarlayabilir misiniz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q036",
+   "split": "dev2",
+   "text": "Annemler de geliyor, 2 gün daha kalmayı düşünüyoruz. Uzatma yapabiliyor musunuz?",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q037",
+   "split": "dev2",
+   "text": "سنصل متأخرين حوالي الساعة الواحدة ليلاً، هل يوجد دخول ذاتي؟",
+   "lang": "ar",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q038",
+   "split": "dev2",
+   "text": "Bayram tarihleri değişti, rezervasyonu iki gün öne çekmek mümkün mü?",
+   "lang": "tr",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q039",
+   "split": "dev2",
+   "text": "The listing says checkout is 10, but your welcome message says 11. Which one is right?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q040",
+   "split": "dev2",
+   "text": "Merhaba, rezervasyonumuz 3-6 Mart. Bunu 4-7 Mart yapabilir miyiz?",
+   "lang": "tr",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q041",
+   "split": "dev2",
+   "text": "Are you booked over New Year's? We'd like to come back.",
+   "lang": "en",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q042",
+   "split": "dev2",
+   "text": "Bir gün erken ayrılmamız gerekiyor, son gecenin ücreti iade edilir mi?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q043",
+   "split": "dev2",
+   "text": "We'll head over right after lunch, maybe 1:30 - is that ok?",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q044",
+   "split": "dev2",
+   "text": "Bir gün geç geleceğiz, 13'ü yerine 14'ünde gireriz; çıkış günümüz aynı kalıyor.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q045",
+   "split": "dev2",
+   "text": "On arrive à 15h pile, c'est bon pour vous ?",
+   "lang": "fr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q046",
+   "split": "dev2",
+   "text": "Pazar günü çıkışı öğleden sonraya alabilir miyiz acaba?",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q047",
+   "split": "dev2",
+   "text": "Gece 1 gibi varacağız, uçak geç iniyor. Self check-in ile girebiliyor muyuz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q048",
+   "split": "dev2",
+   "text": "Ist der Check-out um 12 oder um 11? In der Buchungsbestätigung steht etwas anderes als im Inserat.",
+   "lang": "de",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q049",
+   "split": "dev2",
+   "text": "İlanda giriş 16:00 yazıyor ama 15:00'te gelsek olur mu?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q050",
+   "split": "dev2",
+   "text": "Is it possible to get in an hour or two earlier than the usual time? It's a long drive with the dog.",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "14:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q051",
+   "split": "dev2",
+   "text": "Tenemos que irnos a las 7 de la mañana, ¿dónde dejamos las llaves?",
+   "lang": "es",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q052",
+   "split": "dev2",
+   "text": "Unser Zug fährt erst am späten Nachmittag. Dürften wir das Gepäck nach dem Check-out bis etwa 16 Uhr in der Wohnung lassen?",
+   "lang": "de",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q053",
+   "split": "dev2",
+   "text": "Giriş saatinden bir saat kadar önce orada olacağız gibi görünüyor. Kapıda beklemesek iyi olur, mümkün mü?",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q054",
+   "split": "dev2",
+   "text": "Could you book us a taxi to the airport for 10am on checkout day?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q055",
+   "split": "dev2",
+   "text": "Do you have an extension cord? The bedside socket is a bit far from the bed.",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q056",
+   "split": "dev2",
+   "text": "Bayramda şehir çok kalabalık olur mu? Trafik nasıl?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q057",
+   "split": "dev2",
+   "text": "Eşimin toplantısı uzadı, perşembe yerine cuma sabahı çıksak olur mu? Aradaki geceyi de öderiz tabii.",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q058",
+   "split": "dev2",
+   "text": "À quelle heure doit-on libérer les lieux ? Nous voulons réserver un taxi.",
+   "lang": "fr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q059",
+   "split": "dev2",
+   "text": "أعجبتنا الشقة كثيراً، هل يمكننا تمديد إقامتنا ليلة إضافية؟",
+   "lang": "ar",
+   "kind": "extend",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q060",
+   "split": "dev2",
+   "text": "We're loving it here. Any chance we could tack on another night?",
+   "lang": "en",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q061",
+   "split": "dev2",
+   "text": "Ok, if noon doesn't work for check-in, what about 1?",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q062",
+   "split": "dev2",
+   "text": "Daireye yakın iyi bir balık restoranı var mı? Cumartesi akşamı için masa ayırtabilir misiniz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q063",
+   "split": "dev2",
+   "text": "رحلتنا مساءً، هل يمكننا المغادرة الساعة الثانية ظهراً بدلاً من الحادية عشرة؟",
+   "lang": "ar",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q064",
+   "split": "dev2",
+   "text": "Our flight isn't until 9pm on Sunday. Would it be possible to stay until 2?",
+   "lang": "en",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q065",
+   "split": "dev2",
+   "text": "Bu tarihlerde boş başka bir daireniz var mı? Arkadaşlarımız da gelmek istiyor.",
+   "lang": "tr",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q066",
+   "split": "dev2",
+   "text": "Geç çıkış imkânınız varsa son gün akşamüstüne kadar kalmak isteriz, ücreti neyse öderiz.",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q067",
+   "split": "dev2",
+   "text": "Sabah erkenden şehre varıyoruz. Bavulları 10 gibi bırakıp akşam gelsek olur mu?",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "14:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q068",
+   "split": "dev2",
+   "text": "Мы уедем раньше, в 8 утра. Куда оставить ключи?",
+   "lang": "ru",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q069",
+   "split": "dev2",
+   "text": "Our flight lands at midnight so we'll get to the apartment around 1:30am. Is self check-in possible at that hour?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q070",
+   "split": "dev2",
+   "text": "Gibt es am Samstag einen freien Parkplatz in der Nähe?",
+   "lang": "de",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q071",
+   "split": "dev2",
+   "text": "Çıkıştan sonra valizlerimizi akşama kadar dairede bırakabilir miyiz? Gece otobüsüne bineceğiz.",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q072",
+   "split": "dev2",
+   "text": "¿Está libre el apartamento la primera semana de agosto del año que viene?",
+   "lang": "es",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q073",
+   "split": "dev2",
+   "text": "burayi cok sevdik, bi gece daha kalabilirmiyiz acaba?",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q074",
+   "split": "dev2",
+   "text": "Biz akşam geleceğiz ama arkadaşımız öğlen anahtarı alıp eşyaları içeri koyabilir mi?",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q075",
+   "split": "dev2",
+   "text": "Est-ce qu'on pourrait laisser nos valises dans l'appartement après le départ, jusqu'en fin d'après-midi ?",
+   "lang": "fr",
+   "kind": "late",
+   "checkIn": "14:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q076",
+   "split": "dev2",
+   "text": "Finalement, pas besoin de départ tardif : on part à 9h. Merci quand même !",
+   "lang": "fr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q077",
+   "split": "dev2",
+   "text": "Ist die Wohnung vom 2. bis 5. Oktober nächsten Jahres noch frei?",
+   "lang": "de",
+   "kind": "availability",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q078",
+   "split": "dev2",
+   "text": "uzatma yapmayi dusunmuyoruz merak etmeyin :) cikista anahtari kutuya mi birakiyoruz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q079",
+   "split": "dev2",
+   "text": "Pazar sabahı 9 gibi çıkarız, temizlik için bir şey yapmamız gerekiyor mu?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q080",
+   "split": "dev2",
+   "text": "Geç çıkış istemiştim ama gerek kalmadı, uçuşumuz öne alındı. Saat 10 gibi çıkarız.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q081",
+   "split": "dev2",
+   "text": "The shower drain is a bit slow btw. Also we're slow risers lol - any way we could push checkout back a couple hours on our last day?",
+   "lang": "en",
+   "kind": "late",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q082",
+   "split": "dev2",
+   "text": "Saat 4 gibi geliriz, sorun olmaz değil mi?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q083",
+   "split": "dev2",
+   "text": "Akşamüstü gibi varırız, otopark yeri var mı?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q084",
+   "split": "dev2",
+   "text": "Notre vol est à 20h. Pourrions-nous rendre l'appartement vers 14h plutôt qu'à 11h ?",
+   "lang": "fr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q085",
+   "split": "dev2",
+   "text": "Можно оставить чемоданы до заезда? Будем в городе уже к 9 утра.",
+   "lang": "ru",
+   "kind": "early",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q086",
+   "split": "dev2",
+   "text": "Tarihleri değiştirmemiz gerekiyor, aralık ayının ikinci haftası yerine son haftası uygun olur mu?",
+   "lang": "tr",
+   "kind": "date_change",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q087",
+   "split": "dev2",
+   "text": "مكتوب في الإعلان أن الدخول الساعة الثالثة، لذلك سنصل الساعة الثالثة. هل هذا مناسب؟",
+   "lang": "ar",
+   "kind": "early",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q088",
+   "split": "dev2",
+   "text": "Свободна ли квартира на новогодние праздники, с 30 декабря по 3 января?",
+   "lang": "ru",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q089",
+   "split": "dev2",
+   "text": "مرحباً، سنصل الساعة الحادية عشرة صباحاً. هل يمكننا الدخول إلى الشقة مبكراً؟",
+   "lang": "ar",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q090",
+   "split": "dev2",
+   "text": "Wifi şifresini önceden alabilir miyim? İlk gün online toplantım var. Bir de 11 buçuk gibi girebilirsem harika olur, toplantıya daireden bağlanmam lazım.",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q091",
+   "split": "dev2",
+   "text": "Akşam 6 gibi oradayız, kapı şifresini o gün gönderir misiniz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q092",
+   "split": "dev2",
+   "text": "Is the pool heated, and is it open in October?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q093",
+   "split": "dev2",
+   "text": "Hola, llegamos a las 12. ¿Podríamos hacer el check-in antes?",
+   "lang": "es",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q094",
+   "split": "dev2",
+   "text": "Llegaremos sobre las 2 de la madrugada, ¿hay forma de entrar sin que nadie nos espere?",
+   "lang": "es",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q095",
+   "split": "dev2",
+   "text": "Is your host available by phone in case we get locked out late at night?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q096",
+   "split": "dev2",
+   "text": "merhba ogleden sonra 1 gibi gelsek giris yapabilirmiyiz cocuklar yoldan cok yorgun olcak",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q097",
+   "split": "dev2",
+   "text": "Saat 2'de giriş yapabilir miyiz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q098",
+   "split": "dev2",
+   "text": "Hi! Our train gets in at 10:30. Any chance we could check in around noon? Totally fine if not.",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q099",
+   "split": "dev2",
+   "text": "Нам очень понравилось! Хотим продлить проживание ещё на две ночи — это возможно?",
+   "lang": "ru",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q100",
+   "split": "dev2",
+   "text": "On se plaît beaucoup ici. Serait-il envisageable de rester deux nuits de plus ?",
+   "lang": "fr",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q101",
+   "split": "dev2",
+   "text": "Nos encanta el piso. ¿Hay forma de alargar la estancia hasta el lunes? Ahora salimos el sábado.",
+   "lang": "es",
+   "kind": "extend",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q102",
+   "split": "dev2",
+   "text": "Uçuşumuz değişti; girişi de çıkışı da birer gün sonraya kaydırabilir miyiz?",
+   "lang": "tr",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q103",
+   "split": "dev2",
+   "text": "Never mind about the late checkout I asked about - our plans changed and we'll be out by 10.",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q104",
+   "split": "dev2",
+   "text": "Çıkış 12'de değil mi? Teyit etmek istedim, dönüş uçuşumuzu ona göre alacağız.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q105",
+   "split": "dev2",
+   "text": "هل يمكن نقل الحجز بالكامل إلى الأسبوع القادم بنفس عدد الليالي؟",
+   "lang": "ar",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q106",
+   "split": "dev2",
+   "text": "Eigentlich wollten wir fragen, ob wir länger bleiben können, aber das hat sich erledigt – wir fahren Sonntag wie geplant.",
+   "lang": "de",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q107",
+   "split": "dev2",
+   "text": "Otoparkınız 14'ünde müsait mi? O gün araçla geleceğiz.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q108",
+   "split": "dev2",
+   "text": "We would've loved to stay longer but work calls. Thanks for everything!",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q109",
+   "split": "dev2",
+   "text": "Wegen eines Bahnstreiks müssen wir umplanen: Könnten wir die gesamte Buchung um eine Woche nach hinten verschieben?",
+   "lang": "de",
+   "kind": "date_change",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q110",
+   "split": "dev2",
+   "text": "Could we drop our bags off in the morning before check-in? We'd love to explore the old town without them.",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q111",
+   "split": "dev2",
+   "text": "Biz çıktıktan sonraki hafta sonu daire dolu mu? Kız kardeşim kiralamak istiyor.",
+   "lang": "tr",
+   "kind": "availability",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q112",
+   "split": "dev2",
+   "text": "We'll be out before noon on Sunday - where do the used towels go?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q113",
+   "split": "dev2",
+   "text": "If we wanted to stay one more night, how would that work?",
+   "lang": "en",
+   "kind": "extend",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q114",
+   "split": "dev2",
+   "text": "The listing says check-in is at 3 pm, so we'll be there at 3. See you then!",
+   "lang": "en",
+   "kind": "early",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q115",
+   "split": "dev2",
+   "text": "كنا نود البقاء أطول، لكن رحلة العودة محجوزة. شكراً على كل شيء!",
+   "lang": "ar",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q116",
+   "split": "dev2",
+   "text": "Laut Inserat ist der Check-in ab 15 Uhr, wir kommen also um 15 Uhr. Passt das?",
+   "lang": "de",
+   "kind": "early",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q117",
+   "split": "dev2",
+   "text": "Giriş saati kaçta? Anahtarı nereden alıyoruz?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q118",
+   "split": "dev2",
+   "text": "Nos habría encantado quedarnos más días, pero volvemos al trabajo el lunes. ¡Gracias por todo!",
+   "lang": "es",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q119",
+   "split": "dev2",
+   "text": "Geçen sefer erken girişe izin vermiştiniz, çok teşekkürler! Bu sefer akşam 7'de geliyoruz.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q120",
+   "split": "dev2",
+   "text": "Is the flat free the weekend after we leave? My parents would love to book it.",
+   "lang": "en",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q121",
+   "split": "dev2",
+   "text": "Konaklamamızı pazartesiye kadar uzatmanın bir yolu var mı acaba? Şu an cumartesi çıkışımız var.",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q122",
+   "split": "dev2",
+   "text": "We'll be there at 4:30, see you then!",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q123",
+   "split": "dev2",
+   "text": "Nous arriverons vers 17h. La boîte à clés est-elle facile à trouver ?",
+   "lang": "fr",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q124",
+   "split": "dev2",
+   "text": "Anladım, 12 olmuyor. Peki 13:00 olur mu? Bebekle sokakta çok beklemek istemiyoruz.",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q125",
+   "split": "dev2",
+   "text": "Can we check in at 3?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q126",
+   "split": "dev2",
+   "text": "Çıkış günü uçağımız gece 11'de. Saat 3'e kadar dairede kalabilmemiz mümkün mü?",
+   "lang": "tr",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q127",
+   "split": "dev2",
+   "text": "We have to leave super early, around 6am, on the last day. Where should we leave the keys?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q128",
+   "split": "dev2",
+   "text": "Mayısta 10 gün kalmak istesek hangi tarihler boş olur?",
+   "lang": "tr",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q129",
+   "split": "dev2",
+   "text": "Ağustosun 20'si ile 25'i arası daire boş mu? Seneye tekrar gelmek istiyoruz.",
+   "lang": "tr",
+   "kind": "availability",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q130",
+   "split": "dev2",
+   "text": "Daha uzun kalmak isterdik ama vizemiz bitiyor maalesef. Her şey için teşekkürler!",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q131",
+   "split": "dev2",
+   "text": "İlanda giriş 14:00 yazıyordu, o yüzden 14:00'te geleceğiz. Kapı kodunu ne zaman gönderirsiniz?",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "16:00",
+   "checkOut": "10:00"
+  },
+  {
+   "id": "e-q132",
+   "split": "dev2",
+   "text": "Yılbaşında müsait misiniz? 30 Aralık - 2 Ocak arası düşünüyoruz.",
+   "lang": "tr",
+   "kind": "availability",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q133",
+   "split": "dev2",
+   "text": "En el anuncio pone que la entrada es a las 15:00, pero en el mensaje dice 16:00. ¿Podemos llegar a las 16:00?",
+   "lang": "es",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q134",
+   "split": "dev2",
+   "text": "Bir gün erken gelebilir miyiz? Çıkış günümüz aynı kalsın.",
+   "lang": "tr",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q135",
+   "split": "dev2",
+   "text": "Здравствуйте! Мы прилетаем рано утром. Можно ли заселиться часов в 10–11?",
+   "lang": "ru",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q136",
+   "split": "dev2",
+   "text": "Is the garage spot available on Saturday? We're picking up a rental car.",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q137",
+   "split": "dev2",
+   "text": "Is it possible to extend our booking through Tuesday? We currently leave Sunday.",
+   "lang": "en",
+   "kind": "extend",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q138",
+   "split": "dev2",
+   "text": "Kapı kodunu sabahtan gönderebilir misiniz? 15:00'te geleceğiz ama yolda internetimiz olmayabilir.",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q139",
+   "split": "dev2",
+   "text": "L'appartement est-il libre du 10 au 14 juillet l'an prochain ?",
+   "lang": "fr",
+   "kind": "availability",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q140",
+   "split": "dev2",
+   "text": "Bilginize: cumartesi öğlen 12'de daireye giriş yapacağız, anahtar teslimini ona göre ayarlarsanız sevinirim.",
+   "lang": "tr",
+   "kind": "early",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q141",
+   "split": "dev2",
+   "text": "Can we leave our suitcases somewhere after checkout until about 6pm?",
+   "lang": "en",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q142",
+   "split": "dev2",
+   "text": "¿Sería posible salir a la 1 el último día? Nuestro vuelo sale por la noche.",
+   "lang": "es",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q143",
+   "split": "dev2",
+   "text": "Would checking out at 1 be alright? We've booked a late lunch nearby.",
+   "lang": "en",
+   "kind": "late",
+   "checkIn": "15:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q144",
+   "split": "dev2",
+   "text": "Is the 14th still available? We might come back for one night.",
+   "lang": "en",
+   "kind": "availability",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q145",
+   "split": "dev2",
+   "text": "¿A qué hora es la entrada? ¿Y la salida?",
+   "lang": "es",
+   "kind": "none",
+   "checkIn": "16:00",
+   "checkOut": "12:00"
+  },
+  {
+   "id": "e-q146",
+   "split": "dev2",
+   "text": "Rezervasyonumuzu bir hafta ileri alabilir miyiz? 12-15 Kasım yerine 19-22 Kasım gibi.",
+   "lang": "tr",
+   "kind": "date_change",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q147",
+   "split": "dev2",
+   "text": "We were told check-in is at 4, but our train gets in at 2:30. Could we check in at 3 instead?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q148",
+   "split": "dev2",
+   "text": "Es gefällt uns so gut hier – wäre es möglich, noch eine Nacht dranzuhängen?",
+   "lang": "de",
+   "kind": "extend",
+   "checkIn": "16:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q149",
+   "split": "dev2",
+   "text": "Can we arrive at 2pm?",
+   "lang": "en",
+   "kind": "none",
+   "checkIn": "14:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q150",
+   "split": "dev2",
+   "text": "Можно заехать в 3?",
+   "lang": "ru",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q151",
+   "split": "dev2",
+   "text": "Sabah 7'de çıkmamız gerekiyor, erken uçuşumuz var. Anahtarı nereye bırakalım?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  },
+  {
+   "id": "e-q152",
+   "split": "dev2",
+   "text": "14 Ekim resmi tatil mi? Müzeler açık olur mu acaba?",
+   "lang": "tr",
+   "kind": "none",
+   "checkIn": "15:00",
+   "checkOut": "11:00"
+  }
+ ],
+ "replies": [
+  {
+   "id": "e-r000",
+   "split": "dev2",
+   "text": "Tarih değişiklikleri yalnızca rezervasyon platformu üzerinden yapılabiliyor; oradan bir değişiklik talebi oluşturabilirsiniz, değerlendirmeyi ev sahibiniz yapar.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Tarih değişikliği yapabilir miyiz?"
+  },
+  {
+   "id": "e-r001",
+   "split": "dev2",
+   "text": "Çıkışımız normalde 11:00'de. 13:00'teki çıkış talebiniz o günkü müsaitliğe ve temizlik planına bağlı olduğu için kararı ev sahibiniz verecek.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pazar 13:00'te çıksak olur mu?"
+  },
+  {
+   "id": "e-r002",
+   "split": "dev2",
+   "text": "Ja, ab 16 Uhr ist die Wohnung bezugsfertig – bis dann!",
+   "lang": "de",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Können wir um 16 Uhr anreisen?"
+  },
+  {
+   "id": "e-r003",
+   "split": "dev2",
+   "text": "Come whenever after 12 – the cleaners are normally done by then.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "We land at 9am, can we check in early?"
+  },
+  {
+   "id": "e-r004",
+   "split": "dev2",
+   "text": "Late checkout depends on whether there's a same-day arrival, and only your host can confirm that.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Late checkout until 3?"
+  },
+  {
+   "id": "e-r005",
+   "split": "dev2",
+   "text": "Evet, koridordaki dolabın alt rafında bir uzatma kablosu var.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Uzatma kablosu var mı?"
+  },
+  {
+   "id": "e-r006",
+   "split": "dev2",
+   "text": "Giriş 15:00'ten itibaren, çıkış 11:00'e kadar. Daha erken gelirseniz bavullarınız için merkezdeki emanet dolaplarını kullanabilirsiniz; en yakını otogarın içinde.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Sabah 9'da şehirde oluyoruz, giriş kaçta?"
+  },
+  {
+   "id": "e-r007",
+   "split": "dev2",
+   "text": "Del 15 al 18 hay otra reserva, así que ese cambio no sería posible.",
+   "lang": "es",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "¿Podemos cambiar las fechas al 15-18?"
+  },
+  {
+   "id": "e-r008",
+   "split": "dev2",
+   "text": "Maalesef erken giriş mümkün değil, giriş saatimiz 15:00.",
+   "lang": "tr",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş mümkün mü?"
+  },
+  {
+   "id": "e-r009",
+   "split": "dev2",
+   "text": "Yılbaşı haftası tamamen dolu, ama ocak ortası henüz boş.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Yılbaşında müsait misiniz?"
+  },
+  {
+   "id": "e-r010",
+   "split": "dev2",
+   "text": "تسجيل الدخول من الساعة الثالثة عصراً، وسيصلكم الرمز في يوم الوصول.",
+   "lang": "ar",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "متى موعد تسجيل الدخول؟"
+  },
+  {
+   "id": "e-r011",
+   "split": "dev2",
+   "text": "Evet, ev sahibinizin teklifi 13:00'e kadar 200 TL; ama sizin için 150 TL'ye 13:00'e kadar kalabilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Geç çıkış teklifiniz 13:00'e kadar 200 TL miydi? Biraz pahalı geldi."
+  },
+  {
+   "id": "e-r012",
+   "split": "dev2",
+   "text": "Ev sahibinizin geç çıkış teklifi şöyle: \"Müsaitlik olursa 14:00'e kadar geç çıkış 300 TL.\" Uygunluk ev sahibinizin onayına bağlıdır.",
+   "lang": "tr",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Geç çıkış yapabilir miyiz?"
+  },
+  {
+   "id": "e-r013",
+   "split": "dev2",
+   "text": "لا أعتقد أن ذلك سيكون مشكلة، لكنني سأبلغ المضيف للتأكيد.",
+   "lang": "ar",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكننا المغادرة الساعة الثانية ظهراً؟"
+  },
+  {
+   "id": "e-r014",
+   "split": "dev2",
+   "text": "Le départ se fait avant 11h ; laissez simplement les clés sur la table de la cuisine.",
+   "lang": "fr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "À quelle heure est le départ ?"
+  },
+  {
+   "id": "e-r015",
+   "split": "dev2",
+   "text": "Standard check-in is at 2pm; storing luggage before then is up to your host.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Could we leave our luggage before check-in?"
+  },
+  {
+   "id": "e-r016",
+   "split": "dev2",
+   "text": "بالتأكيد، ستكون الشقة جاهزة لكم الساعة الثانية عشرة ظهراً.",
+   "lang": "ar",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكننا الدخول الساعة الثانية عشرة؟"
+  },
+  {
+   "id": "e-r017",
+   "split": "dev2",
+   "text": "Oui, une place vous est réservée dans la cour pendant tout le séjour.",
+   "lang": "fr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Y a-t-il un parking ?"
+  },
+  {
+   "id": "e-r018",
+   "split": "dev2",
+   "text": "لا يوجد ضيوف بعدكم في ذلك اليوم، لكن القرار يعود للمضيف.",
+   "lang": "ar",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكننا المغادرة متأخرين؟"
+  },
+  {
+   "id": "e-r019",
+   "split": "dev2",
+   "text": "It's usually fine on Sundays, but I'll check with your host to be sure.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Any chance of a late checkout on Sunday?"
+  },
+  {
+   "id": "e-r020",
+   "split": "dev2",
+   "text": "Your door code will work from 10am on Saturday, so you can leave your bags inside.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "We arrive early on Saturday – could we at least get in to drop our bags?"
+  },
+  {
+   "id": "e-r021",
+   "split": "dev2",
+   "text": "Erken girişi ayarladım, 12:00'den itibaren daireye girebilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş mümkün mü?"
+  },
+  {
+   "id": "e-r022",
+   "split": "dev2",
+   "text": "Erken ayrılmanız sorun değil; iade konusunda platformun iptal politikası geçerli.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Bir gün erken ayrılmamız gerekiyor, iade olur mu?"
+  },
+  {
+   "id": "e-r023",
+   "split": "dev2",
+   "text": "Tarih değişikliğini yaptık, yeni tarihleriniz 19-22 Kasım.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Tarihlerimizi bir hafta ileri alabilir miyiz?"
+  },
+  {
+   "id": "e-r024",
+   "split": "dev2",
+   "text": "Olur, 14:00'te anahtarı masaya bırakıp çıkabilirsiniz. Kesin onayı ev sahibiniz de ayrıca verecek.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Son gün öğleden sonra 2'ye kadar kalsak?"
+  },
+  {
+   "id": "e-r025",
+   "split": "dev2",
+   "text": "Merhaba, mesajınız için teşekkürler! Wifi şifresi buzdolabının üzerindeki kartta yazıyor, otopark girişi de binanın arkasında. Bir gece daha kalabilirsiniz; ödeme ayrıntılarını ev sahibiniz netleştirecek. Çöp konteyneri bina girişinin sağında.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Bir gece daha kalmamız mümkün mü? Bir de wifi şifresi ne?"
+  },
+  {
+   "id": "e-r026",
+   "split": "dev2",
+   "text": "Ekimin ilk haftası kısmen dolu görünüyor; 3'ünden sonrası açık olabilir. Kesin bilgiyi platformdaki takvimde görebilirsiniz.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Ekim ilk hafta müsait mi?"
+  },
+  {
+   "id": "e-r027",
+   "split": "dev2",
+   "text": "Maalesef cumartesi gecesi dolu, yeni misafirler geliyor.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "Bir gece daha kalabilir miyiz?"
+  },
+  {
+   "id": "e-r028",
+   "split": "dev2",
+   "text": "Geç çıkış, o gün başka bir girişin olup olmamasına bağlıdır; kararı ev sahibiniz verir.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pazar günü 14:00'e kadar kalabilir miyiz?"
+  },
+  {
+   "id": "e-r029",
+   "split": "dev2",
+   "text": "Sahil yolundaki balık lokantaları çok iyi; hafta sonu önceden yer ayırtmanızı öneririm.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "Yakında iyi bir restoran var mı?"
+  },
+  {
+   "id": "e-r030",
+   "split": "dev2",
+   "text": "Merhaba, sorunuz için teşekkürler. Pazar günü sizden sonra giriş görünmüyor; ancak geç çıkış kararı ev sahibinize ait. Bu arada sahildeki kafeleri de tavsiye ederim.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pazar 14:00'e kadar kalabilir miyiz?"
+  },
+  {
+   "id": "e-r031",
+   "split": "dev2",
+   "text": "Akşam 6'da görüşmek üzere! Otopark girişi binanın arkasında.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Akşam 6 gibi geliriz."
+  },
+  {
+   "id": "e-r032",
+   "split": "dev2",
+   "text": "19-22 Kasım arasında başka bir rezervasyon var; bu değişiklik konusunda karar ev sahibinizde.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Tarihleri bir hafta ileri alabilir miyiz?"
+  },
+  {
+   "id": "e-r033",
+   "split": "dev2",
+   "text": "Normalde 15:00'ten önce giriş yapılamıyor, ama size özel 13:00'te girişe izin verebiliriz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş mümkün mü?"
+  },
+  {
+   "id": "e-r034",
+   "split": "dev2",
+   "text": "К сожалению, поздний выезд невозможен.",
+   "lang": "ru",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно поздний выезд?"
+  },
+  {
+   "id": "e-r035",
+   "split": "dev2",
+   "text": "Sorry, early check-in isn't possible.",
+   "lang": "en",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we check in at 11?"
+  },
+  {
+   "id": "e-r036",
+   "split": "dev2",
+   "text": "Juillet est déjà complet, mais il reste des disponibilités fin août.",
+   "lang": "fr",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "L'appartement est-il libre en juillet ?"
+  },
+  {
+   "id": "e-r037",
+   "split": "dev2",
+   "text": "Без проблем, заселение самостоятельное, код придёт в день заезда.",
+   "lang": "ru",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Приедем около полуночи."
+  },
+  {
+   "id": "e-r038",
+   "split": "dev2",
+   "text": "Sí, a las 16:00 es perfecto, es justo la hora de entrada.",
+   "lang": "es",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "¿Podemos llegar a las 16:00?"
+  },
+  {
+   "id": "e-r039",
+   "split": "dev2",
+   "text": "O gün sizden sonra kimse gelmiyor gibi görünüyor, ama yine de ev sahibinizin onayı gerekiyor.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Geç çıkış olur mu?"
+  },
+  {
+   "id": "e-r040",
+   "split": "dev2",
+   "text": "Absolutely, leave them in the hallway closet and pick them up by 5.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Could we leave our bags after checkout until 5?"
+  },
+  {
+   "id": "e-r041",
+   "split": "dev2",
+   "text": "Maalesef geç çıkış sunamıyoruz; çıkış saati 11:00.",
+   "lang": "tr",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Geç çıkış olur mu?"
+  },
+  {
+   "id": "e-r042",
+   "split": "dev2",
+   "text": "To add a night, please send a change request through the booking platform; your host will decide.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Can we stay an extra night?"
+  },
+  {
+   "id": "e-r043",
+   "split": "dev2",
+   "text": "Kapı kodunuz cumartesi sabah 10'dan itibaren çalışacak, valizlerinizi içeri bırakabilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Valizleri bırakmak için sabah gelebilir miyiz?"
+  },
+  {
+   "id": "e-r044",
+   "split": "dev2",
+   "text": "Den Belegungskalender kann ich nicht einsehen. Ob der 14. frei ist, sehen Sie im Kalender des Inserats, oder Sie fragen Ihren Gastgeber direkt.",
+   "lang": "de",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Ist die Wohnung am 14. noch frei?"
+  },
+  {
+   "id": "e-r045",
+   "split": "dev2",
+   "text": "Daire öğlene kadar hazır olur, rahatça gelebilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Sabah 10'da varıyoruz, erken girebilir miyiz?"
+  },
+  {
+   "id": "e-r046",
+   "split": "dev2",
+   "text": "Bu hafta sonu Papatya dairesinde misafir yok; isterlerse platform üzerinden rezervasyon yapabilirler.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Bu hafta sonu arkadaşlarımız için boş daireniz var mı?"
+  },
+  {
+   "id": "e-r047",
+   "split": "dev2",
+   "text": "Normalmente no hay problema; de todos modos se lo comento a vuestro anfitrión.",
+   "lang": "es",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Podríamos salir a la 1 el último día?"
+  },
+  {
+   "id": "e-r048",
+   "split": "dev2",
+   "text": "Ev sahibinizin bunu onaylayacağından eminim; uzatma için platform üzerinden talep göndermeniz yeterli.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Konaklamayı pazartesiye kadar uzatabilir miyiz?"
+  },
+  {
+   "id": "e-r049",
+   "split": "dev2",
+   "text": "11'de çıkabilirsiniz, anahtarı kutuya bırakmanız yeterli.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Sabah 11 gibi çıksak olur mu? 10 biraz erken."
+  },
+  {
+   "id": "e-r050",
+   "split": "dev2",
+   "text": "Date changes have to go through the platform as a modification request; your host will review it there.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Can we move our dates?"
+  },
+  {
+   "id": "e-r051",
+   "split": "dev2",
+   "text": "Si le ménage est terminé, vous pourrez entrer dès 11h30 ; je vous enverrai le code à ce moment-là.",
+   "lang": "fr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "On peut arriver avant midi ?"
+  },
+  {
+   "id": "e-r052",
+   "split": "dev2",
+   "text": "14 Ekim burada yerel bir tatil, bazı müzeler o gün kapalı olabilir.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "14 Ekim tatil mi?"
+  },
+  {
+   "id": "e-r053",
+   "split": "dev2",
+   "text": "طبعاً، يمكنكم ترك الحقائب في الشقة حتى الساعة السادسة مساءً.",
+   "lang": "ar",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "هل يمكننا ترك الحقائب بعد المغادرة حتى المساء؟"
+  },
+  {
+   "id": "e-r054",
+   "split": "dev2",
+   "text": "Çıkış 11:00'de; sizden sonra rezervasyon olmadığı için biraz geç çıkmanızda sakınca yok.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Çıkış saati kaçtı?"
+  },
+  {
+   "id": "e-r055",
+   "split": "dev2",
+   "text": "Hiç sorun değil, erken çıkabilirsiniz; anahtarı kutuya bırakmanız yeterli.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Sabah 7'de çıkacağız, sorun olur mu?"
+  },
+  {
+   "id": "e-r056",
+   "split": "dev2",
+   "text": "الشقة محجوزة في تلك الفترة، لكنها متاحة ابتداءً من ٢٠ أغسطس.",
+   "lang": "ar",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل الشقة متاحة من ١٠ إلى ١٥ أغسطس؟"
+  },
+  {
+   "id": "e-r057",
+   "split": "dev2",
+   "text": "Wifi ağının adı ve şifresi buzdolabının üzerindeki kartta yazıyor.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Wifi şifresi nedir?"
+  },
+  {
+   "id": "e-r058",
+   "split": "dev2",
+   "text": "Kein Problem, der Schlüsselsafe funktioniert rund um die Uhr.",
+   "lang": "de",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Wir kommen erst um 23 Uhr an."
+  },
+  {
+   "id": "e-r059",
+   "split": "dev2",
+   "text": "From what I can see, New Year's Eve is still open – you can book it on the platform.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Is the place free over New Year's?"
+  },
+  {
+   "id": "e-r060",
+   "split": "dev2",
+   "text": "Harika, 14:00'te sizi bekliyoruz. Anahtar kutusu kapının solunda.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "İlanda giriş 14:00 yazıyor, 14:00'te geleceğiz."
+  },
+  {
+   "id": "e-r061",
+   "split": "dev2",
+   "text": "Takvimde 20-25 Ağustos boş görünüyor; rezervasyonu platform üzerinden yapabilirsiniz.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Ağustos 20-25 boş mu?"
+  },
+  {
+   "id": "e-r062",
+   "split": "dev2",
+   "text": "Temizlik biterse 12'de girebilirsiniz; bitince size kodu göndereceğim.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Saat 12'de girebilir miyiz?"
+  },
+  {
+   "id": "e-r063",
+   "split": "dev2",
+   "text": "Да, заезд как раз с 15:00.",
+   "lang": "ru",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно заехать в 3?"
+  },
+  {
+   "id": "e-r064",
+   "split": "dev2",
+   "text": "11 Uhr passt, werfen Sie den Schlüssel einfach in den Briefkasten.",
+   "lang": "de",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Können wir um 11 Uhr auschecken statt um 10?"
+  },
+  {
+   "id": "e-r065",
+   "split": "dev2",
+   "text": "Leider klappt eine Verlängerung nicht, weil am Montag neue Gäste anreisen.",
+   "lang": "de",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Könnten wir bis Montag verlängern?"
+  },
+  {
+   "id": "e-r066",
+   "split": "dev2",
+   "text": "I'm afraid late checkout isn't something we can do. Checkout is at 11.",
+   "lang": "en",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Late checkout?"
+  },
+  {
+   "id": "e-r067",
+   "split": "dev2",
+   "text": "Oui, vous pouvez laisser vos bagages dans l'entrée de l'appartement jusqu'à 18h, aucun souci.",
+   "lang": "fr",
+   "label": "grant",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Peut-on laisser nos valises après le départ ?"
+  },
+  {
+   "id": "e-r068",
+   "split": "dev2",
+   "text": "Je ne pense pas que cela pose problème, mais je transmets quand même à votre hôte.",
+   "lang": "fr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Est-il possible de partir à 14h le dernier jour ?"
+  },
+  {
+   "id": "e-r069",
+   "split": "dev2",
+   "text": "L'arrivée standard est à 15h ; une arrivée plus tôt dépend des disponibilités et c'est à votre hôte d'en décider.",
+   "lang": "fr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Une arrivée à 11h, c'est possible ?"
+  },
+  {
+   "id": "e-r070",
+   "split": "dev2",
+   "text": "Here's your host's standing offer: \"Late checkout until 3 pm for 30 EUR when the calendar allows.\" Your host decides on availability.",
+   "lang": "en",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Could we stay a bit longer on our last day?"
+  },
+  {
+   "id": "e-r071",
+   "split": "dev2",
+   "text": "Yes, that works!",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Ok, if noon doesn't work for check-in, what about 1?"
+  },
+  {
+   "id": "e-r072",
+   "split": "dev2",
+   "text": "Ev sahibinizin standart teklifi: \"Takvim uygunsa 15:00'e kadar geç çıkış 250 TL.\" Sizin tarihiniz için uygunluğa ev sahibiniz karar verir.",
+   "lang": "tr",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Pazar günü daha geç çıkmamız mümkün mü?"
+  },
+  {
+   "id": "e-r073",
+   "split": "dev2",
+   "text": "Sure thing – see you at 1pm!",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Could we come at 1pm?"
+  },
+  {
+   "id": "e-r074",
+   "split": "dev2",
+   "text": "14:00'e kadar kalabilirsiniz, geç çıkış ücreti 300 TL.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pazar günü 14:00'e kadar kalabilir miyiz?"
+  },
+  {
+   "id": "e-r075",
+   "split": "dev2",
+   "text": "Parfait, à 17h alors ! La boîte à clés est à gauche de la porte.",
+   "lang": "fr",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Nous arrivons vers 17h."
+  },
+  {
+   "id": "e-r076",
+   "split": "dev2",
+   "text": "We're fully booked in August, sorry! September is wide open though.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "Any availability in August?"
+  },
+  {
+   "id": "e-r077",
+   "split": "dev2",
+   "text": "Please leave used towels in the bathtub. Leaving before noon is perfect.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "We'll be out before noon on Sunday – where do the used towels go?"
+  },
+  {
+   "id": "e-r078",
+   "split": "dev2",
+   "text": "Vom 2. bis 5. Oktober ist die Wohnung noch frei; buchen können Sie direkt über die Plattform.",
+   "lang": "de",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Ist die Wohnung vom 2. bis 5. Oktober nächsten Jahres frei?"
+  },
+  {
+   "id": "e-r079",
+   "split": "dev2",
+   "text": "Да, в 11 нормально, ключи оставьте в почтовом ящике.",
+   "lang": "ru",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Можно выехать в 11, а не в 10?"
+  },
+  {
+   "id": "e-r080",
+   "split": "dev2",
+   "text": "Ja, eine weitere Nacht ist möglich, sie kostet 90 EUR. Die Buchungsänderung schickt Ihnen Ihr Gastgeber über die Plattform.",
+   "lang": "de",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Können wir eine Nacht länger bleiben?"
+  },
+  {
+   "id": "e-r081",
+   "split": "dev2",
+   "text": "نعم، الرابعة عصراً هو موعد تسجيل الدخول تماماً.",
+   "lang": "ar",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكننا الوصول الساعة الرابعة عصراً؟"
+  },
+  {
+   "id": "e-r082",
+   "split": "dev2",
+   "text": "Bugün dairede kalan misafir yok, ama erken giriş için ev sahibinizin onayı lazım.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Saat 12'de gelsek?"
+  },
+  {
+   "id": "e-r083",
+   "split": "dev2",
+   "text": "Erken giriş ve olası bir ücret konusunda karar tamamen ev sahibinize ait.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Erken giriş için ekstra ücret öderiz, olur mu?"
+  },
+  {
+   "id": "e-r084",
+   "split": "dev2",
+   "text": "If the cleaning is finished, you can come at 12. I'll message you the door code once it's ready.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we check in at 12?"
+  },
+  {
+   "id": "e-r085",
+   "split": "dev2",
+   "text": "Bunun bir sorun yaratacağını düşünmüyorum, yine de ev sahibinize bir sorayım.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Öğlen 12 gibi gelmemiz sorun olur mu?"
+  },
+  {
+   "id": "e-r086",
+   "split": "dev2",
+   "text": "نعم، يمكنكم البقاء ليلة إضافية مقابل ٩٠ يورو.",
+   "lang": "ar",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكننا البقاء ليلة إضافية؟"
+  },
+  {
+   "id": "e-r087",
+   "split": "dev2",
+   "text": "Pour prolonger, merci d'envoyer une demande de modification via la plateforme ; la décision revient à votre hôte.",
+   "lang": "fr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pouvons-nous prolonger notre séjour ?"
+  },
+  {
+   "id": "e-r088",
+   "split": "dev2",
+   "text": "Yes, that works!",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is it ok if we get there around 3:30?"
+  },
+  {
+   "id": "e-r089",
+   "split": "dev2",
+   "text": "Das ist normalerweise kein Problem, ich gebe es aber noch an Ihren Gastgeber weiter.",
+   "lang": "de",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Dürfen wir am Abreisetag bis 13 Uhr bleiben?"
+  },
+  {
+   "id": "e-r090",
+   "split": "dev2",
+   "text": "Genelde sorun olmuyor, temizlik çoğu zaman öğlene kadar bitiyor. Yine de ev sahibinize iletiyorum.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş mümkün mü? Saat 11 gibi oradayız."
+  },
+  {
+   "id": "e-r091",
+   "split": "dev2",
+   "text": "تسجيل الدخول المبكر يعتمد على التوفر، والقرار يعود للمضيف.",
+   "lang": "ar",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكن تسجيل الدخول مبكراً؟"
+  },
+  {
+   "id": "e-r092",
+   "split": "dev2",
+   "text": "¡Claro! A las 12 tendrán el piso listo.",
+   "lang": "es",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Podemos entrar a las 12?"
+  },
+  {
+   "id": "e-r093",
+   "split": "dev2",
+   "text": "Evet, 15:00'te girebilirsiniz. Kapı kodunu o sabah göndereceğim, 15:00'te aktif olacak.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Saat 15:00'te girebilir miyiz?"
+  },
+  {
+   "id": "e-r094",
+   "split": "dev2",
+   "text": "للأسف، لا يمكن تمديد الإقامة.",
+   "lang": "ar",
+   "label": "refusal",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "هل يمكننا تمديد الإقامة؟"
+  },
+  {
+   "id": "e-r095",
+   "split": "dev2",
+   "text": "Yes, the 14th is a public holiday here, so some shops may close early.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is the 14th a public holiday?"
+  },
+  {
+   "id": "e-r096",
+   "split": "dev2",
+   "text": "Evet, olur!",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Saat 4 gibi gelsek olur mu?"
+  },
+  {
+   "id": "e-r097",
+   "split": "dev2",
+   "text": "Tabii, giriş saatimiz zaten 14:00, o saatte gelebilirsiniz.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Saat 2'de gelebilir miyiz?"
+  },
+  {
+   "id": "e-r098",
+   "split": "dev2",
+   "text": "Next weekend already has a booking, so the weekend after might be better – your host can confirm.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "Could we move our stay to next weekend?"
+  },
+  {
+   "id": "e-r099",
+   "split": "dev2",
+   "text": "Думаю, это не будет проблемой, но я на всякий случай уточню у хозяина.",
+   "lang": "ru",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно выехать в 14:00?"
+  },
+  {
+   "id": "e-r100",
+   "split": "dev2",
+   "text": "Early check-in is subject to availability and is your host's decision.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we check in early?"
+  },
+  {
+   "id": "e-r101",
+   "split": "dev2",
+   "text": "The previous guests leave at 10, so it might be possible – I've passed your request on to your host.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we get in early?"
+  },
+  {
+   "id": "e-r102",
+   "split": "dev2",
+   "text": "Çıkış saatimiz 11:00. Anahtarı mutfak masasına bırakmanız yeterli.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Çıkış kaçta?"
+  },
+  {
+   "id": "e-r103",
+   "split": "dev2",
+   "text": "Gece 1'de gelmeniz sorun değil, anahtar kutusuyla kendiniz giriş yapabilirsiniz.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Gece 1 gibi varacağız."
+  },
+  {
+   "id": "e-r104",
+   "split": "dev2",
+   "text": "Yes, check-in is at 3pm, so 3 is perfect. The code will be sent that morning and starts working at 3pm.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we check in at 3?"
+  },
+  {
+   "id": "e-r105",
+   "split": "dev2",
+   "text": "Выезд до 11:00, ключи, пожалуйста, оставьте на столе.",
+   "lang": "ru",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Во сколько выезд?"
+  },
+  {
+   "id": "e-r106",
+   "split": "dev2",
+   "text": "Yeni bir rezervasyon için ilan sayfasından tarihlerinizi seçerek talep gönderebilirsiniz; uygunluk orada görünür ve onayı ev sahibiniz verir.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Ekimde tekrar gelmek istiyoruz, 10-14 Ekim uygun mu?"
+  },
+  {
+   "id": "e-r107",
+   "split": "dev2",
+   "text": "После вас в этот день никто не заезжает, но решение за хозяином.",
+   "lang": "ru",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно выехать позже?"
+  },
+  {
+   "id": "e-r108",
+   "split": "dev2",
+   "text": "Standart giriş saati 16:00; daha erken giriş müsaitliğe bağlıdır ve ev sahibinizin onayını gerektirir.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Saat 2 gibi girebilir miyiz?"
+  },
+  {
+   "id": "e-r109",
+   "split": "dev2",
+   "text": "Désolé, un départ tardif n'est pas possible.",
+   "lang": "fr",
+   "label": "refusal",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pouvons-nous partir à 15h ?"
+  },
+  {
+   "id": "e-r110",
+   "split": "dev2",
+   "text": "Evet, olur!",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Peki 13:00'te çıksak olur mu?"
+  },
+  {
+   "id": "e-r111",
+   "split": "dev2",
+   "text": "Да, к 12 часам квартира будет готова, приезжайте.",
+   "lang": "ru",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно заселиться в 12?"
+  },
+  {
+   "id": "e-r112",
+   "split": "dev2",
+   "text": "Erken giriş ev sahibinizin kararıdır; mesajınız kaydedildi ve ev sahibiniz görebilir.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "Erken giriş yapabilir miyiz?"
+  },
+  {
+   "id": "e-r113",
+   "split": "dev2",
+   "text": "Ev sahibiniz geç çıkış için şu teklifi tanımlamış: \"13:00'e kadar geç çıkış 200 TL, müsaitliğe bağlıdır.\" Daha geç saatler için karar ev sahibinizde.",
+   "lang": "tr",
+   "label": "offer",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Akşama kadar kalmak istiyoruz, 18:00 gibi."
+  },
+  {
+   "id": "e-r114",
+   "split": "dev2",
+   "text": "Rezervasyon takvimini göremiyorum, bu yüzden bu tarihler hakkında bir şey söyleyemem; uygunluğu ilan sayfasındaki takvimden kontrol edebilir ya da ev sahibinize sorabilirsiniz.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "20-25 Ağustos boş mu?"
+  },
+  {
+   "id": "e-r115",
+   "split": "dev2",
+   "text": "Taksi durağının numarası giriş dolabındaki kartta yazıyor; saat 10 için bir gün önceden aramanız yeterli.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Çıkış günü saat 10'da havalimanına taksi ayarlayabilir misiniz?"
+  },
+  {
+   "id": "e-r116",
+   "split": "dev2",
+   "text": "Çıkış gününüzde yeni bir giriş var, bu yüzden uzatma için ev sahibinizle görüşmeniz gerekiyor.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Bir gün uzatabilir miyiz?"
+  },
+  {
+   "id": "e-r117",
+   "split": "dev2",
+   "text": "Unfortunately we're not able to offer extensions.",
+   "lang": "en",
+   "label": "refusal",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "Could we extend by a night?"
+  },
+  {
+   "id": "e-r118",
+   "split": "dev2",
+   "text": "Sí, podéis quedaros una noche más; el precio es de 85 EUR.",
+   "lang": "es",
+   "label": "grant",
+   "checkIn": "14:00",
+   "checkOut": "11:00",
+   "guest": "¿Nos podemos quedar una noche más?"
+  },
+  {
+   "id": "e-r119",
+   "split": "dev2",
+   "text": "Personne ne séjourne la nuit précédente, mais l'arrivée anticipée reste à la discrétion de votre hôte.",
+   "lang": "fr",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "Peut-on arriver plus tôt ?"
+  },
+  {
+   "id": "e-r120",
+   "split": "dev2",
+   "text": "Elbette, 13:00'te görüşmek üzere! Kapı kodunu sabah ileteceğim.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "13te gelsek giris yapabilirmiyiz?"
+  },
+  {
+   "id": "e-r121",
+   "split": "dev2",
+   "text": "El check-in anticipado depende de la disponibilidad y lo decide su anfitrión.",
+   "lang": "es",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Check-in temprano?"
+  },
+  {
+   "id": "e-r122",
+   "split": "dev2",
+   "text": "Nach Ihnen reist am selben Tag niemand an, die Entscheidung liegt aber bei Ihrem Gastgeber.",
+   "lang": "de",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Können wir später auschecken?"
+  },
+  {
+   "id": "e-r123",
+   "split": "dev2",
+   "text": "لا مشكلة، الدخول ذاتي عبر صندوق المفاتيح.",
+   "lang": "ar",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "سنصل حوالي الواحدة ليلاً."
+  },
+  {
+   "id": "e-r124",
+   "split": "dev2",
+   "text": "Harika, 16:30'da rahatça girebilirsiniz. Kapı kodu sabah mesajla gelecek, 16:00'dan itibaren çalışır.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "16:30 gibi oradayız."
+  },
+  {
+   "id": "e-r125",
+   "split": "dev2",
+   "text": "No hay problema, la entrada es autónoma con caja de llaves.",
+   "lang": "es",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Llegamos a las 2 de la madrugada."
+  },
+  {
+   "id": "e-r126",
+   "split": "dev2",
+   "text": "Sin problema, dejadlas en el armario de la entrada y recogedlas antes de las 18:00.",
+   "lang": "es",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "¿Podríamos dejar las maletas en el piso después de la salida, hasta las 6?"
+  },
+  {
+   "id": "e-r127",
+   "split": "dev2",
+   "text": "عرض المضيف الثابت: «مغادرة متأخرة حتى الساعة الثانية ظهراً مقابل ٢٥ يورو، حسب التوفر». أما التوفر في يوم مغادرتكم فيحدده المضيف.",
+   "lang": "ar",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "هل يمكن المغادرة متأخراً؟"
+  },
+  {
+   "id": "e-r128",
+   "split": "dev2",
+   "text": "Ese día no entra nadie después de vosotros, aunque la decisión es de vuestro anfitrión.",
+   "lang": "es",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Podemos salir más tarde?"
+  },
+  {
+   "id": "e-r129",
+   "split": "dev2",
+   "text": "Das ist völlig in Ordnung – legen Sie den Schlüssel einfach zurück in den Safe.",
+   "lang": "de",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Wir reisen schon um 7 Uhr ab."
+  },
+  {
+   "id": "e-r130",
+   "split": "dev2",
+   "text": "Bien sûr, à 13h l'appartement sera prêt. À tout à l'heure !",
+   "lang": "fr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pouvons-nous arriver à 13h ?"
+  },
+  {
+   "id": "e-r131",
+   "split": "dev2",
+   "text": "Para ampliar la estancia, enviad una solicitud de modificación desde la plataforma; vuestro anfitrión decidirá allí.",
+   "lang": "es",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "¿Podemos alargar la estancia?"
+  },
+  {
+   "id": "e-r132",
+   "split": "dev2",
+   "text": "Ранний заезд зависит от загрузки и остаётся на усмотрение хозяина.",
+   "lang": "ru",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно заселиться пораньше?"
+  },
+  {
+   "id": "e-r133",
+   "split": "dev2",
+   "text": "Klar, um 12 Uhr ist die Wohnung für Sie bereit. Bis dann!",
+   "lang": "de",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Wir sind um 12 Uhr da – können wir dann schon einchecken?"
+  },
+  {
+   "id": "e-r134",
+   "split": "dev2",
+   "text": "I don't think it'll be a problem, but let me double-check with your host.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Would a 2pm checkout be ok?"
+  },
+  {
+   "id": "e-r135",
+   "split": "dev2",
+   "text": "Tamamdır, 16:00'da görüşürüz! Giriş talimatları kapıdaki kutuda.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş istemiştik ama gerek kalmadı, 16:00'da geliyoruz."
+  },
+  {
+   "id": "e-r136",
+   "split": "dev2",
+   "text": "Vuestro anfitrión ofrece lo siguiente: «Salida tardía hasta las 14:00 por 20 EUR, según disponibilidad». Si es posible en vuestra fecha lo decide vuestro anfitrión.",
+   "lang": "es",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Hay opción de salida tardía?"
+  },
+  {
+   "id": "e-r137",
+   "split": "dev2",
+   "text": "Of course, an early departure is totally fine. Just lock up and drop the keys in the box.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "We have to leave at 6am on our last day, is that ok?"
+  },
+  {
+   "id": "e-r138",
+   "split": "dev2",
+   "text": "Önceki misafir saat 10'da çıkıyor; temizlik bittikten sonra durumu ev sahibiniz değerlendirecek.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Erken giriş mümkün mü?"
+  },
+  {
+   "id": "e-r139",
+   "split": "dev2",
+   "text": "Pazar günü kahvaltınızı rahat rahat yapın; temizlikçi 14:00'te geliyor, o saate kadar çıkmanız yeterli.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Pazar günü geç çıkış olabilir mi?"
+  },
+  {
+   "id": "e-r140",
+   "split": "dev2",
+   "text": "Tabii, bavullarınızı çıkıştan sonra 18:00'e kadar dairede bırakabilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Çıkıştan sonra bavulları akşama kadar bırakabilir miyiz?"
+  },
+  {
+   "id": "e-r141",
+   "split": "dev2",
+   "text": "لا بأس بالمغادرة المبكرة، اتركوا المفتاح في الصندوق.",
+   "lang": "ar",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "سنغادر في السابعة صباحاً."
+  },
+  {
+   "id": "e-r142",
+   "split": "dev2",
+   "text": "Ev sahibinizin teklifi geçerli: pazar günü 14:00'e kadar 300 TL karşılığında kalabilirsiniz, sizin için not ettim.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Geç çıkış için ev sahibinin teklifini görmüştüm, pazar günü geçerli mi?"
+  },
+  {
+   "id": "e-r143",
+   "split": "dev2",
+   "text": "Perfect, see you at 3! The lockbox is right next to the door.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "The listing says 3pm check-in, so we'll be there at 3."
+  },
+  {
+   "id": "e-r144",
+   "split": "dev2",
+   "text": "Ihr Gastgeber bietet Folgendes an: „Später Check-out bis 14 Uhr für 25 EUR, je nach Verfügbarkeit.“ Ob es an Ihrem Abreisetag klappt, entscheidet Ihr Gastgeber.",
+   "lang": "de",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Ist ein später Check-out möglich?"
+  },
+  {
+   "id": "e-r145",
+   "split": "dev2",
+   "text": "Konaklamanızı uzatmak için lütfen platform üzerinden değişiklik talebi gönderin; onay ev sahibinize aittir.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "Bir gece daha kalmak istiyoruz."
+  },
+  {
+   "id": "e-r146",
+   "split": "dev2",
+   "text": "Checkout is at 10am; a later checkout is your host's call and depends on availability.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Can we leave at 12 instead of 10?"
+  },
+  {
+   "id": "e-r147",
+   "split": "dev2",
+   "text": "Yes, 4:30 is fine – check-in starts at 4.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Can we arrive at 4:30?"
+  },
+  {
+   "id": "e-r148",
+   "split": "dev2",
+   "text": "Yes, you can stay an extra night – it's 95 EUR, and your host will send the change request through the platform.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we stay one more night?"
+  },
+  {
+   "id": "e-r149",
+   "split": "dev2",
+   "text": "Ev sahibinizin uzatma teklifi: \"Takvim uygunsa ek gece 1.800 TL.\" Uygunluğu ev sahibiniz değerlendirir.",
+   "lang": "tr",
+   "label": "offer",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "Bir gece daha kalabilir miyiz?"
+  },
+  {
+   "id": "e-r150",
+   "split": "dev2",
+   "text": "Evet, çıkış 12:00'de. Çöpleri kapının yanındaki konteynere bırakabilirsiniz.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "12:00",
+   "guest": "Çıkış 12'de mi?"
+  },
+  {
+   "id": "e-r151",
+   "split": "dev2",
+   "text": "The pool is open until the end of October, from 9am to 7pm.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "14:00",
+   "checkOut": "10:00",
+   "guest": "Is the pool open in October?"
+  },
+  {
+   "id": "e-r152",
+   "split": "dev2",
+   "text": "Bir önceki konaklama o sabah bitiyor ve öğlene kadar temizlik yapılıyor; daha erken giriş konusunda kararı ev sahibiniz verecek.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "10:00",
+   "guest": "Erken giriş mümkün mü, öğlen gibi?"
+  },
+  {
+   "id": "e-r153",
+   "split": "dev2",
+   "text": "Thanks for reaching out! The beach is a 10-minute walk, and the bakery downstairs opens at 7. About Sunday: no one checks in after you, but your host has the final say on late checkout. Enjoy your stay!",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Can we stay until 2 on Sunday? Also, how far is the beach?"
+  },
+  {
+   "id": "e-r154",
+   "split": "dev2",
+   "text": "Uzatma talepleri ev sahibinizin onayına tabidir; bu konuda benim bir şey söylemem mümkün değil.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Annemler için 2 gün uzatma yapabilir miyiz?"
+  },
+  {
+   "id": "e-r155",
+   "split": "dev2",
+   "text": "Esa semana ya está reservada, pero la segunda está libre.",
+   "lang": "es",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿Está libre la primera semana de agosto?"
+  },
+  {
+   "id": "e-r156",
+   "split": "dev2",
+   "text": "Ein früherer Check-in hängt von der Verfügbarkeit ab und liegt in der Entscheidung Ihres Gastgebers.",
+   "lang": "de",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Ist ein früher Check-in möglich?"
+  },
+  {
+   "id": "e-r157",
+   "split": "dev2",
+   "text": "Checkout is at 11am – just leave the keys on the kitchen counter.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "What time is checkout?"
+  },
+  {
+   "id": "e-r158",
+   "split": "dev2",
+   "text": "Üzgünüm, konaklamayı uzatmamız mümkün değil.",
+   "lang": "tr",
+   "label": "refusal",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Bir gece uzatabilir miyiz?"
+  },
+  {
+   "id": "e-r159",
+   "split": "dev2",
+   "text": "La entrada es a partir de las 15:00; os enviaremos el código ese mismo día.",
+   "lang": "es",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "¿A qué hora es la entrada?"
+  },
+  {
+   "id": "e-r160",
+   "split": "dev2",
+   "text": "There's nobody staying the night before you, but early check-in still needs your host's approval.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Can we come at noon?"
+  },
+  {
+   "id": "e-r161",
+   "split": "dev2",
+   "text": "11 works – just drop the keys in the box on your way out.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "10:00",
+   "guest": "Can we check out at 11 instead of 10?"
+  },
+  {
+   "id": "e-r162",
+   "split": "dev2",
+   "text": "Ev sahibiniz mayıs ayının neredeyse tamamen dolu olduğunu söylemişti; haziran için platformdaki takvime bakabilirsiniz.",
+   "lang": "tr",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Mayısta tekrar gelmek istiyoruz, hangi tarihler boş?"
+  },
+  {
+   "id": "e-r163",
+   "split": "dev2",
+   "text": "The 14th is free, but you'll need to book it through the platform.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is the 14th free?"
+  },
+  {
+   "id": "e-r164",
+   "split": "dev2",
+   "text": "Unfortunately new guests arrive on Monday, so an extension won't work.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Could we extend through Tuesday?"
+  },
+  {
+   "id": "e-r165",
+   "split": "dev2",
+   "text": "Girişten önce bavul bırakma konusunda kararı ev sahibiniz veriyor; talebiniz kendisine iletildi.",
+   "lang": "tr",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Bavulları sabah bırakabilir miyiz?"
+  },
+  {
+   "id": "e-r166",
+   "split": "dev2",
+   "text": "Normalde çıkış 11:00, ama akşam 6'ya kadar kalmanızda bir sakınca yok. Kesin cevabı ev sahibiniz verecek.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Akşama kadar kalabilir miyiz, uçuşumuz gece?"
+  },
+  {
+   "id": "e-r167",
+   "split": "dev2",
+   "text": "Erken giriş maalesef mümkün değil ama bavullarınızı sabah 9'dan itibaren daireye bırakıp gezmeye çıkabilirsiniz.",
+   "lang": "tr",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Bavulları sabah 9'da bırakabilir miyiz?"
+  },
+  {
+   "id": "e-r168",
+   "split": "dev2",
+   "text": "Your host offers this: \"Late checkout until 2 pm for 25 EUR, subject to availability.\" Whether it's possible on your date is up to your host.",
+   "lang": "en",
+   "label": "offer",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is late checkout an option?"
+  },
+  {
+   "id": "e-r169",
+   "split": "dev2",
+   "text": "I can't see the booking calendar, so I can't tell whether the 14th is free. Please check the listing's calendar or ask your host directly.",
+   "lang": "en",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is the 14th available?"
+  },
+  {
+   "id": "e-r170",
+   "split": "dev2",
+   "text": "No problem at all – self check-in works at any hour, and your code is valid from 3pm on your arrival day.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "We'll get in around 1:30am."
+  },
+  {
+   "id": "e-r171",
+   "split": "dev2",
+   "text": "Checkout is at 11am. There's a same-day turnover, so please be on time.",
+   "lang": "en",
+   "label": "claim",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "What time is checkout?"
+  },
+  {
+   "id": "e-r172",
+   "split": "dev2",
+   "text": "На эти даты квартира уже забронирована, к сожалению.",
+   "lang": "ru",
+   "label": "claim",
+   "checkIn": "16:00",
+   "checkOut": "11:00",
+   "guest": "Свободна ли квартира с 30 декабря по 3 января?"
+  },
+  {
+   "id": "e-r173",
+   "split": "dev2",
+   "text": "Через неделю квартира свободна, но перенос нужно оформить через платформу.",
+   "lang": "ru",
+   "label": "claim",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Можно перенести бронь на неделю?"
+  },
+  {
+   "id": "e-r174",
+   "split": "dev2",
+   "text": "Great, see you at 6! Parking is behind the building.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "We'll arrive at 6pm."
+  },
+  {
+   "id": "e-r175",
+   "split": "dev2",
+   "text": "Для продления отправьте запрос на изменение через платформу бронирования; решение примет хозяин.",
+   "lang": "ru",
+   "label": "deferral",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Можно продлить проживание?"
+  },
+  {
+   "id": "e-r176",
+   "split": "dev2",
+   "text": "The apartment will be ready by noon, so feel free to head over then.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Is early check-in possible? We arrive in the morning."
+  },
+  {
+   "id": "e-r177",
+   "split": "dev2",
+   "text": "Konaklamanız boyunca binanın önündeki 3 numaralı park yeri size ayrılmıştır.",
+   "lang": "tr",
+   "label": "neutral",
+   "checkIn": "16:00",
+   "checkOut": "12:00",
+   "guest": "Otopark yeri var mı?"
+  },
+  {
+   "id": "e-r178",
+   "split": "dev2",
+   "text": "Officially checkout is 11, but honestly nobody will mind if you're out by 1.",
+   "lang": "en",
+   "label": "grant",
+   "checkIn": "15:00",
+   "checkOut": "11:00",
+   "guest": "Any flexibility on checkout time?"
+  },
+  {
+   "id": "e-r179",
+   "split": "dev2",
+   "text": "Yes, there's a garage spot reserved for you for your whole stay.",
+   "lang": "en",
+   "label": "neutral",
+   "checkIn": "14:00",
+   "checkOut": "12:00",
+   "guest": "Is there parking?"
+  }
+ ]
+}

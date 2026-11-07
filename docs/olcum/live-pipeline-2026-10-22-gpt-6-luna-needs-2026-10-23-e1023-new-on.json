@@ -1,0 +1,2424 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-6-luna",
+    "commit": "974a1f46",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.10012089999999998,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 33,
+        "in": 1834,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 54,
+        "in": 109343,
+        "cached": 93696,
+        "out": 4440,
+        "reasoning": 0
+      },
+      "gpt-6-luna": {
+        "calls": 106,
+        "in": 742909,
+        "cached": 655077,
+        "out": 18159,
+        "reasoning": 5514
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "n-tr-cikis-hamam",
+      "cls": "unknown_topic",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.78
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 15721,
+      "retried": false
+    },
+    {
+      "id": "n-tr-havuz-kapanis",
+      "cls": "conditional",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10040,
+      "retried": false
+    },
+    {
+      "id": "n-tr-sauna-kapanis",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSauna saat 22:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSauna saat 22:00'de kapanıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 8286,
+      "retried": false
+    },
+    {
+      "id": "n-tr-havuz-sauna-ikisi",
+      "cls": "same_kind_double",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık. Sauna 22:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık. Sauna 22:00'de kapanıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9337,
+      "retried": false
+    },
+    {
+      "id": "n-tr-sauna-yok",
+      "cls": "negative_kb",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSitede sauna bulunmuyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSitede sauna bulunmuyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 8119,
+      "retried": false
+    },
+    {
+      "id": "n-tr-kahvalti",
+      "cls": "conditional",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_bound_elsewhere",
+            "condition_added",
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 6721,
+      "retried": false
+    },
+    {
+      "id": "n-tr-kopek",
+      "cls": "negative_kb",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEvcil hayvan kabul edilmiyor.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "ms": 7913,
+      "retried": false
+    },
+    {
+      "id": "n-tr-bisiklet",
+      "cls": "conditional",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBisiklet, talep üzerine günlük 200 TL’ye kiralanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBisiklet, talep üzerine günlük 200 TL’ye kiralanıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9178,
+      "retried": false
+    },
+    {
+      "id": "n-tr-wifi-kaynak",
+      "cls": "source_question",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "about_assistant",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "about_assistant",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_bound_elsewhere"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 7865,
+      "retried": false
+    },
+    {
+      "id": "n-tr-kaynak-tek",
+      "cls": "source_question",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "about_assistant",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "about_assistant",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "ms": 10593,
+      "retried": false
+    },
+    {
+      "id": "n-tr-jakuzi",
+      "cls": "unknown_topic",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 6393,
+      "retried": false
+    },
+    {
+      "id": "n-tr-otopark-eczane",
+      "cls": "two_kinds",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEn yakın eczane binanın 300 metre ilerisindeki köşededir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEn yakın eczane binanın 300 metre ilerisindeki köşededir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "local_recommendations",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "open"
+        },
+        {
+          "kind": "local_recommendations",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_bound_elsewhere"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 11082,
+      "retried": false
+    },
+    {
+      "id": "n-tr-cop-camasir",
+      "cls": "two_kinds",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇamaşır makinesi banyoda.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇamaşır makinesi banyoda.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "trash",
+          "status": "open"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "unsupported_content"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10887,
+      "retried": false
+    },
+    {
+      "id": "n-tr-onceki-havuz",
+      "cls": "reference",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Havuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Havuz her gün 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 11533,
+      "retried": false
+    },
+    {
+      "id": "n-tr-giris-erken",
+      "cls": "sensitive_mix",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nGiriş saati 15:00.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "early_checkin",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.88
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkin_time",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "early_checkin",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkin_time",
+          "status": "open"
+        },
+        {
+          "kind": "early_checkin",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 14104,
+      "retried": false
+    },
+    {
+      "id": "n-tr-plaj-sezlong",
+      "cls": "unknown_topic",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nPlaj 800 metre uzaklıktadır.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.35
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "directions_transport",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "directions_transport",
+          "status": "open"
+        },
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9600,
+      "retried": false
+    },
+    {
+      "id": "n-en-checkout-sauna",
+      "cls": "two_kinds",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nCheck-out is at 11:00.\nThe sauna is on the garden level and closes at 22:00 every day.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nCheck-out is at 11:00.\nThe sauna is on the garden level and closes at 22:00 every day.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime",
+          "kb:general"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10704,
+      "retried": false
+    },
+    {
+      "id": "n-en-pool-saturday",
+      "cls": "conditional",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "condition_dropped",
+            "condition_added"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 5735,
+      "retried": false
+    },
+    {
+      "id": "n-en-breakfast-included",
+      "cls": "negative_kb",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_bound_elsewhere",
+            "polarity_mismatch"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 6015,
+      "retried": false
+    },
+    {
+      "id": "n-en-smoke-balcony",
+      "cls": "negative_kb",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nSmoking is not allowed on the balcony.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nSmoking is not allowed on the balcony.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "house_rules",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "house_rules",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9427,
+      "retried": false
+    },
+    {
+      "id": "n-en-gym-wifi",
+      "cls": "unknown_topic",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nThe Wi-Fi password is Lale2025!.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.7
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "wifi",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 6945,
+      "retried": false
+    },
+    {
+      "id": "n-de-pool-sauna",
+      "cls": "same_kind_double",
+      "lang": "de",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nDer Pool schließt täglich um 20:00 Uhr; am Wochenende ist er bis 23:00 Uhr geöffnet.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nDer Pool schließt täglich um 20:00 Uhr; am Wochenende ist er bis 23:00 Uhr geöffnet.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": null,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 11171,
+      "retried": false
+    },
+    {
+      "id": "n-de-hund",
+      "cls": "negative_kb",
+      "lang": "de",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nHaustiere sind in der Wohnung nicht erlaubt.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nHaustiere sind in der Wohnung nicht erlaubt.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9510,
+      "retried": false
+    },
+    {
+      "id": "n-ru-vyezd-parkovka",
+      "cls": "two_kinds",
+      "lang": "ru",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nВремя выезда — 11:00.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nВремя выезда — 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 1,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "open"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence",
+            "value_bound_elsewhere"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10315,
+      "retried": false
+    },
+    {
+      "id": "n-tr-havuz-22-tuzak",
+      "cls": "value_trap",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "condition_added"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 7693,
+      "retried": false
+    },
+    {
+      "id": "n-tr-sauna-23-tuzak",
+      "cls": "value_trap",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSauna 22:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSauna 22:00'de kapanıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10721,
+      "retried": false
+    },
+    {
+      "id": "n-tr-hafta-sonu-kahvalti",
+      "cls": "conditional",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHafta sonları kahvaltı 11:00'e kadar veriliyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHafta sonları kahvaltı 11:00'e kadar veriliyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9122,
+      "retried": false
+    },
+    {
+      "id": "n-tr-bisiklet-ucret",
+      "cls": "value_trap",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBisiklet talep üzerine günlük 200 TL'ye kiralanır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBisiklet talep üzerine günlük 200 TL'ye kiralanır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10132,
+      "retried": false
+    },
+    {
+      "id": "n-tr-hayvan-sigara",
+      "cls": "two_kinds",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEvcil hayvan kabul edilmiyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEvcil hayvan kabul edilmiyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "house_rules",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "answered"
+        },
+        {
+          "kind": "house_rules",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 11795,
+      "retried": false
+    },
+    {
+      "id": "n-tr-klima-utu",
+      "cls": "two_kinds",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKlima kumandası TV ünitesinin çekmecesinde.\nÜtü ve ütü masası yatak odası dolabında.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKlima kumandası TV ünitesinin çekmecesinde.\nÜtü ve ütü masası yatak odası dolabında.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:faq",
+          "kb:general"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "appliance_help",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "appliance_help",
+          "status": "answered"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 9538,
+      "retried": false
+    },
+    {
+      "id": "n-tr-anahtar-hamam",
+      "cls": "unknown_topic",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkışta anahtarı bina kapısının solundaki gri anahtar kutusuna bırakabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkışta anahtarı bina kapısının solundaki gri anahtar kutusuna bırakabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.82
+      },
+      "sources": {
+        "verified": [
+          "kb:checkout"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "access_keys",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "access_keys",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 10963,
+      "retried": false
+    },
+    {
+      "id": "n-tr-havaalani",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavaalanına arabayla yaklaşık 45 dakika sürer.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavaalanına arabayla yaklaşık 45 dakika sürer.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "directions_transport",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "directions_transport",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "ms": 7456,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "974a1f46",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-6-luna",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "1",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "1",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "1",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "1",
+      "AI_ANSWER_PARTS_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "1e56c2312243",
+      "replyVariant": "5f64e1fa7c8a",
+      "understanding": "dbf61aecd3d8",
+      "understandingMode": "items+rules+cfu+prv"
+    }
+  }
+}

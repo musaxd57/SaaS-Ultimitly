@@ -1,0 +1,85 @@
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+
+vi.mock("@/lib/ai/provider-health", async (orig) => ({
+  ...(await orig<typeof import("@/lib/ai/provider-health")>()),
+  noteModelProviderPersistentFailure: vi.fn(async () => {}),
+  noteModelProviderSuccess: vi.fn(),
+}));
+vi.mock("@/lib/report-error", async (orig) => ({
+  ...(await orig<typeof import("@/lib/report-error")>()),
+  reportError: vi.fn(async () => ({ notified: false, throttled: false, configured: false })),
+}));
+import { REPLY_SYSTEM_PROMPT, ITEMS_HELD_REPLACEMENTS, ITEMS_MODE_REPLACEMENTS, replySystemPromptFor } from "@/lib/ai/prompts";
+import { replyRequestIdentity } from "@/lib/ai";
+import type { SuggestReplyInput } from "@/lib/ai/types";
+
+// ---------------------------------------------------------------------------
+// BIRAKILAN İSTEK ÖNCELİĞİ (konuşma öğeleri, 10-02 Luna ölçümü; ONAY BEKLİYOR): taban istem para / ödeme / ev sahibiyle görüşme
+// için TEK cevap kalıbı öğretir; öğe kipinde bırakılan istek varken model (Luna medium) o kalıpla bırakılan isteğe değiniyor, cevabın
+// tamamı tutuluyordu. Katman ÇAĞRI BAŞINA: yalnız bu turda bırakılan istek varken; yoksa sistem istemi bayt bayt aynı.
+// ---------------------------------------------------------------------------
+
+const LAYER_FLAGS = ["AI_CODE_GREETING_ENABLED", "AI_KB_FEE_RULE_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED", "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED", "AI_COURTESY_RULE_ENABLED"];
+const base: SuggestReplyInput = {
+  guestMessage: "Can you send me your IBAN? And what's the wifi password?",
+  property: { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
+  reservation: null,
+  knowledgeBase: [],
+  history: [],
+  tone: "warm",
+  language: "tr",
+};
+const RULE = "KONUŞMA ÖĞELERİ: kullanıcı isteminde EV SAHİBİNE BIRAKILAN istekler listelenmişse";
+
+// K-1029-A (10-29 gece): ev sahibine yönlendirme yasağı VARSAYILAN AÇIK bir istem katmanıdır (kapatma anahtarı
+// `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`). Bu dosya KENDİ katmanını tabana karşı ölçer ve diğer katmanları kapatır — yasak katmanı da
+// aynı biçimde kapatılır; kendisi `host-contact-ban-prompt.test.ts`te pinli.
+beforeEach(() => vi.stubEnv("AI_HOST_CONTACT_PROMPT_BAN_DISABLED", "1"));
+afterEach(() => vi.unstubAllEnvs());
+
+describe("bırakılan istek önceliği — sistem istemi katmanı", () => {
+  it("öğe kipi DEĞİLSE sistem istemi BAYT BAYT taban (anahtarlar kapalı); öğe kipinde bırakılan yoksa YALNIZ çıktı alanı eklenir", () => {
+    for (const k of LAYER_FLAGS) vi.stubEnv(k, "");
+    expect(replyRequestIdentity(base).system).toBe(REPLY_SYSTEM_PROMPT);
+    expect(REPLY_SYSTEM_PROMPT).not.toContain(RULE);
+    expect(REPLY_SYSTEM_PROMPT).not.toContain('"answeredRequests"');
+    const noHeld = { ...base, conversationItems: { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held: [] } };
+    const sys = replyRequestIdentity(noHeld).system;
+    expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true }));
+    expect(sys).not.toContain(RULE);
+    // Fark YALNIZ formatın son alanı: "replyStance" satırına virgül + `answeredRequests` satırı.
+    const anchor = ITEMS_MODE_REPLACEMENTS[0][0];
+    const at = REPLY_SYSTEM_PROMPT.indexOf(anchor);
+    expect(at).toBeGreaterThan(0);
+    expect(sys.slice(0, at)).toBe(REPLY_SYSTEM_PROMPT.slice(0, at));
+    expect(sys.endsWith(REPLY_SYSTEM_PROMPT.slice(at + anchor.length))).toBe(true);
+    expect(sys).toContain('  "answeredRequests": [');
+  });
+
+  it("🚨 bu turda (ya da önceki turda) bırakılan istek varken kural KURAL ÖNCELİĞİ listesinin ardına girer; fark yalnız orada", () => {
+    for (const k of LAYER_FLAGS) vi.stubEnv(k, "");
+    for (const held of [[{ kind: "payment_invoice" as const }], [{ kind: "human_request" as const, earlier: true }]]) {
+      const withHeld = { ...base, conversationItems: { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held } };
+      const sys = replyRequestIdentity(withHeld).system;
+      expect(sys).toBe(replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true, itemsHeld: true }));
+      expect(sys).toContain(RULE);
+      // Önceliğin çapası KURAL ÖNCELİĞİ listesinin son satırı: ondan önceki her şey taban istemle aynı.
+      const anchor = ITEMS_HELD_REPLACEMENTS[0][0];
+      const at = REPLY_SYSTEM_PROMPT.indexOf(anchor) + anchor.length;
+      expect(at).toBeGreaterThan(anchor.length);
+      expect(sys.slice(0, at)).toBe(REPLY_SYSTEM_PROMPT.slice(0, at));
+      expect(sys).toContain('  "answeredRequests": [');
+    }
+  });
+
+  it("kural taban istemin öğrettiği üç kalıbı adıyla anar ve Kural-4'ün önünde olduğunu söyler", () => {
+    const sys = replySystemPromptFor({ codeGreeting: false, kbFeeRule: false, stayDeferralPlain: false, itemsMode: true, itemsHeld: true }).replace(/\s+/g, " ");
+    for (const s of ["bu konu ev sahibinizin kararıdır", "Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor", "Mesajınız kaydedildi; ev sahibiniz görebilir", "Kural-4'ün ve niyet listesinin cevap kalıplarının ÖNÜNDEDİR"]) {
+      expect(sys).toContain(s);
+    }
+    // Taban istem bu üç kalıbı GERÇEKTEN öğretiyor (kural boşa anmıyor — kalıp metni değişirse bu pin kırılır).
+    const flat = REPLY_SYSTEM_PROMPT.replace(/\s+/g, " ");
+    expect(flat).toContain('"Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor; bu konu ev sahibinizin kararıdır."');
+    expect(flat).toContain('"Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir."');
+  });
+});
