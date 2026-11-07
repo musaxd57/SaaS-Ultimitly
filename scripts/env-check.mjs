@@ -675,8 +675,6 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   // K-1029-A istem yasağı ACİL DURDURMA (varsayılan açık; yalnız "1" kapatır).
   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
   "AI_HOST_VOICE_GUARD_DISABLED",
-  // Bilgi tabanındaki üçüncü şahıs ev sahibi cümlesi → birinci kişi (11-07; varsayılan KAPALI, yalnız "1").
-  "AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED",
   "OPENAI_PROMPT_CACHE_DISABLED",
   // WhatsApp ev sahibi soru kanalı (10-30, `host-channel/routing.ts`; hepsi varsayılan KAPALI, yalnız "1").
   "HOST_CHANNEL_ENABLED",

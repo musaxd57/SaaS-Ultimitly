@@ -282,10 +282,6 @@ kurucu onayıyla §1'e taşındı.)
   ACİL DURDURMA. Gönderilecek metinde ev sahibinden üçüncü kişi olarak söz / arka plan anlatımı / üçüncü taraf işletmeye gönderme kalırsa
   cevap tutulur (`reply_host_voice`). Eski ölçüm cevaplarında (eski istemle) gidecek cevapların ~%16'sını tutuyordu; istemin "MESAJI EV
   SAHİBİ YAZIYOR" kuralıyla düşmesi beklenir — açılıştan ÖNCE ücretli ölçüm.
-- `AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED` (kurucu 11-06 gece / 11-07 ölçüm onayı, `ai/host-voice-kb-rule.ts`) — VARSAYILAN KAPALI, yalnız "1".
-  Cevap istemine tek örnek: bilgi tabanı ev sahibinden üçüncü kişi olarak söz ediyorsa ("Ev sahibine … ulaşılır") cümle birinci kişiye
-  çevrilir ("Bize … ulaşabilirsiniz"); bilgi değişmez. K-1029-A katmanına bağlı. Misafire gideni değiştirir → ücretli A/B ölçümü
-  (`tests/eval/host-voice-kb.eval.test.ts`) + kurucu kararıyla açılır.
 - `AI_HOST_CONTACT_PARTIAL_DISABLED` (K-1029-A tasarım A12, 10-30) — VARSAYILAN KAPALI, yalnız ACİL DURDURMA: yönlendirme cümlesi silinince
   kalan doğru cevabın gitmesi (kısmi gönderim) yanlış davranırsa `=1` → konulu bir silme ya da misafirin olasılık sorusuna bağlı silme cevabın
   TAMAMINI tutar (kanal, QR, AI öner). Yasak sürer: taslak silinmiş metindir, ev sahibine "Misafir cevabınızı bekliyor" e-postası gider.

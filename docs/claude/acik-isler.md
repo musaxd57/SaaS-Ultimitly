@@ -185,7 +185,7 @@ mesaj bölümünden bize yazın" cümlesi UYGULAMASI OLMAYAN misafire (elle / do
 "La tarifa del check-in anticipado…" ↔ `decisions/core.ts` "La tarifa por entrada anticipada…" — birleştirmek kurucu onayıyla · istem örneği
 ("bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …' yaz") ✅ 11-07 ÖLÇÜLDÜ (kurucu onayı): gpt-5.1 + canlı anahtarlarla FARK YOK —
 model 10-30 kuralıyla bu cümleyi zaten birinci kişiye çeviriyor (üçüncü şahıs 3/42 → 5/42, kapıdan geçen 29/42 = 29/42, olgu 38 → 36,
-kontrol 10/10 iki kolda) → `AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED` AÇILMAZ (önerim); kalan üçüncü şahıslar istemin kendi devir cümlesinden
+kontrol 10/10 iki kolda) → kurucu 11-07 "sil": katman, anahtar ve ölçer KALDIRILDI (gerekirse commit `6d7ed3c8`; set `evals/host-voice-kb-2026-11-07.json` kaldı); kalan üçüncü şahıslar istemin kendi devir cümlesinden
 ("mesajınız kaydedildi; ev sahibiniz görebilir" — bu cevaplar zaten tutuluyor). Rapor `docs/olcum/host-voice-kb-2026-11-07-gpt-5.1.md`.
 Cevap gelmeden bu maddeler UYGULANMAZ.
 
