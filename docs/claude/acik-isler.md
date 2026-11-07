@@ -182,9 +182,11 @@ PENDING listesinde, metin değişince çıkarılır) + İngilizce gönderen adı
 mesaj bölümünden bize yazın" cümlesi UYGULAMASI OLMAYAN misafire (elle / doğrudan / dosyadan rezervasyon; Opus 11-06 P2) — A kanala göre
 ("bize her zamanki yoldan ulaşın") / B herkese "bize ulaşın" · "Erken giriş var mı?" → "Erken giriş ücreti ₺500." "evet" gibi okunabilir —
 "; müsaitliğe bağlıdır" eki mi, böyle mi (Opus 11-06 P2) · (küçük, soru değil) İspanyolca ücret cümlesi iki yerde farklı: `early-checkin/reply.ts`
-"La tarifa del check-in anticipado…" ↔ `decisions/core.ts` "La tarifa por entrada anticipada…" — birleştirmek kurucu onayıyla · istemde
-"bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …' yaz" örneği için ÜCRETLİ ölçüm onayı (ücretsiz ölçüm:
-`docs/olcum/host-voice-replay-2026-11-06.md`).
+"La tarifa del check-in anticipado…" ↔ `decisions/core.ts` "La tarifa por entrada anticipada…" — birleştirmek kurucu onayıyla · istem örneği
+("bilgi tabanındaki 'ev sahibine …' cümlesini 'bize …' yaz") ✅ 11-07 ÖLÇÜLDÜ (kurucu onayı): gpt-5.1 + canlı anahtarlarla FARK YOK —
+model 10-30 kuralıyla bu cümleyi zaten birinci kişiye çeviriyor (üçüncü şahıs 3/42 → 5/42, kapıdan geçen 29/42 = 29/42, olgu 38 → 36,
+kontrol 10/10 iki kolda) → `AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED` AÇILMAZ (önerim); kalan üçüncü şahıslar istemin kendi devir cümlesinden
+("mesajınız kaydedildi; ev sahibiniz görebilir" — bu cevaplar zaten tutuluyor). Rapor `docs/olcum/host-voice-kb-2026-11-07-gpt-5.1.md`.
 Cevap gelmeden bu maddeler UYGULANMAZ.
 
 **🔔 11-06 araştırma bulgusu (doğrulanmalı, AYRI konu):** Genelge 2026/1 (16.04.2026) belgeli konaklama tesislerini ve yazılım
