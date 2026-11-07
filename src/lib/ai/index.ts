@@ -15,6 +15,7 @@ import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { courtesyRuleEnabled } from "@/lib/ai/courtesy-rule";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { hostContactPartialDisabled, hostContactPromptBanEnabled } from "@/lib/ai/host-contact-ban-rule";
+import { hostVoiceKbFirstPersonEnabled } from "@/lib/ai/host-voice-kb-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -286,6 +287,7 @@ function replySystemPromptForItems(items: ReplyPromptItems): string {
     courtesy: courtesyRuleEnabled(),
     noApology: noApologyRuleEnabled(),
     hostContactBan: hostContactPromptBanEnabled(),
+    hostVoiceKb: hostVoiceKbFirstPersonEnabled(),
     itemsMode: items.mode,
     itemsHeld: items.held,
     itemsParts: items.parts === true,

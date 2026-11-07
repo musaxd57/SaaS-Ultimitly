@@ -176,6 +176,8 @@ export const PIPELINE_FLAGS = [
   // Ev sahibi sesi kapısı ACİL DURDURMA (kurucu 10-30, ai/host-voice-guard.ts; varsayılan açık, yalnız "1" kapatır): kapalıyken
   // reply_host_voice tutuşu düşer (misafire gideni değiştirir).
   "AI_HOST_VOICE_GUARD_DISABLED",
+  // Bilgi tabanındaki üçüncü şahıs ev sahibi cümlesi → birinci kişi (11-07): cevap istemini değiştirir.
+  "AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED",
   // Başka kişinin bilgisi kuralı (10-22 U9): anlama istemini değiştirir.
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   // Kıdemli okuyucu (10-22 T-b): ikinci okuma şeması + istemi ve kapıyı değiştirir (misafire gideni yalnız TUTARAK / ödeme öğesinde bırakarak).

@@ -1543,6 +1543,22 @@ const HOST_CONTACT_BAN_REPLACEMENTS: readonly Replacement[] = [
   ['DOĞRU (b): "Şunu dener misiniz: ... Düzelmezse yeniden yazın; o mesaj da kaydedilir."', 'DOĞRU (b): "Şunu dener misiniz: ..."'],
 ];
 /** Parça kipinin `no_info` satırı da (yalnız parça katmanı uygulandıysa çapa var). */
+/**
+ * Bilgi tabanındaki üçüncü şahıs ev sahibi cümlesi → birinci kişi (kurucu 11-06 gece / 11-07 ölçüm onayı; `host-voice-kb-rule.ts`, anahtar
+ * `AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED` KAPALI). K-1029-A katmanının örnek satırına bağlı: o katman yokken çapa yok, katman boş.
+ */
+export const HOST_VOICE_KB_REPLACEMENTS: readonly Replacement[] = [
+  [
+    `      YANLIŞ: "Ziyaretçiler ev sahibinin onayına tabidir."   DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."
+`,
+    `      YANLIŞ: "Ziyaretçiler ev sahibinin onayına tabidir."   DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."
+    Bilgi tabanı ev sahibinden üçüncü kişi olarak söz edebilir ("Ev sahibine … ulaşılır", "Ev sahibi kahvaltıyı hazırlar"): o bilgiyi
+    aktarırken cümleyi birinci kişiye çevir; bilginin kendisini (saat, ücret, yer, koşul) değiştirme, ekleme yapma.
+      Misafir: "Size hangi saatlerde ulaşabilirim?"   Bilgi tabanı: "Ev sahibine her gün 09:00–22:00 arasında ulaşılabilir."
+      YANLIŞ: "Ev sahibinize her gün 09:00–22:00 arasında ulaşabilirsiniz."   DOĞRU: "Bize her gün 09:00–22:00 arasında ulaşabilirsiniz."
+`,
+  ],
+];
 const HOST_CONTACT_BAN_PARTS_REPLACEMENTS: readonly Replacement[] = [
   [
     `  - status "no_info": bilgi yoksa ya da emin değilsen — text ve evidence BOŞ;`,
@@ -1568,6 +1584,8 @@ export interface ReplyPromptFlags {
   noApology?: boolean;
   /** K-1029-A ev sahibine yönlendirme cümlesi yasağı (varsayılan AÇIK; `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` acil durdurma). */
   hostContactBan?: boolean;
+  /** Bilgi tabanındaki üçüncü şahıs ev sahibi cümlesini birinci kişiye çevir (`AI_HOST_VOICE_KB_FIRST_PERSON_ENABLED`; K-1029-A'ya bağlı). */
+  hostVoiceKb?: boolean;
 }
 /** Katmanın çapaları; birleşime bağlıysa (önceki bir katman çapayı değiştirdiyse) işlev. */
 type LayerReplacements = readonly Replacement[] | ((f: ReplyPromptFlags) => readonly Replacement[]);
@@ -1587,6 +1605,8 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacemen
   ["noApology", NO_APOLOGY_REPLACEMENTS],
   // Parça kipinin `no_info` satırı parça katmanının metninde — yalnız o katman uygulandıysa.
   ["hostContactBan", (f) => (f.itemsMode && f.itemsParts ? [...HOST_CONTACT_BAN_REPLACEMENTS, ...HOST_CONTACT_BAN_PARTS_REPLACEMENTS] : HOST_CONTACT_BAN_REPLACEMENTS)],
+  // Örnek satırı K-1029-A katmanının metninde — yalnız o katman uygulandıysa (acil durdurmada çapa yok, katman boş).
+  ["hostVoiceKb", (f) => (f.hostContactBan ? HOST_VOICE_KB_REPLACEMENTS : [])],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 
