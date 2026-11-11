@@ -98,6 +98,11 @@ Bu dosyaya token/anahtar/parola yazma.
   yapılmıştı, "Actions dakikası 2000'i aştı"). 10-12 akşam private iken kota bitmişti: CI işleri çalıştırıcısız 1–2 sn'de düşüyor, iş
   günlüğü 404, yeniden tetikleme 403 → çözüm kurucuda (public'e dönmek ya da Billing'de harcama limiti). Önceki not: PUBLIC iken standart çalıştırıcılar ücretsiz. Private'a dönülürse
   ayda 2000 dk (push başına ~14 dk); CI durursa sebep kota olabilir. Repoya sır/gerçek veri/işletme adı YAZILMAZ.
+  🚨 11-11: private iken kırmızının İKİNCİ sebebi BELLEK (kota değil — işler dakikalarca koşar, `runner_id` dolu): private depoya küçük
+  makine (7 GB) verilir, Node'un varsayılan tavanı ~2 GB'a düşer, tip denetimi (~2,5 GB) "heap out of memory" ile çöker. Tavan artık
+  `ci.yml` adımlarında ve Dockerfile derleme aşamasında AÇIK (4 GB; pin `tests/unit/build-memory-limit.test.ts`). Bu konteynerde
+  `NODE_OPTIONS` 8 GB olduğu için hata yerelde GÖRÜNMEZ → tip denetimi 4 GB'a yaklaşırsa `NODE_OPTIONS=--max-old-space-size=4096 npx tsc
+  --noEmit --extendedDiagnostics` ile ölç ("Memory used").
 - **Git:** commit author `user.email noreply@anthropic.com` / `user.name Claude`; yedek TAG değil BRANCH
   (`backup/stable-YYYY-MM-DD`); commit mesajında backtick yok → heredoc.
 - **`crypto-core.key()` sırası `ENCRYPTION_KEY || AUTH_SECRET`.** `*-undecryptable` alarmında ÖNCE

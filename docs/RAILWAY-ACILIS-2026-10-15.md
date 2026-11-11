@@ -36,6 +36,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    (kod tarafı: operatör uyarı e-postası). İzinler (en az yetki, koddaki çağrılardan): Subscriptions Read + Write · Customer portal sessions Write
    · Prices Read · Products Read · Customers Read · Addresses Read. Diğerleri işaretsiz.
 5. **Railway "Wait for CI" AÇIK** kalsın (kırmızı CI deploy'u atlar).
+   **Derleme belleği (11-11):** `next build` içindeki tip denetimi ~2,5 GB ister; Dockerfile derleme aşaması tavanı açıkça 4 GB verir
+   (çalışan kabı etkilemez). Railway derlemesi yine "heap out of memory" / bellek yetersizliğiyle düşerse derleme makinesinin belleği
+   4 GB'ın altındadır — Railway planındaki derleme belleğine bakın. Depo private iken CI'ın kırmızısı da aynı sebepti (CI 1779).
 6. 🔔 **KURUCU 10-30: "Decisions API bayraklarını unutturma, Railway'i açacağımız gün eklemeliyim":**
    - **Decisions API ile yeniden sıralayıcı:** `KB_RERANK_ENGINE=decisions` (boş = bugünkü sohbet sıralayıcısı) · model
      `KB_RERANK_DECISIONS_MODEL` (boşken `gpt-6-luna`). Ölçüm: p50 0,41 sn / p95 0,86 sn (sohbet 1,09 / 1,63); kalite sohbetin oynama

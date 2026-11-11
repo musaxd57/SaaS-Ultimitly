@@ -65,6 +65,11 @@ COPY . .
 # at runtime and no build step connects to it.
 ENV NODE_ENV=production
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
+# BELLEK TAVANI ACIK (11-11): `next build` icindeki tip denetimi ~2,5 GB ister. Node'un
+# varsayilan tavani derleme makinesinin bellegine gore degisir; kucuk makinede ~2 GB'a
+# duser ve derleme "heap out of memory" ile coker (CI'da yasandi). Yalniz BU asamada
+# (builder) ayarlanir — calisan kap (runner) ayri asamadir, bu deger oraya TASINMAZ.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 # ═══════════════════════════ 2) RUNNER ═══════════════════════════

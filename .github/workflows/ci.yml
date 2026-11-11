@@ -139,8 +139,13 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
+      # BELLEK TAVANI AÇIK (11-11): tip denetimi ~2,5 GB ister. Node'un varsayılan tavanı makinenin belleğine göre değişir — depo
+      # private olunca GitHub'ın küçük makinesinde (7 GB) ~2 GB'a düşüyor ve denetim "heap out of memory" ile çöküyordu (CI 1779).
+      # Tavan burada sabitlenir: sonuç depo görünürlüğüne / makine boyutuna bağlı kalmaz (pin: tests/unit/build-memory-limit.test.ts).
       - name: Type-check
         run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Lint
         run: npm run lint
       - name: Tests (veritabanısız)
@@ -239,6 +244,8 @@ jobs:
         run: npx prisma generate
       - name: Type-check
         run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Lint
         run: npm run lint
       - name: Tests
@@ -351,6 +358,8 @@ jobs:
           npx tsx prisma/seed.ts
       - name: Build (production)
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Playwright smoke
         run: npx playwright test
 
@@ -377,6 +386,7 @@ jobs:
       - name: next build (via npm script — includes prisma generate)
         run: npm run build
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           DATABASE_URL: postgresql://postgres@localhost:5432/build_dummy
           AUTH_SECRET: ci-build-only-secret-not-used-anywhere-42
 
