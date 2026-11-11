@@ -79,3 +79,24 @@ Durum sütunu ilerledikçe güncellenir: `açık` → `düzeltildi (commit)` / `
   - Kimlik: kurulum kimliği karşılaştırması sabit süreli; şifre sıfırlamada istek sürerken yeni bağlantı açılırsa eski isteğin geç cevabı yeni ekrana yazılmaz.
 - **Bilinçli bırakılanlar (gerekçesiyle):** e-posta doğrulama gönderimi sürerken (≈1 sn) açılan ikinci bağlantı yok sayılır · iki koşu AYNI milisaniyede başlarsa ikisi de yazar (sıra tanımsız, pratikte yok) · kanal gönderiminde ev sahibinin imzası / otomatik yanıt notu tavana sayılmaz (hiçbir yerde kesilmediği için anlam bozulmaz) · tam 00:00Z / 12:00Z vadesi "yalnız gün" sayılır (görev panosuyla aynı kural).
 
+## Opus derin incelemesi (11-11, `3b395d49..bc1c40a8`)
+Sonuç: P1 yok · P2 bir · P3 dokuz. Yedisi düzeltildi, üçü gerekçesiyle belgede bırakıldı.
+
+**Düzeltilenler**
+| Bulgu | Düzeltme |
+|---|---|
+| (P2) Paddle API anahtarı reddedilirse (401 / 403) kayıtlı aboneliğin yaşı "bilinmiyor" sayılıyor, eski aboneliğin olayı ödeyen aboneliğin yerine geçebiliyordu | 401 / 403 artık "okunamadı" sınıfında (5xx / ağ hatasıyla aynı): olay işlenmez, Paddle yeniden gönderir; anahtar düzelince doğru karar verilir. Operatör alarmı aynen gider |
+| CSV ile içe aktarılmış uzun kimlikli satır, aynı dosya yeniden yüklenince kopya açıyordu | Eski kimlik çevirisi dosya türünün kendi kanalına bakar (`.ics` → `ics`, CSV → `manual`) |
+| Abonelik senkronu, önceden dosyayla yüklenmiş (kaynağa bağlı olmayan) eski kimlikli satırı bulamıyor, yeni kimlikle ikinci satır açıyordu | Çeviri önce bu kaynağın satırlarına, yoksa kaynağa bağlı olmayan satırlara bakar (sıra korunur — bağlı satır varken bağlantısıza dokunulmaz) |
+| Eski kimlikle tutulan silme (KVKK) kaydı koşu sürerken yazılırsa konaklama yeni kimlikle içe alınabiliyordu | Satır yazımındaki işlem içi silme kontrolü eski kimliği de sorar (abonelik senkronu + dosya yolunun üç yazım noktası) |
+| Başka bir istek anahtarı yenilerken bekleme (8 sn) sağlayıcının zaman aşımından (15 sn) kısaydı → yanıltıcı "bağlı değil" | Bekleme sağlayıcı zaman aşımından türetilir (+2 sn = 17 sn; biri değişince öteki geride kalmaz); süre dolunca saklanan anahtar bir kez daha okunur |
+| Bağlantı başlatılırken niyet kaydı yazılamazsa ham hata dönüyordu | Bilinen sonuç ekranı ("bağlantı kurulamadı") + operatöre bildirim |
+| Şifre sıfırlamada istek sürerken yeni bağlantı açılırsa BAŞARILI eski isteğin sonucu da gizleniyordu | Yalnız başarısız eski cevap gizlenir; başarı her durumda gösterilir |
+| Otomatik mesaj sırası: metni olan ama gönderilmeyecek adaylar (açıkça silinmiş misafir · kuyruğun sahiplendiği rezervasyon) 25'lik listeyi doldurup arkadakini bekletiyordu | Bu adaylar liste kurulurken elenir (sayfa başına tek kuyruk sorgusu; silme kaydı koşu başına bir kez). Gönderim anındaki kesin kontroller aynen durur. Kuyruk açıkken BEKLEYEN satır elenmez: ertelenmiş giriş mesajının vadesi, tarih yeniden pencereye girince gönderim döngüsünde şimdiye çekilir (ilk sürüm bunu bozuyordu — ilgili 156 test dosyasının koşusu yakaladı) |
+
+**Belgede bırakılanlar (kod değişmedi)**
+- Kesin hata (4xx) alan otomatik mesaj her geçişte yeniden denenir; aynı anda 25 böyle rezervasyon olursa sıra yine tıkanır. Çözüm rezervasyon başına deneme sayacı ister (şema değişikliği) — kurucu sorusu S6 ile birlikte.
+- Takvim koşu sırası uygulamanın saatine bakar: tek kopyada doğru, iki kopyada saat kayması kadar pencere var → `docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md` §3 madde 7. Aynı damga satırı her satır yazımında güncellenir (büyük beslemede çok yazım; ölçüm gerekirse o zaman).
+- Abonelik olayı "ödemeniz işleniyor" kilidini kaldırdıktan sonra gelen işlem olayı kilidi 10 dakika yeniden yazabilir. Etkisi yok denecek kadar küçük (kilit yalnız aboneliği olmayan hesapta görünür) ve eskiden de vardı.
+- Testlerin kapsamadığı yerler (Opus §7): iki abonelik yarışı testinde olaylar oluşturulma tarihi taşımıyor (yaş kıyası ayrı testte) · kilit deposu arızası testi yalnız kilit yazımını düşürüyor · koşu sırası testi tek süreç saatiyle.
+

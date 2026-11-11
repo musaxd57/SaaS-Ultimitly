@@ -174,7 +174,11 @@ async function alarmOnErrorTransition(
 }
 
 /** Yalnız test: satırın var olan kaydı OKUNDUKTAN hemen sonra (yazılmadan önce) araya girer — okuma-yazma penceresini belirlenimci kurar. */
-export const __syncRowHooks: { afterExistingRead: (() => Promise<void>) | null } = { afterExistingRead: null };
+export const __syncRowHooks: { afterExistingRead: (() => Promise<void>) | null; beforeRows: (() => Promise<void>) | null } = {
+  afterExistingRead: null,
+  /** Koşu başındaki kontrollerden (eski kimlik çevirisi / silme kaydı) SONRA, satır döngüsünden ÖNCE. */
+  beforeRows: null,
+};
 
 /** Kaynağın "satır yazan en yeni koşu" damgası (`SystemLock` satırı — migration yok). `lockedUntil` = o koşunun besleme isteğinin başlangıcı. */
 export function feedRunOrderLockName(sourceId: string): string {
@@ -404,12 +408,16 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   const legacy = await reconcileLegacySourceReferences({
     organizationId: source.property.organizationId,
     propertyId: source.propertyId,
-    scope: { calendarSourceId: source.id },
+    // Satır aramasıyla AYNI sıra (↓ `bound` → `legacy`): önce bu kaynağa bağlı satır; yoksa senkronun sahipleneceği BAĞLANTISIZ satır
+    // (aynı besleme daha önce dosya olarak yüklenmiş / bağlamadan önce yazılmış). İkincisi çevrilmezse uzun kimlikli her etkinlik için
+    // KOPYA rezervasyon açılırdı (Opus incelemesi 11-11).
+    scope: [{ calendarSourceId: source.id }, { calendarSourceId: null }],
     rows,
   });
   // Takvim C2: bu koşunun yanıtı eskidi (daha yeni bir koşu aynı kaynağa satır yazıyor) → döngü durur, uzlaştırma ve durum yazımı atlanır.
   let staleRun = false;
   await ensureFeedRunOrderRow(source.id, runStartedAt);
+  if (__syncRowHooks.beforeRows) await __syncRowHooks.beforeRows();
   // #4 (Codex): keep only the FIRST row-failure sample; a SINGLE aggregate
   // reportError fires after the loop (never one-per-row → no event/log flood).
   let firstRowError: unknown;
@@ -494,7 +502,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           // (KVKK Regulation art. 8: erased data must stay unusable). Checked
           // AFTER the seenRefs.add above on purpose: the UID *is* present in the
           // feed, and the disappearance-reconcile must keep seeing it.
-          if (!fresh.isEmpty && fresh.blocksSourceReference(row.sourceReference)) {
+          // Eski (kesilmiş) kimlikle tutulan silme kaydı da engeller — koşu başındaki kontrol ile bu işlem arasında yazılmış olabilir
+          // (çevrilemeyen eski satır o arada silindi; Opus incelemesi 11-11).
+          if (!fresh.isEmpty && (fresh.blocksSourceReference(row.sourceReference) || fresh.blocksSourceReference(row.legacySourceReference))) {
             return { kind: "erased" };
           }
 

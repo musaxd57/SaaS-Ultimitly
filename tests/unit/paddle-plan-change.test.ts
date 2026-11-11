@@ -219,12 +219,31 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
 
   // Ödeme P1 (Codex 11-10): salt-OKUMA isteğinde "sonra okunabilir" ile "kesin yok / ret" ayrımı. Yazma sınıflamasından farkı 429:
   // okuma için hız sınırı da geçicidir (yeniden denenir), yazma için "uygulanmadı" (kesin).
-  it("isTransientPaddleReadFailure: ağ / zaman aşımı / 5xx / 408 / 429 geçici; 400 / 401 / 403 / 404 kesin", () => {
-    for (const m of ["fetch failed", "The operation was aborted due to timeout", "Paddle HTTP 500 (internal) env=x", "Paddle HTTP 503 (unavailable) env=x", "Paddle HTTP 408 (request_timeout) env=x", "Paddle HTTP 429 (too_many_requests) env=x"]) {
+  it("isTransientPaddleReadFailure: ağ / zaman aşımı / 5xx / 408 / 429 ve ANAHTAR REDDİ (401 / 403) 'okunamadı'; 400 / 404 kesin", () => {
+    for (const m of [
+      "fetch failed",
+      "The operation was aborted due to timeout",
+      "Paddle HTTP 500 (internal) env=x",
+      "Paddle HTTP 503 (unavailable) env=x",
+      "Paddle HTTP 408 (request_timeout) env=x",
+      "Paddle HTTP 429 (too_many_requests) env=x",
+      // 🚨 Opus 11-11: anahtar reddi "abonelik yok" değildir — okuyamadık.
+      "Paddle HTTP 401 (authentication_malformed) env=x",
+      "Paddle HTTP 403 (forbidden) env=x",
+    ]) {
       expect(isTransientPaddleReadFailure(new Error(m)), m).toBe(true);
     }
-    for (const m of ["Paddle HTTP 400 (bad_request) env=x", "Paddle HTTP 401 (authentication_malformed) env=x", "Paddle HTTP 403 (forbidden) env=x", "Paddle HTTP 404 (entity_not_found) env=x"]) {
+    for (const m of ["Paddle HTTP 400 (bad_request) env=x", "Paddle HTTP 404 (entity_not_found) env=x"]) {
       expect(isTransientPaddleReadFailure(new Error(m)), m).toBe(false);
+    }
+  });
+
+  it("🚨 API anahtarı reddedilirse (401 / 403) abonelik yaşı 'bilinmiyor' DEĞİL 'okunamadı' döner — eski aboneliğin olayı tahminle yenisinin yerine geçemez", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "expired-key");
+    const fetchMock = vi.spyOn(global, "fetch");
+    for (const status of [401, 403]) {
+      fetchMock.mockResolvedValueOnce({ ok: false, status, json: async () => ({ error: { code: "forbidden" } }) } as Response);
+      expect(await getSubscriptionCreatedAt("sub_1"), String(status)).toBe(SUBSCRIPTION_READ_TRANSIENT); // ⬅️ ESKİDE null → webhook "yerine geç" derdi
     }
   });
 

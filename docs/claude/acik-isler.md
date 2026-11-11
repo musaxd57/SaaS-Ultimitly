@@ -174,6 +174,12 @@ boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-s
 - **A25(b):** misafirin cevaptan ÖNCE yazıp sistemin SONRA içeri aldığı mesajı yapay zekâ kendiliğinden cevaplasın mı (bugün: konuşma "Yeni"
   olur, ev sahibi görür — S1 kararı)?
 - **P1 kalanı:** abonelik oluşturulma zamanını saklamak (şema değişikliği) — sağlayıcı okunamazken de eski / yeni abonelik ayrımı kesinleşir.
+- **Paddle API anahtarı reddedilirse (401 / 403; Opus 11-11, para akışı — UYGULANDI, onay bekliyor):** kayıtlı (iptal edilmemiş) abonelik varken
+  FARKLI bir aboneliğin aktif olayı gelirse ve anahtarımız o an reddediliyorsa olay yazılmaz, Paddle yeniden gönderir, operatöre alarm gider
+  (eskiden "bilinmiyor" sayılıp yerine geçiyordu → eski aboneliğin olayı ödeyen aboneliği ezebilirdi). Bedeli: anahtar düzelene kadar o
+  nadir olay bekler. İstenirse eski davranışa dönülür.
+- **Kesin hata alan otomatik mesaj (Opus 11-11):** sağlayıcının kesin reddettiği (4xx) karşılama / giriş / çıkış mesajı her geçişte yeniden
+  denenir; aynı anda 25 böyle rezervasyon olursa arkadakiler bekler. Çözüm: rezervasyon başına deneme sayacı (şema değişikliği) — istenir mi?
 - **Q2:** "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?" — hayvan sorusu ev sahibinde kalırken şifre cevabı gitsin mi (bugün bütün
   cevap tutulur, testle pinli)?
 - **X6 (K-1):** elle özellikle atanmış sistem görevleri aktarma listesinde ayrı gösterilip SEÇİLİ GELMESİN mi (Codex'in tercihi)?

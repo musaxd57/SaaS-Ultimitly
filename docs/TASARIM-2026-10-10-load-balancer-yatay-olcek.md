@@ -51,6 +51,10 @@ süreç içi zamanlayıcı tıkı (2 dk) ve e-posta yoklayıcısı (15 sn) kopya
 6. **İşletme belgesi olay sırası (11-06):** `LicenseEvent` sırası `createdAt` ile belirleniyor ve Prisma bu zamanı UYGULAMANIN saatinden
   yazıyor (sondayla doğrulandı). Tek kopyada belge satır kilidi sırayı korur; iki kopyada saat kayması "askıdan sonraki okuma" gibi kararları
   bozabilir → olaylara belge başına sıra numarası ya da veritabanı saati (`docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md` §18).
+7. **Takvim senkronu koşu sırası (11-11):** "eski takvim yanıtı yeni sonucu ezmez" koruması (`src/lib/import/sync.ts` `claimFeedRunOrder`) ve
+  "beslemeden kayboldu" uzlaştırması koşunun başlangıç anını UYGULAMANIN saatinden alıyor. Tek kopyada sıra doğrudur; iki kopyada saati
+  ileride olan kopyanın eski koşusu, öteki kopyanın birkaç saniye sonra başlayan yeni koşusunu "eski yanıt" sayabilir (yeni yanıt bir sonraki
+  senkrona kadar yazılmaz) → 2 kopyadan önce koşu başlangıcı veritabanı saatinden okunur (takma saat kullanan testler birlikte uyarlanır).
 
 ## 4. Maliyet ve getiri (özet)
 

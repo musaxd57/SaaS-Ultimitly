@@ -53,7 +53,15 @@ export async function GET(req: NextRequest) {
   const packed = packOAuthStateCookie(state, session.organizationId, session.userId);
   if (!packed) return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
   // Bu akış işletmenin bekleyen TEK bağlantı niyeti olur (OAuth O2 / O5): dönüş onu tüketir; başka bir bağlantı işlemi onu geçersiz kılar.
-  await registerOAuthConnectIntent(session.organizationId, state, STATE_MAX_AGE);
+  try {
+    await registerOAuthConnectIntent(session.organizationId, state, STATE_MAX_AGE);
+  } catch (err) {
+    // Niyet kaydı yazılamadı (veritabanı arızası): ham hata yerine bilinen "bağlantı kurulamadı" sonucu + operatöre bildirim. Akış
+    // BAŞLATILMAZ — kayıt yokken dönüş zaten reddedilirdi (ev sahibi yetki ekranından boşuna geçmesin). Opus incelemesi 11-11.
+    const { reportError } = await import("@/lib/report-error");
+    void reportError("hospitable.oauth.authorize.intent", err).catch(() => {});
+    return NextResponse.redirect(`${base}/settings?hospitable=exchange_failed`);
+  }
   const res = NextResponse.redirect(authorizeUrl);
   res.cookies.set(OAUTH_STATE_COOKIE, packed, {
     httpOnly: true,

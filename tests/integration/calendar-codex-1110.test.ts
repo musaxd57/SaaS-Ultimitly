@@ -53,9 +53,11 @@ describe("takvim / senkron — Codex 11-10", () => {
     await resetDb();
     __resetRateLimit();
     __syncRowHooks.afterExistingRead = null;
+    __syncRowHooks.beforeRows = null;
   });
   afterEach(() => {
     __syncRowHooks.afterExistingRead = null;
+    __syncRowHooks.beforeRows = null;
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
@@ -158,6 +160,26 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
     });
 
+    it("🚨 eski kimlikli silme (KVKK) kaydı koşu SÜRERKEN yazılırsa da satır yazımı onu görür: konaklama yeni kimlikle içe ALINMAZ", async () => {
+      const { orgId, propertyId, sourceId } = await seed();
+      mockFeed.mockResolvedValue(cal(ev(UID_A, 10, 12, [], "Silinen Misafir"), ev("kisa-2@example.com", 20, 22, [], "Jane Doe")));
+      // Koşu başındaki kontrol silme kaydı görmedi; satırlar yazılmadan hemen önce (çevrilemeyen eski satır silinince) eski kimlikle kayıt düştü.
+      __syncRowHooks.beforeRows = async () => {
+        await prisma.erasureTombstone.create({
+          data: {
+            organizationId: orgId,
+            keyType: "source_reference",
+            keyHash: tombstoneKeyHash(orgId, "source_reference", legacyTruncatedSourceReference(UID_A)!)!,
+            keyFingerprint: currentKeyFingerprint(),
+            erasedAt: new Date(),
+          },
+        });
+      };
+      await syncCalendarSource(sourceId);
+      const rows = await rowsOf(propertyId);
+      expect(rows.map((r) => r.guestName)).toEqual(["Jane Doe"]); // ⬅️ (ilk sürümde) "Silinen Misafir" yeni kimlikle yazılırdı
+    });
+
     it("🚨 silme (KVKK) kaydı ESKİ kimlikle tutulan konaklama yeni kimlikle de yeniden içe ALINMAZ", async () => {
       const { orgId, propertyId, sourceId } = await seed();
       await prisma.erasureTombstone.create({
@@ -204,6 +226,74 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].id).toBe(legacyRow.id);
       expect(rows[0].sourceReference).toBe(normalizeSourceReference(UID_A));
+    });
+
+    it("🚨 CSV: uzun referanslı satır daha önce (eski, kesilmiş kimlikle) yüklendiyse aynı dosyanın yeniden yüklenmesi KOPYA açmaz", async () => {
+      const { propertyId } = await seed();
+      const ref = "REF-" + "9".repeat(230); // 234 karakter
+      const start = new Date(Date.now() + 10 * DAY).toISOString().slice(0, 10);
+      const end = new Date(Date.now() + 12 * DAY).toISOString().slice(0, 10);
+      // 11-11 öncesi CSV aktarımının yazdığı satır: bağlantısız, kanal "manual", kimlik 200'e kesilmiş.
+      const old = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Ayşe", sourceReference: legacyTruncatedSourceReference(ref)!, calendarSourceId: null,
+          arrivalDate: new Date(`${start}T12:00:00.000Z`), departureDate: new Date(`${end}T12:00:00.000Z`), status: "confirmed", channel: "manual",
+        },
+      });
+      const csv = `reference,Status,Guest name,Start date,End date\n${ref},Confirmed,Ayşe,${start},${end}\n`;
+      const post = (preview: boolean) => {
+        const form = new FormData();
+        form.set("file", new File([csv], "rezervasyonlar.csv", { type: "text/csv" }));
+        form.set("propertyId", propertyId);
+        if (preview) form.set("mode", "preview");
+        return importPost(new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form }), { params: Promise.resolve({}) });
+      };
+      expect((await post(true)).status).toBe(200); // önizleme yazmaz
+      expect((await prisma.reservation.findUniqueOrThrow({ where: { id: old.id } })).sourceReference).toBe(legacyTruncatedSourceReference(ref));
+      expect((await post(false)).status).toBe(200);
+      const rows = await rowsOf(propertyId);
+      expect(rows).toHaveLength(1); // ⬅️ (ilk sürümde) 2 — eski satır tanınmıyor, ikinci rezervasyon açılıyordu
+      expect(rows[0].id).toBe(old.id);
+      expect(rows[0].sourceReference).toBe(normalizeSourceReference(ref));
+    });
+
+    it("🚨 abonelik: aynı besleme önce DOSYA olarak yüklenmişse (bağlantısız, eski kimlikli satır) senkron o satırı sahiplenir — kopya açmaz", async () => {
+      const { propertyId, sourceId } = await seed();
+      const unbound = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Misafir A", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: null,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "ics",
+        },
+      });
+      mockFeed.mockResolvedValue(cal(ev(UID_A, 10, 12, [], "Misafir A")));
+      await syncCalendarSource(sourceId);
+      const rows = await rowsOf(propertyId);
+      expect(rows).toHaveLength(1); // ⬅️ (ilk sürümde) 2
+      expect(rows[0].id).toBe(unbound.id);
+      expect(rows[0].sourceReference).toBe(normalizeSourceReference(UID_A));
+      expect(rows[0].calendarSourceId).toBe(sourceId); // senkron satırı sahiplendi (eski sahiplenme kuralı aynen)
+    });
+
+    it("KONTROL: bu kaynağa BAĞLI eski satır varken bağlantısız eski satıra dokunulmaz (önce kendi satırı)", async () => {
+      const { propertyId, sourceId } = await seed();
+      const other = await prisma.property.create({ data: { organizationId: (await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).organizationId, name: "Lale 9" } });
+      const bound = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Bağlı", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: sourceId,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "other",
+        },
+      });
+      // Başka dairede aynı eski kimlikli bağlantısız satır: daire kapsamı dışında, dokunulmaz.
+      const elsewhere = await prisma.reservation.create({
+        data: {
+          propertyId: other.id, guestName: "Başka Daire", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: null,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "ics",
+        },
+      });
+      mockFeed.mockResolvedValue(cal(ev(UID_A, 10, 12, [], "Misafir A")));
+      await syncCalendarSource(sourceId);
+      expect((await prisma.reservation.findUniqueOrThrow({ where: { id: bound.id } })).sourceReference).toBe(normalizeSourceReference(UID_A));
+      expect((await prisma.reservation.findUniqueOrThrow({ where: { id: elsewhere.id } })).sourceReference).toBe(legacyTruncatedSourceReference(UID_A));
     });
 
     it("🚨 dosya yolu yalnız KENDİ satırının eski kimliğini çevirir: başka kaynağın (kanal) aynı eski kimlikli satırına dokunmaz", async () => {

@@ -18,6 +18,9 @@ import { isSecureExternalUrl } from "@/lib/secure-url";
 // Still overridable via env in case Hospitable ever changes them.
 // ---------------------------------------------------------------------------
 
+/** Sağlayıcının anahtar uç noktasına yapılan isteğin zaman aşımı. Yenilemeyi BEKLEYEN çağrı bundan uzun bekler (↓ `hospitable-credentials`). */
+export const OAUTH_TOKEN_REQUEST_TIMEOUT_MS = 15_000;
+
 export const OAUTH_STATE_COOKIE = "hospitable_oauth_state";
 export const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the redirect round-trip
 const DEFAULT_AUTHORIZE_URL = "https://auth.hospitable.com/oauth/authorize";
@@ -245,7 +248,7 @@ async function postTokenRequest(
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(OAUTH_TOKEN_REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
     throw new HospitableOAuthError(

@@ -284,13 +284,13 @@ async function applySubscriptionEventOnce(
     const eventCreatedAt = rawCreated ? new Date(rawCreated) : null;
     if (eventCreatedAt && !Number.isNaN(eventCreatedAt.getTime())) {
       const registeredCreatedAt = await getSubscriptionCreatedAt(replacesLiveSubscription.from);
-      // 🚨 ÖDEME P1 (Codex 11-10): kayıtlı aboneliğin yaşı ŞU AN okunamıyorsa (Paddle geçici arıza / zaman aşımı / hız sınırı) "yerine geç"
+      // 🚨 ÖDEME P1 (Codex 11-10): kayıtlı aboneliğin yaşı ŞU AN okunamıyorsa (Paddle geçici arıza / zaman aşımı / hız sınırı / API anahtarımız reddedildi) "yerine geç"
       // diye TAHMİN edilmez — eski aboneliğin aktif olayı tam o anda gelirse yeni (ödeyen) aboneliği ezerdi. Olay işlenmiş sayılmaz: hata →
       // 500 → Paddle yeniden gönderir, karar gerçek veriyle verilir. KESİN bilinmezlikte (anahtar tanımsız, abonelik Paddle'da yok, alan yok)
       // kurucunun 11-04 kararı aynen: yerine geçer + "ikinci abonelik" alarmı.
       if (registeredCreatedAt === SUBSCRIPTION_READ_TRANSIENT) {
         throw new Error(
-          "paddle-webhook: kayıtlı aboneliğin oluşturulma zamanı şu an okunamadı (geçici) — hangi aboneliğin yeni olduğu bilinmeden yazılmadı; olay yeniden gönderilince işlenir",
+          "paddle-webhook: kayıtlı aboneliğin oluşturulma zamanı şu an okunamadı (geçici arıza ya da API anahtarı reddedildi) — hangi aboneliğin yeni olduğu bilinmeden yazılmadı; olay yeniden gönderilince işlenir",
         );
       }
       if (registeredCreatedAt && eventCreatedAt.getTime() < registeredCreatedAt.getTime()) {

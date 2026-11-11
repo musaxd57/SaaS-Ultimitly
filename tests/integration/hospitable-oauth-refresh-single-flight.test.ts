@@ -7,6 +7,7 @@ import {
   resetPrimaryOrgCache,
   oauthRefreshLockName,
   __setOAuthRefreshWaitForTests,
+  OAUTH_REFRESH_WAIT_MS,
 } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +25,7 @@ vi.mock("@/lib/hospitable-oauth", async (orig) => {
   return { ...actual, getHospitableOAuthConfig: vi.fn(), refreshAccessToken: vi.fn() };
 });
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
-import { getHospitableOAuthConfig, refreshAccessToken, HospitableOAuthError } from "@/lib/hospitable-oauth";
+import { getHospitableOAuthConfig, refreshAccessToken, HospitableOAuthError, OAUTH_TOKEN_REQUEST_TIMEOUT_MS } from "@/lib/hospitable-oauth";
 const mockGetConfig = vi.mocked(getHospitableOAuthConfig);
 const mockRefresh = vi.mocked(refreshAccessToken);
 
@@ -68,6 +69,18 @@ vi.spyOn(prisma.systemLock, "createMany").mockImplementation((async (args: Param
   return realCreateMany(args);
 }) as never);
 
+/** Doluyken: kilit satırı OKUNMADAN hemen önce çalışır (öteki kopya tam o arada anahtarı yazıp kilidini bıraktı). Tek atımlık. */
+let beforeLockRead: null | (() => Promise<void>) = null;
+const realFindUnique = prisma.systemLock.findUnique.bind(prisma.systemLock);
+vi.spyOn(prisma.systemLock, "findUnique").mockImplementation((async (args: Parameters<typeof realFindUnique>[0]) => {
+  if (beforeLockRead) {
+    const run = beforeLockRead;
+    beforeLockRead = null;
+    await run();
+  }
+  return realFindUnique(args);
+}) as never);
+
 async function expiredOrg() {
   const org = await prisma.organization.create({ data: { name: "Org" } });
   await setOrgHospitableOAuthTokens(org.id, { accessToken: "access-old", refreshToken: "refresh-old", expiresAt: new Date(Date.now() - 1000) }, "5 mülk");
@@ -85,9 +98,11 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     __setOAuthRefreshWaitForTests(2_000, 40);
     lockStoreDown = false;
     beforeLockClaim = null;
+    beforeLockRead = null;
   });
   afterEach(() => {
-    __setOAuthRefreshWaitForTests(8_000, 250);
+    beforeLockRead = null;
+    __setOAuthRefreshWaitForTests(OAUTH_REFRESH_WAIT_MS, 250);
     lockStoreDown = false;
     beforeLockClaim = null;
   });
@@ -208,6 +223,25 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     expect((await getConnectionInfo(orgId)).connected).toBe(true);
     // Öteki kopyanın kilidine dokunulmadı (yalnız kendi kilidimizi bırakırız).
     expect((await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) } }))?.holder).toBe("other-replica");
+  });
+
+  it("🚨 öteki kopya anahtarı yazıp kilidini iki okumanın ARASINDA bıraktıysa bekleyen çağrı yeni anahtarı alır (anahtarsız dönmez)", async () => {
+    const orgId = await expiredOrg();
+    await prisma.systemLock.create({ data: { name: oauthRefreshLockName(orgId), holder: "other-replica", lockedUntil: new Date(Date.now() + 30_000) } });
+    // Sıra: (1) anahtar okundu — değişmemiş; (2) kilit okunmadan hemen önce öteki kopya yeni anahtarı yazıp kilidini sildi; (3) kilit yok.
+    beforeLockRead = async () => {
+      await setOrgHospitableOAuthTokens(orgId, fresh("other"), "5 mülk");
+      await prisma.systemLock.deleteMany({ where: { name: oauthRefreshLockName(orgId) } });
+    };
+    expect(await getOrgHospitableToken(orgId)).toBe("access-other"); // ⬅️ ESKİDE null (bir tur "bağlı değil")
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("bekleme süresi sağlayıcı isteğinin zaman aşımından UZUNDUR (yavaş ama başarılı yenileme sürerken bekleyen çağrı anahtarsız dönmesin)", () => {
+    // Davranışla sınamak 15 saniyeden uzun gerçek bekleme ister → iki sabitin ilişkisi pinlenir (eskiden 8 sn < 15 sn idi).
+    expect(OAUTH_TOKEN_REQUEST_TIMEOUT_MS).toBe(15_000);
+    expect(OAUTH_REFRESH_WAIT_MS).toBeGreaterThan(OAUTH_TOKEN_REQUEST_TIMEOUT_MS);
+    expect(OAUTH_REFRESH_WAIT_MS).toBeLessThanOrEqual(OAUTH_TOKEN_REQUEST_TIMEOUT_MS + 5_000); // gönderim isteğini gereksiz uzatmasın
   });
 
   it("iki ayrı işletmenin yenilemeleri birbirini beklemez (kilit işletme başına)", async () => {

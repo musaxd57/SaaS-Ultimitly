@@ -302,12 +302,16 @@ export const POST = withManage(async (session, req) => {
   const erasureGuard = await loadErasureGuard(session.organizationId);
   // Takvim C1: uzun kimliklerin ESKİ (200'e kesilmiş) biçimiyle kalmış izleri — silme kaydı olanlar işlenmez, eski kimlikli satırlar yeni
   // kimliğe çevrilir (aşağıdaki aramalar yalnız yeni kimlikle çalışır). Önizlemede hiçbir şey yazılmaz. Kısa kimlikli dosyada sorgu yok.
+  /** Bu rotanın yazdığı satırların kanalı (sahiplik işareti). */
+  const ownChannel = isIcs ? "ics" : "manual";
   const legacyRefs = await reconcileLegacySourceReferences({
     organizationId: session.organizationId,
     propertyId,
-    // Bu rotanın sahiplik kuralı (↑ başlık): yalnız kendi yazdığı satırlar — bağlantısız VE `channel: "ics"`. Eski kimlik çevirisi de aynı
-    // kümeyle sınırlı (Haiku incelemesi 11-11: kanal kısıtı yoktu → başka kaynağın satırının kimliği çevrilebilirdi).
-    scope: { calendarSourceId: null, channel: "ics" },
+    // Bu rotanın sahiplik kuralı (↑ başlık): yalnız kendi yazdığı satırlar — bağlantısız VE dosya türünün kanalı (`.ics` → "ics",
+    // CSV → "manual"; ↓ oluşturma yolu aynı değeri yazar). Eski kimlik çevirisi de aynı kümeyle sınırlı (Haiku incelemesi 11-11: kanal
+    // kısıtı yoktu → başka kaynağın satırının kimliği çevrilebilirdi; Opus incelemesi 11-11: yalnız "ics" denince CSV'nin kendi eski
+    // satırı kapsam dışında kalıyor, aynı CSV yeniden yüklenince KOPYA açılıyordu).
+    scope: { calendarSourceId: null, channel: ownChannel },
     rows,
     readOnly: preview,
   });
@@ -392,7 +396,7 @@ export const POST = withManage(async (session, req) => {
       ? ((await prisma.reservation.findFirst({ where: { propertyId, sourceReference }, select: EXISTING_SELECT })) ??
         // Önizleme yazmaz → eski (kesilmiş) kimlikli satır henüz çevrilmedi; sınıflandırma onu yine "var" görsün (aktarımda çevrilir).
         (preview && row.legacySourceReference
-          ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference: row.legacySourceReference, calendarSourceId: null, channel: "ics" }, select: EXISTING_SELECT })
+          ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference: row.legacySourceReference, calendarSourceId: null, channel: ownChannel }, select: EXISTING_SELECT })
           : null))
       : null;
 
@@ -595,7 +599,7 @@ export const POST = withManage(async (session, req) => {
           async (tx) => {
             await acquireErasureLock(tx, session.organizationId);
             const fresh = await loadErasureGuard(session.organizationId, tx);
-            if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+            if (!fresh.isEmpty && (fresh.blocksSourceReference(sourceReference) || fresh.blocksSourceReference(row.legacySourceReference))) return null;
             // Sahiplik ve "zaten iptalli mi" WHERE'in İÇİNDE tekrar sınanıyor →
             // okuma ile yazma arasında araya giren bir senkron bizi yanıltamaz
             // (kardeş yolun `updateMany` ile atomik sahiplik kontrolü aynısı).
@@ -639,7 +643,7 @@ export const POST = withManage(async (session, req) => {
           async (tx) => {
             await acquireErasureLock(tx, session.organizationId);
             const fresh = await loadErasureGuard(session.organizationId, tx);
-            if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+            if (!fresh.isEmpty && (fresh.blocksSourceReference(sourceReference) || fresh.blocksSourceReference(row.legacySourceReference))) return null;
             // ATOMİK sahiplik: yalnız bu rotanın kendi CANLI satırı (`calendarSourceId`
             // NULL + `channel` "ics" + iptalli değil). Araya giren bir senkron/iptal
             // satırı değiştirdiyse count 0 → dokunmadan atla.
@@ -751,7 +755,7 @@ export const POST = withManage(async (session, req) => {
         async (tx) => {
           await acquireErasureLock(tx, session.organizationId);
           const fresh = await loadErasureGuard(session.organizationId, tx);
-          if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+          if (!fresh.isEmpty && (fresh.blocksSourceReference(sourceReference) || fresh.blocksSourceReference(row.legacySourceReference))) return null;
           // Kimliksiz (UID'siz) satırın doğal anahtar kontrolü KİLİT ALTINDA tekrarlanır (idempotency denetimi 10-15, P2): sınıflandırma
           // kilitsiz okur → aynı dosya iki sekmeden / çift tıkla eş zamanlı yüklenince ikisi de "yok" görüp çift rezervasyon + çift görev
           // açıyordu. Silme kilidi işletme başına tek (`acquireErasureLock`) → yazmalar sıraya girer, ikinci yazma birincinin satırını

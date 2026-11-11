@@ -31,8 +31,11 @@ export interface LegacyAwareRow {
 export async function reconcileLegacySourceReferences(opts: {
   organizationId: string;
   propertyId: string;
-  /** Eski satırın arandığı EK kapsam (ör. `{ calendarSourceId }` — yalnız bu ingress yolunun kendi satırları). */
-  scope: Prisma.ReservationWhereInput;
+  /**
+   * Eski satırın arandığı EK kapsam(lar) — bu ingress yolunun satır aramasıyla AYNI sırada (ör. takvim aboneliği: önce bu kaynağa bağlı
+   * satır, yoksa bağlantısız satır; dosya yolu: yalnız kendi yazdığı satırlar). Sırayla denenir, ilk bulunan çevrilir.
+   */
+  scope: Prisma.ReservationWhereInput | readonly Prisma.ReservationWhereInput[];
   rows: readonly LegacyAwareRow[];
   /** Önizleme: HİÇBİR ŞEY yazılmaz (yalnız silme kayıtlarına bakılır). */
   readOnly?: boolean;
@@ -59,10 +62,15 @@ export async function reconcileLegacySourceReferences(opts: {
           continue;
         }
         if (opts.readOnly) continue;
-        const row = await tx.reservation.findFirst({
-          where: { AND: [opts.scope, { propertyId: opts.propertyId, sourceReference: legacy }] },
-          select: { id: true, arrivalDate: true, departureDate: true },
-        });
+        const scopes = Array.isArray(opts.scope) ? (opts.scope as readonly Prisma.ReservationWhereInput[]) : [opts.scope as Prisma.ReservationWhereInput];
+        let row: { id: string; arrivalDate: Date; departureDate: Date } | null = null;
+        for (const scope of scopes) {
+          row = await tx.reservation.findFirst({
+            where: { AND: [scope, { propertyId: opts.propertyId, sourceReference: legacy }] },
+            select: { id: true, arrivalDate: true, departureDate: true },
+          });
+          if (row) break;
+        }
         if (!row) continue;
         const candidates = [...group.entries()];
         const sameDates = candidates.filter(

@@ -44,7 +44,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { GET as authorize } from "@/app/api/hospitable/oauth/authorize/route";
 import { GET as callback } from "@/app/api/hospitable/oauth/callback/route";
-import { setOrgHospitableOAuthTokens, consumeOAuthConnectIntent } from "@/lib/hospitable-credentials";
+import { setOrgHospitableOAuthTokens, consumeOAuthConnectIntent, registerOAuthConnectIntent } from "@/lib/hospitable-credentials";
 import {
   exchangeCodeForToken,
   HospitableOAuthError,
@@ -202,6 +202,15 @@ describe("OAuth callback — sağlayıcı reddi ile iç arıza AYRIŞIR (09-23)"
     expect(mockExchange).not.toHaveBeenCalled();
     expect(mockSave).not.toHaveBeenCalled();
     expect(res.cookies.get(OAUTH_STATE_COOKIE)?.value).toBe("");
+  });
+
+  it("🚨 akış başlarken niyet kaydı yazılamazsa (veritabanı arızası) ev sahibi yetki ekranına GÖNDERİLMEZ: bağlantı kurulamadı + operatöre bildirim", async () => {
+    session = owner("org_a", "user_1");
+    vi.mocked(registerOAuthConnectIntent).mockRejectedValueOnce(new Error("db down"));
+    const res = await authorize(new NextRequest("http://localhost/api/hospitable/oauth/authorize", { headers: { host: "www.lixusai.com" } })); // ⬅️ ESKİDE fırlatırdı
+    expect(res.headers.get("location")).toContain("/settings?hospitable=exchange_failed");
+    expect(res.cookies.get(OAUTH_STATE_COOKIE)).toBeUndefined(); // durum çerezi yazılmadı — akış başlamadı
+    await vi.waitFor(() => expect(vi.mocked(reportError)).toHaveBeenCalledTimes(1));
   });
 
   it("geçici sağlayıcı sorunu (5xx) ya da iç arıza HÂLÂ alarm üretir → exchange_failed", async () => {

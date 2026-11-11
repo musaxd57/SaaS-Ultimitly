@@ -8,6 +8,7 @@ import {
   getHospitableOAuthConfig,
   refreshAccessToken,
   HospitableOAuthError,
+  OAUTH_TOKEN_REQUEST_TIMEOUT_MS,
   type HospitableTokenSet,
 } from "@/lib/hospitable-oauth";
 import { reportError } from "@/lib/report-error";
@@ -244,7 +245,13 @@ class StaleRefresh extends Error {}
 // ---------------------------------------------------------------------------
 const refreshInFlight = new Map<string, Promise<string | null>>();
 const REFRESH_LOCK_TTL_MS = 60_000; // sağlayıcı zaman aşımı (15 sn) + iki yazım denemesi; çöken süreç en geç bu kadar sonra yol verir
-let refreshWaitMs = 8_000;
+/**
+ * Başka bir kopyanın yenilemesini bekleme süresi: sağlayıcı isteğinin zaman aşımından UZUN olmalı — kısaysa (eskiden 8 sn, zaman aşımı
+ * 15 sn) yavaş ama başarılı bir yenileme sürerken bekleyen çağrı anahtarsız dönüyor, ev sahibi o an yanıltıcı "bağlı değil" görüyordu
+ * (Opus 11-11). Zaman aşımından TÜRETİLİR (+2 sn: yanıtın yazılması) — biri değişince öteki geride kalmasın.
+ */
+export const OAUTH_REFRESH_WAIT_MS = OAUTH_TOKEN_REQUEST_TIMEOUT_MS + 2_000;
+let refreshWaitMs = OAUTH_REFRESH_WAIT_MS;
 let refreshPollMs = 250;
 /** Yalnız test: bekleme sürelerini kısaltır. */
 export function __setOAuthRefreshWaitForTests(waitMs: number, pollMs: number): void {
@@ -282,25 +289,33 @@ async function awaitOtherRefresh(
   orgRefreshBlobAtStart: string | null,
   fallback?: { currentAccessToken: string; expiresAt: Date },
 ): Promise<string | null> {
-  const deadline = Date.now() + refreshWaitMs;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, refreshPollMs));
+  /** Saklanan anahtar değiştiyse sonucu döndürür (`{ token }`: yeni anahtar ya da bağlantı kalktıysa null); değişmediyse `undefined`. */
+  const changed = async (): Promise<{ token: string | null } | undefined> => {
     const org = await prisma.organization
       .findUnique({ where: { id: orgId }, select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true } })
       .catch(() => undefined);
-    if (org === null) return null;
-    if (org && org.hospitableRefreshTokenEnc !== orgRefreshBlobAtStart) {
-      // Kazanan yeni anahtarları yazdı (ya da bağlantı bu arada kaldırıldı / değişti).
-      if (!org.hospitableTokenEnc) return null;
-      try {
-        return decryptSecret(org.hospitableTokenEnc);
-      } catch {
-        return null;
-      }
+    if (org === null) return { token: null };
+    if (!org || org.hospitableRefreshTokenEnc === orgRefreshBlobAtStart) return undefined;
+    // Kazanan yeni anahtarları yazdı (ya da bağlantı bu arada kaldırıldı / değişti).
+    if (!org.hospitableTokenEnc) return { token: null };
+    try {
+      return { token: decryptSecret(org.hospitableTokenEnc) };
+    } catch {
+      return { token: null };
     }
+  };
+  const deadline = Date.now() + refreshWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, refreshPollMs));
+    const now = await changed();
+    if (now) return now.token;
     const lock = await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) }, select: { lockedUntil: true } }).catch(() => undefined);
-    if (lock === null || (lock && lock.lockedUntil <= new Date())) break; // öteki yenileme bitti ama anahtar değişmedi (başarısız)
+    if (lock === null || (lock && lock.lockedUntil <= new Date())) break; // öteki yenileme bitti
   }
+  // Öteki kopya anahtarı yazıp kilidini, yukarıdaki iki okumanın ARASINDA bırakmış olabilir → son bir kez bakılır (yoksa yeni anahtar
+  // dururken bu tur anahtarsız biterdi; Opus 11-11).
+  const last = await changed();
+  if (last) return last.token;
   return fallback && fallback.expiresAt.getTime() > Date.now() ? fallback.currentAccessToken : null;
 }
 

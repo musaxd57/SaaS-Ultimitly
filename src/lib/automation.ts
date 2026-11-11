@@ -5606,6 +5606,43 @@ type LifecycleDepartureRow = Prisma.ReservationGetPayload<{ select: typeof LIFEC
  * aday toplanınca ya da okuma sınırına (`LIFECYCLE_SCAN_PAGES`) varınca durulur. Bir geçişte en çok 25 mesaj kuralı AYNI.
  * Metin daire başına bir kez okunur (gönderim anında sürüm yeniden doğrulanır — `autoMessageStillAt`).
  */
+/**
+ * Ön eleme (↓ `prepareLifecycleCandidates.unusable`): sayfadaki adaylardan BU GEÇİŞTE hiçbir koşulda gönderilmeyecek olanların kimlikleri.
+ *  · açıkça silinmiş (KVKK) misafir — gönderim döngüsü onu zaten atlıyor (kuyruk yolunda ön eleme, doğrudan yolda işlem içi kapı);
+ *  · kuyruğun sahiplendiği rezervasyon — kuyruk KAPALIYKEN `failed` dışındaki her satır (↑`lifecycleOutboxOwns` ile aynı kural), kuyruk
+ *    AÇIKKEN aynı anahtarlı, BEKLEMEDE OLMAYAN (`pending` dışı) her satır: yeniden kuyruğa verme "zaten var" der ve hiçbir şey yapmaz.
+ *    🚨 `pending` satır ELENMEZ: giriş göndericisi ertelenmiş (vadesi ileride) bekleyen satırın vadesini, tarih yeniden pencereye girince
+ *    şimdiye çeker (Y4) — o iş gönderim döngüsündedir; bekleyen satır zaten birkaç dakikada teslim edilip damgalanır, listeyi tıkamaz.
+ * Sayfa başına TEK kuyruk sorgusu; silme kapısı koşu başına bir kez okunur (`erasureGuardMemo`).
+ */
+async function lifecycleUnusableIds(
+  organizationId: string,
+  messageType: AutoMessageKind,
+  rows: readonly { id: string; sourceReference: string | null }[],
+  erasureGuard: () => Promise<{ blocksSourceReference(ref: string | null | undefined): boolean }>,
+): Promise<ReadonlySet<string>> {
+  const out = new Set<string>();
+  const refs = [...new Set(rows.map((r) => r.sourceReference).filter((v): v is string => !!v))];
+  if (refs.length === 0) return out;
+  const guard = await erasureGuard();
+  const owned = new Set(
+    (durableOutboxEnabledFor(organizationId)
+      ? await prisma.messageOutbox.findMany({
+          where: { organizationId, idempotencyKey: { in: refs.map((ref) => `${messageType}:${organizationId}:${ref}`) }, status: { not: "pending" } },
+          select: { externalReservationId: true },
+        })
+      : await prisma.messageOutbox.findMany({
+          where: { organizationId, messageType, externalReservationId: { in: refs }, status: { not: "failed" } },
+          select: { externalReservationId: true },
+        })
+    ).map((o) => o.externalReservationId),
+  );
+  for (const r of rows) {
+    if (r.sourceReference && (guard.blocksSourceReference(r.sourceReference) || owned.has(r.sourceReference))) out.add(r.id);
+  }
+  return out;
+}
+
 async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts: {
   kind: AutoMessageKind;
   signature: string | undefined;
@@ -5613,6 +5650,13 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
   fetchPage: (after: R | null, take: number) => Promise<R[]>;
   /** Kesin gün kararı (sorgunun üst kümesinden komşu günün çapası elenir). */
   eligible: (r: R) => boolean;
+  /**
+   * Ön eleme (Opus incelemesi 11-11): sayfadaki adaylardan BU GEÇİŞTE hiçbir koşulda gönderilmeyecek olanların kimlikleri — açıkça
+   * silinmiş (KVKK) misafir ya da kuyruğun sahiplendiği rezervasyon. Bunlar da damgalanmadığı için her geçişte en öne geliyor, 25'lik
+   * listeyi doldurup arkadaki gönderilebilir rezervasyonu bekletebiliyordu (A26 ile aynı tıkanma, başka sebep). Gönderim döngüsündeki
+   * kesin kontroller (işlem içinde, taze) AYNEN durur; burası yalnız listeyi boşa doldurmamak içindir.
+   */
+  unusable?: (rows: readonly R[]) => Promise<ReadonlySet<string>>;
 }): Promise<{ ready: { r: R; tpl: LoadedAutoMessage; body: string }[]; considered: number; unfilled: number }> {
   const ready: { r: R; tpl: LoadedAutoMessage; body: string }[] = [];
   let considered = 0;
@@ -5624,6 +5668,7 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
     const rows: R[] = await opts.fetchPage(after, LIFECYCLE_SEND_CAP);
     if (rows.length === 0) break;
     after = rows[rows.length - 1];
+    let unusable: ReadonlySet<string> | null = null; // sayfa başına en çok bir kez, ilk gönderilebilir adayda okunur
     for (const r of rows) {
       if (ready.length >= LIFECYCLE_SEND_CAP) break;
       // Rezervasyon başına tek mesaj: aynı rezervasyonun kopya satırı başka sayfada yeniden gelebilir.
@@ -5648,6 +5693,10 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
         // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
         void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
         continue;
+      }
+      if (opts.unusable) {
+        unusable ??= await opts.unusable(rows);
+        if (unusable.has(r.id)) continue;
       }
       ready.push({ r, tpl, body });
     }
@@ -5731,6 +5780,7 @@ export async function sendDueWelcomes(
     unfilled,
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "welcome",
+    unusable: (rows) => lifecycleUnusableIds(organizationId, "welcome", rows, runErasureGuard),
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
     fetchPage: (after, take) =>
@@ -5931,6 +5981,7 @@ export async function sendDueCheckins(
     unfilled,
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "checkin",
+    unusable: (rows) => lifecycleUnusableIds(organizationId, "checkin", rows, runErasureGuard),
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
     fetchPage: (after, take) =>
@@ -6296,6 +6347,7 @@ export async function sendDueCheckouts(
     unfilled,
   } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
     kind: "checkout",
+    unusable: (rows) => lifecycleUnusableIds(organizationId, "checkout", rows, runErasureGuard),
     signature,
     eligible: (r) => calendarDateOf(r.departureDate, tz).key === today,
     fetchPage: (after, take) =>

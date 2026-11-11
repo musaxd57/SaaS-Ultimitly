@@ -560,13 +560,13 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
   }
 }
 
-/** `getSubscriptionCreatedAt` sonucu: okuma GEÇİCİ olarak başarısız (ağ / zaman aşımı / 5xx / 408 / 429) — "bilinmiyor"dan AYRI. */
+/** `getSubscriptionCreatedAt` sonucu: abonelik ŞU AN OKUNAMADI (ağ / zaman aşımı / 5xx / 408 / 429 / bizim anahtarımız reddedildi) — "bilinmiyor"dan AYRI. */
 export const SUBSCRIPTION_READ_TRANSIENT = "transient" as const;
 
 /**
  * Aboneliğin Paddle'daki oluşturulma anı (`data.created_at`). B-1 (kurucu 11-04): iki abonelikte hangisinin DAHA YENİ olduğunu bilmek için —
  * eski aboneliğin sonraki "aktif" olayı yeni aboneliğin yerini almasın. Asla fırlatmaz. Üç sonuç (ödeme P1, Codex 11-10 — "okunamadı" ile
- * "yok" aynı şey DEĞİL): tarih · `null` = KESİN bilinmiyor (anahtar tanımsız, abonelik Paddle'da yok, alan yok / bozuk, kalıcı ret) ·
+ * "yok" aynı şey DEĞİL): tarih · `null` = KESİN bilinmiyor (anahtar tanımsız, abonelik Paddle'da yok, alan yok / bozuk) ·
  * `SUBSCRIPTION_READ_TRANSIENT` = şu an okunamadı, sonra okunabilir (çağıran tahmin yürütmez).
  */
 export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<Date | null | typeof SUBSCRIPTION_READ_TRANSIENT> {
@@ -581,12 +581,21 @@ export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<
   }
 }
 
-/** Salt-okuma isteğinde "sonra yeniden denenebilir" hata: HTTP durumu yoksa (ağ / zaman aşımı), 5xx, 408 ya da 429. */
+/**
+ * Salt-okuma isteğinde "OKUYAMADIK — abonelik hakkında hiçbir şey öğrenmedik" hatası: HTTP durumu yoksa (ağ / zaman aşımı), 5xx, 408, 429
+ * ya da 401 / 403.
+ *
+ * 🚨 401 / 403 DE BU SINIFTADIR (Opus incelemesi 11-11). Bunlar "abonelik yok" DEĞİL, "bizim API anahtarımız reddedildi" demektir (süresi
+ * dolmuş / iptal edilmiş anahtar — 13 Eylül'de yaşandı). Webhook imzası AYRI sırla doğrulandığı için olaylar o sırada da gelir; anahtar
+ * arızası "kesin bilinmiyor" sayılsaydı eski aboneliğin aktif olayı, ödeyen yeni aboneliğin üstüne yazabilirdi (tam da B-1 / P1'in
+ * önlediği sonuç). Okunamayan durumda çağıran tahmin yürütmez: olay işlenmiş sayılmaz, sağlayıcı yeniden gönderir, anahtar düzelince
+ * karar gerçek veriyle verilir. KESİN bilinmezlik yalnız aboneliğin kendisine dair cevaplardır (404 "yok", 400 bozuk kimlik, alan yok).
+ */
 export function isTransientPaddleReadFailure(err: unknown): boolean {
   const m = (err instanceof Error ? err.message : String(err)).match(/Paddle HTTP (\d{3})/);
   if (!m) return true;
   const status = Number(m[1]);
-  return status >= 500 || status === 408 || status === 429;
+  return status >= 500 || status === 408 || status === 429 || status === 401 || status === 403;
 }
 
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */

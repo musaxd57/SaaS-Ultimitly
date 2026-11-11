@@ -18,6 +18,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 
 import { sendDueWelcomes, sendDueCheckins, sendDueCheckouts, currentHourInTimeZone } from "@/lib/automation";
 import { sendOnChannel } from "@/lib/messaging";
+import { tombstoneKeyHash, currentKeyFingerprint } from "@/lib/erasure";
 
 const mockSend = vi.mocked(sendOnChannel);
 const DAY = 86_400_000;
@@ -165,6 +166,149 @@ describe("yaşam döngüsü göndericileri — gönderilemeyen adaylar sırayı 
 
     const out = await sendDueCheckouts(orgId);
     expect(out.sent).toBe(1); // ⬅️ ESKİDE 0
+    expect(String(mockSend.mock.calls[0][1])).toContain("anahtarı kutuya");
+  });
+
+  // ── Opus incelemesi 11-11: aynı tıkanma, BAŞKA SEBEP — metni olan ama bu geçişte hiçbir koşulda gönderilmeyecek adaylar ──────────────
+  // Açıkça silinmiş (KVKK) misafirin ve kuyruğun sahiplendiği rezervasyonun satırı da damgalanmaz → her geçişte en öne gelir. Eskiden bu
+  // 25 aday listeyi dolduruyor, döngüde tek tek atlanıyor, arkadaki gönderilebilir rezervasyona sıra hiç gelmiyordu.
+  const WELCOME = "Merhaba {isim}, rezervasyonunuz için teşekkürler.";
+  async function outboxRows(orgId: string, prefix: string, count: number, status: string, type = "welcome") {
+    await prisma.messageOutbox.createMany({
+      data: Array.from({ length: count }, (_, i) => ({
+        organizationId: orgId,
+        channel: "airbnb",
+        externalReservationId: `${prefix}-${i}`,
+        messageType: type,
+        body: "kuyruktaki eski metin",
+        idempotencyKey: `${type}:${orgId}:${prefix}-${i}`,
+        status,
+      })),
+    });
+  }
+
+  it("🚨 açıkça SİLİNMİŞ (KVKK) 30 misafirin erken rezervasyonu, arkadaki gönderilebilir rezervasyonu engellemez; silinenlere mesaj GİTMEZ", async () => {
+    const { orgId, blockedId, goodId } = await seedOrg();
+    await seedAutoMessage(blockedId, "welcome", WELCOME);
+    await seedReservations(blockedId, "blk", 30, upcoming(1));
+    await prisma.erasureTombstone.createMany({
+      data: Array.from({ length: 30 }, (_, i) => ({
+        organizationId: orgId,
+        keyType: "source_reference",
+        keyHash: tombstoneKeyHash(orgId, "source_reference", `blk-${i}`)!,
+        keyFingerprint: currentKeyFingerprint(),
+        erasedAt: new Date(),
+      })),
+    });
+    await seedAutoMessage(goodId, "welcome", WELCOME);
+    await seedReservations(goodId, "ok", 1, upcoming(5));
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1); // ⬅️ ESKİDE 0
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.reservation.count({ where: { propertyId: blockedId, welcomeSentAt: { not: null } } })).toBe(0);
+    expect(await prisma.reservation.count({ where: { propertyId: goodId, welcomeSentAt: { not: null } } })).toBe(1);
+  });
+
+  it("🚨 kuyruk KAPALI: kuyruğun sahiplendiği (incelemede bekleyen) 30 rezervasyon, arkadaki gönderilebilir rezervasyonu engellemez; onlara ikinci kez GÖNDERİLMEZ", async () => {
+    const { orgId, blockedId, goodId } = await seedOrg();
+    await seedAutoMessage(blockedId, "welcome", WELCOME);
+    await seedReservations(blockedId, "blk", 30, upcoming(1));
+    await outboxRows(orgId, "blk", 30, "review");
+    await seedAutoMessage(goodId, "welcome", WELCOME);
+    await seedReservations(goodId, "ok", 1, upcoming(5));
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1); // ⬅️ ESKİDE 0
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.reservation.count({ where: { propertyId: blockedId, welcomeSentAt: { not: null } } })).toBe(0);
+  });
+
+  it("KONTROL (kuyruk KAPALI): kuyrukta KESİN başarısız (`failed`) satırı olan rezervasyon elenmez — doğrudan yol yeniden dener (eski kural aynen)", async () => {
+    const { orgId, goodId } = await seedOrg();
+    await seedAutoMessage(goodId, "welcome", WELCOME);
+    await seedReservations(goodId, "ok", 2, upcoming(2));
+    await outboxRows(orgId, "ok", 1, "failed"); // ok-0: kuyrukta kesin başarısız
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(2);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("KONTROL (kuyruk KAPALI): BAŞKA türün kuyruk satırı (giriş mesajı) karşılamayı elemez", async () => {
+    const { orgId, goodId } = await seedOrg();
+    await seedAutoMessage(goodId, "welcome", WELCOME);
+    await seedReservations(goodId, "ok", 1, upcoming(2));
+    await outboxRows(orgId, "ok", 1, "review", "checkin");
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+  });
+
+  it("🚨 kuyruk AÇIK: kuyrukta zaten satırı olan (kesin başarısız dahil) 30 rezervasyon, arkadaki rezervasyonun kuyruğa girmesini engellemez", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { orgId, blockedId, goodId } = await seedOrg();
+    await seedAutoMessage(blockedId, "welcome", WELCOME);
+    await seedReservations(blockedId, "blk", 30, upcoming(1));
+    await outboxRows(orgId, "blk", 30, "failed"); // yeniden kuyruğa verme "zaten var" der — hiçbiri bir daha gönderilmez
+    await seedAutoMessage(goodId, "welcome", WELCOME);
+    await seedReservations(goodId, "ok", 1, upcoming(5));
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1); // ⬅️ ESKİDE 0 (25 "zaten var" adayı listeyi dolduruyordu)
+    expect(mockSend).not.toHaveBeenCalled(); // gönderim işçinin işi
+    const queued = await prisma.messageOutbox.findMany({ where: { organizationId: orgId, externalReservationId: "ok-0" }, select: { status: true, messageType: true } });
+    expect(queued).toEqual([{ status: "pending", messageType: "welcome" }]);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(31); // eski satırlar çoğalmadı
+  });
+
+  it("KONTROL (kuyruk AÇIK): BEKLEYEN (`pending`) kuyruk satırı elenmez — ertelenmiş giriş mesajının vadesi tarih pencereye girince şimdiye çekilir", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { orgId, goodId } = await seedOrg();
+    await seedAutoMessage(goodId, "checkin", "Merhaba {isim}, giriş 15:00'ten itibaren; anahtar kutusu kapının sağında.");
+    const arrival = new Date(Date.now() + 60 * 60_000);
+    await prisma.reservation.create({
+      data: { propertyId: goodId, guestName: "Misafir", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "ok-0" },
+    });
+    // İşçinin ertelediği satır: bekliyor, vadesi 80 gün sonra (varış ileri alınmıştı; şimdi yeniden pencerede).
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId, channel: "airbnb", externalReservationId: "ok-0", messageType: "checkin", body: "eski metin",
+        idempotencyKey: `checkin:${orgId}:ok-0`, status: "pending", availableAt: new Date(Date.now() + 80 * DAY),
+      },
+    });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0); // yeni satır yok (tek anahtar)
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(row.availableAt.getTime()).toBeLessThanOrEqual(Date.now()); // ⬅️ ön eleme bu satırı eleseydi vade 80 gün sonra kalırdı
+  });
+
+  it("giriş bilgisi ve çıkış göndericileri de aynı ön elemeyi KENDİ türleriyle kullanır (kuyruğun sahiplendiği 30 rezervasyon arkadakini engellemez)", async () => {
+    const { orgId, blockedId, goodId } = await seedOrg(morningZone());
+    // Giriş: hepsi bugün içinde, kuyruğun sahiplendikleri daha erken.
+    const soon = (baseMin: number) => (i: number) => {
+      const arrival = new Date(Date.now() + (baseMin + i) * 60_000);
+      return { arrival, departure: new Date(arrival.getTime() + 2 * DAY) };
+    };
+    await seedAutoMessage(blockedId, "checkin", "Merhaba {isim}, giriş 15:00'ten itibaren.");
+    await seedAutoMessage(goodId, "checkin", "Merhaba {isim}, giriş 15:00'ten itibaren; anahtar kutusu kapının sağında.");
+    await seedReservations(blockedId, "cin", 30, soon(30));
+    await outboxRows(orgId, "cin", 30, "review", "checkin");
+    await seedReservations(goodId, "cinok", 1, soon(120));
+    const checkins = await sendDueCheckins(orgId);
+    expect(checkins.sent).toBe(1); // ⬅️ ESKİDE 0
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(String(mockSend.mock.calls[0][1])).toContain("anahtar kutusu");
+
+    // Çıkış: bugün çıkanlar, kuyruğun sahiplendikleri daha erken.
+    mockSend.mockClear();
+    const leavingToday = (baseSec: number) => (i: number) => ({ arrival: new Date(Date.now() - 2 * DAY), departure: new Date(Date.now() + (baseSec + i) * 1_000) });
+    await seedAutoMessage(blockedId, "checkout", "Merhaba {isim}, çıkış saati 11:00.");
+    await seedAutoMessage(goodId, "checkout", "Merhaba {isim}, çıkış saati 11:00; anahtarı kutuya bırakabilirsiniz.");
+    await seedReservations(blockedId, "cout", 30, leavingToday(0));
+    await outboxRows(orgId, "cout", 30, "review", "checkout");
+    await seedReservations(goodId, "coutok", 1, leavingToday(600));
+    const checkouts = await sendDueCheckouts(orgId);
+    expect(checkouts.sent).toBe(1); // ⬅️ ESKİDE 0
+    expect(mockSend).toHaveBeenCalledTimes(1);
     expect(String(mockSend.mock.calls[0][1])).toContain("anahtarı kutuya");
   });
 });

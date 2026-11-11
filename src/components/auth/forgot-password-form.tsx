@@ -180,7 +180,9 @@ export function ForgotPasswordForm() {
         ),
       });
       const data = await res.json().catch(() => ({}));
-      if (latestToken.current !== sentWith) return; // bu arada başka bir bağlantı açıldı: eski isteğin sonucu bu ekrana ait değil
+      // Bu arada başka bir bağlantı açıldıysa eski isteğin HATASI bu ekrana ait değildir (yutulur). BAŞARI ise yutulmaz: şifre gerçekten
+      // değişti — kullanıcı bunu bilmeli, yeni bağlantıyla ikinci kez değiştirmeye uğraşmasın (Opus incelemesi 11-11).
+      if (latestToken.current !== sentWith && !res.ok) return;
       if (!res.ok) {
         if (data.fields?.code) setFieldError({ code: data.fields.code });
         else if (data.fields?.newPassword) setFieldError({ newPassword: data.fields.newPassword });

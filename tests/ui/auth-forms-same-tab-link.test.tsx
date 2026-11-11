@@ -114,6 +114,24 @@ describe("A3 — şifre sıfırlama: aynı sekmede açılan yeni bağlantı okun
     expect((screen.getByLabelText(/Doğrulama kodu/) as HTMLInputElement).value).toBe("");
   });
 
+  it("🚨 istek sürerken yeni bağlantı açılsa da eski isteğin BAŞARISI gizlenmez: şifre değişti, kullanıcı bunu görür", async () => {
+    let release!: (r: Response) => void;
+    const pending = new Promise<Response>((r) => (release = r));
+    const fetchMock = vi.fn(() => pending);
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState({}, "", `/sifremi-unuttum#t=${OLD}`);
+    render(<ForgotPasswordForm />);
+    fireEvent.change(await screen.findByLabelText(/Doğrulama kodu/), { target: { value: "11111111" } });
+    fireEvent.change(screen.getByLabelText(/Yeni şifre/), { target: { value: "yeni-sifre-12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /Şifreyi sıfırla|Gönderiliyor|Sıfırlanıyor/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await openLinkInSameTab("/sifremi-unuttum", `#t=${NEW}`);
+    await act(async () => {
+      release(new Response("{}", { status: 200 }));
+    });
+    expect(await screen.findByText(/Şifreniz güncellendi/)).toBeTruthy(); // ⬅️ (ilk sürümde) yeni bağlantının boş formu kalıyordu
+  });
+
   it("sayfa kapanınca dinleyici kaldırılır (kapalı form sonraki bağlantıyı yutmaz)", async () => {
     window.history.replaceState({}, "", "/sifremi-unuttum");
     const { unmount } = render(<ForgotPasswordForm />);
