@@ -135,8 +135,8 @@ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { apartmentResolvable, fillGuestPlaceholders, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
-import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
-import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
+import { buildGuestMessageBody, hasUnfilledPlaceholders, type AutoMessageKind } from "@/lib/auto-messages/render";
+import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip, type LoadedAutoMessage } from "@/lib/auto-messages/store";
 import { isGreetingOnly, modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { foldPartText, partTextKey } from "@/lib/ai/answer-parts";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
@@ -5574,6 +5574,84 @@ export async function lifecycleBaselineWhere(organizationId: string, baseline: D
   };
 }
 
+/** Bir geçişte bir göndericinin (karşılama / giriş / çıkış) göndereceği en çok mesaj — anahtar açılınca toplu patlama olmasın. */
+const LIFECYCLE_SEND_CAP = 25;
+/** Gönderilebilir aday aranırken bir geçişte okunan en çok sayfa (sayfa = `LIFECYCLE_SEND_CAP` satır) — okuma sınırsız büyümesin. */
+const LIFECYCLE_SCAN_PAGES = 8;
+
+/** Aday satırının ortak alanları (geliş / çıkış tarihi göndericiye göre eklenir). */
+const LIFECYCLE_CANDIDATE_SELECT = {
+  id: true,
+  guestName: true,
+  channel: true,
+  sourceReference: true,
+  propertyId: true,
+  property: { select: { name: true } },
+} satisfies Prisma.ReservationSelect;
+const LIFECYCLE_ARRIVAL_SELECT = { ...LIFECYCLE_CANDIDATE_SELECT, arrivalDate: true } satisfies Prisma.ReservationSelect;
+const LIFECYCLE_DEPARTURE_SELECT = { ...LIFECYCLE_CANDIDATE_SELECT, departureDate: true } satisfies Prisma.ReservationSelect;
+type LifecycleCandidateRow = Prisma.ReservationGetPayload<{ select: typeof LIFECYCLE_CANDIDATE_SELECT }>;
+type LifecycleArrivalRow = Prisma.ReservationGetPayload<{ select: typeof LIFECYCLE_ARRIVAL_SELECT }>;
+type LifecycleDepartureRow = Prisma.ReservationGetPayload<{ select: typeof LIFECYCLE_DEPARTURE_SELECT }>;
+
+/**
+ * 🚨 GÖNDERİLEMEYEN ADAYLAR SIRAYI TIKAMAZ (mesaj A26, Codex 11-10). Üç gönderici en erken tarihli 25 adayı alıp döngüde eliyordu; metni
+ * olmayan dairenin ya da metni doldurulamayan (`{daire}` çözülemedi vb.) dairenin rezervasyonları DAMGALANMADIĞI için her geçişte yine ilk
+ * 25'i dolduruyor, arkalarındaki gönderilebilir rezervasyonlara sıra HİÇ gelmiyordu (karşılama / giriş bilgisi / çıkış mesajı sessizce
+ * gitmiyordu). Adaylar artık sayfa sayfa okunur; gönderilemeyenler (metin yok · doldurulamadı) atlanıp okumaya devam edilir, 25 GÖNDERİLEBİLİR
+ * aday toplanınca ya da okuma sınırına (`LIFECYCLE_SCAN_PAGES`) varınca durulur. Bir geçişte en çok 25 mesaj kuralı AYNI.
+ * Metin daire başına bir kez okunur (gönderim anında sürüm yeniden doğrulanır — `autoMessageStillAt`).
+ */
+async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts: {
+  kind: AutoMessageKind;
+  signature: string | undefined;
+  /** Bir sayfa aday; `after` önceki sayfanın son satırı (ilk sayfada null). Sıra (tarih, kimlik) ARTAN olmalı. */
+  fetchPage: (after: R | null, take: number) => Promise<R[]>;
+  /** Kesin gün kararı (sorgunun üst kümesinden komşu günün çapası elenir). */
+  eligible: (r: R) => boolean;
+}): Promise<{ ready: { r: R; tpl: LoadedAutoMessage; body: string }[]; considered: number; unfilled: number }> {
+  const ready: { r: R; tpl: LoadedAutoMessage; body: string }[] = [];
+  let considered = 0;
+  let unfilled = 0;
+  const seenBookings = new Set<string>();
+  const templates = new Map<string, LoadedAutoMessage | null>();
+  let after: R | null = null;
+  for (let page = 0; page < LIFECYCLE_SCAN_PAGES && ready.length < LIFECYCLE_SEND_CAP; page++) {
+    const rows: R[] = await opts.fetchPage(after, LIFECYCLE_SEND_CAP);
+    if (rows.length === 0) break;
+    after = rows[rows.length - 1];
+    for (const r of rows) {
+      if (ready.length >= LIFECYCLE_SEND_CAP) break;
+      // Rezervasyon başına tek mesaj: aynı rezervasyonun kopya satırı başka sayfada yeniden gelebilir.
+      if (r.sourceReference) {
+        if (seenBookings.has(r.sourceReference)) continue;
+        seenBookings.add(r.sourceReference);
+      }
+      if (!opts.eligible(r)) continue;
+      considered++;
+      let tpl = templates.get(r.propertyId);
+      if (tpl === undefined) {
+        tpl = await loadAutoMessage(r.propertyId, opts.kind);
+        templates.set(r.propertyId, tpl);
+      }
+      if (!tpl) continue; // bu dairenin metni yok → atla (sıradaki adaya bakılır)
+      const body = buildGuestMessageBody(tpl.content, guestFirstNameOf(r.guestName), signatureForChannel(opts.signature, r.channel), r.property.name);
+      // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
+      // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
+      // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
+      if (hasUnfilledPlaceholders(body)) {
+        unfilled++;
+        // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
+        void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
+        continue;
+      }
+      ready.push({ r, tpl, body });
+    }
+    if (rows.length < LIFECYCLE_SEND_CAP) break;
+  }
+  return { ready, considered, unfilled };
+}
+
 /**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
@@ -5619,65 +5697,49 @@ export async function sendDueWelcomes(
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
-  const candidates = await prisma.reservation.findMany({
-    where: {
-      property: { organizationId },
-      status: "confirmed",
-      welcomeSentAt: null,
-      // V0.5: mesajlanabilirlik TEK KAYNAK (channels/capability.ts) — sourceReference
-      // dolu + calendarSourceId null + channel notIn [ics, manual]. Gerekçe (08-08
-      // denetimi: `channel` iCal işaretçisi DEĞİL, gerçek işaretçi calendarSourceId)
-      // fragment'in başlığında; önizleme aynı fragment'i yayar → parite yapısal.
-      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
-      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
-      // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
-      AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
-    },
-    select: {
-      id: true,
-      guestName: true,
-      channel: true,
-      sourceReference: true,
-      propertyId: true,
-      arrivalDate: true,
-      property: { select: { name: true } },
-    },
-    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
-    orderBy: { arrivalDate: "asc" },
-    take: 25, // cap per run so enabling the toggle can't cause a huge burst
-  });
-  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
+  const candidateWhere: Prisma.ReservationWhereInput = {
+    property: { organizationId },
+    status: "confirmed",
+    welcomeSentAt: null,
+    // V0.5: mesajlanabilirlik TEK KAYNAK (channels/capability.ts) — sourceReference
+    // dolu + calendarSourceId null + channel notIn [ics, manual]. Gerekçe (08-08
+    // denetimi: `channel` iCal işaretçisi DEĞİL, gerçek işaretçi calendarSourceId)
+    // fragment'in başlığında; önizleme aynı fragment'i yayar → parite yapısal.
+    ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
+    // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
+    // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
+    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
+  };
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
-  /**
-   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
-   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
-   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
-   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
-   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
-   */
-  let unfilled = 0;
+  // `unfilled` (↓ aday hazırlığından): doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a İTİLMEZ ve itilmemeli:
+  // o dizi 6 saatlik `SystemLock` penceresini tüketen "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim denenmedi
+  // bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
   const runErasureGuard = erasureGuardMemo(organizationId);
-  for (const r of reservations) {
-    const welcome = await loadAutoMessage(r.propertyId, "welcome");
-    if (!welcome) continue; // this apartment has no welcome text → skip
-
-    const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(welcome.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
-    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
-    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
-    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
-    if (hasUnfilledPlaceholders(body)) {
-      unfilled++;
-      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
-      void recordAutoMessageSkip(welcome.id, usesApartmentToken(welcome.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
-      continue;
-    }
-
+  const {
+    ready,
+    considered,
+    unfilled,
+  } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
+    kind: "welcome",
+    signature,
+    eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
+    fetchPage: (after, take) =>
+      prisma.reservation.findMany({
+        where: after
+          ? { AND: [candidateWhere, { OR: [{ arrivalDate: { gt: after.arrivalDate } }, { arrivalDate: after.arrivalDate, id: { gt: after.id } }] }] }
+          : candidateWhere,
+        select: LIFECYCLE_ARRIVAL_SELECT,
+        distinct: ["sourceReference"], // one message per booking, even if rows duplicated
+        orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+        take,
+      }),
+  });
+  for (const { r, tpl: welcome, body } of ready) {
     // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
     // Enqueue the welcome and let the worker deliver it. welcomeSentAt is stamped ONLY on
     // confirmed delivery (by the worker), never here — so a queued-but-undelivered welcome
@@ -5792,8 +5854,8 @@ export async function sendDueWelcomes(
     sent++;
   }
 
-  await reportLifecycleSendFailures("welcome", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length, unfilled };
+  await reportLifecycleSendFailures("welcome", organizationId, failures, considered);
+  return { sent, considered, unfilled };
 }
 
 /**
@@ -5838,61 +5900,46 @@ export async function sendDueCheckins(
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
-  const candidates = await prisma.reservation.findMany({
-    where: {
-      property: { organizationId },
-      status: "confirmed",
-      checkinSentAt: null,
-      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
-      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
-      arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
-      // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
-      AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
-    },
-    select: {
-      id: true,
-      guestName: true,
-      channel: true,
-      sourceReference: true,
-      propertyId: true,
-      arrivalDate: true,
-      property: { select: { name: true } },
-    },
-    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
-    orderBy: { arrivalDate: "asc" },
-    take: 25,
-  });
-  const reservations = candidates.filter((r) => calendarDateOf(r.arrivalDate, tz).key >= today);
+  const candidateWhere: Prisma.ReservationWhereInput = {
+    property: { organizationId },
+    status: "confirmed",
+    checkinSentAt: null,
+    ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
+    // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
+    arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
+    // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
+    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
+  };
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
-  /**
-   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
-   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
-   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
-   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
-   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
-   */
-  let unfilled = 0;
+  // `unfilled` (↓ aday hazırlığından): doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a İTİLMEZ ve itilmemeli:
+  // o dizi 6 saatlik `SystemLock` penceresini tüketen "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim denenmedi
+  // bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
   const runErasureGuard = erasureGuardMemo(organizationId);
-  for (const r of reservations) {
-    const tpl = await loadAutoMessage(r.propertyId, "checkin");
-    if (!tpl) continue; // no check-in info entry for this apartment → skip
-
-    const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
-    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
-    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
-    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
-    if (hasUnfilledPlaceholders(body)) {
-      unfilled++;
-      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
-      void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
-      continue;
-    }
+  const {
+    ready,
+    considered,
+    unfilled,
+  } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
+    kind: "checkin",
+    signature,
+    eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
+    fetchPage: (after, take) =>
+      prisma.reservation.findMany({
+        where: after
+          ? { AND: [candidateWhere, { OR: [{ arrivalDate: { gt: after.arrivalDate } }, { arrivalDate: after.arrivalDate, id: { gt: after.id } }] }] }
+          : candidateWhere,
+        select: LIFECYCLE_ARRIVAL_SELECT,
+        distinct: ["sourceReference"], // one message per booking, even if rows duplicated
+        orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+        take,
+      }),
+  });
+  for (const { r, tpl: tpl, body } of ready) {
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
@@ -6012,8 +6059,8 @@ export async function sendDueCheckins(
     sent++;
   }
 
-  await reportLifecycleSendFailures("checkin", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length, unfilled };
+  await reportLifecycleSendFailures("checkin", organizationId, failures, considered);
+  return { sent, considered, unfilled };
 }
 
 /** Önizleme satırının "gönderilmez" sebebi — gönderici kapısıyla aynı sıra (daire numarası önce, sonra doldurulmamış alan). */
@@ -6210,69 +6257,54 @@ export async function sendDueCheckouts(
   const baseline = org.autoCheckoutEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
 
-  const candidates = await prisma.reservation.findMany({
-    where: {
-      property: { organizationId },
-      status: { in: ["confirmed", "completed"] },
-      checkoutSentAt: null,
-      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
-      // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
-      // Yalnız org gününe göre BUGÜN çıkanlar — TEK TARİH KURALI (↑todayDateAnchors): gerçek anlar org gününün
-      // (DST'de 23/25 saatlik) içinde, "yalnız tarih" değerleri bugünün iki çapası. Eski "+3 gün" penceresi ABD
-      // dilimlerinde bugünün 00:00Z değerini dışarıda bırakıp bir gün ÖNCE seçiyordu. Asıl gönderim-anı checkout
-      // vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI kuralı kullanır (Codex 07-23; iki yol ayrışamaz).
-      AND: [
-        { OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] },
-        await lifecycleBaselineWhere(organizationId, baseline),
-      ],
-    },
-    select: {
-      id: true,
-      guestName: true,
-      channel: true,
-      sourceReference: true,
-      propertyId: true,
-      departureDate: true,
-      property: { select: { name: true } },
-    },
-    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
-    orderBy: { departureDate: "asc" },
-    take: 25,
-  });
+  const candidateWhere: Prisma.ReservationWhereInput = {
+    property: { organizationId },
+    status: { in: ["confirmed", "completed"] },
+    checkoutSentAt: null,
+    ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
+    // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
+    // Yalnız org gününe göre BUGÜN çıkanlar — TEK TARİH KURALI (↑todayDateAnchors): gerçek anlar org gününün
+    // (DST'de 23/25 saatlik) içinde, "yalnız tarih" değerleri bugünün iki çapası. Eski "+3 gün" penceresi ABD
+    // dilimlerinde bugünün 00:00Z değerini dışarıda bırakıp bir gün ÖNCE seçiyordu. Asıl gönderim-anı checkout
+    // vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI kuralı kullanır (Codex 07-23; iki yol ayrışamaz).
+    AND: [
+      { OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] },
+      await lifecycleBaselineWhere(organizationId, baseline),
+    ],
+  };
   // Only when check-out is TODAY (same-day reminder) — kesin gün kararı `calendarDateOf` (üst kümeden komşu günün çapası
   // elenir). (No single-night skip anymore: that guard existed because the old evening-before send collided with the
   // arrival day; a morning-of reminder is exactly as useful for a one-night guest.)
-  const reservations = candidates.filter((r) => calendarDateOf(r.departureDate, tz).key === today);
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
-  /**
-   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
-   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
-   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
-   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
-   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
-   */
-  let unfilled = 0;
+  // `unfilled` (↓ aday hazırlığından): doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a İTİLMEZ ve itilmemeli:
+  // o dizi 6 saatlik `SystemLock` penceresini tüketen "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim denenmedi
+  // bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
   const runErasureGuard = erasureGuardMemo(organizationId);
-  for (const r of reservations) {
-    const tpl = await loadAutoMessage(r.propertyId, "checkout");
-    if (!tpl) continue;
-
-    const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
-    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
-    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
-    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
-    if (hasUnfilledPlaceholders(body)) {
-      unfilled++;
-      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
-      void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
-      continue;
-    }
+  const {
+    ready,
+    considered,
+    unfilled,
+  } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
+    kind: "checkout",
+    signature,
+    eligible: (r) => calendarDateOf(r.departureDate, tz).key === today,
+    fetchPage: (after, take) =>
+      prisma.reservation.findMany({
+        where: after
+          ? { AND: [candidateWhere, { OR: [{ departureDate: { gt: after.departureDate } }, { departureDate: after.departureDate, id: { gt: after.id } }] }] }
+          : candidateWhere,
+        select: LIFECYCLE_DEPARTURE_SELECT,
+        distinct: ["sourceReference"], // one message per booking, even if rows duplicated
+        orderBy: [{ departureDate: "asc" }, { id: "asc" }],
+        take,
+      }),
+  });
+  for (const { r, tpl: tpl, body } of ready) {
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
@@ -6379,8 +6411,8 @@ export async function sendDueCheckouts(
     sent++;
   }
 
-  await reportLifecycleSendFailures("checkout", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length, unfilled };
+  await reportLifecycleSendFailures("checkout", organizationId, failures, considered);
+  return { sent, considered, unfilled };
 }
 
 /**
