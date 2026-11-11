@@ -70,5 +70,29 @@ describe("AI test kartı — kapanışa sessizlik", () => {
     await runWith({ ...BASE, reply: "Giriş 15:00'ten itibaren.", closingAck: false, closingKind: null });
     expect(await screen.findByText("Giriş 15:00'ten itibaren.")).toBeTruthy();
     expect(screen.queryByText(/Bu mesaja cevap gerekmez/)).toBeNull();
+    expect(screen.queryByTestId("no-ai-suggestion")).toBeNull();
+  });
+});
+
+// 3d (kurucu 11-11): yapay zekâya ulaşılamadığında söz veren hazır cümle artık üretilmiyor → kart boş bir kutu göstermesin.
+describe("AI test kartı — yapay zekâ önerisi hazırlanamadığında (3d)", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("🚨 yapay zekâ yok + taslak boş → gelen kutusuyla AYNI not görünür", async () => {
+    await runWith({ ...BASE, source: "fallback", reply: "", intent: "refund", closingAck: false, closingKind: null });
+    expect((await screen.findByTestId("no-ai-suggestion")).textContent).toBe("Yapay zekâ önerisi şu an hazırlanamadı.");
+  });
+
+  it("KONTROL: kayıtlı bilgiden kurulan taslak gösterilir; modelin BOŞ cevabı 'hazırlanamadı' sayılmaz", async () => {
+    await runWith({ ...BASE, source: "fallback", reply: "Merhaba,\n\nGiriş saatimiz 15:00.", closingAck: false, closingKind: null });
+    expect(await screen.findByText(/Giriş saatimiz 15:00\./)).toBeTruthy();
+    expect(screen.queryByTestId("no-ai-suggestion")).toBeNull();
+    cleanup();
+    await runWith({ ...BASE, source: "openai", reply: "", closingAck: false, closingKind: null });
+    expect(await screen.findByText("Lixus AI")).toBeTruthy(); // sonuç çizildi
+    expect(screen.queryByTestId("no-ai-suggestion")).toBeNull();
   });
 });

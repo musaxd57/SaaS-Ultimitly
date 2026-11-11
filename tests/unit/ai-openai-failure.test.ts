@@ -40,9 +40,10 @@ describe("suggestReply — OpenAI failure reporting", () => {
     const result = await suggestReply(input);
     expect(mockReportError).toHaveBeenCalledOnce();
     expect(mockReportError.mock.calls[0][0]).toContain("429");
-    // Fallback still answered — the guest is never left without a draft.
+    // Yedek yol sonuç döndü (çağrı çökmedi). 3d (kurucu 11-11): model yokken taslak boş olabilir — söz veren hazır cümle üretilmez.
     expect(result.source).toBe("fallback");
-    expect(result.reply.length).toBeGreaterThan(0);
+    expect(typeof result.reply).toBe("string");
+    expect(result.reply).not.toMatch(/döneceğim|ilettim|get back to you|I've (passed|notified)/i);
   });
 
   it("reports a network/throw failure and still returns the deterministic fallback", async () => {

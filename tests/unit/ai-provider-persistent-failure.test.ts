@@ -120,7 +120,7 @@ describe("suggestReply — kalıcı sağlayıcı arızası geçiş tabanlı alar
     for (let i = 0; i < 5; i++) {
       const r = await suggestReply(input);
       expect(r.source).toBe("fallback");
-      expect(r.reply.length).toBeGreaterThan(0);
+      expect(typeof r.reply).toBe("string"); // 3d: yedek taslak boş olabilir (söz veren hazır cümle yok)
     }
     expect(mockReport).not.toHaveBeenCalled();
     expect(mockAlert).toHaveBeenCalledTimes(5); // bastırma kararı alert-state'te (entegrasyon testi)

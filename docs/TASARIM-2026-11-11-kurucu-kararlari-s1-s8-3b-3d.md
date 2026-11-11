@@ -183,7 +183,7 @@ olur (otomatik gitmez); kutuya "Taslağı yaz" düğmesiyle girer ve yazılmış
 - Söz / "ilettim" içeren bütün sabit taslaklar KALKAR: şikâyet, iade, erken ayrılış, insan talebi, erken giriş, geç çıkış, varsayılan ve bilgi
   bulunamayan dallar ("…kontrol edip paylaşacağım"). Öneri alanında tek satır: **"Yapay zekâ önerisi şu an hazırlanamadı."**
 - Bilgi tabanından / daire kaydından gelen SOMUT içerik (giriş saati, çıkış saati, Wi-Fi, otopark, konum, temizlik, ekipman kalemi) taslak
-  olarak kalır; başlığında "Model olmadan hazırlandı — soruya uygunluğunu kontrol edin" yazar; otomatik gitmez (bugün de gitmiyor). Sonuna söz
+  olarak kalır; başlığında "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin" yazar; otomatik gitmez (bugün de gitmiyor). Sonuna söz
   cümlesi eklenmez.
 - "Taslağı yaz" düğmesi kutuda yazı varken üstüne YAZMAZ: yazının sonuna eklemeyi / değiştirmeyi sorar (tek satır onay). Model hatası kutuyu
   ya da önceki taslağı boşaltmaz.
@@ -218,7 +218,7 @@ kategorilerini etkiler → anahtar KAPALI yazılır, mevcut ölçüm setleriyle 
 | S6, ayar çakışması | "Bu ayar başka bir yerde değiştirildi. Güncel hâli aşağıda; sizin yazdığınız korunuyor." |
 | 3b, kural kutusu | "Daha önce konaklamış misafire otomatik gönderme" · rezervasyonda: "Bu rezervasyonda yapay zekâ otomatik cevap vermesin" |
 | 3c, misafir | "Ayşe · Ev sahibi" · "Mehmet · Ekip" · adı kapalıysa "İşletme ekibi" |
-| 3d, öneri alanı | "Yapay zekâ önerisi şu an hazırlanamadı." · "Model olmadan hazırlandı — soruya uygunluğunu kontrol edin" |
+| 3d, öneri alanı | "Yapay zekâ önerisi şu an hazırlanamadı." · "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin" |
 
 ## 13. Migration turu (tek onay)
 

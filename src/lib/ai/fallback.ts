@@ -5,7 +5,6 @@ import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { gasDetectorSounding, smokeDetectorSounding } from "./gas-detector-alarm";
 import { hasDividerHeaderSpoof } from "./divider-spoof";
 import { personDangerOf } from "./person-danger";
-import { noApologyRuleEnabled } from "./no-apology-rule";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
 // or when the OpenAI call fails. Keeps the product usable without external APIs.
@@ -2963,12 +2962,6 @@ export function detectRiskTypes(message: string): string[] {
   return RISK_NETS.filter(([, hit]) => hit(message)).map(([label]) => label);
 }
 
-/**
- * Intents whose reply must NOT carry a courtesy closing: an apology or an
- * escalation followed by a cheerful sign-off contradicts itself. Kept next to
- * the reply builder so a new high-stakes intent is added in one place.
- */
-const CLOSING_FREE_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
 
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
@@ -3000,67 +2993,39 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   const greeting = isTr
     ? name ? `Merhaba ${name},` : "Merhaba,"
     : name ? `Hi ${name},` : "Hi,";
-  // CLOSING LINE — two deliberate suppressions.
-  //
-  // 1) The English side is a COMPLETE sentence, never a sign-off. "Kind regards,"
-  //    was a dangling comma: the org signature (Organization.aiSignature) is
-  //    optional and defaults to NULL, so the guest routinely received a message
-  //    that ended on a comma with no name after it.
-  // 2) HIGH-STAKES intents get NO courtesy closing at all. Pasting "İyi günler
-  //    dileriz." straight after "Bunun için özür dileriz..." reads as dismissive,
-  //    and Section 10.6 wants exactly these replies to end on the single
-  //    assurance sentence. Informational intents keep the closing.
-  const closingSuppressed = input.tone === "short" || CLOSING_FREE_INTENTS.has(intent);
-  const closing = closingSuppressed ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nThank you.";
+  // CLOSING LINE. The English side is a COMPLETE sentence, never a sign-off ("Kind regards," was a dangling comma: the org
+  // signature is optional and defaults to NULL, so the message routinely ended on a comma with no name after it).
+  // Karar / şikâyet konularının artık taslağı yok (↓ 3d) → kapanış yalnız bilgi taslaklarında kalır.
+  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nThank you.";
 
-  let body: string;
+  // 🚨 MODEL YOKKEN SÖZ VEREN TASLAK YOK (kurucu 11-11, 3d: "bu direk hatalı, bu tarz bir cümle gitmemeli … host 'talebi aldım' buna yazmaz
+  // ki"). Bu yol yalnız ev sahibinin panelinde TASLAK üretir (otomatik gönderilmez); eskiden 15 konunun yarısı yapılmamış işi bildiriyor
+  // ("ekibimize ilettim") ya da söz veriyordu ("en kısa sürede size döneceğim", "kendisi sizinle iletişime geçecektir"). Artık:
+  //   · karar / söz isteyen konular (şikâyet, iade, erken ayrılış, insan talebi, erken giriş, geç çıkış, sınıflanamayan) → TASLAK YOK
+  //     (`body = null` → `reply: ""`); panel "Yapay zekâ önerisi şu an hazırlanamadı." der, ev sahibinin notu / risk etiketi yine döner;
+  //   · bilgi tabanından / daire kaydından gelen SOMUT bilgi → taslak kalır, sonuna söz cümlesi EKLENMEZ; bilgi yoksa taslak yok.
+  let body: string | null;
   let risk: string | null = null;
   const usedSources: string[] = [];
   const missingInfo: string[] = [];
 
   switch (intent) {
     case "complaint":
-      // TARAFSIZLIK (`AI_NO_APOLOGY_RULE_ENABLED`, kurucu 10-21 + 10-22 "üzgünüz de gitmesin"): açıkken şikâyet taslağı özürsüz.
-      body = noApologyRuleEnabled()
-        ? isTr
-          ? "Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
-          : "I've notified our team right away and will get back to you as soon as possible."
-        : isTr
-          // ⚠️ "ilettim … ilgileneceğiz" prompts.ts §10.5'in KELİMESİ KELİMESİNE yasakladığı
-          // ses karışımıydı (tekil eylem + çoğul eylem aynı cümlede). İngilizce kardeşi
-          // zaten tekildi, yani iki dil BİRBİRİYLE de çelişiyordu.
-          ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
-          : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
+      body = null;
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
-      body = isTr
-        ? "Talebinizi aldım. İade ve ücret konularını ev sahibimiz değerlendirecek ve en kısa sürede size dönüş yapacak."
-        : "I've received your request. Refunds and charges are reviewed by our host, who will get back to you as soon as possible.";
+      body = null;
       risk = "İade/ücret talebi. Finansal karar gerektirir, yönetici onayı şart.";
       break;
     case "early_departure":
-      body = isTr
-        ? "Bilgilendirdiğiniz için teşekkürler. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size döneceğim."
-        : "Thank you for letting us know. I've passed your early-departure / booking-change request to our team right away; I'll review the necessary steps through the platform and get back to you as soon as possible.";
+      body = null;
       risk = "Erken ayrılma / iptal sinyali. Gelir ve iade süreci, operatör kararı gerektirir.";
       break;
     case "human_request":
-      body = isTr
-        ? "Tabii ki. Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir."
-        : "Of course. I've passed your request to our host, who will get in touch with you as soon as possible.";
-      break;
     case "early_checkin":
-      usedSources.push("property:checkInTime");
-      body = isTr
-        ? `Giriş saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğim.`
-        : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. I'll check and let you know as soon as I can.`;
-      break;
     case "late_checkout":
-      usedSources.push("property:checkOutTime");
-      body = isTr
-        ? `Çıkış saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size döneceğim.`
-        : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. I'll check and get back to you.`;
+      body = null;
       break;
     case "checkin": {
       const kb = stayVerified ? findKb(input, "checkin") : null;
@@ -3069,34 +3034,28 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       body = isTr
         ? kb
           ? `Giriş bilgileri: ${kb}\n\nGiriş saatimiz ${p.checkInTime}.`
-          : `Giriş saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağım.`
+          : `Giriş saatimiz ${p.checkInTime}.`
         : kb
           ? `Check-in details: ${kb}\n\nOur check-in time is ${p.checkInTime}.`
-          : `Our check-in time is ${p.checkInTime}. I'll share the entry instructions with you before arrival.`;
+          : `Our check-in time is ${p.checkInTime}.`;
       break;
     }
     case "checkout":
       usedSources.push("property:checkOutTime");
-      body = isTr
-        ? `Çıkış saatimiz ${p.checkOutTime}. Anahtarları/kartı nereye bırakacağınızı çıkıştan önce sizinle netleştireceğim.`
-        : `Our check-out time is ${p.checkOutTime}. I'll confirm where to leave the keys/card before you go.`;
+      body = isTr ? `Çıkış saatimiz ${p.checkOutTime}.` : `Our check-out time is ${p.checkOutTime}.`;
       break;
     case "wifi": {
       const kb = stayVerified ? findKb(input, "wifi") : null;
       if (kb) usedSources.push("kb:wifi");
       else missingInfo.push(isTr ? "Wi-Fi bilgisi" : "Wi-Fi details");
-      body = isTr
-        ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağım."
-        : kb ? `Wi-Fi details: ${kb}` : "I'll check the Wi-Fi details and share them with you shortly.";
+      body = kb ? (isTr ? `Wi-Fi bilgileri: ${kb}` : `Wi-Fi details: ${kb}`) : null;
       break;
     }
     case "parking": {
       const kb = findKb(input, "parking");
       if (kb) usedSources.push("kb:parking");
       else missingInfo.push(isTr ? "otopark bilgisi" : "parking info");
-      body = isTr
-        ? kb ? `Otopark bilgisi: ${kb}` : "Otopark durumunu kontrol edip size bilgi vereceğim."
-        : kb ? `Parking info: ${kb}` : "I'll check the parking options and let you know.";
+      body = kb ? (isTr ? `Otopark bilgisi: ${kb}` : `Parking info: ${kb}`) : null;
       break;
     }
     case "location": {
@@ -3104,40 +3063,34 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       if (kb) usedSources.push("kb:location");
       const addr = stayVerified && p.address ? `${p.address}${p.city ? ", " + p.city : ""}` : null;
       if (!kb && addr) usedSources.push("property:address");
-      body = isTr
-        ? kb
+      body = kb
+        ? isTr
           ? `Konum bilgisi: ${kb}`
-          : addr
-            ? `Adresimiz: ${addr}. Detaylı yol tarifini girişten önce paylaşacağım.`
-            : "Konum ve yol tarifi bilgisini en kısa sürede sizinle paylaşacağım."
-        : kb
-          ? `Location info: ${kb}`
-          : addr
-            ? `Our address is: ${addr}. I'll share detailed directions before arrival.`
-            : "I'll share the location and directions with you shortly.";
+          : `Location info: ${kb}`
+        : addr
+          ? isTr
+            ? `Adresimiz: ${addr}.`
+            : `Our address is: ${addr}.`
+          : null;
       break;
     }
     case "cleaning": {
       const kb = findKb(input, "cleaning");
       if (kb) usedSources.push("kb:cleaning");
-      body = isTr
-        ? kb ? `Temizlik bilgisi: ${kb}` : "Temizlik talebinizi aldım; ekibimizle planlayıp size döneceğim."
-        : kb ? `Cleaning info: ${kb}` : "I've received your cleaning request; I'll arrange it with our team and get back to you.";
+      body = kb ? (isTr ? `Temizlik bilgisi: ${kb}` : `Cleaning info: ${kb}`) : null;
       break;
     }
     case "amenity": {
       const kb = findKb(input, "general");
       if (kb) usedSources.push("kb:general");
-      body = isTr
-        ? kb ? `Ekipman bilgisi: ${kb}` : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettim; en kısa sürede size döneceğim."
-        : kb ? `Amenity info: ${kb}` : "I've passed your question about the equipment to our team and will get back to you shortly.";
+      body = kb ? (isTr ? `Ekipman bilgisi: ${kb}` : `Amenity info: ${kb}`) : null;
       break;
     }
     default:
-      body = isTr
-        ? "Mesajınız için teşekkürler. Talebinizi aldım; en kısa sürede size döneceğim."
-        : "Thanks for your message. I've received your request and will get back to you as soon as possible.";
+      body = null;
   }
+  // Taslak yoksa kaynak da yok (kaynak sayımı atılmayan metne aittir).
+  if (body === null) usedSources.length = 0;
 
   // Derive riskLevel and actionSuggestion from intent. actionSuggestion is shown
   // to the (Turkish-speaking) operator, so it stays in Turkish.
@@ -3167,7 +3120,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   return {
     intent,
     confidence,
-    reply: `${greeting}\n\n${body}${closing}`.trim(),
+    // Taslak yoksa BOŞ metin: selam + kapanış tek başına taslak değildir.
+    reply: body === null ? "" : `${greeting}\n\n${body}${closing}`.trim(),
     risk,
     priority,
     source: "fallback",

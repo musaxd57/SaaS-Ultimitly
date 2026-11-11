@@ -323,8 +323,10 @@ describe("suggestReplyFallback — guest-facing copy", () => {
 
   it("still closes ordinary informational replies (the fix is suppression, not deletion)", () => {
     // Two-directional: proves the closing was not simply removed everywhere.
-    expect(suggestReplyFallback(base("Otopark var mı?")).reply).toContain("İyi günler dileriz.");
-    expect(suggestReplyFallback(base("Is there parking?")).reply).toMatch(/Thank you\.$/);
+    // 3d (11-11): bilgisi olmayan konunun taslağı artık yok → kapanış, kayıtlı bilgiden kurulan taslakta sınanır (giriş saati).
+    expect(suggestReplyFallback(base("Giriş saati kaçta?")).reply).toContain("İyi günler dileriz.");
+    expect(suggestReplyFallback(base("What time is check-in?")).reply).toMatch(/Thank you\.$/);
+    expect(suggestReplyFallback(base("Otopark var mı?")).reply).toBe(""); // bilgi yok → taslak yok (söz cümlesi de yok)
   });
 
   it("never uses corporate register for the escalation target", () => {
@@ -442,19 +444,24 @@ describe("misafire giden metinde ünlem yok", () => {
       "I would like to speak to the host.", "Can I get fresh towels?", "Where is the apartment?",
     ];
     let seen = 0;
+    let withDraft = 0;
     for (const tone of TONES) {
       for (const msg of probes) {
         const reply = suggestReplyFallback(base2(msg, tone)).reply;
         expect(reply, `${tone} / ${msg}`).not.toMatch(/!/);
-        expect(reply.trim().length, `${tone} / ${msg}`).toBeGreaterThan(0);
+        // 3d (11-11): karar / söz isteyen konularda taslak boştur; boş olmayanlar sayılır ki tarama vakuma düşmesin.
+        if (reply.trim().length > 0) withDraft++;
         seen++;
       }
     }
     // Anti-vacuity: the loop really ran.
     expect(seen).toBe(TONES.length * probes.length);
-    // TERS YÖN: misafirin ÜNLEMLİ mesajı yine de cevaplanıyor (girdi susturulmadı).
-    expect(suggestReplyFallback(base2("Klima çalışmıyor, içerisi çok sıcak!")).reply.length)
-      .toBeGreaterThan(20);
+    // Vakum değil: kayıtlı bilgiden kurulan taslaklar (giriş / çıkış saati) her tonda gerçekten üretildi.
+    expect(withDraft).toBeGreaterThanOrEqual(TONES.length * 3);
+    // TERS YÖN: misafirin ÜNLEMLİ mesajı yine de taslak alıyor (girdi susturulmadı) ve taslakta ünlem yok.
+    const exclaimed = suggestReplyFallback(base2("Giriş saati kaçta!")).reply;
+    expect(exclaimed.length).toBeGreaterThan(10);
+    expect(exclaimed).not.toMatch(/!/);
   });
 
   it("modele verilen hiçbir ÖRNEK CEVAP ünlem taşımaz — ama örnek MİSAFİR MESAJLARI taşır", () => {

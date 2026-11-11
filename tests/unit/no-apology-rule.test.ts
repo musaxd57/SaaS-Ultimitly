@@ -57,17 +57,18 @@ describe("tarafsızlık katmanı", () => {
     expect(exampleReplies(on).filter((r) => SYMPATHY.test(r))).toEqual([]);
   });
 
-  it("yedek (fallback) şikâyet taslağı: açıkken özürsüz (TR + EN), kapalıyken bugünkü metin", () => {
-    const complaint = (guestMessage: string) => suggestReplyFallback({ ...input, guestMessage }).reply;
+  it("yedek (fallback) şikâyet taslağı YOK — anahtar açık da kapalı da (3d, kurucu 11-11: model yokken özür / söz / 'ilettim' cümlesi üretilmez)", () => {
+    const complaint = (guestMessage: string) => suggestReplyFallback({ ...input, guestMessage });
     const tr = "Klima çalışmıyor, çok sıcak, berbat bir durum.";
     const en = "The air conditioning is broken and it is terrible.";
-    expect(complaint(tr)).toMatch(APOLOGY);
-    vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", "1");
-    for (const m of [tr, en]) {
-      const reply = complaint(m);
-      expect(reply).not.toMatch(APOLOGY);
-      expect(reply).not.toMatch(SYMPATHY);
-      expect(reply).toMatch(/ilettim|notified/);
+    for (const flag of ["", "1"]) {
+      vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", flag);
+      for (const m of [tr, en]) {
+        const r = complaint(m);
+        expect(r.intent).toBe("complaint");
+        expect(r.reply).toBe(""); // ⬅️ ESKİDE "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
+        expect(r.risk).toBeTruthy(); // ev sahibine giden risk notu duruyor
+      }
     }
   });
 

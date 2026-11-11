@@ -5,7 +5,16 @@ import { FormError } from "@/components/form-error";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { intentLabel, langLabel, riskLabel, aiSourceLabel, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
+import {
+  intentLabel,
+  langLabel,
+  riskLabel,
+  aiSourceLabel,
+  riskTypeLabel,
+  sourceLabel,
+  displayableSources,
+  NO_AI_SUGGESTION_TEXT,
+} from "@/lib/ui-labels";
 
 interface TestResult {
   reply: string;
@@ -214,7 +223,13 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           ) : null}
           {/* On a closing/pure-praise the model draft is DEAD weight: nothing is sent (kurucu kuralı 09-25), and with
               the courtesy ON the blue preview above IS the outgoing message — a second, never-sent text only confuses. */}
-          {result.closingAck ? null : (
+          {result.closingAck ? null : result.source !== "openai" && !result.reply.trim() ? (
+            // 3d (kurucu 11-11): yapay zekâya ulaşılamadı ve kayıtlı bilgiden kurulabilecek taslak da yok → boş bir kutu yerine gelen
+            // kutusundaki öneri alanıyla AYNI not (söz veren hazır cümle artık üretilmiyor).
+            <p role="status" data-testid="no-ai-suggestion" className="text-sm text-muted-foreground">
+              {NO_AI_SUGGESTION_TEXT}
+            </p>
+          ) : (
             <pre className="whitespace-pre-wrap break-words font-sans text-sm">{result.reply}</pre>
           )}
         </div>

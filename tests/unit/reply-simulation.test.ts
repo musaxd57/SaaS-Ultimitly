@@ -82,15 +82,21 @@ const MESSAGES: string[] = [
   "Merhaba 😊 wifi şifresi ve otopark var mı ayrıca geç çıkış olur mu?", // multi-intent
 ];
 
+/** Söz / yapılmamış iş bildirimi kalıpları — yedek taslakta HİÇBİRİ bulunmaz (3d). */
+const PROMISE = /ilettim|iletece|döneceğim|dönüş yapaca|iletişime geçece|paylaşacağım|bilgi vereceğim|netleştireceğim|get back to you|let you know|I'll share|I've passed|I've notified|I'll check|I'll confirm|I'll arrange|get in touch/i;
+
 describe("guest-message simulation (fallback safety invariants)", () => {
   for (const msg of MESSAGES) {
     const label = msg.length > 40 ? `${msg.slice(0, 37)}… (${msg.length} chars)` : JSON.stringify(msg);
     it(`stays safe for: ${label}`, () => {
       const out = suggestReplyFallback(baseInput(msg));
 
-      // Never throws (reaching here proves it), always a usable reply.
+      // Never throws (reaching here proves it). 3d (kurucu 11-11): model yokken taslak ya BOŞTUR ya da yalnız kayıtlı bilgiden kurulmuştur —
+      // söz veren / yapılmamış işi bildiren hazır cümle YOK ("ilettim", "en kısa sürede size döneceğim").
       expect(typeof out.reply).toBe("string");
-      expect(out.reply.trim().length).toBeGreaterThan(0);
+      expect(out.reply).not.toMatch(PROMISE);
+      if (out.reply.trim() === "") expect(out.usedSources).toEqual([]);
+      else expect((out.usedSources ?? []).length).toBeGreaterThan(0);
 
       // Valid, in-range classification — no NaN confidence, no bogus enums.
       expect(VALID_INTENTS.has(out.intent)).toBe(true);
@@ -117,8 +123,9 @@ describe("guest-message simulation (fallback safety invariants)", () => {
   it("never invents a Wi-Fi password when the knowledge base has none", () => {
     const out = suggestReplyFallback(baseInput("wifi şifresi nedir?"));
     expect(out.intent).toBe("wifi");
-    // Safe deferral, not a fabricated secret.
-    expect(out.reply.toLowerCase()).toContain("kontrol");
+    // Bilgi yoksa taslak da yok (uydurma şifre de, "kontrol edip paylaşacağım" sözü de); eksik bilgi ev sahibine söylenir.
+    expect(out.reply).toBe("");
+    expect(out.missingInfo).toEqual(["Wi-Fi bilgisi"]);
   });
 
   it("uses the Wi-Fi password from the knowledge base when present", () => {
@@ -139,7 +146,7 @@ describe("guest-message simulation (fallback safety invariants)", () => {
     const out = suggestReplyFallback(baseInput("siz tam bir aptalsınız rezalet"));
     // No slur/insult echoed back; complaint handling kicks in.
     expect(out.reply.toLowerCase()).not.toContain("aptal");
-    expect(out.reply.trim().length).toBeGreaterThan(0);
+    expect(out.reply).toBe(""); // hakaret / şikâyete model olmadan hazır cümle yazılmaz — ev sahibine kalır
   });
 
   it("classifyFallback agrees and never returns NaN confidence", () => {

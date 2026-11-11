@@ -33,7 +33,16 @@ import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { earlyCheckinPanelLines, type EarlyCheckinPanelData } from "@/lib/early-checkin/panel";
-import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
+import {
+  intentLabel,
+  langLabel,
+  displaySenderName,
+  riskTypeLabel,
+  sourceLabel,
+  displayableSources,
+  NO_AI_SUGGESTION_TEXT,
+  FALLBACK_DRAFT_BADGE_TEXT,
+} from "@/lib/ui-labels";
 import { applyTemplateBody } from "@/lib/template-apply";
 import type { PreparedDraft } from "@/lib/conversation-items/prepared-draft";
 import type { AvailabilityVetoReason } from "@/lib/ai/availability-claims";
@@ -221,6 +230,8 @@ export function ConversationThread({
   }, [lastMessageId]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+  /** Model yokken taslak üretilemedi (3d, kurucu 11-11) — hata değil bilgi: söz veren hazır cümle yerine kutu boş kalır. */
+  const [noAiSuggestion, setNoAiSuggestion] = useState(false);
   const [sending, setSending] = useState(false);
   // Composed-message idempotency id — see sendReply (Codex 07-23). Payload'a
   // BAĞLI: gövde/aiAssisted değişirse YENİ id üretilir (aynı id + farklı içerik
@@ -296,9 +307,18 @@ export function ConversationThread({
 
   async function handleSuggest() {
     setSuggestLoading(true);
+    // Önceki öneri saklanır: model yokken yeni taslak gelmezse ev sahibinin elindeki taslak kaybolmasın (3d).
+    const previous = suggestionRef.current;
     setSuggestion(null);
     setSuggestError(null);
+    setNoAiSuggestion(false);
     const askedAt = threadEndRef.current.id;
+    const answeredMeanwhile = () => threadEndRef.current.id !== askedAt && threadEndRef.current.isReply;
+    // Yeni öneri ALINAMADIYSA (istek reddedildi / bağlantı koptu) eldeki öneri de kaybolmasın: hata mesajı görünür, önceki taslak yerinde
+    // kalır. İstek sürerken konuşma cevaplandıysa geri konmaz — o öneri cevaplanmış mesaja aittir (M5).
+    const keepPrevious = () => {
+      if (!answeredMeanwhile()) setSuggestion(previous);
+    };
     try {
       const res = await fetch(`/api/conversations/${conversationId}/ai-suggest`, {
         method: "POST",
@@ -308,14 +328,23 @@ export function ConversationThread({
       const data = await res.json().catch(() => null);
       // İstek sürerken konuşmaya bir CEVAP geldiyse (ev sahibi bu arada yazıp gönderdi / başka biri cevapladı) gelen öneri cevaplanmış
       // mesaja aittir → panele konmaz (Haiku incelemesi 11-11; M5 ile aynı kural).
-      if (res.ok && threadEndRef.current.id !== askedAt && threadEndRef.current.isReply) return;
-      if (res.ok) {
+      if (res.ok && answeredMeanwhile()) return;
+      if (res.ok && data?.source !== "openai" && !String(data?.reply ?? "").trim()) {
+        // Yapay zekâya ulaşılamadı ve kayıtlı bilgiden kurulabilecek somut bir taslak da yok → söz veren hazır cümle YOK; not gösterilir,
+        // önceki öneri (varsa) yerinde kalır.
+        setNoAiSuggestion(true);
+        setSuggestion(previous);
+      } else if (res.ok) {
         setSuggestion(data);
         // Sunucu bu öneriyi son misafir mesajına da kaydetti → yenilemede kayıtlı hâli bunun üstüne yazılmasın.
         seenDraftRef.current = [...messages].reverse().find((m) => m.direction === "inbound")?.id ?? seenDraftRef.current;
-      } else setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
+      } else {
+        setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
+        keepPrevious();
+      }
     } catch {
       setSuggestError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      keepPrevious();
     } finally {
       setSuggestLoading(false);
     }
@@ -1011,6 +1040,11 @@ export function ConversationThread({
             değil atlanmış bir daldı. Kullanıcı "AI cevap öner"e basıyor, istek
             düşüyor, hiçbir geri bildirim almadan tekrar tekrar basıyordu. */}
         <FormError>{suggestError}</FormError>
+        {noAiSuggestion ? (
+          <p role="status" data-testid="no-ai-suggestion" className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            {NO_AI_SUGGESTION_TEXT}
+          </p>
+        ) : null}
 
         {suggestion ? (
           // Öneri, güven rozeti ve "İnsan incelemesi" uyarısı ekrana SESSİZCE
@@ -1045,6 +1079,14 @@ export function ConversationThread({
                   className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                 >
                   Hazır taslak · gönderilmedi
+                </span>
+              ) : suggestion.source === "fallback" ? (
+                // Yapay zekâ olmadan, yalnız kayıtlı bilgiden kurulan taslak: "AI emin" rozeti yanıltıcı olurdu (3d).
+                <span
+                  data-testid="fallback-draft-badge"
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                >
+                  {FALLBACK_DRAFT_BADGE_TEXT}
                 </span>
               ) : (
                 <span

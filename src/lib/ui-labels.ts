@@ -53,6 +53,17 @@ export function aiSourceLabel(source: string): string {
   return source === "openai" ? "Lixus AI" : "Hazır yanıt";
 }
 
+/**
+ * Yapay zekâya ulaşılamadı ve kayıtlı bilgiden kurulabilecek somut bir taslak da yok (3d, kurucu 11-11 metni). Söz veren hazır cümle
+ * ("Talebinizi aldım… en kısa sürede döneceğim") yerine öneri alanında bu not görünür; kutu boş kalır.
+ */
+export const NO_AI_SUGGESTION_TEXT = "Yapay zekâ önerisi şu an hazırlanamadı.";
+/**
+ * Yapay zekâ olmadan, yalnız bilgi tabanı / daire kaydından kurulan taslağın rozeti (kurucu 11-11: "kaynağı ve inceleme gerektirdiği host'a
+ * gösterilebilir" — soruya uygunluğu doğrulanmadı: "Wi-Fi çalışmıyor"a şifre taslağı düşebilir). Teknik sözcük yok (model / yedek yol).
+ */
+export const FALLBACK_DRAFT_BADGE_TEXT = "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin";
+
 // AI-authored messages surface as the live brand "Lixus AI". The DECISION is the
 // reliable authorType (senderName is a display/audit name only, never a classifier);
 // the legacy "GuestOps AI" storage string is the transitional fallback for rows whose

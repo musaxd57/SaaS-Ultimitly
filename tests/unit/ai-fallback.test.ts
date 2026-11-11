@@ -178,8 +178,10 @@ describe("suggestReplyFallback", () => {
 
   it("does not invent answers when the knowledge base is empty", () => {
     const r = suggestReplyFallback(baseInput({ guestMessage: "Wifi şifresi nedir?" }));
-    expect(r.reply).toContain("paylaşacağım");
-    expect(r.reply).not.toMatch(/şifre.*[:=]/i);
+    // 3d (kurucu 11-11): bilgi yoksa taslak YOK — ne uydurma şifre ne de "…paylaşacağım" sözü. Eksik bilgi ev sahibine söylenir.
+    expect(r.reply).toBe("");
+    expect(r.missingInfo).toEqual(["Wi-Fi bilgisi"]);
+    expect(r.usedSources).toEqual([]);
   });
 
   it("includes the property check-in time for check-in questions", () => {
@@ -207,9 +209,10 @@ describe("suggestReplyFallback", () => {
     // reviewed there. (The old pin hard-coded "yöneticimiz değerlendirecek" —
     // that literal was itself the corporate-register defect, so a literal pin
     // made the wording unfixable. See guest-text-quality.test.ts.)
-    expect(r.reply).toMatch(/(ev sahibimiz|ekibimiz).{0,40}(değerlendirecek|dönüş yapacak)/);
-    expect(r.reply).not.toContain("1000");
-    expect(r.reply.toLowerCase()).not.toContain("onaylandı");
+    // 3d (kurucu 11-11): para konusunda model olmadan HİÇBİR hazır cümle yazılmaz ("değerlendirecek / dönüş yapacak" da bir sözdü) —
+    // taslak boş, karar ev sahibinde; enjekte edilen tutarın onayı tanım gereği yok.
+    expect(r.reply).toBe("");
+    expect(r.riskLevel).toBe("medium");
   });
 
   it("omits the closing line in short tone", () => {

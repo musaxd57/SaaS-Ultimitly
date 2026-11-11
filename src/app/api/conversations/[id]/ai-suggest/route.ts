@@ -225,14 +225,19 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // kontrolleri ORİJİNAL metne bakar (erteleme tanıma o kalıba dayanır).
   // K-1029-A (Opus F10): cevabın tamamı ev sahibine başvurma yüzünden tutulduysa taslak o cümleler ÇIKARILMIŞ metindir.
   const hostDraft = hostVoiceDraft(result.hostContactDraft ?? result.reply);
-  await prisma.message.update({
-    where: { id: lastInbound.id },
-    data: {
-      aiSuggestedReply: hostDraft,
-      aiConfidence: result.confidence,
-      aiIntent: result.intent,
-    },
-  });
+  // 3d (kurucu 11-11): model yokken taslak üretilemediyse (yedek yol boş döndü) son misafir mesajında kayıtlı duran ÖNCEKİ taslağın
+  // üstüne boş yazılmaz — model arızası ev sahibinin elindeki taslağı silmesin. Model cevap verdiyse eski kural aynen (boş da olsa yazılır).
+  const noDraft = result.source !== "openai" && !hostDraft.trim();
+  if (!noDraft) {
+    await prisma.message.update({
+      where: { id: lastInbound.id },
+      data: {
+        aiSuggestedReply: hostDraft,
+        aiConfidence: result.confidence,
+        aiIntent: result.intent,
+      },
+    });
+  }
 
   // MÜSAİTLİK UYARISI (09-24): otomatik gönderimi durduran yüklemin AYNISI, aynı girdiyle (son giden
   // mesajdan sonraki cevapsız misafir mesajları; host zaten yazdıysa son misafir mesajı). Taslak
