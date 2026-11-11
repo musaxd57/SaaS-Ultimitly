@@ -3089,8 +3089,6 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     default:
       body = null;
   }
-  // Taslak yoksa kaynak da yok (kaynak sayımı atılmayan metne aittir).
-  if (body === null) usedSources.length = 0;
 
   // Derive riskLevel and actionSuggestion from intent. actionSuggestion is shown
   // to the (Turkish-speaking) operator, so it stays in Turkish.
