@@ -4,6 +4,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
 import {
   classifyPaddleFailure,
+  isTransientPaddleReadFailure,
   isExpectedPaddleError,
   getSubscriptionCurrentPriceId,
   previewSubscriptionUpdate,
@@ -196,6 +197,17 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     expect(classifyPaddleFailure(new Error("Paddle HTTP 503 (unavailable) env=x resource=subscriptions"))).toBe("ambiguous");
     expect(classifyPaddleFailure(new Error("fetch failed"))).toBe("ambiguous");
     expect(classifyPaddleFailure(new Error("The operation was aborted due to timeout"))).toBe("ambiguous");
+  });
+
+  // Ödeme P1 (Codex 11-10): salt-OKUMA isteğinde "sonra okunabilir" ile "kesin yok / ret" ayrımı. Yazma sınıflamasından farkı 429:
+  // okuma için hız sınırı da geçicidir (yeniden denenir), yazma için "uygulanmadı" (kesin).
+  it("isTransientPaddleReadFailure: ağ / zaman aşımı / 5xx / 408 / 429 geçici; 400 / 401 / 403 / 404 kesin", () => {
+    for (const m of ["fetch failed", "The operation was aborted due to timeout", "Paddle HTTP 500 (internal) env=x", "Paddle HTTP 503 (unavailable) env=x", "Paddle HTTP 408 (request_timeout) env=x", "Paddle HTTP 429 (too_many_requests) env=x"]) {
+      expect(isTransientPaddleReadFailure(new Error(m)), m).toBe(true);
+    }
+    for (const m of ["Paddle HTTP 400 (bad_request) env=x", "Paddle HTTP 401 (authentication_malformed) env=x", "Paddle HTTP 403 (forbidden) env=x", "Paddle HTTP 404 (entity_not_found) env=x"]) {
+      expect(isTransientPaddleReadFailure(new Error(m)), m).toBe(false);
+    }
   });
 
   it("getSubscriptionCurrentPriceId returns the first item's price id, or null on any failure", async () => {

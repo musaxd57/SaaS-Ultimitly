@@ -27,10 +27,16 @@ vi.mock("@/lib/report-error", async (orig) => {
   return { ...actual, reportError: reportErrorMock };
 });
 // B-1 (kurucu 11-04): kayıtlı aboneliğin Paddle'daki oluşturulma zamanı — testte abonelik başına tablo (yoksa "bilinmiyor" = null).
-const { subCreated } = vi.hoisted(() => ({ subCreated: new Map<string, string>() }));
+// Ödeme P1 (Codex 11-10): `subTransient`teki abonelik "şu an okunamıyor" (geçici arıza) döner — "bilinmiyor"dan ayrı sonuç.
+const { subCreated, subTransient } = vi.hoisted(() => ({ subCreated: new Map<string, string>(), subTransient: new Set<string>() }));
 vi.mock("@/lib/payments/paddle", async (orig) => {
   const actual = await orig<typeof import("@/lib/payments/paddle")>();
-  return { ...actual, getSubscriptionCreatedAt: vi.fn(async (id: string) => (subCreated.has(id) ? new Date(subCreated.get(id)!) : null)) };
+  return {
+    ...actual,
+    getSubscriptionCreatedAt: vi.fn(async (id: string) =>
+      subTransient.has(id) ? actual.SUBSCRIPTION_READ_TRANSIENT : subCreated.has(id) ? new Date(subCreated.get(id)!) : null,
+    ),
+  };
 });
 
 import { prisma, resetDb } from "../helpers/db";
@@ -81,6 +87,7 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
     vi.clearAllMocks();
     txnStatus.clear();
     subCreated.clear();
+    subTransient.clear();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -187,7 +194,27 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect(reportErrorMock.mock.calls.filter(([c]) => c === OLDER)).toHaveLength(0);
     });
 
-    it("KONTROL: zaman bilinmezse (Paddle okunamadı / olayda yok) bugünkü davranış AYNEN — yerine geçer", async () => {
+    it("🚨 P1 (Codex 11-10): kayıtlı aboneliğin yaşı ŞU AN okunamıyor (geçici arıza) → tahmin yok: olay yazılmaz, 500 (Paddle yeniden gönderir); okuma düzelince aynı olay doğru karara bağlanır", async () => {
+      await seedSub("sub_B", "active");
+      subTransient.add("sub_B");
+      const ev = withCreated(subEvent("sub_A", "active"), "2026-11-04T10:00:00Z", { scheduled_change: { action: "cancel" } });
+      expect((await postEvent(ev)).status).toBe(500); // ⬅️ ESKİDE 200 + satır sub_A'ya dönüyordu (yeni abonelik eziliyordu)
+      let row = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect([row.providerRef, row.status, row.cancelAtPeriodEnd]).toEqual(["sub_B", "active", false]);
+      expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: ev.event_id } })).status).toBe("error"); // işlenmiş sayılmadı
+      expect(alarms()).toHaveLength(0);
+
+      // Paddle aynı olayı yeniden gönderir; okuma düzeldi → B (10:02) daha yeni → A'nın olayı reddedilir + alarm.
+      subTransient.clear();
+      subCreated.set("sub_B", "2026-11-04T10:02:00Z");
+      expect((await postEvent(ev)).status).toBe(200);
+      row = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(row.providerRef).toBe("sub_B");
+      expect(reportErrorMock.mock.calls.filter(([c]) => c === OLDER)).toHaveLength(1);
+      expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: ev.event_id } })).status).toBe("processed");
+    });
+
+    it("KONTROL: zaman KESİN bilinmezse (abonelik Paddle'da yok / anahtar tanımsız / olayda yok) bugünkü davranış AYNEN — yerine geçer", async () => {
       await seedSub("sub_B", "active");
       expect((await postEvent(withCreated(subEvent("sub_A", "active"), "2026-11-04T10:00:00Z"))).status).toBe(200);
       expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_A");

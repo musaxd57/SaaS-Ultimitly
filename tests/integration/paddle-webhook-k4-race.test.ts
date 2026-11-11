@@ -63,7 +63,11 @@ const subEvent = (eventId: string, subId: string, status: string, occurredAt: st
 // Spy TEK bir testte kurulur ve dosyanın tek testidir (Prisma temsilcisindeki spy, geri alınsa da sonraki testi bozar — CLAUDE.md).
 describe("K4 — eşzamanlı eski iptal yeni aboneliği bozmaz (kimlik şartı atomik güncellemede)", () => {
   it("🚨 bayat okuma senaryoları: eski iptal yeni aboneliği bozmaz; kendi iptali ve yeni aktifleşme uygulanır; ilk kayıt çatışması dalı aynı şartla", async () => {
-    const stale = vi.spyOn(prisma.subscription, "findUnique");
+    // 🚨 Casus gerçek okumayı GEÇİRMELİ (11-11): Prisma temsilcisinde çıplak `vi.spyOn` özgün yöntemi çağırmıyor, her okuma `undefined`
+    // dönüyordu → bu test farkında olmadan hep "satır yok → create → tekillik çakışması → yedek güncelleme" yolunu koşuyordu (aktif olayın
+    // kimlik şartı eklenince — ödeme P1 — ortaya çıktı). Artık yalnız `mockResolvedValueOnce` verilen okumalar bayat; gerisi gerçek satır.
+    const realFindUnique = prisma.subscription.findUnique.bind(prisma.subscription);
+    const stale = vi.spyOn(prisma.subscription, "findUnique").mockImplementation(realFindUnique as never);
     const state = () => prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
 
     // 1) iptal A'yı okudu → B aktifleşti → bekleyen A iptali satırı DEĞİŞTİRMEZ (B / aktif kalır).
@@ -75,19 +79,19 @@ describe("K4 — eşzamanlı eski iptal yeni aboneliği bozmaz (kimlik şartı a
     body = subEvent("evt_b", "sub_b", "active", tB.toISOString());
     expect((await POST(req(body))).status).toBe(200);
     expect((await state()).providerRef).toBe("sub_b");
-    stale.mockResolvedValueOnce({ lastEventAt: tA, pastDueSince: null, providerRef: "sub_a" } as never);
+    stale.mockResolvedValueOnce({ lastEventAt: tA, pastDueSince: null, providerRef: "sub_a", status: "active" } as never);
     body = subEvent("evt_a_cancel", "sub_a", "canceled", tCancel.toISOString());
     expect((await POST(req(body))).status).toBe(200);
     expect(await state()).toMatchObject({ providerRef: "sub_b", status: "active" });
 
     // 2) KONTROL: kayıtlı aboneliğin KENDİ iptali (bayat okuma olsa da) uygulanır.
-    stale.mockResolvedValueOnce({ lastEventAt: tB, pastDueSince: null, providerRef: "sub_b" } as never);
+    stale.mockResolvedValueOnce({ lastEventAt: tB, pastDueSince: null, providerRef: "sub_b", status: "active" } as never);
     body = subEvent("evt_b_cancel", "sub_b", "canceled", new Date(Date.now() - 30_000).toISOString());
     expect((await POST(req(body))).status).toBe(200);
     expect(await state()).toMatchObject({ providerRef: "sub_b", status: "canceled" });
 
     // 3) KONTROL: yeni aboneliğin AKTİFLEŞMESİ bayat okumada da eskisinin yerine geçer.
-    stale.mockResolvedValueOnce({ lastEventAt: tB, pastDueSince: null, providerRef: "sub_b" } as never);
+    stale.mockResolvedValueOnce({ lastEventAt: tB, pastDueSince: null, providerRef: "sub_b", status: "active" } as never);
     body = subEvent("evt_c", "sub_c", "active", new Date(Date.now() - 20_000).toISOString());
     expect((await POST(req(body))).status).toBe(200);
     expect(await state()).toMatchObject({ providerRef: "sub_c", status: "active" });

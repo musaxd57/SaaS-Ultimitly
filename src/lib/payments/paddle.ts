@@ -560,11 +560,16 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
   }
 }
 
+/** `getSubscriptionCreatedAt` sonucu: okuma GEÇİCİ olarak başarısız (ağ / zaman aşımı / 5xx / 408 / 429) — "bilinmiyor"dan AYRI. */
+export const SUBSCRIPTION_READ_TRANSIENT = "transient" as const;
+
 /**
  * Aboneliğin Paddle'daki oluşturulma anı (`data.created_at`). B-1 (kurucu 11-04): iki abonelikte hangisinin DAHA YENİ olduğunu bilmek için —
- * eski aboneliğin sonraki "aktif" olayı yeni aboneliğin yerini almasın. Asla fırlatmaz → okunamazsa / alan yoksa null ("bilinmiyor").
+ * eski aboneliğin sonraki "aktif" olayı yeni aboneliğin yerini almasın. Asla fırlatmaz. Üç sonuç (ödeme P1, Codex 11-10 — "okunamadı" ile
+ * "yok" aynı şey DEĞİL): tarih · `null` = KESİN bilinmiyor (anahtar tanımsız, abonelik Paddle'da yok, alan yok / bozuk, kalıcı ret) ·
+ * `SUBSCRIPTION_READ_TRANSIENT` = şu an okunamadı, sonra okunabilir (çağıran tahmin yürütmez).
  */
-export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<Date | null> {
+export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<Date | null | typeof SUBSCRIPTION_READ_TRANSIENT> {
   if (!subscriptionId || !isPaddleConfigured()) return null;
   try {
     const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as { data?: { created_at?: string } };
@@ -572,8 +577,16 @@ export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<
     return at && !Number.isNaN(at.getTime()) ? at : null;
   } catch (err) {
     if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
-    return null;
+    return isTransientPaddleReadFailure(err) ? SUBSCRIPTION_READ_TRANSIENT : null;
   }
+}
+
+/** Salt-okuma isteğinde "sonra yeniden denenebilir" hata: HTTP durumu yoksa (ağ / zaman aşımı), 5xx, 408 ya da 429. */
+export function isTransientPaddleReadFailure(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).match(/Paddle HTTP (\d{3})/);
+  if (!m) return true;
+  const status = Number(m[1]);
+  return status >= 500 || status === 408 || status === 429;
 }
 
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */

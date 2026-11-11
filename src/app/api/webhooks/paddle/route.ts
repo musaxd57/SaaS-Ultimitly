@@ -14,6 +14,7 @@ import { logEvent } from "@/lib/event-log";
 import {
   getPaddleWebhookSecret,
   getSubscriptionCreatedAt,
+  SUBSCRIPTION_READ_TRANSIENT,
   verifyPaddleSignature,
   paddlePriceToPlanCode,
   paddleStatusToLocal,
@@ -184,10 +185,29 @@ async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: 
  */
 type SubscriptionOutcome = { review?: "org_deleted" | "unlinked" };
 
+/** Aktif olay yazamadı çünkü satır, okunduktan sonra BAŞKA bir aboneliğe geçti → karar taze satırla yeniden verilir. */
+const IDENTITY_CHANGED = Symbol("subscription-identity-changed");
+
+/**
+ * 🚨 ÖDEME P1 (Codex 11-10): aktif olayın yazımı da abonelik kimliğine bağlı (aşağıda `identityGuard`). Satır okuma ile yazma arasında
+ * başka bir aboneliğe geçtiyse tek deneme sonuç vermez; karar taze satırla yeniden verilir. Üç denemede de değişirse (pratikte olmaz) olay
+ * işlenmiş SAYILMAZ: hata fırlar → 500 → Paddle yeniden gönderir.
+ */
 async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<SubscriptionOutcome | void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const out = await applySubscriptionEventOnce(data, occurredAt);
+    if (out !== IDENTITY_CHANGED) return out;
+  }
+  throw new Error("paddle-webhook: abonelik satırı üç denemede de başka aboneliğe geçti — olay yeniden gönderilsin");
+}
+
+async function applySubscriptionEventOnce(
+  data: Record<string, unknown>,
+  occurredAt: Date | null,
+): Promise<SubscriptionOutcome | void | typeof IDENTITY_CHANGED> {
   const organizationId = await resolveOrgId(data, eventPriceIdFromData(data), occurredAt);
   const paying = PAYING_SUBSCRIPTION_STATUSES.has(str(data.status) ?? "");
   if (!organizationId) {
@@ -257,6 +277,15 @@ async function applySubscriptionEvent(
     const eventCreatedAt = rawCreated ? new Date(rawCreated) : null;
     if (eventCreatedAt && !Number.isNaN(eventCreatedAt.getTime())) {
       const registeredCreatedAt = await getSubscriptionCreatedAt(replacesLiveSubscription.from);
+      // 🚨 ÖDEME P1 (Codex 11-10): kayıtlı aboneliğin yaşı ŞU AN okunamıyorsa (Paddle geçici arıza / zaman aşımı / hız sınırı) "yerine geç"
+      // diye TAHMİN edilmez — eski aboneliğin aktif olayı tam o anda gelirse yeni (ödeyen) aboneliği ezerdi. Olay işlenmiş sayılmaz: hata →
+      // 500 → Paddle yeniden gönderir, karar gerçek veriyle verilir. KESİN bilinmezlikte (anahtar tanımsız, abonelik Paddle'da yok, alan yok)
+      // kurucunun 11-04 kararı aynen: yerine geçer + "ikinci abonelik" alarmı.
+      if (registeredCreatedAt === SUBSCRIPTION_READ_TRANSIENT) {
+        throw new Error(
+          "paddle-webhook: kayıtlı aboneliğin oluşturulma zamanı şu an okunamadı (geçici) — hangi aboneliğin yeni olduğu bilinmeden yazılmadı; olay yeniden gönderilince işlenir",
+        );
+      }
       if (registeredCreatedAt && eventCreatedAt.getTime() < registeredCreatedAt.getTime()) {
         await alertOnTransition(
           `paddle-webhook:older-subscription:${organizationId}:${providerRef}`,
@@ -376,11 +405,51 @@ async function applySubscriptionEvent(
   // yeniden "A / iptal" yapıyordu. Aktifleşmeyen olay ancak satır HÂLÂ kendi aboneliğiyse (ya da kimliksizse) yazar; şart
   // UPDATE'in içinde değerlendirilir (okuma-yazma penceresi yok). Aktifleşen olay (yeni abonelik eskisinin yerine geçer) serbest.
   // Kartla deneme (10-17): İPTAL edilmiş kayıtlı aboneliğin yerine yeni aboneliğin DENEME olayı da geçer — koşul burada da (atomik) aynı.
-  const identityGuard =
-    providerRef && status !== "active"
+  // 🚨 AKTİF OLAY DA KİMLİĞE BAĞLI (ödeme P1, Codex 11-10): yukarıdaki "yerine geçme" kararı (hangi aboneliğin yerine, B-1 yaş kıyası)
+  // OKUNAN satıra göre verildi. Aktif olay ancak satır hâlâ o okunan abonelikse (ya da zaten kendi aboneliğiyse) yazar. Aksi hâlde
+  // eski aboneliğin (A) aktif güncellemesi, satırı A iken okuyup yeni abonelik (B) yazıldıktan SONRA yazınca B'yi eziyordu — B-1 denetimi
+  // hiç koşmamıştı çünkü okuma anında satır A'ydı. 0 satırda ne olduğu `afterZeroRows`ta ayrıştırılır.
+  const readRef = existing?.providerRef ?? null;
+  const identityGuard = !providerRef
+    ? {}
+    : status !== "active"
       ? { OR: [{ providerRef: null }, { providerRef }, ...(status === "trialing" ? [{ status: "canceled" }] : [])] }
-      : {};
+      : { OR: [{ providerRef: readRef }, { providerRef }] };
   const guardedWhere = { organizationId, AND: [orderingGuard, identityGuard] };
+
+  /**
+   * Korumalı yazım 0 satır döndü. Ayrı ayrı şeyler olabilir ve hiçbiri sessizce karışmamalı:
+   *  · işletme bu olay işlenirken SİLİNDİ (abonelik kademeyle gitti) → ödemeliyse alarm + inceleme (U42 / ödeme S2; ilk kayıt çatışması
+   *    dalında da — P5, Codex 11-10: o dal alarmsız dönüyordu);
+   *  · aktif OLMAYAN olay: kimlik / sıra şartı bilerek düşürdü (K4) → sessiz;
+   *  · daha taze olay zaten yazılmış → bayat, sessiz düşer (sıralı gelişteki `staleByOrder` ile aynı);
+   *  · AKTİF olay ve satır okunduktan sonra kimlik değiştirdi (P1):
+   *      – olayın KENDİ aboneliği satırdaydı ve bu arada başka bir abonelik onun yerine geçti → olay yerinden edilmiş (eski) aboneliğindir:
+   *        uygulanmaz + operatöre alarm (B-1 ile aynı alarm). Yeniden karar VERİLMEZ: yaş kıyası okunamıyorsa sıralı kural "yerine geç"
+   *        der ve iki abonelik birbirini sırayla ezerdi; "az önce yerinden edildi" bilgisi ancak burada var;
+   *      – diğer her durum (başka bir abonelik araya girdi, satır geri döndü, satır yok) → karar taze satırla YENİDEN verilir.
+   */
+  const afterZeroRows = async (): Promise<SubscriptionOutcome | void | typeof IDENTITY_CHANGED> => {
+    if (!(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
+      if (!paying) return;
+      await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
+      return { review: "org_deleted" };
+    }
+    if (status !== "active" || !providerRef) return;
+    const row = await prisma.subscription.findUnique({ where: { organizationId }, select: { providerRef: true, lastEventAt: true } });
+    if (row && occurredAt && row.lastEventAt && row.lastEventAt.getTime() > occurredAt.getTime()) return;
+    if (row?.providerRef && readRef === providerRef && row.providerRef !== providerRef) {
+      await alertOnTransition(
+        `paddle-webhook:older-subscription:${organizationId}:${providerRef}`,
+        "paddle-webhook-older-subscription-event",
+        new Error(
+          `İşletme ${organizationId}: eski abonelik ${providerRef} için aktif olay geldi; o sırada yerine geçen abonelik ${row.providerRef} korunuyor (olay uygulanmadı). Eski aboneliği Paddle panelinden kontrol edin.`,
+        ),
+      );
+      return;
+    }
+    return IDENTITY_CHANGED;
+  };
 
   // Settles a pending in-app plan change ONLY when this event actually applied
   // (ordering guard passed) AND it carries the pending TARGET price (holder) —
@@ -483,16 +552,14 @@ async function applySubscriptionEvent(
       where: guardedWhere,
       data: updateData,
     });
-    if (resU.count === 1) await settlePending();
-    else if (paying && !(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
-      // 🚨 U42 / ödeme S2: 0 satır İKİ şey demek olabilir — daha taze olay zaten yazılmış (bayat, sessiz düşer) YA DA işletme bu olay
-      // işlenirken SİLİNDİ (abonelik kademeyle gitti). İkincisinde ödeme alınmış olabilir → alarm + inceleme. Silme tarafı ön kontrolde
-      // abonelik satırını KİLİTLER (`account/delete`, Opus F2): güncelleme önce commit olduysa silme onu görüp 409 der; silme kilidi
-      // aldıysa güncelleme bekler ve buraya 0 satırla düşer.
-      await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
-      return { review: "org_deleted" };
+    if (resU.count === 1) {
+      await settlePending();
+      return;
     }
-    return; // count 0 + işletme var → a fresher event already applied → stale, dropped
+    // 🚨 U42 / ödeme S2 + P1: 0 satır → `afterZeroRows` (işletme silindi / bayat / abonelik kimliği değişti). Silme tarafı ön kontrolde
+    // abonelik satırını KİLİTLER (`account/delete`, Opus F2): güncelleme önce commit olduysa silme onu görüp 409 der; silme kilidi
+    // aldıysa güncelleme bekler ve buraya 0 satırla düşer.
+    return afterZeroRows();
   }
   try {
     await prisma.subscription.create({
@@ -521,8 +588,11 @@ async function applySubscriptionEvent(
         where: guardedWhere,
         data: updateData,
       });
-      if (resF.count === 1) await settlePending();
-      return;
+      if (resF.count === 1) {
+        await settlePending();
+        return;
+      }
+      return afterZeroRows();
     }
     // İşletme okuma ile yazma ARASINDA silindi (ödeme S2): yabancı anahtar satırı reddeder — hesap geri açılmaz. 500 + Paddle'ın sonsuz
     // yeniden denemesi yerine inceleme + (ödemeliyse) alarm.
