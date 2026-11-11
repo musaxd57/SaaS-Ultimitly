@@ -17,7 +17,8 @@ const { updateMock, previewMock, getPriceMock } = vi.hoisted(() => ({
   previewMock: vi.fn(),
   getPriceMock: vi.fn(),
 }));
-vi.mock("@/lib/payments/paddle", () => ({
+vi.mock("@/lib/payments/paddle", async (orig) => ({
+  ...(await orig<typeof import("@/lib/payments/paddle")>()), // fiyat → plan haritası gerçek (env'den)
   isPaddleConfigured: () => true,
   previewSubscriptionUpdate: previewMock,
   updateSubscriptionPlan: updateMock,
@@ -59,7 +60,8 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       immediateTotal: "₺123,45",
       recurringTotal: "₺899,00",
     });
-    getPriceMock.mockReset().mockResolvedValue(null); // reconcile: nothing by default
+    // Aboneliğin Paddle'daki şu anki fiyatı: varsayılan = kayıtlı plan (pro). (11-11: fiyat okunamazsa değişiklik HİÇ uygulanmaz — ayrı test.)
+    getPriceMock.mockReset().mockResolvedValue("pri_pro");
     vi.stubEnv("PADDLE_PLAN_CHANGE_ENABLED", "1");
     vi.stubEnv("PADDLE_PRICE_BASLANGIC", "pri_baslangic");
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -258,7 +260,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const t = tok("pri_isletme", "upgrade");
     // The PATCH reached Paddle and applied, but the response was lost (timeout).
     updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "The operation timed out" });
-    getPriceMock.mockResolvedValueOnce(null); // pre-PATCH check: not yet on target
+    getPriceMock.mockResolvedValueOnce("pri_pro"); // pre-PATCH check: not yet on target (still the source price)
     getPriceMock.mockResolvedValue("pri_isletme"); // reconcile GET: subscription IS on the target
     const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(200);
@@ -481,13 +483,39 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
-    it("KONTROL: kaynak aynı (abonelik + plan + Paddle fiyatı) → uygulanır; Paddle fiyatı okunamazsa abonelik + plan yeter", async () => {
+    it("KONTROL: kaynak aynı (abonelik + plan + Paddle fiyatı) → uygulanır; önizlemede fiyat okunmamış olsa da (fromPrice boş) plan eşleşince uygulanır", async () => {
       noCharge();
       getPriceMock.mockResolvedValue("pri_pro");
       expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
-      getPriceMock.mockResolvedValue(null);
-      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
+      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null) }), ctx)).status).toBe(200);
       expect(updateMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("🚨 önizlemede fiyat okunmamış (fromPrice boş) + yerel satır eski: Paddle'daki fiyat BAŞKA plana karşılık geliyorsa uygulanmaz (Haiku incelemesi 11-11)", async () => {
+      // Sekme 1 pro → business yükseltmesini uyguladı (webhook henüz gelmedi: yerel plan hâlâ pro). Sekme 2'nin eski "pro → başlangıç" onayı.
+      noCharge();
+      getPriceMock.mockResolvedValue("pri_isletme");
+      const t = tok("pri_baslangic", "downgrade", orgId, null);
+      const res = await CHANGE(req({ planCode: "free", previewToken: t }), ctx);
+      expect(res.status).toBe(400);
+      expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
+      expect(updateMock).not.toHaveBeenCalled();
+      const lock = await pendingRow();
+      expect(lock === null || lock.lockedUntil <= new Date()).toBe(true);
+    });
+
+    it("🚨 kör PATCH yok: aboneliğin Paddle'daki fiyatı okunamazsa değişiklik uygulanmaz (503), kilit ve onay geri bırakılır; okuma düzelince aynı onay geçer", async () => {
+      const t = tok("pri_isletme", "upgrade");
+      getPriceMock.mockResolvedValue(null);
+      const res = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toMatch(/planınız değişmedi/);
+      expect(updateMock).not.toHaveBeenCalled();
+      const lock = await pendingRow();
+      expect(lock === null || lock.lockedUntil <= new Date()).toBe(true);
+      getPriceMock.mockResolvedValue("pri_pro");
+      expect((await CHANGE(req({ planCode: "business", previewToken: t }), ctx)).status).toBe(200);
+      expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
     it("kaynağı taşımayan (eski biçim) onay geçersizdir — müşteri tutarı yeniden onaylar", async () => {
@@ -498,6 +526,12 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       expect(res.status).toBe(400);
       expect((await res.json()).fields.error).toMatch(/süresi doldu/); // belirteç geçersiz sayıldı (yeniden önizleme istenir)
       expect(updateMock).not.toHaveBeenCalled();
+      // Yalnız abonelik / plan alanı eksik olan belirteç de geçersiz (fiyat alanı doğru biçimde olsa bile).
+      const body2 = Buffer.from(JSON.stringify({ org: orgId, priceId: "pri_isletme", mode: "upgrade", amount: "₺123,45", fromPrice: null, jti: "eski-bicim-2", exp: Date.now() + 60_000 })).toString("base64url");
+      const legacy2 = `${body2}.${createHmac("sha256", process.env.AUTH_SECRET ?? "").update(body2).digest("base64url")}`;
+      const res2 = await CHANGE(req({ planCode: "business", previewToken: legacy2 }), ctx);
+      expect(res2.status).toBe(400);
+      expect((await res2.json()).fields.error).toMatch(/süresi doldu/);
     });
   });
 
@@ -516,7 +550,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     // A isteği tutar kıyasındayken (kilitten ÖNCE) B isteği başlar, kilidi alır ve PATCH'e girer.
     let pB: Promise<Response> | null = null;
     previewMock.mockImplementationOnce(async () => {
-      getPriceMock.mockResolvedValueOnce(null); // B'nin "zaten hedefte mi" okuması: değil → PATCH
+      getPriceMock.mockResolvedValueOnce("pri_pro"); // B'nin "zaten hedefte mi" okuması: değil (hâlâ kaynak fiyat) → PATCH
       pB = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
       await bInPatch;
       getPriceMock.mockResolvedValue("pri_isletme"); // A okursa: zaten hedefte (B'nin değişikliği Paddle'a ulaştı)

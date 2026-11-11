@@ -164,8 +164,15 @@ export const POST = withOwner(async (session, req) => {
     }).catch(() => {});
     return jsonOk({ ok: true, mode: r.mode, reconciled: true });
   }
+  // 🚨 KÖR PATCH YOK (Haiku incelemesi 11-11): aboneliğin Paddle'daki ŞU ANKİ fiyatı okunamadıysa kaynak doğrulanamaz — özellikle düşürmede
+  // (anlık tutar yok → tutar kıyası hiçbir şey yakalamaz) eski bir onay yeni durumun üstüne uygulanabilirdi. Uygulanmaz; onay tüketilmez.
+  if (!alreadyOn) {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
   // Kaynak son kez (ödeme P3): yukarıdaki kaynak karşılaştırması ile kilit arasında başka bir plan değişikliği TAMAMLANMIŞ olabilir (yerel
-  // satırı webhook güncelleyene kadar eski planı gösterir). Paddle'daki fiyat okunabildiyse ve önizlemedeki kaynak fiyattan farklıysa uygulanmaz.
+  // satırı webhook güncelleyene kadar eski planı gösterir). Paddle'daki fiyat önizlemedeki kaynak fiyattan / plandan farklıysa uygulanmaz.
   if (!planChangeSourceMatches(token, { providerRef: r.providerRef, currentCode: r.currentCode, currentPriceId: alreadyOn })) {
     await clearPending();
     await releasePlanChangeNonce(token.jti);

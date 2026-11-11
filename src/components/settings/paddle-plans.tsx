@@ -223,7 +223,9 @@ export function PaddlePlans({
   // sayfa yenilense de "Ödemeniz işleniyor" kalıyordu. Yerel tamamlama sinyali (↓ checkout.completed) bunu ezmez — yalnız sunucu "bitti" derse.
   // 🚨 İKİ YÖNLÜ (ödeme P7, Codex 11-10): yalnız "bitti" uygulanıyordu — sayfa açıkken sunucu kilidi SONRADAN geldiyse (ödeme başka sekmede
   // tamamlandı, bu sayfa yenilendi) kartlar açık kalıyordu.
+  const checkoutPendingRef = useRef(Boolean(checkoutPending));
   useEffect(() => {
+    checkoutPendingRef.current = Boolean(checkoutPending);
     setProcessing(Boolean(checkoutPending));
   }, [checkoutPending]);
   // 🚨 KENDİLİĞİNDEN YENİDEN BAKAR (ödeme P7): sayfa "Ödemeniz işleniyor" ile açıldıysa (ödeme başka sekmede / önceki ziyarette tamamlandı)
@@ -273,7 +275,10 @@ export function PaddlePlans({
               if (ev?.name === "checkout.completed") {
                 setProcessing(true);
                 // Sunucu kilidiyle aynı süre: webhook hiç gelmezse kart bu sayfada da kendiliğinden açılır (Haiku incelemesi).
-                setTimeout(() => setProcessing(false), CHECKOUT_PENDING_MS);
+                // Sunucu kilidi o anda hâlâ geçerliyse (prop) kart AÇILMAZ — sunucu "bitti" diyene kadar bekler (Haiku incelemesi 11-11).
+                setTimeout(() => {
+                  if (!checkoutPendingRef.current) setProcessing(false);
+                }, CHECKOUT_PENDING_MS);
                 const consentId = lastConsentRef.current;
                 if (consentId) {
                   void fetch("/api/billing/checkout-pending", {
@@ -442,7 +447,8 @@ export function PaddlePlans({
   const startChange = useCallback(async (planCode: string, noticeOnSuccess?: string) => {
     // Paneli açan düğme (kapanınca odak buraya döner). "Tutar değişti" yeniden hesaplamasında etkin öğe panelin kendi düğmesidir → korunur.
     const active = typeof document !== "undefined" ? document.activeElement : null;
-    if (active instanceof HTMLElement && !confirmPanelRef.current?.contains(active)) changeTriggerRef.current = active;
+    // Gövde (hiçbir şey odakta değil — ör. devre dışı kalan onay düğmesinden düşen odak) düğme sayılmaz (Haiku incelemesi 11-11).
+    if (active instanceof HTMLElement && active !== document.body && !confirmPanelRef.current?.contains(active)) changeTriggerRef.current = active;
     if (changeBusy) return;
     setError(null);
     setNotice(null);

@@ -4,7 +4,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { defaultPlans, planByCode, type PlanDef } from "./plans";
-import { getSubscriptionCurrentPriceId } from "@/lib/payments/paddle";
+import { paddlePriceToPlanCode, getSubscriptionCurrentPriceId } from "@/lib/payments/paddle";
 import { planFitsPropertyCount } from "./subscription";
 
 // ---------------------------------------------------------------------------
@@ -287,15 +287,21 @@ export function verifyPlanChangeToken(token: string | undefined | null): PlanTok
 }
 
 /**
- * Onayın KAYNAĞI hâlâ geçerli mi: aynı abonelik + aynı plan; Paddle'daki fiyat iki tarafta da biliniyorsa o da aynı (ödeme P3).
- * `currentPriceId` uygulama anında Paddle'dan okunan fiyat (bilinmiyorsa null → yalnız abonelik + plan karşılaştırılır).
+ * Onayın KAYNAĞI hâlâ geçerli mi: aynı abonelik + aynı plan; Paddle'daki fiyat iki tarafta da biliniyorsa o da aynı; Paddle'daki fiyatın
+ * karşılık geldiği plan da onayın alındığı plan (ödeme P3). `currentPriceId` Paddle'dan okunan ŞU ANKİ fiyat (bilinmiyorsa null → yalnız
+ * abonelik + plan karşılaştırılır; uygulama rotası kilit alındıktan sonra fiyatı okuyamazsa hiç uygulamaz).
  */
 export function planChangeSourceMatches(
   token: Pick<PlanTokenPayload, "sub" | "from" | "fromPrice">,
   now: { providerRef: string; currentCode: string; currentPriceId: string | null },
 ): boolean {
   if (token.sub !== now.providerRef || token.from !== now.currentCode) return false;
-  return !(token.fromPrice && now.currentPriceId && token.fromPrice !== now.currentPriceId);
+  if (token.fromPrice && now.currentPriceId && token.fromPrice !== now.currentPriceId) return false;
+  // Paddle'daki fiyat bir plana karşılık geliyorsa o plan, onayın alındığı planla aynı olmalı (Haiku incelemesi 11-11): yerel satır webhook
+  // gelene kadar ESKİ planı gösterir ve önizlemede fiyat okunmamış olabilir (yıllık fiyat yapılandırılmamış kurulum → `fromPrice` boş) —
+  // o durumda yukarıdaki iki karşılaştırma da geçer, ama Paddle'ın bildirdiği plan değişmiştir. Haritada olmayan fiyat → karşılaştırılmaz.
+  const planNow = paddlePriceToPlanCode(now.currentPriceId);
+  return !(planNow && planNow !== token.from);
 }
 
 // ---------------------------------------------------------------------------
