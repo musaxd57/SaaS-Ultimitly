@@ -78,7 +78,9 @@ describe("O1 liste anahtarı — gönderim kararları işletmeye göre (kaynak p
     expect(globalCalls(src)).toBe(0);
     expect(src).toMatch(/const anyUndeliveredOutbound =\s*\n\s*\(await undeliveredFilterActive\(\)\) &&/);
     // Gönderim dalları: nezaket, kanal oto-yanıtı, karşılama / giriş / çıkış (her biri iki satır: silme bekçisi + kuyruk) = 8.
-    expect((src.match(/durableOutboxEnabledFor\(/g) ?? []).length).toBe(8);
+    // + 1: otomatik mesaj adaylarının ön elemesi (`lifecycleUnusableIds`, 11-11) — kuyruğun sahiplendiği rezervasyonu hangi kuralla
+    //   eleyeceğine İŞLETMEYE göre karar verir (kuyruk açık / kapalı); o da küresel anahtara bakmaz.
+    expect((src.match(/durableOutboxEnabledFor\(/g) ?? []).length).toBe(9);
   });
 
   it("operator-replies.ts: selam sayımı süzgeci de kuyruk varlığına bağlı (anahtar kapatılınca kapanmaz)", () => {

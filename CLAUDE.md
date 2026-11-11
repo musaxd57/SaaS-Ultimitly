@@ -462,6 +462,8 @@ Bu dosyaya token/anahtar/parola yazma.
 - **Dönüş tipini / hata sözleşmesini değiştiren düzeltmede BÜTÜN çağıranlar ve onların testleri taranır** (10-07): `deleteAccountData`ın
   `{ deleted }` dönüşü ve parola onayının 401'i hedefli testlerde yeşildi, tam kapıda üç eski pin kırmızı çıktı (çift tıklamanın kaybedeni 400
   sözleşmesi dahil). Hedefli test yetmez; `grep` ile çağıran + test listesi çıkarılır.
+  (11-11) Liste, değişen DOSYANIN ADINI okuyan kaynak pinlerini de kapsar (`grep -rlF "automation.ts" tests`): çağıran taraması bir davranış
+  gerilemesini yakaladı, ama anahtarın çağrı sayısını sayan pin ancak tam kapıda kırmızı çıktı (40 dakika kayıp).
 - 🚨 **Nullable kolonda `NOT: { kolon: değer }` NULL satırı da DIŞARIDA bırakır** (11-04, SQL `NOT (x = v)` NULL'da NULL): bekleyen (sahipsiz) satırları arayan sorgu hiçbirini görmüyordu, yedek e-posta HİÇ gitmezdi — mutasyon koşucusunun M0'ı yakaladı. `OR: [{ kolon: null }, { kolon: { not: değer } }]`. **Commit'ten ÖNCE ilgili test dosyaları koşulur** (aynı gün 8 commit testsiz birikmişti; ikinci hata Türkçe ek: kalıp kökte bitiyordu, testler yalnız İngilizcede yeşildi).
 - **Genel Prisma temsilcisine kurulan casus İŞLEM istemcisinin (`tx`) çağrısını GÖRMEZ** (11-04): yazma kilitli işleme taşınınca yarış / çökme testleri sessizce kurulmaz oldu (tam kapıda kırmızı). Araya girme, kilitli bölgenin test kancasından (`__kbCapHooks`) kurulur; mutasyonla kancanın gerçekten tetiklendiği sınanır.
 - **Aynı işlemde AYNI zaman damgasıyla yazılan satırların sıralaması `id` ile kesinleşir** (09-27): konuşma öğeleri bir turda tek
