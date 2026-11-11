@@ -143,6 +143,56 @@ describe("konuşma ekranı — yapay zekâ önerisi hazırlanamadığında (3d)"
     }
   });
 
+  it("🚨 KONTROL: sunucu kayıtlı taslağı istek sürerken GERİ ÇEKTİYSE (yeni misafir mesajı geldi) eski hazır taslak geri konmaz", async () => {
+    for (const mode of ["rejected", "no-draft"] as const) {
+      cleanup();
+      let release: (r: Response) => void = () => {};
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
+      const view = render(<ConversationThread {...baseProps} initialDraft={PREPARED} />);
+      await clickSuggest();
+      // Yeni misafir mesajı geldi: konuşmanın sonu yine misafir (cevap değil), sunucu m1'in taslağını artık vermiyor.
+      const more = [...(baseProps.messages as unknown as Record<string, unknown>[]), { id: "m2", direction: "inbound", body: "Bir şey daha soracaktım.", createdAt: new Date("2026-01-01T10:01:00Z"), senderName: "Ada" }];
+      view.rerender(<ConversationThread {...baseProps} messages={more as unknown as typeof baseProps.messages} initialDraft={null} />);
+      await act(async () => {
+        release(mode === "rejected" ? new Response(JSON.stringify({ error: "Hata." }), { status: 500 }) : new Response(JSON.stringify(suggestion({ reply: "" })), { status: 200 }));
+      });
+      expect(screen.queryByText("Önceki taslak metni."), mode).toBeNull(); // ⬅️ geri konsaydı geçersiz taslak "Onayla ve gönder"e açılırdı
+      expect(screen.queryByRole("button", { name: /Onayla ve gönder/ }), mode).toBeNull();
+    }
+  });
+
+  it("🚨 KONTROL: istek sürerken panele YENİ mesajın hazır taslağı geldiyse üstüne eskisi yazılmaz", async () => {
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
+    const view = render(<ConversationThread {...baseProps} initialDraft={PREPARED} />);
+    await clickSuggest();
+    const more = [...(baseProps.messages as unknown as Record<string, unknown>[]), { id: "m2", direction: "inbound", body: "Bir şey daha soracaktım.", createdAt: new Date("2026-01-01T10:01:00Z"), senderName: "Ada" }];
+    view.rerender(
+      <ConversationThread {...baseProps} messages={more as unknown as typeof baseProps.messages} initialDraft={{ ...PREPARED, messageId: "m2", reply: "Yeni mesajın taslağı." }} />,
+    );
+    await act(async () => {
+      release(new Response(JSON.stringify({ error: "Hata." }), { status: 500 }));
+    });
+    expect(screen.getByText("Yeni mesajın taslağı.")).toBeTruthy();
+    expect(screen.queryByText("Önceki taslak metni.")).toBeNull();
+  });
+
+  it("KONTROL: önceki öneri ev sahibinin kendi 'AI cevap öner' sonucuysa yeni misafir mesajı gelse de geri konur (o öneri yeni mesajla silinmez)", async () => {
+    respond(suggestion({ source: "openai", intent: "wifi", confidence: 0.9, reply: "Wi-Fi şifresi 12345678." }));
+    const view = render(<ConversationThread {...baseProps} />);
+    await clickSuggest();
+    expect(screen.getByText("Wi-Fi şifresi 12345678.")).toBeTruthy();
+    let release: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
+    await clickSuggest();
+    const more = [...(baseProps.messages as unknown as Record<string, unknown>[]), { id: "m2", direction: "inbound", body: "Bir şey daha soracaktım.", createdAt: new Date("2026-01-01T10:01:00Z"), senderName: "Ada" }];
+    view.rerender(<ConversationThread {...baseProps} messages={more as unknown as typeof baseProps.messages} />);
+    await act(async () => {
+      release(new Response(JSON.stringify({ error: "Hata." }), { status: 500 }));
+    });
+    expect(screen.getByText("Wi-Fi şifresi 12345678.")).toBeTruthy();
+  });
+
   it("not bir sonraki denemede temizlenir (yeni istek başlarken)", async () => {
     respond(suggestion({ reply: "" }));
     render(<ConversationThread {...baseProps} />);

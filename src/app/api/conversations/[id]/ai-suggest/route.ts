@@ -225,10 +225,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // kontrolleri ORİJİNAL metne bakar (erteleme tanıma o kalıba dayanır).
   // K-1029-A (Opus F10): cevabın tamamı ev sahibine başvurma yüzünden tutulduysa taslak o cümleler ÇIKARILMIŞ metindir.
   const hostDraft = hostVoiceDraft(result.hostContactDraft ?? result.reply);
-  // 3d (kurucu 11-11): model yokken taslak üretilemediyse (yedek yol boş döndü) son misafir mesajında kayıtlı duran ÖNCEKİ taslağın
-  // üstüne boş yazılmaz — model arızası ev sahibinin elindeki taslağı silmesin. Model cevap verdiyse eski kural aynen (boş da olsa yazılır).
-  const noDraft = result.source !== "openai" && !hostDraft.trim();
-  if (!noDraft) {
+  // 3d (kurucu 11-11): KAYITLI TASLAK YALNIZ YAPAY ZEKÂNIN YAZDIĞIDIR. Yapay zekâya ulaşılamadığında (yedek yol) sonuç mesaja taslak olarak
+  // yazılmaz: boş sonuç ev sahibinin elindeki önceki taslağı silmesin; kayıtlı bilgiden kurulan taslak da sayfa yeniden açılınca "yapay
+  // zekâ hazırladı" diye görünmesin (kaynağı kayıtta tutulmuyor — Haiku incelemesi 11-11). O taslak yalnız bu yanıtta, uyarısıyla görünür.
+  // Model cevap verdiyse eski kural aynen (boş da olsa yazılır). Konu etiketi ("En çok sorulanlar" raporu) yedek yolda da kaydedilir —
+  // ama yalnız mesajda kayıtlı taslak YOKSA (kayıtlı taslağın konusu / güveni ona aittir, değişmez).
+  if (result.source === "openai") {
     await prisma.message.update({
       where: { id: lastInbound.id },
       data: {
@@ -236,6 +238,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         aiConfidence: result.confidence,
         aiIntent: result.intent,
       },
+    });
+  } else {
+    await prisma.message.updateMany({
+      where: { id: lastInbound.id, OR: [{ aiSuggestedReply: null }, { aiSuggestedReply: "" }] },
+      data: { aiIntent: result.intent },
     });
   }
 

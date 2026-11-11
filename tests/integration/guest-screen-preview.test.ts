@@ -151,6 +151,20 @@ describe("K14 — misafirin gördüğü ekran (salt okunur önizleme)", () => {
     for (const t of ["form", "textarea", "input", "button"]) expect(types, t).not.toContain(t);
   });
 
+  it("🚨 mesaj saati İŞLETMENİN saat diliminde (misafirin uçla aynı kural) — sunucunun ya da varsayılan dilimin saati değil", async () => {
+    const { conversation, org } = await seed();
+    await prisma.organization.update({ where: { id: org.id }, data: { timezone: "Asia/Tokyo" } });
+    // Tek mesaj, bilinen an: 2026-01-15 22:07Z → Tokyo'da 07:07 (ertesi gün), İstanbul'da 01:07, UTC'de 22:07.
+    await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+    await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: "Havlular dolapta.", createdAt: new Date("2026-01-15T22:07:00.000Z") },
+    });
+    const { text } = await render(conversation.id);
+    expect(text).toContain("07:07");
+    expect(text).not.toContain("01:07");
+    expect(text).not.toContain("22:07");
+  });
+
   it("U4: başlık misafirin gördüğünün aynısı — misafire görünen ad varsa '<ad> · Misafir Asistanı', yoksa marka; iç ad ASLA", async () => {
     const { conversation, property } = await seed();
     let { text } = await render(conversation.id);

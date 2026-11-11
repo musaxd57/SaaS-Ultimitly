@@ -117,6 +117,8 @@ interface Suggestion {
   internalSourceCheck?: boolean;
   /** Kayıtlı taslak (sayfa açılınca yüklendi; misafire gitmedi) — güven rozeti yerine "hazır taslak" yazar. */
   prepared?: boolean;
+  /** Kayıtlı taslağın ait olduğu misafir mesajı (yalnız `prepared`): sunucu taslağı hâlâ veriyor mu diye bakılır (↓ `handleSuggest`). */
+  preparedFor?: string;
 }
 
 /** Kayıtlı HAZIR TASLAK → panelin öneri biçimi (uyarı sunucuda yeniden hesaplandı). */
@@ -130,6 +132,7 @@ function preparedSuggestion(d: PreparedDraft): Suggestion {
     availabilityCheck: d.availabilityCheck,
     internalSourceCheck: d.internalSourceCheck,
     prepared: true,
+    preparedFor: d.messageId,
   };
 }
 
@@ -195,6 +198,9 @@ export function ConversationThread({
   // Paneldeki önerinin son hâli (etkiler eski kapanışı okumasın).
   const suggestionRef = useRef(suggestion);
   suggestionRef.current = suggestion;
+  // Sunucunun ŞU AN verdiği kayıtlı taslak (istek sürerken değişebilir — ↓ `handleSuggest` geri koymadan önce buna bakar).
+  const initialDraftRef = useRef(initialDraft);
+  initialDraftRef.current = initialDraft;
   useEffect(() => {
     if (initialDraft && initialDraft.messageId !== seenDraftRef.current) {
       seenDraftRef.current = initialDraft.messageId;
@@ -316,8 +322,13 @@ export function ConversationThread({
     const answeredMeanwhile = () => threadEndRef.current.id !== askedAt && threadEndRef.current.isReply;
     // Yeni öneri ALINAMADIYSA (istek reddedildi / bağlantı koptu) eldeki öneri de kaybolmasın: hata mesajı görünür, önceki taslak yerinde
     // kalır. İstek sürerken konuşma cevaplandıysa geri konmaz — o öneri cevaplanmış mesaja aittir (M5).
+    // Geri konmayan iki durum daha (Haiku incelemesi 11-11): (1) önceki öneri kayıtlı HAZIR taslaktı ve sunucu onu artık vermiyor
+    // (yeni misafir mesajı geldi / taslak kalktı) — geri koymak geçersiz taslağı "Onayla ve gönder"e açardı; (2) istek sürerken panele
+    // başka bir öneri geldi (yeni mesajın hazır taslağı) — üstüne eskisi yazılmaz.
     const keepPrevious = () => {
-      if (!answeredMeanwhile()) setSuggestion(previous);
+      if (!previous || answeredMeanwhile()) return;
+      if (previous.prepared && initialDraftRef.current?.messageId !== previous.preparedFor) return;
+      setSuggestion((current) => current ?? previous);
     };
     try {
       const res = await fetch(`/api/conversations/${conversationId}/ai-suggest`, {
@@ -333,7 +344,7 @@ export function ConversationThread({
         // Yapay zekâya ulaşılamadı ve kayıtlı bilgiden kurulabilecek somut bir taslak da yok → söz veren hazır cümle YOK; not gösterilir,
         // önceki öneri (varsa) yerinde kalır.
         setNoAiSuggestion(true);
-        setSuggestion(previous);
+        keepPrevious();
       } else if (res.ok) {
         setSuggestion(data);
         // Sunucu bu öneriyi son misafir mesajına da kaydetti → yenilemede kayıtlı hâli bunun üstüne yazılmasın.

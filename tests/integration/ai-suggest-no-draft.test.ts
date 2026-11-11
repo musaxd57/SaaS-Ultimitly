@@ -101,18 +101,27 @@ describe("POST /api/conversations/[id]/ai-suggest — model yokken taslak yok (3
     expect(await stored(messageId)).toEqual({ aiSuggestedReply: "Önceki taslak metni.", aiConfidence: 0.8, aiIntent: "refund" }); // ⬅️ ESKİDE hazır cümle üstüne yazılırdı
   });
 
-  it("kayıtlı taslak yokken de boş taslak YAZILMAZ (alan boş kalır)", async () => {
+  it("kayıtlı taslak yokken de boş taslak YAZILMAZ; KONU etiketi kaydedilir (rapor verisi kaybolmaz)", async () => {
     const { id, messageId } = await seed(null);
     mockSuggest.mockResolvedValueOnce(RESULT as never);
     expect((await suggest(id)).status).toBe(200);
-    expect(await stored(messageId)).toEqual({ aiSuggestedReply: null, aiConfidence: null, aiIntent: null });
+    expect(await stored(messageId)).toEqual({ aiSuggestedReply: null, aiConfidence: null, aiIntent: "refund" });
   });
 
-  it("KONTROL: yedek yol SOMUT bilgiden taslak kurduysa eskisi gibi kaydedilir", async () => {
+  it("🚨 yedek yolun SOMUT bilgiden kurduğu taslak yanıtta döner ama mesaja KAYDEDİLMEZ — kayıtlı taslak yalnız yapay zekânındır", async () => {
+    // Kayıtta taslağın kaynağı tutulmuyor: yedek taslak kaydedilseydi sayfa yeniden açılınca "AI bu taslağı sizin için hazırladı" diye,
+    // "soruya uygunluğunu kontrol edin" uyarısı olmadan görünürdü.
     const { id, messageId } = await seed("Önceki taslak metni.");
     mockSuggest.mockResolvedValueOnce({ ...RESULT, intent: "wifi", confidence: 0.9, reply: "Merhaba Ada,\n\nWi-Fi bilgileri: Ağ LaleApt, şifre 12345678", risk: null, usedSources: ["kb:wifi"] } as never);
     expect((await suggest(id)).body.reply).toContain("12345678");
-    expect((await stored(messageId)).aiSuggestedReply).toContain("12345678");
+    expect(await stored(messageId)).toEqual({ aiSuggestedReply: "Önceki taslak metni.", aiConfidence: 0.8, aiIntent: "refund" }); // ⬅️ (ilk yazımda) şifre taslağı üstüne yazılıyordu
+  });
+
+  it("yedek yol + kayıtlı taslak yok: somut taslak da kaydedilmez, yalnız konu", async () => {
+    const { id, messageId } = await seed(null);
+    mockSuggest.mockResolvedValueOnce({ ...RESULT, intent: "wifi", confidence: 0.9, reply: "Merhaba Ada,\n\nWi-Fi bilgileri: Ağ LaleApt, şifre 12345678", risk: null, usedSources: ["kb:wifi"] } as never);
+    await suggest(id);
+    expect(await stored(messageId)).toEqual({ aiSuggestedReply: null, aiConfidence: null, aiIntent: "wifi" });
   });
 
   it("KONTROL: MODELİN cevabı (boş olsa da) eski kuralla kaydedilir — istisna yalnız 'model yok + taslak yok'", async () => {

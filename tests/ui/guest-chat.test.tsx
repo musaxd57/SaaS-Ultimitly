@@ -111,6 +111,12 @@ describe("GuestChat (UI, two-way)", () => {
     expect(screen.getAllByText("Lixus AI yeniden etkinleştirildi")).toHaveLength(1);
     expect(container.querySelectorAll('[data-avatar="host"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-avatar="ai"]')).toHaveLength(1);
+    // 🚨 İşaretin KENDİSİ de role bağlı (yalnız etiket değil): marka işareti (32'lik çizim alanı) yapay zekâda, insanda YOK.
+    const BRAND_VIEWBOX = "0 0 32 32";
+    expect(container.querySelector('[data-avatar="ai"] svg')?.getAttribute("viewBox")).toBe(BRAND_VIEWBOX);
+    const hostIcon = container.querySelector('[data-avatar="host"] svg');
+    expect(hostIcon).not.toBeNull();
+    expect(hostIcon?.getAttribute("viewBox")).not.toBe(BRAND_VIEWBOX);
   });
 
   it("saat yalnız sunucu verdiyse çizilir: misafirin kendi mesajında üstte, saati olmayan satırda hiç", async () => {
