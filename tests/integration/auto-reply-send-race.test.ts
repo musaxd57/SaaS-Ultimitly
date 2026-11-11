@@ -65,6 +65,17 @@ async function seed() {
 }
 const convo = (id: string) => prisma.conversation.findUniqueOrThrow({ where: { id }, select: { status: true, skippedReason: true, autoReplyHoldUntil: true } });
 
+/**
+ * Gönderim taklidinin "şimdi"si: gerçek sağlayıcı isteği zaman alır, o yüzden gönderim SIRASINDA içeri alınan mesajın alınma anı talep
+ * anından KESİN sonradır. Taklit anında dönerse hızlı makinede iki an AYNI milisaniyeye düşebiliyor; "geç mesaj" ölçütü bilinçli olarak
+ * kesin büyüktür (aynı milisaniyede alınan mesaj çoğu kez cevaplanan mesajın KENDİSİDİR), test rastlantıya kalıyordu — CI 1781'de bir kez
+ * kırmızı. Saat dondurularak birebir üretildi; birkaç milisaniye beklemek durumu gerçeğe uydurur.
+ */
+async function afterProviderDelay(): Promise<Date> {
+  await new Promise((r) => setTimeout(r, 5));
+  return new Date();
+}
+
 describe("otomatik cevap — gönderim sürerken", () => {
   beforeEach(async () => {
     await resetDb();
@@ -161,7 +172,7 @@ describe("otomatik cevap — gönderim sürerken", () => {
         const { conversationId } = await seedClosing();
         let lateId = "";
         mockSend.mockImplementationOnce(async () => {
-          const at = new Date();
+          const at = await afterProviderDelay();
           lateId = (
             await prisma.message.create({
               data: { conversationId, direction: "inbound", senderName: "Alex", body: "Bir de otopark var mı?", createdAt: new Date(at.getTime() - 20_000), ingestedAt: at },
@@ -183,7 +194,7 @@ describe("otomatik cevap — gönderim sürerken", () => {
       let q2 = "";
       mockSend.mockImplementationOnce(async () => {
         // Senkron, gönderim sürerken misafirin yeni sorusunu içeri aldı (sağlayıcı zamanı = şimdi) ve konuşmayı "Yeni" yaptı.
-        const at = new Date();
+        const at = await afterProviderDelay();
         q2 = (await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Alex", body: "Otopark var mı?", createdAt: at, ingestedAt: at } })).id;
         await prisma.conversation.update({ where: { id: conversationId }, data: { status: "new" } });
         return { ok: true, providerMessageId: "prov-1" };
@@ -206,7 +217,7 @@ describe("otomatik cevap — gönderim sürerken", () => {
       const { conversationId } = await seed();
       let q2 = "";
       mockSend.mockImplementationOnce(async () => {
-        const at = new Date();
+        const at = await afterProviderDelay();
         // Misafir bunu 20 sn önce (bizim talebimizden önce) yazdı; senkron ancak şimdi aldı.
         q2 = (
           await prisma.message.create({

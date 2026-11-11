@@ -436,6 +436,9 @@ Bu dosyaya token/anahtar/parola yazma.
   `Date.now()` penceresi = zaman bombası (09-15). 🚨 Günün SAATİNE bakan kural eklenince gerçek saatle koşan testler o saatlerde kırılır,
   gündüz koşan kapı göstermez (10-18: gece yarısı kuralı 45 testi İstanbul 00:00–04:59'da kırıyordu) → kuralı "her zaman" sayan geçici
   değişiklikle ilgili testleri koş; kural yalnız kendi (saati sabit) testinde açık kalsın. Yorumlarda `\uXXXX` kaçışı yazılmaz.
+  (11-11, CI 1781) "Sonra" kıyası KESİN büyükse ve test iki anı art arda `new Date()` ile kuruyorsa hızlı makinede ikisi aynı milisaniyeye
+  düşer (yerelde üç tam kapı yeşil, CI'da bir kez kırmızı) → taklit içinde gerçek bekleme; teşhis: `vi.useFakeTimers({ toFake: ["Date"] })`
+  ile saat dondurulunca hata birebir çıkar. Sınırın kendisi (eşitlik hangi tarafta) ayrı bir birim testiyle pinlenir.
 - 🚨 **PUSH SONRASI CI SONUCU HER SEFER KONTROL EDİLİR** (kurucu 09-24): 739d83c'nin CI'si kırmızı kaldı ve 4 saat fark
   edilmedi → Railway "Wait for CI" yayını atladı, canlı eski sürümde kaldı. Kontrol `actions_list` (dal filtresi) →
   `list_workflow_jobs`. İşler 2–7 sn'de düşüp `runner_id: 0` ve log 404 ise KOD DEĞİL: Actions dakika/harcama limiti

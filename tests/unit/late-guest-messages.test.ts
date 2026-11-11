@@ -31,6 +31,17 @@ describe("lateGuestMessages", () => {
     expect(lateGuestMessages(newestFirst(guest("m1", 0, 2), guest("m2", 3, 3), ours("ai", 4)))).toEqual([]);
   });
 
+  it("sınır KESİN büyüktür: cevabın yazıldığı ANDA (aynı milisaniye) içeri alınmış mesaj geç DEĞİL — çoğu kez cevaplanan mesajın kendisidir", () => {
+    // Kod metinli nezaket cevabı model çağırmaz: senkron mesajı alır ve aynı milisaniyede cevabı talep edebilir. "Büyük ya da eşit"
+    // olsaydı az önce cevaplanan mesaj "geç" sayılır, konuşma yeniden "Yeni" olurdu. Bir milisaniye sonrası ise geçtir.
+    const at = T(4);
+    const reply: Row = { id: "ai", direction: "outbound", authorType: "ai", createdAt: at, ingestedAt: null };
+    const same: Row = { id: "m-ayni", direction: "inbound", authorType: "guest", createdAt: T(3), ingestedAt: at };
+    const after: Row = { id: "m-sonra", direction: "inbound", authorType: "guest", createdAt: T(2), ingestedAt: new Date(at.getTime() + 1) };
+    expect(ids(lateGuestMessages(newestFirst(same, reply)))).toEqual([]);
+    expect(ids(lateGuestMessages(newestFirst(after, same, reply)))).toEqual(["m-sonra"]);
+  });
+
   it("KONTROL: cevap SAĞLAYICIDA yazıldıysa (ev sahibi Airbnb uygulamasından; içeri alınmış) geç mesaj yok — yazan konuşmayı gördü", () => {
     expect(lateGuestMessages(newestFirst(guest("m1", 0, 2), guest("m2", 3, 6), providerReply("h", 4, 6)))).toEqual([]);
   });
