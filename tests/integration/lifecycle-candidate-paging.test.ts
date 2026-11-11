@@ -102,8 +102,9 @@ describe("yaşam döngüsü göndericileri — gönderilemeyen adaylar sırayı 
   });
 
   it("KONTROL: geçişte en çok 25 mesaj kuralı AYNI — 40 gönderilebilir aday: ilk geçiş 25 (en erken gelenler), ikinci geçiş kalan 15", async () => {
-    const { orgId, goodId } = await seedOrg();
+    const { orgId, blockedId, goodId } = await seedOrg();
     await seedAutoMessage(goodId, "welcome", "Merhaba {isim}, rezervasyonunuz için teşekkürler.");
+    await seedReservations(blockedId, "blk", 1, upcoming(1)); // en öndeki gönderilemeyen aday: sayfa ortasında da 25 sınırı aşılmaz
     await seedReservations(goodId, "ok", 40, upcoming(2));
 
     expect((await sendDueWelcomes(orgId)).sent).toBe(25);

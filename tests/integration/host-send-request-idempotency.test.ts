@@ -282,6 +282,56 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
   });
 
+  it("🚨 M1 (kimliksiz istemci): süresi dolan denemenin geç kesin hatası, aynı METNİ gönderen yeni denemenin gövde talebini silmez", async () => {
+    outboxOff();
+    let finishFirst!: (v: { ok: false; error: string }) => void;
+    let firstEntered!: () => void;
+    const firstInSend = new Promise<void>((r) => (firstEntered = r));
+    mockSend.mockImplementationOnce(() => {
+      firstEntered();
+      return new Promise((res) => (finishFirst = res));
+    });
+    const pFirst = sendAs(null, "Anahtar paspasın altında");
+    await firstInSend;
+    await twoMinutesPass();
+    expect((await sendAs(null, "Anahtar paspasın altında")).status).toBe(201); // B gitti; gövde talebi 2 dk B'nin
+    finishFirst({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" });
+    expect((await pFirst).status).toBe(502);
+    expect((await sendAs(null, "Anahtar paspasın altında")).status).toBe(409); // ⬅️ ESKİDE 201 (A'nın temizliği B'nin talebini silmişti)
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("M1: geç BAŞARILI dönen eski deneme, aynı isteği almış yeni denemenin talebini 24 saate UZATMAZ (yalnız kendi talebini uzatır)", async () => {
+    outboxOff();
+    let finishFirst!: (v: { ok: true; id: string }) => void;
+    let finishSecond!: (v: { ok: false; error: string }) => void;
+    let firstEntered!: () => void;
+    let secondEntered!: () => void;
+    const firstInSend = new Promise<void>((r) => (firstEntered = r));
+    const secondInSend = new Promise<void>((r) => (secondEntered = r));
+    mockSend
+      .mockImplementationOnce(() => {
+        firstEntered();
+        return new Promise((res) => (finishFirst = res));
+      })
+      .mockImplementationOnce(() => {
+        secondEntered();
+        return new Promise((res) => (finishSecond = res));
+      });
+    const pFirst = send("Çöpler akşam alınıyor");
+    await firstInSend;
+    await twoMinutesPass();
+    const pSecond = send("Çöpler akşam alınıyor"); // B talebi aldı, sağlayıcıda bekliyor
+    await secondInSend;
+    finishFirst({ ok: true, id: "sent-a" }); // A geç de olsa başarılı döndü
+    expect((await pFirst).status).toBe(201);
+    const held = await prisma.systemLock.findMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } }, select: { lockedUntil: true } });
+    expect(held).toHaveLength(1);
+    expect(held[0].lockedUntil.getTime()).toBeLessThanOrEqual(Date.now() + 120_000 + 5_000); // B'nin talebi kısa kaldı
+    finishSecond({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" });
+    expect((await pSecond).status).toBe(502);
+  });
+
   it("KONTROL (M1): kendi talebini bırakma çalışır — kesin hata, araya kimse girmeden → aynı metin FARKLI kimlikle de hemen gider", async () => {
     outboxOff();
     mockSend.mockImplementationOnce(async () => ({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" }));
@@ -295,6 +345,8 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     const second = await sendAs(RID2, "Aynı taslak onaylandı");
     expect(second.status).toBe(409); // ⬅️ ESKİDE 202 (misafire iki kez gidiyordu)
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    // Reddedilen isteğin kimlik talebi hemen bırakıldı (yalnız ilk isteğinki duruyor).
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } })).toBe(1);
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
     // Reddedilen isteğin kimliği kilitli kalmaz: gövde talebi bitince (2 dk) aynı kimlik yeni mesaj olarak kuyruğa girer.
     await twoMinutesPass();
