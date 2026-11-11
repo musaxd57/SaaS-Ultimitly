@@ -102,6 +102,58 @@ describe("ConversationThread — hazır taslak", () => {
     expect(screen.queryByText("Yeni taslak.")).toBeNull();
   });
 
+  // ---------------------------------------------------------------------------
+  // MESAJ M5 (Codex 11-10): geçersizleşen hazır taslak panelde gönderilebilir kalıyordu — sayfa 30 sn'de bir yenilenir, sunucu taslağı artık
+  // vermese de (o mesaja cevap gitti) panel eski taslağı "Onayla ve gönder" düğmesiyle tutuyordu.
+  // ---------------------------------------------------------------------------
+  const withReply = (reply: Record<string, unknown>) =>
+    [...(baseProps.messages as object[]), { id: "m-out", direction: "outbound", body: "Hallettik.", createdAtLabel: "10:02", senderName: "Ekip", ...reply }] as Props["messages"];
+
+  it("🚨 M5: o misafir mesajına başka biri cevap verdi (yenilemede taslak yok + yeni giden mesaj) → hazır taslak ve onay düğmesi panelden KALKAR", () => {
+    const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    expect(screen.getByText(DRAFT.reply)).toBeTruthy();
+    rerender(<ConversationThread {...baseProps} messages={withReply({ authorType: "host" })} initialDraft={null} />);
+    expect(screen.queryByText(DRAFT.reply)).toBeNull(); // ⬅️ ESKİDE duruyordu (gönderilebilir)
+    expect(screen.queryByTestId("prepared-draft-badge")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Onayla ve gönder/ })).toBeNull();
+  });
+
+  it("🚨 M5: taslak geçersizleşti ama yeni mesaj yok (sunucu taslağı artık vermiyor) → hazır taslak yine kalkar", () => {
+    const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    rerender(<ConversationThread {...baseProps} initialDraft={null} />);
+    expect(screen.queryByText(DRAFT.reply)).toBeNull(); // ⬅️ ESKİDE duruyordu
+  });
+
+  it("M5: ev sahibinin kendi 'AI cevap öner' sonucu yenilemede (taslak yok, yeni cevap yok) SİLİNMEZ; konuşmaya yeni bir CEVAP gelince kalkar", async () => {
+    const rich = { reply: "Zengin öneri metni.", intent: "payment", confidence: 0.8, risk: null, source: "openai", riskLevel: "none", usedSources: [] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(rich), { status: 200 })));
+    const { rerender } = render(<ConversationThread {...baseProps} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /AI cevap öner/ }));
+    });
+    expect(await screen.findByText("Zengin öneri metni.")).toBeTruthy();
+    rerender(<ConversationThread {...baseProps} initialDraft={null} />); // 30 sn'lik yenileme, değişiklik yok
+    expect(screen.getByText("Zengin öneri metni.")).toBeTruthy();
+    // Otomatik şablon mesajı (çıkış hatırlatması) cevap değildir → öneri durur.
+    rerender(<ConversationThread {...baseProps} messages={withReply({ id: "m-auto", authorType: "automation" })} initialDraft={null} />);
+    expect(screen.getByText("Zengin öneri metni.")).toBeTruthy();
+    // Başka bir ekip üyesi cevap verdi → öneri cevaplanmış mesaja ait, kalkar.
+    rerender(<ConversationThread {...baseProps} messages={withReply({ authorType: "host" })} initialDraft={null} />);
+    expect(screen.queryByText("Zengin öneri metni.")).toBeNull(); // ⬅️ ESKİDE duruyordu
+  });
+
+  it("KONTROL (M5): yeni MİSAFİR mesajı gelince eldeki öneri silinmez (yeni taslak gelirse panel onu gösterir)", () => {
+    const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    rerender(
+      <ConversationThread
+        {...baseProps}
+        messages={[...(baseProps.messages as object[]), { id: "m2", direction: "inbound", body: "Bir de fatura?", createdAtLabel: "10:05", senderName: "Ada" }] as Props["messages"]}
+        initialDraft={DRAFT}
+      />,
+    );
+    expect(screen.getByText(DRAFT.reply)).toBeTruthy();
+  });
+
   it("'AI öner'in sonucu aynı mesajın kayıtlı özetiyle EZİLMEZ (sunucu aynı mesaja kaydetti)", async () => {
     const rich = { reply: "Zengin öneri metni.", intent: "payment", confidence: 0.8, risk: null, source: "openai", riskLevel: "none", usedSources: [] };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(rich), { status: 200 })));

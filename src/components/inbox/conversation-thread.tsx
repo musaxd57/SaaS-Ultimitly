@@ -187,8 +187,25 @@ export function ConversationThread({
     if (initialDraft && initialDraft.messageId !== seenDraftRef.current) {
       seenDraftRef.current = initialDraft.messageId;
       setSuggestion(preparedSuggestion(initialDraft));
+      return;
     }
+    // 🚨 GEÇERSİZLEŞEN HAZIR TASLAK PANELDE KALMAZ (mesaj M5, Codex 11-10): sunucu taslağı artık vermiyorsa (o misafir mesajına cevap gitti /
+    // taslak iptal edildi) panelde duran HAZIR taslak "Onayla ve gönder" ile hâlâ gönderilebiliyordu — cevaplanmış soruya ikinci, bayat
+    // cevap. Yalnız kayıtlı taslaktan gelen öneri kalkar; ev sahibinin kendi "AI cevap öner" sonucu bu yoldan silinmez (↓ ayrı kural).
+    if (!initialDraft) setSuggestion((cur) => (cur?.prepared ? null : cur));
   }, [initialDraft]);
+  // Konuşmanın SONUNA yeni bir cevap geldiyse (başka bir ekip üyesi / yapay zekâ / ev sahibi başka sekmeden yazdı) eldeki öneri — hazır
+  // taslak da "AI cevap öner" sonucu da — cevaplanmış mesaja aittir → kalkar (M5). Otomatik şablon mesajı (karşılama / giriş / çıkış) cevap
+  // değildir; yeni misafir mesajı da öneriyi silmez (ev sahibi yine kullanmak isteyebilir, yeni taslak gelirse panel onu gösterir).
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageId = lastMessage?.id ?? null;
+  const lastSeenMessageRef = useRef<string | null>(lastMessageId);
+  useEffect(() => {
+    if (lastMessageId === lastSeenMessageRef.current) return;
+    lastSeenMessageRef.current = lastMessageId;
+    if (lastMessage && lastMessage.direction === "outbound" && lastMessage.authorType !== "automation") setSuggestion(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnız son mesajın kimliği değişince
+  }, [lastMessageId]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);

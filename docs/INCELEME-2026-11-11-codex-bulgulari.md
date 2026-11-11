@@ -18,11 +18,11 @@ Durum sütunu ilerledikçe güncellenir: `açık` → `düzeltildi (commit)` / `
 ## Mesajlaşma (`lib/host-send.ts`, `lib/outbound-claim.ts`, `lib/automation.ts`, gelen kutusu)
 | No | Bulgu | Bugünkü kod | Durum |
 |---|---|---|---|
-| M1 | Çift gönderim: kuyruk yolu gövde sahiplenmesi almıyor; istek kilidi adla bırakılıyor (sahip yok) | kısmen (TTL / bayat bırakma gerekir) | açık |
-| M2 (A24) | Gönderim kesin hatasında konuşma koşulsuz "Yeni" — ev sahibinin "Sorunlu" kararı siliniyor (normal + nezaket) | geçerli | açık |
-| M3 (A25) | Cevap yoldayken gelen soru: son mesaj giden diye "zaten cevaplandı" çıkışı | geçerli | açık |
-| M4 (A26) | Karşılama / giriş / çıkış göndericileri ilk 25 gönderilemeyen kayıtta takılıyor | geçerli | açık |
-| M5 | Geçersizleşen hazır taslak panelde gönderilebilir kalıyor (`initialDraft` boşalınca temizlenmiyor) | geçerli | açık |
+| M1 | Çift gönderim: kuyruk yolu gövde sahiplenmesi almıyor; istek kilidi adla bırakılıyor (sahip yok) | kısmen (TTL / bayat bırakma gerekir) | **düzeltildi** — her deneme kendi jetonunu yazar (bırakma / uzatma yalnız kendi satırı); kuyruk yolu da gövde talebini alır |
+| M2 (A24) | Gönderim kesin hatasında konuşma koşulsuz "Yeni" — ev sahibinin "Sorunlu" kararı siliniyor (normal + nezaket) | geçerli | **düzeltildi** — geri alma yalnız durum hâlâ bizim talebimizse; senkron "Yeni" yaptıysa yalnız geri çekilme yazılır |
+| M3 (A25) | Cevap yoldayken gelen soru: son mesaj giden diye "zaten cevaplandı" çıkışı | geçerli — iki ayrı durum | **kısmen düzeltildi + SORUDA.** (a) Cevap GÖNDERİLİRKEN içeri alınan soru: cevap satırının zamanı kayıt anıydı → soru cevaptan önce sıralanıyor, yapay zekâ cevaplamıyor, sonraki senkron konuşmayı "Cevaplandı" yapıyordu (gelen kutusunda da kayboluyordu). Düzeltildi: satır zamanı = talep anı (ev sahibi yolunda gönder'e basılan an). (b) Cevaptan ÖNCE yazılıp sonradan içeri alınan soru: kurucunun 11-04 S1 kararı ("Yeni" kalır, ev sahibi görür, yapay zekâ kendiliğinden cevaplamaz) AYNEN — yapay zekâ bunu da cevaplasın mı, kurucu sorusu |
+| M4 (A26) | Karşılama / giriş / çıkış göndericileri ilk 25 gönderilemeyen kayıtta takılıyor | geçerli | **düzeltildi** — adaylar sayfa sayfa okunur (metni olmayan / doldurulamayan atlanır), geçişte en çok 25 mesaj kuralı aynı, okuma 8 sayfayla sınırlı |
+| M5 | Geçersizleşen hazır taslak panelde gönderilebilir kalıyor (`initialDraft` boşalınca temizlenmiyor) | geçerli | **düzeltildi** — sunucu taslağı vermeyince hazır taslak kalkar; konuşmaya yeni bir cevap gelince eldeki her öneri kalkar |
 
 ## Takvim / senkron (`lib/import/**`, `lib/data-retention.ts`)
 | No | Bulgu | Bugünkü kod | Durum |
