@@ -239,6 +239,16 @@ describe("V0.1 shadow-compare — gerçek adaptör istemciyi ESKİ argüman söz
     expect(mockClient).not.toHaveBeenCalled();
   });
 
+  it("sendOnChannel: 429'da tür ve sağlayıcının istediği bekleme çağırana taşınır (otomatik mesaj göndericisi o süre bekler — S8)", async () => {
+    mockClient.mockResolvedValueOnce({ ok: false, error: "Hospitable API hatası (HTTP 429): slow down", status: 429, retryAfterSec: 45 });
+    const limited = await sendOnChannel({ channel: "airbnb", guestIdentifier: "Alex", externalReservationId: "res-1" }, "Merhaba", "tok");
+    expect(limited).toMatchObject({ ok: false, kind: "rate_limited", retryAfterSec: 45 }); // ⬅️ ESKİDE süre yolda düşüyordu
+    // Süre yoksa alan da yok (başarılı gönderim / başka hata).
+    const ok = await sendOnChannel({ channel: "airbnb", guestIdentifier: "Alex", externalReservationId: "res-1" }, "Merhaba", "tok");
+    expect(ok.ok).toBe(true);
+    expect("retryAfterSec" in ok).toBe(false);
+  });
+
   it("gerçek adaptör 429'u tipler: HTTP durumu → rate_limited, Retry-After worker'a taşınır", async () => {
     mockClient.mockResolvedValueOnce({ ok: false, error: "Hospitable API hatası (HTTP 429): slow down", status: 429, retryAfterSec: 45 });
     const { orgId, conversationId } = await seedConversation();

@@ -21,7 +21,7 @@ vi.mock("@/lib/messaging", async (orig) => ({
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue({ notified: true, throttled: false, configured: true }) }));
 
-import { sendDueWelcomes, sendDueCheckins, __resetLifecycleRateHold } from "@/lib/automation";
+import { sendDueWelcomes, sendDueCheckins, sendDueCheckouts, currentHourInTimeZone, __resetLifecycleRateHold } from "@/lib/automation";
 import { sendOnChannel } from "@/lib/messaging";
 import { lifecycleRetryDelayMs } from "@/lib/automated-sends";
 
@@ -31,15 +31,27 @@ const MIN = 60_000;
 const REJECTED = { ok: false, error: "Hospitable API hatası (HTTP 422): rejected", kind: "definitive_failure" as const };
 const WELCOME = "Merhaba {isim}, rezervasyonunuz için teşekkürler.";
 
-async function seedOrg(name = "Org") {
+/** Şu an yerel saati sabah (çıkış mesajının gittiği aralık) olan sabit kaymalı bir saat dilimi. */
+function morningZone(): string {
+  for (let off = -12; off <= 14; off++) {
+    const tz = off === 0 ? "Etc/GMT" : `Etc/GMT${off > 0 ? "-" : "+"}${Math.abs(off)}`;
+    const h = currentHourInTimeZone(tz, new Date());
+    if (h >= 9 && h <= 10) return tz;
+  }
+  throw new Error("sabah dilimi bulunamadı");
+}
+
+async function seedOrg(name = "Org", timezone = "Europe/Istanbul") {
   const org = await prisma.organization.create({
     data: {
       name,
-      timezone: "Europe/Istanbul",
+      timezone,
       autoWelcome: true,
       autoWelcomeEnabledAt: new Date(0),
       autoCheckin: true,
       autoCheckinEnabledAt: new Date(0),
+      autoCheckout: true,
+      autoCheckoutEnabledAt: new Date(0),
     },
   });
   const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: `${name} 1` } });
@@ -277,6 +289,82 @@ describe("yaşam döngüsü göndericileri — reddedilen mesajın yeniden denem
       mockSend.mockResolvedValueOnce(LIMITED(600));
       await sendDueWelcomes(a.orgId);
       expect((await sendDueWelcomes(b.orgId)).sent).toBe(1);
+    });
+  });
+
+  // Üç göndericinin hata dalı aynı kodun üç kopyasıdır → giriş ve çıkış mesajı da DAVRANIŞLA sabitlenir (yalnız karşılama değil).
+  describe.each([
+    {
+      kind: "checkin" as const,
+      run: (orgId: string) => sendDueCheckins(orgId),
+      timezone: () => "Europe/Istanbul",
+      text: "Merhaba {isim}, giriş bilgileriniz hazır.",
+      stay: (i: number) => ({ arrival: new Date(Date.now() + 2 * DAY + i * MIN), departure: new Date(Date.now() + 5 * DAY) }),
+      stamp: "checkinSentAt" as const,
+    },
+    {
+      kind: "checkout" as const,
+      run: (orgId: string) => sendDueCheckouts(orgId),
+      timezone: morningZone,
+      text: "Merhaba {isim}, çıkış saati 11:00.",
+      stay: (i: number) => ({ arrival: new Date(Date.now() - 2 * DAY), departure: new Date(Date.now() + (i + 1) * 1_000) }),
+      stamp: "checkoutSentAt" as const,
+    },
+  ])("$kind mesajı", ({ kind, run, timezone, text, stay, stamp }) => {
+    async function seedKind(count: number) {
+      const { orgId, propertyId } = await seedOrg("Org", timezone());
+      await prisma.autoMessageTemplate.deleteMany({ where: { propertyId } }); // yalnız bu türün metni olsun
+      await seedAutoMessage(propertyId, kind, text);
+      await prisma.reservation.createMany({
+        data: Array.from({ length: count }, (_, i) => {
+          const { arrival, departure } = stay(i);
+          return { propertyId, guestName: `Misafir ${i}`, arrivalDate: arrival, departureDate: departure, channel: "airbnb", status: "confirmed", sourceReference: `res-${i}` };
+        }),
+      });
+      return { orgId, propertyId };
+    }
+    const stamped = (propertyId: string) => prisma.reservation.count({ where: { propertyId, [stamp]: { not: null } } });
+
+    it("🚨 kesin ret: hemen ardından gelen tur yeniden GÖNDERMEZ; bekleme dolunca yeniden dener ve gider", async () => {
+      const { orgId, propertyId } = await seedKind(1);
+      mockSend.mockResolvedValue(REJECTED);
+      await run(orgId);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      expect(await ledger("res-0")).toEqual([{ state: "failed", kind }]);
+      await run(orgId);
+      expect(mockSend).toHaveBeenCalledTimes(1); // ⬅️ ESKİDE 2
+
+      mockSend.mockResolvedValue({ ok: true, providerMessageId: undefined });
+      await prisma.automatedMessageSend.updateMany({ data: { sentAt: new Date(Date.now() - 2 * MIN) } });
+      expect((await run(orgId)).sent).toBe(1);
+      expect(await stamped(propertyId)).toBe(1);
+    });
+
+    it("🚨 429: tur durur, damga geri alınır, deneme deftere yazılmaz; bekleme süresince sağlayıcıya gidilmez, sonra gönderilir", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      const t0 = new Date();
+      vi.setSystemTime(t0);
+      const { orgId, propertyId } = await seedKind(3);
+      mockSend.mockResolvedValueOnce({ ok: false, error: "Hospitable API hatası (HTTP 429): slow down", kind: "rate_limited" as const, retryAfterSec: 180 });
+      await run(orgId);
+      expect(mockSend).toHaveBeenCalledTimes(1); // ⬅️ ESKİDE 3
+      expect(await stamped(propertyId)).toBe(0);
+      expect(await prisma.automatedMessageSend.count()).toBe(0);
+
+      vi.setSystemTime(new Date(t0.getTime() + 2 * MIN));
+      expect(await run(orgId)).toEqual({ sent: 0, considered: 0 });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(new Date(t0.getTime() + 3 * MIN + 1_000));
+      expect((await run(orgId)).sent).toBe(3);
+    });
+
+    it("KONTROL: kalıcı kuyruk açıkken ret kaydı kuyruğa vermeyi engellemez", async () => {
+      const { orgId } = await seedKind(1);
+      await rejectOnePass(() => run(orgId));
+      vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+      vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", orgId);
+      expect((await run(orgId)).sent).toBe(1);
+      expect(await prisma.messageOutbox.count({ where: { organizationId: orgId, messageType: kind } })).toBe(1);
     });
   });
 
