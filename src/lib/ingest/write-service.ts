@@ -63,6 +63,9 @@ export type { IngestContext, IngestEventKind, IngestSource } from "./events";
 // demek için değişikliği ÖLÇMEK zorunda; değişmeyen senkron event ÜRETMEZ.
 //
 // Sağlayıcı tipi burada YOK (`HospitableReservation` imzadan çıktı — envanter §4 V0.6).
+/** Rezervasyonun kişisel veri alanları (saklama süpürgesinin anonimleştirdikleri) — güncellemede ayrı ve koşullu yazılır (↓ takvim C3). */
+const RESERVATION_PERSONAL_FIELDS = ["guestName", "guestGivenName", "guestNameSource", "guestEmail", "guestPhone", "guestExternalId"] as const;
+
 // Provenance V0.4 sözleşmesi aynen: create'te connectionId+evidence "ingest"+ingestedAt;
 // update'te yalnız NULL damga gözlemle dolar; ingestedAt değişmez.
 //
@@ -233,8 +236,22 @@ export async function upsertCanonicalReservation(
     // gösteriyor" satırı düşer. İptal yazımı (kanal iptal etti) koşulsuz kalır — iptal her zaman kazanır.
     const reopenStatus = typeof data.status === "string" && data.status !== "cancelled" ? data.status : null;
     if (reopenStatus !== null) delete data.status;
-    if (Object.keys(data).length > 0) {
-      await db.reservation.update({ where: { id: existing.id }, data });
+    // 🚨 KİŞİSEL VERİ YAZIMI KOŞULLU (takvim C3, Codex 11-10). `scrubbed` yukarıdaki OKUMAYA dayanıyor; saklama süpürgesi bu işlemin kilidini
+    // almaz → satır okunduktan SONRA anonimleştirilirse koşulsuz yazım adı / e-postayı / telefonu kanaldan GERİ yazıyordu (KVKK dirilmesi).
+    // Kişisel alanlar ayrı ve koşullu yazılır: satır yazım ANINDA hâlâ anonim değilse (koşul UPDATE'in içinde). Yazılamadıysa bu alanlar
+    // "değişti" olayına da girmez.
+    const personal: Record<string, unknown> = {};
+    const rest: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) ((RESERVATION_PERSONAL_FIELDS as readonly string[]).includes(k) ? personal : rest)[k] = v;
+    if (Object.keys(rest).length > 0) {
+      await db.reservation.update({ where: { id: existing.id }, data: rest as Prisma.ReservationUncheckedUpdateInput });
+    }
+    if (Object.keys(personal).length > 0) {
+      const wrote = await db.reservation.updateMany({
+        where: { id: existing.id, guestName: { not: ANON_NAME } },
+        data: personal as Prisma.ReservationUncheckedUpdateManyInput,
+      });
+      if (wrote.count === 0) for (const k of Object.keys(personal)) delete (data as Record<string, unknown>)[k];
     }
     let reopenRaceBlocked = false;
     if (reopenStatus !== null) {

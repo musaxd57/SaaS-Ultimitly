@@ -8,6 +8,7 @@ import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 import { icsIncompleteCause, parseIcsDetailed, type IcsIncompleteReason } from "@/lib/import/ics";
 import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
 import { normalizeSourceReference } from "@/lib/import/source-ref";
+import { reconcileLegacySourceReferences } from "@/lib/import/legacy-source-ref";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { recordVerifiedCalendarIdentity } from "@/lib/billing/trial-identity";
@@ -170,6 +171,36 @@ async function alarmOnErrorTransition(
   // kaynağın hatası ev sahibinin ekranında görünür; bir kez başarılı olup SONRA bozulan kaynak alarm vermeye devam eder.
   if (source.lastStatus === null) return;
   await reportError(`ical-sync: feed failed (${sourceId})`, new Error(code));
+}
+
+/** Yalnız test: satırın var olan kaydı OKUNDUKTAN hemen sonra (yazılmadan önce) araya girer — okuma-yazma penceresini belirlenimci kurar. */
+export const __syncRowHooks: { afterExistingRead: (() => Promise<void>) | null } = { afterExistingRead: null };
+
+/** Kaynağın "satır yazan en yeni koşu" damgası (`SystemLock` satırı — migration yok). `lockedUntil` = o koşunun besleme isteğinin başlangıcı. */
+export function feedRunOrderLockName(sourceId: string): string {
+  return `calendar-feed-run:${sourceId}`;
+}
+
+/**
+ * 🚨 ESKİ TAKVİM YANITI YENİ SONUCU EZMEZ (takvim C2, Codex 11-10). Aynı kaynak için iki senkron çakışabilir (elle "şimdi eşitle" +
+ * zamanlanmış koşu, ya da kilidi süre aşımıyla düşmüş yavaş bir koşu). Sıra koruması yalnız "beslemeden kayboldu" uzlaştırmasındaydı;
+ * satır yazımında yoktu: beslemeyi DAHA ÖNCE indirmiş yavaş koşu, daha yeni koşunun yazdığı iptali rezervasyonu yeniden onaylayarak geri
+ * açıyordu (görevler yeniden açılıyor, dışa aktarılan takvim o geceleri yeniden kapatıyordu) — bir sonraki senkrona kadar.
+ * Her satır yazımı (silme kilidinin içinde — aynı işletmenin satır yazımları sıralıdır) önce bu damgayı ilerletir: damga bu koşunun
+ * başlangıcından YENİYSE daha yeni bir koşu satır yazmaya başlamıştır → bu koşu eski yanıttır, kalan satırlarını YAZMAZ.
+ * Dönüş: bu koşu hâlâ en yenisi mi.
+ */
+async function claimFeedRunOrder(tx: Prisma.TransactionClient, sourceId: string, runStartedAt: Date): Promise<boolean> {
+  const kept = await tx.systemLock.updateMany({
+    where: { name: feedRunOrderLockName(sourceId), lockedUntil: { lte: runStartedAt } },
+    data: { lockedUntil: runStartedAt },
+  });
+  return kept.count === 1;
+}
+
+/** Damga satırı yoksa açılır (koşu başına bir kez, satır döngüsünden ÖNCE) — satır yazımları yalnız ilerletir. */
+async function ensureFeedRunOrderRow(sourceId: string, runStartedAt: Date): Promise<void> {
+  await prisma.systemLock.createMany({ data: [{ name: feedRunOrderLockName(sourceId), lockedUntil: runStartedAt }], skipDuplicates: true });
 }
 
 /** Gövde gerçek bir iCalendar çerçevesiyle mi başlıyor (U37): ilk boş olmayan satır `BEGIN:VCALENDAR`. */
@@ -368,6 +399,17 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // rezervasyonu her geçişte iptal ↔ yeniden onay arasında çalkalıyordu; geçiş iptalle bittiği için dışa aktarılan takvim o
   // geceleri kapatmıyordu. Okuma zaten `duplicate_uid` ile eksik sayılır (kaynak 'partial', neden ev sahibine görünür).
   const actedKeys = new Set<string>();
+  // Takvim C1: uzun kimliklerin ESKİ (kesilmiş) biçimiyle kalmış izleri — silme kaydı olanlar bu koşuda işlenmez, eski kimlikli satırlar
+  // yeni kimliğe çevrilir (aşağıdaki bütün aramalar yalnız yeni kimlikle çalışır). Kısa kimlikli beslemede sorgu çalışmaz.
+  const legacy = await reconcileLegacySourceReferences({
+    organizationId: source.property.organizationId,
+    propertyId: source.propertyId,
+    scope: { calendarSourceId: source.id },
+    rows,
+  });
+  // Takvim C2: bu koşunun yanıtı eskidi (daha yeni bir koşu aynı kaynağa satır yazıyor) → döngü durur, uzlaştırma ve durum yazımı atlanır.
+  let staleRun = false;
+  await ensureFeedRunOrderRow(source.id, runStartedAt);
   // #4 (Codex): keep only the FIRST row-failure sample; a SINGLE aggregate
   // reportError fires after the loop (never one-per-row → no event/log flood).
   let firstRowError: unknown;
@@ -407,6 +449,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       result.skipped++;
       continue;
     }
+    // Silme (KVKK) kaydı ESKİ biçimli kimlikle tutulan konaklama (takvim C1): yeniden içe alınmaz — `erased` sonucu gibi sayılır.
+    if (row.sourceReference && legacy.erased.has(row.sourceReference)) {
+      result.skipped++;
+      continue;
+    }
     const identityKey = row.sourceReference
       ? `uid:${row.sourceReference}`
       : `dates:${row.arrivalDate.getTime()}|${row.departureDate.getTime()}`;
@@ -426,6 +473,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       const action = await prisma.$transaction(
         async (tx): Promise<
           | { kind: "erased" | "skip" }
+          // Bu koşu ESKİ yanıt: aynı kaynak için daha yeni bir koşu satır yazmaya başladı (takvim C2) → kalan satırlar yazılmaz.
+          | { kind: "stale_run" }
           // "unchanged" = satır ZATEN aynı, YAZMA YOK. `skip`ten ayrı bir kind
           // olması ŞART: sayaç açısından ikisi de "skipped" ama yalnız bunda
           // görev onarımı koşuyor (↓gerekçe). Aynı kind'a katlamak, onarımı
@@ -439,6 +488,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           | { kind: "updated"; id: string; reopened: boolean }
         > => {
           await acquireErasureLock(tx, source.property.organizationId);
+          if (!(await claimFeedRunOrder(tx, source.id, runStartedAt))) return { kind: "stale_run" };
           const fresh = await loadErasureGuard(source.property.organizationId, tx);
           // Explicitly-erased stay re-appearing in the feed → never re-import
           // (KVKK Regulation art. 8: erased data must stay unusable). Checked
@@ -482,6 +532,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               })
             : null;
           const existing = bound ?? legacy ?? uidless;
+          if (__syncRowHooks.afterExistingRead) await __syncRowHooks.afterExistingRead();
 
           // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
           // drop the auto tasks), never import it as a live stay.
@@ -564,13 +615,6 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             const resU = await tx.reservation.updateMany({
               where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
               data: {
-                ...(scrubbed
-                  ? {}
-                  : {
-                      guestName: row.guestName.slice(0, 200),
-                      guestNameSource: "calendar" satisfies GuestNameSource, // köken etiketi (migration 57) — olay alanı değil
-                      notes: row.notes ? row.notes.slice(0, 5000) : null,
-                    }),
                 arrivalDate: row.arrivalDate,
                 departureDate: row.departureDate,
                 // (Re-)bind to THIS source: legacy pre-binding rows heal on their
@@ -582,6 +626,20 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               },
             });
             if (resU.count === 0) return { kind: "skip" };
+            // 🚨 AD / NOT YAZIMI KOŞULLU (takvim C3, Codex 11-10). `scrubbed` yukarıdaki OKUMAYA dayanıyor; saklama süpürgesi bu kilidi
+            // almaz → satır okunduktan SONRA anonimleştirilirse koşulsuz yazım misafirin adını / notunu beslemeden GERİ yazıyordu (KVKK
+            // dirilmesi). Kişisel veri ayrı ve koşullu yazılır: satır yazım ANINDA hâlâ anonim değilse (koşul UPDATE'in içinde). Tarihler
+            // (kişisel veri değil) yukarıda her durumda eşitlendi.
+            if (!scrubbed) {
+              await tx.reservation.updateMany({
+                where: { id: existing.id, guestName: { not: ANON_NAME } },
+                data: {
+                  guestName: row.guestName.slice(0, 200),
+                  guestNameSource: "calendar" satisfies GuestNameSource, // köken etiketi (migration 57) — olay alanı değil
+                  notes: row.notes ? row.notes.slice(0, 5000) : null,
+                },
+              });
+            }
             // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
             await followReservationDates(tx, existing.id, existing, row);
             await recordIngestEvent(tx, ingestCtx, "reservation", existing.id, "reservation.updated", changedFields);
@@ -610,6 +668,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         { timeout: 60_000, maxWait: 15_000 },
       );
 
+      if (action.kind === "stale_run") {
+        staleRun = true;
+        break;
+      }
       // Post-commit side effects + counters (idempotent, best-effort as before).
       switch (action.kind) {
         case "erased":
@@ -663,6 +725,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       result.skipped++;
     }
   }
+
+  // 🚨 ESKİ YANIT (takvim C2): bu koşu beslemeyi daha yeni bir koşudan ÖNCE indirmişti ve o koşu satır yazmaya başladı. Kalan satırlar
+  // yazılmadı; "beslemeden kayboldu" uzlaştırması ve kaynağın durum satırı da daha yeni koşunundur — burada dokunulmaz (eski özet, yeni
+  // koşunun sonucunu ezmesin). Görev onarımı gibi yan işler bir sonraki koşuda yapılır.
+  if (staleRun) return result;
 
   // #4 (Codex): ONE alert per sync run — never per row. If ANY row failed, report
   // exactly once here with an AGGREGATE count + the representative cause. No guest

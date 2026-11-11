@@ -3,13 +3,15 @@ import { zonedWallClockToUtc, isValidTimeZone } from "@/lib/timezone";
 // ICS (iCalendar) parser for reservation imports.
 // Handles VEVENT blocks with DTSTART/DTEND in both date-only and datetime formats.
 
-import { normalizeSourceReference } from "@/lib/import/source-ref";
+import { legacyTruncatedSourceReference, normalizeSourceReference } from "@/lib/import/source-ref";
 
 export interface IcsReservation {
   guestName: string;
   arrivalDate: Date;
   departureDate: Date;
   sourceReference: string | null;
+  /** Kimlik 200 karakterden uzunsa ESKİ (kesilmiş) biçimi — yalnız eski satırları / silme kayıtlarını bulmak için (takvim C1). */
+  legacySourceReference?: string | null;
   notes: string | null;
   channel: "ics";
   /** VEVENT STATUS (uppercased), e.g. "CANCELLED" | "CONFIRMED" | null. */
@@ -352,6 +354,7 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         arrivalDate,
         departureDate,
         sourceReference,
+        ...(legacyTruncatedSourceReference(uid) ? { legacySourceReference: legacyTruncatedSourceReference(uid) } : {}),
         notes,
         channel: "ics",
         status,

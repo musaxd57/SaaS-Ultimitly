@@ -11,7 +11,7 @@
 // a correct RFC 4180 tokenizer is small, fully testable, and keeps our
 // Turkish-specific delimiter + header-alias + date logic in one place.
 
-import { normalizeSourceReference } from "@/lib/import/source-ref";
+import { legacyTruncatedSourceReference, normalizeSourceReference } from "@/lib/import/source-ref";
 export class CsvParseError extends Error {
   constructor(message: string) {
     super(message);
@@ -27,6 +27,8 @@ export interface CsvReservation {
   currency?: string;
   channel?: string;
   sourceReference?: string;
+  /** Kimlik 200 karakterden uzunsa ESKİ (kesilmiş) biçimi — yalnız eski satırları / silme kayıtlarını bulmak için (takvim C1). */
+  legacySourceReference?: string;
   notes?: string;
   /**
    * RFC 5545 durum TOKEN'ı (`"CANCELLED"`), kardeş `IcsReservation.status` ile
@@ -356,6 +358,7 @@ export function parseCsv(text: string): CsvReservation[] {
     const currency = get(currencyIdx) || undefined;
     const channel = get(channelIdx) || undefined;
     const sourceReference = normalizeSourceReference(get(refIdx)) ?? undefined; // CAL-3: senkron / dosya yolu ile aynı biçim
+    const legacySourceReference = legacyTruncatedSourceReference(get(refIdx)) ?? undefined;
     const notes = get(notesIdx) || undefined;
     const status = normalizeStatus(get(statusIdx));
 
@@ -368,6 +371,7 @@ export function parseCsv(text: string): CsvReservation[] {
       ...(currency ? { currency } : {}),
       ...(channel ? { channel } : {}),
       ...(sourceReference ? { sourceReference } : {}),
+      ...(legacySourceReference ? { legacySourceReference } : {}),
       ...(notes ? { notes } : {}),
       ...(status ? { status } : {}),
     });

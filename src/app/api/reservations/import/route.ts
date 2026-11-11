@@ -8,6 +8,7 @@ import { withManage } from "@/lib/route-guard";
 import { icsIncompleteCause, parseIcsDetailed } from "@/lib/import/ics";
 import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
 import { normalizeSourceReference } from "@/lib/import/source-ref";
+import { reconcileLegacySourceReferences } from "@/lib/import/legacy-source-ref";
 import { isOwnExportUid, OWN_FILE_IMPORT_TEXT } from "@/lib/export/own-feed";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
@@ -54,6 +55,8 @@ type ParsedRow = {
   arrivalDate: Date;
   departureDate: Date;
   sourceReference?: string | null;
+  /** Kimlik 200 karakterden uzunsa eski (kesilmiş) biçimi — yalnız eski satırları / silme kayıtlarını bulmak için (takvim C1). */
+  legacySourceReference?: string | null;
   notes?: string | null;
   channel?: string;
   totalAmount?: number;
@@ -245,6 +248,10 @@ export const POST = withManage(async (session, req) => {
     try {
       rows = parseCsv(text);
     } catch (err) {
+      // 🚨 OKUNAMAYAN DOSYA SAATLİK HAKKI YEMEZ (takvim C5, Codex 11-10): hak ayrıştırmadan ÖNCE düşülüyor, bozuk CSV'de iade
+      // edilmiyordu → dosyasını düzeltmeye çalışan ev sahibi beş denemede bir saat kilitleniyordu (tek satır aktarılmadan). Kendi
+      // dışa aktarım dosyasının reddi (↑) ile aynı kural: hiçbir şey yazmayan ret ücretsizdir.
+      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`);
       if (err instanceof CsvParseError) return badRequest({ file: err.message });
       return badRequest({ file: "CSV dosyası okunamadı." });
     }
@@ -281,6 +288,15 @@ export const POST = withManage(async (session, req) => {
   // yani hiç tombstone yok) bu blok ÖLÇÜLEBİLİR bir davranış değişikliği
   // getirmez; ileriye dönük bir kapıdır.
   const erasureGuard = await loadErasureGuard(session.organizationId);
+  // Takvim C1: uzun kimliklerin ESKİ (200'e kesilmiş) biçimiyle kalmış izleri — silme kaydı olanlar işlenmez, eski kimlikli satırlar yeni
+  // kimliğe çevrilir (aşağıdaki aramalar yalnız yeni kimlikle çalışır). Önizlemede hiçbir şey yazılmaz. Kısa kimlikli dosyada sorgu yok.
+  const legacyRefs = await reconcileLegacySourceReferences({
+    organizationId: session.organizationId,
+    propertyId,
+    scope: { calendarSourceId: null },
+    rows,
+    readOnly: preview,
+  });
 
   // ── SINIFLANDIRMA (salt okuma; önizleme ve aktarım için ortak) ─────────────
   const classified: Classified[] = [];
@@ -349,7 +365,7 @@ export const POST = withManage(async (session, req) => {
     // dönüyor (`import/sync.ts`). Böylece iptal yazımı da silme kapısının AYNI
     // TARAFINDA kalır; kapıyı iptal dalından sonra koymak, tombstone'lu bir
     // referansın satırına yine de yazmak demek olurdu.
-    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(sourceReference)) {
+    if ((!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(sourceReference)) || (sourceReference && legacyRefs.erased.has(sourceReference))) {
       skip("erased");
       continue;
     }
@@ -359,7 +375,11 @@ export const POST = withManage(async (session, req) => {
     }
 
     const existing = sourceReference
-      ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference }, select: EXISTING_SELECT })
+      ? ((await prisma.reservation.findFirst({ where: { propertyId, sourceReference }, select: EXISTING_SELECT })) ??
+        // Önizleme yazmaz → eski (kesilmiş) kimlikli satır henüz çevrilmedi; sınıflandırma onu yine "var" görsün (aktarımda çevrilir).
+        (preview && row.legacySourceReference
+          ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference: row.legacySourceReference, calendarSourceId: null }, select: EXISTING_SELECT })
+          : null))
       : null;
 
     // ── STATUS:CANCELLED — iptal edilmiş satır ASLA canlı yazılmaz ──────────

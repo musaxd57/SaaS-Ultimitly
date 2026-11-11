@@ -27,7 +27,7 @@ import { ReservationPinControl } from "@/components/properties/reservation-pin-c
 import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
 import { GuestErasureControl } from "@/components/properties/guest-erasure-control";
 import { guestErasureEnabled, reservationsWithSourceTombstone } from "@/lib/erasure";
-import { generateCalendarToken } from "@/lib/export/ics";
+import { ensurePropertyCalendarToken } from "@/lib/export/calendar-token";
 import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS } from "@/lib/constants";
 import { formatDate, formatDayInTz } from "@/lib/utils";
@@ -244,8 +244,8 @@ export default async function PropertyDetailPage({
   // K8 (kurucu kararı 09-28): destek görünümü (bürünme) salt okunur — sayfa açılışı da YAZMAZ; anahtar sahibin ilk ziyaretinde
   // üretilir, o zamana kadar besleme kartı gösterilmez.
   if (!icalToken && !isImpersonating(session)) {
-    icalToken = generateCalendarToken();
-    await prisma.property.update({ where: { id: property.id }, data: { icalToken } });
+    // Yalnız boşsa üretilir — iki sekme aynı anda açsa da aynı bağlantı (takvim C4, `ensurePropertyCalendarToken`).
+    icalToken = await ensurePropertyCalendarToken(property.id);
   }
 
   // 🚨 HAM `Host` KULLANILMAZ — GERİ ALMA. Bu URL GİZLİ `icalToken`'ı taşıyor ve

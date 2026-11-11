@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { feedRunOrderLockName } from "@/lib/import/sync";
 import { notFound, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
@@ -54,6 +55,8 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
       data: { calendarSourceId: null, channel: "manual" },
     });
     await tx.calendarSource.delete({ where: { id } });
+    // Kaynağın koşu sırası damgası (takvim C2) da gider — kaynak yoksa damganın işi yok.
+    await tx.systemLock.deleteMany({ where: { name: feedRunOrderLockName(id) } });
     return rows;
   });
   // Gece-4 S6-14: besleme durur, satırlar elle yönetilene döner — denetim kaydı (sayı; adres yazılmaz).
