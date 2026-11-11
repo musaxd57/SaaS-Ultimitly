@@ -97,6 +97,15 @@ export function verifyPaddleSignature(opts: {
 }
 
 /**
+ * Bir gövdeyi Paddle'ın yaptığı gibi imzalar (`ts` + HMAC-SHA256). YALNIZ kendi sakladığımız, daha önce imzası doğrulanmış bir olayı süreç
+ * içinde AYNI işleyiciden yeniden geçirmek içindir (`payments/paddle-replay.ts`, S7) — dışarıya giden hiçbir isteği imzalamaz. Saf.
+ */
+export function signPaddleWebhook(rawBody: string, secret: string, tsSeconds: number): string {
+  const h1 = createHmac("sha256", secret).update(`${tsSeconds}:${rawBody}`, "utf8").digest("hex");
+  return `ts=${tsSeconds};h1=${h1}`;
+}
+
+/**
  * Map a Paddle price id (from a webhook's subscription item) to our plan code.
  * Configured via env so the same code works in sandbox and production without a
  * rebuild. Unknown price → null (event is stored but no plan change is applied).
@@ -596,6 +605,24 @@ export function isTransientPaddleReadFailure(err: unknown): boolean {
   if (!m) return true;
   const status = Number(m[1]);
   return status >= 500 || status === 408 || status === 429 || status === 401 || status === 403;
+}
+
+/**
+ * TEK ucuz okuma: API anahtarımız ŞU AN abonelik okuyabiliyor mu (S7)? Bekleyen ödeme olaylarını yeniden işlemeden önce sorulur — anahtar
+ * reddediliyorsa olayların hiçbiri denenmez (sağlayıcıya yüklenilmez, olay başına alarm üretilmez). İşleyicinin ihtiyaç duyduğu yetkiyle
+ * AYNI kaynak (abonelik okuma). Asla fırlatmaz.
+ *  · `ok` — istek kabul edildi (ya da yetkiyle ilgisiz bir cevap geldi: anahtar tanınıyor);
+ *  · `unreadable` — okunamadı: ağ / zaman aşımı / 5xx / 408 / 429 ya da anahtar reddedildi (401 / 403) — `isTransientPaddleReadFailure`;
+ *  · `unconfigured` — anahtar tanımlı değil.
+ */
+export async function probePaddleRead(): Promise<"ok" | "unreadable" | "unconfigured"> {
+  if (!isPaddleConfigured()) return "unconfigured";
+  try {
+    await paddleRequest("/subscriptions?per_page=1");
+    return "ok";
+  } catch (err) {
+    return isTransientPaddleReadFailure(err) ? "unreadable" : "ok";
+  }
 }
 
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */

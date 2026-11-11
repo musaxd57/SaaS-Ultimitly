@@ -107,6 +107,18 @@ export async function alertOnTransition(
 
 let clearCalls = 0;
 
+/**
+ * Bu durumun alarmı şu an AÇIK mı (satır var mı)? "Arıza az önce düzeldi" geçişini okumak içindir (ör. ödeme olaylarının yeniden işlenmesi:
+ * anahtar düzelince bekleyenlerin hepsi geçirilir). Okunamazsa `false` (çağıran olağan yoluna devam eder).
+ */
+export async function alertStateActive(key: string): Promise<boolean> {
+  try {
+    return (await prisma.systemLock.findUnique({ where: { name: PREFIX + key }, select: { name: true } })) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** Arıza bitti: bir sonraki arıza yeniden alarm üretsin. Asla fırlatmaz. */
 export async function clearAlertState(key: string): Promise<void> {
   clearCalls++;

@@ -17,6 +17,7 @@ import { billingEnforced, premiumAllowed } from "@/lib/billing/subscription";
 import { noteBillingBlockedSeen } from "@/lib/outbox/billing-hold";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, minimizeOldPaddleWebhooks, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
+import { replayPendingPaddleEvents } from "@/lib/payments/paddle-replay";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { SWEEP_CATCHUP_MINUTES, closeStayEndedCommitments, sweepHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
@@ -942,6 +943,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // that never return — one-off IPs — would otherwise accumulate forever).
         await hourly("rate-limit-sweep", "scheduled-sync rate-limit-sweep", () => sweepExpiredRateLimits());
         // Ödeme olayı kayıtları (G6, kurucu kararı 10-13): işlenmiş ve 12 aydan eski satırın ham yükü (ad / e-posta / adres) küçülür.
+        // S7 (kurucu kararı 11-11): işlenememiş Paddle olayı yalnız Paddle'ın sınırlı tekrarına bırakılmaz — saklı olay aynı işleyiciden
+        // yeniden geçirilir; API anahtarı reddediliyorsa hiçbiri denenmez, tek ortak alarm durumu açılır (`payments/paddle-replay.ts`).
+        await hourly("paddle-webhook-replay", "scheduled-sync paddle-webhook-replay", () => replayPendingPaddleEvents());
         await hourly("paddle-webhook-minimize", "scheduled-sync paddle-webhook-minimize", () => minimizeOldPaddleWebhooks());
         // Ödeme niyeti (Codex 10-21 P1, migration 82): süresi dolan açık ödeme ekranı kapanır (ödenmemiş işlem Paddle'da iptal), kapananlar
         // 90 gün sonra silinir. Anahtar kapalıyken tablo boş → iş yok.
