@@ -88,6 +88,7 @@ import { kbPetsFreeAllowed } from "@/lib/conversation-items/pet-policy";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
 import { orgTimezone } from "@/lib/timezone";
+import { guestChatClock } from "@/lib/guest-chat-clock";
 import { verifiedQrEnabled } from "@/lib/ai/verified-qr";
 import { reportError } from "@/lib/report-error";
 import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
@@ -555,7 +556,7 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
         // TAM SIRA (`createdAt` + `id`): eşit damgada pencere sınırı kaymasın.
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: GUEST_CHAT_MESSAGE_WINDOW,
-        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true },
+        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, createdAt: true },
       },
     },
   });
@@ -565,6 +566,8 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
     // Reliable, typed role (authorType) — never the message text or host senderName.
     role: guestChatDisplayRole(m),
     text: m.body,
+    // Etiketin yanındaki saat (3c, kurucu 11-11: "Airbnb'de nasıl görünüyorsa") — işletmenin saat diliminde, sunucuda kurulur.
+    time: guestChatClock(m.createdAt, ctx.timeZone),
   }));
   const out = jsonOk({ open: true, messages });
   if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, ctx.activeReservation, token);

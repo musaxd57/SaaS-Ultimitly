@@ -46,7 +46,6 @@ export interface GuestChatCopy {
   footer: string;
   privacy: string;
   separatorResume: string;
-  separatorHost: string;
   senderHost: string;
   senderAi: string;
   typing: string;
@@ -84,10 +83,9 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     footer: "Otomatik asistan + ev sahibi. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz.",
     privacy: "Gizlilik",
     separatorResume: "Lixus AI yeniden etkinleştirildi",
-    separatorHost: "İşletme ekibi görüşmeye katıldı",
-    senderHost: "👥 İşletme ekibi",
-    senderAi: "🤖 Lixus AI",
-    typing: "🤖 Lixus AI yazıyor…",
+    senderHost: "İşletme ekibi",
+    senderAi: "Lixus AI",
+    typing: "Lixus AI yazıyor…",
     inputPlaceholder: "Sorunuzu yazın…",
     send: "Gönder",
     stalled: "Yeni mesajlar şu an alınamıyor. Bağlantınızı kontrol edip sayfayı yenileyebilirsiniz.",
@@ -120,10 +118,9 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     footer: "Automated assistant + host. For security, check-in details such as the door code are not shared here.",
     privacy: "Privacy",
     separatorResume: "Lixus AI is back on",
-    separatorHost: "Our team joined the conversation",
-    senderHost: "👥 Host team",
-    senderAi: "🤖 Lixus AI",
-    typing: "🤖 Lixus AI is typing…",
+    senderHost: "Host team",
+    senderAi: "Lixus AI",
+    typing: "Lixus AI is typing…",
     inputPlaceholder: "Type your question…",
     send: "Send",
     stalled: "New messages can't be loaded right now. Check your connection and refresh the page.",

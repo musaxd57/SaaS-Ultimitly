@@ -5,7 +5,7 @@ import { prisma, resetDb } from "../helpers/db";
 // ---------------------------------------------------------------------------
 // K14 (kurucu kararı 09-30): "Misafirin gördüğü ekran" — QR sohbetinin misafir tarafının SALT OKUNUR önizlemesi.
 //  · Gönderim YOK (form / yazma kutusu / düğme çizilmez), cihaz bağlama YOK, okundu durumu değişmez: sayfa hiçbir satır yazmaz.
-//  · Misafirin gördüğüyle AYNI: yön (misafir sağda), etiketler ("🤖 Lixus AI", "👥 İşletme ekibi"), devir ayraçları, pencere (200).
+//  · Misafirin gördüğüyle AYNI: yön (misafir sağda), avatarlar + etiketler ("Lixus AI", "İşletme ekibi") + saat, pencere (200).
 //  · Erişim konuşma sayfasıyla aynı (sahip / yönetici; başka işletme 404).
 // ---------------------------------------------------------------------------
 
@@ -140,9 +140,11 @@ describe("K14 — misafirin gördüğü ekran (salt okunur önizleme)", () => {
     const { conversation } = await seed();
     const { text, types } = await render(conversation.id);
     expect(text).toContain("Havlu var mı?");
-    expect(text).toContain("🤖 Lixus AI");
-    expect(text).toContain("👥 İşletme ekibi");
-    expect(text).toContain("İşletme ekibi görüşmeye katıldı");
+    expect(text).toContain("Lixus AI");
+    expect(text).toContain("İşletme ekibi");
+    expect(text).not.toMatch(/👥|🤖/); // emoji yerine avatar (3c, kurucu 11-11)
+    expect(text).not.toContain("görüşmeye katıldı"); // ⬅️ ESKİDE ayraç vardı
+    expect(text).toMatch(/\b\d{2}:\d{2}\b/); // mesaj saati, misafirin uçla aynı kural
     expect(text).toContain("Konaklama sürüyor");
     // Ev sahibi paneli etiketleri ("Siz", "Misafir") misafir ekranında YOK.
     expect(text).not.toMatch(/\bSiz\b/);

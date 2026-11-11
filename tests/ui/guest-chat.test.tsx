@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { GuestChat } from "@/components/guest-chat/guest-chat";
 
-type Msg = { id: string; role: "guest" | "ai" | "host" | "resume"; text: string };
+type Msg = { id: string; role: "guest" | "ai" | "host" | "resume"; text: string; time?: string };
 
 // A tiny stateful fake server: GET returns the thread; POST appends the guest
 // message + an AI reply (mirrors recordGuestChat), then the client re-fetches.
@@ -78,16 +78,21 @@ describe("GuestChat (UI, two-way)", () => {
     expect(bodies[2].requestId).not.toBe(bodies[0].requestId); // fresh message → fresh id
   });
 
-  it("renders a manual host reply as 'İşletme ekibi' with a takeover separator", async () => {
+  it("ev sahibinin elle cevabı 'İşletme ekibi' etiketi + kişi avatarıyla görünür; 'görüşmeye katıldı' çizgisi YOK (kurucu 11-11)", async () => {
     setupFetch([
       { id: "g1", role: "guest", text: "Klima bozuk" },
-      { id: "h1", role: "host", text: "Hemen ilgileniyorum, kusura bakmayın." },
+      { id: "h1", role: "host", text: "Hemen ilgileniyorum, kusura bakmayın.", time: "07:29" },
     ]);
-    render(<GuestChat token="t" />);
+    const { container } = render(<GuestChat token="t" />);
 
     await screen.findByText("Hemen ilgileniyorum, kusura bakmayın.");
-    await screen.findByText("👥 İşletme ekibi"); // team label — never a host personal name
-    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // takeover separator, once
+    await screen.findByText("İşletme ekibi"); // ekip etiketi — emoji öneki yok, kişisel ad yok
+    expect(screen.getByText("07:29")).toBeTruthy(); // Airbnb'deki gibi etiketin yanında saat
+    expect(container.querySelectorAll('[data-avatar="host"]')).toHaveLength(1);
+    expect(container.querySelector('[data-avatar="ai"]')).toBeNull(); // insan mesajı marka işaretini taşımaz
+    // ⬅️ ESKİDE araya "İşletme ekibi görüşmeye katıldı" çizgisi giriyordu: tek cevap yazmak konuşmayı devralmak değildir.
+    expect(screen.queryByText(/görüşmeye katıldı/)).toBeNull();
+    expect(container.textContent).not.toMatch(/👥|🤖/);
   });
 
   it("shows the 'AI re-enabled' separator (no bubble) after the host resumes the AI", async () => {
@@ -97,20 +102,35 @@ describe("GuestChat (UI, two-way)", () => {
       { id: "r1", role: "resume", text: "Lixus AI yeniden etkinleştirildi" },
       { id: "a1", role: "ai", text: "Çöp salı günü." },
     ]);
-    render(<GuestChat token="t" />);
+    const { container } = render(<GuestChat token="t" />);
 
-    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // team joined
     await screen.findByText("Çöp salı günü."); // AI answers again after resume
+    expect(screen.queryByText(/görüşmeye katıldı/)).toBeNull();
     // The resume marker renders ONLY as a separator, never as a chat bubble → its
     // text appears exactly once.
     expect(screen.getAllByText("Lixus AI yeniden etkinleştirildi")).toHaveLength(1);
+    expect(container.querySelectorAll('[data-avatar="host"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-avatar="ai"]')).toHaveLength(1);
+  });
+
+  it("saat yalnız sunucu verdiyse çizilir: misafirin kendi mesajında üstte, saati olmayan satırda hiç", async () => {
+    setupFetch([
+      { id: "g1", role: "guest", text: "Çöp ne zaman?", time: "21:05" },
+      { id: "a1", role: "ai", text: "Çöp salı günü.", time: "21:06" },
+      { id: "a2", role: "ai", text: "Başka sorunuz olursa yazın." },
+    ]);
+    render(<GuestChat token="t" />);
+    await screen.findByText("Başka sorunuz olursa yazın.");
+    expect(screen.getByText("21:05")).toBeTruthy();
+    expect(screen.getByText("21:06")).toBeTruthy();
+    expect(screen.getAllByText(/^\d{2}:\d{2}$/)).toHaveLength(2); // saatsiz satıra saat uydurulmaz
   });
 
   it("labels the bot reply as 'Lixus AI'", async () => {
     setupFetch([{ id: "a1", role: "ai", text: "Çöp salı günü." }]);
     render(<GuestChat token="t" />);
     await screen.findByText("Çöp salı günü.");
-    await screen.findByText(/Lixus AI$/); // bot sender label ("🤖 Lixus AI"), not the header title
+    await screen.findByText("Lixus AI"); // gönderen etiketi (emoji öneki yok); başlık "Lixus AI Misafir Asistanı" ayrı metin
   });
 
   it("shows the branded assistant title (never an internal property name)", async () => {
@@ -219,8 +239,8 @@ describe("GuestChat (UI, two-way)", () => {
     expect(screen.getByText(/Our team can join the conversation/)).toBeTruthy();
     expect(screen.getByPlaceholderText("Type your question…")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
-    await screen.findByText("Our team joined the conversation");
-    expect(screen.getByText("👥 Host team")).toBeTruthy();
+    await screen.findByText("Host team");
+    expect(screen.queryByText(/joined the conversation/)).toBeNull();
     expect(container.querySelector('[lang="en"]')).not.toBeNull();
     expect(screen.queryByText(/Sorunuzu yazın|Gönder|İşletme ekibi/)).toBeNull();
   });

@@ -1024,6 +1024,8 @@ export interface GuestChatContext {
     /** Misafire görünen ad (U4) — QR başlığı. İç ad (`name`) ekrana ASLA çıkmaz; boş → yalnız marka. */
     guestDisplayName: string | null;
   };
+  /** İşletmenin saat dilimi — misafire gösterilen mesaj saatleri bu dilimdedir (misafir dairededir; tarayıcı saatine güvenilmez). */
+  timeZone?: string;
   /** True only during an active stay (arrival day → checkOutTime on departure day,
    *  Istanbul). When false the chat is closed (vacant / before check-in / after
    *  checkout) and answers nothing. */
@@ -1612,7 +1614,7 @@ export async function resolveGuestChat(
     });
     const cancelledRow = cancelledRows.filter(notErased).find(isOpenNow) ?? null;
     return {
-      property: propertyPublic,
+      property: propertyPublic, timeZone: tz,
       open: false,
       activeReservation: null,
       cancelledStay: cancelledRow ? { id: cancelledRow.id, guestName: cancelledRow.guestName } : null,
@@ -1625,7 +1627,7 @@ export async function resolveGuestChat(
     };
   }
   if (opts.knowledgeBase === false) {
-    return { property: propertyPublic, open: true, activeReservation, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired };
+    return { property: propertyPublic, timeZone: tz, open: true, activeReservation, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired };
   }
 
   // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
@@ -1678,7 +1680,7 @@ export async function resolveGuestChat(
   );
   const droppedTotal = kbDropped + (kbRaw.length - knowledgeBaseFilled.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, knowledgeBaseHijackScreened: kb.hijackScreened, pinRequired };
+  return { property: propertyPublic, timeZone: tz, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, knowledgeBaseHijackScreened: kb.hijackScreened, pinRequired };
 }
 
 /**

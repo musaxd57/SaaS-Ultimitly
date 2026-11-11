@@ -18,6 +18,7 @@ import {
 } from "@/components/guest-chat/guest-chat-thread";
 import { GUEST_COPY } from "@/components/guest-chat/guest-chat-copy";
 import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+import { guestChatClock } from "@/lib/guest-chat-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
       messages: {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: GUEST_CHAT_MESSAGE_WINDOW,
-        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true },
+        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, createdAt: true },
       },
     },
   });
@@ -62,10 +63,12 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
   const placeName = normalizeGuestDisplayName(convo.property.guestDisplayName);
   const previewTitle = placeName ? GUEST_COPY.tr.titleFor(placeName) : GUEST_ASSISTANT_TITLE;
 
+  // Misafirin GET ucuyla aynı saat kuralı: işletmenin saat dilimi.
+  const previewTimeZone = (await prisma.organization.findUnique({ where: { id: session.organizationId }, select: { timezone: true } }))?.timezone;
   const messages: GuestChatMessage[] = convo.messages
     .slice()
     .reverse()
-    .map((m) => ({ id: m.id, role: guestChatDisplayRole(m), text: m.body }));
+    .map((m) => ({ id: m.id, role: guestChatDisplayRole(m), text: m.body, time: guestChatClock(m.createdAt, previewTimeZone) }));
 
   // Misafirin ŞU ANKİ durumu — misafir sayfasıyla aynı çözücü (okuma; bilgi tabanı çekilmez). Bu konuşma yalnız o anki
   // konaklamanın sohbetiyse "açık" (misafirin GET ucunun kullandığı işaretin birebir aynısı).

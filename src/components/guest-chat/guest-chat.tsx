@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GuestChatThread, type GuestChatMessage as ChatMessage } from "@/components/guest-chat/guest-chat-thread";
+import { GuestChatAvatar, GuestChatThread, type GuestChatMessage as ChatMessage } from "@/components/guest-chat/guest-chat-thread";
 import { GUEST_COPY, type GuestLocale } from "@/components/guest-chat/guest-chat-copy";
 import { isImeComposing } from "@/lib/ime";
 import { newRequestId } from "@/lib/request-id";
@@ -425,7 +425,8 @@ export function GuestChat({
         <GuestChatThread messages={messages} locale={locale} />
 
         {sending ? (
-          <div className="flex justify-start">
+          <div className="flex items-end justify-start gap-2">
+            <GuestChatAvatar kind="ai" />
             <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
               {t.typing}
             </div>

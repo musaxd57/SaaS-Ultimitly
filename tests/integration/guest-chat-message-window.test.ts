@@ -96,6 +96,28 @@ describe("GET /api/chat/[token] — mesaj penceresi", () => {
     expect(JSON.stringify(out), "pencere dışındaki en eski mesaj sızmamalı").not.toContain("mesaj-0000");
   });
 
+  it("her mesaj SAATİYLE döner — işletmenin saat diliminde, 24 saat biçiminde (3c: Airbnb'deki gibi etiketin yanında saat)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Asia/Tokyo" } });
+    const { token, reservationId } = await enableChat(propertyId);
+    const convo = await prisma.conversation.create({
+      data: { propertyId, guestIdentifier: "g", externalReservationId: `qr-chat:${propertyId}:${reservationId}`, status: "answered", lastMessageAt: new Date() },
+    });
+    // 22:29 UTC = Tokyo'da ertesi gün 07:29 (İstanbul'da 01:29 olurdu — dilimin gerçekten okunduğunu ayırt eder).
+    const at = new Date(Date.UTC(2026, 10, 10, 22, 29, 0));
+    await prisma.message.createMany({
+      data: [
+        { conversationId: convo.id, direction: "inbound", authorType: "guest", senderName: "Misafir", body: "Çöp ne zaman?", createdAt: at },
+        { conversationId: convo.id, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: "Salı günü.", createdAt: new Date(at.getTime() + 60_000) },
+      ],
+    });
+    const out = (await (await getReq(token)).json()) as { messages: { text: string; time?: string }[] };
+    expect(out.messages.map((m) => [m.text, m.time])).toEqual([
+      ["Çöp ne zaman?", "07:29"],
+      ["Salı günü.", "07:30"],
+    ]);
+  });
+
   it("🚨 SIRA KRONOLOJİK KALIR (pencere `desc` çekip geri çevirir)", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const { token, reservationId } = await enableChat(propertyId);

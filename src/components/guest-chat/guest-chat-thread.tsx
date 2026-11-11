@@ -1,11 +1,13 @@
 import { Fragment } from "react";
+import { UserRound } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 import { GUEST_COPY, type GuestLocale } from "./guest-chat-copy";
 
 // ---------------------------------------------------------------------------
 // Misafirin QR sohbet ekranındaki mesaj akışı — SAF (hook yok, ağ yok). İki yer AYNI bileşeni kullanır:
 //   · misafirin kendi ekranı (`guest-chat.tsx`, istemci, 5 sn'de bir yenilenir);
 //   · ev sahibinin / destek görünümünün "Misafirin gördüğü ekran" önizlemesi (K14, kurucu kararı 09-30; sunucu, salt okunur).
-// Böylece önizleme misafirin gördüğünden AYRIŞAMAZ (balon yönü, etiketler, "İşletme ekibi görüşmeye katıldı" ayraçları).
+// Böylece önizleme misafirin gördüğünden AYRIŞAMAZ (balon yönü, avatarlar, etiketler, saat, "yeniden etkinleştirildi" ayracı).
 // ---------------------------------------------------------------------------
 
 export type GuestChatRole = "guest" | "ai" | "host" | "resume";
@@ -13,6 +15,8 @@ export interface GuestChatMessage {
   id: string;
   role: GuestChatRole;
   text: string;
+  /** Mesajın saati ("07:29") — sunucu işletmenin saat diliminde kurar; yoksa (henüz gönderilmekte olan yerel satır) çizilmez. */
+  time?: string;
 }
 
 // Guest-facing title. Deliberately a FIXED brand string, never the internal
@@ -32,55 +36,79 @@ export const GUEST_CHAT_CLOSED = GUEST_COPY.tr.closed;
 export const GUEST_CHAT_FOOTER = GUEST_COPY.tr.footer;
 
 /**
- * Mesaj balonları + devir ayraçları. Ayraçlar diziden türetilir: bir ev sahibi mesajı, önceki devir işareti "yeniden
- * etkinleştirildi" ise (ya da hiç yoksa) "İşletme ekibi görüşmeye katıldı" koşusunu başlatır; "resume" satırı balon değil,
- * "Lixus AI yeniden etkinleştirildi" ayracıdır.
+ * Gönderenin yuvarlak avatarı (3c, kurucu 11-11: "Airbnb'de başka biri yazınca nasıl görünüyorsa; logoyu güzelleştir"). Yapay zekâ = ürünün
+ * kendi işareti (emoji değil: sistem yazı tipine göre değişmez, tema rengini alır); insan = nötr kişi simgesi.
+ * 🚨 Tür ROLDEN seçilir (sunucunun `authorType`ı), addan / metinden değil — insan mesajı hiçbir zaman marka işaretini taşımaz.
+ */
+export function GuestChatAvatar({ kind }: { kind: "ai" | "host" }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-avatar={kind}
+      className={
+        kind === "host"
+          ? "flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200"
+          : "flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm"
+      }
+    >
+      {/* Marka işaretinin çizimi kutusunun ortasındaki ~yarısını kaplar → kutu büyük tutulur ki işaret okunaklı olsun. */}
+      {kind === "host" ? <UserRound className="size-[18px]" /> : <BrandMark className="size-7" />}
+    </span>
+  );
+}
+
+/**
+ * Mesaj balonları. Misafir sağda (üstünde saat); yapay zekâ ve işletme solda — avatar + "Gönderen saat" etiketi + balon.
+ * Ev sahibi yazınca araya "görüşmeye katıldı" çizgisi GİRMEZ (kurucu 11-11: tek cevap yazmak konuşmayı devralmak değildir; kim yazdığını
+ * etiket söyler). "resume" satırı balon değil, "Lixus AI yeniden etkinleştirildi" ayracıdır — o gerçek bir durum değişikliği.
  */
 export function GuestChatThread({ messages, locale = "tr" }: { messages: readonly GuestChatMessage[]; locale?: GuestLocale }) {
   const t = GUEST_COPY[locale];
   return (
     <>
-      {messages.map((m, i) => {
+      {messages.map((m) => {
         const guest = m.role === "guest";
         const host = m.role === "host";
-        const resume = m.role === "resume";
-        const prevMarker = [...messages.slice(0, i)].reverse().find((x) => x.role === "host" || x.role === "resume");
-        const startsHostRun = host && (!prevMarker || prevMarker.role === "resume");
-        const separator = resume ? t.separatorResume : startsHostRun ? t.separatorHost : null;
-        return (
-          <Fragment key={m.id}>
-            {separator ? (
-              <div className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="h-px flex-1 bg-border" />
-                {separator}
-                <span className="h-px flex-1 bg-border" />
-              </div>
-            ) : null}
-            {resume ? null : (
-              <div className={guest ? "flex justify-end" : "flex justify-start"}>
-                <div
-                  className={
-                    guest
-                      ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                      : host
-                        ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                        : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                  }
-                >
-                  {!guest ? (
-                    <p
-                      className={
-                        host ? "mb-0.5 text-[10px] font-semibold text-emerald-700" : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
-                      }
-                    >
-                      {host ? t.senderHost : t.senderAi}
-                    </p>
-                  ) : null}
+        if (m.role === "resume") {
+          return (
+            <div key={m.id} className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              {t.separatorResume}
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          );
+        }
+        if (guest) {
+          return (
+            <Fragment key={m.id}>
+              <div className="flex flex-col items-end">
+                {m.time ? <p className="mb-0.5 mr-1 text-[11px] tabular-nums text-muted-foreground">{m.time}</p> : null}
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
                 </div>
               </div>
-            )}
-          </Fragment>
+            </Fragment>
+          );
+        }
+        return (
+          <div key={m.id} className="flex items-end justify-start gap-2">
+            <GuestChatAvatar kind={host ? "host" : "ai"} />
+            <div className="min-w-0 max-w-[85%]">
+              <p className="mb-0.5 ml-1 flex items-baseline gap-1.5 text-[11px] text-muted-foreground">
+                <span className={host ? "font-semibold text-emerald-700" : "font-semibold text-foreground/80"}>{host ? t.senderHost : t.senderAi}</span>
+                {m.time ? <span className="tabular-nums">{m.time}</span> : null}
+              </p>
+              <div
+                className={
+                  host
+                    ? "rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+                    : "rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
+                }
+              >
+                <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              </div>
+            </div>
+          </div>
         );
       })}
     </>

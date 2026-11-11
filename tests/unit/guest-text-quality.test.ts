@@ -668,12 +668,11 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
     expect(qrCode).not.toMatch(/ev sahib[^"\n]*!/);
 
     // Ekranın sabit metinleri (`GUEST_COPY`) — bu kapsam 11-06'ya dek YOKTU ve ilk koşuda üç Türkçe "İşletme ekibi" etiketi çıktı
-    // (açıklama · ayraç · gönderen). İstisna yalnız bu üç metnin BUGÜNKÜ hâli (kurucu sorusu, rapor 11-06 gece-2, öneri "ekibimiz"):
+    // (açıklama · ayraç · gönderen). Ayraç ("… görüşmeye katıldı") 11-11'de KALKTI (kurucu); gönderen etiketi ad + rol gelince değişecek. İstisna yalnız bu üç metnin BUGÜNKÜ hâli (kurucu sorusu, rapor 11-06 gece-2, öneri "ekibimiz"):
     // metin değişirse ya da anahtar kalkarsa kırmızı olur ve satır listeden çıkarılır — istisnanın altına başka bir kurumsal metin giremez.
     const PENDING_FOUNDER_QUESTION = new Map([
       ["tr.disclosure", "Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir."],
-      ["tr.separatorHost", "İşletme ekibi görüşmeye katıldı"],
-      ["tr.senderHost", "👥 İşletme ekibi"],
+      ["tr.senderHost", "İşletme ekibi"],
     ]);
     const copyStrings: [string, string][] = [];
     for (const [locale, copy] of Object.entries(GUEST_COPY)) {
