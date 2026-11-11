@@ -44,7 +44,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { GET as authorize } from "@/app/api/hospitable/oauth/authorize/route";
 import { GET as callback } from "@/app/api/hospitable/oauth/callback/route";
-import { setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
+import { setOrgHospitableOAuthTokens, consumeOAuthConnectIntent } from "@/lib/hospitable-credentials";
 import {
   exchangeCodeForToken,
   HospitableOAuthError,
@@ -189,6 +189,19 @@ describe("OAuth callback — sağlayıcı reddi ile iç arıza AYRIŞIR (09-23)"
     expect(res.headers.get("location")).toContain("hospitable=invalid_token");
     expect(vi.mocked(reportError)).not.toHaveBeenCalled();
     expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it("🚨 niyet kaydı okunamazsa (veritabanı arızası) ham hata DEĞİL: bağlantı kurulamadı + operatöre bildirim; kod TAKAS EDİLMEZ, durum çerezi temizlenir", async () => {
+    session = owner("org_a", "user_1");
+    const { cookie, state } = await startFlow();
+    vi.mocked(consumeOAuthConnectIntent).mockRejectedValueOnce(new Error("db down"));
+
+    const res = await callback(callbackReq(state, cookie)); // ⬅️ ESKİDE fırlatırdı (ham 500, raporsuz, çerez yerinde)
+    expect(res.headers.get("location")).toContain("hospitable=exchange_failed");
+    await vi.waitFor(() => expect(vi.mocked(reportError)).toHaveBeenCalledTimes(1));
+    expect(mockExchange).not.toHaveBeenCalled();
+    expect(mockSave).not.toHaveBeenCalled();
+    expect(res.cookies.get(OAUTH_STATE_COOKIE)?.value).toBe("");
   });
 
   it("geçici sağlayıcı sorunu (5xx) ya da iç arıza HÂLÂ alarm üretir → exchange_failed", async () => {
