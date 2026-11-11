@@ -5,7 +5,14 @@ import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { resolveOrgChannelCredential } from "@/lib/channels";
-import { claimOutboundSend, releaseOutboundSend, claimOutboundRequest, releaseOutboundRequest, extendOutboundRequest } from "@/lib/outbound-claim";
+import {
+  claimOutboundSend,
+  releaseOutboundSend,
+  claimOutboundRequest,
+  releaseOutboundRequest,
+  extendOutboundRequest,
+  newClaimOwner,
+} from "@/lib/outbound-claim";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
@@ -68,6 +75,9 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   const isInternal = conversation.externalReservationId?.startsWith("qr-chat:") ?? false;
   const token = (await resolveOrgChannelCredential(input.organizationId))?.token ?? null;
   if (!isInternal && conversation.externalReservationId && !token) return { status: "not_connected" };
+  // Bu DENEMENİN jetonu (mesaj M1, Codex 11-10): aldığı talepleri yalnız kendisi bırakır / uzatır — süresi dolmuş eski bir denemenin geç
+  // temizliği, aynı metni / isteği almış yeni denemenin talebini silemez.
+  const attempt = newClaimOwner();
 
   // ── Durable Outbox (flag ON): record the Message + its send INTENT atomically and let the worker deliver it, instead of the
   // synchronous deliver-then-persist below. Falls through to the proven claim-then-send when the flag is OFF (default) or the
@@ -78,10 +88,25 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // talebi engel değildir — kuyruk satırı anahtarla zaten tekilleşir (aşağıdaki içerik denetimi dahil).
     let ownRequestClaim = false;
     if (input.strictIdempotency) {
-      const req = await claimOutboundRequest(id, input.idempotencyKey, "queue");
+      const req = await claimOutboundRequest(id, input.idempotencyKey, "queue", attempt);
       if (req.result === "unavailable") return { status: "claim_unavailable" };
       if (req.result === "held" && req.by !== "queue") return { status: "duplicate" };
       ownRequestClaim = req.result === "claimed";
+    }
+    // 🚨 GÖVDE TALEBİ KUYRUK YOLUNDA DA (mesaj M1, Codex 11-10): kuyruk yalnız istek kimliğiyle tekilleşiyordu → aynı metni AYNI ANDA gönderen
+    // iki ayrı istek (iki sekme / iki yönetici aynı taslağı onayladı — kimlikler farklı) ikisi de kuyruğa giriyor, misafire iki kez gidiyordu;
+    // doğrudan yol bunu 2 dk'lık gövde talebiyle zaten durduruyordu. Aynı İSTEĞİN tekrarı (talep zaten kuyruğun) gövde talebine bakmaz —
+    // kuyruk satırı anahtarla tekilleşir. Gövde talebi tutuluyorsa ve bu anahtarın kuyruk satırı varsa bu yine aynı isteğin tekrarıdır
+    // (kimliksiz istemci: anahtar = gövde + 2 dk kova; ya da istek talebinin süresi dolmuş) → kuyruğun tekilleştirme cevabı.
+    let ownBodyClaim = false;
+    if (!input.strictIdempotency || ownRequestClaim) {
+      const bodyClaim = await claimOutboundSend(id, input.claimBody, attempt);
+      if (bodyClaim !== "claimed") {
+        if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+        if (bodyClaim === "unavailable") return { status: "claim_unavailable" };
+        return (await queuedRequestResult(input)) ?? { status: "duplicate" };
+      }
+      ownBodyClaim = true;
     }
     let enq: Awaited<ReturnType<typeof enqueueOutbound>>;
     try {
@@ -99,7 +124,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       });
     } catch (err) {
       // Kuyruğa yazılamadı → hiçbir şey gönderilmeyecek: talep tutulursa (anahtar kapanınca) doğrudan yolun yeniden denemesi 24 sa kilitlenirdi.
-      if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey);
+      if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+      if (ownBodyClaim) await releaseOutboundSend(id, input.claimBody, attempt);
       throw err;
     }
     // (Codex r2 #3 + r3) İstek kimlikli dedupe-hit'te PAYLOAD eşleşmesi ŞART — gövde VE aiAssisted: aynı kimliği farklı gövdeyle
@@ -113,6 +139,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
           ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
           : null;
         if (existing && (existing.body !== input.body || (existingMsg != null && existingMsg.aiAssisted !== input.aiAssisted))) {
+          // Bu gövdeyle hiçbir şey kuyruğa girmedi → az önce alınan gövde talebi bırakılır (aynı metin doğru kimlikle hemen gönderilebilsin).
+          if (ownBodyClaim) await releaseOutboundSend(id, input.claimBody, attempt);
           return { status: "idempotency_conflict" };
         }
       }
@@ -139,15 +167,15 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
 
   // Duplicate guard (claim-then-send, like auto-reply): a double-click / browser retry with the SAME text must not reach the
   // guest twice. Keyed on the RAW typed body so both duplicates map to the same claim even when translate is on.
-  const claimed = await claimOutboundSend(id, input.claimBody);
+  const claimed = await claimOutboundSend(id, input.claimBody, attempt);
   if (claimed === "duplicate") return { status: "duplicate" };
   if (claimed === "unavailable") return { status: "claim_unavailable" };
   // İstek kimliği talebi (`claimOutboundRequest`): aynı kimlikle ikinci gönderim / kuyruk satırı oluşmaz — yanıtı kaybolan başarılı gönderimin
   // geç tekrarı ve araya giren anahtar değişikliği dahil.
   if (input.strictIdempotency) {
-    const req = await claimOutboundRequest(id, input.idempotencyKey, "direct");
+    const req = await claimOutboundRequest(id, input.idempotencyKey, "direct", attempt);
     if (req.result !== "claimed") {
-      await releaseOutboundSend(id, input.claimBody);
+      await releaseOutboundSend(id, input.claimBody, attempt);
       // Başka bir deneme (doğrudan ya da eşzamanlı kuyruk denemesi) bu kimliği tutuyor → "az önce gönderildi / hâlâ gönderiliyor".
       return req.result === "unavailable" ? { status: "claim_unavailable" } : { status: "duplicate" };
     }
@@ -159,8 +187,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // retryable now. Anything else (timeout / network / 5xx) is AMBIGUOUS — the message MAY have reached the guest despite the
     // error — so the claim stays held for its TTL and the caller tells the user to CHECK the thread before resending.
     if (isDefinitiveSendFailure(outcome.error)) {
-      await releaseOutboundSend(id, input.claimBody);
-      if (input.strictIdempotency) await releaseOutboundRequest(id, input.idempotencyKey);
+      await releaseOutboundSend(id, input.claimBody, attempt);
+      if (input.strictIdempotency) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
       return { status: "failed_definitive", error: outcome.error };
     }
     // Belirsiz: istek talebi doğduğu 2 dk'da kalır — "kontrol edip yeniden gönder" penceresi eskisi gibi.
@@ -169,7 +197,7 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   // KESİN başarı: istek talebi 24 saate uzar (yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz). Uzatılamazsa bir kez daha
   // denenir; yine olmazsa raporlanır — delik görünür olsun (Opus 11-05 N5).
   if (input.strictIdempotency) {
-    const extended = (await extendOutboundRequest(id, input.idempotencyKey)) || (await extendOutboundRequest(id, input.idempotencyKey));
+    const extended = (await extendOutboundRequest(id, input.idempotencyKey, attempt)) || (await extendOutboundRequest(id, input.idempotencyKey, attempt));
     if (!extended) void reportError("host-send.extend-request-claim", new Error("request claim not extended after confirmed delivery"));
   }
 
@@ -203,6 +231,10 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
           // Store the provider's message id so the sync re-importing this reply from the channel thread dedups it instead of
           // creating a duplicate row.
           ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
+          // Cevabın "yazıldığı an" = gönder'e basılan an (mesaj A25, Codex 11-10): satır teslimden SONRA yazılıyor, zamanı kayıt anı oluyordu →
+          // gönderim sürerken içeri alınan misafir mesajı (ev sahibi onu görmeden yazdı) satır sırasında cevaptan önce düşüp sonraki senkronda
+          // "Cevaplandı" sayılıyordu (`lateGuestMessages` içeri alınma anını cevabın zamanıyla kıyaslar).
+          createdAt: pressedAt,
         },
       }),
       completeStatus(),

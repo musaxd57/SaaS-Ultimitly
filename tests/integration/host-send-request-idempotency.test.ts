@@ -253,6 +253,103 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  // ---------------------------------------------------------------------------
+  // MESAJ M1 (Codex 11-10) — TALEBİN SAHİBİ + KUYRUK YOLUNDA GÖVDE TALEBİ.
+  // ---------------------------------------------------------------------------
+  const RID2 = "99999999-8888-4777-8666-555555555544";
+  const sendAs = (rid: string | null, body: string) =>
+    POST(req(conversationId, rid ? { body, requestId: rid } : { body }), { params: Promise.resolve({ id: conversationId }) });
+
+  it("🚨 M1: süresi dolan denemenin GEÇ gelen kesin hatası, aynı isteği alıp BAŞARIYLA gönderen yeni denemenin talebini silmez → üçüncü deneme göndermez", async () => {
+    outboxOff();
+    let finishFirst!: (v: { ok: false; error: string }) => void;
+    let firstEntered!: () => void;
+    const firstInSend = new Promise<void>((r) => (firstEntered = r));
+    mockSend.mockImplementationOnce(() => {
+      firstEntered();
+      return new Promise((res) => (finishFirst = res));
+    });
+    const pFirst = send("Kapı kodu 4512"); // A: sağlayıcıda asılı kaldı
+    await firstInSend;
+    await twoMinutesPass(); // A'nın talepleri düştü
+    expect((await send("Kapı kodu 4512")).status).toBe(201); // B: aynı istek yeniden denendi ve GİTTİ (talebi 24 saate uzadı)
+    finishFirst({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" }); // A şimdi kesin hatayla döndü
+    expect((await pFirst).status).toBe(502);
+    // ESKİDE: A'nın temizliği B'nin 24 saatlik kaydını ve gövde talebini adla siliyordu → aşağıdaki üçüncü deneme misafire İKİNCİ mesajı gönderiyordu.
+    const third = await send("Kapı kodu 4512");
+    expect(third.status).toBe(409); // ⬅️ ESKİDE 201
+    expect(mockSend).toHaveBeenCalledTimes(2); // A + B; üçüncü gönderim yok
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
+  it("KONTROL (M1): kendi talebini bırakma çalışır — kesin hata, araya kimse girmeden → aynı metin FARKLI kimlikle de hemen gider", async () => {
+    outboxOff();
+    mockSend.mockImplementationOnce(async () => ({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" }));
+    expect((await send("Wi-Fi şifresi")).status).toBe(502);
+    expect((await sendAs(RID2, "Wi-Fi şifresi")).status).toBe(201); // gövde talebi de bırakılmış
+  });
+
+  it("🚨 M1: kuyruk yolunda aynı metni AYNI ANDA gönderen iki AYRI istek (iki sekme / iki yönetici) → yalnız biri kuyruğa girer", async () => {
+    outboxOn();
+    expect((await send("Aynı taslak onaylandı")).status).toBe(202);
+    const second = await sendAs(RID2, "Aynı taslak onaylandı");
+    expect(second.status).toBe(409); // ⬅️ ESKİDE 202 (misafire iki kez gidiyordu)
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+    // Reddedilen isteğin kimliği kilitli kalmaz: gövde talebi bitince (2 dk) aynı kimlik yeni mesaj olarak kuyruğa girer.
+    await twoMinutesPass();
+    expect((await sendAs(RID2, "Aynı taslak onaylandı")).status).toBe(202);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
+  it("KONTROL (M1): kuyruk yolunda AYNI isteğin tekrarı gövde talebine takılmaz (200 tekilleşme); kimliksiz istemcinin tekrarı da", async () => {
+    outboxOn();
+    expect((await send("Tek mesaj")).status).toBe(202);
+    expect((await send("Tek mesaj")).status).toBe(200);
+    // İstek talebi düşmüş olsa da (2 dk) aynı kimlik kuyruk satırıyla tekilleşir.
+    await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } });
+    expect((await send("Tek mesaj")).status).toBe(200);
+    // Kimliksiz (eski) istemci: anahtar gövde + 2 dk kova → tekrar yine 200.
+    const first = await sendAs(null, "Kimliksiz mesaj");
+    expect(first.status).toBe(202);
+    const again = await sendAs(null, "Kimliksiz mesaj");
+    expect([200, 409]).toContain(again.status); // kova sınırına denk gelirse "az önce gönderildi" (409) — ikisi de ikinci kopya üretmez
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
+  it("M1: kuyruk yolunda içerik çakışması (aynı kimlik, başka metin) yeni metnin gövde talebini TUTMAZ → doğru kimlikle hemen gönderilebilir", async () => {
+    outboxOn();
+    expect((await send("İlk metin")).status).toBe(202);
+    await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } }); // istek talebi düştü; satır duruyor
+    expect((await send("İkinci metin")).status).toBe(409); // çakışma
+    expect((await sendAs(RID2, "İkinci metin")).status).toBe(202); // gövde talebi bırakılmış olmalı
+  });
+
+  it("M1: kuyruğa yazılamayan isteğin gövde talebi de bırakılır (aynı metin başka kimlikle hemen kuyruğa girer)", async () => {
+    outboxOn();
+    vi.mocked(enqueueOutbound).mockRejectedValueOnce(new Error("db down (test)"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = await send("Su ısıtıcısı mutfakta").catch(() => null);
+    expect(failed === null || failed.status >= 500).toBe(true);
+    expect((await sendAs(RID2, "Su ısıtıcısı mutfakta")).status).toBe(202);
+  });
+
+  it("🚨 A25 (ev sahibi yolu): cevap satırının zamanı gönder'e basılan andır — gönderim sürerken içeri alınan misafir mesajı cevaptan SONRA sayılır", async () => {
+    outboxOff();
+    let lateIngestedAt = 0;
+    mockSend.mockImplementationOnce(async () => {
+      const at = new Date();
+      lateIngestedAt = at.getTime();
+      await prisma.message.create({
+        data: { conversationId, direction: "inbound", senderName: "Guest", body: "Bir sorum daha var", createdAt: new Date(at.getTime() - 20_000), ingestedAt: at },
+      });
+      return { ok: true, id: "sent-1" };
+    });
+    expect((await send("Tabii, hallediyoruz")).status).toBe(201);
+    const reply = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "outbound" } });
+    expect(reply.createdAt.getTime()).toBeLessThanOrEqual(lateIngestedAt); // ⬅️ ESKİDE cevap satırı o mesajdan SONRA görünüyordu ("geç" sayılmıyordu)
+  });
+
   it("KONTROL — anahtar AÇIKKEN aynı kimliğin tekrarı bugünkü gibi tekilleşir (200), farklı gövde 409", async () => {
     outboxOn();
     expect((await send("Aynı metin")).status).toBe(202);

@@ -1166,11 +1166,15 @@ async function maybeSendClosingCourtesy(opts: {
 
   // Cross-replica idempotency claim (same as the main auto-send): only the run
   // that flips new/waiting→answered may deliver; failure releases the claim.
+  const claimedAt = new Date(); // nezaket cevabının "yazıldığı an" (A25: gönderim sırasında içeri alınan misafir mesajı cevaptan SONRA sayılır)
   const claim = await prisma.conversation.updateMany({
     where: { id: opts.conversation.id, status: { in: ["new", "waiting"] } },
     data: { status: "answered" },
   });
   if (claim.count === 0) return false;
+  // Talebin geri alınması YALNIZ durum hâlâ bizim talebimizse (A24): gönderim sürerken verilen "Sorunlu" / "Tamamlandı" kararı ezilmez.
+  const releaseClaim = () =>
+    prisma.conversation.updateMany({ where: { id: opts.conversation.id, status: "answered" }, data: { status: "new" } }).catch(() => {});
 
   // ── Durable Outbox (flag ON) — deterministic key: one courtesy per closing msg.
   if (durableOutboxEnabledFor(opts.organizationId) && opts.conversation.externalReservationId) {
@@ -1188,9 +1192,7 @@ async function maybeSendClosingCourtesy(opts: {
         idempotencyKey: `closing:${opts.conversation.id}:${opts.lastInbound.id}`,
       });
     } catch {
-      await prisma.conversation
-        .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
-        .catch(() => {});
+      await releaseClaim();
       return false;
     }
     return true;
@@ -1213,11 +1215,7 @@ async function maybeSendClosingCourtesy(opts: {
     // the claim (stays "answered") instead. Parity with the auto-reply/lifecycle/
     // manual paths' isDefinitiveSendFailure(); the silent local-record gap is the
     // accepted ambiguous trade-off ("a duplicate is worse than a rare silent miss").
-    if (isDefinitiveSendFailure(delivery.error)) {
-      await prisma.conversation
-        .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
-        .catch(() => {});
-    }
+    if (isDefinitiveSendFailure(delivery.error)) await releaseClaim();
     return false;
   }
 
@@ -1232,6 +1230,7 @@ async function maybeSendClosingCourtesy(opts: {
           body,
           aiIntent: CLOSING_COURTESY_INTENT, // ALSO the loop guard for the next closing
           ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+          createdAt: claimedAt,
         },
       }),
       prisma.conversation.update({
@@ -4351,6 +4350,13 @@ export async function applyChannelAutoReply(
     id: { notIn: seenInboundIds },
     ...(thread.complete ? {} : keysetAfter(thread.rows[0])),
   };
+  // 🚨 CEVABIN "YAZILDIĞI AN" = TALEP ANI (mesaj A25, Codex 11-10). Cevap satırı teslimden SONRA yazılıyor ve zamanı kayıt anı oluyordu:
+  // gönderim sürerken içeri alınan misafir mesajı (cevap onu GÖRMEDEN yazıldı) satır sırasında cevaptan ÖNCE düşüyor → sonraki geçiş "son
+  // mesaj giden" deyip cevaplamıyor, sonraki senkron da konuşmayı "Cevaplandı" yapıyordu (`lateGuestMessages` içeri alınma anını cevabın
+  // zamanıyla kıyaslar; kayıt anı o mesajdan SONRA olduğu için "geç" saymıyordu) → soru gelen kutusunda da görünmeden kayboluyordu. Cevabın
+  // zamanı artık talebin alındığı an: bu andan sonra içeri alınan her misafir mesajı ya talebi durdurur (↓ `unseenInbound`) ya da cevaptan
+  // SONRA sayılır (yeniden değerlendirilir / "Yeni" kalır).
+  const claimedAt = new Date();
   const claim = await prisma.conversation.updateMany({
     where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound } },
     data: { status: "answered" },
@@ -4442,23 +4448,22 @@ export async function applyChannelAutoReply(
       // Süre de sebep kodu da TEK KAYNAKTAN (`outbox/state.ts`) — iki gönderim
       // yolu ayrışamasın diye (denetim, 08-01 — üçüncü tur).
       const holdMs = sendFailureHoldMs(kind);
+      // 🚨 YALNIZ BİZİM TALEBİMİZ GERİ ALINIR (mesaj A24, Codex 11-10): geri alma koşulsuzdu — gönderim sürerken ev sahibi konuşmayı
+      // "Sorunlu" / "Tamamlandı" yaptıysa kararı "Yeni"ye EZİLİYOR, "Sorunlu"nun durdurduğu otomatik cevap yeniden deneniyordu. Durum hâlâ
+      // bizim talebimizse ("answered") "Yeni"ye döner + geri çekilme yazılır; senkron arada "Yeni"ye çevirdiyse (yeni misafir mesajı) yalnız
+      // geri çekilme yazılır (kalıcı hata döngüsü yine engellenir); ev sahibinin / kuralın kararına (Sorunlu, Tamamlandı, Beklemede) DOKUNULMAZ.
+      const hold = {
+        autoReplyHoldUntil: new Date(Date.now() + holdMs),
+        // Sebep bir KOD'dur — sağlayıcının ham hata metni ASLA DB'ye yazılmaz
+        // (misafir/rezervasyon ayrıntısı taşıyabilir). Host ekranda okunur bir
+        // açıklama görür (SKIP_REASON_LABELS).
+        skippedReason: kind === "blocked" ? "subscription_inactive" : kind === "rate_limited" ? "rate_limited" : "send_failed",
+      };
       await prisma.conversation
-        .update({
-          where: { id: conversation.id },
-          data: {
-            status: "new",
-            autoReplyHoldUntil: new Date(Date.now() + holdMs),
-            // Sebep bir KOD'dur — sağlayıcının ham hata metni ASLA DB'ye yazılmaz
-            // (misafir/rezervasyon ayrıntısı taşıyabilir). Host ekranda okunur bir
-            // açıklama görür (SKIP_REASON_LABELS).
-            skippedReason:
-              kind === "blocked"
-                ? "subscription_inactive"
-                : kind === "rate_limited"
-                  ? "rate_limited"
-                  : "send_failed",
-          },
-        })
+        .updateMany({ where: { id: conversation.id, status: "answered" }, data: { status: "new", ...hold } })
+        .then((released) =>
+          released.count === 1 ? released : prisma.conversation.updateMany({ where: { id: conversation.id, status: "new" }, data: hold }),
+        )
         // ⚠️ SESSİZ `catch {}` DEĞİL (denetim, 08-01 — üçüncü tur). Bu yazma
         // düşerse konuşma KALICI olarak "answered" (claim'li) kalır: misafir
         // cevabı HİÇ almamıştır ama sistem cevaplanmış sayar → yeni mesaj gelene
@@ -4525,6 +4530,7 @@ export async function applyChannelAutoReply(
           // Store the provider's message id so the next sync dedups this AI reply
           // instead of re-importing it as a duplicate "Ev sahibi" message.
           ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+          createdAt: claimedAt, // cevabın yazıldığı an (A25 ↑) — kayıt anı değil
         },
       }),
       conversationDone,

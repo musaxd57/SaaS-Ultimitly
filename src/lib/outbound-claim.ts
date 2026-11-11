@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, createHmac } from "crypto";
+import { createHash, createHmac, randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { OUTBOUND_SEND_CLAIM_PREFIX, OUTBOUND_REQUEST_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
@@ -42,7 +42,17 @@ function claimName(conversationId: string, body: string): string {
  */
 export type OutboundClaim = "claimed" | "duplicate" | "unavailable";
 
-export async function claimOutboundSend(conversationId: string, body: string): Promise<OutboundClaim> {
+/**
+ * 🚨 TALEBİN SAHİBİ (mesaj M1, Codex 11-10). Talep satırları ADLA bırakılıyordu: süresi dolan (2 dk) bir denemenin geç gelen kesin hatası,
+ * o arada aynı metni / aynı isteği alıp BAŞARIYLA gönderen yeni denemenin talebini siliyordu → üçüncü deneme misafire ikinci mesajı
+ * gönderebiliyordu. Her deneme kendi jetonunu yazar; bırakma / uzatma yalnız KENDİ jetonlu satıra dokunur (QR yolundaki anahtarlı talebin
+ * kuralı). Jeton verilmeyen çağrı eski davranışta (adla) — yalnız tek adımlı iç kullanımlar.
+ */
+export function newClaimOwner(): string {
+  return randomBytes(9).toString("base64url"); // ":" ve "." içermez (sahip alanı ayrıştırması)
+}
+
+export async function claimOutboundSend(conversationId: string, body: string, owner?: string): Promise<OutboundClaim> {
   const now = new Date();
   // Opportunistic sweep: expired claims can't dedup anything anymore (their TTL
   // has passed), so drop them to keep SystemLock from growing unbounded.
@@ -51,7 +61,7 @@ export async function claimOutboundSend(conversationId: string, body: string): P
     .catch(() => {});
   try {
     await prisma.systemLock.create({
-      data: { name: claimName(conversationId, body), lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS) },
+      data: { name: claimName(conversationId, body), lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS), ...(owner ? { holder: owner } : {}) },
     });
     return "claimed";
   } catch (err) {
@@ -63,9 +73,9 @@ export async function claimOutboundSend(conversationId: string, body: string): P
   }
 }
 
-/** Release after a FAILED delivery so the same text can be retried immediately. */
-export async function releaseOutboundSend(conversationId: string, body: string): Promise<void> {
-  await prisma.systemLock.deleteMany({ where: { name: claimName(conversationId, body) } }).catch(() => {});
+/** Release after a FAILED delivery so the same text can be retried immediately. Jeton verildiyse yalnız O denemenin talebi silinir. */
+export async function releaseOutboundSend(conversationId: string, body: string, owner?: string): Promise<void> {
+  await prisma.systemLock.deleteMany({ where: { name: claimName(conversationId, body), ...(owner ? { holder: owner } : {}) } }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -94,10 +104,20 @@ function requestClaimName(conversationId: string, idempotencyKey: string): strin
   return `${REQUEST_PREFIX}${conversationId}:${digest}`;
 }
 
+/** Talep satırının sahip alanı: "yol" (eski biçim) ya da "yol:deneme jetonu". */
+function requestHolder(path: OutboundRequestPath, owner?: string): string {
+  return owner ? `${path}:${owner}` : path;
+}
+function pathOfRequestHolder(holder: string | null | undefined): OutboundRequestPath | null {
+  const path = holder?.split(":", 1)[0];
+  return path === "direct" || path === "queue" ? path : null;
+}
+
 export async function claimOutboundRequest(
   conversationId: string,
   idempotencyKey: string,
   path: OutboundRequestPath,
+  owner?: string,
 ): Promise<OutboundRequestClaim> {
   const name = requestClaimName(conversationId, idempotencyKey);
   // Fırsatçı süpürme (↑ ile aynı): süresi dolan talep artık hiçbir şeyi tekilleştirmez.
@@ -107,7 +127,7 @@ export async function claimOutboundRequest(
     // (`extendOutboundRequest`); kuyruk yolunda kalıcı kayıt kuyruk satırıdır. Böylece gönderim ortasında çöken / öldürülen süreç
     // (yayın, bellek) 24 saatlik asılı talep bırakmaz — her arıza bugünkü 2 dk'lık "kontrol edip yeniden gönder" penceresine düşer
     // (Haiku 11-05 kuyruk yolu · Opus 11-05 F1 doğrudan yol).
-    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + CLAIM_TTL_MS), holder: path } });
+    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + CLAIM_TTL_MS), holder: requestHolder(path, owner) } });
     return { result: "claimed" };
   } catch (err) {
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };
@@ -115,21 +135,35 @@ export async function claimOutboundRequest(
   // Tutuluyor: sahibini oku. Arada bırakıldıysa (kesin başarısızlık) sahip bilinmez → güvenli taraf "tutuluyor" (sonraki deneme alır).
   const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true } }).catch(() => undefined);
   if (row === undefined) return { result: "unavailable" };
-  return { result: "held", by: row?.holder === "direct" || row?.holder === "queue" ? row.holder : null };
+  return { result: "held", by: pathOfRequestHolder(row?.holder) };
 }
 
-/** Kesin başarısız gönderimden / kuyruğa yazılamamadan sonra: aynı istek kimliği hemen yeniden denenebilsin. */
-export async function releaseOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
-  await prisma.systemLock.deleteMany({ where: { name: requestClaimName(conversationId, idempotencyKey) } }).catch(() => {});
+/**
+ * Kesin başarısız gönderimden / kuyruğa yazılamamadan sonra: aynı istek kimliği hemen yeniden denenebilsin. Jeton verildiyse yalnız O
+ * denemenin talebi silinir (M1): süresi dolmuş eski deneme, aynı isteği alıp başarıyla gönderen yeni denemenin 24 saatlik kaydını silemez.
+ */
+export async function releaseOutboundRequest(conversationId: string, idempotencyKey: string, owner?: string): Promise<void> {
+  await prisma.systemLock
+    .deleteMany({
+      where: {
+        name: requestClaimName(conversationId, idempotencyKey),
+        ...(owner ? { holder: { in: [requestHolder("direct", owner), requestHolder("queue", owner)] } } : {}),
+      },
+    })
+    .catch(() => {});
 }
 
 /**
  * Doğrudan gönderim KESİN başarılı: talep 24 saate uzar — yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz. En iyi çaba:
  * uzatılamazsa talep 2 dk'da düşer. Dönüş: talep satırı uzatıldı mı (çağıran bir kez yeniden dener, olmazsa raporlar — Opus 11-05 N5).
  */
-export async function extendOutboundRequest(conversationId: string, idempotencyKey: string): Promise<boolean> {
+export async function extendOutboundRequest(conversationId: string, idempotencyKey: string, owner?: string): Promise<boolean> {
   return prisma.systemLock
-    .updateMany({ where: { name: requestClaimName(conversationId, idempotencyKey) }, data: { lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS) } })
+    .updateMany({
+      // Jeton verildiyse yalnız bu denemenin doğrudan-yol talebi uzar (başka denemenin talebini 24 saate çıkarmaz — M1).
+      where: { name: requestClaimName(conversationId, idempotencyKey), ...(owner ? { holder: requestHolder("direct", owner) } : {}) },
+      data: { lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS) },
+    })
     .then((r) => r.count > 0)
     .catch(() => false);
 }

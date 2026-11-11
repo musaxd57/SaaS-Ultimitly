@@ -14,7 +14,7 @@ import {
   unsupportedMediaType,
 } from "@/lib/api";
 import { crossSiteWrite } from "@/lib/route-guard";
-import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
+import { claimOutboundSend, newClaimOwner, releaseOutboundSend } from "@/lib/outbound-claim";
 import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 import { hostWriteLimited } from "@/lib/host-write-limit";
 
@@ -53,7 +53,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // guest's thread twice. Internal thread — nothing external is sent, so a FAILED
   // write releases the claim at once (Claude 2. dalga #4): otherwise the host's
   // retry within the 120 s TTL got a false "already sent" 409 and the reply was lost.
-  const claimed = await claimOutboundSend(convo.id, text);
+  const attempt = newClaimOwner(); // bırakma yalnız bu denemenin talebini siler (mesaj M1)
+  const claimed = await claimOutboundSend(convo.id, text, attempt);
   if (claimed === "duplicate") {
     return NextResponse.json({ error: "Bu mesaj az önce gönderildi — tekrar gönderilmedi." }, { status: 409 });
   }
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return created;
     });
   } catch (err) {
-    await releaseOutboundSend(convo.id, text);
+    await releaseOutboundSend(convo.id, text, attempt);
     throw err;
   }
 
