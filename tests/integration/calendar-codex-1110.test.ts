@@ -274,7 +274,7 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect(rows[0].calendarSourceId).toBe(sourceId); // senkron satırı sahiplendi (eski sahiplenme kuralı aynen)
     });
 
-    it("KONTROL: bu kaynağa BAĞLI eski satır varken bağlantısız eski satıra dokunulmaz (önce kendi satırı)", async () => {
+    it("KONTROL: çeviri DAİRE kapsamındadır — başka dairedeki aynı eski kimlikli bağlantısız satıra dokunulmaz; bu kaynağın bağlı satırı çevrilir", async () => {
       const { propertyId, sourceId } = await seed();
       const other = await prisma.property.create({ data: { organizationId: (await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).organizationId, name: "Lale 9" } });
       const bound = await prisma.reservation.create({

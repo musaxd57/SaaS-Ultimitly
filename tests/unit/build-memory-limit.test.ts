@@ -19,7 +19,7 @@ type Step = { name?: string; run?: string; env?: Record<string, string> };
 type Workflow = { env?: Record<string, string>; jobs: Record<string, { env?: Record<string, string>; steps?: Step[] }> };
 
 /** Tip denetimi ya da üretim derlemesi koşan adımlar (bellek isteyen iki komut). */
-const HEAVY = /\bnpm run (typecheck|build)\b|\btsc\b|\bnext build\b/;
+const HEAVY = /\bnpm\s+run\s+(typecheck|build)\b|\btsc\b|\bnext\s+build\b/;
 
 function heapLimitMb(options: string | undefined): number | null {
   const m = /--max-old-space-size=(\d+)/.exec(options ?? "");
@@ -32,7 +32,10 @@ function heavyStepsWithoutLimit(wf: Workflow): string[] {
   for (const [jobName, job] of Object.entries(wf.jobs)) {
     for (const step of job.steps ?? []) {
       if (!step.run || !HEAVY.test(step.run)) continue;
-      const limit = heapLimitMb(step.env?.NODE_OPTIONS) ?? heapLimitMb(job.env?.NODE_OPTIONS) ?? heapLimitMb(wf.env?.NODE_OPTIONS);
+      // GitHub'da adımın ortam değişkeni işinkini, işinki iş akışınınkini EZER (birleştirmez): geçerli değer en içteki tanımdır. Adımda
+      // tavansız bir NODE_OPTIONS varsa dışarıdaki tavan KAYBOLUR — o yüzden önce geçerli değer bulunur, tavan onda aranır.
+      const effective = step.env?.NODE_OPTIONS ?? job.env?.NODE_OPTIONS ?? wf.env?.NODE_OPTIONS;
+      const limit = heapLimitMb(effective);
       if (limit === null || limit < MIN_HEAP_MB) out.push(`${jobName} › ${step.name ?? step.run}`);
     }
   }
@@ -65,9 +68,12 @@ describe("CI: tip denetimi ve derleme adımları bellek tavanını açıkça ta�
         d: { env: { NODE_OPTIONS: "--max-old-space-size=4096" }, steps: [{ name: "iş düzeyinde tavan", run: "npm run build" }] },
         e: { steps: [{ name: "ilgisiz", run: "npm run lint" }] },
         f: { steps: [{ name: "yeterli", run: "npm run typecheck", env: { NODE_OPTIONS: "--use-openssl-ca --max-old-space-size=6144" } }] },
+        // Adımdaki tavansız değer, iş düzeyindeki tavanı EZER → tavan yok sayılır.
+        g: { env: { NODE_OPTIONS: "--max-old-space-size=4096" }, steps: [{ name: "adım tavanı ezdi", run: "npm run build", env: { NODE_OPTIONS: "--use-openssl-ca" } }] },
+        h: { steps: [{ name: "çift boşluk", run: "npm  run   build" }] },
       },
     };
-    expect(heavyStepsWithoutLimit(fake)).toEqual(["a › tavansız", "b › düşük tavan", "c › çıplak tsc"]);
+    expect(heavyStepsWithoutLimit(fake)).toEqual(["a › tavansız", "b › düşük tavan", "c › çıplak tsc", "g › adım tavanı ezdi", "h › çift boşluk"]);
   });
 });
 

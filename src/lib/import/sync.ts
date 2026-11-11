@@ -408,10 +408,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   const legacy = await reconcileLegacySourceReferences({
     organizationId: source.property.organizationId,
     propertyId: source.propertyId,
-    // Satır aramasıyla AYNI sıra (↓ `bound` → `legacy`): önce bu kaynağa bağlı satır; yoksa senkronun sahipleneceği BAĞLANTISIZ satır
-    // (aynı besleme daha önce dosya olarak yüklenmiş / bağlamadan önce yazılmış). İkincisi çevrilmezse uzun kimlikli her etkinlik için
-    // KOPYA rezervasyon açılırdı (Opus incelemesi 11-11).
-    scope: [{ calendarSourceId: source.id }, { calendarSourceId: null }],
+    // Satır aramasıyla AYNI küme (↓ `bound` / `legacy`): bu kaynağa bağlı satır ya da senkronun sahipleneceği BAĞLANTISIZ satır (aynı
+    // besleme daha önce dosya olarak yüklenmiş / bağlamadan önce yazılmış). Bağlantısız satır çevrilmezse uzun kimlikli her etkinlik için
+    // KOPYA rezervasyon açılırdı (Opus incelemesi 11-11). Dairede kimlik tekil olduğu için ikisi aynı anda var olamaz — sıra gerekmez.
+    scope: { OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
     rows,
   });
   // Takvim C2: bu koşunun yanıtı eskidi (daha yeni bir koşu aynı kaynağa satır yazıyor) → döngü durur, uzlaştırma ve durum yazımı atlanır.

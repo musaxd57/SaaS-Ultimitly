@@ -5599,14 +5599,6 @@ type LifecycleArrivalRow = Prisma.ReservationGetPayload<{ select: typeof LIFECYC
 type LifecycleDepartureRow = Prisma.ReservationGetPayload<{ select: typeof LIFECYCLE_DEPARTURE_SELECT }>;
 
 /**
- * 🚨 GÖNDERİLEMEYEN ADAYLAR SIRAYI TIKAMAZ (mesaj A26, Codex 11-10). Üç gönderici en erken tarihli 25 adayı alıp döngüde eliyordu; metni
- * olmayan dairenin ya da metni doldurulamayan (`{daire}` çözülemedi vb.) dairenin rezervasyonları DAMGALANMADIĞI için her geçişte yine ilk
- * 25'i dolduruyor, arkalarındaki gönderilebilir rezervasyonlara sıra HİÇ gelmiyordu (karşılama / giriş bilgisi / çıkış mesajı sessizce
- * gitmiyordu). Adaylar artık sayfa sayfa okunur; gönderilemeyenler (metin yok · doldurulamadı) atlanıp okumaya devam edilir, 25 GÖNDERİLEBİLİR
- * aday toplanınca ya da okuma sınırına (`LIFECYCLE_SCAN_PAGES`) varınca durulur. Bir geçişte en çok 25 mesaj kuralı AYNI.
- * Metin daire başına bir kez okunur (gönderim anında sürüm yeniden doğrulanır — `autoMessageStillAt`).
- */
-/**
  * Ön eleme (↓ `prepareLifecycleCandidates.unusable`): sayfadaki adaylardan BU GEÇİŞTE hiçbir koşulda gönderilmeyecek olanların kimlikleri.
  *  · açıkça silinmiş (KVKK) misafir — gönderim döngüsü onu zaten atlıyor (kuyruk yolunda ön eleme, doğrudan yolda işlem içi kapı);
  *  · kuyruğun sahiplendiği rezervasyon — kuyruk KAPALIYKEN `failed` dışındaki her satır (↑`lifecycleOutboxOwns` ile aynı kural), kuyruk
@@ -5643,6 +5635,14 @@ async function lifecycleUnusableIds(
   return out;
 }
 
+/**
+ * 🚨 GÖNDERİLEMEYEN ADAYLAR SIRAYI TIKAMAZ (mesaj A26, Codex 11-10). Üç gönderici en erken tarihli 25 adayı alıp döngüde eliyordu; metni
+ * olmayan dairenin ya da metni doldurulamayan (`{daire}` çözülemedi vb.) dairenin rezervasyonları DAMGALANMADIĞI için her geçişte yine ilk
+ * 25'i dolduruyor, arkalarındaki gönderilebilir rezervasyonlara sıra HİÇ gelmiyordu (karşılama / giriş bilgisi / çıkış mesajı sessizce
+ * gitmiyordu). Adaylar artık sayfa sayfa okunur; gönderilemeyenler (metin yok · doldurulamadı) atlanıp okumaya devam edilir, 25 GÖNDERİLEBİLİR
+ * aday toplanınca ya da okuma sınırına (`LIFECYCLE_SCAN_PAGES`) varınca durulur. Bir geçişte en çok 25 mesaj kuralı AYNI.
+ * Metin daire başına bir kez okunur (gönderim anında sürüm yeniden doğrulanır — `autoMessageStillAt`).
+ */
 async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts: {
   kind: AutoMessageKind;
   signature: string | undefined;
