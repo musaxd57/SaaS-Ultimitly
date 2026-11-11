@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import {
   requireSession,
@@ -36,6 +37,17 @@ import { reportError } from "@/lib/report-error";
 // loop no code can ever end (lived on 07-30). Say what it is, and page the
 // operator: the fix is the admin reset-2fa escape hatch, not another attempt.
 // Still fail-closed — the broken state never allows disable/minting either.
+/**
+ * KURULUM KİMLİĞİ (Codex 11-10 A2): bekleyen kurulumun sırrından türetilen kısa özet — sırrın kendisi DEĞİL. Kurulum ekranı bunu alır ve
+ * "etkinleştir" isteğinde geri yollar; sunucu ekrandaki kurulumla kayıtlı kurulumun AYNI olduğunu böyle bilir. İki sekmede iki kurulum
+ * başlatılınca (son yazan kazanır) eski sekme artık geçersiz bir sırrı gösterir: o sekmeden gelen doğru görünen kod "Kod hatalı" ile
+ * reddediliyor, kullanıcı sebebini bilmeden deneme hakkını tüketiyordu.
+ */
+function setupIdOf(secret: string): string {
+  return createHash("sha256").update(`2fa-setup:${secret}`).digest("hex").slice(0, 24);
+}
+const SETUP_CHANGED_MSG = "Kurulum durumu değişti. Sayfayı yenileyip kurulumu yeniden başlatın.";
+
 const SECRET_UNREADABLE_MSG =
   "Sistem, kayıtlı 2FA anahtarını çözemiyor — kod doğru olsa da işlem yapılamaz. Operatöre başvurun (2FA sıfırlama gerekir).";
 
@@ -178,17 +190,23 @@ export async function POST(req: NextRequest) {
       // Saldırı değil kaza yolu (buraya gelen zaten parolayı biliyor), ama
       // sonucu "2FA açık sanılan kapalı hesap" — sessiz ve tehlikeli.
       // WHERE'e koşul koymak yarışı tamamen ortadan kaldırıyor.
+      // 🚨 OTURUM KUŞAĞI DA KOŞULDA (Codex 11-10 A2). İstek, BAŞINDA denetlenen oturumla başladı; şifre karşılaştırması sürerken parola
+      // sıfırlanırsa (kuşak artar, bu oturum iptal edilir) bayat istek yine de bekleyen sırrı yazıyor — sıfırlamadan SONRA yeni oturumla
+      // başlatılmış kurulumu eziyordu (yeni ekrandaki kod artık tutmuyordu). `enable` / parola değiştirmedeki desenin aynısı.
       const armed = await prisma.user.updateMany({
-        where: { id: session.userId, twoFactorEnabledAt: null },
+        where: { id: session.userId, twoFactorEnabledAt: null, sessionEpoch: session.sessionEpoch },
         data: { twoFactorSecret: encryptSecret(secret), twoFactorEnabledAt: null },
       });
       if (armed.count === 0) {
+        const now = await prisma.user.findUnique({ where: { id: session.userId }, select: { twoFactorEnabledAt: true } });
+        // 2FA açık değilse yazımı durduran oturum kuşağıdır: oturum arada iptal edildi → yeniden giriş.
+        if (!now?.twoFactorEnabledAt) return unauthorized();
         return badRequest({
           _: "İki adımlı doğrulama bu hesapta daha önce açılmış ve şu an etkin. Yeniden kurmak için önce mevcut kodunuzla kapatın.",
         });
       }
       // Düz metin sır: hiçbir ara katman/önbellek saklamasın (09-23).
-      return noStore(jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email) }));
+      return noStore(jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email), setupId: setupIdOf(secret) }));
     }
 
     if (action === "enable") {
@@ -199,6 +217,12 @@ export async function POST(req: NextRequest) {
       if (!user?.twoFactorSecret) return badRequest({ _: "Önce kurulum başlatın." });
       const armedSecret = user.twoFactorSecret;
       const secret = decryptSecret(armedSecret);
+      // Ekran BAŞKA (daha eski) bir kurulumu gösteriyorsa kod denenmez ve hatalı deneme sayılmaz: sorun kod değil, kurulumun değişmiş
+      // olması. Kimlik göndermeyen eski ekranlar için davranış aynı (kod, kayıtlı sırla denenir).
+      const shownSetupId = typeof data?.setupId === "string" ? data.setupId : "";
+      if (shownSetupId && shownSetupId !== setupIdOf(secret)) {
+        return badRequest({ _: SETUP_CHANGED_MSG });
+      }
       const step = verifyTotpStep(secret, code);
       if (step === null) {
         await noteFailure();
@@ -246,7 +270,7 @@ export async function POST(req: NextRequest) {
         return row.sessionEpoch;
       });
       if (newEpoch === null) {
-        return badRequest({ _: "Kurulum durumu değişti. Sayfayı yenileyip kurulumu yeniden başlatın." });
+        return badRequest({ _: SETUP_CHANGED_MSG });
       }
       // BU cihaz girişli kalır: çerez YENİ epoch ile yeniden imzalanır (bir sonraki
       // adım — kurtarma kodu üretimi — aynı oturumla yapılır). `mfa` iddiası

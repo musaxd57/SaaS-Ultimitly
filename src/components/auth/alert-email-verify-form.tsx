@@ -19,18 +19,42 @@ export function AlertEmailVerifyForm() {
   const [message, setMessage] = useState("");
   const started = useRef(false);
 
+  // Olay dinleyicisi güncel durumu buradan okur (gönderim sürerken / bittikten sonra gelen bağlantı işlenmez).
+  const stateRef = useRef<State>("reading");
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    const fromLink = fragmentToken(window.location.hash);
-    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
-    if (!fromLink) {
-      setMessage("Bağlantıda onay anahtarı yok. E-postadaki bağlantıyı olduğu gibi açtığınızdan emin olun.");
-      setState("failed");
-      return;
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    function takeFragmentToken(): string | null {
+      const fromLink = fragmentToken(window.location.hash);
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+      return fromLink;
     }
-    setToken(fromLink);
-    setState("ready");
+    // Aynı sekmede açılan (yeni) bağlantı sayfayı yeniden yüklemez — yalnız `#` değişir (Codex 11-10 A4 ile aynı sınıf).
+    function onHashChange() {
+      if (!window.location.hash) return;
+      const next = takeFragmentToken();
+      if (!next) return;
+      if (stateRef.current === "submitting" || stateRef.current === "done") return;
+      setToken(next);
+      setMessage("");
+      setState("ready");
+    }
+    window.addEventListener("hashchange", onHashChange);
+
+    if (!started.current) {
+      started.current = true;
+      const fromLink = takeFragmentToken();
+      if (!fromLink) {
+        setMessage("Bağlantıda onay anahtarı yok. E-postadaki bağlantıyı olduğu gibi açtığınızdan emin olun.");
+        setState("failed");
+      } else {
+        setToken(fromLink);
+        setState("ready");
+      }
+    }
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   async function confirm() {

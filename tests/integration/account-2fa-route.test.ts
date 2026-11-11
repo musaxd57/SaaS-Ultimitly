@@ -226,7 +226,8 @@ describe("POST /api/account/2fa — kurulum yeniden kimlik doğrulama ister", ()
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
     // Koşulsuz `update` ile yazılmamalı; WHERE'de "henüz etkin değil" olmalı.
-    expect(code).toMatch(/updateMany\(\{\s*where: \{ id: session\.userId, twoFactorEnabledAt: null \}/);
+    // (11-11, Codex A2) koşula oturum kuşağı da eklendi; davranışsal karşılığı `two-factor-setup-stale-session.test.ts`.
+    expect(code).toMatch(/updateMany\(\{\s*where: \{ id: session\.userId, twoFactorEnabledAt: null, sessionEpoch: session\.sessionEpoch \}/);
     // 🚨 SONUCUN İŞLENMESİ DE PİNLİ. Savunmacı ajan ölçtü: `armed.count === 0`
     // bloğunu tamamen silmek 33 testi YEŞİL bırakıyordu. O blok olmadan rota,
     // ASLA SAKLAMADIĞI bir düz metin sırrı kullanıcıya geri verir ve kullanıcı

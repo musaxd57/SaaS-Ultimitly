@@ -67,23 +67,39 @@ export function ForgotPasswordForm() {
    * token'lı URL'e dönemez.
    */
   useEffect(() => {
-    const raw = window.location.hash;
-    if (!raw) return;
-    const m = /(?:^#|&)t=([0-9a-f]{64})(?:&|$)/.exec(raw);
-    if (m) {
-      setChallengeToken(m[1]);
-      // Kullanıcı e-postasını yazma adımını atlar: bağlantı zaten challenge'ı
-      // adresliyor, geriye yalnız e-postadaki kod + yeni şifre kalıyor.
-      setStep("confirm");
+    function readFragment(sameTabChange: boolean) {
+      const raw = window.location.hash;
+      if (!raw) return;
+      const m = /(?:^#|&)t=([0-9a-f]{64})(?:&|$)/.exec(raw);
+      if (m) {
+        setChallengeToken(m[1]);
+        // Kullanıcı e-postasını yazma adımını atlar: bağlantı zaten challenge'ı
+        // adresliyor, geriye yalnız e-postadaki kod + yeni şifre kalıyor.
+        setStep("confirm");
+        if (sameTabChange) {
+          // Açık sayfaya İKİNCİ bir bağlantı geldi: yazılmış kod, şifre ve hata ÖNCEKİ bağlantıya aitti.
+          setCode("");
+          setNewPassword("");
+          setError(null);
+          setFieldError({});
+        }
+      }
+      // Eşleşme OLMASA DA temizlenir: kırpılmış/bozuk bir token da adres
+      // çubuğunda durmamalı. `history.state` KORUNUR — Next App Router'ın
+      // yönlendirici durumu o nesnede yaşıyor; `null` yazmak onu düşürürdü.
+      window.history.replaceState(
+        window.history.state,
+        "",
+        window.location.pathname + window.location.search,
+      );
     }
-    // Eşleşme OLMASA DA temizlenir: kırpılmış/bozuk bir token da adres
-    // çubuğunda durmamalı. `history.state` KORUNUR — Next App Router'ın
-    // yönlendirici durumu o nesnede yaşıyor; `null` yazmak onu düşürürdü.
-    window.history.replaceState(
-      window.history.state,
-      "",
-      window.location.pathname + window.location.search,
-    );
+    readFragment(false);
+    // 🚨 AYNI SEKMEDE YENİ BAĞLANTI (Codex 11-10 A3): sayfa açıkken e-postadaki (yeni) bağlantı aynı sekmede açılırsa adresin yalnız
+    // `#` kısmı değişir — tarayıcı sayfayı YENİDEN YÜKLEMEZ, bileşen yeniden kurulmaz. Parça yalnız ilk kurulumda okunduğu için yeni
+    // bağlantı hiç okunmuyor, form eski (belki süresi dolmuş) bağlantıyla kalıyordu. `replaceState` bu olayı tetiklemez (döngü yok).
+    const onHashChange = () => readFragment(true);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   async function requestCode(e?: React.FormEvent) {

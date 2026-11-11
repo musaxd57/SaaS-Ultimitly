@@ -24,6 +24,8 @@ export function TwoFactorCard({
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [secret, setSecret] = useState<string | null>(null); // shown during setup
+  // Ekranda gösterilen kurulumun kimliği (sır değil): "etkinleştir" isteğiyle gider; başka sekmede kurulum yenilendiyse sunucu bunu bilir.
+  const [setupId, setSetupId] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function TwoFactorCard({
     setBusy(false);
     if (ok && data.secret) {
       setSecret(data.secret);
+      setSetupId(typeof data.setupId === "string" ? data.setupId : null);
       // Şifreyi bellekte tutma — kurulum başladı, bir daha gerekmiyor.
       setSetupPassword("");
     } else {
@@ -77,15 +80,17 @@ export function TwoFactorCard({
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { ok, data } = await call({ action: "enable", code });
+    const { ok, data } = await call({ action: "enable", code, ...(setupId ? { setupId } : {}) });
     setBusy(false);
     if (ok) {
       setEnabled(true);
       setSecret(null);
+      setSetupId(null);
       setCode("");
       setDone("İki adımlı doğrulama açıldı. Artık girişte telefonunuzdaki kod istenecek.");
     } else {
-      setError(data.fields?.code ?? data.error ?? "Kod doğrulanamadı.");
+      // `fields._`: "kurulum durumu değişti" / "önce kurulum başlatın" — koda ait olmayan sebep de gösterilir.
+      setError(data.fields?.code ?? data.fields?._ ?? data.error ?? "Kod doğrulanamadı.");
     }
   }
 

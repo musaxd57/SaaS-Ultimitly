@@ -128,8 +128,10 @@ export async function POST(req: NextRequest) {
       );
       if (!sent.ok) {
         // Couldn't deliver → don't leave a dangling code lying around.
-        await prisma.user.update({
-          where: { id: session.userId },
+        // Yalnız BU isteğin yazdığı kod silinir (Codex 11-10 A27): arada ikinci bir "kod gönder" yeni kod yazdıysa (o e-posta gitmiş
+        // olabilir) bu başarısız isteğin temizliği onu silmez.
+        await prisma.user.updateMany({
+          where: { id: session.userId, pwChangeCodeHash: codeHash },
           data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
         });
         return badRequest({ _: "Kod e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin." });
@@ -162,19 +164,31 @@ export async function POST(req: NextRequest) {
       // a single conditional updateMany closes the read-then-act race (parallel
       // confirms can't each slip past a stale "attempts < 5" read), and it caps
       // total guesses PER CODE regardless of how the request was reached.
+      const claimAt = new Date();
       const claim = await prisma.user.updateMany({
         where: {
           id: session.userId,
           pwChangeCodeHash: { not: null },
-          pwChangeCodeExpiresAt: { gt: new Date() },
+          pwChangeCodeExpiresAt: { gt: claimAt },
           pwChangeCodeAttempts: { lt: MAX_CODE_ATTEMPTS },
         },
         data: { pwChangeCodeAttempts: { increment: 1 } },
       });
       if (claim.count === 0) {
-        // No live code / expired / out of attempts → burn whatever's there.
+        // No live code / expired / out of attempts → burn the DEAD code.
+        // 🚨 YALNIZ ÖLÜ KOD YAKILIR (Codex 11-10 A27). Bu yazım koşulsuzdu: hak alınamadıktan SONRA, yakmadan ÖNCE kullanıcı (başka sekme)
+        // "Kodu tekrar gönder" derse az önce yazılan YENİ kod da siliniyordu — e-postası kutuya düşen kod hiç çalışmıyordu. Koşul, hak
+        // alınamamasının sebebini yeniden arar (süre dolmuş / deneme hakkı bitmiş / süresiz artık); yeni kod (süresi ileride, deneme 0)
+        // bu koşula uymaz ve yerinde kalır.
         await prisma.user.updateMany({
-          where: { id: session.userId },
+          where: {
+            id: session.userId,
+            OR: [
+              { pwChangeCodeExpiresAt: null },
+              { pwChangeCodeExpiresAt: { lte: claimAt } },
+              { pwChangeCodeAttempts: { gte: MAX_CODE_ATTEMPTS } },
+            ],
+          },
           data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
         });
         return badRequest({

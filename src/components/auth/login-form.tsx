@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { safeRedirectTarget } from "@/lib/safe-redirect";
-import { VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
+import { VERIFY_RESEND_QUIET_MS, VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
 
 /** Form-bazlı hata düğümünün id'si; alanlara aria-describedby ile bağlanır. */
 const FORM_ERROR_ID = "login-form-error";
@@ -51,6 +51,15 @@ export function LoginForm() {
   useEffect(() => {
     latestEmail.current = email;
   }, [email]);
+
+  // 🚨 BEKLEME BİTİNCE DÜĞME GERİ GELİR (Codex 11-10 A5). "Tekrar gönder"e basılınca düğmenin yerini "…yeniden istemek için 10 dakika
+  // bekleyin" metni alıyor ve düğme bir daha HİÇ dönmüyordu (yalnız adres değişince ya da sayfa yenilenince) — 10 dakika bekleyen
+  // kullanıcının basacak düğmesi yoktu. Süre, sunucunun sessiz penceresiyle AYNI sabitten.
+  useEffect(() => {
+    if (!resent) return;
+    const t = setTimeout(() => setResent(false), VERIFY_RESEND_QUIET_MS);
+    return () => clearTimeout(t);
+  }, [resent]);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("verify");

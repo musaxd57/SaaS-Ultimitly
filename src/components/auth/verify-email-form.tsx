@@ -61,28 +61,53 @@ export function VerifyEmailForm() {
   // adres çubuğu temizliği tek sefer olmalı.
   const started = useRef(false);
 
+  // Olay dinleyicisi güncel durumu buradan okur (gönderim sürerken / bittikten sonra gelen bağlantı işlenmez).
+  const stateRef = useRef<State>("reading");
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
+    stateRef.current = state;
+  }, [state]);
 
-    const token = fragmentToken(window.location.hash);
-    // Eşleşme OLMASA DA adres çubuğu temizlenir: kırpılmış/bozuk bir token da
-    // geçmişte durmamalı. `history.state` KORUNUR — Next App Router'ın
-    // yönlendirici durumu o nesnede yaşıyor.
-    window.history.replaceState(
-      window.history.state,
-      "",
-      window.location.pathname + window.location.search,
-    );
-
-    if (!token) {
-      setReason("missing");
-      setState("failed");
-      return;
+  useEffect(() => {
+    /** Adres çubuğundaki parçayı okur ve HER durumda temizler. */
+    function takeFragmentToken(): string | null {
+      const token = fragmentToken(window.location.hash);
+      // Eşleşme OLMASA DA adres çubuğu temizlenir: kırpılmış/bozuk bir token da
+      // geçmişte durmamalı. `history.state` KORUNUR — Next App Router'ın
+      // yönlendirici durumu o nesnede yaşıyor.
+      window.history.replaceState(
+        window.history.state,
+        "",
+        window.location.pathname + window.location.search,
+      );
+      return token;
     }
+    // 🚨 AYNI SEKMEDE AÇILAN BAĞLANTI (Codex 11-10 A4): sayfa açıkken (ör. anahtarsız açılıp "bağlantı geçersiz" gösterirken) e-postadaki
+    // GEÇERLİ bağlantı aynı sekmede açılırsa adresin yalnız `#` kısmı değişir, sayfa yeniden yüklenmez — parça yalnız ilk kurulumda
+    // okunduğu için geçerli bağlantıda, hiçbir işlem yapılmadan, eski hata ekranı kalıyordu. `replaceState` bu olayı tetiklemez.
+    function onHashChange() {
+      if (!window.location.hash) return;
+      const next = takeFragmentToken();
+      if (!next) return; // anahtarsız parça: açık formu bozma
+      if (stateRef.current === "submitting" || stateRef.current === "done") return;
+      setToken(next);
+      setPassword("");
+      setReason("error");
+      setState("form");
+    }
+    window.addEventListener("hashchange", onHashChange);
 
-    setToken(token);
-    setState("form");
+    if (!started.current) {
+      started.current = true;
+      const token = takeFragmentToken();
+      if (!token) {
+        setReason("missing");
+        setState("failed");
+      } else {
+        setToken(token);
+        setState("form");
+      }
+    }
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
