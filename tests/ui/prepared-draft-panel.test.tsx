@@ -142,6 +142,38 @@ describe("ConversationThread — hazır taslak", () => {
     expect(screen.queryByText("Zengin öneri metni.")).toBeNull(); // ⬅️ ESKİDE duruyordu
   });
 
+  it("M5: hazır taslağın yerine 'AI cevap öner' sonucu geldiyse, sunucu taslağı sonradan vermese de bu sonuç SİLİNMEZ (yalnız hazır taslak kalkar)", async () => {
+    const rich = { reply: "Zengin öneri metni.", intent: "payment", confidence: 0.8, risk: null, source: "openai", riskLevel: "none", usedSources: [] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(rich), { status: 200 })));
+    const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /AI cevap öner/ }));
+    });
+    expect(await screen.findByText("Zengin öneri metni.")).toBeTruthy();
+    rerender(<ConversationThread {...baseProps} initialDraft={null} />);
+    expect(screen.getByText("Zengin öneri metni.")).toBeTruthy();
+  });
+
+  it("M5: sunucu taslağı geçici olarak vermeyip sonra AYNI taslağı yeniden verirse panel onu yine gösterir (elle kapatılan taslak ise geri gelmez — ↑)", () => {
+    const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    rerender(<ConversationThread {...baseProps} initialDraft={null} />);
+    expect(screen.queryByText(DRAFT.reply)).toBeNull();
+    rerender(<ConversationThread {...baseProps} initialDraft={{ ...DRAFT }} />);
+    expect(screen.getByText(DRAFT.reply)).toBeTruthy();
+  });
+
+  it("M5: 'AI cevap öner' isteği sürerken konuşmaya bir cevap geldiyse gelen öneri panele KONMAZ (cevaplanmış mesaja ait)", async () => {
+    let resolveFetch!: (r: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => (resolveFetch = r))));
+    const { rerender } = render(<ConversationThread {...baseProps} />);
+    fireEvent.click(screen.getByRole("button", { name: /AI cevap öner/ }));
+    rerender(<ConversationThread {...baseProps} messages={withReply({ authorType: "host" })} />); // istek sürerken başka biri cevapladı
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ reply: "Geç gelen öneri.", intent: "payment", confidence: 0.8, risk: null, source: "openai" }), { status: 200 }));
+    });
+    expect(screen.queryByText("Geç gelen öneri.")).toBeNull();
+  });
+
   it("KONTROL (M5): yeni MİSAFİR mesajı gelince eldeki öneri silinmez (yeni taslak gelirse panel onu gösterir)", () => {
     const { rerender } = render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
     rerender(

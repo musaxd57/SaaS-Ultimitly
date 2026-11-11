@@ -4462,7 +4462,11 @@ export async function applyChannelAutoReply(
       await prisma.conversation
         .updateMany({ where: { id: conversation.id, status: "answered" }, data: { status: "new", ...hold } })
         .then((released) =>
-          released.count === 1 ? released : prisma.conversation.updateMany({ where: { id: conversation.id, status: "new" }, data: hold }),
+          // "Beklemede" de otomatik cevaba uygundur (talep `new` / `waiting`den alınır) → geri çekilme ona da yazılır, yoksa kalıcı hatada her
+          // geçişte yeniden modellenirdi (Haiku incelemesi 11-11). Durumun kendisi değişmez.
+          released.count === 1
+            ? released
+            : prisma.conversation.updateMany({ where: { id: conversation.id, status: { in: ["new", "waiting"] } }, data: hold }),
         )
         // ⚠️ SESSİZ `catch {}` DEĞİL (denetim, 08-01 — üçüncü tur). Bu yazma
         // düşerse konuşma KALICI olarak "answered" (claim'li) kalır: misafir
@@ -5647,7 +5651,8 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
       }
       ready.push({ r, tpl, body });
     }
-    if (rows.length < LIFECYCLE_SEND_CAP) break;
+    // (Sayfa dolu gelmedi diye durulmaz — yalnız BOŞ sayfada: tekilleştirme sayfa satırından sonra uygulanıyorsa dolu olmayan sayfanın
+    // ardında yine aday olabilir; Haiku incelemesi 11-11.)
   }
   return { ready, considered, unfilled };
 }
@@ -5854,7 +5859,7 @@ export async function sendDueWelcomes(
     sent++;
   }
 
-  await reportLifecycleSendFailures("welcome", organizationId, failures, considered);
+  await reportLifecycleSendFailures("welcome", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }
 
@@ -6059,7 +6064,7 @@ export async function sendDueCheckins(
     sent++;
   }
 
-  await reportLifecycleSendFailures("checkin", organizationId, failures, considered);
+  await reportLifecycleSendFailures("checkin", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }
 
@@ -6411,7 +6416,7 @@ export async function sendDueCheckouts(
     sent++;
   }
 
-  await reportLifecycleSendFailures("checkout", organizationId, failures, considered);
+  await reportLifecycleSendFailures("checkout", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }
 

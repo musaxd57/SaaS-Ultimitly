@@ -280,6 +280,10 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(third.status).toBe(409); // ⬅️ ESKİDE 201
     expect(mockSend).toHaveBeenCalledTimes(2); // A + B; üçüncü gönderim yok
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+    // B'nin 24 saatlik İSTEK kaydı da duruyor: gövde talebi düştükten (2 dk) sonra aynı kimlik yine gönderilmez.
+    await twoMinutesPass();
+    expect((await send("Kapı kodu 4512")).status).toBe(409);
+    expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
   it("🚨 M1 (kimliksiz istemci): süresi dolan denemenin geç kesin hatası, aynı METNİ gönderen yeni denemenin gövde talebini silmez", async () => {

@@ -112,6 +112,19 @@ describe("otomatik cevap — gönderim sürerken", () => {
       expect(c.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
     });
 
+    it("gönderim sürerken konuşma 'Beklemede' yapıldı → durum 'Beklemede' kalır ama geri çekilme yazılır (Beklemede otomatik cevaba uygundur; kalıcı hatada her geçişte yeniden modellenmesin)", async () => {
+      const { conversationId } = await seed();
+      mockSend.mockImplementationOnce(async () => {
+        await prisma.conversation.update({ where: { id: conversationId }, data: { status: "waiting" } });
+        return DEFINITIVE;
+      });
+      await applyChannelAutoReply(conversationId);
+      const c = await convo(conversationId);
+      expect(c.status).toBe("waiting");
+      expect(c.skippedReason).toBe("send_failed");
+      expect(c.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+    });
+
     describe("nezaket cevabı", () => {
       async function seedClosing() {
         const { orgId, conversationId } = await seed();

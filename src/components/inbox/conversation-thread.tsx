@@ -183,6 +183,9 @@ export function ConversationThread({
   // zengin sonucu (kaynaklar, erken giriş kontrolü) aynı mesajın kayıtlı özetiyle EZİLMESİN. Yeni bir misafir mesajının
   // taslağı gelirse panel onu gösterir.
   const seenDraftRef = useRef<string | null>(initialDraft?.messageId ?? null);
+  // Paneldeki önerinin son hâli (etkiler eski kapanışı okumasın).
+  const suggestionRef = useRef(suggestion);
+  suggestionRef.current = suggestion;
   useEffect(() => {
     if (initialDraft && initialDraft.messageId !== seenDraftRef.current) {
       seenDraftRef.current = initialDraft.messageId;
@@ -192,18 +195,28 @@ export function ConversationThread({
     // 🚨 GEÇERSİZLEŞEN HAZIR TASLAK PANELDE KALMAZ (mesaj M5, Codex 11-10): sunucu taslağı artık vermiyorsa (o misafir mesajına cevap gitti /
     // taslak iptal edildi) panelde duran HAZIR taslak "Onayla ve gönder" ile hâlâ gönderilebiliyordu — cevaplanmış soruya ikinci, bayat
     // cevap. Yalnız kayıtlı taslaktan gelen öneri kalkar; ev sahibinin kendi "AI cevap öner" sonucu bu yoldan silinmez (↓ ayrı kural).
-    if (!initialDraft) setSuggestion((cur) => (cur?.prepared ? null : cur));
+    // Taslağı BİZ kaldırdıysak "görüldü" işareti de düşer: sunucu aynı taslağı yeniden verirse (geçici boşluk) panel onu yine gösterir.
+    // Ev sahibinin elle kapattığı taslakta işaret durur (kapatılan taslak yenilemede geri gelmez).
+    if (!initialDraft && suggestionRef.current?.prepared) {
+      seenDraftRef.current = null;
+      setSuggestion(null);
+    }
   }, [initialDraft]);
   // Konuşmanın SONUNA yeni bir cevap geldiyse (başka bir ekip üyesi / yapay zekâ / ev sahibi başka sekmeden yazdı) eldeki öneri — hazır
   // taslak da "AI cevap öner" sonucu da — cevaplanmış mesaja aittir → kalkar (M5). Otomatik şablon mesajı (karşılama / giriş / çıkış) cevap
   // değildir; yeni misafir mesajı da öneriyi silmez (ev sahibi yine kullanmak isteyebilir, yeni taslak gelirse panel onu gösterir).
   const lastMessage = messages[messages.length - 1];
   const lastMessageId = lastMessage?.id ?? null;
+  /** Konuşmanın sonundaki mesaj bir CEVAP mı (giden ve otomatik şablon değil). */
+  const lastIsReply = Boolean(lastMessage && lastMessage.direction === "outbound" && lastMessage.authorType !== "automation");
+  // "AI cevap öner" isteği sürerken gelen cevabı da görebilmek için son durumun aynası (↓ `handleSuggest`).
+  const threadEndRef = useRef({ id: lastMessageId, isReply: lastIsReply });
+  threadEndRef.current = { id: lastMessageId, isReply: lastIsReply };
   const lastSeenMessageRef = useRef<string | null>(lastMessageId);
   useEffect(() => {
     if (lastMessageId === lastSeenMessageRef.current) return;
     lastSeenMessageRef.current = lastMessageId;
-    if (lastMessage && lastMessage.direction === "outbound" && lastMessage.authorType !== "automation") setSuggestion(null);
+    if (lastIsReply) setSuggestion(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnız son mesajın kimliği değişince
   }, [lastMessageId]);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -285,6 +298,7 @@ export function ConversationThread({
     setSuggestLoading(true);
     setSuggestion(null);
     setSuggestError(null);
+    const askedAt = threadEndRef.current.id;
     try {
       const res = await fetch(`/api/conversations/${conversationId}/ai-suggest`, {
         method: "POST",
@@ -292,6 +306,9 @@ export function ConversationThread({
         body: JSON.stringify({ tone }),
       });
       const data = await res.json().catch(() => null);
+      // İstek sürerken konuşmaya bir CEVAP geldiyse (ev sahibi bu arada yazıp gönderdi / başka biri cevapladı) gelen öneri cevaplanmış
+      // mesaja aittir → panele konmaz (Haiku incelemesi 11-11; M5 ile aynı kural).
+      if (res.ok && threadEndRef.current.id !== askedAt && threadEndRef.current.isReply) return;
       if (res.ok) {
         setSuggestion(data);
         // Sunucu bu öneriyi son misafir mesajına da kaydetti → yenilemede kayıtlı hâli bunun üstüne yazılmasın.
