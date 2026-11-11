@@ -296,6 +296,27 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect((await prisma.reservation.findUniqueOrThrow({ where: { id: elsewhere.id } })).sourceReference).toBe(legacyTruncatedSourceReference(UID_A));
     });
 
+    it("🚨 başka İŞLETMENİN dairesindeki aynı eski kimlikli satır çevrilmez (bu dairede eski satır yokken de): kimliği aynen kalır, bu daire kendi satırını açar", async () => {
+      const { propertyId, sourceId } = await seed();
+      // Bu dairede eski kimlikli satır YOK. Aynı eski kimlik BAŞKA bir işletmenin dairesinde duruyor (bağlantısız) — daire kapsamı
+      // olmasaydı çeviri o satırı bulup kimliğini değiştirirdi (kiracılar arası yazım).
+      const foreignOrg = await prisma.organization.create({ data: { name: "Örnek Tur" } });
+      const foreignProperty = await prisma.property.create({ data: { organizationId: foreignOrg.id, name: "Lale 21" } });
+      const foreign = await prisma.reservation.create({
+        data: {
+          propertyId: foreignProperty.id, guestName: "Yabancı Kayıt", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: null,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "ics",
+        },
+      });
+      mockFeed.mockResolvedValue(cal(ev(UID_A, 10, 12, [], "Misafir A")));
+      await syncCalendarSource(sourceId);
+      const after = await prisma.reservation.findUniqueOrThrow({ where: { id: foreign.id } });
+      expect(after.sourceReference).toBe(legacyTruncatedSourceReference(UID_A)); // dokunulmadı
+      expect(after.guestName).toBe("Yabancı Kayıt");
+      const own = await rowsOf(propertyId);
+      expect(own.map((r) => [r.sourceReference, r.guestName])).toEqual([[normalizeSourceReference(UID_A), "Misafir A"]]);
+    });
+
     it("🚨 dosya yolu yalnız KENDİ satırının eski kimliğini çevirir: başka kaynağın (kanal) aynı eski kimlikli satırına dokunmaz", async () => {
       const { propertyId } = await seed();
       // Bu rotanın satırı DEĞİL: bağlantısız ama kanalı "ics" olmayan (ör. kanal sağlayıcısından gelmiş) satır.
