@@ -385,8 +385,9 @@ export function ConversationThread({
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Öneri onayında konuşma sonu da gider (S1): sunucu gönderim işlemini ona bağlar. Elle yazılan cevapta gönderilmez.
-        body: JSON.stringify({ body, aiAssisted, requestId, ...(source === "suggestion" && anchorMessageId ? { anchorMessageId } : {}) }),
+        // Öneri onayında konuşma sonu da gider (S1): sunucu gönderim işlemini ona bağlar. Elle yazılan cevap bu değeri hiç vermez
+        // (yalnız "Onayla ve gönder" verir); sunucu da yapay zekâ destekli olmayan gönderimde yok sayar.
+        body: JSON.stringify({ body, aiAssisted, requestId, ...(anchorMessageId ? { anchorMessageId } : {}) }),
       });
       if (res.ok) {
         requestIdRef.current = null;

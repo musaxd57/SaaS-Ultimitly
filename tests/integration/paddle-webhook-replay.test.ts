@@ -168,6 +168,24 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       expect(await replayPendingPaddleEvents()).toMatchObject({ pending: 0, replayed: 0 });
     });
 
+    it("🚨 anahtar SAĞLAMKEN bu sınıf da olağan sıklığa uyar: yaş eşiği geçmeden denenmez, her turda yeniden denenmez", async () => {
+      // Olay geldiğinde okuma geçici olarak düşmüştü (anahtar bozuk değil): yoklama geçiyor, alarm durumu hiç açılmadı.
+      const ev = await heldNewSubscriptionEvent();
+      vi.mocked(getSubscriptionCreatedAt).mockClear();
+      probe.result = "ok";
+
+      expect(await replayPendingPaddleEvents()).toMatchObject({ pending: 1, replayed: 0, heldForKey: 0 }); // ⬅️ olay henüz 15 dakikalık değil
+      expect(vi.mocked(getSubscriptionCreatedAt)).not.toHaveBeenCalled();
+
+      // 20 dakika geçti: olay 20 dakikalık, önceki tur 19 dakika önceydi (olay o sırada 1 dakikalıktı).
+      await ageEvent(ev.event_id, 20 * MIN);
+      await prisma.systemLock.updateMany({ where: { name: "paddle-webhook-replay:last" }, data: { lockedUntil: new Date(Date.now() - 19 * MIN) } });
+      expect(await replayPendingPaddleEvents()).toMatchObject({ replayed: 1, settled: 0 }); // denendi; abonelik okuması hâlâ düşüyor
+      expect(await replayPendingPaddleEvents()).toMatchObject({ replayed: 0 }); // yeni eşik geçilmedi → bu turda yok
+      expect((await eventRow(ev.event_id)).status).toBe("error");
+      expect(await alertStateActive(PADDLE_REPLAY_KEY_ALERT)).toBe(false); // anahtar alarmı açılmadı (yoklama geçti)
+    });
+
     it("🚨 sıra koruması aynen: bekleyen ESKİ olay, sonradan uygulanmış daha yeni olayı EZMEZ", async () => {
       // Bekleyen olay: B aktif (t1). Bu arada B için daha yeni bir olay (t2, "past_due") normal yoldan işlendi.
       // (Olay anları onay kaydına 5 dakikadan yakın: daha eski olay onay kaydıyla işletmeye bağlanmaz — o başka bir kuralın konusu.)

@@ -25,8 +25,14 @@ vi.mock("@/lib/messaging", async (orig) => ({
   sendOnChannel: vi.fn(async () => ({ ok: true, id: "sent-1" })),
 }));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(async () => "tok") }));
+// Kuyruğa yazma GERÇEK; yalnız iki eşzamanlı onayın yarışını belirli kılmak için sarmalanır (↓ "aynı anda").
+vi.mock("@/lib/outbox/enqueue", async (orig) => {
+  const actual = await orig<typeof import("@/lib/outbox/enqueue")>();
+  return { ...actual, enqueueOutbound: vi.fn(actual.enqueueOutbound) };
+});
 
 import { sendOnChannel } from "@/lib/messaging";
+import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
 import { OUTBOUND_REQUEST_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
 
@@ -216,6 +222,20 @@ describe("yapay zekâ önerisinin onayı — işlem kimliği (S1)", () => {
         expect((await res.json()).outbox, status).toMatchObject({ deduped: true, delivery: status });
       }
       expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    });
+
+    it("🚨 iki onay AYNI ANDA (ikisi de 'henüz gönderim yok' görüp kuyruğa yazmaya gider): tek satır; kaybeden 'farklı içerik' hatası almaz", async () => {
+      // Yarış belirli kılınır: bizim kuyruğa yazımımızdan hemen önce öteki yöneticinin (metni biraz farklı) yazımı tamamlanır.
+      const real = vi.mocked(enqueueOutbound).getMockImplementation()!;
+      vi.mocked(enqueueOutbound).mockImplementationOnce(async (args) => {
+        await real({ ...args, body: "Evet, binanın arkasında ücretsiz otopark var." });
+        return real(args);
+      });
+      const loser = await approve("Evet, arkada ücretsiz otoparkımız var.", TAB_B);
+      expect(loser.status).toBe(200); // ⬅️ içerik denetimi işlem kimliğinde de uygulansaydı 409 "farklı içerikle kullanılmış"
+      expect((await loser.json()).outbox).toMatchObject({ status: "queued", deduped: true, delivery: "pending" });
+      expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+      expect((await outbound()).map((m) => m.body)).toEqual(["Evet, binanın arkasında ücretsiz otopark var."]);
     });
 
     it("🚨 başka biri elle cevapladıysa kuyruğa yeni satır yazılmaz", async () => {

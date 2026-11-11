@@ -136,6 +136,17 @@ describe("POST /api/conversations/[id]/ai-suggest — model yokken taslak yok (3
     await prisma.message.create({ data: { conversationId: id, direction: "outbound", authorType: "automation", senderName: "GuestOps AI", body: "Hoş geldiniz." } });
     expect((await suggest(id)).body.anchorMessageId).toBe(messageId); // ⬅️ otomatik mesaj sayılsaydı iki yöneticinin kimliği ayrışabilirdi
 
+    // Kuyrukta İPTAL edilmiş (misafire hiç ulaşmamış) giden satır da konuşma sonu değildir — kayıtlı taslak da onu atlar; atlanmasaydı
+    // aynı misafir mesajı için kayıtlı taslak ile yeni öneri iki ayrı işlem kimliğine düşerdi (Opus incelemesi 11-11).
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id }, select: { property: { select: { organizationId: true } } } });
+    for (const status of ["canceled", "failed", "blocked"]) {
+      const dead = await prisma.message.create({ data: { conversationId: id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: `Gitmeyen cevap (${status}).` } });
+      await prisma.messageOutbox.create({
+        data: { organizationId: conv.property.organizationId, conversationId: id, messageId: dead.id, messageType: "ai", channel: "airbnb", body: dead.body, status, idempotencyKey: `k-${status}` },
+      });
+      expect((await suggest(id)).body.anchorMessageId, status).toBe(messageId); // ⬅️ (ilk yazımda) o gitmeyen satırın kimliği
+    }
+
     // Ekip cevap yazdı: bundan sonra üretilen öneri YENİ bir işlemdir (konuşma sonu o cevap).
     const reply = await prisma.message.create({ data: { conversationId: id, direction: "outbound", authorType: "host", senderName: "Ekip", body: "Bakıyorum." } });
     expect((await suggest(id)).body.anchorMessageId).toBe(reply.id);

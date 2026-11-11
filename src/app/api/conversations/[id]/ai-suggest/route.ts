@@ -20,7 +20,7 @@ import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { conversationStateWindowSufficient, loadConversationState } from "@/lib/ai/conversation-state-loader";
 import { extendThread, readThreadTail, threadWindowSufficient } from "@/lib/channel-thread-window";
-import { countPriorOperatorReplies } from "@/lib/operator-replies";
+import { countPriorOperatorReplies, undeliveredOutboundIds } from "@/lib/operator-replies";
 import { orgTimezone } from "@/lib/timezone";
 import { historyAuthorOf, isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
 import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
@@ -323,9 +323,13 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     hostContactRemovals && hostContactRemovals.length > 0
       ? { removed: hostContactRemovals.length, maybeUnanswered: hostContactRemovals.some((r) => !r.generic) }
       : undefined;
-  // S1 (kurucu kararı 11-11): önerinin üretildiği andaki konuşma sonu (son gerçek mesaj; otomatik şablon mesajı sayılmaz — kayıtlı
-  // taslağın kuralıyla aynı). "Onayla ve gönder" bunu geri yollar: gönderim işleminin kimliği olur (iki sekme = tek mesaj).
-  const anchorMessageId = [...messages].reverse().find((m) => !isAutomationMessage(m))?.id ?? null;
+  // S1 (kurucu kararı 11-11): önerinin üretildiği andaki konuşma sonu. "Onayla ve gönder" bunu geri yollar: gönderim işleminin kimliği
+  // olur (iki sekme = tek mesaj). Son GERÇEK mesaj: otomatik şablon mesajı ve misafire kesinlikle ulaşmamış (kuyrukta başarısız / iptal /
+  // engellenmiş) giden satır sayılmaz — "konuşma cevaplandı mı" kuralıyla (`host-send.ts` `repliedSince`) ve kayıtlı taslağın
+  // kuralıyla AYNI. (Opus incelemesi 11-11: süzgeçsiz hâlinde iptal edilmiş bir giden satırdan sonra kayıtlı taslak misafir mesajına,
+  // yeni öneri o iptal satırına bağlanıyor, iki yöneticinin kimliği ayrışıyordu.)
+  const undelivered = new Set(await undeliveredOutboundIds(conversation.id));
+  const anchorMessageId = [...messages].reverse().find((m) => !isAutomationMessage(m) && !undelivered.has(m.id))?.id ?? null;
   return jsonOk({
     ...publicResult,
     reply: hostDraft,
