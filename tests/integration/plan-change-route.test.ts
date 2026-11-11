@@ -452,6 +452,8 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       expect(res.status).toBe(400); // ⬅️ ESKİDE 200 (eski onay yeni aboneliğe uygulanıyordu)
       expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
       expect(updateMock).not.toHaveBeenCalled();
+      // Erken ret: onay tüketilmeden ve Paddle'a yeniden tutar sorulmadan (önizleme yalnız bir kez — önizleme rotasında — çağrıldı).
+      expect(previewMock).toHaveBeenCalledTimes(1);
     });
 
     it("🚨 önizlemeden sonra PLAN değişti (business'tan önizlendi, şimdi pro) → aynı hedefe düşürme onayı uygulanmaz", async () => {
@@ -494,6 +496,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       const legacy = `${body}.${createHmac("sha256", process.env.AUTH_SECRET ?? "").update(body).digest("base64url")}`;
       const res = await CHANGE(req({ planCode: "business", previewToken: legacy }), ctx);
       expect(res.status).toBe(400);
+      expect((await res.json()).fields.error).toMatch(/süresi doldu/); // belirteç geçersiz sayıldı (yeniden önizleme istenir)
       expect(updateMock).not.toHaveBeenCalled();
     });
   });
@@ -527,6 +530,37 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect((await pB!).status).toBe(200);
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(await prisma.systemLock.count({ where: { name: `plan-change-pending:${orgId}`, lockedUntil: { gt: new Date() } } })).toBe(0); // B kendi kilidini bıraktı
+  });
+
+  it("🚨 P4: süresi aşan (kilidi düşmüş) isteğin geç temizliği, o arada kilidi alan YENİ isteğin kilidini silmez", async () => {
+    const lockName = `plan-change-pending:${orgId}`;
+    let finishFirst!: (v: { ok: boolean }) => void;
+    let finishSecond!: (v: { ok: boolean }) => void;
+    let secondEntered!: () => void;
+    const secondInPatch = new Promise<void>((r) => (secondEntered = r));
+    let pSecond: Promise<Response> | null = null;
+    updateMock
+      .mockImplementationOnce(async () => {
+        // Birinci istek PATCH'te takıldı ve kilidinin süresi doldu → ikinci istek kilidi alıp kendi PATCH'ine girer.
+        await prisma.systemLock.update({ where: { name: lockName }, data: { lockedUntil: new Date(Date.now() - 1_000) } });
+        pSecond = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+        await secondInPatch;
+        return new Promise((res) => (finishFirst = res));
+      })
+      .mockImplementationOnce(() => {
+        secondEntered();
+        return new Promise((res) => (finishSecond = res));
+      });
+    const pFirst = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    await secondInPatch;
+    await vi.waitFor(() => expect(finishFirst).toBeTypeOf("function"));
+    finishFirst({ ok: true });
+    expect((await pFirst).status).toBe(200);
+    const lock = await prisma.systemLock.findUnique({ where: { name: lockName } });
+    expect(lock !== null && lock.lockedUntil > new Date()).toBe(true); // ⬅️ adla silinseydi ikinci isteğin kilidi giderdi
+    finishSecond({ ok: true });
+    expect((await pSecond!).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: lockName, lockedUntil: { gt: new Date() } } })).toBe(0);
   });
 
 });

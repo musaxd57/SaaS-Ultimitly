@@ -290,6 +290,23 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(0);
     });
 
+    it("P4: kartla denemede (trialing) de kilidi yalnız kendi ödemesinin olayı kaldırır", async () => {
+      const user = await prisma.user.findFirstOrThrow({ where: { organizationId: orgId } });
+      const y = await prisma.checkoutConsent.create({
+        data: { organizationId: orgId, userId: user.id, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
+        select: { id: true },
+      });
+      await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId: y.id }), ctx);
+      const trial = (cid: string) => {
+        const ev = subEvent("sub_T", "trialing");
+        return { ...ev, data: { ...ev.data, custom_data: { consentId: cid }, current_billing_period: { ends_at: new Date(Date.now() + 14 * 86_400_000).toISOString() } } };
+      };
+      expect((await postEvent(trial(consentId))).status).toBe(200); // başka onayın deneme olayı
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(1);
+      expect((await postEvent(trial(y.id))).status).toBe(200); // kendi olayı
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(0);
+    });
+
     it("KONTROL (P4): sahipsiz (eski biçim) kilidi her etkin abonelik olayı kaldırır; onay kaydı taşımayan olay sahipli kilide dokunmaz", async () => {
       await prisma.systemLock.create({ data: { name: checkoutPendingLockName(orgId), lockedUntil: new Date(Date.now() + 60_000), holder: null } });
       expect((await postEvent(subEvent("sub_A", "active"))).status).toBe(200);

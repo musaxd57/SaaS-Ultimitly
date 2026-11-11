@@ -177,4 +177,25 @@ describe("PaddlePlans — plan değişikliği onayı", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vazgeç" }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Yükselt" })));
   });
+
+  it("'tutar değişti' ile panel yeniden kurulunca da (odak panelin içindeyken) kapanışta odak ilk açan düğmeye döner", async () => {
+    let previews = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/billing/plan-preview") {
+        previews += 1;
+        return json(200, { mode: "upgrade", targetName: "Pro", targetMonthlyMinor: 89900, immediateTotal: previews === 1 ? "₺450,00" : "₺460,00", recurringTotal: "₺899,00", previewToken: `t${previews}` });
+      }
+      return json(409, { error: "Tutar değişti. Yeni tutarı kontrol edip yeniden onaylayın.", amountChanged: true, immediateTotal: "₺460,00" });
+    }));
+    renderPlans();
+    const upgrade = screen.getByRole("button", { name: "Yükselt" });
+    upgrade.focus();
+    fireEvent.click(upgrade);
+    const confirm = await screen.findByRole("button", { name: "₺450,00 öde ve yükselt" });
+    confirm.focus(); // klavye kullanıcısı onay düğmesinde
+    fireEvent.click(confirm);
+    await screen.findByRole("button", { name: "₺460,00 öde ve yükselt" }); // yeni tutarla panel yeniden kuruldu
+    fireEvent.click(screen.getByRole("button", { name: "Vazgeç" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Yükselt" })));
+  });
 });
