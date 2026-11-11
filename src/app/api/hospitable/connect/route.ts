@@ -10,6 +10,7 @@ import {
   isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
 import { writeAudit } from "@/lib/audit";
+import { reportError } from "@/lib/report-error";
 import { crossSiteWrite } from "@/lib/route-guard";
 
 // Each account's channel token is managed by that account's OWNER (self-service)
@@ -97,8 +98,14 @@ export async function POST(req: NextRequest) {
         // olabilir. Hangisi olduğunu iddia ETME; ikisini de kontrol ettir.
         msg =
           "Hospitable planınız veya bu token'ın yetkileri API erişimine izin vermiyor. API erişimli (ücretli) bir planda olduğunuzdan ve token'ın okuma+yazma iznine sahip olduğundan emin olun.";
+      } else if (err instanceof HospitableError && status !== 401) {
+        // 🚨 KESİNTİ ≠ GEÇERSİZ ANAHTAR (OAuth O4, Codex 11-10): hız sınırı (429), sağlayıcı arızası (5xx), ağ / zaman aşımı "token
+        // geçersiz" DEĞİLDİR — ev sahibi doğru anahtarı silip yenisini üretmeye uğraşmasın. Sağlayıcıya ulaşılamadı: sonra yeniden denenir;
+        // operatör haberdar edilir (sistemik kesinti görünür olsun).
+        void reportError("hospitable.connect.verify", err).catch(() => {});
+        return NextResponse.json({ ok: false, error: "Hospitable'a şu anda ulaşılamadı. Birazdan tekrar deneyin." }, { status: 503 });
       } else if (err instanceof HospitableError) {
-        msg = "Token geçersiz ya da Hospitable'a ulaşılamadı.";
+        msg = "Token geçersiz.";
       } else if (err instanceof Error) {
         msg = err.message;
       } else {

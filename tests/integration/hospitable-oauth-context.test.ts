@@ -29,7 +29,13 @@ vi.mock("@/lib/hospitable", async (orig) => {
   const actual = await orig<typeof import("@/lib/hospitable")>();
   return { ...actual, verifyToken: vi.fn(async () => ({ properties: 3, name: "Host" })) };
 });
-vi.mock("@/lib/hospitable-credentials", () => ({ setOrgHospitableOAuthTokens: vi.fn(async () => {}) }));
+// (11-11, OAuth O2 / O5) bağlantı niyeti bu dosyanın konusu değil: akış hep kayıtlı ve yazım hep başarılı sayılır; niyetin gerçek davranışı
+// (tek kullanım, geciken dönüş, yeniden başlatma) `hospitable-oauth-intent.test.ts`te gerçek veritabanıyla.
+vi.mock("@/lib/hospitable-credentials", () => ({
+  setOrgHospitableOAuthTokens: vi.fn(async () => true),
+  registerOAuthConnectIntent: vi.fn(async () => {}),
+  consumeOAuthConnectIntent: vi.fn(async () => ({ claim: "test-claim" })),
+}));
 vi.mock("@/lib/audit", () => ({ writeAudit: vi.fn(async () => {}) }));
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();

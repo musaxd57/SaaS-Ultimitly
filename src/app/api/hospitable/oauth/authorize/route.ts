@@ -11,6 +11,7 @@ import {
   OAUTH_STATE_COOKIE,
   STATE_MAX_AGE,
 } from "@/lib/hospitable-oauth";
+import { registerOAuthConnectIntent } from "@/lib/hospitable-credentials";
 
 // Starts the "Hospitable ile Bağlan" one-click OAuth flow: mints a CSRF state,
 // stores it in a short-lived httpOnly cookie, and redirects the browser to
@@ -51,6 +52,8 @@ export async function GET(req: NextRequest) {
   // started the connect. Codex 11-04: the value is SERVER-SIGNED + expiring; no secret → no signed state → flow stays closed.
   const packed = packOAuthStateCookie(state, session.organizationId, session.userId);
   if (!packed) return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
+  // Bu akış işletmenin bekleyen TEK bağlantı niyeti olur (OAuth O2 / O5): dönüş onu tüketir; başka bir bağlantı işlemi onu geçersiz kılar.
+  await registerOAuthConnectIntent(session.organizationId, state, STATE_MAX_AGE);
   const res = NextResponse.redirect(authorizeUrl);
   res.cookies.set(OAUTH_STATE_COOKIE, packed, {
     httpOnly: true,

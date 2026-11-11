@@ -188,17 +188,43 @@ function parseTokenResponse(data: unknown): HospitableTokenSet {
   const d = data as Record<string, unknown> | null;
   const accessToken = d?.access_token;
   const refreshToken = d?.refresh_token;
+  // Başarılı (200) ama eksik gövde sağlayıcı tarafında bir bozukluktur — "anahtar öldü" KANITI değildir (O3): anahtar durur, sonraki tur
+  // yeniden dener (bozukluk sürerse alarm zaten gider). Eskiden bağlantıyı düşürüyordu.
   if (typeof accessToken !== "string" || !accessToken) {
-    throw new HospitableOAuthError("Token response had no access_token", true);
+    throw new HospitableOAuthError("Token response had no access_token", false);
   }
   if (typeof refreshToken !== "string" || !refreshToken) {
-    throw new HospitableOAuthError("Token response had no refresh_token", true);
+    throw new HospitableOAuthError("Token response had no refresh_token", false);
   }
   const expiresIn =
     typeof d?.expires_in === "number" && d.expires_in > 0
       ? d.expires_in
       : DEFAULT_TOKEN_LIFETIME_SECONDS;
   return { accessToken, refreshToken, expiresAt: new Date(Date.now() + expiresIn * 1000) };
+}
+
+/** Token ucunun hata gövdesi (RFC 6749 §5.2): `error` kodu + açıklama alanları. Okunamazsa boş (→ "ölü anahtar" SAYILMAZ). */
+async function readOAuthError(res: Response): Promise<{ error: string; detail: string }> {
+  try {
+    const d = (await res.json()) as Record<string, unknown> | null;
+    const text = (v: unknown) => (typeof v === "string" ? v.slice(0, 300) : "");
+    return { error: text(d?.error).slice(0, 60).replace(/[^a-z_]/gi, ""), detail: `${text(d?.error_description)} ${text(d?.hint)} ${text(d?.message)}` };
+  } catch {
+    return { error: "", detail: "" };
+  }
+}
+
+/**
+ * Sağlayıcı "bu yetki (yenileme anahtarı / yetki kodu) GEÇERSİZ" mi dedi — bağlantının kendiliğinden iyileşemeyeceği TEK durum.
+ * Standart kod `invalid_grant` (400). Bazı OAuth sunucuları (league/oauth2-server'ın eski sürümleri) ölü yenileme anahtarını
+ * `invalid_request` + "The refresh token is invalid." diye 401 ile bildirir → açıklamada yetkinin adı geçiyorsa o da sayılır.
+ * `invalid_client` / `unauthorized_client` (bizim istemci bilgimiz), `unsupported_grant_type`, `invalid_scope`, 403, 408, 429, 5xx ve
+ * okunamayan gövde SAYILMAZ.
+ */
+export function isDeadGrantResponse(status: number, error: string, detail: string): boolean {
+  if (status !== 400 && status !== 401) return false;
+  if (error === "invalid_grant") return true;
+  return error === "invalid_request" && /refresh token|authorization code/i.test(detail);
 }
 
 async function postTokenRequest(
@@ -228,11 +254,16 @@ async function postTokenRequest(
     );
   }
   if (!res.ok) {
-    // 4xx from an OAuth token endpoint is the standard shape for "invalid_grant"
-    // (bad code / bad or reused refresh token) — treat as a definitive auth
-    // failure. 5xx/429 are the server's problem, not the credential's — retry later.
-    const authFailure = res.status >= 400 && res.status < 500 && res.status !== 429;
-    throw new HospitableOAuthError(`Token request failed (${res.status})`, authFailure);
+    // 🚨 YALNIZ "BU ANAHTAR / KOD GEÇERSİZ" CEVABI BAĞLANTIYI DÜŞÜRÜR (OAuth O3, Codex 11-10). Eskiden 429 dışındaki HER 4xx "anahtar
+    // ölü" sayılıyordu: `invalid_client` (BİZİM istemci kimliğimiz / sırrımız yanlış — yapılandırma hatası), 408 (zaman aşımı), 403 (ara
+    // katman) da kiracının yenileme anahtarını SİLDİRİYORDU. Yanlış bir istemci sırrıyla yapılan tek dağıtım, o saat içinde yenilenen bütün
+    // kiracıların bağlantısını geri dönüşsüz düşürürdü (anahtarlar silinir; her ev sahibi yeniden bağlanmak zorunda kalır). Artık hata
+    // gövdesindeki OAuth koduna bakılır (RFC 6749 §5.2); kod "bu yetki geçersiz" demiyorsa geçici / yapılandırma sorunudur → anahtar DURUR,
+    // sonraki tur yeniden dener, operatöre alarm gider.
+    const oauthError = await readOAuthError(res);
+    const authFailure = isDeadGrantResponse(res.status, oauthError.error, oauthError.detail);
+    // Mesaja yalnız durum + standart hata KODU girer (sır / açıklama metni değil).
+    throw new HospitableOAuthError(`Token request failed (${res.status}${oauthError.error ? ` ${oauthError.error}` : ""})`, authFailure);
   }
   // 🚨 GÖVDE OKUMA HATASI KİMLİK HATASI DEĞİLDİR (denetim, 08-01 — dördüncü tur).
   // Eskiden `.catch(() => null)` idi ve `parseTokenResponse(null)` `authFailure:

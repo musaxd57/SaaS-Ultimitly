@@ -198,11 +198,51 @@ describe("exchangeCodeForToken / refreshAccessToken", () => {
     expect(body.redirect_uri).toBeUndefined();
   });
 
-  it("a 4xx response is a definitive auth failure (authFailure:true) — dead credential", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response("invalid_grant", { status: 400 }));
-    await expect(exchangeCodeForToken(config, "the-code")).rejects.toMatchObject({
-      authFailure: true,
-    });
+  // 🚨 OAuth O3 (Codex 11-10): eskiden 429 dışındaki HER 4xx "anahtar ölü" sayılıyordu (bu test onu pinliyordu). `invalid_client` (bizim
+  // istemci sırrımız yanlış), 408 ve 403 de kiracının yenileme anahtarını sildiriyordu. Artık yalnız sağlayıcının "bu yetki geçersiz"
+  // cevabı (`invalid_grant`, ya da eski sunucularda `invalid_request` + yetkinin adı) bağlantıyı düşürür.
+  const oauthErr = (status: number, body: unknown) =>
+    new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+  it("🚨 400 invalid_grant → kesin yetki hatası (authFailure:true) — anahtar / kod gerçekten ölü", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(400, { error: "invalid_grant", error_description: "The refresh token is invalid." }));
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({ authFailure: true, message: "Token request failed (400 invalid_grant)" });
+  });
+
+  it("eski OAuth sunucusu biçimi: 401 invalid_request + 'The refresh token is invalid.' → kesin yetki hatası", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(401, { error: "invalid_request", error_description: "The refresh token is invalid.", hint: "Token has been revoked" }));
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({ authFailure: true });
+  });
+
+  it.each([
+    ["401 invalid_client (istemci sırrımız yanlış — yapılandırma)", 401, { error: "invalid_client", error_description: "Client authentication failed" }],
+    ["400 unauthorized_client", 400, { error: "unauthorized_client" }],
+    ["400 unsupported_grant_type", 400, { error: "unsupported_grant_type" }],
+    ["400 invalid_request (yetkiyle ilgisi yok)", 400, { error: "invalid_request", error_description: "The request is missing a required parameter" }],
+    ["408 zaman aşımı", 408, { error: "request_timeout" }],
+    ["403 ara katman reddi", 403, "<html>Forbidden</html>"],
+    ["400 okunamayan gövde", 400, "invalid_grant"],
+    ["404", 404, { error: "invalid_grant" }],
+  ])("🚨 %s → yetki hatası DEĞİL (authFailure:false): yenileme anahtarı silinmez, sonraki tur yeniden dener", async (_label, status, body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(status as number, body));
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({ authFailure: false }); // ⬅️ ESKİDE true (bağlantı düşüyordu)
+  });
+
+  it("hata mesajına yalnız durum + standart hata kodu girer (açıklama / sır girmez)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(401, { error: "invalid_client", error_description: "secret-1 is wrong for client-1" }));
+    const err = await refreshAccessToken(config, "ref_old").then(
+      () => new Error("beklenmedik başarı"),
+      (e) => e as Error,
+    );
+    expect(err.message).toBe("Token request failed (401 invalid_client)");
+    expect(err.message).not.toContain("secret-1");
+  });
+
+  it("200 ama gövdede anahtar yok (sağlayıcı bozukluğu) → yetki hatası DEĞİL: bağlantı düşürülmez", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(200, { access_token: "tok_new" })); // refresh_token eksik
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({ authFailure: false }); // ⬅️ ESKİDE true
+    vi.mocked(fetch).mockResolvedValueOnce(oauthErr(200, {}));
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({ authFailure: false });
   });
 
   it("a 429 is NOT an auth failure (rate limit, not a dead credential)", async () => {
@@ -261,21 +301,24 @@ describe("exchangeCodeForToken / refreshAccessToken", () => {
     });
   });
 
-  it("throws (authFailure:true) when the response has no access_token", async () => {
+  // O3 (11-11): başarılı (200) ama eksik gövde "anahtar öldü" KANITI değildir — eskiden authFailure:true idi (bağlantı düşüyordu).
+  it("throws (authFailure:false) when the response has no access_token — bağlantı düşürülmez, yine de hata", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ refresh_token: "r" }), { status: 200 }),
     );
     await expect(exchangeCodeForToken(config, "the-code")).rejects.toMatchObject({
-      authFailure: true,
+      authFailure: false,
+      message: "Token response had no access_token",
     });
   });
 
-  it("throws (authFailure:true) when the response has no refresh_token", async () => {
+  it("throws (authFailure:false) when the response has no refresh_token — bağlantı düşürülmez, yine de hata", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ access_token: "a" }), { status: 200 }),
     );
     await expect(exchangeCodeForToken(config, "the-code")).rejects.toMatchObject({
-      authFailure: true,
+      authFailure: false,
+      message: "Token response had no refresh_token",
     });
   });
 

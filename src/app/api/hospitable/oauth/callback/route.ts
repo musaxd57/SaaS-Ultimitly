@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
-import { setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
+import { consumeOAuthConnectIntent, setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
 import { writeAudit } from "@/lib/audit";
 import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import {
@@ -72,10 +72,22 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // 🚨 TEK KULLANIMLIK NİYET (OAuth O2 + O5, Codex 11-10): bu akış işletmenin bekleyen niyeti olarak kayıtlı mı? Tüketilir — aynı dönüş
+  // adresi ikinci kez çağrılırsa (tekrar / geri tuşu / kopyalanmış bağlantı), akış yeniden başlatıldıysa ya da ev sahibi bu arada bağlantıyı
+  // kaldırıp / elle anahtar girdiyse burada durur: sağlayıcıya yetki kodu GÖNDERİLMEZ, hiçbir şey yazılmaz.
+  const intent = await consumeOAuthConnectIntent(session.organizationId, state);
+  if (!intent) {
+    return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=state_mismatch`));
+  }
+
   try {
     const tokens = await exchangeCodeForToken(config, code);
     const info = await verifyToken(tokens.accessToken);
-    await setOrgHospitableOAuthTokens(session.organizationId, tokens, `${info.properties} mülk`);
+    // Yetki kodu anahtara çevrilirken bağlantı değiştiyse (kaldırıldı / başka anahtar bağlandı) geç gelen sonuç yazılmaz (O2).
+    const saved = await setOrgHospitableOAuthTokens(session.organizationId, tokens, `${info.properties} mülk`, intent);
+    if (!saved) {
+      return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=context_changed`));
+    }
     await writeAudit({
       organizationId: session.organizationId,
       actorUserId: session.actorUserId ?? session.userId,
@@ -92,8 +104,13 @@ export async function GET(req: NextRequest) {
     // bir dış olaydır: kullanıcı yeniden dener, alarm GİTMEZ. Geçici sağlayıcı sorunu
     // (5xx/429/ağ) ve yapılandırma hatası `authFailure:false` ile gelir ve alarm vermeye
     // DEVAM eder — sistemik kırılma görünür kalmalı.
+    // 🚨 KESİNTİ ≠ GEÇERSİZ ANAHTAR (OAuth O4, Codex 11-10): doğrulama çağrısının (`verifyToken`) HER hatası "sağlayıcı reddetti"
+    // sayılıyordu — hız sınırı (429), sağlayıcı arızası (5xx), ağ / zaman aşımı da ev sahibine "anahtar geçersiz" diye gösteriliyor ve
+    // operatöre alarm gitmiyordu. Ret yalnız sağlayıcının anahtarı / hesabı GERÇEKTEN reddettiği durumlardır (401 / 402 / 403); gerisi
+    // geçici ya da iç arızadır → "bağlantı kurulamadı" + alarm.
+    const verifyStatus = err instanceof HospitableError ? err.status : undefined;
     const providerRejected =
-      err instanceof HospitableError || (err instanceof HospitableOAuthError && err.authFailure);
+      (err instanceof HospitableOAuthError && err.authFailure) || (verifyStatus !== undefined && [401, 402, 403].includes(verifyStatus));
     const reason = providerRejected ? "invalid_token" : "exchange_failed";
     // A non-provider-rejection is an INTERNAL or transient fault (encryptSecret / the DB
     // write in setOrgHospitableOAuthTokens / provider 5xx) — surface it so a systemic

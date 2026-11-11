@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import {
   getHospitableOAuthConfig,
@@ -226,7 +227,95 @@ class StaleRefresh extends Error {}
  * (never throws — this sits on the hot sync/send path, a hiccup here must
  * degrade to "not connected this cycle", not crash the caller).
  */
+// ---------------------------------------------------------------------------
+// 🚨 YENİLEME TEK UÇUŞ (OAuth O1, Codex 11-10). Yenileme anahtarları ROTASYONLU: aynı anahtarla iki eşzamanlı istek gidince biri yeni
+// anahtarı alır, öteki "bu anahtar geçersiz" cevabını alır. Kazanan yeni anahtarı VERİTABANINA YAZMADAN önce kaybeden o cevabı görürse
+// (saklanan anahtar hâlâ eskisi) bağlantıyı "anahtar ölü" diye DÜŞÜRÜYORDU — elde geçerli anahtar varken ev sahibi yeniden bağlanmak
+// zorunda kalıyordu. Artık bir işletmenin yenilemesini aynı anda TEK istek yapar:
+//  · aynı süreçte: eşzamanlı çağrılar tek isteği paylaşır (`refreshInFlight`);
+//  · süreçler / kopyalar arasında: kısa ömürlü kilit (`SystemLock`). Kilidi alamayan sağlayıcıya HİÇ gitmez; kazananın yazdığı anahtarı
+//    bekleyip okur. Kilit deposu okunamazsa eski davranış (istek yapılır) — yenileme kilit yüzünden durmasın.
+// ---------------------------------------------------------------------------
+const refreshInFlight = new Map<string, Promise<string | null>>();
+const REFRESH_LOCK_TTL_MS = 30_000; // sağlayıcı zaman aşımı (15 sn) + yazım payı; çöken süreç en geç bu kadar sonra yol verir
+let refreshWaitMs = 8_000;
+let refreshPollMs = 250;
+/** Yalnız test: bekleme sürelerini kısaltır. */
+export function __setOAuthRefreshWaitForTests(waitMs: number, pollMs: number): void {
+  refreshWaitMs = waitMs;
+  refreshPollMs = pollMs;
+}
+export function oauthRefreshLockName(orgId: string): string {
+  return `hospitable-oauth-refresh:${orgId}`;
+}
+
+async function claimRefreshLock(orgId: string, owner: string): Promise<boolean> {
+  const name = oauthRefreshLockName(orgId);
+  const now = new Date();
+  const lockedUntil = new Date(now.getTime() + REFRESH_LOCK_TTL_MS);
+  try {
+    const created = await prisma.systemLock.createMany({ data: [{ name, lockedUntil, holder: owner }], skipDuplicates: true });
+    if (created.count === 1) return true;
+    const taken = await prisma.systemLock.updateMany({ where: { name, lockedUntil: { lte: now } }, data: { lockedUntil, holder: owner } });
+    return taken.count === 1;
+  } catch {
+    return true;
+  }
+}
+
+/** Başka bir süreç yeniliyor: sağlayıcıya gitmeden, kazananın yazdığı anahtarı bekle. Yazılmadıysa bu tur elde ne varsa onunla biter. */
+async function awaitOtherRefresh(
+  orgId: string,
+  orgRefreshBlobAtStart: string | null,
+  fallback?: { currentAccessToken: string; expiresAt: Date },
+): Promise<string | null> {
+  const deadline = Date.now() + refreshWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, refreshPollMs));
+    const org = await prisma.organization
+      .findUnique({ where: { id: orgId }, select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true } })
+      .catch(() => undefined);
+    if (org === null) return null;
+    if (org && org.hospitableRefreshTokenEnc !== orgRefreshBlobAtStart) {
+      // Kazanan yeni anahtarları yazdı (ya da bağlantı bu arada kaldırıldı / değişti).
+      if (!org.hospitableTokenEnc) return null;
+      try {
+        return decryptSecret(org.hospitableTokenEnc);
+      } catch {
+        return null;
+      }
+    }
+    const lock = await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) }, select: { lockedUntil: true } }).catch(() => undefined);
+    if (lock === null || (lock && lock.lockedUntil <= new Date())) break; // öteki yenileme bitti ama anahtar değişmedi (başarısız)
+  }
+  return fallback && fallback.expiresAt.getTime() > Date.now() ? fallback.currentAccessToken : null;
+}
+
 async function refreshOrgOAuthToken(
+  orgId: string,
+  refreshTokenEnc: string | null,
+  orgRefreshBlobAtStart: string | null,
+  connAtStart: ActiveConnection | null,
+  fallback?: { currentAccessToken: string; expiresAt: Date },
+): Promise<string | null> {
+  if (!getHospitableOAuthConfig() || !refreshTokenEnc) return null; // OAuth not configured / no refresh token stored
+  const key = `${orgId}:${refreshTokenEnc}`;
+  const running = refreshInFlight.get(key);
+  if (running) return running;
+  const flight = (async () => {
+    const owner = randomBytes(9).toString("base64url");
+    if (!(await claimRefreshLock(orgId, owner))) return awaitOtherRefresh(orgId, orgRefreshBlobAtStart, fallback);
+    try {
+      return await refreshOrgOAuthTokenOnce(orgId, refreshTokenEnc, orgRefreshBlobAtStart, connAtStart, fallback);
+    } finally {
+      await prisma.systemLock.deleteMany({ where: { name: oauthRefreshLockName(orgId), holder: owner } }).catch(() => {});
+    }
+  })().finally(() => refreshInFlight.delete(key));
+  refreshInFlight.set(key, flight);
+  return flight;
+}
+
+async function refreshOrgOAuthTokenOnce(
   orgId: string,
   refreshTokenEnc: string | null,
   orgRefreshBlobAtStart: string | null,
@@ -386,11 +475,25 @@ export async function setOrgHospitableOAuthTokens(
   orgId: string,
   tokens: HospitableTokenSet,
   label: string | null,
-): Promise<void> {
+  /**
+   * 🚨 KOŞULLU YAZIM (OAuth O2, Codex 11-10): dönüşün (callback) TÜKETTİĞİ niyetin sahiplik değeri (`consumeOAuthConnectIntent`). Yazım
+   * yalnız o niyet satırı hâlâ yerindeyse yapılır — yetki kodu anahtara çevrilirken (ağ) ev sahibi bağlantıyı kaldırdıysa, elle anahtar
+   * girdiyse ya da akışı yeniden başlattıysa satır silinmiş / değişmiştir ve geç gelen sonuç onların üstüne YAZILMAZ (dönüş `false`).
+   * Satır silme ile anahtar yazımı AYNI işlemdedir; öteki işlemler de satırı kendi işlemlerinde siler → sıra hangisi olursa olsun
+   * SON karar kazanır. Verilmezse koşulsuz (iç çağrılar / testler).
+   */
+  expected?: { claim: string },
+): Promise<boolean> {
   const accessTokenEnc = encryptSecret(tokens.accessToken);
   const refreshTokenEnc = encryptSecret(tokens.refreshToken);
-  await prisma.$transaction(async (tx) => {
-    await tx.organization.update({
+  return prisma.$transaction(async (tx) => {
+    if (expected) {
+      const own = await tx.systemLock.deleteMany({ where: { name: connectIntentLockName(orgId), holder: expected.claim } });
+      if (own.count !== 1) return false;
+    } else {
+      await tx.systemLock.deleteMany({ where: { name: connectIntentLockName(orgId) } }); // bekleyen başka bir dönüş bu kararı ezemez
+    }
+    const written = await tx.organization.updateMany({
       where: { id: orgId },
       data: {
         hospitableTokenEnc: accessTokenEnc,
@@ -400,8 +503,47 @@ export async function setOrgHospitableOAuthTokens(
         hospitableConnectedAt: new Date(),
       },
     });
+    if (written.count !== 1) throw new Error("hospitable-oauth-save: organization not found"); // işlem geri alınır (niyet satırı da)
     await upsertActiveConnection(orgId, PROVIDER, { accessTokenEnc, refreshTokenEnc, tokenExpiresAt: tokens.expiresAt, label }, tx);
+    return true;
   });
+}
+
+// ---------------------------------------------------------------------------
+// BAĞLANTI NİYETİ (OAuth O2 + O5, Codex 11-10). "Hospitable ile Bağlan" akışı tarayıcıda dakikalarca açık kalabilir; dönüş geldiğinde
+// işletmenin bağlantısı çoktan değişmiş olabilir (ev sahibi başka sekmede bağlantıyı kaldırdı / elle anahtar girdi / akışı yeniden
+// başlattı). Eskiden geciken dönüş koşulsuz yazıyor, daha YENİ kararı eziyordu; aynı imzalı durum değeriyle dönüş adresi tekrar tekrar
+// çağrılabiliyor, her çağrı sağlayıcıya bir yetki kodu isteği gönderiyordu. Artık işletme başına TEK bekleyen niyet var (`SystemLock`
+// satırı, sahibi akışın durum değeri):
+//  · akış başlarken yazılır (öncekinin yerine geçer);
+//  · dönüş onu SAHİPLENİR (tek kullanımlık: süresi dolmuş / başkasıyla değiştirilmiş / zaten kullanılmış → reddedilir, sağlayıcıya
+//    istek gitmez); sahiplenilen satır yazım anına kadar yerinde kalır;
+//  · yazım (`setOrgHospitableOAuthTokens`) satırı AYNI işlemde siler — satır yoksa yazmaz;
+//  · bağlantıyı değiştiren her işlem (elle anahtar, kaldırma, başarılı OAuth) satırı kendi işleminde siler.
+// ---------------------------------------------------------------------------
+export function connectIntentLockName(orgId: string): string {
+  return `hospitable-connect-intent:${orgId}`;
+}
+
+/** OAuth akışı BAŞLARKEN: bu işletmenin bekleyen tek bağlantı niyeti bu akış olur. */
+export async function registerOAuthConnectIntent(orgId: string, state: string, ttlSeconds: number, now: Date = new Date()): Promise<void> {
+  const name = connectIntentLockName(orgId);
+  const lockedUntil = new Date(now.getTime() + ttlSeconds * 1000);
+  await prisma.systemLock.upsert({ where: { name }, create: { name, lockedUntil, holder: state }, update: { lockedUntil, holder: state } });
+}
+
+/**
+ * Dönüşte: bekleyen niyet hâlâ BU akışsa ve süresi dolmadıysa onu SAHİPLENİR (tek kullanımlık) ve yazımın sunacağı sahiplik değerini
+ * döndürür. Değilse null — akış geçersiz (yeniden başlatılmalı). Sahiplik değeri durum değerinden FARKLIDIR: aynı dönüş ikinci kez
+ * çağrılınca satır artık durum değerini taşımaz → reddedilir.
+ */
+export async function consumeOAuthConnectIntent(orgId: string, state: string, now: Date = new Date()): Promise<{ claim: string } | null> {
+  const claim = `${state}#${randomBytes(9).toString("base64url")}`;
+  const consumed = await prisma.systemLock.updateMany({
+    where: { name: connectIntentLockName(orgId), holder: state, lockedUntil: { gt: now } },
+    data: { holder: claim },
+  });
+  return consumed.count === 1 ? { claim } : null;
 }
 
 /** True when the org can talk to Hospitable (own token or primary env fallback). */
@@ -516,6 +658,7 @@ export async function setOrgHospitableToken(
         hospitableConnectedAt: new Date(),
       },
     });
+    await tx.systemLock.deleteMany({ where: { name: connectIntentLockName(orgId) } }); // bekleyen OAuth dönüşü bu kararı ezemez (O2)
     await upsertActiveConnection(orgId, PROVIDER, { accessTokenEnc, refreshTokenEnc: null, tokenExpiresAt: null, label }, tx);
   });
 }
@@ -533,6 +676,7 @@ export async function clearOrgHospitableToken(orgId: string): Promise<void> {
         hospitableConnectedAt: null,
       },
     });
+    await tx.systemLock.deleteMany({ where: { name: connectIntentLockName(orgId) } }); // bekleyen OAuth dönüşü bağlantıyı geri getiremez (O2)
     await markConnectionDisconnected(orgId, PROVIDER, tx);
   });
 }
