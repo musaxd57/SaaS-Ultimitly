@@ -3,7 +3,8 @@
     "allow": [
       "mcp__github__actions_list",
       "mcp__github__actions_get",
-      "mcp__github__get_job_logs"
+      "mcp__github__get_job_logs",
+      "mcp__github__actions_run_trigger"
     ]
   }
 }
