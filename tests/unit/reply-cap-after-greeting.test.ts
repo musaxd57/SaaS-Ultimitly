@@ -131,6 +131,17 @@ describe("gönderim tavanı selam eklendikten SONRAKİ metne uygulanır (Q1)", (
     expect(r.confidence).toBe(0.92);
   });
 
+  it("QR kaydı yapay zekâ cevabını KESMEZ — kayıt, misafire dönen metnin aynısıdır (kaynak pini)", async () => {
+    // Davranışla ulaşılamıyor: tavanı aşan cevap artık kapıdan geçmediği için kayıt yoluna 2.000'den uzun metin gelmez. Kesme satırının
+    // geri gelmesi ise tam bu bulguyu (misafirin gördüğü ≠ kayıt) yeniden açar → satırın YOKLUĞU pinlenir.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/app/api/chat/[token]/route.ts", "utf8");
+    expect(src).not.toMatch(/botReply\.slice\(/);
+    expect(src).toMatch(/senderName: "Lixus AI", body: botReply, language: "tr"/);
+    // Misafirin kendi mesajı girişte sınırlanır (bugünkü kural aynen).
+    expect(src).toMatch(/body: guestMessage\.slice\(0, MAX_MESSAGE\)/);
+  });
+
   it("ham metin zaten tavanın üstündeyse eski kural aynen: güven ≤ 0,5 (tek rapor)", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     openAiReturns(replyOfLength(2100));
