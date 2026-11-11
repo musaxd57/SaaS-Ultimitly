@@ -142,6 +142,16 @@ describe("ödeme P1 — eşzamanlı eski aboneliğin AKTİF olayı yeni aboneli�
     expect(row.lastEventAt?.toISOString()).toBe(b2); // ⬅️ taze olay kaybolmadı
   });
 
+  it("KONTROL: yerinden edilen aboneliğin AKTİF OLMAYAN olayı (iptal) sessizce düşer — alarm yok, yeniden karar yok (K4 akışı)", async () => {
+    expect((await post(sub("evt_a1", "sub_a", "active", at(240)))).status).toBe(200);
+    interleave = async () => {
+      expect((await post(sub("evt_b1", "sub_b", "active", at(120)))).status).toBe(200);
+    };
+    expect((await post(sub("evt_a2", "sub_a", "canceled", at(60)))).status).toBe(200);
+    expect(await state()).toMatchObject({ providerRef: "sub_b", status: "active" });
+    expect(alarms("paddle-webhook-older-subscription-event")).toHaveLength(0);
+  });
+
   it("araya ÜÇÜNCÜ bir abonelik girerse karar taze satırla yeniden verilir: C (en yeni) yine yerine geçer", async () => {
     expect((await post(sub("evt_a1", "sub_a", "active", at(240)))).status).toBe(200);
     // C aktifleşmesi satırı A olarak okudu; tam o arada B, A'nın yerine geçti.

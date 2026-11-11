@@ -274,6 +274,33 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect((await prisma.systemLock.findUniqueOrThrow({ where: { name: checkoutPendingLockName(orgId) } })).lockedUntil.getTime()).toBe(soon.getTime());
     });
 
+    it("🚨 P4 (Codex 11-10): BAŞKA ödemenin (başka onay kaydı) etkin abonelik olayı yeni ödemenin kilidini KALDIRMAZ; kendi olayı kaldırır", async () => {
+      // Yeni ödeme (onay Y) az önce tamamlandı → kilit Y'nin. O sırada eski aboneliğin (onay = `consentId`) etkin olayı gelir.
+      const user = await prisma.user.findFirstOrThrow({ where: { organizationId: orgId } });
+      const y = await prisma.checkoutConsent.create({
+        data: { organizationId: orgId, userId: user.id, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
+        select: { id: true },
+      });
+      expect((await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId: y.id }), ctx)).status).toBe(200);
+      expect((await postEvent(subEvent("sub_OLD", "active"))).status).toBe(200); // eski aboneliğin olayı (onay `consentId`)
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(1); // ⬅️ ESKİDE 0 (kilit adla siliniyordu)
+      // Yeni ödemenin KENDİ abonelik olayı (onay Y) kilidi kaldırır.
+      const own = subEvent("sub_NEW", "active");
+      expect((await postEvent({ ...own, data: { ...own.data, custom_data: { consentId: y.id } } })).status).toBe(200);
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(0);
+    });
+
+    it("KONTROL (P4): sahipsiz (eski biçim) kilidi her etkin abonelik olayı kaldırır; onay kaydı taşımayan olay sahipli kilide dokunmaz", async () => {
+      await prisma.systemLock.create({ data: { name: checkoutPendingLockName(orgId), lockedUntil: new Date(Date.now() + 60_000), holder: null } });
+      expect((await postEvent(subEvent("sub_A", "active"))).status).toBe(200);
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(0);
+
+      await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+      const bare = subEvent("sub_A", "active"); // kayıtlı abonelik → onay kaydı olmadan da işletmeye bağlanır
+      expect((await postEvent({ ...bare, data: { ...bare.data, custom_data: {} } })).status).toBe(200);
+      expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(1);
+    });
+
     it("🚨 'ödeme başarısız' olayı kilidi ANINDA kaldırır (kurucu: ödeme alınamazsa beklemesin); başka işletmenin olayı dokunmaz", async () => {
       await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
       const other = await prisma.organization.create({ data: { name: "Diğer" } });

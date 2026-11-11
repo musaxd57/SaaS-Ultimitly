@@ -23,7 +23,7 @@ describe("devam ettirme belirteci", () => {
   });
 
   it("🚨 ALAN AYRIMI: paket değiştirme belirteci devam ettirmede, devam belirteci paket değiştirmede GEÇMEZ", () => {
-    const plan = signPlanChangeToken({ org: "o1", priceId: "pri_pro", mode: "upgrade", amount: "₺899,00" });
+    const plan = signPlanChangeToken({ org: "o1", priceId: "pri_pro", mode: "upgrade", amount: "₺899,00", sub: "sub_1", from: "starter", fromPrice: null });
     expect(verifyResumeToken(plan)).toBeNull();
     const res = signResumeToken({ org: "o1", priceId: "pri_pro", amount: "₺899,00" });
     expect(verifyPlanChangeToken(res)).toBeNull();

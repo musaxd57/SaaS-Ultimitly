@@ -995,6 +995,18 @@ describe("codex round-5: pending settle via the REAL handler", () => {
     expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0);
   });
 
+  it("P4 (11-11): kilidin sahibi 'hedef fiyat#istek' biçimindeyken de hedef fiyatı taşıyan olay kilidi kaldırır; benzer önekli BAŞKA fiyat kaldırmaz", async () => {
+    await seedPending("pri_pro#jti_abc");
+    let body = subEvent("sub_p1b", "evt_p1b", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0);
+
+    await seedPending("pri_pro_yillik#jti_abc"); // "pri_pro" ile başlıyor ama başka fiyat
+    body = subEvent("sub_p1b", "evt_p1c", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(1);
+  });
+
   it("an applied event with a DIFFERENT price does NOT clear it (TTL will)", async () => {
     await seedPending("pri_isletme"); // pending targets business; event carries pri_pro
     const body = subEvent("sub_p2", "evt_p2", new Date().toISOString());

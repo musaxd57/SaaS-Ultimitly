@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPaddleConfigured, previewSubscriptionUpdate } from "@/lib/payments/paddle";
-import { planChangeEnabled, resolvePlanChange, signPlanChangeToken } from "@/lib/billing/plan-change";
+import { planChangeEnabled, planChangePendingLockName, resolvePlanChange, signPlanChangeToken } from "@/lib/billing/plan-change";
 
 // Preview an in-app plan change WITHOUT applying it, so the confirm dialog can show
 // the exact prorated charge Paddle will make. Gated behind PADDLE_PLAN_CHANGE_ENABLED
@@ -22,7 +22,7 @@ export const POST = withOwner(async (session, req) => {
 
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
-  const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
+  const pending = await prisma.systemLock.findUnique({ where: { name: planChangePendingLockName(session.organizationId) } });
   if (pending && pending.lockedUntil > new Date()) {
     return NextResponse.json(
       { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
@@ -38,6 +38,10 @@ export const POST = withOwner(async (session, req) => {
     priceId: r.priceId,
     mode: r.mode,
     amount: preview?.immediateTotal ?? null,
+    // Kaynak (ödeme P3): bu önizleme HANGİ abonelik / plan / fiyat üzerinde yapıldı — uygulama aynı kaynağı ister.
+    sub: r.providerRef,
+    from: r.currentCode,
+    fromPrice: r.currentPriceId,
   });
   return jsonOk({
     mode: r.mode, // "upgrade" | "downgrade"

@@ -66,6 +66,8 @@ export type ResolvedPlanChange =
       ok: true;
       providerRef: string;
       currentCode: string;
+      /** Aboneliğin Paddle'daki ŞU ANKİ fiyatı — yalnız bu çağrıda zaten okunduysa (yıllık fiyat yapılandırılmışken); yoksa null. */
+      currentPriceId: string | null;
       mode: Exclude<PlanChangeMode, "same" | "unknown">;
       proration: ProrationMode;
       priceId: string;
@@ -173,8 +175,9 @@ export async function resolvePlanChange(
     process.env.PADDLE_PRICE_PRO_YILLIK?.trim(),
     process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim(),
   ].filter((v): v is string => Boolean(v));
+  let currentPriceId: string | null = null;
   if (annualIds.length > 0) {
-    const currentPriceId = await getSubscriptionCurrentPriceId(sub.providerRef);
+    currentPriceId = await getSubscriptionCurrentPriceId(sub.providerRef);
     if (!currentPriceId || annualIds.includes(currentPriceId)) {
       return {
         ok: false,
@@ -199,6 +202,7 @@ export async function resolvePlanChange(
     ok: true,
     providerRef: sub.providerRef,
     currentCode: sub.planCode,
+    currentPriceId,
     mode,
     proration: prorationModeFor(mode),
     priceId,
@@ -213,6 +217,10 @@ export async function resolvePlanChange(
 // route REQUIRES it and re-checks it against the resolved change + session. So the
 // apply endpoint can't be called blind (no preview), can't be reused for a
 // different plan/price, and can't be replayed after it expires.
+// 🚨 KAYNAK DA BAĞLI (ödeme P3, Codex 11-10): onay yalnız HEDEFİ (fiyat + yön) bağlıyordu. Müşteri önizlemeyi gördükten sonra abonelik
+// başka bir sekmede değişirse (başka plana geçiş, yeni abonelik) eski onay — özellikle anlık tutarı olmayan düşürmede (tutar kıyası iki
+// tarafta da boş) — YENİ durumun üstüne uygulanabiliyordu. Belirteç artık önizlemenin yapıldığı aboneliği (`sub`), o anki planı (`from`) ve
+// biliniyorsa Paddle'daki o anki fiyatı (`fromPrice`) taşır; uygulama üçünü de yeniden karşılaştırır (`planChangeSourceMatches`).
 // ---------------------------------------------------------------------------
 
 const PLAN_TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -222,6 +230,9 @@ type PlanTokenPayload = {
   priceId: string;
   mode: "upgrade" | "downgrade";
   amount: string | null; // the immediate charge shown at preview (bound + re-checked at apply)
+  sub: string; // önizlemenin yapıldığı abonelik (sağlayıcı kimliği)
+  from: string; // önizleme anındaki plan kodu
+  fromPrice: string | null; // önizleme anında Paddle'daki fiyat (okunduysa)
   jti: string; // single-use nonce (consumed once at apply — expiry is NOT single-use)
   exp: number;
 };
@@ -269,7 +280,37 @@ export function verifyPlanChangeToken(token: string | undefined | null): PlanTok
   }
   if (!payload || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
   if (typeof payload.jti !== "string" || payload.jti.length === 0) return null; // single-use id required
+  // Kaynağı bağlamayan (eski biçim) belirteç geçersiz: müşteri tutarı yeniden onaylar (en çok 10 dk'lık belirteçler etkilenir).
+  if (typeof payload.sub !== "string" || payload.sub.length === 0 || typeof payload.from !== "string" || payload.from.length === 0) return null;
+  if (payload.fromPrice !== null && typeof payload.fromPrice !== "string") return null;
   return payload;
+}
+
+/**
+ * Onayın KAYNAĞI hâlâ geçerli mi: aynı abonelik + aynı plan; Paddle'daki fiyat iki tarafta da biliniyorsa o da aynı (ödeme P3).
+ * `currentPriceId` uygulama anında Paddle'dan okunan fiyat (bilinmiyorsa null → yalnız abonelik + plan karşılaştırılır).
+ */
+export function planChangeSourceMatches(
+  token: Pick<PlanTokenPayload, "sub" | "from" | "fromPrice">,
+  now: { providerRef: string; currentCode: string; currentPriceId: string | null },
+): boolean {
+  if (token.sub !== now.providerRef || token.from !== now.currentCode) return false;
+  return !(token.fromPrice && now.currentPriceId && token.fromPrice !== now.currentPriceId);
+}
+
+// ---------------------------------------------------------------------------
+// "Plan değişikliği işleniyor" kilidi (`SystemLock`, işletme başına tek satır). SAHİBİ = "hedef fiyat#istek kimliği" (ödeme P4, Codex 11-10):
+// kilit adla siliniyordu → bir isteğin temizliği (ör. "zaten hedefteyiz" dalı) o arada başka bir isteğin aldığı kilidi silebiliyor, üçüncü
+// istek ikinci PATCH'i sürerken Paddle'a gidebiliyordu. İstek yalnız KENDİ kilidini siler; webhook hedef fiyat önekiyle eşleşir.
+// ---------------------------------------------------------------------------
+export function planChangePendingLockName(organizationId: string): string {
+  return `plan-change-pending:${organizationId}`;
+}
+export function planChangePendingHolderPrefix(priceId: string): string {
+  return `${priceId}#`;
+}
+export function planChangePendingHolder(priceId: string, jti: string): string {
+  return `${planChangePendingHolderPrefix(priceId)}${jti}`;
 }
 
 // ---------------------------------------------------------------------------

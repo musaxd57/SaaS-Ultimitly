@@ -7,13 +7,13 @@ Durum sütunu ilerledikçe güncellenir: `açık` → `düzeltildi (commit)` / `
 ## Ödeme (webhook `api/webhooks/paddle/route.ts`, `lib/billing/**`)
 | No | Bulgu | Bugünkü kod | Durum |
 |---|---|---|---|
-| P1 | Eşzamanlılıkta eski aboneliğin AKTİF olayı yeni aboneliğin üstüne dönebiliyor (aktif olayda yazma koşulunda abonelik kimliği yok; `getSubscriptionCreatedAt` boş dönerse açık geçiyor) | geçerli (kısmen: aktif olmayan olay korumalı) | açık |
-| P2 | Ödenmiş işlemden sonra ikinci ödeme ekranı aralığı (`completeCheckoutIntent`: önce `openKey: null`, sonra `markPaidPending`; hata yutuluyor, tekrar onarmıyor) | geçerli | açık |
-| P3 | Eski plan önizlemesi (belirteç kaynak plan / abonelik sürümünü bağlamıyor; yeniden önizleme ile PATCH arası koşulsuz) | kısmen (yön değişimi yakalanıyor) | açık |
-| P4 | Eski isteğin temizliği yeni isteğin kilidini siliyor (`clearPending`, `clearCheckoutPending` adla siliyor, sahip yok) | geçerli | açık |
-| P5 | Hesap silme–ödeme yarışında P2002 yedek dalı 0 satırda alarmsız dönüyor | geçerli | açık |
-| P6 | Plan değişikliği başarılı ama gövde okunamazsa "planınız değişmedi" + yenileme yok | geçerli | açık |
-| P7 | "Ödeme işleniyor" ile açılan sayfa kendiliğinden yeniden bakmıyor; sonradan gelen bekleme uygulanmıyor | geçerli | açık |
+| P1 | Eşzamanlılıkta eski aboneliğin AKTİF olayı yeni aboneliğin üstüne dönebiliyor (aktif olayda yazma koşulunda abonelik kimliği yok; `getSubscriptionCreatedAt` boş dönerse açık geçiyor) | geçerli (kısmen: aktif olmayan olay korumalı) | **düzeltildi** — aktif olay da okuduğu abonelik kimliğine bağlı yazar; yerinden edilen aboneliğin olayı düşer + alarm; araya başka abonelik girdiyse karar yeniden; yaş ŞU AN okunamıyorsa 500 (Paddle yeniden gönderir). KALAN SORU: yaş KESİN bilinmezse (abonelik Paddle'da yok) kurucu 11-04 kuralı sürüyor → kalıcı çözüm aboneliğin oluşturulma zamanını satırda saklamak (yeni sütun, migration onayı ister) |
+| P2 | Ödenmiş işlemden sonra ikinci ödeme ekranı aralığı (`completeCheckoutIntent`: önce `openKey: null`, sonra `markPaidPending`; hata yutuluyor, tekrar onarmıyor) | geçerli | **düzeltildi** — önce kilit, sonra niyet kapanır (üç yolda); kilit yazılamazsa niyet açık kalır ve olay yeniden gelince onarılır; yer boşalınca kilit + canlı abonelik yeniden bakılır |
+| P3 | Eski plan önizlemesi (belirteç kaynak plan / abonelik sürümünü bağlamıyor; yeniden önizleme ile PATCH arası koşulsuz) | kısmen (yön değişimi yakalanıyor) | **düzeltildi** — onay kaynağı da bağlar (abonelik + plan + biliniyorsa Paddle fiyatı); kilit alındıktan sonra Paddle fiyatıyla son bakış |
+| P4 | Eski isteğin temizliği yeni isteğin kilidini siliyor (`clearPending`, `clearCheckoutPending` adla siliyor, sahip yok) | geçerli | **düzeltildi** — plan değişikliği kilidinin sahibi "hedef fiyat#istek"; "ödemeniz işleniyor" kilidini yalnız kendi ödemesinin (onay kaydı) olayı kaldırır |
+| P5 | Hesap silme–ödeme yarışında P2002 yedek dalı 0 satırda alarmsız dönüyor | geçerli | **düzeltildi** — alarm + inceleme |
+| P6 | Plan değişikliği başarılı ama gövde okunamazsa "planınız değişmedi" + yenileme yok | geçerli | **düzeltildi** — sonuç bilinmiyorsa var olan "onay bekleniyor" metni + sayfa yenilenir (yeni metin yok) |
+| P7 | "Ödeme işleniyor" ile açılan sayfa kendiliğinden yeniden bakmıyor; sonradan gelen bekleme uygulanmıyor | geçerli | **düzeltildi** — kilit sürdükçe 8 sn'de bir yeniden bakar (en çok kilit süresi); kilit iki yönlü uygulanır |
 
 ## Mesajlaşma (`lib/host-send.ts`, `lib/outbound-claim.ts`, `lib/automation.ts`, gelen kutusu)
 | No | Bulgu | Bugünkü kod | Durum |
@@ -50,7 +50,7 @@ Durum sütunu ilerledikçe güncellenir: `açık` → `düzeltildi (commit)` / `
 | A3 | Şifre sıfırlama sayfası aynı sekmede yalnız `#` değişince okumuyor | geçerli | açık |
 | A4 | Geçerli doğrulama bağlantısında işlem yapılmadan hata | ajan: düzelmiş | doğrula |
 | A5 | Giriş ekranında "yeniden gönder" bekleme sonrası geri gelmiyor | geçerli | açık |
-| A6 | Plan onayında klavye odağı yönetilmiyor | geçerli | açık |
+| A6 | Plan onayında klavye odağı yönetilmiyor | geçerli | **düzeltildi** — panel açılınca odak panele, kapanınca açan düğmeye |
 
 ## QR / kapı / erken giriş
 | No | Bulgu | Bugünkü kod | Durum |

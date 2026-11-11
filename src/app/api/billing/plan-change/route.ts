@@ -13,6 +13,9 @@ import {
 import {
   consumePlanChangeNonce,
   planChangeEnabled,
+  planChangePendingHolder,
+  planChangePendingLockName,
+  planChangeSourceMatches,
   releasePlanChangeNonce,
   resolvePlanChange,
   verifyPlanChangeToken,
@@ -42,7 +45,7 @@ export const POST = withOwner(async (session, req) => {
   // PENDING guard (Codex): after an AMBIGUOUS apply we must not fire a second
   // PATCH via a fresh preview+token until the first is settled (webhook clears
   // the lock; 15-min TTL self-heals if it never arrives).
-  const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
+  const pending = await prisma.systemLock.findUnique({ where: { name: planChangePendingLockName(session.organizationId) } });
   if (pending && pending.lockedUntil > new Date()) {
     return NextResponse.json(
       { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
@@ -58,6 +61,11 @@ export const POST = withOwner(async (session, req) => {
     return badRequest({ error: "Tutar onayının süresi doldu. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
   if (token.org !== session.organizationId || token.priceId !== r.priceId || token.mode !== r.mode) {
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+  // 🚨 KAYNAK (ödeme P3, Codex 11-10): onay, önizlemenin yapıldığı abonelik + plan (+ biliniyorsa Paddle fiyatı) için geçerli. Müşteri
+  // önizlemeyi gördükten sonra aboneliği değiştiyse (başka sekmede plan değişti / yeni abonelik) eski onay yeni durumun üstüne uygulanmaz.
+  if (!planChangeSourceMatches(token, r)) {
     return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
 
@@ -97,11 +105,43 @@ export const POST = withOwner(async (session, req) => {
     );
   }
 
+  // FAIL-CLOSED + ATOMIC pending claim BEFORE the PATCH (Codex round-4): the
+  // upsert version was not a claim — two CONCURRENT applies with two different
+  // valid tokens both passed the fast-path check and both PATCHed. updateMany on
+  // a free slot is the arbiter (same pattern as the sync lock); the holder field
+  // records the TARGET priceId so the webhook only settles the matching change.
+  // Kilidin sahibi bu İSTEK (hedef fiyat#belirteç kimliği — ödeme P4): aşağıdaki temizlikler yalnız bu isteğin kilidini siler.
+  const pendingHolder = planChangePendingHolder(r.priceId, token.jti);
+  let pendingClaimed = false;
+  try {
+    const name = planChangePendingLockName(session.organizationId);
+    await prisma.systemLock.upsert({ where: { name }, create: { name, lockedUntil: new Date(0) }, update: {} });
+    const claim = await prisma.systemLock.updateMany({
+      where: { name, lockedUntil: { lte: new Date() } },
+      data: { lockedUntil: new Date(Date.now() + 15 * 60_000), holder: pendingHolder },
+    });
+    pendingClaimed = claim.count === 1;
+  } catch {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  if (!pendingClaimed) {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json(
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
+      { status: 409 },
+    );
+  }
+  const clearPending = () =>
+    prisma.systemLock.deleteMany({ where: { name: planChangePendingLockName(session.organizationId), holder: pendingHolder } }).catch(() => {});
+
   // Already on the target (e.g. a prior ambiguous apply DID land): success without
   // another PATCH (Codex: never re-PATCH what is already applied).
+  // 🚨 Bu okuma artık kilit ALINDIKTAN sonra (ödeme P3 + P4): önceden kilitten önce okunuyor ve kilit ADLA siliniyordu — o arada başka bir
+  // isteğin aldığı kilit de gidiyordu. Kilit bizdeyken başka plan değişikliği araya giremez → okunan fiyat PATCH anına kadar geçerli.
   const alreadyOn = await getSubscriptionCurrentPriceId(r.providerRef);
   if (alreadyOn === r.priceId) {
-    await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
+    await clearPending();
     // 🚨 BU DAL DENETİM İZİ BIRAKMIYORDU (08-09 (2)). `writeAudit` aşağıda ve bu
     // erken dönüş onu ATLIYORDU → para rotasında, müşteriye "başarılı" denen bir
     // sonuç HİÇBİR iz bırakmadan geçiyordu. Kardeş "ambiguous → reconciled" dalı
@@ -124,33 +164,13 @@ export const POST = withOwner(async (session, req) => {
     }).catch(() => {});
     return jsonOk({ ok: true, mode: r.mode, reconciled: true });
   }
-  // FAIL-CLOSED + ATOMIC pending claim BEFORE the PATCH (Codex round-4): the
-  // upsert version was not a claim — two CONCURRENT applies with two different
-  // valid tokens both passed the fast-path check and both PATCHed. updateMany on
-  // a free slot is the arbiter (same pattern as the sync lock); the holder field
-  // records the TARGET priceId so the webhook only settles the matching change.
-  let pendingClaimed = false;
-  try {
-    const name = `plan-change-pending:${session.organizationId}`;
-    await prisma.systemLock.upsert({ where: { name }, create: { name, lockedUntil: new Date(0) }, update: {} });
-    const claim = await prisma.systemLock.updateMany({
-      where: { name, lockedUntil: { lte: new Date() } },
-      data: { lockedUntil: new Date(Date.now() + 15 * 60_000), holder: r.priceId },
-    });
-    pendingClaimed = claim.count === 1;
-  } catch {
+  // Kaynak son kez (ödeme P3): yukarıdaki kaynak karşılaştırması ile kilit arasında başka bir plan değişikliği TAMAMLANMIŞ olabilir (yerel
+  // satırı webhook güncelleyene kadar eski planı gösterir). Paddle'daki fiyat okunabildiyse ve önizlemedeki kaynak fiyattan farklıysa uygulanmaz.
+  if (!planChangeSourceMatches(token, { providerRef: r.providerRef, currentCode: r.currentCode, currentPriceId: alreadyOn })) {
+    await clearPending();
     await releasePlanChangeNonce(token.jti);
-    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
-  if (!pendingClaimed) {
-    await releasePlanChangeNonce(token.jti);
-    return NextResponse.json(
-      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
-      { status: 409 },
-    );
-  }
-  const clearPending = () =>
-    prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration, session.organizationId);
   if (!result.ok) {
     if (result.kind === "definitive") {

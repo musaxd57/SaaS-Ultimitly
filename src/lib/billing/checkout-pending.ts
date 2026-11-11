@@ -34,9 +34,17 @@ export async function markCheckoutPending(organizationId: string, consentId: str
   await prisma.systemLock.updateMany({ where: { name, OR: [{ holder: null }, { holder: { not: consentId } }] }, data: { lockedUntil, holder: consentId } });
 }
 
-/** Abonelik aktif yazıldı → kilit kalkar. Hata webhook'u düşürmez (kilit zaten süreyle düşer). */
-export async function clearCheckoutPending(organizationId: string): Promise<void> {
-  await prisma.systemLock.deleteMany({ where: { name: checkoutPendingLockName(organizationId) } }).catch(() => {});
+/**
+ * Abonelik aktif yazıldı → kilit kalkar. Hata webhook'u düşürmez (kilit zaten süreyle düşer).
+ * 🚨 YALNIZ KENDİ ÖDEMESİNİN KİLİDİ (ödeme P4, Codex 11-10): kilit adla (işletme) siliniyordu → başka bir aboneliğin etkin olayı (ör. eski
+ * aboneliğin güncellemesi / devam ettirilmesi), az önce tamamlanan YENİ ödemenin kilidini kaldırıp ikinci ödeme ekranına yol açabiliyordu.
+ * Artık olayın onay kaydı kilidin sahibiyle aynıysa (ya da kilit sahipsizse — eski satır) silinir; olay onay kaydı taşımıyorsa yalnız sahipsiz
+ * kilit silinir. Eşleşmeyen kilit en çok 10 dk'da kendiliğinden düşer (o sürede canlı abonelik kontrolü yeni ödemeyi zaten engeller).
+ */
+export async function clearCheckoutPending(organizationId: string, consentId: string | null): Promise<void> {
+  await prisma.systemLock
+    .deleteMany({ where: { name: checkoutPendingLockName(organizationId), OR: [{ holder: null }, ...(consentId ? [{ holder: consentId }] : [])] } })
+    .catch(() => {});
 }
 
 export type FailureLockOutcome = "cleared" | "no_lock" | "other_checkout" | "paid" | "unknown" | "no_identity";

@@ -5,7 +5,8 @@ import { paddleRequest } from "@/lib/payments/paddle";
 import { PADDLE_PAID_STATES, PADDLE_TXN_NOT_FOUND, paddleTransactionStatus } from "@/lib/billing/paddle-transaction-status";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { reportError } from "@/lib/report-error";
-import { markCheckoutPending } from "@/lib/billing/checkout-pending";
+import { checkoutPendingActive, markCheckoutPending } from "@/lib/billing/checkout-pending";
+import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
 
 // ---------------------------------------------------------------------------
 // ÖDEME NİYETİ — İŞLETME BAŞINA TEK AÇIK PADDLE İŞLEMİ (Codex 10-21 P1, migration 82; tasarım
@@ -70,9 +71,34 @@ const transactionStatus = paddleTransactionStatus;
 /**
  * Ödendiği SUNUCUDA görüldü (Paddle durumu ya da webhook) → "Ödemeniz işleniyor" kilidi sunucuda da yazılır (Opus 10-21 B1): yoksa kilidi
  * yalnız istemci yazıyordu — sekme kapandıysa ikinci tıklama niyeti boş bulup YENİ işlem açıyordu. Abonelik webhook'u kilidi kaldırır.
+ *
+ * 🚨 SIRA: ÖNCE KİLİT, SONRA NİYET KAPANIR (ödeme P2, Codex 11-10). Eski sırada (niyet kapanır → kilit yazılır) arada ne açık niyet ne kilit
+ * vardı: tam o anda gelen ikinci tıklama yeni işlem açabiliyordu (çift tahsilat). Kilit yazımı hata verirse de niyet kapalı kalıyor, yeniden
+ * gelen olay "açık niyet yok" deyip hiçbir şeyi onarmıyordu. Artık kilit yazılamazsa niyet AÇIK KALIR: ödenmiş işlemin açık niyeti yeni işlem
+ * açtırmaz (sonraki onay Paddle durumunu okuyup "ödendi" der ve yeniden dener; süpürge de aynı yoldan kapatır). Fırlatmaz.
  */
-async function markPaidPending(organizationId: string, consentId: string, now: Date): Promise<void> {
-  await markCheckoutPending(organizationId, consentId, now).catch((err) => void reportError("checkout-intent-pending", err));
+async function settlePaidIntent(intent: { id: string; organizationId: string; consentId: string }, now: Date): Promise<void> {
+  try {
+    await markCheckoutPending(intent.organizationId, intent.consentId, now);
+  } catch (err) {
+    void reportError("checkout-intent-pending", err);
+    return; // kilit yok → niyet açık kalır (koruma sürer)
+  }
+  await prisma.checkoutIntent.updateMany({
+    where: { id: intent.id, status: { in: ["open", "opening"] } },
+    data: { status: "completed", openKey: null, closedAt: now },
+  });
+}
+
+/**
+ * Yer (tek açık niyet) BU istek için boşaldı — ama boşalmanın nedeni "ödendi" olabilir (ödeme P2): onay rotası "kilit var mı / canlı abonelik
+ * var mı" diye baktıktan SONRA ödeme tamamlanıp niyet kapanmış olabilir. Kilit niyet kapanmadan ÖNCE yazıldığı için (↑) burada mutlaka
+ * görünür; kilidi abonelik webhook'u bu arada kaldırdıysa canlı abonelik satırı görünür. İkisinden biri varsa yeni Paddle işlemi AÇILMAZ.
+ */
+async function paidWhileWaiting(organizationId: string, now: Date): Promise<boolean> {
+  if (await checkoutPendingActive(organizationId, now)) return true;
+  const live = await prisma.subscription.findUnique({ where: { organizationId }, select: { provider: true, providerRef: true, status: true } });
+  return isLivePaddleSubscription(live);
 }
 
 /** Ödenmemiş işlemi Paddle'da iptal eder; başarılıysa true. */
@@ -118,9 +144,8 @@ async function closeStale(organizationId: string, now: Date): Promise<{ paidFoun
     // niyet kapanır (iptal edilemeyen ödenmemiş işlemin ödemesi webhook'ta bugünkü yoldan onaya bağlanır).
     const status = e.providerRef ? await transactionStatus(e.providerRef) : null;
     if (status && PAID_STATES.has(status)) {
-      paidFound = true; // eşzamanlı istek satırı önce kapatmış olsa da (count 0) ödeme gerçek — bu istek de yeni işlem açmaz
-      const done = await prisma.checkoutIntent.updateMany({ where: { id: e.id, status: "open" }, data: { status: "completed", openKey: null, closedAt: now } });
-      if (done.count === 1) await markPaidPending(organizationId, e.consentId, now);
+      paidFound = true; // eşzamanlı istek satırı önce kapatmış olsa da ödeme gerçek — bu istek de yeni işlem açmaz
+      await settlePaidIntent({ id: e.id, organizationId, consentId: e.consentId }, now);
       continue;
     }
     // İptal başarısız / belirsizse yer BOŞALTILMAZ (Haiku 10-21 #1): eski işlem hâlâ ödenebilirken ikinci işlem açılmasın — niyet açık kalır,
@@ -178,7 +203,13 @@ export async function openOrReuseCheckoutIntent(input: {
       if (!isUniqueViolation(err, ["openKey"])) throw err;
     }
 
-    if (created) return createTransaction(created.id, input, now);
+    if (created) {
+      if (await paidWhileWaiting(input.organizationId, now)) {
+        await prisma.checkoutIntent.updateMany({ where: { id: created.id, status: "opening" }, data: { status: "canceled", openKey: null, closedAt: now } });
+        return { kind: "paid" };
+      }
+      return createTransaction(created.id, input, now);
+    }
 
     // Başka bir açık niyet var.
     const existing = await prisma.checkoutIntent.findUnique({
@@ -190,8 +221,7 @@ export async function openOrReuseCheckoutIntent(input: {
     if (existing.status === "opening" || !existing.providerRef) return { kind: "busy", message: CHECKOUT_INTENT_OPENING_MESSAGE };
     const status = await transactionStatus(existing.providerRef);
     if (status && PAID_STATES.has(status)) {
-      await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open" }, data: { status: "completed", openKey: null, closedAt: now } });
-      await markPaidPending(input.organizationId, existing.consentId, now);
+      await settlePaidIntent({ id: existing.id, organizationId: input.organizationId, consentId: existing.consentId }, now);
       return { kind: "paid" };
     }
     // İşlem Paddle'da zaten iptal edilmişse (ör. önceki iptal çağrısı zaman aşımına uğradı ama uygulandı) ölü işlem yeniden verilmez — niyet
@@ -272,12 +302,9 @@ export async function completeCheckoutIntent(transactionId: string, now: Date = 
       select: { id: true, organizationId: true, consentId: true },
     });
     if (!intent) return;
-    const done = await prisma.checkoutIntent.updateMany({
-      where: { id: intent.id, status: { in: ["open", "opening"] } },
-      data: { status: "completed", openKey: null, closedAt: now },
-    });
-    // İşlem olayı abonelik olayından ÖNCE gelebilir (Paddle sırası garanti değil): niyet boşalınca ikinci tıklama yeni işlem açmasın (B1).
-    if (done.count === 1) await markPaidPending(intent.organizationId, intent.consentId, now);
+    // İşlem olayı abonelik olayından ÖNCE gelebilir (Paddle sırası garanti değil): niyet boşalınca ikinci tıklama yeni işlem açmasın (B1) —
+    // kilit niyet kapanmadan önce yazılır (P2).
+    await settlePaidIntent(intent, now);
   } catch (err) {
     void reportError("checkout-intent-complete", err);
   }

@@ -116,6 +116,9 @@ export interface PlanOption {
  * server only renders this when Paddle is configured (client token + price ids),
  * and the paywall (BILLING_ENFORCED) stays off — this is opt-in upgrade UI.
  */
+/** "Ödemeniz işleniyor" ile açılan sayfa bu aralıkla kendiliğinden yeniden bakar (kilit sürdükçe; en çok kilit süresi kadar). */
+export const PROCESSING_RECHECK_MS = 8_000;
+
 export function PaddlePlans({
   clientToken,
   environment,
@@ -218,11 +221,42 @@ export function PaddlePlans({
   const [processing, setProcessing] = useState(checkoutPending);
   // Sunucu kilidi kalkınca (webhook geldi, sayfa yenilendi) kart da açılır (Claude 2. dalga arayüz P1-b): durum yalnız ilk değerle kuruluyordu,
   // sayfa yenilense de "Ödemeniz işleniyor" kalıyordu. Yerel tamamlama sinyali (↓ checkout.completed) bunu ezmez — yalnız sunucu "bitti" derse.
+  // 🚨 İKİ YÖNLÜ (ödeme P7, Codex 11-10): yalnız "bitti" uygulanıyordu — sayfa açıkken sunucu kilidi SONRADAN geldiyse (ödeme başka sekmede
+  // tamamlandı, bu sayfa yenilendi) kartlar açık kalıyordu.
   useEffect(() => {
-    if (!checkoutPending) setProcessing(false);
+    setProcessing(Boolean(checkoutPending));
   }, [checkoutPending]);
+  // 🚨 KENDİLİĞİNDEN YENİDEN BAKAR (ödeme P7): sayfa "Ödemeniz işleniyor" ile açıldıysa (ödeme başka sekmede / önceki ziyarette tamamlandı)
+  // hiçbir şey yeniden bakmıyordu — abonelik yazıldıktan sonra da müşteri sayfayı elle yenileyene kadar kilitli ekran kalıyordu. Kilit
+  // sürdükçe sayfa aralıklarla yenilenir; kilit kalkınca (ya da kilit süresi dolunca) durur.
+  useEffect(() => {
+    if (!checkoutPending) return;
+    const tick = setInterval(() => router.refresh(), PROCESSING_RECHECK_MS);
+    const stop = setTimeout(() => clearInterval(tick), CHECKOUT_PENDING_MS + PROCESSING_RECHECK_MS);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(stop);
+    };
+  }, [checkoutPending, router]);
   // Son açılan ödeme ekranının onay kaydı — tamamlanma sinyali sunucuya bununla gider (kilit yalnız kendi işletmesinin yeni onayıyla yazılır).
   const lastConsentRef = useRef<string | null>(null);
+  // Onay paneli plan kartlarının ÜSTÜNDE açılır (Codex 11-10 "plan onayında klavye odağı"): klavye / ekran okuyucu kullanıcısı düğmeye
+  // bastığında hiçbir şey olmamış gibi kalıyordu. Panel açılınca odak panele geçer; kapanınca paneli açan düğmeye döner.
+  const confirmPanelRef = useRef<HTMLDivElement | null>(null);
+  const changeTriggerRef = useRef<HTMLElement | null>(null);
+  const hadPanelRef = useRef(false);
+  const panelToken = pending?.previewToken ?? null;
+  useEffect(() => {
+    if (panelToken) {
+      hadPanelRef.current = true;
+      confirmPanelRef.current?.focus();
+      return;
+    }
+    if (!hadPanelRef.current) return;
+    hadPanelRef.current = false;
+    const trigger = changeTriggerRef.current;
+    if (trigger?.isConnected) trigger.focus();
+  }, [panelToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,6 +440,9 @@ export function PaddlePlans({
   // Step 1: preview the change (Paddle computes the exact prorated charge) and open
   // the confirm panel. Never applies anything by itself.
   const startChange = useCallback(async (planCode: string, noticeOnSuccess?: string) => {
+    // Paneli açan düğme (kapanınca odak buraya döner). "Tutar değişti" yeniden hesaplamasında etkin öğe panelin kendi düğmesidir → korunur.
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    if (active instanceof HTMLElement && !confirmPanelRef.current?.contains(active)) changeTriggerRef.current = active;
     if (changeBusy) return;
     setError(null);
     setNotice(null);
@@ -482,7 +519,11 @@ export function PaddlePlans({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ planCode: pending.planCode, previewToken: pending.previewToken }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
+      let bodyRead = true;
+      const data = (await res.json().catch(() => {
+        bodyRead = false;
+        return {};
+      })) as {
         error?: string;
         fields?: Record<string, string>;
         ok?: boolean;
@@ -491,7 +532,11 @@ export function PaddlePlans({
         pendingVerification?: boolean;
         correlationId?: string;
       };
-      if (data.pending) {
+      // 🚨 SONUÇ BİLİNMİYOR (ödeme P6, Codex 11-10): cevabın gövdesi okunamadı (bağlantı yarıda kesildi / araya giren sunucu kendi sayfasını
+      // döndürdü) ve durum başarılı ya da 5xx → değişiklik UYGULANMIŞ olabilir. Eskiden "planınız değişmedi" yazıyor, sayfa da yenilenmiyordu
+      // (müşteri tahsil edilmiş bir yükseltmeyi yeniden deniyordu). Artık "onay bekleniyor" + sayfa yenilenir. 4xx bizim kendi (okunur) cevabımızdır.
+      const unknownOutcome = !bodyRead && (res.ok || res.status >= 500);
+      if (data.pending || unknownOutcome) {
         // Ambiguous Paddle outcome (timeout/5xx): it may already be applied. We do NOT
         // re-send. Close the dialog and let the webhook settle the plan on refresh.
         setPending(null);
@@ -523,6 +568,8 @@ export function PaddlePlans({
       }
     } catch {
       setError(BILLING_TEXT.network);
+      // İstek sunucuya ULAŞMIŞ olabilir (cevap yolda kayboldu): değişiklik uygulandıysa ekran kendiliğinden güncellensin (P6).
+      refreshAfterBilling(router);
     } finally {
       setChangeBusy(false);
     }
@@ -614,8 +661,14 @@ export function PaddlePlans({
       ) : null}
 
       {pending ? (
-        <div className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3">
-          <p className="text-sm">
+        <div
+          ref={confirmPanelRef}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby="plan-change-summary"
+          className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <p id="plan-change-summary" className="text-sm">
             {pending.mode === "upgrade" ? (
               pending.immediateTotal ? (
                 <>

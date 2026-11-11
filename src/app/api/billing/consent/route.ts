@@ -7,6 +7,7 @@ import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
 import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
 import { getEntitlement, planFitsPropertyCount } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
@@ -94,7 +95,7 @@ export const POST = withOwner(async (session, req) => {
     where: { organizationId: session.organizationId },
     select: { provider: true, providerRef: true, status: true },
   });
-  if (live?.provider === "paddle" && live.providerRef && live.status !== "canceled") {
+  if (isLivePaddleSubscription(live)) {
     return badRequest({
       _: "Bu işletmenin zaten aktif bir aboneliği var. Plan değiştirmek için Faturalandırma bölümünü kullanın.",
     });

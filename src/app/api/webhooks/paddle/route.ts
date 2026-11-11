@@ -8,6 +8,7 @@ import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { clearBadSignatureThrottle, noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
 import { clearCheckoutPending, clearCheckoutPendingOnFailure } from "@/lib/billing/checkout-pending";
+import { planChangePendingHolderPrefix, planChangePendingLockName } from "@/lib/billing/plan-change";
 import { PADDLE_PAID_STATES, paddleTransactionStatus } from "@/lib/billing/paddle-transaction-status";
 import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -84,6 +85,12 @@ function consentAcceptable(createdAt: Date, occurredAt: Date | null, now: number
     return age <= CONSENT_TTL_MS; // consent too old at payment time → stale
   }
   return now - createdAt.getTime() <= CONSENT_TTL_MS; // no signed time → arrival-time fallback
+}
+
+/** Olayın taşıdığı onay kaydı kimliği (`custom_data.consentId`); yoksa / biçimsizse null. */
+function consentIdFromData(data: Record<string, unknown> | undefined): string | null {
+  const cd = data?.custom_data && typeof data.custom_data === "object" ? (data.custom_data as Record<string, unknown>) : null;
+  return cd && typeof cd.consentId === "string" && cd.consentId.length > 0 && cd.consentId.length <= 64 ? cd.consentId : null;
 }
 
 /** First subscription/transaction item's Paddle price id, if any. */
@@ -455,14 +462,16 @@ async function applySubscriptionEventOnce(
   // (ordering guard passed) AND it carries the pending TARGET price (holder) —
   // an unrelated subscription event must not clear someone else's guard.
   const eventPriceId = eventPriceIdFromData(data);
+  const eventConsentId = consentIdFromData(data);
   const settlePending = async () => {
     // Olay günlüğü (takip numarası): abonelik satırı bu olayla GERÇEKTEN yazıldı (sıra koruması geçti).
     await logEvent("billing.subscription.applied", { status, plan: planCode ?? undefined, subscriptionRef: providerRef ?? undefined }, { organizationId });
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
     // Kartla deneme: kart eklendi (`trialing`) → "Ödemeniz işleniyor" kilidi de kalkar (Haiku 10-17).
-    if (status === "trialing") await clearCheckoutPending(organizationId);
+    // Yalnız BU olayın ödemesinin kilidi kalkar (ödeme P4 — başka aboneliğin olayı yeni ödemenin kilidini silmesin).
+    if (status === "trialing") await clearCheckoutPending(organizationId, eventConsentId);
     if (status === "active") {
-      await clearCheckoutPending(organizationId);
+      await clearCheckoutPending(organizationId, eventConsentId);
       // I4 C (10-17): "Aboneliği devam ettir"in "işleniyor" kilidi abonelik etkin yazılınca kalkar (holder fiyat — herhangi etkin olay yeter).
       await prisma.systemLock.deleteMany({ where: { name: RESUME_PENDING_LOCK(organizationId) } }).catch(() => {});
     }
@@ -478,9 +487,16 @@ async function applySubscriptionEventOnce(
     // STRICT match only: the event must carry the pending TARGET price. A lock
     // without a matching event (incl. any legacy null-holder row) expires via
     // its 15-min TTL instead of being cleared by an unrelated event.
+    // Kilidin sahibi "hedef fiyat#istek" (ödeme P4, 11-11 — isteğin kendi temizliği başka isteğin kilidini silmesin); olay yalnız hedef
+    // fiyatı bilir → fiyat önekiyle eşleşir. Eski biçim (yalnız fiyat) dağıtım sırasında yazılmış kilitler için de kabul edilir.
     if (!eventPriceId) return;
     await prisma.systemLock
-      .deleteMany({ where: { name: `plan-change-pending:${organizationId}`, holder: eventPriceId } })
+      .deleteMany({
+        where: {
+          name: planChangePendingLockName(organizationId),
+          OR: [{ holder: eventPriceId }, { holder: { startsWith: planChangePendingHolderPrefix(eventPriceId) } }],
+        },
+      })
       .catch(() => {});
   };
   // ⚠️ SESSİZ PLAN BOZULMASI ARTIK SAYFALANIR (denetim, 08-01). Yalnız GEÇİŞTE
@@ -944,8 +960,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         // gelen eski başarısız deneme, başarılı ödemenin korumasını (ya da başka bir ödemenin kilidini) kaldıramaz.
         const failedOrg = await resolveOrgId(data, null, occurredAt);
         if (failedOrg) {
-          const cd = data.custom_data && typeof data.custom_data === "object" ? (data.custom_data as Record<string, unknown>) : null;
-          const consentId = cd && typeof cd.consentId === "string" && cd.consentId.length > 0 && cd.consentId.length <= 64 ? cd.consentId : null;
+          const consentId = consentIdFromData(data);
           const transactionId = typeof data.id === "string" && /^txn_[A-Za-z0-9]{1,64}$/.test(data.id) ? data.id : null;
           const outcome = await clearCheckoutPendingOnFailure(failedOrg, { consentId, transactionId }, paddleTransactionStatus, (st) =>
             PADDLE_PAID_STATES.has(st),

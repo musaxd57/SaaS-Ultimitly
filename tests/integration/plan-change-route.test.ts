@@ -47,7 +47,8 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     mode: "upgrade" | "downgrade",
     org = orgId,
     amount: string | null = "₺123,45",
-  ) => signPlanChangeToken({ org, priceId, mode, amount });
+    source: { sub?: string; from?: string; fromPrice?: string | null } = {},
+  ) => signPlanChangeToken({ org, priceId, mode, amount, sub: source.sub ?? "sub_1", from: source.from ?? "pro", fromPrice: source.fromPrice ?? null });
 
   beforeEach(async () => {
     await resetDb();
@@ -432,6 +433,100 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     releaseFirst({ ok: true });
     expect((await p1).status).toBe(200);
     expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ÖDEME P3 (Codex 11-10) — ESKİ ÖNİZLEME. Onay yalnız hedefi (fiyat + yön) bağlıyordu; müşteri önizlemeyi gördükten sonra abonelik başka
+  // sekmede değişirse eski onay yeni durumun üstüne uygulanabiliyordu (özellikle düşürmede: anlık tutar iki tarafta da boş → tutar kıyası
+  // hiçbir şey yakalamaz). Onay artık kaynağı da bağlar: abonelik + plan (+ biliniyorsa Paddle'daki fiyat).
+  // ---------------------------------------------------------------------------
+  describe("P3 — onay, önizlemenin yapıldığı abonelik / plan için geçerli", () => {
+    const noCharge = () => previewMock.mockResolvedValue({ mode: "prorated_next_billing_period", immediateTotal: null, recurringTotal: "₺399,00" });
+    const pendingRow = () => prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${orgId}` } });
+
+    it("🚨 önizlemeden sonra abonelik DEĞİŞTİ (yeni abonelik kimliği) → eski onay uygulanmaz, Paddle'a PATCH gitmez", async () => {
+      noCharge();
+      const preview = await (await PREVIEW(req({ planCode: "free" }), ctx)).json(); // pro → başlangıç (düşürme, tutar yok)
+      await prisma.subscription.update({ where: { organizationId: orgId }, data: { providerRef: "sub_2" } }); // başka sekmede yeni abonelik
+      const res = await CHANGE(req({ planCode: "free", previewToken: preview.previewToken }), ctx);
+      expect(res.status).toBe(400); // ⬅️ ESKİDE 200 (eski onay yeni aboneliğe uygulanıyordu)
+      expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it("🚨 önizlemeden sonra PLAN değişti (business'tan önizlendi, şimdi pro) → aynı hedefe düşürme onayı uygulanmaz", async () => {
+      noCharge();
+      await prisma.subscription.update({ where: { organizationId: orgId }, data: { planCode: "business" } });
+      const preview = await (await PREVIEW(req({ planCode: "free" }), ctx)).json(); // business → başlangıç
+      await prisma.subscription.update({ where: { organizationId: orgId }, data: { planCode: "pro" } }); // başka sekmede pro'ya inildi
+      const res = await CHANGE(req({ planCode: "free", previewToken: preview.previewToken }), ctx);
+      expect(res.status).toBe(400); // ⬅️ ESKİDE 200
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it("🚨 yerel satır henüz güncellenmedi ama Paddle'daki fiyat önizlemedekinden FARKLI → kilit alındıktan sonraki son bakış reddeder; kilit ve onay geri bırakılır", async () => {
+      noCharge();
+      const t = tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" });
+      getPriceMock.mockResolvedValue("pri_isletme"); // Paddle'da abonelik artık business (başka sekmenin değişikliği; webhook henüz gelmedi)
+      const res = await CHANGE(req({ planCode: "free", previewToken: t }), ctx);
+      expect(res.status).toBe(400); // ⬅️ ESKİDE 200
+      expect(updateMock).not.toHaveBeenCalled();
+      const lock = await pendingRow();
+      expect(lock === null || lock.lockedUntil <= new Date()).toBe(true); // "işleniyor" kilidi takılı kalmadı
+      // Onay tüketilmedi: aynı onay, kaynak yeniden uyuşunca (ör. değişiklik geri alındı) kullanılabilir.
+      getPriceMock.mockResolvedValue("pri_pro");
+      expect((await CHANGE(req({ planCode: "free", previewToken: t }), ctx)).status).toBe(200);
+      expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("KONTROL: kaynak aynı (abonelik + plan + Paddle fiyatı) → uygulanır; Paddle fiyatı okunamazsa abonelik + plan yeter", async () => {
+      noCharge();
+      getPriceMock.mockResolvedValue("pri_pro");
+      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
+      getPriceMock.mockResolvedValue(null);
+      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
+      expect(updateMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("kaynağı taşımayan (eski biçim) onay geçersizdir — müşteri tutarı yeniden onaylar", async () => {
+      const { createHmac } = await import("node:crypto");
+      const body = Buffer.from(JSON.stringify({ org: orgId, priceId: "pri_isletme", mode: "upgrade", amount: "₺123,45", jti: "eski-bicim", exp: Date.now() + 60_000 })).toString("base64url");
+      const legacy = `${body}.${createHmac("sha256", process.env.AUTH_SECRET ?? "").update(body).digest("base64url")}`;
+      const res = await CHANGE(req({ planCode: "business", previewToken: legacy }), ctx);
+      expect(res.status).toBe(400);
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ÖDEME P4 (Codex 11-10) — KİLİT SAHİBİ. "Zaten hedefteyiz" dalı kilidi ADLA siliyordu ve bu okuma kilit alınmadan önce yapılıyordu →
+  // o arada başka bir isteğin aldığı kilit de gidiyordu (üçüncü istek ikinci PATCH sürerken Paddle'a gidebilirdi).
+  // ---------------------------------------------------------------------------
+  it("🚨 P4: 'zaten hedefteyiz' görecek istek, o sırada PATCH'i süren BAŞKA isteğin kilidini SİLMEZ", async () => {
+    let releaseB!: (v: { ok: boolean }) => void;
+    let enteredB!: () => void;
+    const bInPatch = new Promise<void>((r) => (enteredB = r));
+    updateMock.mockImplementationOnce(() => {
+      enteredB();
+      return new Promise((res) => (releaseB = res));
+    });
+    // A isteği tutar kıyasındayken (kilitten ÖNCE) B isteği başlar, kilidi alır ve PATCH'e girer.
+    let pB: Promise<Response> | null = null;
+    previewMock.mockImplementationOnce(async () => {
+      getPriceMock.mockResolvedValueOnce(null); // B'nin "zaten hedefte mi" okuması: değil → PATCH
+      pB = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+      await bInPatch;
+      getPriceMock.mockResolvedValue("pri_isletme"); // A okursa: zaten hedefte (B'nin değişikliği Paddle'a ulaştı)
+      return { mode: "prorated_immediately", immediateTotal: "₺123,45", recurringTotal: "₺899,00" };
+    });
+    const a = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const lock = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${orgId}` } });
+    expect(lock !== null && lock.lockedUntil > new Date()).toBe(true); // ⬅️ ESKİDE silinmişti (B'nin PATCH'i sürerken)
+    expect(a.status).toBe(409); // A sıradaki değişikliği bekler
+    releaseB({ ok: true });
+    expect((await pB!).status).toBe(200);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: `plan-change-pending:${orgId}`, lockedUntil: { gt: new Date() } } })).toBe(0); // B kendi kilidini bıraktı
   });
 
 });

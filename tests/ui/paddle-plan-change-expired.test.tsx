@@ -8,8 +8,11 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-libra
 // birkaç kez yenilenir (webhook geç gelirse ekran eski planda kalmasın).
 // ---------------------------------------------------------------------------
 
-const refresh = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+const { refresh, router } = vi.hoisted(() => {
+  const refresh = vi.fn();
+  return { refresh, router: { refresh } }; // yönlendirici nesnesi gerçekte olduğu gibi sabit
+});
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { BILLING_REFRESH_DELAYS_MS } from "@/components/settings/refresh-after-billing";
@@ -103,5 +106,75 @@ describe("PaddlePlans — plan değişikliği onayı", () => {
     });
     expect(refresh).toHaveBeenCalledTimes(BILLING_REFRESH_DELAYS_MS.length);
     expect(BILLING_REFRESH_DELAYS_MS.length).toBeGreaterThan(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // ÖDEME P6 (Codex 11-10): plan değişikliği BAŞARILI ama cevabın gövdesi okunamadıysa ekran "planınız değişmedi" yazıyor ve yenilenmiyordu —
+  // müşteri tahsil edilmiş yükseltmeyi yeniden deniyordu. Sonuç bilinmiyorsa "değişmedi" denmez.
+  // ---------------------------------------------------------------------------
+  const preview = () => json(200, { mode: "upgrade", targetName: "Pro", targetMonthlyMinor: 89900, immediateTotal: "₺450,00", recurringTotal: "₺899,00", previewToken: "t1" });
+  const brokenBody = (status: number) => Promise.resolve(new Response("<html>bozuk", { status, headers: { "content-type": "text/html" } }));
+
+  it.each([
+    ["başarılı (200) ama gövde okunamıyor", 200],
+    ["araya giren sunucunun 504 sayfası", 504],
+  ])("🚨 P6: %s → 'planınız değişmedi' DENMEZ; 'onay bekleniyor' görünür, panel kapanır, sayfa yenilenir", async (_label, status) => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => (url === "/api/billing/plan-preview" ? preview() : brokenBody(status))));
+    renderPlans();
+    fireEvent.click(screen.getByRole("button", { name: "Yükselt" }));
+    const confirm = await screen.findByRole("button", { name: "₺450,00 öde ve yükselt" });
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(screen.queryByText(/planınız değişmedi/u)).toBeNull(); // ⬅️ ESKİDE görünüyordu
+    expect(screen.getByText(/onay bekleniyor/u)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "₺450,00 öde ve yükselt" })).toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(BILLING_REFRESH_DELAYS_MS.length); // ⬅️ ESKİDE 0
+  });
+
+  it("KONTROL (P6): okunamayan 4xx (istek uygulamaya ulaşmadan reddedildi) → 'değişmedi' metni kalır, sayfa yenilenmez", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => (url === "/api/billing/plan-preview" ? preview() : brokenBody(403))));
+    renderPlans();
+    fireEvent.click(screen.getByRole("button", { name: "Yükselt" }));
+    fireEvent.click(await screen.findByRole("button", { name: "₺450,00 öde ve yükselt" }));
+    await screen.findByText(/planınız değişmedi/u);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("P6: bağlantı hatası (cevap yolda kayboldu) → bağlantı metni + sayfa yine yenilenir (değişiklik uygulandıysa görünsün)", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => (url === "/api/billing/plan-preview" ? preview() : Promise.reject(new TypeError("Failed to fetch")))));
+    renderPlans();
+    fireEvent.click(screen.getByRole("button", { name: "Yükselt" }));
+    const confirm = await screen.findByRole("button", { name: "₺450,00 öde ve yükselt" });
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(screen.getByText(/Bağlantı kurulamadı/u)).toBeTruthy();
+    expect(refresh).toHaveBeenCalledTimes(BILLING_REFRESH_DELAYS_MS.length); // ⬅️ ESKİDE 0
+  });
+
+  // Codex 11-10 "plan onayında klavye odağı": onay paneli kartların ÜSTÜNDE açılır; odak panele geçmeli, kapanınca düğmeye dönmeli.
+  it("🚨 onay paneli açılınca odak panele geçer; 'Vazgeç' ile kapanınca paneli açan düğmeye döner", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => preview()));
+    renderPlans();
+    const upgrade = screen.getByRole("button", { name: "Yükselt" });
+    upgrade.focus();
+    fireEvent.click(upgrade);
+    const confirm = await screen.findByRole("button", { name: "₺450,00 öde ve yükselt" });
+    const panel = screen.getByRole("group");
+    expect(panel.contains(confirm)).toBe(true);
+    await waitFor(() => expect(document.activeElement).toBe(panel)); // ⬅️ ESKİDE odak (artık kilitli) plan düğmesinde / gövdede kalıyordu
+    expect(panel.getAttribute("aria-labelledby")).toBe("plan-change-summary");
+    expect(document.getElementById("plan-change-summary")?.textContent).toMatch(/yükseltiyorsunuz/u);
+    fireEvent.click(screen.getByRole("button", { name: "Vazgeç" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Yükselt" })));
   });
 });

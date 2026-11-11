@@ -59,6 +59,35 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
     }),
   };
 });
+// Ödeme P2 (Codex 11-10): "Ödemeniz işleniyor" kilidinin YAZILDIĞI an ve onay kapısının kilide BAKTIĞI an — sıra / arıza kancaları.
+const { pending } = vi.hoisted(() => ({
+  pending: {
+    /** Kilit yazımı hata verir (veritabanı arızası taklidi). */
+    failMark: false,
+    /** Kilit yazılmadan hemen önce çalışır (o andaki niyet durumunu görmek için). */
+    onMark: null as null | (() => Promise<void>),
+    /** Kilit okumasından hemen SONRA bir kez çalışır (onay kapısı geçildi; araya ödeme tamamlanması girer). */
+    afterActiveCheck: null as null | (() => Promise<void>),
+  },
+}));
+vi.mock("@/lib/billing/checkout-pending", async (orig) => {
+  const actual = await orig<typeof import("@/lib/billing/checkout-pending")>();
+  return {
+    ...actual,
+    markCheckoutPending: vi.fn(async (...args: Parameters<typeof actual.markCheckoutPending>) => {
+      if (pending.onMark) await pending.onMark();
+      if (pending.failMark) throw new Error("kilit yazılamadı (test)");
+      return actual.markCheckoutPending(...args);
+    }),
+    checkoutPendingActive: vi.fn(async (...args: Parameters<typeof actual.checkoutPendingActive>) => {
+      const out = await actual.checkoutPendingActive(...args);
+      const hook = pending.afterActiveCheck;
+      pending.afterActiveCheck = null;
+      if (hook) await hook();
+      return out;
+    }),
+  };
+});
 const { sessionQueue } = vi.hoisted(() => ({ sessionQueue: [] as SessionPayload[] }));
 let session: SessionPayload | null;
 vi.mock("@/lib/api", async (orig) => {
@@ -77,7 +106,7 @@ import {
   CHECKOUT_INTENT_MAX_AGE_MS,
   CHECKOUT_INTENT_REUSE_GRACE_MS,
 } from "@/lib/billing/checkout-intent";
-import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
+import { checkoutPendingActive, clearCheckoutPending } from "@/lib/billing/checkout-pending";
 import { reportError } from "@/lib/report-error";
 
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
@@ -106,6 +135,7 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     paddle.statuses.clear();
     paddle.missing.clear();
     paddle.afterGet = null;
+    Object.assign(pending, { failMark: false, onMark: null, afterActiveCheck: null });
     vi.mocked(reportError).mockClear();
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
@@ -186,8 +216,82 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
     expect(paddle.created).toBe(1);
     // Abonelik webhook'u kilidi kaldırınca (ör. abonelik sonra iptal edildi) yeni ödeme YENİ işlemle açılır.
-    await clearCheckoutPending(orgId);
+    // (Kilit YALNIZ kendi ödemesinin olayıyla kalkar — P4: olay, niyetin onay kaydını taşır.)
+    const paidConsent = (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).consentId;
+    await clearCheckoutPending(orgId, paidConsent);
     expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+  });
+
+  // ---------------------------------------------------------------------------
+  // ÖDEME P2 (Codex 11-10) — "ödenmiş işlemden sonra ikinci ödeme ekranı aralığı". Eski sıra: niyet kapanır → kilit yazılır. Arada ne açık
+  // niyet ne kilit vardı; kilit yazımı hata verirse niyet kilitsiz kapalı kalıyor, yeniden gelen olay onarmıyordu.
+  // ---------------------------------------------------------------------------
+  describe("P2 — ödendi görülünce önce kilit, sonra niyet", () => {
+    const intentStatus = async () => (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId }, orderBy: { createdAt: "asc" } })).status;
+
+    it("🚨 kilit yazıldığı anda niyet HÂLÂ açık (arada 'ne niyet ne kilit' anı yok); sonra niyet kapanır", async () => {
+      await POST(postReq(), ctx);
+      let statusAtMark: string | null = null;
+      pending.onMark = async () => {
+        statusAtMark = await intentStatus();
+      };
+      await completeCheckoutIntent("txn_1");
+      expect(statusAtMark).toBe("open"); // ⬅️ ESKİDE "completed" (kilit yazılmadan niyet kapanmıştı)
+      expect(await intentStatus()).toBe("completed");
+      expect(await checkoutPendingActive(orgId)).toBe(true);
+    });
+
+    it("🚨 kilit YAZILAMAZSA niyet açık kalır → ikinci tıklama yeni işlem AÇMAZ; olay yeniden gelince kilit yazılır ve niyet kapanır", async () => {
+      await POST(postReq(), ctx);
+      paddle.statuses.set("txn_1", "completed");
+      pending.failMark = true;
+      await completeCheckoutIntent("txn_1");
+      expect(await intentStatus()).toBe("open"); // ⬅️ ESKİDE "completed" + kilit yok
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(400); // ⬅️ ESKİDE 201 + txn_2 (çift tahsilat yolu)
+      expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
+      expect(paddle.created).toBe(1);
+
+      pending.failMark = false;
+      await completeCheckoutIntent("txn_1"); // Paddle'ın yeniden gönderdiği olay
+      expect(await intentStatus()).toBe("completed");
+      expect(await checkoutPendingActive(orgId)).toBe(true);
+    });
+
+    it("🚨 onay kapıdan geçtikten SONRA ödeme tamamlanıp niyet kapanırsa (yer boşaldı) yeni Paddle işlemi AÇILMAZ", async () => {
+      await POST(postReq(), ctx); // txn_1 açık (ilk sekme ödeme ekranında)
+      pending.afterActiveCheck = async () => {
+        paddle.statuses.set("txn_1", "completed");
+        await completeCheckoutIntent("txn_1");
+      };
+      const res = await POST(postReq(), ctx); // ikinci sekme: kapıdan geçti, tam o anda ilk sekmenin ödemesi tamamlandı
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
+      expect(paddle.created).toBe(1); // ⬅️ ESKİDE 2
+      expect(await prisma.checkoutIntent.count({ where: { openKey: { not: null } } })).toBe(0); // boşuna açılan niyet takılı kalmadı
+    });
+
+    it("🚨 aynı yarış, kilidi abonelik olayı çoktan kaldırmış: canlı abonelik görülür → yeni Paddle işlemi yine AÇILMAZ", async () => {
+      await POST(postReq(), ctx);
+      pending.afterActiveCheck = async () => {
+        paddle.statuses.set("txn_1", "completed");
+        await completeCheckoutIntent("txn_1");
+        const paid = (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).consentId;
+        await prisma.subscription.create({ data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_1" } });
+        await clearCheckoutPending(orgId, paid);
+      };
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(400);
+      expect(paddle.created).toBe(1); // ⬅️ ESKİDE 2 (aktif aboneliğin üstüne ikinci ödeme ekranı)
+      expect(await prisma.checkoutIntent.count({ where: { openKey: { not: null } } })).toBe(0);
+    });
+
+    it("KONTROL: yer boş, kilit yok, canlı abonelik yok (iptal edilmiş abonelik dahil) → işlem normal açılır", async () => {
+      await prisma.subscription.create({ data: { organizationId: orgId, planCode: "pro", status: "canceled", provider: "paddle", providerRef: "sub_old" } });
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as Body).transactionId).toBe("txn_1");
+    });
   });
 
   it("🚨 Opus B1: Paddle'da ödenmiş görüldü (sekme kapandı, webhook yok) → İKİNCİ ve ÜÇÜNCÜ tıklama da 'işleniyor'; Paddle'da tek işlem", async () => {
