@@ -2382,19 +2382,31 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("rolls back the claim on a DEFINITIVE (4xx) send failure, so it retries next run", async () => {
-    const { orgId, reservationId } = await seedWelcome();
-    // HTTP 429 = provider refused (rate-limited), nothing delivered → definitive →
-    // safe to un-claim and retry. (Ambiguous 5xx/timeout — claim held — is covered
-    // in outbox-lifecycle.test.ts.)
-    mockSend.mockResolvedValueOnce({ ok: false, error: "HTTP 429 Too Many Requests" });
-    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
-    // Claim rolled back → not marked sent, so the next run can retry.
-    const after = await prisma.reservation.findUnique({ where: { id: reservationId } });
-    expect(after?.welcomeSentAt).toBeNull();
+  it("rolls back the claim on a DEFINITIVE (4xx) send failure, so it retries — after the provider's wait (S8, 11-11)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const t0 = new Date();
+      vi.setSystemTime(t0);
+      const { orgId, reservationId } = await seedWelcome();
+      // HTTP 429 = provider refused (rate-limited), nothing delivered → definitive →
+      // safe to un-claim and retry. (Ambiguous 5xx/timeout — claim held — is covered
+      // in outbox-lifecycle.test.ts.)
+      mockSend.mockResolvedValueOnce({ ok: false, error: "HTTP 429 Too Many Requests" });
+      expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+      // Claim rolled back → not marked sent, so a later run can retry.
+      const after = await prisma.reservation.findUnique({ where: { id: reservationId } });
+      expect(after?.welcomeSentAt).toBeNull();
 
-    mockSend.mockResolvedValue({ ok: true });
-    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+      // S8: "çok fazla istek"ten hemen sonraki tur sağlayıcıya GİTMEZ (eskiden 2 dakikada bir yeniden deniyordu); süre bildirilmediyse
+      // 1 dakika beklenir, sonra gönderilir.
+      mockSend.mockResolvedValue({ ok: true });
+      expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(new Date(t0.getTime() + 61_000));
+      expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("previewWelcomes builds the text without sending, regardless of toggles", async () => {

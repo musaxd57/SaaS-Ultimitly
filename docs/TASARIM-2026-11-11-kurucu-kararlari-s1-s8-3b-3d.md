@@ -110,10 +110,20 @@ tekil); işlenemezse satır `error` kalıyor ve 500 dönüyor. Ortak anahtar ala
 **Eleştiri.** Codex'in "kalıcı sakla" maddesi zaten var; gerçek boşluk yeniden değerlendirme. "Doğrulama bekliyor" için yeni durum sütunu
 gerekmiyor: `error` + tanınan hata öneki yeterli.
 
-**Yapılacak (şema yok).** Zamanlanmış işe küçük bir adım: son 14 günün, "abonelik şu an okunamadı" hatasıyla kalmış Paddle olayları olay
-zamanına göre sırayla aynı işleyiciden yeniden geçirilir. Önce TEK ucuz okuma ile anahtarın çalıştığı sınanır; reddediliyorsa tur hiç
-başlamaz (sağlayıcıya yüklenilmez, işletme başına e-posta üretilmez — var olan ortak alarm konuşur). İşleyicideki sıra koruması (daha yeni
-olay uygulanmışsa eskisi düşer) aynen geçerli. İmza sırrı ile API anahtarı ayrı kalır: anahtar bozukken de olaylar alınıp saklanır.
+**Yapılacak (şema yok).** Saatlik zamanlanmış iş, işlenememiş Paddle olaylarını AYNI işleyiciden yeniden geçirir:
+
+- **Hangi olaylar.** Son 14 günün abonelik / ödeme olayları; durumu "hata" (inceleme bekleyenler HARİÇ — onlar insan kararı ister) ya da
+  15 dakikadan uzun "alındı"da kalmış (işlem sırasında süreç çöktü). Küçültülmüş (kişisel verisi silinmiş) yük yeniden işlenmez.
+- **Nasıl.** Saklı ham gövde, kendi webhook sırrımızla yeniden imzalanıp süreç içinde aynı uç noktanın işleyicisine verilir. Böylece
+  teslim ile yeniden işleme TEK kod yolundan geçer (kopya işleyici yok, ayrışma olmaz); kopya / sıra korumaları aynen geçerlidir (daha
+  yeni olay uygulanmışsa eskisi düşer). Olaylar olay zamanına göre sırayla geçirilir.
+- **Ne sıklıkla.** Olay başına sınırlı: yaşı 15 dk, 1 sa, 2, 4, 8, 16, 32, 64, 128, 256 saati geçtiğinde birer kez (14 günde en çok 10).
+  Bir olay hep hata veriyorsa ötekileri bekletmez (sıra tıkanmaz).
+- **"API anahtarı reddedildi / Paddle okunamadı" sınıfı.** Bu olaylar yeniden geçirilmeden önce TEK ucuz okuma ile anahtar sınanır.
+  Reddediliyorsa hiçbiri denenmez (sağlayıcıya yüklenilmez, olay başına alarm üretilmez); işletmesiz TEK ortak alarm durumu açılır
+  (bir kez + günde bir hatırlatma). Anahtar düzelince ilk turda o sınıftaki bekleyen olayların HEPSİ, yaş sırasını beklemeden geçirilir ve
+  alarm durumu kapanır.
+- İmza sırrı ile API anahtarı ayrı kalır: anahtar bozukken de olaylar alınıp saklanır (bugünkü davranış).
 
 ## 7. S8 — otomatik mesajın yeniden denenmesi
 
@@ -121,17 +131,41 @@ olay uygulanmışsa eskisi düşer) aynen geçerli. İmza sırrı ile API anahta
 zamanı, hata sınıfı (`outbox/state.ts:30-42, 187-220`); kesin ret → geri çekilerek en çok 6 deneme sonra "Gönderilemedi" (ev sahibi
 "Gönderim durumu" sayfasında görür, elle yeniden deneyebilir); hız sınırı → sağlayıcının süresi; abonelik pasif → bekler; belirsiz sonuç →
 yeniden gönderilmez, incelemeye düşer. **Sorun yalnız kuyruk KAPALIYKEN çalışan doğrudan yolda:** kesin hatada damga geri alınıyor, hiçbir
-durum tutulmuyor → her 2 dakikada yeniden deneniyor (`automation.ts:5884`).
+durum okunmuyor → her 2 dakikada yeniden deneniyor ve reddedilen rezervasyonlar 25'lik listenin başını dolduruyor.
 
-**Eleştiri.** Codex "rezervasyona sayaç değil, gönderim niyetine durum" derken haklı; ama yeni alan / tablo istemek gereksiz — o kayıt var.
-En uzun vadeli çözüm kuyruğun açılması (Railway açılış planında); o güne kadar doğrudan yol aynı kaydı durum defteri olarak kullanır.
+**Eleştiri.** Codex "rezervasyona sayaç değil, gönderim niyetine durum" derken haklı; yeni alan / tablo istemek gereksiz.
 
-**Yapılacak (şema yok).** Doğrudan yolda kesin hata alınınca aynı anahtarla (`karşılama|giriş|çıkış : işletme : rezervasyon`) kuyruk
-tablosuna "başarısız" satırı yazılır / güncellenir: deneme sayısı +1, sonraki deneme zamanı kuyruğun kendi geri çekilme formülüyle. Aday
-seçimi (11-11 ön eleme) vadesi gelmemiş ya da 6 denemeyi doldurmuş satırı ELER → 25 sınırı yalnız gerçekten gönderilebilir adaylara
-uygulanır. Altı denemeden sonra satır "Gönderilemedi" olarak ev sahibine görünür; elle "yeniden dene" aynı anahtarı korur ve rezervasyonu +
-zamanı yeniden doğrular. Karşılama mesajının hatası giriş / çıkış mesajının hakkını yemez (anahtar tür başına). Zamanı geçmiş ya da iptal
-edilmiş konaklamanın mesajı aday olmaktan zaten çıkıyor.
+**İlk planım yanlıştı (uygulamadan önce kodda gördüm).** "Doğrudan yol kuyruk tablosuna 'başarısız' satırı yazsın" demiştim. Sakıncası:
+kuyrukta "başarısız" = SON durumdur (kendiliğinden bir daha denenmez). O satırlar aynı anahtarla kalır ve kalıcı kuyruk açıldığı gün
+"zaten var" sayılıp mesajı sonsuza dek bekletirdi; ev sahibine "Gönderilemedi" derken arkadan yeniden deneyen iki anlamlı bir kayıt olurdu.
+
+**Yapılan (şema yok).** Doğrudan yolun her denemesi zaten AYRI bir kayda yazılıyor: otomatik gönderim kaydı (`AutomatedMessageSend`,
+09-30'dan beri; niyet = işletme + rezervasyon + tür, içeriğin özeti, sonuç). Deneme sayısı ve son deneme anı o kayıtlardan TÜRETİLİR
+(`automated-sends.ts` "yeniden deneme defteri"):
+
+| Durum | Davranış |
+|---|---|
+| Sağlayıcı mesajı kesin reddetti (4xx) | Hemen yeniden denenmez: 1,5 dk → 3 → 6 → 12 → … her seferinde ikiye katlanır, tavan 6 saat (günde ~4 deneme), ±%20 sapma |
+| Ev sahibi metni düzeltti | İçerik değişti → sayaç sıfırdan başlar, bir sonraki turda denenir |
+| Aynı rezervasyonun başka türdeki mesajı | Etkilenmez (karşılama reddedildi diye giriş bilgisi beklemez) |
+| "Çok fazla istek" (429) | Tur orada durur (öteki adaylar denenmez); sağlayıcının istediği süre (yoksa 1 dk, en çok 1 saat) üç gönderici de bekler; bu, mesajın hatası sayılmaz |
+| Sonuç belirsiz (zaman aşımı / 5xx) | Bugünkü gibi: yeniden gönderilmez |
+| Mesajın zamanı geçti / konaklama iptal | Bugünkü gibi: aday olmaz |
+
+25 sınırı artık vadesi gelmiş adaylara uygulanır (bekleyenler listeden ÖNCE elenir). "Bıraktım" durumu YOK: aralık büyür ama mesaj unutulmaz;
+zamanı geçince kendiliğinden düşer. Kalıcı kuyruk açıkken bu defter okunmaz (durum kuyruk satırındadır).
+
+**Bilerek yapılmayanlar.** (1) Bağlantı / yetki hatasına (401 / 402) özel kural: o durumda senkron da düşer ve göndericiler zaten hiç
+çalışmaz (`scheduled-sync.ts`); 403'ün işletmeye mi rezervasyona mı ait olduğu bilinmediği için niyet başına bekleme iki yorumu da karşılar
+(işletme düzeyinde durdurmak, tek bozuk rezervasyonun bütün sırayı tıkamasına yol açardı). (2) Hız sınırı beklemesi süreç belleğinde
+(şema yok): yeniden başlatmada sıfırlanır, en kötü sonuç bir fazladan reddedilen istek.
+
+**Açık kalan — ev sahibine görünürlük (soru, §12).** Doğrudan yolda reddedilen mesajı bugün yalnız operatör alarmı söylüyor; ev sahibinin
+"Otomatik mesajlar" kartında görünmüyor. Yeni metin gerektirdiği için sorulacak.
+
+**Yanında bulunan (kalıcı kuyruk yolu, ayrı düzeltme adayı).** Giriş göndericisi her turda "ertelenmiş" kuyruk satırının vadesini şimdiye
+çekiyor (Y4, tarih yeniden pencereye girdiyse beklemesin diye). Aynı satır, işçinin kesin retten sonra geri çekilmesi ya da hız sınırı
+beklemesi yüzünden ileri atılmış da olabilir → o bekleme de siliniyor. Kuyruk kapalı olduğu için bugün etkisi yok; açılmadan önce düzeltilecek.
 
 ## 8. 3b — erken giriş cevabı herkese gitmesin (kurucu sorusu)
 

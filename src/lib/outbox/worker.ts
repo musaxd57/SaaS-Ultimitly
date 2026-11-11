@@ -1338,6 +1338,11 @@ async function processOne(
       claimExpiresAt: null,
       // POST yapılmadı: rezervasyon başına "60 sn'de en çok 2 gönderim" sayacı (claimedAt) bu talebi saymasın (Haiku 10-14).
       claimedAt: null,
+      // Satır artık bir HATA yüzünden değil, zamanı gelmediği için bekliyor (S8, 11-11): önceki denemenin hata bilgisi temizlenir. Giriş
+      // göndericisi "ertelenmiş satırın vadesini şimdiye çek" kuralını yalnız hata bilgisi BOŞ satıra uygular (`automation.ts`) — hız
+      // sınırı / geri çekilme beklemesindeki satırın vadesi öne alınmasın diye.
+      lastErrorKind: null,
+      lastErrorCode: null,
     });
     return;
   }

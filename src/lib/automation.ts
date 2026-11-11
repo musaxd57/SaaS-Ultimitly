@@ -125,7 +125,7 @@ import {
   LEGACY_AI_RESUME_SENDER,
   notChannelAutomationWhere,
 } from "@/lib/message-author";
-import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
+import { discardAutomatedSend, loadFailedSendLedger, recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
@@ -5636,6 +5636,53 @@ async function lifecycleUnusableIds(
 }
 
 /**
+ * 🚨 REDDEDİLEN MESAJ HER TURDA YENİDEN DENENMEZ (S8, kurucu kararı 11-11). Doğrudan yolda sağlayıcının KESİN reddettiği gönderim damgası
+ * geri alındığı için bir sonraki turda (2 dakika) yeniden aday oluyor ve aynı içerikle sonsuza dek deneniyordu; reddedilen rezervasyonlar
+ * 25'lik listenin başını da dolduruyordu. Bekleme süresi dolmamış aday artık ön elemede atlanır (deneme sayısı ve son deneme anı var olan
+ * otomatik gönderim kaydından türetilir — `automated-sends.ts` "yeniden deneme defteri"). Sayfa başına tek sorgu.
+ * Yalnız doğrudan yol: kalıcı kuyruk açıkken durum kuyruk satırındadır, bu defter okunmaz.
+ */
+async function lifecycleRetryNotDue<R extends { sourceReference: string | null }>(
+  organizationId: string,
+  kind: AutoMessageKind,
+  rows: readonly R[],
+  now: Date,
+): Promise<(r: R, body: string) => boolean> {
+  const ledger = await loadFailedSendLedger(
+    prisma,
+    { organizationId, kind },
+    rows.map((r) => r.sourceReference).filter((v): v is string => !!v),
+    now,
+  );
+  return (r, body) => !!r.sourceReference && ledger.notDue(r.sourceReference, body, now);
+}
+
+/**
+ * Sağlayıcı "çok fazla istek" (429) dediğinde işletmenin otomatik mesaj gönderimi sağlayıcının istediği süre kadar bekler (S8: "hız
+ * sınırı → sağlayıcının bekleme süresine uy"). Süre bilinmiyorsa 1 dakika; en çok 1 saat. SÜREÇ BELLEĞİNDE tutulur (bilinçli: şema yok) —
+ * yeniden başlatmada / öteki kopyada sıfırdır, en kötü sonuç bir fazladan reddedilen istektir. Üç gönderici ortak kullanır (sınır işletmenin
+ * bağlantısına aittir, mesajın türüne değil).
+ */
+const LIFECYCLE_RATE_HOLD_MIN_MS = 60_000;
+const LIFECYCLE_RATE_HOLD_MAX_MS = 60 * 60_000;
+const lifecycleRateHold = new Map<string, number>();
+function lifecycleSendsHeld(organizationId: string, now: Date): boolean {
+  const until = lifecycleRateHold.get(organizationId);
+  if (until === undefined) return false;
+  if (now.getTime() < until) return true;
+  lifecycleRateHold.delete(organizationId);
+  return false;
+}
+function holdLifecycleSends(organizationId: string, retryAfterSec: number | null | undefined, now: Date): void {
+  const asked = typeof retryAfterSec === "number" && retryAfterSec > 0 ? retryAfterSec * 1000 : 0;
+  lifecycleRateHold.set(organizationId, now.getTime() + Math.min(LIFECYCLE_RATE_HOLD_MAX_MS, Math.max(LIFECYCLE_RATE_HOLD_MIN_MS, asked)));
+}
+/** Test yardımcısı: süreç belleğindeki hız sınırı beklemelerini sıfırlar. */
+export function __resetLifecycleRateHold(): void {
+  lifecycleRateHold.clear();
+}
+
+/**
  * 🚨 GÖNDERİLEMEYEN ADAYLAR SIRAYI TIKAMAZ (mesaj A26, Codex 11-10). Üç gönderici en erken tarihli 25 adayı alıp döngüde eliyordu; metni
  * olmayan dairenin ya da metni doldurulamayan (`{daire}` çözülemedi vb.) dairenin rezervasyonları DAMGALANMADIĞI için her geçişte yine ilk
  * 25'i dolduruyor, arkalarındaki gönderilebilir rezervasyonlara sıra HİÇ gelmiyordu (karşılama / giriş bilgisi / çıkış mesajı sessizce
@@ -5657,6 +5704,11 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
    * kesin kontroller (işlem içinde, taze) AYNEN durur; burası yalnız listeyi boşa doldurmamak içindir.
    */
   unusable?: (rows: readonly R[]) => Promise<ReadonlySet<string>>;
+  /**
+   * S8: bu GÖVDEYLE daha önce kesin reddedilmiş ve bekleme süresi dolmamış aday (↑ `lifecycleRetryNotDue`). Gövdeye bağlıdır (ev sahibi
+   * metni düzeltince hemen denenir) → `unusable`dan ayrı; o da 25 sınırından ÖNCE elenir.
+   */
+  notDue?: (rows: readonly R[]) => Promise<(r: R, body: string) => boolean>;
 }): Promise<{ ready: { r: R; tpl: LoadedAutoMessage; body: string }[]; considered: number; unfilled: number }> {
   const ready: { r: R; tpl: LoadedAutoMessage; body: string }[] = [];
   let considered = 0;
@@ -5669,6 +5721,7 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
     if (rows.length === 0) break;
     after = rows[rows.length - 1];
     let unusable: ReadonlySet<string> | null = null; // sayfa başına en çok bir kez, ilk gönderilebilir adayda okunur
+    let notDue: ((r: R, body: string) => boolean) | null = null; // aynı kural: sayfa başına en çok bir okuma
     for (const r of rows) {
       if (ready.length >= LIFECYCLE_SEND_CAP) break;
       // Rezervasyon başına tek mesaj: aynı rezervasyonun kopya satırı başka sayfada yeniden gelebilir.
@@ -5697,6 +5750,10 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
       if (opts.unusable) {
         unusable ??= await opts.unusable(rows);
         if (unusable.has(r.id)) continue;
+      }
+      if (opts.notDue) {
+        notDue ??= await opts.notDue(rows);
+        if (notDue(r, body)) continue;
       }
       ready.push({ r, tpl, body });
     }
@@ -5748,6 +5805,9 @@ export async function sendDueWelcomes(
   const now = new Date();
   const baseline = org.autoWelcomeEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
+  // S8: kalıcı kuyruk kapalıyken (doğrudan yol) yeniden deneme defteri ve hız sınırı beklemesi uygulanır.
+  const directPath = !durableOutboxEnabledFor(organizationId);
+  if (directPath && lifecycleSendsHeld(organizationId, now)) return { sent: 0, considered: 0 };
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
@@ -5781,6 +5841,7 @@ export async function sendDueWelcomes(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "welcome",
     unusable: (rows) => lifecycleUnusableIds(organizationId, "welcome", rows, runErasureGuard),
+    notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "welcome", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
     fetchPage: (after, take) =>
@@ -5879,8 +5940,12 @@ export async function sendDueWelcomes(
       // manual-reply route via the shared isDefinitiveSendFailure(). Durable Outbox
       // (flag ON) handles this via reconcile/review; this is the flag-OFF direct path.
       const definitive = isDefinitiveSendFailure(delivery.error);
-      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
-      failures.push(definitive ? "definitive" : "ambiguous");
+      // S8: "çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (yeniden deneme defteri saymaz), damga geri alınır (↓ kesin
+      // hata dalı) ve bu işletmenin gönderimi sağlayıcının istediği süre kadar durur.
+      const rateLimited = definitive && classifySendResult(delivery) === "rate_limited";
+      if (rateLimited) await discardAutomatedSend(prisma, traceId);
+      else await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
+      failures.push(rateLimited ? "rate_limited" : definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
         // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
@@ -5902,6 +5967,10 @@ export async function sendDueWelcomes(
           })
           .catch(() => null);
         if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
+      }
+      if (rateLimited) {
+        holdLifecycleSends(organizationId, delivery.retryAfterSec, new Date());
+        break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
@@ -5952,6 +6021,9 @@ export async function sendDueCheckins(
   const now = new Date();
   const baseline = org.autoCheckinEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
+  // S8: kalıcı kuyruk kapalıyken (doğrudan yol) yeniden deneme defteri ve hız sınırı beklemesi uygulanır.
+  const directPath = !durableOutboxEnabledFor(organizationId);
+  if (directPath && lifecycleSendsHeld(organizationId, now)) return { sent: 0, considered: 0 };
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
@@ -5982,6 +6054,7 @@ export async function sendDueCheckins(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "checkin",
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkin", rows, runErasureGuard),
+    notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkin", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
     fetchPage: (after, take) =>
@@ -6020,9 +6093,12 @@ export async function sendDueCheckins(
         if (!enq.deduped) sent++;
         // Ertelenmiş satır (işçi: varış ileri taşındı) tarih YENİDEN pencereye girdiyse beklemez — vadesi şimdiye çekilir; hâlâ erken ise
         // işçi yeniden erteler (Y4 Haiku 10-14).
+        // 🚨 YALNIZ zamanı gelmediği için bekleyen satır (hata bilgisi BOŞ — S8, 11-11). Sağlayıcının "çok fazla istek" beklemesindeki ya da
+        // kesin retten sonra geri çekilen satır da `pending` + ileri vadelidir; onun vadesi öne çekilirse sağlayıcının istediği süre ve
+        // geri çekilme her turda (2 dk) silinir. İşçi tarihe göre ertelerken hata bilgisini temizler (`outbox/worker.ts`).
         else
           await prisma.messageOutbox.updateMany({
-            where: { id: enq.outboxId, organizationId, status: "pending", availableAt: { gt: new Date() } },
+            where: { id: enq.outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null },
             data: { availableAt: new Date() },
           });
       } catch {
@@ -6085,8 +6161,12 @@ export async function sendDueCheckins(
       // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
       const definitive = isDefinitiveSendFailure(delivery.error);
-      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
-      failures.push(definitive ? "definitive" : "ambiguous");
+      // S8: "çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (yeniden deneme defteri saymaz), damga geri alınır (↓ kesin
+      // hata dalı) ve bu işletmenin gönderimi sağlayıcının istediği süre kadar durur.
+      const rateLimited = definitive && classifySendResult(delivery) === "rate_limited";
+      if (rateLimited) await discardAutomatedSend(prisma, traceId);
+      else await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
+      failures.push(rateLimited ? "rate_limited" : definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
         // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
@@ -6108,6 +6188,10 @@ export async function sendDueCheckins(
           })
           .catch(() => null);
         if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
+      }
+      if (rateLimited) {
+        holdLifecycleSends(organizationId, delivery.retryAfterSec, new Date());
+        break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
@@ -6312,6 +6396,9 @@ export async function sendDueCheckouts(
   // from before. No baseline yet → nothing is sent.
   const baseline = org.autoCheckoutEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
+  // S8: kalıcı kuyruk kapalıyken (doğrudan yol) yeniden deneme defteri ve hız sınırı beklemesi uygulanır.
+  const directPath = !durableOutboxEnabledFor(organizationId);
+  if (directPath && lifecycleSendsHeld(organizationId, now)) return { sent: 0, considered: 0 };
 
   const candidateWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
@@ -6348,6 +6435,7 @@ export async function sendDueCheckouts(
   } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
     kind: "checkout",
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkout", rows, runErasureGuard),
+    notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkout", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.departureDate, tz).key === today,
     fetchPage: (after, take) =>
@@ -6438,8 +6526,12 @@ export async function sendDueCheckouts(
       // guest → KEEP checkoutSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
       const definitive = isDefinitiveSendFailure(delivery.error);
-      await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
-      failures.push(definitive ? "definitive" : "ambiguous");
+      // S8: "çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (yeniden deneme defteri saymaz), damga geri alınır (↓ kesin
+      // hata dalı) ve bu işletmenin gönderimi sağlayıcının istediği süre kadar durur.
+      const rateLimited = definitive && classifySendResult(delivery) === "rate_limited";
+      if (rateLimited) await discardAutomatedSend(prisma, traceId);
+      else await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
+      failures.push(rateLimited ? "rate_limited" : definitive ? "definitive" : "ambiguous");
       if (definitive) {
         // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
         // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
@@ -6461,6 +6553,10 @@ export async function sendDueCheckouts(
           })
           .catch(() => null);
         if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
+      }
+      if (rateLimited) {
+        holdLifecycleSends(organizationId, delivery.retryAfterSec, new Date());
+        break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }

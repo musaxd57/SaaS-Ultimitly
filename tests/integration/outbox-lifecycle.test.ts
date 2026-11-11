@@ -530,15 +530,19 @@ describe("outbox lifecycle (FAZ 1) — flag OFF: the proven inline path is uncha
     expect(out2.sent).toBe(0);
   });
 
-  it("DEFINITIVE failure (4xx) un-claims welcomeSentAt → next run retries cleanly", async () => {
+  it("DEFINITIVE failure (4xx) un-claims welcomeSentAt → a later run retries cleanly (after the retry wait — S8, 11-11)", async () => {
     const { orgId, source } = await seedWelcome();
     mockSend.mockResolvedValue({ ok: false, error: "HTTP 400 Bad Request" });
     await sendDueWelcomes(orgId);
     // Claim ROLLED BACK — the provider refused, nothing was delivered, safe to retry.
     expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeNull();
-    // Next run re-attempts and (this time) succeeds.
     mockSend.mockClear();
     mockSend.mockResolvedValue({ ok: true });
+    // S8: reddedilen mesaj HEMEN ardından gelen turda yeniden denenmez (eskiden her 2 dakikada bir deniyordu)…
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+    // …ilk bekleme (90 sn ± %20) dolunca yeniden denenir ve (bu kez) gider.
+    await prisma.automatedMessageSend.updateMany({ where: { externalReservationId: source, state: "failed" }, data: { sentAt: new Date(Date.now() - 2 * 60_000) } });
     const out2 = await sendDueWelcomes(orgId);
     expect(mockSend).toHaveBeenCalledTimes(1); // re-attempted after the definitive failure
     expect(out2.sent).toBe(1);

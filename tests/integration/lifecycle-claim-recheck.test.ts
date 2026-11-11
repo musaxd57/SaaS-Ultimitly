@@ -237,6 +237,67 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     expect(await stampOf("res-a", "checkinSentAt")).not.toBeNull();
   });
 
+  it("🚨 S8: sağlayıcının 'çok fazla istek' beklemesindeki satırın vadesi gönderici tarafından ŞİMDİYE ÇEKİLMEZ", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    let posts = 0;
+    const limited: OutboxSendFn = async () => {
+      posts++;
+      return { ok: false, error: "Hospitable API hatası (HTTP 429): slow down", retryAfterMs: 10 * 60_000 };
+    };
+    await drainOutboxOnce({ send: limited, tokenFor: async () => "t" });
+    expect(posts).toBe(1);
+    const waiting = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(waiting.status).toBe("pending");
+    expect(waiting.lastErrorKind).toBe("rate_limited");
+    expect(waiting.availableAt.getTime()).toBeGreaterThan(Date.now() + 8 * 60_000);
+
+    // Gönderici bir sonraki turda aynı rezervasyonu yine görür (damga yok) → "zaten kuyrukta" → vadeye DOKUNMAZ.
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    const after = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(after.availableAt.getTime()).toBe(waiting.availableAt.getTime()); // ⬅️ ESKİDE şimdiye çekiliyordu → 2 dakikada bir yeniden istek
+    await drainOutboxOnce({ send: limited, tokenFor: async () => "t" });
+    expect(posts).toBe(1); // bekleme sürerken sağlayıcıya ikinci istek yok
+  });
+
+  it("🚨 S8: kesin retten sonra geri çekilen satırın vadesi de öne çekilmez", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    const rejected: OutboxSendFn = async () => ({ ok: false, error: "Hospitable API hatası (HTTP 422): rejected" });
+    await drainOutboxOnce({ send: rejected, tokenFor: async () => "t" });
+    const waiting = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(waiting.status).toBe("pending");
+    expect(waiting.lastErrorKind).toBe("definitive_failure");
+    expect(waiting.availableAt.getTime()).toBeGreaterThan(Date.now() + 10_000);
+    await sendDueCheckins(orgId);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).availableAt.getTime()).toBe(waiting.availableAt.getTime());
+  });
+
+  it("S8: hata sonrası TARİHE göre ertelenen satır hata bilgisini bırakır → tarih geri gelince yine bekletmeden gider", async () => {
+    const orgId = await seed("checkin");
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    await drainOutboxOnce({ send: async () => ({ ok: false, error: "Hospitable API hatası (HTTP 429): slow down", retryAfterMs: 60_000 }), tokenFor: async () => "t" });
+    // Bekleme doldu sayılır; bu arada varış 3 ay ileri taşındı → işçi satırı tarihe göre erteler.
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date() } });
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { arrivalDate: new Date(Date.now() + 90 * DAY), departureDate: new Date(Date.now() + 93 * DAY) } });
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    const deferred = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(posts).toBe(0);
+    expect(deferred.availableAt.getTime()).toBeGreaterThan(Date.now() + 80 * DAY);
+    expect(deferred.lastErrorKind).toBeNull(); // artık hata yüzünden beklemiyor
+    expect(deferred.lastErrorCode).toBeNull();
+
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { arrivalDate: new Date(Date.now() + 2 * DAY), departureDate: new Date(Date.now() + 5 * DAY) } });
+    await sendDueCheckins(orgId);
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(posts).toBe(1);
+  });
+
   it("KONTROL: tarih değişmezse kuyruk satırı GİDER (aynı anahtar ikinci koşuda yutulur)", async () => {
     const orgId = await seed("checkin");
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });

@@ -38,6 +38,8 @@ export interface SendOutcome {
   kind?: SendResultKind;
   /** G10: sağlayıcı 5xx döndü (YALNIZ rapor; tekrar davranışı `ambiguous` ile aynı — `channels/outbound.ts`). */
   providerOutage?: boolean;
+  /** 429'da sağlayıcının istediği bekleme (saniye) — otomatik mesaj göndericisi o süre boyunca yeniden denemez (S8). */
+  retryAfterSec?: number | null;
 }
 
 /**
@@ -67,6 +69,7 @@ export async function sendOnChannel(
     providerMessageId: r.providerMessageId ?? null,
     kind: r.kind,
     ...(r.providerOutage ? { providerOutage: true } : {}),
+    ...(r.retryAfterSec != null ? { retryAfterSec: r.retryAfterSec } : {}),
   };
 }
 

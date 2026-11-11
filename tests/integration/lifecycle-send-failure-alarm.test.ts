@@ -87,6 +87,13 @@ async function seed() {
   return { orgId: org.id, reservationId: reservation.id };
 }
 
+/**
+ * S8 (11-11): reddedilen mesaj artık her turda yeniden denenmiyor (bekleme süresi katlanarak büyür). Bu dosyanın sınadığı şey ALARM
+ * PENCERESİ: "yeniden deneme yapıldı, yine reddedildi, ama alarm pencere içinde tekrar etmedi". O yüzden sonraki turdan önce bekleme
+ * süresi dolmuş sayılır (ret kayıtları tavanın ötesine yaşlandırılır) — yeniden deneme GERÇEKTEN yapılır, alarmı susturan pencere olur.
+ */
+const retryWaitElapsed = () => prisma.automatedMessageSend.updateMany({ where: { state: "failed" }, data: { sentAt: new Date(Date.now() - 8 * 3_600_000) } });
+
 describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu alarm", () => {
   beforeEach(async () => {
     await resetDb();
@@ -195,17 +202,19 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
   });
 
   it("ALARM PENCEREYE BAĞLI: aynı org+tür 6 saat içinde İKİNCİ kez uyarmaz", async () => {
-    // ⚠️ Yaşam-döngüsü göndericileri kesin hatada damgayı geri alıp HER geçişte
-    // yeniden deniyor (402 dahil) — geri çekilme yok. Alarmı ona çıplak bağlamak
-    // `reportError`'un 10 dk'lık throttle'ıyla bile GÜNDE ~432 e-posta demekti.
+    // ⚠️ Yaşam-döngüsü göndericileri kesin hatada damgayı geri alıp yeniden deniyor (402 dahil). Alarmı ona çıplak bağlamak
+    // `reportError`'un 10 dk'lık throttle'ıyla bile GÜNDE yüzlerce e-posta demekti. (S8'den beri yeniden deneme aralıklı; pencere yine
+    // şart — her yeniden denemede bir alarm olmasın.)
     const { orgId } = await seed();
     mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
 
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(1);
 
-    // Üretimde bu 2 dakika sonrasıdır (damga geri alındığı için aday yine uygun).
+    // Bekleme doldu → yeniden denendi, yine reddedildi; alarm pencere içinde TEKRAR ETMEZ.
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(2); // yeniden deneme gerçekten yapıldı (anti-vakum)
     expect(mockReport).toHaveBeenCalledTimes(1); // ⬅️ ARIZADA 2 olurdu
 
     // Pencere dolunca yeniden uyarır (arıza sürüyorsa sesi tamamen kesmeyiz).
@@ -213,6 +222,7 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
       where: { name: { startsWith: "lifecycle-alarm:" } },
       data: { lockedUntil: new Date(Date.now() - 1000) },
     });
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(2);
   });
@@ -246,7 +256,9 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     expect(lock.lockedUntil.getTime()).toBeGreaterThan(Date.now()); // ⬅️ ARIZADA epoch 0
     expect(lock.lockedUntil.getTime()).toBeLessThan(Date.now() + 20 * 60_000); // ama 6 saat DE değil
 
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(2); // yeniden deneme yapıldı ve yine reddedildi
     expect(mockReport).toHaveBeenCalledTimes(1); // sel yok
 
     // Geri çekilme dolunca YENİDEN dener — bildirim kalıcı kaybolmaz.
@@ -254,6 +266,7 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
       where: { name: { startsWith: "lifecycle-alarm:" } },
       data: { lockedUntil: new Date(Date.now() - 1000) },
     });
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(2);
   });
@@ -265,15 +278,20 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     // (a) throttled: "bu context zaten uyarıldı" — geri almak sonsuz tekrar olurdu.
     mockReport.mockResolvedValue({ notified: false, throttled: true, configured: true });
     await sendDueWelcomes(orgId);
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(2);
     expect(mockReport).toHaveBeenCalledTimes(1);
 
     // (b) configured:false: alarm e-postası hiç kurulmamış — arıza değil.
     await prisma.systemLock.deleteMany({ where: { name: { startsWith: "lifecycle-alarm:" } } });
     mockReport.mockClear();
     mockReport.mockResolvedValue({ notified: false, throttled: false, configured: false });
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
+    await retryWaitElapsed();
     await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(4);
     expect(mockReport).toHaveBeenCalledTimes(1);
   });
 
@@ -289,7 +307,8 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
       expect(src).toContain(`reportLifecycleSendFailures("${kind}"`);
     }
     // Hata sınıfı etiketi üç dalda da toplanıyor (damga geri alma ile aynı yerde).
-    const pushes = src.match(/failures\.push\(definitive \? "definitive" : "ambiguous"\)/g) ?? [];
+    // (S8: "çok fazla istek" ayrı etiket alır — mesajın hatası değil.)
+    const pushes = src.match(/failures\.push\(rateLimited \? "rate_limited" : definitive \? "definitive" : "ambiguous"\)/g) ?? [];
     expect(pushes.length).toBe(3);
     // Ham sağlayıcı hatası alarma GİRMEZ — kaynakta böyle bir birleştirme olmamalı.
     expect(src).not.toMatch(/reportLifecycleSendFailures\([^)]*delivery\.error/);
