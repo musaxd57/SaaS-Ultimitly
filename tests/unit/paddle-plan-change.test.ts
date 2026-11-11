@@ -5,6 +5,8 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 import {
   classifyPaddleFailure,
   isTransientPaddleReadFailure,
+  getSubscriptionCreatedAt,
+  SUBSCRIPTION_READ_TRANSIENT,
   isExpectedPaddleError,
   getSubscriptionCurrentPriceId,
   previewSubscriptionUpdate,
@@ -197,6 +199,22 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     expect(classifyPaddleFailure(new Error("Paddle HTTP 503 (unavailable) env=x resource=subscriptions"))).toBe("ambiguous");
     expect(classifyPaddleFailure(new Error("fetch failed"))).toBe("ambiguous");
     expect(classifyPaddleFailure(new Error("The operation was aborted due to timeout"))).toBe("ambiguous");
+  });
+
+  it("getSubscriptionCreatedAt: tarih · KESİN bilinmiyor (404 / alan yok / anahtar yok) → null · GEÇİCİ arıza (503 / ağ) → 'transient' (ödeme P1)", async () => {
+    expect(await getSubscriptionCreatedAt("sub_1")).toBeNull(); // anahtar tanımsız
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    const fetchMock = vi.spyOn(global, "fetch");
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ data: { created_at: "2026-11-04T10:02:00Z" } }) } as Response);
+    expect(await getSubscriptionCreatedAt("sub_1")).toEqual(new Date("2026-11-04T10:02:00Z"));
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ data: {} }) } as Response);
+    expect(await getSubscriptionCreatedAt("sub_1")).toBeNull();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ error: { code: "entity_not_found" } }) } as Response);
+    expect(await getSubscriptionCreatedAt("sub_1")).toBeNull();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ error: { code: "service_unavailable" } }) } as Response);
+    expect(await getSubscriptionCreatedAt("sub_1")).toBe(SUBSCRIPTION_READ_TRANSIENT);
+    fetchMock.mockRejectedValueOnce(new Error("fetch failed"));
+    expect(await getSubscriptionCreatedAt("sub_1")).toBe(SUBSCRIPTION_READ_TRANSIENT);
   });
 
   // Ödeme P1 (Codex 11-10): salt-OKUMA isteğinde "sonra okunabilir" ile "kesin yok / ret" ayrımı. Yazma sınıflamasından farkı 429:

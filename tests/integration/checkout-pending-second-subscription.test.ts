@@ -201,7 +201,9 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect((await postEvent(ev)).status).toBe(500); // ⬅️ ESKİDE 200 + satır sub_A'ya dönüyordu (yeni abonelik eziliyordu)
       let row = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
       expect([row.providerRef, row.status, row.cancelAtPeriodEnd]).toEqual(["sub_B", "active", false]);
-      expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: ev.event_id } })).status).toBe("error"); // işlenmiş sayılmadı
+      const failed = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: ev.event_id } });
+      expect(failed.status).toBe("error"); // işlenmiş sayılmadı
+      expect(failed.error).toContain("şu an okunamadı"); // bilinçli erteleme (rastgele bir çökme değil)
       expect(alarms()).toHaveLength(0);
 
       // Paddle aynı olayı yeniden gönderir; okuma düzeldi → B (10:02) daha yeni → A'nın olayı reddedilir + alarm.
