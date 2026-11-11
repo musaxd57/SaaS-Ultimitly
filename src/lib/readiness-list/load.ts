@@ -337,7 +337,14 @@ export async function loadArrivalReadiness(
       // Hükmün ölçüldüğü devrin çıkışı (aynı gün ya da önceki bir gün — Opus 11-05 N6); eski / taklit sonuçta aynı gün çıkışına düşer.
       previousCheckout: loaded?.referenceCheckout?.time ?? f?.previousSameDay?.checkoutTime ?? null,
       previousCheckoutDay: loaded?.referenceCheckout?.dayKey ?? null,
-      readyMark: loaded?.readyMark ? { id: loaded.readyMark.id, at: loaded.readyMark.at, by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null } : null,
+      readyMark: loaded?.readyMark
+        ? {
+            id: loaded.readyMark.id,
+            at: loaded.readyMark.at,
+            by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null,
+            ...(loaded.readyMark.beforeCheckout ? { beforeCheckout: true } : {}),
+          }
+        : null,
       tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt, blocked: t.blocked })),
     };
     const basisIds = loaded?.basisIds;

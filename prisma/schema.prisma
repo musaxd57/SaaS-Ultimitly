@@ -1754,7 +1754,7 @@ model StorageDeletion {
   id             String    @id @default(cuid())
   objectKey      String    @unique // idempotency anchor: the same object never queues twice
   organizationId String // opaque tenant id (NOT an FK — see note above)
-  status         String    @default("pending") // pending | deleted (closed set, app-enforced)
+  status         String    @default("pending") // pending | deleting | deleted (closed set, app-enforced; `deleting` = silme sahiplenildi, 11-11)
   attemptCount   Int       @default(0)
   availableAt    DateTime  @default(now()) // backoff gate — not eligible before this
   lastError      String? // sanitized short code (e.g. "HTTP 500") — never a provider body/secret

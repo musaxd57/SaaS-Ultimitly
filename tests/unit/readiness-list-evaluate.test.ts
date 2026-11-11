@@ -65,6 +65,21 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(r.overall).toBe("not_ready");
   });
 
+  it("🚨 Codex 11-10 Q3: çıkıştan ÖNCE biten, erken temizlik kuralıyla sayılan iş 'çıkıştan sonra' diye YAZILMAZ (hüküm aynı, açıklama doğru)", () => {
+    const r = evaluateStay(
+      stay({ cleaning: cleaning({ status: "ready", note: "none", readyMark: { id: "u9", at: at("2026-11-07T05:45:00Z"), by: "Ayşe", beforeCheckout: true } }) }),
+    );
+    const f = cleaningFactor(r);
+    expect(f.state).toBe("ok"); // hazır hükmü değişmez
+    expect(f.label).toBe("Temizlik bitti 08:45 · Ayşe · çıkıştan (11:00) önce, erken temizlik kuralıyla"); // ⬅️ ESKİDE "… · çıkıştan (11:00) sonra"
+    expect(f.label).not.toContain("sonra");
+    // Çıkış saati bilinmiyorsa parantezsiz.
+    const noTime = evaluateStay(
+      stay({ cleaning: cleaning({ status: "ready", previousCheckout: null, readyMark: { id: "u9", at: at("2026-11-07T05:45:00Z"), by: null, beforeCheckout: true } }) }),
+    );
+    expect(cleaningFactor(noTime).label).toBe("Temizlik bitti 08:45 · çıkıştan önce, erken temizlik kuralıyla");
+  });
+
   it("🚨 çekirdek 'hazır' dediğinde: 'TEMİZLİK HAZIR' — ama genel durum ASLA 'HAZIR' değil (erişim kontrol edilmedi, H-2)", () => {
     const r = evaluateStay(
       stay({

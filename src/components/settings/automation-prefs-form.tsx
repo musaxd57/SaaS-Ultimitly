@@ -90,20 +90,34 @@ export function AutomationPrefsForm({
     setBusy(true);
     setError(null);
     setSaved(false);
+    // Bu isteğin GÖNDERDİĞİ değerler (istek sürerken alanlar değişebilir — aşağıda yalnız bunlar "kaydedildi" sayılır).
+    const sent = {
+      autoReplyDisclosure,
+      handoffHoldHours,
+      autoClosingReplyEnabled,
+      closingReplyText,
+      lateCheckoutOfferText,
+      autoTaskFromMessageEnabled,
+      autoCommitmentsEnabled,
+      autoSupplyRequestEnabled,
+    };
+    // 🚨 YALNIZ DEĞİŞEN ALANLAR GİDER (Codex 11-10 X3). Form bütün alanları yolluyordu: başka sekmede (ya da başka yöneticinin
+    // ekranında) teklif metni / bir anahtar değiştirilmişken eski sekmeden yalnız bekleme süresini kaydetmek, öteki alanları da bu
+    // sekmenin ESKİ değerlerine geri çeviriyordu. Dokunulmayan alan artık hiç gönderilmez; sunucu yalnız gelen alanı yazar.
+    const body: Record<string, boolean | number | string> = {};
+    if (sent.autoReplyDisclosure !== baseline.autoReplyDisclosure) body.autoReplyDisclosure = sent.autoReplyDisclosure;
+    if (sent.handoffHoldHours !== baseline.handoffHoldHours) body.handoffHoldHours = Number(sent.handoffHoldHours);
+    if (sent.autoClosingReplyEnabled !== baseline.autoClosingReplyEnabled) body.autoClosingReplyEnabled = sent.autoClosingReplyEnabled;
+    if (sent.closingReplyText !== baseline.closingReplyText) body.closingReplyText = sent.closingReplyText;
+    if (sent.lateCheckoutOfferText !== baseline.lateCheckoutOfferText) body.lateCheckoutOfferText = sent.lateCheckoutOfferText;
+    if (sent.autoTaskFromMessageEnabled !== baseline.autoTaskFromMessageEnabled) body.autoTaskFromMessageEnabled = sent.autoTaskFromMessageEnabled;
+    if (showCommitments && sent.autoCommitmentsEnabled !== baseline.autoCommitmentsEnabled) body.autoCommitmentsEnabled = sent.autoCommitmentsEnabled;
+    if (sent.autoSupplyRequestEnabled !== baseline.autoSupplyRequestEnabled) body.autoSupplyRequestEnabled = sent.autoSupplyRequestEnabled;
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          autoReplyDisclosure,
-          handoffHoldHours: Number(handoffHoldHours),
-          autoClosingReplyEnabled,
-          closingReplyText,
-          lateCheckoutOfferText,
-          autoTaskFromMessageEnabled,
-          ...(showCommitments ? { autoCommitmentsEnabled } : {}),
-          autoSupplyRequestEnabled,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -111,20 +125,15 @@ export function AutomationPrefsForm({
         // Mirror the server's normalization (trim; empty→null is displayed as "")
         // so the on-screen value matches what was stored and whitespace-only
         // edits can't re-enable Kaydet as a phantom "unsaved change".
-        const normClosing = closingReplyText.trim();
-        const normOffer = lateCheckoutOfferText.trim();
-        setClosingText(normClosing);
-        setLateCheckoutOffer(normOffer);
-        setBaseline({
-          autoReplyDisclosure,
-          handoffHoldHours,
-          autoClosingReplyEnabled,
-          closingReplyText: normClosing,
-          lateCheckoutOfferText: normOffer,
-          autoTaskFromMessageEnabled,
-          autoCommitmentsEnabled,
-          autoSupplyRequestEnabled,
-        });
+        const normClosing = sent.closingReplyText.trim();
+        const normOffer = sent.lateCheckoutOfferText.trim();
+        // 🚨 KAYIT SÜRERKEN YAZILAN KORUNUR (Codex 11-10 X4). Alan, gönderilen değerle AYNI kalmışsa sunucunun kırpılmış hâline
+        // çevrilir; kullanıcı istek sürerken yeni bir şey yazdıysa o metin yerinde kalır (eskiden başarılı yanıt alanı gönderilen
+        // eski değere geri yazıp "Kaydedildi" diyordu). Taban, GÖNDERİLEN değerlerdir → yeni yazılan "kaydedilmemiş değişiklik"
+        // olarak görünür, Kaydet yeniden açılır.
+        setClosingText((cur) => (cur === sent.closingReplyText ? normClosing : cur));
+        setLateCheckoutOffer((cur) => (cur === sent.lateCheckoutOfferText ? normOffer : cur));
+        setBaseline({ ...sent, closingReplyText: normClosing, lateCheckoutOfferText: normOffer });
         startTransition(() => router.refresh());
       } else {
         // Surface the SPECIFIC field message (e.g. the offer payment-method

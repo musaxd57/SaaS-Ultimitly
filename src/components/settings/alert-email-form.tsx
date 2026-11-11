@@ -29,22 +29,25 @@ export function AlertEmailForm({ initial }: { initial: string }) {
     setError(null);
     setSaved(false);
     setPending(null);
+    const sent = email; // bu isteğin gönderdiği adres (istek sürerken alan değişebilir)
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alertEmail: email.trim() }),
+        body: JSON.stringify({ alertEmail: sent.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.alertEmailPending) {
         // Kayıtlı değer DEĞİŞMEDİ: taban aynı kalır, alan yazılanı göstermeye devam eder.
-        setPending(email.trim().toLowerCase());
+        setPending(sent.trim().toLowerCase());
       } else if (res.ok) {
         setSaved(true);
         // Mirror the server's normalization (trim + lowercase) so the visible
         // value equals what was actually stored.
-        const normalized = email.trim().toLowerCase();
-        setEmail(normalized);
+        const normalized = sent.trim().toLowerCase();
+        // Kayıt sürerken yazılan adres korunur (Codex 11-10 X4): alan yalnız gönderilen değerde kaldıysa normalleştirilir; taban
+        // GÖNDERİLEN adrestir → sonradan yazılan "kaydedilmemiş" görünür.
+        setEmail((cur) => (cur === sent ? normalized : cur));
         setBaseline(normalized);
         // Adres değişti → yeni adres henüz doğrulanmadı: test butonunu geri
         // getir (tek-seferlik gizleme bayrağını düşür + bayat sonucu temizlet).

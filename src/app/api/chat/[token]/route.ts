@@ -355,7 +355,10 @@ async function recordGuestChatExchange(
       // YOK. Botun cevabı bizim çıktımızdır, ingest değildir (aşağıda damgasız).
       { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr", ingestedAt: guestAt, createdAt: guestAt },
       ...(botReply !== null
-        ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr", createdAt: botAt }]
+        ? // 🚨 CEVAP KAYITTA KESİLMEZ (Codex 11-10 Q1): misafire dönen metin bütün kontrollerden geçmiş metindir; kayıt onun AYNISI olmalı.
+          // Burada 2.000'de kesiliyordu — misafir tam metni görüp sayfayı yenileyince kesik hâlini okuyordu (kesik cümlede olumsuzluk
+          // kaybolabiliyor). Uzunluk sınırı yukarıda, gönderim kararında uygulanır (`replyOverAutosendCap`: tavanı aşan cevap gitmez).
+          [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply, language: "tr", createdAt: botAt }]
         : []),
     ],
     select: { id: true, direction: true },

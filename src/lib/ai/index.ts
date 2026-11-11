@@ -561,6 +561,11 @@ export function verifiedPartsWaiver(o: { verifiedCount: number; truncated: boole
   return o.verifiedCount > 0 && !o.truncated && !o.schemaViolation;
 }
 
+/** Misafire gidecek SON metin (selam dahil, bütün biçimlendirmeden sonra) gönderim tavanını aşıyor mu? Saf. */
+export function replyOverAutosendCap(finalReply: string): boolean {
+  return finalReply.length > REPLY_AUTOSEND_CAP;
+}
+
 function capReply(text: string): { text: string; truncated: boolean } {
   const trimmed = text.trim();
   if (trimmed.length <= REPLY_AUTOSEND_CAP) return { text: trimmed, truncated: false };
@@ -826,9 +831,26 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         const usedSourcesShown = partsKbCategories
           ? verified.filter((v) => (v.startsWith("kb:") ? partsKbCategories.has(v.slice(3)) : v.startsWith("property:") ? partsUsesProperty : false))
           : verified;
+        // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı. Kurucu T1
+        // (10-21): silme ancak kalan yönergenin bilgi tabanında DAYANAĞI varsa — yoksa cevap aynen kalır, "bilgim yok" kuralı tutar.
+        // Doğrulanan parça yoksa metin BOŞ kalır — kodun selamı eklenmez (Haiku 10-23: yalnız "Merhaba," okuyucuya gidiyordu).
+        const finalReply = !replyText.trim()
+          ? ""
+          : codeGreetingEnabled()
+            ? codeGreetingReply(stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
+            : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input));
+        // 🚨 GÖNDERİM TAVANI SON METNE BAKAR (Codex 11-10 Q1). Tavan modelin ham metnine uygulanıyordu; kodun selamı SONRADAN ekleniyor,
+        // metni tavanın üstüne çıkarabiliyordu (1.990 + "Merhaba Ayşe,"). QR kaydı o metni 2.000'de kesiyordu: misafir tam cevabı görüp
+        // sayfayı yenileyince sonu kesik hâlini ("…güvenli değil|dir" → olumsuzluk gitmiş) okuyabiliyordu. Bütün biçimlendirmeden sonra
+        // tavanı aşan metin, kesilmiş metinle AYNI hükmü alır: taslak olarak ev sahibine kalır, kendiliğinden gitmez.
+        const overAutosendCap = replyOverAutosendCap(finalReply);
+        if (overAutosendCap && !shown.truncated) {
+          void reportError("openai-reply over autosend cap", new Error(`final reply ${finalReply.length} chars > ${REPLY_AUTOSEND_CAP} after formatting; held for human review`));
+        }
+        const heldForLength = shown.truncated || overAutosendCap;
         return {
           intent: intentKnown ? intentRaw : "general",
-          confidence: shown.truncated
+          confidence: heldForLength
             ? // KESİLMİŞ YANIT ASLA OTOMATİK GİTMEZ. Kapı confidence ≥ 0.75
               // ister; 0.5'e kıstığımızda yanıt taslak olarak host'a görünür
               // ama misafire gönderilmez. (↑capReply gerekçesi.)
@@ -839,14 +861,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
-          // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı. Kurucu T1
-          // (10-21): silme ancak kalan yönergenin bilgi tabanında DAYANAĞI varsa — yoksa cevap aynen kalır, "bilgim yok" kuralı tutar.
-          // Doğrulanan parça yoksa metin BOŞ kalır — kodun selamı eklenmez (Haiku 10-23: yalnız "Merhaba," okuyucuya gidiyordu).
-          reply: !replyText.trim()
-            ? ""
-            : codeGreetingEnabled()
-              ? codeGreetingReply(stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
-              : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
+          reply: finalReply,
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)
@@ -927,7 +942,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).
           ...(partsOutcome &&
           replyText.trim() &&
-          verifiedPartsWaiver({ verifiedCount: partsOutcome.verified.length, truncated: shown.truncated, schemaViolation })
+          verifiedPartsWaiver({ verifiedCount: partsOutcome.verified.length, truncated: heldForLength, schemaViolation })
             ? { verifiedPartsOnly: true as const }
             : {}),
         };

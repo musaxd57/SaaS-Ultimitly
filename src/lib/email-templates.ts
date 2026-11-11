@@ -1,5 +1,19 @@
 import "server-only";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
+import { calendarDateOf } from "@/modules/availability/core";
+
+/**
+ * Görev vadesinin e-postadaki yazımı — İŞLETMENİN saat diliminde (Codex 11-10 X5). Eskiden dilim verilmiyordu: sunucu UTC'de çalıştığı
+ * için İstanbul'da 15:00 olan vade e-postaya "12:00" yazılıyordu. Yalnız-tarih kaydı (gün çapası, `calendarDateOf`) SAAT UYDURMAZ: yalnız
+ * gün yazılır (eskiden "12:00" / "03:00" gibi uydurma bir saat çıkıyordu). Gerçek an → gün + saat.
+ */
+export function taskDueEmailLabel(dueAt: Date, timeZone: string): string {
+  const { key, anchor } = calendarDateOf(dueAt, timeZone);
+  if (anchor !== "instant") {
+    return new Date(`${key}T12:00:00.000Z`).toLocaleDateString("tr-TR", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+  }
+  return dueAt.toLocaleDateString("tr-TR", { timeZone, day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 /**
  * Misafir metninden alıntı — KOD NOKTASIYLA kırpılır (15 ajan A13): `slice(0, 600)` UTF-16 birimiyle kesiyordu ve 600. birim bir emoji
@@ -153,20 +167,14 @@ export function taskAssignedEmail(
   task: TaskEmailData,
   assignee: AssigneeEmailData,
   property: PropertyEmailData,
+  /** İşletmenin saat dilimi — vade bu dilimde yazılır (zorunlu: verilmezse sunucunun dilimi, yani UTC kullanılırdı). */
+  timeZone: string,
 ): string {
   const priorityColor =
     task.priority === "urgent" ? "#ef4444" : task.priority === "standard" ? "#6366f1" : "#94a3b8";
   const priorityLabel =
     task.priority === "urgent" ? "Acil" : task.priority === "standard" ? "Standart" : "Düşük";
-  const dueLabel = task.dueAt
-    ? new Date(task.dueAt).toLocaleDateString("tr-TR", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  const dueLabel = task.dueAt ? taskDueEmailLabel(new Date(task.dueAt), timeZone) : null;
 
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">

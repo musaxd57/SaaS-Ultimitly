@@ -21,7 +21,7 @@ import { identityEmailShell } from "@/lib/email-shell";
 const prop = { name: "Lale", address: null, city: "İstanbul" };
 const convo = { id: "c1", guestIdentifier: "Misafir", channel: "airbnb", priority: "standard" };
 const HOST_EMAILS: Array<[string, string]> = [
-  ["görev atandı", taskAssignedEmail({ id: "t1", title: "Temizlik", type: "cleaning", priority: "standard", status: "todo" }, { name: "Ayşe", email: "a@b.c" }, prop)],
+  ["görev atandı", taskAssignedEmail({ id: "t1", title: "Temizlik", type: "cleaning", priority: "standard", status: "todo" }, { name: "Ayşe", email: "a@b.c" }, prop, "Europe/Istanbul")],
   ["şikâyet", complaintEscalationEmail(convo, "Klima çalışmıyor", prop, "Lale")],
   ["cevap bekliyor", hostReplyWaitingEmail(convo, "Wi-Fi şifresi?", prop, "Lale")],
   ["karar bekliyor", decisionPendingEmail({ title: "13:00 erken giriş", dayLabel: null, guestIdentifier: "Misafir", propertyName: "Lale", orgName: "Lale", panelUrl: "https://x.test/inbox/c1" })],

@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { billingEnforced, getEntitlement, isFounderOrg } from "@/lib/billing/subscription";
 import { LICENSE_TYPE_INFO, REGISTRY_SOURCES, isLicenseType, isRegistrySourceId, type LicenseType } from "./catalog";
@@ -180,46 +181,68 @@ export type OperatorLicenseRow = {
   createdAt: string;
 };
 
-/** Açık başvurular + yeniden okunması gereken doğrulanmış belgeler (işaret 5 gün içinde kalkacaksa). */
-export async function operatorLicenseQueue(now = new Date()): Promise<{ open: OperatorLicenseRow[]; recheck: OperatorLicenseRow[] }> {
+/** Operatör kuyruğunda her listenin gösterdiği en çok satır (fazlası SAYILIR ve ekranda söylenir — sessiz kesme yok). */
+export const OPERATOR_QUEUE_PAGE = 200;
+
+const OPERATOR_ROW_SELECT = {
+  id: true,
+  organizationId: true,
+  type: true,
+  number: true,
+  status: true,
+  attributes: true,
+  lastRegistryOkAt: true,
+  pendingUntil: true,
+  createdAt: true,
+  organization: { select: { name: true } },
+  registryNameNorm: true,
+  numberNorm: true,
+  holder: { select: { id: true, kind: true, legalName: true, legalNameNorm: true, taxIdLast2: true, taxIdHash: true } },
+  units: { take: 200, select: { property: { select: { id: true, name: true, address: true, city: true } } } },
+  // Onay yolunun (`write.ts` lastEvidence) baktığı pencereyle aynı: okuma taşıyan son olay; kanıt AYRI sorguda (Haiku 11-06: ortak
+  // 20 olaylık pencerede çok okuma kanıtı ekrandan düşürüyordu, sunucu ise görüyordu).
+  events: {
+    where: { actorKind: "operator", reason: { in: ["registry_read", "suspend"] } },
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+    take: 10,
+    select: { reason: true, createdAt: true, evidence: true },
+  },
+} satisfies Prisma.BusinessLicenseSelect;
+
+/**
+ * Açık başvurular + askıdaki belgeler + yeniden okunması gereken doğrulanmış belgeler (işaret 5 gün içinde kalkacaksa).
+ *
+ * 🚨 ÜÇ AYRI LİSTE, ÜÇ AYRI SINIR (Codex 11-10 X2). Eskiden bütün durumlar TEK sorguda, eskiden yeniye 200 satırla okunuyordu: 200 eski
+ * askı kaydı birikince yeni başvuru kuyruğa HİÇ girmiyor, operatör onu göremiyordu (başvuru 14 günde kendiliğinden düşer). Artık yeni
+ * başvurular kendi sırasında (en eski başvuru önce) okunur — askıdaki ya da yeniden okunacak belgeler onların yerini alamaz. Her listenin
+ * TOPLAMI ayrıca sayılır; gösterilmeyen satır sayısı `hidden` ile döner.
+ */
+export async function operatorLicenseQueue(
+  now = new Date(),
+): Promise<{ open: OperatorLicenseRow[]; recheck: OperatorLicenseRow[]; hidden: { applications: number; suspended: number; recheck: number } }> {
   const recheckBefore = new Date(now.getTime() - (MARK_TTL_DAYS - 5) * 24 * 60 * 60 * 1000);
-  const rows = await prisma.businessLicense.findMany({
-    where: {
-      OR: [
-        // Son günü boş açık satır (yazıcı hep doldurur; eski / elle düzeltilmiş satır) kuyruktan düşmez — iki açık durum aynı kural (Haiku 11-06).
-        { status: "pending", OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] },
-        { status: "under_review", OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] },
-        { status: "suspended" },
-        { status: "verified", OR: [{ lastRegistryOkAt: null }, { lastRegistryOkAt: { lte: recheckBefore } }] },
-      ],
-    },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: 200,
-    select: {
-      id: true,
-      organizationId: true,
-      type: true,
-      number: true,
-      status: true,
-      attributes: true,
-      lastRegistryOkAt: true,
-      pendingUntil: true,
-      createdAt: true,
-      organization: { select: { name: true } },
-      registryNameNorm: true,
-      numberNorm: true,
-      holder: { select: { id: true, kind: true, legalName: true, legalNameNorm: true, taxIdLast2: true, taxIdHash: true } },
-      units: { take: 200, select: { property: { select: { id: true, name: true, address: true, city: true } } } },
-      // Onay yolunun (`write.ts` lastEvidence) baktığı pencereyle aynı: okuma taşıyan son olay; kanıt AYRI sorguda (Haiku 11-06: ortak
-      // 20 olaylık pencerede çok okuma kanıtı ekrandan düşürüyordu, sunucu ise görüyordu).
-      events: {
-        where: { actorKind: "operator", reason: { in: ["registry_read", "suspend"] } },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 10,
-        select: { reason: true, createdAt: true, evidence: true },
-      },
-    },
-  });
+  // Son günü boş açık satır (yazıcı hep doldurur; eski / elle düzeltilmiş satır) kuyruktan düşmez — iki açık durum aynı kural (Haiku 11-06).
+  const notExpired = { OR: [{ pendingUntil: null }, { pendingUntil: { gt: now } }] };
+  const applicationsWhere: Prisma.BusinessLicenseWhereInput = { status: { in: ["pending", "under_review"] }, ...notExpired };
+  const suspendedWhere: Prisma.BusinessLicenseWhereInput = { status: "suspended" };
+  const recheckWhere: Prisma.BusinessLicenseWhereInput = { status: "verified", OR: [{ lastRegistryOkAt: null }, { lastRegistryOkAt: { lte: recheckBefore } }] };
+  const page = (where: Prisma.BusinessLicenseWhereInput) =>
+    prisma.businessLicense.findMany({ where, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: OPERATOR_QUEUE_PAGE, select: OPERATOR_ROW_SELECT });
+  const [applicationRows, suspendedRows, recheckRows, applicationTotal, suspendedTotal, recheckTotal] = await Promise.all([
+    page(applicationsWhere),
+    page(suspendedWhere),
+    page(recheckWhere),
+    prisma.businessLicense.count({ where: applicationsWhere }),
+    prisma.businessLicense.count({ where: suspendedWhere }),
+    prisma.businessLicense.count({ where: recheckWhere }),
+  ]);
+  // "Açık" listede önce başvurular (karar bekleyen iş), sonra askıdakiler.
+  const rows = [...applicationRows, ...suspendedRows, ...recheckRows];
+  const hidden = {
+    applications: Math.max(0, applicationTotal - applicationRows.length),
+    suspended: Math.max(0, suspendedTotal - suspendedRows.length),
+    recheck: Math.max(0, recheckTotal - recheckRows.length),
+  };
   const proofs = rows.length
     ? await prisma.licenseEvent.findMany({
         where: { licenseId: { in: rows.map((r) => r.id) }, actorKind: "operator", reason: "ownership_proof" },
@@ -296,5 +319,5 @@ export async function operatorLicenseQueue(now = new Date()): Promise<{ open: Op
     };
     (r.status === "verified" ? recheck : open).push(row);
   }
-  return { open, recheck };
+  return { open, recheck, hidden };
 }

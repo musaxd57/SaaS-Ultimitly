@@ -89,7 +89,8 @@ export async function notifyTaskAssigned(organizationId: string, taskId: string)
   if (!(await rateLimit(`task-auto-assign-mail-user:${task.assignedToId}`, AUTO_ASSIGN_MAILS_PER_USER_HOUR, 60 * 60_000)).ok) return "skipped";
   const assignee = task.assignedTo;
   const emailTask = assignee.role === "owner" || assignee.role === "manager" ? task : staffTaskProjection(task);
-  const html = taskAssignedEmail(emailTask, { name: assignee.name, email: assignee.email }, task.property);
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+  const html = taskAssignedEmail(emailTask, { name: assignee.name, email: assignee.email }, task.property, orgTimezone(org?.timezone));
   void emailService
     .sendReporting(assignee.email, `Yeni Görev: ${emailTask.title}`, html)
     .then((res) => {

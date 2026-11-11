@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
+import { saveEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { todayKey, addNights } from "@/modules/availability/core";
 import { encryptSecret } from "@/lib/crypto-core";
 import { tombstoneKeyHash, currentKeyFingerprint } from "@/lib/erasure";
@@ -93,6 +94,19 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(rows[0].readiness.factors.find((f) => f.key === "cleaning")).toMatchObject({
       state: "ok",
       label: "Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra",
+    });
+  });
+
+  it("🚨 Codex 11-10 Q3: erken temizlik kuralıyla sayılan, çıkıştan ÖNCE biten iş 'çıkıştan (11:00) önce' diye yazılır — 'sonra' DEĞİL", async () => {
+    const { prev } = await sameDayTurnover();
+    await saveEarlyCheckinRule(orgId, propertyId, { mode: "auto", earliest: "09:00", fee: null, note: null, readyBeforeCheckout: true });
+    const t = await cleaningTask(prev.id, { assignedToId: staffId, status: "done" });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "in_progress", createdAt: localToday(8, 15) } });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(8, 45) } });
+    const rows = await rowOf(localToday(9, 30));
+    expect(rows[0].readiness.factors.find((f) => f.key === "cleaning")).toMatchObject({
+      state: "ok",
+      label: "Temizlik bitti 08:45 · Ayşe · çıkıştan (11:00) önce, erken temizlik kuralıyla", // ⬅️ ESKİDE "… · çıkıştan (11:00) sonra"
     });
   });
 

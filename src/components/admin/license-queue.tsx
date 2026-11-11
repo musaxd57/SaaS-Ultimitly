@@ -373,7 +373,7 @@ function RowCard({ row, onChanged }: { row: Row; onChanged: () => Promise<void> 
 }
 
 export function LicenseQueue() {
-  const [data, setData] = useState<{ open: Row[]; recheck: Row[] } | null>(null);
+  const [data, setData] = useState<{ open: Row[]; recheck: Row[]; hidden?: { applications: number; suspended: number; recheck: number } } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try {
@@ -398,10 +398,14 @@ export function LicenseQueue() {
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Açık başvurular ({data.open.length})</h2>
         {data.open.length === 0 ? <p className="text-sm text-muted-foreground">Bekleyen başvuru yok.</p> : <ul className="space-y-3">{data.open.map((r) => <RowCard key={r.id} row={r} onChanged={load} />)}</ul>}
+        {/* Sessiz kesme yok (Codex 11-10 X2): listeye sığmayan kayıt varsa sayısı yazılır; gösterilenler sonuçlandıkça sıradakiler gelir. */}
+        {(data.hidden?.applications ?? 0) > 0 && <p className="text-sm text-amber-700">… ve {data.hidden?.applications} başvuru daha var (en eski başvurular önce gösterilir).</p>}
+        {(data.hidden?.suspended ?? 0) > 0 && <p className="text-sm text-muted-foreground">… ve askıda {data.hidden?.suspended} belge daha var.</p>}
       </section>
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Yeniden okunacak doğrulanmış belgeler ({data.recheck.length})</h2>
         {data.recheck.length === 0 ? <p className="text-sm text-muted-foreground">Yok.</p> : <ul className="space-y-3">{data.recheck.map((r) => <RowCard key={r.id} row={r} onChanged={load} />)}</ul>}
+        {(data.hidden?.recheck ?? 0) > 0 && <p className="text-sm text-muted-foreground">… ve yeniden okunacak {data.hidden?.recheck} belge daha var.</p>}
       </section>
     </div>
   );

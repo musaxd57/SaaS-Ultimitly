@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { getStorageAdapter, type StorageAdapter } from "./adapter";
@@ -23,6 +23,44 @@ import { isSafeObjectKey, keyFromPhotoUrl, orgIdFromKey, photoUrlForKey } from "
 // ---------------------------------------------------------------------------
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+// ---------------------------------------------------------------------------
+// NESNENİN YAŞAM DÖNGÜSÜ TEK KİLİTTEN GEÇER (Codex 11-10 X1).
+//
+// Boşaltıcı "bu nesneyi gösteren görev kaydı var mı" diye BİR KEZ okuyup sonra siliyordu. Okumadan hemen sonra fotoğraf bir göreve
+// bağlanırsa (yüklemeden uzun süre sonra kaydedilen form, eski bağlantıyı yeniden gönderen istemci) eski sonuçla silmeye devam ediyor,
+// görev kaydı kovada OLMAYAN bir fotoğrafı gösteriyordu. "Silmeden hemen önce yeniden oku" aralığı daraltır ama kapatmaz.
+//
+// Kural: fotoğrafı göreve BAĞLAYAN yazım ile silmeyi SAHİPLENEN boşaltıcı, nesne anahtarı başına AYNI danışma kilidinden (işlem kapsamlı)
+// geçer; sahiplenme kuyruk satırına yazılır (`deleting`):
+//   · boşaltıcı kilit altında gösterimi YENİDEN okur → gösteriliyorsa kaydı iptal eder, gösterilmiyorsa satırı `deleting` yapar (commit),
+//     SONRA sağlayıcıdan siler;
+//   · bağlama kilit altında satıra bakar → `deleting` / `deleted` ise bağlamaz (fotoğraf yok ya da yok olmak üzere).
+// Hangisi önce kilidi alırsa sonuç tutarlıdır: ya nesne kalır ve bağlanır, ya silinir ve bağlanamaz. Sağlayıcı çağrısı kilidin DIŞINDADIR
+// (uzun veritabanı işlemi yok). Şema değişmedi: `status` uygulama tarafından yönetilen metindir (pending | deleting | deleted).
+// ---------------------------------------------------------------------------
+const STORAGE_OBJECT_LOCK_NS = 50;
+
+/** Nesne anahtarı başına danışma kilidi (işlem bitince bırakılır). */
+export async function lockStorageObject(tx: Prisma.TransactionClient, objectKey: string): Promise<void> {
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${STORAGE_OBJECT_LOCK_NS}::int4, hashtext(${objectKey}))`);
+}
+
+/** Hâlâ işlenecek kuyruk durumları: bekleyen + silmesi sahiplenilmiş (sağlayıcı silmesi henüz doğrulanmamış). */
+const OPEN_STATUSES = ["pending", "deleting"];
+
+/**
+ * BAĞLAMA KAPISI — görev kaydına fotoğraf yazan işlemin İÇİNDE, yazımdan ÖNCE çağrılır. `false` → nesnenin silinmesi sahiplenilmiş ya da
+ * tamamlanmış: bağlanmaz (çağıran isteği reddeder; kullanıcı fotoğrafı yeniden yükler). Depo dışı (eski `/uploads`) adresler bu kapının
+ * konusu değildir → `true`.
+ */
+export async function photoStillAttachable(tx: Prisma.TransactionClient, photoUrl: string): Promise<boolean> {
+  const key = keyFromPhotoUrl(photoUrl);
+  if (!key) return true;
+  await lockStorageObject(tx, key);
+  const row = await tx.storageDeletion.findUnique({ where: { objectKey: key }, select: { status: true } });
+  return !row || row.status === "pending";
+}
 
 const DRAIN_BATCH = 25;
 const BACKOFF_BASE_MS = 5 * 60_000; // 5 min, doubling
@@ -117,7 +155,7 @@ export async function enqueueUploadOrphanCheck(
 
 /** Cheap indexed check — lets the scheduler skip the drain entirely when idle. */
 export async function hasPendingStorageDeletions(): Promise<boolean> {
-  const n = await prisma.storageDeletion.count({ where: { status: "pending" } });
+  const n = await prisma.storageDeletion.count({ where: { status: { in: OPEN_STATUSES } } });
   return n > 0;
 }
 
@@ -142,8 +180,44 @@ export interface StorageDrainResult {
  */
 export const DRAIN_BUDGET_MS = 45_000;
 
-/** Test kancası (yarış testi): gösterim okunduktan SONRA, iptal kararından ÖNCE. Üretimde null. */
+/** Test kancası (yarış testi): gösterim okunduktan SONRA, iptal / sahiplenme kararından ÖNCE (kilit altında). Üretimde null. */
 export const __storageDrainHooks: { afterShownRead: null | (() => Promise<void>) } = { afterShownRead: null };
+
+type DueRow = { id: string; objectKey: string; attemptCount: number; availableAt: Date; status: string };
+
+/**
+ * Silmeyi SAHİPLEN (kilit altında): `claimed` → çağıran sağlayıcıdan siler · `attached` → nesne gösteriliyor, kayıt iptal edildi (ya da
+ * araya giren silme niyeti yüzünden bir sonraki geçişe bırakıldı) · `gone` → satır artık işlenecek durumda değil.
+ */
+async function claimDeletion(row: DueRow): Promise<"claimed" | "attached" | "gone"> {
+  return prisma.$transaction(async (tx) => {
+    await lockStorageObject(tx, row.objectKey);
+    const cur = await tx.storageDeletion.findUnique({ where: { id: row.id }, select: { status: true } });
+    if (!cur) return "gone";
+    // Önceki geçişte sahiplenilmiş, sağlayıcı silmesi başarısız kalmış: bağlama zaten kapalı — gösterim yeniden okunmaz.
+    if (cur.status === "deleting") return "claimed";
+    if (cur.status !== "pending") return "gone";
+    // S7-01: nesne hâlâ KENDİ işletmesinin bir görev güncellemesince gösteriliyorsa silinmez — kayıt iptal edilir (yükleme kaydı göreve
+    // bağlandı; normal silme niyetleri zaten gösterilmeyen nesneler için yazılır). İşletme kapsamı şart: başka kiracının satırı (istemcinin
+    // yazabildiği `photoUrl`) silinmiş bir işletmenin fotoğrafını kovada TUTAMAZ.
+    const organizationId = orgIdFromKey(row.objectKey);
+    const shown = organizationId
+      ? await tx.taskUpdate.findFirst({
+          where: { photoUrl: photoUrlForKey(row.objectKey), task: { property: { organizationId } } },
+          select: { id: true },
+        })
+      : null;
+    if (__storageDrainHooks.afterShownRead) await __storageDrainHooks.afterShownRead();
+    if (shown) {
+      // Karşılaştır-ve-sil (Haiku gece-4): gösterim okunduktan SONRA görev silinip aynı anahtarın silme niyeti yazıldıysa (vade şimdiye
+      // çekildi ↑) iptal etmez — niyet yutulup nesne süresiz kalmasın; sonraki geçiş siler. (Görev silme bu kilidi almaz.)
+      await tx.storageDeletion.deleteMany({ where: { id: row.id, status: "pending", availableAt: row.availableAt } });
+      return "attached";
+    }
+    const claimed = await tx.storageDeletion.updateMany({ where: { id: row.id, status: "pending" }, data: { status: "deleting" } });
+    return claimed.count === 1 ? "claimed" : "gone";
+  });
+}
 
 export async function drainStorageDeletions(
   deps: { adapter?: StorageAdapter | null; now?: () => Date; batchSize?: number; budgetMs?: number; clock?: () => number } = {},
@@ -152,32 +226,12 @@ export async function drainStorageDeletions(
   if (!adapter) return { skipped: true, deleted: 0, failed: 0 };
   const now = deps.now ?? (() => new Date());
 
-  const due = await prisma.storageDeletion.findMany({
-    where: { status: "pending", availableAt: { lte: now() } },
+  const due: DueRow[] = await prisma.storageDeletion.findMany({
+    where: { status: { in: OPEN_STATUSES }, availableAt: { lte: now() } },
     orderBy: { availableAt: "asc" },
     take: deps.batchSize ?? DRAIN_BATCH,
-    select: { id: true, objectKey: true, attemptCount: true, availableAt: true },
+    select: { id: true, objectKey: true, attemptCount: true, availableAt: true, status: true },
   });
-
-  // S7-01: vadesi gelen kayıt nesnesi hâlâ KENDİ işletmesinin bir görev güncellemesince gösteriliyorsa silinmez — kayıt iptal edilir
-  // (yükleme kaydı göreve bağlandı; normal silme niyetleri zaten gösterilmeyen nesneler için yazılır). İşletme kapsamı şart: başka kiracının
-  // satırı (istemcinin yazabildiği `photoUrl`) silinmiş bir işletmenin fotoğrafını kovada TUTAMAZ.
-  const shown = new Set<string>();
-  if (due.length > 0) {
-    const byOrg = new Map<string, string[]>();
-    for (const r of due) {
-      const org = orgIdFromKey(r.objectKey);
-      if (org) byOrg.set(org, [...(byOrg.get(org) ?? []), photoUrlForKey(r.objectKey)]);
-    }
-    for (const [organizationId, urls] of byOrg) {
-      const rows = await prisma.taskUpdate.findMany({
-        where: { photoUrl: { in: urls }, task: { property: { organizationId } } },
-        select: { photoUrl: true },
-      });
-      for (const r of rows) if (r.photoUrl) shown.add(r.photoUrl);
-    }
-    if (__storageDrainHooks.afterShownRead) await __storageDrainHooks.afterShownRead();
-  }
 
   let deleted = 0;
   let failed = 0;
@@ -186,32 +240,36 @@ export async function drainStorageDeletions(
   const budget = deps.budgetMs ?? DRAIN_BUDGET_MS;
   for (const row of due) {
     if (clock() - startedAt >= budget) break;
-    if (shown.has(photoUrlForKey(row.objectKey))) {
-      // Karşılaştır-ve-sil (Haiku gece-4): gösterim okunduktan SONRA görev silinip aynı anahtarın silme niyeti yazıldıysa (vade şimdiye
-      // çekildi ↑) iptal etmez — niyet yutulup nesne süresiz kalmasın; sonraki geçiş siler.
-      await prisma.storageDeletion
-        .deleteMany({ where: { id: row.id, status: "pending", availableAt: row.availableAt } })
-        .catch((e) => void reportError("storage-deletion-attached-cancel", e));
+    // SAHİPLENME (↑ başlık): gösterim kilit altında yeniden okunur; sahiplenilmeyen nesne silinmez. Sahiplenme yazılamazsa (veritabanı
+    // arızası) satıra dokunulmaz — sonraki geçiş yeniden dener; "asla fırlatmaz" sözleşmesi korunur.
+    let claim: "claimed" | "attached" | "gone";
+    try {
+      claim = await claimDeletion(row);
+    } catch (e) {
+      void reportError("storage-deletion-claim", e);
       continue;
     }
+    if (claim !== "claimed") continue;
     try {
       await adapter.delete(row.objectKey);
       // Başarı yazması da fırlatmamalı: JSDoc "Never throws" diyor ve tek çağıran
       // (`scheduled-sync`) bunu try/catch'e sarsa bile parti yarıda kesilirdi.
-      // Yazma düşerse obje SİLİNMİŞ ama satır `pending` kalır → sonraki geçiş aynı
+      // Yazma düşerse obje SİLİNMİŞ ama satır açık kalır → sonraki geçiş aynı
       // anahtarı yeniden siler (adapter eksik objeyi başarı sayar = zararsız).
       await prisma.storageDeletion
         .updateMany({
-          where: { id: row.id, status: "pending" },
+          where: { id: row.id, status: { in: OPEN_STATUSES } },
           data: { status: "deleted", deletedAt: now(), lastError: null },
         })
         .catch((e) => void reportError("storage-deletion-complete-write", e));
       deleted++;
     } catch (err) {
       failed++;
+      // Satır `deleting` KALIR (sahiplenme geri alınmaz): sağlayıcı hatası belirsizdir — nesne silinmiş olabilir. Bağlama kapalı kalır,
+      // silme geri çekilmeyle yeniden denenir. Asla `deleted` yazılmaz (sahte başarı yok).
       await prisma.storageDeletion
         .updateMany({
-          where: { id: row.id, status: "pending" },
+          where: { id: row.id, status: { in: OPEN_STATUSES } },
           data: {
             attemptCount: { increment: 1 },
             availableAt: new Date(now().getTime() + backoffMs(row.attemptCount + 1)),

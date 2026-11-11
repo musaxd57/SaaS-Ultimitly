@@ -100,8 +100,11 @@ export interface LoadedEarlyCheckin {
   timeZone: string;
   /** Hazırlığın ölçüldüğü devrin (ayrılan / son çıkan) rezervasyonu. */
   referenceId: string | null;
-  /** Hazır hükmünü veren "bitti" kaydı (kimlik + an). */
-  readyMark: { id: string | null; at: Date } | null;
+  /**
+   * Hazır hükmünü veren "bitti" kaydı (kimlik + an). `beforeCheckout`: işaret önceki çıkıştan ÖNCE atıldı ve ev sahibinin erken temizlik
+   * kuralıyla (kanıtlı "başladım" → "bitti") sayıldı — gösterim "çıkıştan sonra" DEMEMELİ (Codex 11-10 Q3).
+   */
+  readyMark: { id: string | null; at: Date; beforeCheckout?: boolean } | null;
   /** Hükmün okuduğu BU DEVRİN temizlik görevleri (gösterim: giriş hazırlığı listesi aynı kümeyi gösterir — 11-05). */
   cleaningTaskIds: string[];
   /** YALNIZ GÖSTERİM (giriş hazırlığı listesi; kurucu "her durumun dayanağı anlaşılsın", Opus 11-05 F7): `openIssue` /
@@ -260,7 +263,9 @@ export async function loadEarlyCheckinFacts(args: {
     facts.readinessNote = detail.note;
     facts.departureConfirmed = detail.departureConfirmed;
     const mark = readyMarkOf(marks, checkoutAt, args.now, opts);
-    readyMark = mark?.doneAt ? { id: mark.doneId ?? null, at: mark.doneAt } : null;
+    readyMark = mark?.doneAt
+      ? { id: mark.doneId ?? null, at: mark.doneAt, ...(checkoutAt && mark.doneAt.getTime() < checkoutAt.getTime() ? { beforeCheckout: true } : {}) }
+      : null;
     // G4 (bilgi): açık bir devir temizliğinin EN SON durum kaydı bugün kimlikli "başladım" → temizlikçi içeride. (Açık
     // görev varken hazırlık zaten "hazır" olamaz; ayrıca koşul gerekmez.)
     facts.cleaningStarted = cleaning.some((t) => {

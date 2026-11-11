@@ -40,11 +40,16 @@ export function AiVoiceForm({
     setSaving(true);
     setSaved(false);
     setError(null);
+    // Bu isteğin gönderdiği değerler; yalnız DEĞİŞEN alan gider (Codex 11-10 X3 — eski sekme dokunmadığı alanı eski değerine çevirmesin).
+    const sent = { aiReplyTone, aiSignature };
+    const body: Record<string, string> = {};
+    if (sent.aiReplyTone !== baseTone) body.aiReplyTone = sent.aiReplyTone;
+    if (sent.aiSignature !== baseSignature) body.aiSignature = sent.aiSignature;
     try {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aiReplyTone, aiSignature }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -52,11 +57,12 @@ export function AiVoiceForm({
         return;
       }
       setSaved(true);
-      setBaseTone(aiReplyTone);
+      setBaseTone(sent.aiReplyTone);
       // Mirror the server's trim (empty→null displays as "") so whitespace-only
       // edits can't re-enable Kaydet and the shown value matches what's stored.
-      const normSignature = aiSignature.trim();
-      setSignature(normSignature);
+      const normSignature = sent.aiSignature.trim();
+      // Kayıt sürerken yazılan imza korunur (Codex 11-10 X4): alan yalnız gönderilen değerde kaldıysa kırpılmış hâle çevrilir.
+      setSignature((cur) => (cur === sent.aiSignature ? normSignature : cur));
       setBaseSignature(normSignature);
       startTransition(() => router.refresh());
     } catch {

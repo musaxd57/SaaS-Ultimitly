@@ -7,8 +7,9 @@ import { emailService } from "@/lib/email";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
+import { orgTimezone } from "@/lib/timezone";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
-import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
+import { enqueueUnreferencedPhotoDeletions, photoStillAttachable } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
@@ -63,6 +64,10 @@ function nextChecklist(
   if (list.length !== stored.length || list.some((item, i) => item.label !== stored[i].label)) throw new ChecklistConflict();
   return JSON.stringify(stored.map((item, i) => ({ label: item.label, done: Boolean(list[i]?.done) })));
 }
+
+/** Bağlanmak istenen fotoğraf artık depoda yok (ya da silinmek üzere) — işlem geri alınır, kullanıcıya ne yapacağı söylenir. */
+class PhotoGone extends Error {}
+const PHOTO_GONE_TEXT = "Fotoğraf artık kullanılamıyor. Yeniden yükleyip tekrar deneyin.";
 
 // PATCH stays withAuth (session-only): staff MAY progress a task (status/note/
 // photo/checklist tick) — but only THEIR assigned task, and only the done flag on
@@ -203,6 +208,9 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       if (d.dueAt instanceof Date) await syncCommitmentsForTaskDueAt(tx, commitmentScope, d.dueAt);
       // Yeniden atama "Yapılamıyor"u kapattı → zaman çizelgesinde kim / ne zaman (bildiren kişinin kaydı ayrı satırda kalır).
       if (resetBlocked) await tx.taskUpdate.create({ data: { taskId: id, userId: session.userId, status: "todo", note: null, photoUrl: null } });
+      // Fotoğraf bağlama kapısı (Codex 11-10 X1): silinmesi sahiplenilmiş / silinmiş nesne göreve bağlanmaz — nesnenin kilidi altında,
+      // kayıt yazılmadan önce. Reddedilirse işlemin tamamı geri alınır (durum / not da yazılmaz); kullanıcı fotoğrafı yeniden yükler.
+      if (d.photoUrl && !(await photoStillAttachable(tx, d.photoUrl))) throw new PhotoGone();
       // Record an activity update when status / note / photo changes.
       if (d.status !== undefined || d.note || d.photoUrl) {
         await tx.taskUpdate.create({
@@ -219,6 +227,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     });
   } catch (err) {
     if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
+    if (err instanceof PhotoGone) return badRequest({ photoUrl: PHOTO_GONE_TEXT });
     throw err;
   }
   if (!written) return notAssigned();
@@ -256,10 +265,13 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       : false;
   if (newAssignee && mailAllowed) {
     const emailTask = newAssignee.role === "owner" || newAssignee.role === "manager" ? task : staffTaskProjection(task);
+    // Vade işletmenin saat diliminde yazılır (Codex 11-10 X5 — sunucu UTC'de: 15:00 vade e-postaya 12:00 çıkıyordu).
+    const mailOrg = await prisma.organization.findUnique({ where: { id: session.organizationId }, select: { timezone: true } });
     const html = taskAssignedEmail(
       emailTask,
       { name: newAssignee.name, email: newAssignee.email },
       { name: task.property.name, address: task.property.address, city: task.property.city },
+      orgTimezone(mailOrg?.timezone),
     );
     // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur). `send` sonucu
     // YUTAR: atanan kişi görevi hiç öğrenmeyebilir ve HİÇBİR YERDE iz kalmazdı.

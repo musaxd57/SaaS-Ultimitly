@@ -423,7 +423,7 @@ describe("deletion queue — idempotent, provider failure is NEVER a fake succes
     expect(fake.deletes.length).toBe(2);
   });
 
-  it("provider failure: row STAYS pending with backoff + attempt count (no fake success), then succeeds later", async () => {
+  it("provider failure: row STAYS open (claimed, not deleted) with backoff + attempt count (no fake success), then succeeds later", async () => {
     fake.objects.set("org/o/task/t/a.png", { body: PNG_BYTES, contentType: "image/png" });
     await enqueueStorageDeletions(prisma, "o", ["org/o/task/t/a.png"]);
     fake.failDeletes = true;
@@ -433,7 +433,9 @@ describe("deletion queue — idempotent, provider failure is NEVER a fake succes
     const r = await drainStorageDeletions({ adapter: fake, now: () => t0 });
     expect(r).toEqual({ skipped: false, deleted: 0, failed: 1 });
     const row = await prisma.storageDeletion.findFirstOrThrow();
-    expect(row.status).toBe("pending"); // NEVER marked deleted on failure
+    // (11-11, Codex X1) silme sahiplenildi ama doğrulanmadı: `deleting` — ASLA `deleted` değil (sahte başarı yok), kuyrukta açık kalır.
+    expect(row.status).toBe("deleting");
+    expect(await hasPendingStorageDeletions()).toBe(true);
     expect(row.attemptCount).toBe(1);
     expect(row.availableAt.getTime()).toBeGreaterThan(t0.getTime()); // backed off
     expect(row.lastError).toBe("HTTP 503"); // status code only
@@ -587,10 +589,11 @@ describe("account erasure — intents SURVIVE the org cascade; provider outage c
     expect(queued.map((q) => q.objectKey)).toEqual([key]);
     expect(queued[0].organizationId).toBe(orgId); // opaque tenant tag for ops/audit
 
-    // Provider down at drain time → row stays pending (erasure NOT faked as done)…
+    // Provider down at drain time → row stays OPEN (erasure NOT faked as done)… (11-11: açık = `deleting`, silme sahiplenildi ama doğrulanmadı)
     fake.failDeletes = true;
     await drainStorageDeletions({ adapter: fake });
-    expect((await prisma.storageDeletion.findFirstOrThrow()).status).toBe("pending");
+    expect((await prisma.storageDeletion.findFirstOrThrow()).status).toBe("deleting");
+    expect(await hasPendingStorageDeletions()).toBe(true);
     expect(fake.objects.size).toBe(1);
     // …provider back → the object really goes away.
     fake.failDeletes = false;

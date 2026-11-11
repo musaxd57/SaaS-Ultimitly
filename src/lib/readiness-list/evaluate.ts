@@ -46,8 +46,8 @@ export interface CleaningInput {
   previousCheckout: string | null;
   /** Önceki çıkışın GÜNÜ (mülk takvimi). Varış gününden farklıysa etiketlerde gün de yazılır (Opus 11-05 N6). */
   previousCheckoutDay?: string | null;
-  /** Hazır hükmünü veren "bitti" kaydı (çekirdeğin `readyMark`ı). */
-  readyMark: { id: string | null; at: Date; by: string | null } | null;
+  /** Hazır hükmünü veren "bitti" kaydı (çekirdeğin `readyMark`ı). `beforeCheckout`: çıkıştan ÖNCE atılmış, erken temizlik kuralıyla sayılmış. */
+  readyMark: { id: string | null; at: Date; by: string | null; beforeCheckout?: boolean } | null;
   /** Bu devrin temizlik görev(ler)i — yalnız GÖSTERİM (atanan, başladı, son bitti işareti); hüküm çekirdektedir. */
   tasks: {
     id: string;
@@ -193,7 +193,9 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
       key: "cleaning",
       state: "ok",
       // Başka günün kaydı tarihiyle (Opus 11-05 N6 — "13:10" bugünün saati gibi okunmasın).
-      label: `Temizlik bitti ${whenLabel(c.readyMark.at, now, tz)}${by} · ${after}`,
+      // 🚨 KANITIN TÜRÜ DOĞRU YAZILIR (Codex 11-10 Q3): 08:45'te biten ve erken temizlik kuralıyla kabul edilen iş, çıkış 11:00 iken
+      // "çıkıştan (11:00) sonra" diye gösteriliyordu — hüküm doğru, açıklaması yanlıştı.
+      label: `Temizlik bitti ${whenLabel(c.readyMark.at, now, tz)}${by} · ${c.readyMark.beforeCheckout ? `${checkout ? `çıkıştan (${checkout}) önce` : "çıkıştan önce"}, erken temizlik kuralıyla` : after}`,
       missing: null,
       basis: [{ kind: "task_done", id: c.readyMark.id, at: c.readyMark.at }],
     };
