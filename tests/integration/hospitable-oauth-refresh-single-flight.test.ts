@@ -55,9 +55,16 @@ function rotatingProvider(delayMs: number) {
  * ve geri alınmaz (Prisma temsilcisinde geri alma yöntemi siliyor); kapalıyken aynen geçirir.
  */
 let lockStoreDown = false;
+/** Doluyken: bu çağrı kilidi ALMADAN hemen önce çalışır (başka bir kopyanın yenilemesi tam o arada bitti). Tek atımlık. */
+let beforeLockClaim: null | (() => Promise<void>) = null;
 const realCreateMany = prisma.systemLock.createMany.bind(prisma.systemLock);
-vi.spyOn(prisma.systemLock, "createMany").mockImplementation(((args: Parameters<typeof realCreateMany>[0]) => {
-  if (lockStoreDown) return Promise.reject(new Error("lock store down")) as never;
+vi.spyOn(prisma.systemLock, "createMany").mockImplementation((async (args: Parameters<typeof realCreateMany>[0]) => {
+  if (lockStoreDown) throw new Error("lock store down");
+  if (beforeLockClaim) {
+    const run = beforeLockClaim;
+    beforeLockClaim = null;
+    await run();
+  }
   return realCreateMany(args);
 }) as never);
 
@@ -77,10 +84,12 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     mockGetConfig.mockReturnValue(FAKE_CONFIG);
     __setOAuthRefreshWaitForTests(2_000, 40);
     lockStoreDown = false;
+    beforeLockClaim = null;
   });
   afterEach(() => {
     __setOAuthRefreshWaitForTests(8_000, 250);
     lockStoreDown = false;
+    beforeLockClaim = null;
   });
 
   it("🚨 aynı anda iki istek: sağlayıcıya TEK yenileme gider, ikisi de yeni anahtarı alır, bağlantı DÜŞMEZ", async () => {
@@ -164,6 +173,41 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect([a, b]).toEqual(["access-new", "access-new"]);
     expect((await getConnectionInfo(orgId)).connected).toBe(true);
+  });
+
+  it("🚨 kilit alınmadan hemen önce başka bir kopya yenilemeyi BİTİRDİYSE tüketilmiş eski anahtarla sağlayıcıya gidilmez; yazılmış yeni anahtar kullanılır", async () => {
+    const orgId = await expiredOrg();
+    rotatingProvider(0);
+    beforeLockClaim = async () => {
+      await setOrgHospitableOAuthTokens(orgId, fresh("other"), "5 mülk"); // öteki kopya yeni anahtarları yazdı ve kilidini bıraktı
+    };
+    expect(await getOrgHospitableToken(orgId)).toBe("access-other");
+    expect(mockRefresh).not.toHaveBeenCalled(); // ⬅️ ESKİDE eski anahtarla çağrılır, "invalid_grant" alınırdı
+    expect((await getConnectionInfo(orgId)).connected).toBe(true);
+  });
+
+  it("🚨 bağlantıyı düşürmek MÜNHASIRLIK ister: kilit deposu okunamıyorken gelen 'anahtar ölü' cevabı bağlantıyı KALDIRMAZ; kilit geri gelince aynı cevap kaldırır", async () => {
+    const orgId = await expiredOrg();
+    mockRefresh.mockRejectedValue(new HospitableOAuthError("Token request failed (400 invalid_grant)", true));
+    lockStoreDown = true; // münhasırlık kanıtlanamıyor: başka bir kopya aynı anda yenilemiş olabilir
+    expect(await getOrgHospitableToken(orgId)).toBeNull();
+    expect((await getConnectionInfo(orgId)).connected).toBe(true); // ⬅️ korunur (eşzamanlı yenileme varsa bu cevap yanıltıcıdır)
+    lockStoreDown = false;
+    expect(await getOrgHospitableToken(orgId)).toBeNull(); // münhasır deneme: anahtar gerçekten ölü
+    expect((await getConnectionInfo(orgId)).connected).toBe(false);
+  });
+
+  it("🚨 deneme sırasında kilit elden çıktıysa (süresi doldu, başka kopya devraldı) 'anahtar ölü' cevabı bağlantıyı KALDIRMAZ", async () => {
+    const orgId = await expiredOrg();
+    mockRefresh.mockImplementationOnce(async () => {
+      // Sağlayıcı çağrısı sürerken kilidi başka bir kopya devraldı (bizimki süresini doldurdu).
+      await prisma.systemLock.updateMany({ where: { name: oauthRefreshLockName(orgId) }, data: { holder: "other-replica", lockedUntil: new Date(Date.now() + 30_000) } });
+      throw new HospitableOAuthError("Token request failed (400 invalid_grant)", true);
+    });
+    expect(await getOrgHospitableToken(orgId)).toBeNull();
+    expect((await getConnectionInfo(orgId)).connected).toBe(true);
+    // Öteki kopyanın kilidine dokunulmadı (yalnız kendi kilidimizi bırakırız).
+    expect((await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) } }))?.holder).toBe("other-replica");
   });
 
   it("iki ayrı işletmenin yenilemeleri birbirini beklemez (kilit işletme başına)", async () => {

@@ -41,6 +41,12 @@ export function ForgotPasswordForm() {
    * yenilenince kaybolur, istediğimiz tam olarak budur.
    */
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  // Uçuştaki "şifreyi sıfırla" isteğinin SONUCU, isteğin gönderildiği bağlantıya aittir. İstek sürerken aynı sekmede yeni bir bağlantı
+  // açılırsa (↓ `hashchange`) geç gelen eski sonuç yeni bağlantının ekranına yazılmaz (Haiku incelemesi 11-11).
+  const latestToken = useRef<string | null>(null);
+  useEffect(() => {
+    latestToken.current = challengeToken;
+  }, [challengeToken]);
   const emailRef = useRef<HTMLInputElement>(null);
   // "E-posta adresini değiştir" sonrası odağı alana taşımak için tek-atımlık
   // bayrak. `autoFocus` KULLANILMAZ: o, sayfa ilk açıldığında da odağı çalardı —
@@ -154,6 +160,7 @@ export function ForgotPasswordForm() {
 
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
+    const sentWith = challengeToken; // bu isteğin ait olduğu bağlantı
     setLoading(true);
     setError(null);
     setFieldError({});
@@ -173,6 +180,7 @@ export function ForgotPasswordForm() {
         ),
       });
       const data = await res.json().catch(() => ({}));
+      if (latestToken.current !== sentWith) return; // bu arada başka bir bağlantı açıldı: eski isteğin sonucu bu ekrana ait değil
       if (!res.ok) {
         if (data.fields?.code) setFieldError({ code: data.fields.code });
         else if (data.fields?.newPassword) setFieldError({ newPassword: data.fields.newPassword });
@@ -181,6 +189,7 @@ export function ForgotPasswordForm() {
       }
       setStep("done");
     } catch {
+      if (latestToken.current !== sentWith) return;
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);

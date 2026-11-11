@@ -42,6 +42,7 @@ const A: Full = {
   hostContactOnly: true,
   hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
   hostContactDraft: "ilk taslak",
+  lengthHeld: true,
 };
 const B: Full = {
   intent: "question",
@@ -72,6 +73,7 @@ const B: Full = {
   hostContactOnly: true,
   hostContactRemovals: [{ kind: "referral", form: "referral", appendix: false, stems: ["sauna"], topics: [], generic: false }],
   hostContactDraft: "ikinci taslak",
+  lengthHeld: true,
 };
 const without = (r: Full, k: keyof Full) => {
   const c = { ...r } as Record<string, unknown>;
@@ -87,7 +89,7 @@ describe("GD7 alan kuralları tablosu", () => {
   });
 
   it("kod metninde düşen alanlar tablodan türetilir; metin işaretleri listede", () => {
-    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactDraft", "hostContactOnly", "hostContactRemovals", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
+    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactDraft", "hostContactOnly", "hostContactRemovals", "lengthHeld", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
     const copy = { ...A };
     withoutCodeBuiltClearedFields(copy);
     expect(copy).toEqual(A); // girdi değişmez

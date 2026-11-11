@@ -111,6 +111,7 @@ export function mergeSeniorRewrite<
     hostContactOnly?: true;
     hostContactRemovals?: unknown;
     hostContactDraft?: string;
+    lengthHeld?: true;
     partRewriteBilled?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
@@ -132,6 +133,8 @@ export function mergeSeniorRewrite<
     hostContactOnly: _firstHostContact,
     hostContactRemovals: _firstRemovals,
     hostContactDraft: _firstDraft,
+    // Uzunluk engeli (Q1) metne aittir: yeniden yazılan metin kısaysa ilk taslağın engeli taşınmaz, uzunsa kendi işaretini getirir.
+    lengthHeld: _firstLengthHeld,
     partRewriteBilled: _firstBilled,
     ...firstRest
   } = first;
@@ -143,6 +146,7 @@ export function mergeSeniorRewrite<
     ...(retried.hostContactRemovals !== undefined ? { hostContactRemovals: retried.hostContactRemovals } : {}),
     // Opus F10: tutulan cevabın taslağı da yeni metnindir — ilk taslağınki (yasaklı cümlesiyle ya da başka metinle) taşınmaz.
     ...(retried.hostContactDraft !== undefined ? { hostContactDraft: retried.hostContactDraft } : {}),
+    ...(retried.lengthHeld === true ? { lengthHeld: true as const } : {}),
     // GD7 tablosu (`reply-field-rules.ts`): parça yeniden yazması İKİ çağrıdan herhangi birinde olduysa kotadan birim düşer (önceden yalnız ilk
     // çağrınınki okunuyordu — yeniden yazılan çağrının parça yeniden yazması günlük kotaya sayılmıyordu).
     ...(first.partRewriteBilled === true || retried.partRewriteBilled === true ? { partRewriteBilled: true as const } : {}),

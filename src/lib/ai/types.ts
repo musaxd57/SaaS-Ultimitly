@@ -318,6 +318,13 @@ export interface SuggestReplyResult {
    */
   hostContactOnly?: true;
   /**
+   * Cevap UZUNLUK yüzünden kendiliğinden gönderilemez (Codex 11-10 Q1 + Haiku incelemesi 11-11): modelin metni saklama tavanında kesildi ya
+   * da bütün biçimlendirmeden (kodun selamı) sonra gönderim tavanını aştı. `confidence` da ≤ 0,5'e çekilir (eski kural) ama kapılar GÜVENE
+   * güvenmez: QR'ın "bilgi bandı" (0,45–0,75 arası güveni gönderen anahtar) açıkken kesilmiş cevap o banttan geçebiliyordu → bu işaret her
+   * kipte tutar. Metnin kendisi hakkındadır: yeniden yazmada yeni metinden gelir, kod metninde düşer. Yokluğu = uzunluk engeli yok.
+   */
+  lengthHeld?: true;
+  /**
    * K-1029-A (kurucu 10-29 gece): misafire gidecek metinden ÇIKARILAN ev sahibine başvurma parçalarının kaydı (`host-contact-filler.ts`) —
    * METİN YOK (tür, biçim, yan cümle mi, ayırt edici kökler, konu, genel mi). Kanal öğe kipinde "cevaplandı" kuralı (`host-contact-settle.ts`),
    * defter olmayan yolda (QR, öğe kipi kapalı kanal) açık soru kararı bunu okur. Yokluğu = hiçbir şey çıkarılmadı.

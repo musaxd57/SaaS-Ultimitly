@@ -237,6 +237,8 @@ export function evaluateEscalation(
     claimedActions?: ClaimedActionsDeclaration | null;
     /** R13-b / R13-c: cevap yalnız çıkarılması gereken ev sahibine başvurma talimatı (`suggestReply` taşır). */
     hostContactOnly?: true;
+    /** Cevap uzunluk yüzünden gönderilemez (kesildi / son metin tavanı aştı — `suggestReply` taşır); bilgi bandı dahil her kipte tutar. */
+    lengthHeld?: true;
   },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
@@ -445,6 +447,10 @@ export function evaluateEscalation(
   // cevabı göndermek dürüst olmaz. Bandın İÇİ, modelin "bilgim yok" demeyi de
   // kapsayan dürüst yanıtıdır ve karar ayrı bir gerekçeyle KAYDEDİLİR, yani
   // canlıda ölçülebilir (gereksiz devir azaldı mı, yanlış cevap arttı mı).
+  // 🚨 UZUNLUK ENGELİ BANTTAN GEÇEMEZ (Haiku incelemesi 11-11). Kesilmiş / tavanı aşan cevabın güveni 0,5'e çekilir; bant açıkken
+  // (0,45 ≤ güven < 0,75 gönderilir) o cevap — saklama tavanında cümle ortasından kesilmiş hâliyle — misafire gidebiliyordu. Uzunluk
+  // engeli güven DEĞİL, açık işarettir; bant kapalıyken sonuç aynıdır (0,5 < 0,75 → `low_confidence`).
+  if (result.lengthHeld === true) return yes("low_confidence");
   if (
     informationalBandEnabled() &&
     result.confidence >= INFORMATIONAL_MIN_CONFIDENCE &&

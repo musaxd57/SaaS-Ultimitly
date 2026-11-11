@@ -72,6 +72,8 @@ export const REPLY_FIELD_RULES = {
   hostContactRemovals: { rewrite: "retried", codeBuilt: "clear" },
   // Atılan taslağın silinmiş hâli: kod metni kendi metnidir, eski taslak taşınmaz.
   hostContactDraft: { rewrite: "retried", codeBuilt: "clear" },
+  // Q1: "bu metin uzunluk yüzünden gönderilemez" — metnin kendisi hakkında; kod metni kısa şablondur, işaret taşınmaz.
+  lengthHeld: { rewrite: "retried", codeBuilt: "clear" },
   // ── Muhasebe ──────────────────────────────────────────────────────────────────────────────────────────────────────
   llmUsage: { rewrite: "sum", codeBuilt: "keep" },
   // Parça yeniden yazması bu turda ikinci bir cevap modeli çağrısı yaptı → kotadan bir birim. İki çağrıdan HERHANGİ biri yaptıysa

@@ -94,6 +94,26 @@ describe("A3 — şifre sıfırlama: aynı sekmede açılan yeni bağlantı okun
     expect(bodies(fetchMock)[0]).toMatchObject({ token: OLD, code: "11111111" });
   });
 
+  it("🚨 'şifreyi sıfırla' isteği sürerken yeni bağlantı açılırsa ESKİ isteğin geç gelen hatası yeni bağlantının ekranına yazılmaz", async () => {
+    let release!: (r: Response) => void;
+    const pending = new Promise<Response>((r) => (release = r));
+    const fetchMock = vi.fn(() => pending);
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState({}, "", `/sifremi-unuttum#t=${OLD}`);
+    render(<ForgotPasswordForm />);
+    fireEvent.change(await screen.findByLabelText(/Doğrulama kodu/), { target: { value: "11111111" } });
+    fireEvent.change(screen.getByLabelText(/Yeni şifre/), { target: { value: "eski-baglanti-sifresi" } });
+    fireEvent.click(screen.getByRole("button", { name: /Şifreyi sıfırla|Gönderiliyor|Sıfırlanıyor/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    await openLinkInSameTab("/sifremi-unuttum", `#t=${NEW}`);
+    await act(async () => {
+      release(new Response(JSON.stringify({ fields: { code: "Bu kod artık kullanılamıyor." } }), { status: 400 }));
+    });
+    expect(screen.queryByText("Bu kod artık kullanılamıyor.")).toBeNull(); // ⬅️ eski bağlantının hatası yeni ekranda görünmez
+    expect((screen.getByLabelText(/Doğrulama kodu/) as HTMLInputElement).value).toBe("");
+  });
+
   it("sayfa kapanınca dinleyici kaldırılır (kapalı form sonraki bağlantıyı yutmaz)", async () => {
     window.history.replaceState({}, "", "/sifremi-unuttum");
     const { unmount } = render(<ForgotPasswordForm />);

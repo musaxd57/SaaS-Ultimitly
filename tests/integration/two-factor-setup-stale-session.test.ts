@@ -118,6 +118,12 @@ describe("2FA kurulumu — iptal edilmiş oturum ve eski ekran (A2)", () => {
     const res = await POST(req({ action: "enable", code: totp(s.secret), setupId: "0".repeat(24) }));
     expect(res.status).toBe(400);
     expect((await res.json()).fields._).toMatch(/Kurulum durumu değişti/);
+    // Farklı UZUNLUKTA kimlik de aynı sonuç (karşılaştırma sabit süreli; uzunluk farkı fırlatmaz).
+    for (const odd of ["abc", "0".repeat(64)]) {
+      const r = await POST(req({ action: "enable", code: totp(s.secret), setupId: odd }));
+      expect(r.status).toBe(400);
+      expect((await r.json()).fields._).toMatch(/Kurulum durumu değişti/);
+    }
     expect(await failedAttempts()).toBe(0);
     expect((await row()).twoFactorEnabledAt).toBeNull();
   });

@@ -75,7 +75,16 @@ export async function GET(req: NextRequest) {
   // 🚨 TEK KULLANIMLIK NİYET (OAuth O2 + O5, Codex 11-10): bu akış işletmenin bekleyen niyeti olarak kayıtlı mı? Tüketilir — aynı dönüş
   // adresi ikinci kez çağrılırsa (tekrar / geri tuşu / kopyalanmış bağlantı), akış yeniden başlatıldıysa ya da ev sahibi bu arada bağlantıyı
   // kaldırıp / elle anahtar girdiyse burada durur: sağlayıcıya yetki kodu GÖNDERİLMEZ, hiçbir şey yazılmaz.
-  const intent = await consumeOAuthConnectIntent(session.organizationId, state);
+  let intent: Awaited<ReturnType<typeof consumeOAuthConnectIntent>>;
+  try {
+    intent = await consumeOAuthConnectIntent(session.organizationId, state);
+  } catch (err) {
+    // Niyet kaydı okunamadı (veritabanı arızası): ham 500 yerine bilinen "bağlantı kurulamadı" sonucu + operatöre bildirim; durum çerezi
+    // de temizlenir. Yetki kodu sağlayıcıya GÖNDERİLMEDİ — ev sahibi akışı yeniden başlatır (Haiku incelemesi 11-11).
+    const { reportError } = await import("@/lib/report-error");
+    void reportError("hospitable.oauth.callback.intent", err).catch(() => {});
+    return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=exchange_failed`));
+  }
   if (!intent) {
     return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=state_mismatch`));
   }

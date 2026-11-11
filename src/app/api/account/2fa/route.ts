@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/db";
 import {
   requireSession,
@@ -45,6 +45,12 @@ import { reportError } from "@/lib/report-error";
  */
 function setupIdOf(secret: string): string {
   return createHash("sha256").update(`2fa-setup:${secret}`).digest("hex").slice(0, 24);
+}
+/** Kurulum kimliği karşılaştırması sabit süreli (uzunluk farkı → eşit değil). */
+function sameSetupId(a: string, b: string): boolean {
+  const x = Buffer.from(a, "utf8");
+  const y = Buffer.from(b, "utf8");
+  return x.length === y.length && timingSafeEqual(x, y);
 }
 const SETUP_CHANGED_MSG = "Kurulum durumu değişti. Sayfayı yenileyip kurulumu yeniden başlatın.";
 
@@ -220,7 +226,7 @@ export async function POST(req: NextRequest) {
       // Ekran BAŞKA (daha eski) bir kurulumu gösteriyorsa kod denenmez ve hatalı deneme sayılmaz: sorun kod değil, kurulumun değişmiş
       // olması. Kimlik göndermeyen eski ekranlar için davranış aynı (kod, kayıtlı sırla denenir).
       const shownSetupId = typeof data?.setupId === "string" ? data.setupId : "";
-      if (shownSetupId && shownSetupId !== setupIdOf(secret)) {
+      if (shownSetupId && !sameSetupId(shownSetupId, setupIdOf(secret))) {
         return badRequest({ _: SETUP_CHANGED_MSG });
       }
       const step = verifyTotpStep(secret, code);

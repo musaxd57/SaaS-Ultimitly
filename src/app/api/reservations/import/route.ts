@@ -130,6 +130,18 @@ const EXISTING_SELECT = {
   departureDate: true,
 } as const;
 
+/**
+ * Hiçbir şey yazmayan ret (okunamayan CSV, kendi dışa aktarım dosyamız) saatlik aktarım hakkını YEMEZ — ama iade sınırsız değildir (Haiku
+ * incelemesi 11-11): iade edilen her istek yine bir dosya ayrıştırmasıdır (5 MB'a kadar). Saatte en çok bu kadar ret ücretsizdir; sonrası
+ * hakkı tüketir (eski davranış). Dosyasını düzelten ev sahibi bu sınıra yaklaşmaz.
+ */
+const FREE_REJECTIONS_PER_HOUR = 20;
+async function refundImportQuota(organizationId: string, preview: boolean): Promise<void> {
+  const free = await rateLimit(`reservation-import-refund:${organizationId}`, FREE_REJECTIONS_PER_HOUR, 60 * 60_000);
+  if (!free.ok) return;
+  await rateLimitRelease(preview ? `reservation-import-preview:${organizationId}` : `reservation-import:${organizationId}`);
+}
+
 export const POST = withManage(async (session, req) => {
   // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
   // + streaming cancel-on-overflow) so a several-hundred-MB .csv/.ics — even with a
@@ -231,7 +243,7 @@ export const POST = withManage(async (session, req) => {
     // risk kopya rezervasyon (dosya bir kez okunur, döngü yok). Önizleme dahil hiçbir satır sınıflandırılmaz.
     if (parsedIcs.events.some((e) => isOwnExportUid(e.sourceReference))) {
       // Reddedilen dosya saatlik hakkı YEMEZ (Haiku incelemesi 11-05): yanlış dosya türü gibi ücretsiz bir ret.
-      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`);
+      await refundImportQuota(session.organizationId, preview);
       return badRequest({ file: OWN_FILE_IMPORT_TEXT });
     }
     // Tur 7 CAL-2 (Codex 11-05 gece: "dosya ve URL yolu ortak ayrıştırma, kimlik ve iptal kurallarını kullansın; önizleme korunsun"):
@@ -251,7 +263,7 @@ export const POST = withManage(async (session, req) => {
       // 🚨 OKUNAMAYAN DOSYA SAATLİK HAKKI YEMEZ (takvim C5, Codex 11-10): hak ayrıştırmadan ÖNCE düşülüyor, bozuk CSV'de iade
       // edilmiyordu → dosyasını düzeltmeye çalışan ev sahibi beş denemede bir saat kilitleniyordu (tek satır aktarılmadan). Kendi
       // dışa aktarım dosyasının reddi (↑) ile aynı kural: hiçbir şey yazmayan ret ücretsizdir.
-      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`);
+      await refundImportQuota(session.organizationId, preview);
       if (err instanceof CsvParseError) return badRequest({ file: err.message });
       return badRequest({ file: "CSV dosyası okunamadı." });
     }
@@ -293,7 +305,9 @@ export const POST = withManage(async (session, req) => {
   const legacyRefs = await reconcileLegacySourceReferences({
     organizationId: session.organizationId,
     propertyId,
-    scope: { calendarSourceId: null },
+    // Bu rotanın sahiplik kuralı (↑ başlık): yalnız kendi yazdığı satırlar — bağlantısız VE `channel: "ics"`. Eski kimlik çevirisi de aynı
+    // kümeyle sınırlı (Haiku incelemesi 11-11: kanal kısıtı yoktu → başka kaynağın satırının kimliği çevrilebilirdi).
+    scope: { calendarSourceId: null, channel: "ics" },
     rows,
     readOnly: preview,
   });
@@ -378,7 +392,7 @@ export const POST = withManage(async (session, req) => {
       ? ((await prisma.reservation.findFirst({ where: { propertyId, sourceReference }, select: EXISTING_SELECT })) ??
         // Önizleme yazmaz → eski (kesilmiş) kimlikli satır henüz çevrilmedi; sınıflandırma onu yine "var" görsün (aktarımda çevrilir).
         (preview && row.legacySourceReference
-          ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference: row.legacySourceReference, calendarSourceId: null }, select: EXISTING_SELECT })
+          ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference: row.legacySourceReference, calendarSourceId: null, channel: "ics" }, select: EXISTING_SELECT })
           : null))
       : null;
 

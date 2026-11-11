@@ -234,10 +234,16 @@ class StaleRefresh extends Error {}
 // zorunda kalıyordu. Artık bir işletmenin yenilemesini aynı anda TEK istek yapar:
 //  · aynı süreçte: eşzamanlı çağrılar tek isteği paylaşır (`refreshInFlight`);
 //  · süreçler / kopyalar arasında: kısa ömürlü kilit (`SystemLock`). Kilidi alamayan sağlayıcıya HİÇ gitmez; kazananın yazdığı anahtarı
-//    bekleyip okur. Kilit deposu okunamazsa eski davranış (istek yapılır) — yenileme kilit yüzünden durmasın.
+//    bekleyip okur. Kilit deposu okunamazsa istek yine yapılır (yenileme kilit yüzünden durmasın).
+//  · kilit alındıktan SONRA saklanan anahtar yeniden okunur: bu çağrı beklerken başka biri yenilediyse sağlayıcıya (artık tüketilmiş
+//    eski anahtarla) hiç gidilmez, yazılmış yeni anahtar kullanılır;
+//  · 🚨 BAĞLANTIYI DÜŞÜRMEK MÜNHASIRLIK İSTER: "anahtar ölü" cevabı ancak bu çağrı kilidi deneme boyunca GERÇEKTEN elinde tuttuysa
+//    bağlantıyı kaldırır. Kilit alınamadıysa (depo arızası) ya da deneme sırasında elden çıktıysa (süresi doldu, başkası devraldı)
+//    cevap belirsizdir — aynı anda başka bir yenileme eski anahtarı tüketmiş olabilir — bağlantıya DOKUNULMAZ; anahtar gerçekten ölüyse
+//    bir sonraki (münhasır) deneme aynı cevabı alır ve o zaman kaldırır (Haiku incelemesi 11-11).
 // ---------------------------------------------------------------------------
 const refreshInFlight = new Map<string, Promise<string | null>>();
-const REFRESH_LOCK_TTL_MS = 30_000; // sağlayıcı zaman aşımı (15 sn) + yazım payı; çöken süreç en geç bu kadar sonra yol verir
+const REFRESH_LOCK_TTL_MS = 60_000; // sağlayıcı zaman aşımı (15 sn) + iki yazım denemesi; çöken süreç en geç bu kadar sonra yol verir
 let refreshWaitMs = 8_000;
 let refreshPollMs = 250;
 /** Yalnız test: bekleme sürelerini kısaltır. */
@@ -249,18 +255,25 @@ export function oauthRefreshLockName(orgId: string): string {
   return `hospitable-oauth-refresh:${orgId}`;
 }
 
-async function claimRefreshLock(orgId: string, owner: string): Promise<boolean> {
+/** `claimed`: kilit bizde (münhasır) · `busy`: başka bir yenileme sürüyor · `unknown`: kilit deposu okunamadı (münhasırlık bilinmiyor). */
+async function claimRefreshLock(orgId: string, owner: string): Promise<"claimed" | "busy" | "unknown"> {
   const name = oauthRefreshLockName(orgId);
   const now = new Date();
   const lockedUntil = new Date(now.getTime() + REFRESH_LOCK_TTL_MS);
   try {
     const created = await prisma.systemLock.createMany({ data: [{ name, lockedUntil, holder: owner }], skipDuplicates: true });
-    if (created.count === 1) return true;
+    if (created.count === 1) return "claimed";
     const taken = await prisma.systemLock.updateMany({ where: { name, lockedUntil: { lte: now } }, data: { lockedUntil, holder: owner } });
-    return taken.count === 1;
+    return taken.count === 1 ? "claimed" : "busy";
   } catch {
-    return true;
+    return "unknown";
   }
+}
+
+/** Kilit HÂLÂ bu çağrıda mı (sahip aynı, süresi dolmamış)? Okunamazsa "hayır" — münhasırlık kanıtlanamıyor. */
+async function stillHoldsRefreshLock(orgId: string, owner: string): Promise<boolean> {
+  const row = await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) }, select: { holder: true, lockedUntil: true } }).catch(() => null);
+  return row !== null && row.holder === owner && row.lockedUntil > new Date();
 }
 
 /** Başka bir süreç yeniliyor: sağlayıcıya gitmeden, kazananın yazdığı anahtarı bekle. Yazılmadıysa bu tur elde ne varsa onunla biter. */
@@ -304,9 +317,25 @@ async function refreshOrgOAuthToken(
   if (running) return running;
   const flight = (async () => {
     const owner = randomBytes(9).toString("base64url");
-    if (!(await claimRefreshLock(orgId, owner))) return awaitOtherRefresh(orgId, orgRefreshBlobAtStart, fallback);
+    const claim = await claimRefreshLock(orgId, owner);
+    if (claim === "busy") return awaitOtherRefresh(orgId, orgRefreshBlobAtStart, fallback);
     try {
-      return await refreshOrgOAuthTokenOnce(orgId, refreshTokenEnc, orgRefreshBlobAtStart, connAtStart, fallback);
+      // Kilidi beklerken / alırken başka bir yenileme bitmiş olabilir: saklanan anahtar değiştiyse elimizdeki eski anahtar TÜKETİLMİŞTİR —
+      // sağlayıcıya onunla gidilmez (boşuna "geçersiz" cevabı; bazı sağlayıcılar yeniden kullanımı görünce yeni anahtarı da iptal eder).
+      const stored = await prisma.organization
+        .findUnique({ where: { id: orgId }, select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true } })
+        .catch(() => undefined);
+      if (stored === null) return null;
+      if (stored && stored.hospitableRefreshTokenEnc !== orgRefreshBlobAtStart) {
+        if (!stored.hospitableTokenEnc) return null;
+        try {
+          return decryptSecret(stored.hospitableTokenEnc);
+        } catch {
+          return null;
+        }
+      }
+      const exclusive = async () => claim === "claimed" && (await stillHoldsRefreshLock(orgId, owner));
+      return await refreshOrgOAuthTokenOnce(orgId, refreshTokenEnc, orgRefreshBlobAtStart, connAtStart, fallback, exclusive);
     } finally {
       await prisma.systemLock.deleteMany({ where: { name: oauthRefreshLockName(orgId), holder: owner } }).catch(() => {});
     }
@@ -321,6 +350,8 @@ async function refreshOrgOAuthTokenOnce(
   orgRefreshBlobAtStart: string | null,
   connAtStart: ActiveConnection | null,
   fallback?: { currentAccessToken: string; expiresAt: Date },
+  /** Bu deneme kilidi baştan sona elinde tuttu mu (↑ başlık)? Verilmezse münhasır sayılır (yalnız doğrudan çağrılar). */
+  exclusive?: () => Promise<boolean>,
 ): Promise<string | null> {
   const config = getHospitableOAuthConfig();
   if (!config || !refreshTokenEnc) return null; // OAuth not configured / no refresh token stored
@@ -366,6 +397,12 @@ async function refreshOrgOAuthTokenOnce(
     void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
 
     if (err instanceof HospitableOAuthError && err.authFailure) {
+      // Münhasırlık kanıtlanamıyorsa cevap belirsizdir (eşzamanlı bir yenileme anahtarı tüketmiş olabilir): bağlantıya dokunulmaz, bu tur
+      // anahtarsız biter; gerçekten ölü anahtar bir sonraki münhasır denemede kaldırılır.
+      if (exclusive && !(await exclusive())) {
+        void reportError(`hospitable-oauth-refresh-unverified org:${orgId}`, new Error("Yenileme reddedildi ama deneme münhasır değildi — bağlantı korunuyor, sonraki tur yeniden denenecek."));
+        return null;
+      }
       // The refresh token itself is dead (expired/reused/revoked) — the connection
       // cannot self-heal. Clear it so Settings correctly shows "not connected" and
       // the host is prompted to reconnect. ATOMIC + CONDITIONAL (F04): only if the
@@ -519,7 +556,8 @@ export async function setOrgHospitableOAuthTokens(
 //  · dönüş onu SAHİPLENİR (tek kullanımlık: süresi dolmuş / başkasıyla değiştirilmiş / zaten kullanılmış → reddedilir, sağlayıcıya
 //    istek gitmez); sahiplenilen satır yazım anına kadar yerinde kalır;
 //  · yazım (`setOrgHospitableOAuthTokens`) satırı AYNI işlemde siler — satır yoksa yazmaz;
-//  · bağlantıyı değiştiren her işlem (elle anahtar, kaldırma, başarılı OAuth) satırı kendi işleminde siler.
+//  · EV SAHİBİNİN bağlantı kararı olan her işlem (elle anahtar, kaldırma, başarılı OAuth) satırı kendi işleminde siler. Arka plandaki
+//    "yenileme anahtarı öldü → bağlantı düştü" olayı satırı SİLMEZ: o bir karar değildir, yeniden bağlanmakta olan ev sahibinin akışı sürmeli.
 // ---------------------------------------------------------------------------
 export function connectIntentLockName(orgId: string): string {
   return `hospitable-connect-intent:${orgId}`;

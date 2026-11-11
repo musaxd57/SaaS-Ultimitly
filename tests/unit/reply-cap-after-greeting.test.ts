@@ -100,6 +100,7 @@ describe("gönderim tavanı selam eklendikten SONRAKİ metne uygulanır (Q1)", (
     expect(r.reply.length).toBeGreaterThan(CAP);
     expect(r.reply).toContain("güvenli değildir"); // taslak tam metindir — olumsuzluk yerinde
     expect(r.confidence).toBeLessThanOrEqual(0.5); // ⬅️ ESKİDE 0,92 (kapıdan geçebilir, QR kaydında 2.000'de kesilirdi)
+    expect(r.lengthHeld).toBe(true); // açık işaret: kapılar güven değerine bağlı kalmaz (QR bilgi bandı)
     expect(vi.mocked(reportError).mock.calls.some((c) => String(c[0]).includes("over autosend cap"))).toBe(true);
   });
 
@@ -109,6 +110,7 @@ describe("gönderim tavanı selam eklendikten SONRAKİ metne uygulanır (Q1)", (
     const r = await suggestReply(input());
     expect(r.reply.length).toBe(1995);
     expect(r.confidence).toBe(0.92);
+    expect("lengthHeld" in r).toBe(false); // engel yokken alan hiç yok
   });
 
   it("KONTROL: selamla birlikte tavanı AŞMAYAN cevap (1.900 + selam) aynen gider → güven aynen", async () => {
@@ -147,6 +149,7 @@ describe("gönderim tavanı selam eklendikten SONRAKİ metne uygulanır (Q1)", (
     openAiReturns(replyOfLength(2100));
     const r = await suggestReply(input());
     expect(r.confidence).toBeLessThanOrEqual(0.5);
+    expect(r.lengthHeld).toBe(true);
     expect(vi.mocked(reportError).mock.calls.filter((c) => String(c[0]).includes("over autosend cap"))).toHaveLength(1);
   });
 });

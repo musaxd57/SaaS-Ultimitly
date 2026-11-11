@@ -841,8 +841,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input));
         // 🚨 GÖNDERİM TAVANI SON METNE BAKAR (Codex 11-10 Q1). Tavan modelin ham metnine uygulanıyordu; kodun selamı SONRADAN ekleniyor,
         // metni tavanın üstüne çıkarabiliyordu (1.990 + "Merhaba Ayşe,"). QR kaydı o metni 2.000'de kesiyordu: misafir tam cevabı görüp
-        // sayfayı yenileyince sonu kesik hâlini ("…güvenli değil|dir" → olumsuzluk gitmiş) okuyabiliyordu. Bütün biçimlendirmeden sonra
-        // tavanı aşan metin, kesilmiş metinle AYNI hükmü alır: taslak olarak ev sahibine kalır, kendiliğinden gitmez.
+        // sayfayı yenileyince sonu kesik hâlini ("…güvenli değil|dir" → olumsuzluk gitmiş) okuyabiliyordu. Cevap metni (selam dahil)
+        // tavanı aşıyorsa kesilmiş metinle AYNI hükmü alır: taslak olarak ev sahibine kalır, kendiliğinden gitmez (`lengthHeld`).
+        // Kapsam: kanal gönderiminde ev sahibinin imzası / otomatik yanıt notu bu metnin SONUNA göndericide eklenir ve hiçbir yerde
+        // kesilmez — tavan onları saymaz (kesme olmadığı için anlam bozulması da olmaz).
         const overAutosendCap = replyOverAutosendCap(finalReply);
         if (overAutosendCap && !shown.truncated) {
           void reportError("openai-reply over autosend cap", new Error(`final reply ${finalReply.length} chars > ${REPLY_AUTOSEND_CAP} after formatting; held for human review`));
@@ -935,6 +937,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
           ...(hostContactHoldAll ? { hostContactOnly: true as const } : {}),
+          // Uzunluk engeli AÇIK işarettir (kapılar güven değerine bağlı kalmasın — QR bilgi bandı 0,5 güveni gönderebiliyor).
+          ...(heldForLength ? { lengthHeld: true as const } : {}),
           // Opus F10: cevabın tamamı tutulduğunda TASLAK silinmiş metindir (yasaklı cümle "AI öner"e / hazır taslağa girmez).
           ...(hostContact.hostContactOnly ? { hostContactDraft: hostContact.draft } : {}),
           // K-1029-A: çıkarılan parçaların kaydı (metin yok) — "cevaplandı" kuralı ve açık soru kararı okur.

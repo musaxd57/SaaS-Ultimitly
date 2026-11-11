@@ -13,6 +13,11 @@ import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 //     devam eder, kopya açılmaz. İki FARKLI uzun kimlik aynı eski kimliğe düşüyorsa (asıl hata buydu: iki rezervasyon tek satırda
 //     birleşmişti) satır, tarihleri birebir uyan TEK adaya verilir; öyle bir aday yoksa dokunulmaz (otomatik birleştirme / tahmin yok —
 //     satır artık hiçbir kimlikle eşleşmez, yeni kimlikler kendi satırlarını açar).
+//     · TEK aday varken tarih aranmaz (Haiku incelemesi 11-11 sordu): olağan durum budur — tek bir uzun kimlik, tarihi değişmiş olabilir
+//       (misafir uzattı) ve satır onun satırıdır. Eski hatada iki kimliğin birleştiği satır zaten "son yazanın" verisini taşıyordu;
+//       beslemede yalnız biri kaldıysa satırın ona kalması eski davranışın devamıdır. Tahmin YASAĞI birden çok aday içindir.
+//     · Hiçbir adaya verilmeyen eski satır beslemede artık hiçbir kimlikle görünmez: "beslemeden kayboldu" uzlaştırması açıksa o kuralla
+//       iptal edilir, kapalıysa öteki kaybolan satırlar gibi yerinde kalır (bu modül satır silmez / iptal etmez).
 // Kısa kimlikli (neredeyse bütün) beslemelerde hiçbir sorgu çalışmaz.
 // ---------------------------------------------------------------------------
 

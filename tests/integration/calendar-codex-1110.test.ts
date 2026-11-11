@@ -133,6 +133,31 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect(kept.arrivalDate.getTime()).toBe(dateOnly(30).getTime());
     });
 
+    it("yeni kimlik bu dairede ZATEN varsa eski satıra dokunulmaz ve senkron düşmez (kimlik dairede tekildir — çakışan çeviri denenmez)", async () => {
+      const { propertyId, sourceId } = await seed();
+      // Önceki bir geçişte yeni kimlikle satır açılmış, eski (kesilmiş) kimlikli satır da duruyor.
+      const legacyRow = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Eski Satır", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: sourceId,
+          arrivalDate: dateOnly(30), departureDate: dateOnly(32), status: "confirmed", channel: "other",
+        },
+      });
+      const current = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Misafir A", sourceReference: normalizeSourceReference(UID_A)!, calendarSourceId: sourceId,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "other",
+        },
+      });
+      mockFeed.mockResolvedValue(cal(ev(UID_A, 10, 13, [], "Misafir A")));
+      const res = await syncCalendarSource(sourceId);
+      expect(res.errors).toEqual([]); // ⬅️ korumasız: tekillik hatası işlemi bozar, senkron düşer
+      expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastStatus).toBe("ok");
+      expect((await prisma.reservation.findUniqueOrThrow({ where: { id: legacyRow.id } })).sourceReference).toBe(legacyTruncatedSourceReference(UID_A));
+      const updated = await prisma.reservation.findUniqueOrThrow({ where: { id: current.id } });
+      expect(updated.departureDate.getTime()).toBe(dateOnly(13).getTime()); // güncelleme yeni kimlikli satıra uygulandı
+      expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
+    });
+
     it("🚨 silme (KVKK) kaydı ESKİ kimlikle tutulan konaklama yeni kimlikle de yeniden içe ALINMAZ", async () => {
       const { orgId, propertyId, sourceId } = await seed();
       await prisma.erasureTombstone.create({
@@ -179,6 +204,25 @@ describe("takvim / senkron — Codex 11-10", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].id).toBe(legacyRow.id);
       expect(rows[0].sourceReference).toBe(normalizeSourceReference(UID_A));
+    });
+
+    it("🚨 dosya yolu yalnız KENDİ satırının eski kimliğini çevirir: başka kaynağın (kanal) aynı eski kimlikli satırına dokunmaz", async () => {
+      const { propertyId } = await seed();
+      // Bu rotanın satırı DEĞİL: bağlantısız ama kanalı "ics" olmayan (ör. kanal sağlayıcısından gelmiş) satır.
+      const foreign = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "Kanal Misafiri", sourceReference: legacyTruncatedSourceReference(UID_A)!, calendarSourceId: null,
+          arrivalDate: dateOnly(10), departureDate: dateOnly(12), status: "confirmed", channel: "airbnb",
+        },
+      });
+      const form = new FormData();
+      form.set("file", new File([cal(ev(UID_A, 10, 12, [], "Misafir A")).replace(/\n/g, "\r\n")], "takvim.ics", { type: "text/calendar" }));
+      form.set("propertyId", propertyId);
+      const res = await importPost(new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form }), { params: Promise.resolve({}) });
+      expect(res.status).toBe(200);
+      const after = await prisma.reservation.findUniqueOrThrow({ where: { id: foreign.id } });
+      expect(after.sourceReference).toBe(legacyTruncatedSourceReference(UID_A)); // kimliği çevrilmedi
+      expect(after.guestName).toBe("Kanal Misafiri"); // içeriğine dokunulmadı
     });
   });
 
@@ -300,6 +344,19 @@ describe("takvim / senkron — Codex 11-10", () => {
       const good = `reference,Status,Guest name,Start date,End date\nr-1,Confirmed,Ayşe,${new Date(Date.now() + 10 * DAY).toISOString().slice(0, 10)},${new Date(Date.now() + 12 * DAY).toISOString().slice(0, 10)}\n`;
       expect((await post(good)).status).toBe(200);
       expect(await prisma.reservation.count({ where: { propertyId } })).toBe(1);
+    });
+
+    it("iade SINIRSIZ değildir: saatte 20 ücretsiz retten sonra bozuk dosya yine hakkı tüketir (5 deneme) ve sınır devreye girer", async () => {
+      const { propertyId } = await seed();
+      const post = (csv: string) => {
+        const form = new FormData();
+        form.set("file", new File([csv], "rezervasyonlar.csv", { type: "text/csv" }));
+        form.set("propertyId", propertyId);
+        return importPost(new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form }), { params: Promise.resolve({}) });
+      };
+      const broken = 'reference,Status,Guest name,Start date,End date\nr-1,Confirmed,"Ayşe,15.11.2026,17.11.2026\n';
+      for (let i = 0; i < 25; i++) expect((await post(broken)).status, `deneme ${i + 1}`).toBe(400); // 20 iade + 5 hak
+      expect((await post(broken)).status).toBe(429); // sınırsız ayrıştırma denemesi yok
     });
   });
 });

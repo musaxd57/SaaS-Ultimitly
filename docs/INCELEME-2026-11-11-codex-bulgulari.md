@@ -68,3 +68,14 @@ Durum sütunu ilerledikçe güncellenir: `açık` → `düzeltildi (commit)` / `
 | X4 | Kayıt sürerken yazılan değer kayboluyor (otomasyon metinleri, imza, uyarı adresi; ücret formunda YOK) | geçerli | **düzeltildi** — otomasyon metinleri, imza ve uyarı adresi: kayıt sürerken yazılan korunur, "Kaydedildi" yalnız ekrandaki değer kaydedilenle aynıysa görünür |
 | X5 | Görev atama e-postasında saat sunucu saat diliminde (UTC) | geçerli | **düzeltildi** — vade işletmenin saat diliminde yazılır; yalnız-tarih vadesinde saat uydurulmaz (yalnız gün) |
 | X6 | K-1: aktarılabilir görevler varsayılan SEÇİLİ; elle yeniden atanmış sistem görevi listede işaretsiz | bugünkü davranış | SORUDA (Codex: ayrı göster + seçili gelmesin) |
+
+## İnceleme ve kanıt (11-11)
+- **Kırmızı-önce:** düzeltme öncesi kaynakla 21 yeni test kırmızı (şifre kodu 3 · 2FA kurulumu 4 · fotoğraf yarışı 4 · ayar formları 7 · temizlik etiketi 2 · kuyruk yolu pini 1) + kimlik ekranları 6; kontrol testleri yeşil.
+- **Mutasyon (`scripts/mutation-run.mjs`, commit `0b836b1d`, M0 yeşil):** kimlik + QR / diğer 41 / 41 · takvim 14 / 15 · OAuth 18 / 18. Yaşayan tek mutant (eski kimlik çevirisinde "yeni kimlik zaten var" koruması) için test eklendi.
+- **Haiku incelemesi (dört dar inceleme) → uygulananlar:**
+  - OAuth: bağlantıyı düşürmek artık MÜNHASIRLIK ister — kilit alınamadıysa (depo arızası) ya da deneme sırasında elden çıktıysa "anahtar ölü" cevabı bağlantıyı kaldırmaz, sonraki münhasır deneme karar verir. Kilit alındıktan sonra saklanan anahtar yeniden okunur (bu arada başkası yenilediyse sağlayıcıya tüketilmiş anahtarla gidilmez). Kilit ömrü 60 sn. Dönüşte niyet kaydı okunamazsa ham hata yerine bilinen sonuç + operatöre bildirim.
+  - QR: "bilgi bandı" anahtarı (`QR_INFORMATIONAL_BAND_ENABLED`, varsayılan kapalı) açıkken güveni 0,5'e çekilmiş kesik / tavanı aşan cevap banttan geçebiliyordu → uzunluk engeli açık işaret (`lengthHeld`) oldu; kapı güven değerine bağlı kalmaz.
+  - Takvim: dosya yolunda eski kimlik çevirisi rotanın sahiplik kuralıyla (bağlantısız + `ics`) sınırlandı; hak iadesine saatlik tavan (20) kondu — sınırsız ayrıştırma denemesi yok.
+  - Kimlik: kurulum kimliği karşılaştırması sabit süreli; şifre sıfırlamada istek sürerken yeni bağlantı açılırsa eski isteğin geç cevabı yeni ekrana yazılmaz.
+- **Bilinçli bırakılanlar (gerekçesiyle):** e-posta doğrulama gönderimi sürerken (≈1 sn) açılan ikinci bağlantı yok sayılır · iki koşu AYNI milisaniyede başlarsa ikisi de yazar (sıra tanımsız, pratikte yok) · kanal gönderiminde ev sahibinin imzası / otomatik yanıt notu tavana sayılmaz (hiçbir yerde kesilmediği için anlam bozulmaz) · tam 00:00Z / 12:00Z vadesi "yalnız gün" sayılır (görev panosuyla aynı kural).
+
