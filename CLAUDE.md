@@ -444,9 +444,12 @@ Bu dosyaya token/anahtar/parola yazma.
   `list_workflow_jobs`. İşler 2–7 sn'de düşüp `runner_id: 0` ve log 404 ise KOD DEĞİL: Actions dakika/harcama limiti
   (repo private) → kurucuya GitHub → Settings → Billing. Yeniden deneme `rerun_failed_jobs`.
   🚨 **CI için kurucuya SORULMAZ (kurucu 11-11: "kendi kurallarına CI kontrollerini ekle, bana sorma, onayım var"):** koşu / iş listesi,
-  günlük okuma ve başarısız işleri (ya da koşuyu) yeniden tetikleme kalıcı onaylıdır (`.claude/settings.json` izin listesi). Her push'tan
-  sonra hatırlatıcı kurulur; kırmızıda önce sebep ayrılır (bellek · kota / `runner_id: 0` · gerçek test), sonra düzeltilir ya da yeniden
-  tetiklenir — kurucuya yalnız SONUÇ ve ondan beklenen bir şey varsa (ör. depo görünürlüğü, Billing) yazılır.
+  günlük okuma, başarısız işleri (ya da koşuyu) yeniden tetikleme ve push sonrası hatırlatıcı kalıcı onaylıdır. İzin, depodaki
+  `.claude/settings.json` listesindedir (beş araç; oturum onu AÇILIŞTA okur — oturum ortasında eklenen araç için aynı satır
+  `~/.claude/settings.json`a da yazılır, o dosya konteynerle birlikte silinir). Kurucu yine soru görürse (11-11 gece: "sürekli onaylı
+  gibi düşün") eksik araç adı bu listeye eklenir, kurucuya sorulmaz. Kırmızıda önce sebep ayrılır (bellek · kota / `runner_id: 0` ·
+  gerçek test), sonra düzeltilir ya da yeniden tetiklenir — kurucuya yalnız SONUÇ ve ondan beklenen bir şey varsa (ör. depo
+  görünürlüğü, Billing) yazılır.
 - **Dizi biçimli `$transaction([...])` sonucu KONUMLA okunmaz** (09-24): mülk silmeye kural silme adımı eklenince
   `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
   Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.
