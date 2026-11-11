@@ -232,6 +232,20 @@ Zamanlama sizin dediğiniz gibi: web sitesi tamamen bittikten sonra.
 | OT-9 | Ek hizmetler P0 → P1 → "geri ödeme" satırı | hukuk teyidi; Airbnb mesajında iz yok | D-1…D-7 |
 | OT-10 | Akash Aşama A (açık site) | sır / kişisel veri yok | site bitince |
 
+### 2.1 OT-1 hazırlık durumu (11-11 gece envanteri — kodda ve ölçüm dosyalarında doğrulandı; kod değişmedi)
+
+| Özellik | Anahtar (yalnız "1" ile açılır) | Açık / kapalı kıyas ölçümü var mı | Açılış belgesindeki sıra / ölçü | Açmadan önce eksik olan |
+|---|---|---|---|---|
+| Konuşma kayıtları | `AI_CONVERSATION_STATE_ENABLED` | VAR — `docs/olcum/conversation-state-eval-2026-10-10-gpt-6-luna-2.md`: sızıntı 0/25 · 0/25, yanlış susturma 0/40 · 0/40 | 2. sıra; "güvenlik ölçüleri 0, gereksiz soru 0" | En yeni koşu (10-10) başka bir modelle; cevap modelimizle (`gpt-5.1`) koşu 10-09 tarihli (`conversation-state-eval-2026-10-09-gpt-5.1-2.md`). İstem o günden beri değişti → açmadan önce `gpt-5.1` ile güncel koşu + konaklama değişikliği ölçümünün yeniden koşulması (`ai-guvenlik.md`) |
+| Tarih okuma | `AI_DATE_RESOLUTION_ENABLED` | YOK — 10-09 koşularında hep açık; açık / kapalı kıyası yapılmamış | 2. sıra (konuşma kayıtlarıyla aynı satır, aynı ölçü) | Açık / kapalı kıyas koşusu |
+| Doğrulanmış müsaitlik | `AI_VERIFIED_AVAILABILITY_ENABLED` | YOK (ölçüm dosyalarında yalnız "kapalı" başlık satırı) | 3. sıra (müsaitlik → uzatma → QR) ; ölçü yazılmamış | Ölçüm + kabul ölçüsünün yazılması; konaklama bekçisi açık olmalı (muafiyet ona bağlı) |
+| Doğrulanmış uzatma | `AI_VERIFIED_EXTENSION_ENABLED` | YOK | 3. sıra (müsaitlikten sonra); ölçü yazılmamış | Aynı |
+| Eylem beyanı | `AI_ACTION_CLAIMS_ENABLED` | YOK ("cevap kıyası" planlanmış, sonuç dosyası yok) | 8. madde listesinde; ölçü yazılmamış | Cevap kıyası ölçümü |
+
+Sonuç: beş özelliğin dördü için açık / kapalı kıyas ölçümü yok; beşincisinin cevap modelimizle ölçümü bir ay önceki istemle. OT-1'in ilk işi kod değil ÖLÇÜM
+(ücretli — zamanı sizin; soru AA-4 ile birlikte). Ölçü eksik olan üç özellik için önerim aynı çift: yanlış bilgi / yanlış söz 0 ve
+gereksiz ev sahibine bırakma artmasın.
+
 ## 3. Kurucu soruları
 - **AA-1 (sıra):** yukarıdaki sıra uygun mu; öne almak istediğiniz adım var mı? (Önerim: OT-1 → OT-2 → OT-3; çünkü yazılmış kod boşta duruyor.)
 - **AA-2 (araç seçimi):** serbest SQL yok. Modelin kapalı listeden "araç adı + katı şemalı parametre" seçmesi önce ev sahibi yüzeyinde

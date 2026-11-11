@@ -168,32 +168,25 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
-**🔔 Bekleyen kurucu soruları — 11-11 (Codex 11-10 turu; ayrıntı + önce / sonra örnekleri oturum raporunda ve `docs/INCELEME-2026-11-11-codex-bulgulari.md`):**
-- **M1 (çift onay):** kuyruk yolunda iki yönetici aynı hazır taslağı aynı anda onaylarsa iki mesaj gider (farklı istek kimliği = bilinçli ikinci
-  gönderim, pinli). Seçenek A: aynı metne 2 dakikalık engel (doğrudan yoldaki gibi) · B: onaylanan taslağın kimliğiyle tekilleştirme.
-- **A25(b):** misafirin cevaptan ÖNCE yazıp sistemin SONRA içeri aldığı mesajı yapay zekâ kendiliğinden cevaplasın mı (bugün: konuşma "Yeni"
-  olur, ev sahibi görür — S1 kararı)?
-- **P1 kalanı:** abonelik oluşturulma zamanını saklamak (şema değişikliği) — sağlayıcı okunamazken de eski / yeni abonelik ayrımı kesinleşir.
-- **Paddle API anahtarı reddedilirse (401 / 403; Opus 11-11, para akışı — UYGULANDI, onay bekliyor):** kayıtlı (iptal edilmemiş) abonelik varken
-  FARKLI bir aboneliğin aktif olayı gelirse ve anahtarımız o an reddediliyorsa olay yazılmaz, Paddle yeniden gönderir, operatöre alarm gider
-  (eskiden "bilinmiyor" sayılıp yerine geçiyordu → eski aboneliğin olayı ödeyen aboneliği ezebilirdi). Bedeli: anahtar düzelene kadar o
-  nadir olay bekler. İstenirse eski davranışa dönülür.
-- **Kesin hata alan otomatik mesaj (Opus 11-11):** sağlayıcının kesin reddettiği (4xx) karşılama / giriş / çıkış mesajı her geçişte yeniden
-  denenir; aynı anda 25 böyle rezervasyon olursa arkadakiler bekler. Çözüm: rezervasyon başına deneme sayacı (şema değişikliği) — istenir mi?
-- **Q2:** "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?" — hayvan sorusu ev sahibinde kalırken şifre cevabı gitsin mi (bugün bütün
-  cevap tutulur, testle pinli)?
-- **X6 (K-1):** elle özellikle atanmış sistem görevleri aktarma listesinde ayrı gösterilip SEÇİLİ GELMESİN mi (Codex'in tercihi)?
-- **X3 kalanı:** aynı ayarı iki sekme birden değiştirirse son kaydeden kazanır — "bu ayar başka yerde değişti" uyarısı istenir mi (sürüm
-  sütunu = şema değişikliği)?
-- **Yeni / değişen metinler (onay ya da düzeltme):** "Token geçersiz." + "Hospitable'a şu anda ulaşılamadı. Birazdan tekrar deneyin."
-  (eskisi tek cümleydi) · "Fotoğraf artık kullanılamıyor. Yeniden yükleyip tekrar deneyin." · Girişler sayfasında "çıkıştan (11:00) önce,
-  erken temizlik kuralıyla" · operatör kuyruğunda "… ve N başvuru daha var".
-- **3a–3e (kurucu geri bildirimi):** 3a QR'da kodu bilmeyen misafire ne denecek (uygulaması olmayan misafir) · 3b erken giriş bilgi cevabı
-  "ücret + en erken saat + saat sorusu" · 3c QR'da kimin yazdığı + rolü (mesaj satırına yazan kişi kimliği = şema değişikliği) · 3d model
-  yokken taslak kutusu boş mu kalsın ("Talebinizi aldım…" taslakları) + "bir insanla görüşmek istiyorum"un iki anlamı.
-- **Otomasyon yol haritası AA-1…AA-8** (`docs/TASARIM-2026-11-11-otomasyon-yol-haritasi.md` §3) + Akash Aşama A.
-- **Gözlem (istem, onaysız değişmez):** `prompts.ts`teki insan talebi örnek cevabı "ev sahibiniz görebilir" diyor (üçüncü şahıs). O cevap
-  misafire gitmiyor (devir cümlesi gitmez) ama modele üçüncü şahıs örneği veriyor — istem turunda düzeltilmeli.
+**🔔 11-11 gece — kurucu kararları ve durum (ayrıntı: `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md`):**
+- ✅ **Uygulandı (şemasız; 11-11 gece):** S1 çift onay → işlem kimliği "konuşma + önerinin üretildiği andaki konuşma sonu" · S7 işlenemeyen
+  Paddle olayı saatlik yeniden işlenir (API anahtarı sınanır, tek ortak alarm) · S8 reddedilen otomatik mesaj aralıklı yeniden denenir
+  (var olan otomatik gönderim kaydından türetilir) · 3c görsel kısım (avatar + gönderen + saat; "görüşmeye katıldı" yok) · 3d model
+  yokken söz veren taslak yok ("Yapay zekâ önerisi şu an hazırlanamadı.") · S5 metinleri ("Daha sonra tekrar deneyin").
+- ⏳ **Migration turu — tek açık onay bekliyor (§13):** S4 atamanın kaynağı · S6 abonelik kaydı + ayar bölümü sürümü · 3c yazan kişi +
+  rol kopyası + misafire görünen ad · 3b rezervasyonda "yapay zekâ otomatik cevap vermesin" · 3d-b "paylaşılabilir iletişim" işareti ·
+  öğe ↔ gönderim bağı · (S1'in tam hâli: taslak sürümü kaydı).
+- ⏳ **Ücretli ölçüm isteyenler (anahtar kapalı yazılır):** S3 "Wi-Fi gitsin, hayvan sorusu sizde kalsın" (kurucu: "testleri
+  çalıştırabilirsin"; yeni kör set + iki sayı) · S2 geç alınan mesajı yapay zekâ değerlendirsin · §11 devir cümlesi yerine ayrı alan
+  (istemden "…kaydedildi; ev sahibiniz görebilir" kalkar — bütün cevap kategorilerini etkiler).
+- ❓ **Sabah soruları (11-12):** (1) 3b — erken giriş ücret cevabı herkese gitmesin: tekrar gelen misafir / "bu misafire dokunma" için
+  §8'deki üç satırdan hangileri · (2) §12'deki metinler: 3d rozeti ("Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol
+  edin"), S1 ikinci onaylayana ayrı cümle istenir mi, öneriden sonra yeni misafir mesajı gelince onay engellensin mi, S8'de reddedilen
+  otomatik mesaj ev sahibinin kartında görünsün mü · (3) migration turu onayı (§13) · (4) yol haritası AA-1…AA-9
+  (`docs/TASARIM-2026-11-11-otomasyon-yol-haritasi.md` §3) · (5) depo private yapılınca haber (bellek düzeltmesinin küçük makinede kanıtı
+  için CI yeniden tetiklenecek).
+- **Önceki turdan kalan, hâlâ açık:** 3a QR'da kodu bilmeyen misafire ne denecek · "Fotoğraf artık kullanılamıyor…" ve Girişler /
+  operatör kuyruğu metinlerinin onayı · modelsiz taslak dili (kısa Türkçe mesajda İngilizce selam — `detectGuestLanguage` sınırı, gözlem).
 
 **🔔 Bekleyen kurucu soruları (kurucu 11-06: "unutmayalım; Codex'ten yardım alarak sonra cevaplayacağım"):** erken giriş EK-1 (E1–E5
 sırası) · EK-2 (zarf kelime ağı yasağına girer mi) · EK-4 (onayda daire adı) · EK-5 (Karar Motoruyla tek ses) · EK-6 (erişim kontrolü +
