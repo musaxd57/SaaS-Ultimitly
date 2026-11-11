@@ -86,9 +86,25 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Kalıcı kuyruk tekilleştirme (Codex 07-23): istemcinin mesaj başına requestId'si öncelikli — çift tık ya da ağ yeniden
   // denemesi aynı kimliği kullanır, zaman kovası sınırına bölünemez. Yedek (eski istemci / kimlik yok): gövde özeti + 2 dk kova.
   const digest = createHash("sha256").update(parsed.data.body).digest("base64url").slice(0, 24);
-  const idempotencyKey = parsed.data.requestId
-    ? `manual:${id}:req:${parsed.data.requestId}`
-    : `manual:${id}:${digest}:${Math.floor(Date.now() / 120_000)}`;
+  // 🚨 S1 (kurucu kararı 11-11): YAPAY ZEKÂ ÖNERİSİNİN ONAYI tek bir İŞLEMDİR — kimliği sekmenin ürettiği istek kimliği değil, "bu konuşma +
+  // önerinin üretildiği andaki konuşma sonu"dur. İki yönetici aynı öneriyi ayrı sekmelerde (dakikalar arayla da) onaylarsa aynı kimliğe
+  // düşer: tek mesaj gider, ikinci onay var olan gönderimin durumunu alır. Eskiden her sekme kendi kimliğini ürettiği için iki mesaj
+  // gidiyordu (doğrudan yolda yalnız 2 dakikalık aynı-metin engeli vardı). Konuşma sonu istemciden gelir ama sunucu DOĞRULAR (bu konuşmanın
+  // mesajı mı); elle yazılan cevap bu kuralın dışındadır (ev sahibi aynı mesaja bilerek ikinci cevap yazabilir).
+  let operation: { anchorCreatedAt: Date } | undefined;
+  let operationKey: string | null = null;
+  if (aiAssisted && parsed.data.anchorMessageId) {
+    const anchor = await prisma.message.findFirst({
+      where: { id: parsed.data.anchorMessageId, conversationId: id },
+      select: { id: true, createdAt: true },
+    });
+    if (!anchor) return badRequest({ anchorMessageId: "Geçersiz mesaj kimliği" });
+    operation = { anchorCreatedAt: anchor.createdAt };
+    operationKey = `suggestion:${id}:${anchor.id}`;
+  }
+  const idempotencyKey =
+    operationKey ??
+    (parsed.data.requestId ? `manual:${id}:req:${parsed.data.requestId}` : `manual:${id}:${digest}:${Math.floor(Date.now() / 120_000)}`);
   const sent = await sendHostMessage({
     organizationId: session.organizationId,
     conversation,
@@ -97,7 +113,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     senderName: parsed.data.senderName || session.name,
     aiAssisted,
     idempotencyKey,
-    strictIdempotency: Boolean(parsed.data.requestId),
+    strictIdempotency: Boolean(operationKey ?? parsed.data.requestId),
+    ...(operation ? { operation } : {}),
   });
   switch (sent.status) {
     case "not_connected":
@@ -120,6 +137,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         { status: sent.deduped ? 200 : 202 },
       );
     case "duplicate":
+    // S1: öneri üretildikten sonra konuşma cevaplanmış (başka bir yönetici onayladı / elle yazdı / yapay zekâ cevapladı) → gönderilmez.
+    // Metin var olan cümle (yeni metin yok); istemci bu cevapta konuşmayı yeniler, güncel hâli görünür.
+    case "already_answered":
       return NextResponse.json(
         { error: "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor." },
         { status: 409 },

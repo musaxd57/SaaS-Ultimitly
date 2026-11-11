@@ -22,7 +22,7 @@ import { conversationStateWindowSufficient, loadConversationState } from "@/lib/
 import { extendThread, readThreadTail, threadWindowSufficient } from "@/lib/channel-thread-window";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { orgTimezone } from "@/lib/timezone";
-import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
+import { historyAuthorOf, isAnsweringOutbound, isAutomationMessage } from "@/lib/message-author";
 import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
@@ -323,5 +323,16 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     hostContactRemovals && hostContactRemovals.length > 0
       ? { removed: hostContactRemovals.length, maybeUnanswered: hostContactRemovals.some((r) => !r.generic) }
       : undefined;
-  return jsonOk({ ...publicResult, reply: hostDraft, availabilityCheck, earlyCheckin, internalSourceCheck, ...(hostContactNotice ? { hostContactNotice } : {}) });
+  // S1 (kurucu kararı 11-11): önerinin üretildiği andaki konuşma sonu (son gerçek mesaj; otomatik şablon mesajı sayılmaz — kayıtlı
+  // taslağın kuralıyla aynı). "Onayla ve gönder" bunu geri yollar: gönderim işleminin kimliği olur (iki sekme = tek mesaj).
+  const anchorMessageId = [...messages].reverse().find((m) => !isAutomationMessage(m))?.id ?? null;
+  return jsonOk({
+    ...publicResult,
+    reply: hostDraft,
+    availabilityCheck,
+    earlyCheckin,
+    internalSourceCheck,
+    ...(hostContactNotice ? { hostContactNotice } : {}),
+    ...(anchorMessageId ? { anchorMessageId } : {}),
+  });
 });

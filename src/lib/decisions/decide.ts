@@ -356,8 +356,9 @@ export async function decideHostDecision(args: {
   }
 
   if (sent.status === "failed_ambiguous") return unverified("ambiguous");
-  // Aynı metin az önce gitti / hâlâ gidiyor (başka yoldan): misafir onu görmüş olabilir.
-  if (sent.status === "duplicate") return unverified("duplicate");
+  // Aynı metin az önce gitti / hâlâ gidiyor (başka yoldan): misafir onu görmüş olabilir. (`already_answered` yalnız işlem kimlikli öneri
+  // onayında döner — karar kartı o kimliği kullanmaz; tip bütünlüğü için aynı güvenli sonuca bağlı.)
+  if (sent.status === "duplicate" || sent.status === "already_answered") return unverified("duplicate");
   // Bu kilidin kimliğiyle kuyrukta başka bir içerik var: o gönderim sürüyor olabilir.
   if (sent.status === "idempotency_conflict") return unverified("idempotency_conflict");
 

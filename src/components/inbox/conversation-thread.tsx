@@ -118,7 +118,11 @@ interface Suggestion {
   /** Kayıtlı taslak (sayfa açılınca yüklendi; misafire gitmedi) — güven rozeti yerine "hazır taslak" yazar. */
   prepared?: boolean;
   /** Kayıtlı taslağın ait olduğu misafir mesajı (yalnız `prepared`): sunucu taslağı hâlâ veriyor mu diye bakılır (↓ `handleSuggest`). */
-  preparedFor?: string;
+  preparedFor?: string;  /**
+   * Önerinin üretildiği andaki konuşma sonu (sunucu verir). "Onayla ve gönder" bunu yollar: gönderim işleminin kimliği olur — iki
+   * yönetici aynı öneriyi ayrı sekmelerde onaylarsa tek mesaj gider (S1, kurucu kararı 11-11).
+   */
+  anchorMessageId?: string;
 }
 
 /** Kayıtlı HAZIR TASLAK → panelin öneri biçimi (uyarı sunucuda yeniden hesaplandı). */
@@ -133,6 +137,8 @@ function preparedSuggestion(d: PreparedDraft): Suggestion {
     internalSourceCheck: d.internalSourceCheck,
     prepared: true,
     preparedFor: d.messageId,
+    // Kayıtlı taslak konuşmanın son gerçek mesajına (misafir mesajı) aittir → konuşma sonu odur.
+    anchorMessageId: d.messageId,
   };
 }
 
@@ -361,7 +367,7 @@ export function ConversationThread({
     }
   }
 
-  async function sendReply(body: string, aiAssisted = false, source: "composer" | "suggestion" = "composer") {
+  async function sendReply(body: string, aiAssisted = false, source: "composer" | "suggestion" = "composer", anchorMessageId?: string) {
     if (!body.trim()) return;
     setSending(true);
     setSendError(null);
@@ -379,7 +385,8 @@ export function ConversationThread({
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, aiAssisted, requestId }),
+        // Öneri onayında konuşma sonu da gider (S1): sunucu gönderim işlemini ona bağlar. Elle yazılan cevapta gönderilmez.
+        body: JSON.stringify({ body, aiAssisted, requestId, ...(source === "suggestion" && anchorMessageId ? { anchorMessageId } : {}) }),
       });
       if (res.ok) {
         requestIdRef.current = null;
@@ -414,6 +421,9 @@ export function ConversationThread({
       } else {
         const data = await res.json().catch(() => null);
         setSendError(data?.error ?? "Mesaj gönderilemedi.");
+        // S1: öneri onayı "zaten gönderildi / gönderiliyor" ile reddedildiyse konuşma yenilenir — başka birinin gönderdiği cevap görünsün
+        // (konuşmanın sonu cevap olunca eldeki öneri kendiliğinden kalkar).
+        if (res.status === 409 && source === "suggestion") refresh();
       }
     } catch {
       // 🚨 AĞ HATASI BELİRSİZ TESLİMATTIR — "gönderilemedi" DEMEZ (08-06).
@@ -1264,7 +1274,7 @@ export function ConversationThread({
                 <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
                   <Wand2 className="size-4" /> Taslağı kullan
                 </Button>
-                <Button size="sm" onClick={() => sendReply(suggestion.reply, true, "suggestion")} disabled={sending}>
+                <Button size="sm" onClick={() => sendReply(suggestion.reply, true, "suggestion", suggestion.anchorMessageId)} disabled={sending}>
                   {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
                   Onayla ve gönder
                 </Button>

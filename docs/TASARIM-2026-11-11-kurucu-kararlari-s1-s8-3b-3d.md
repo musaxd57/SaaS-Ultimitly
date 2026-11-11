@@ -34,18 +34,29 @@ yapabilir (iki ayrı taslak satırı, metinleri bir iki kelime farklı). Taslak 
 değişmez "aynı taslak iki kez gitmesin" değil, **aynı misafir mesajına yapay zekâ önerisi iki kez gitmesin**. Ayrıca yeni bir taslak tablosu /
 sürüm sütunu gerekmiyor.
 
-**Yapılacak (şema yok).**
-- Öneri onayı (`source: "suggestion"`) sunucuya cevapladığı misafir mesajının kimliğini taşır; sunucu bunu konuşmaya ait ve hâlâ "son cevapsız
-  misafir mesajı" olarak doğrular (istemciye güvenilmez).
-- İşlem kimliği: `suggestion:${konuşma}:${cevaplananMesaj}` — kuyruk anahtarı VE doğrudan yolun talebi aynı kimliği kullanır (anahtar açılıp
-  kapanınca ikinci gönderim doğmaz).
-- İkinci onay yeni gönderim açmaz; var olanın durumunu döner: "Gönderim kuyruğunda" · "Gönderildi" · "Sonucu doğrulanıyor". Kuyruktaki mesaja
-  "gönderildi" denmez.
-- Mesaj bu arada cevaplandıysa (ilk onay bitti) eski sekmenin onayı reddedilir ve güncel konuşma gösterilir; yeni misafir mesajı geldiyse
-  öneri zaten geçersizdir (11-11 M4 düzeltmesi).
-- Elle yazılan cevap (kaynak "manual") bu kuralın DIŞINDA: ev sahibi aynı mesaja bilerek ikinci cevap yazabilir; bugünkü `requestId` + 2 dakika
-  kuralı aynen. "Adresi tekrar gönderir misiniz?" örneği böylece engellenmez (misafirin yeni mesajı = yeni işlem kimliği).
+**Yapılan (şema yok).** İşlemin kimliği **konuşma + önerinin üretildiği andaki konuşma sonu** (son gerçek mesajın kimliği; otomatik
+şablon mesajı sayılmaz). Kimliği sunucu verir ("AI cevap öner" yanıtı / kayıtlı taslak), onayda istemci geri yollar, sunucu konuşmaya ait
+olduğunu doğrular.
+
+- İlk planım "cevaplanan misafir mesajı"ydı; kodda yanlış çıktı: ev sahibi cevap verdikten SONRA aynı misafir mesajı için yeni bir öneri
+  isteyip onaylayabiliyor (bugün var olan akış) — misafir mesajına bağlı kimlik bunu sonsuza dek engellerdi. Konuşma sonu ise her cevapla
+  değişir: cevaptan sonra üretilen öneri kendiliğinden YENİ bir işlemdir; aynı durumu gören iki yönetici yine aynı kimliğe düşer.
+- Kuyruk anahtarı VE doğrudan yolun talebi aynı kimliği kullanır (anahtar açılıp kapanınca ikinci gönderim doğmaz).
+- İkinci onay yeni gönderim açmaz. Kalıcı kuyrukta var olan gönderimin durumunu alır ("sıraya alındı" · "gönderildi" · sonucu
+  doğrulanamayan gönderimin kendi etiketi); doğrudan yolda "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor." Metinlerin hepsi
+  bugünkü metinler. İkinci yöneticinin önerisi bir iki kelime farklı olsa da gitmez (ilk onay geçerlidir; "farklı içerik" çakışması
+  sayılmaz) ve sekme kendini yeniler — gönderilen cevap görünür.
+- Öneri üretildikten sonra konuşmaya gerçek bir cevap yazıldıysa (başka biri elle yazdı, yapay zekâ cevapladı) eski sekmenin onayı
+  gönderilmez — işlemin 24 saatlik talebi düşmüş olsa da.
+- Elle yazılan cevap ("Taslağı kullan" ile kutuya alınıp gönderilen metin dahil) bu kuralın DIŞINDA: bugünkü istek kimliği + 2 dakikalık
+  aynı-metin kuralı aynen. "Adresi tekrar gönderir misiniz?" örneği engellenmez. "Gerçekten yeniden göndermek" = metni kutuya alıp
+  göndermek (ayrı, açık işlem).
+- Öneriden sonra yeni MİSAFİR mesajı gelmesi onayı engellemez (bugünkü davranış; değiştirmek ayrı karar — §12).
 - Sonucu belirsiz gönderim (zaman aşımı): körlemesine yeniden gönderilmez; bugünkü "incelemede" yolu.
+
+**Bilinen sınır (migration turunda kapanır).** Kimlik bir taslak SÜRÜMÜ değildir: aynı konuşma durumunda iki yönetici ayrı ayrı öneri
+üretip farklı metinleri onaylarsa ilk onaylanan gider, ikincisi gönderilmez ve gönderilen cevap gösterilir; hangi metnin onaylandığı
+ayrıca kayda geçmez. Codex'in istediği "onaylanan revizyon + içerik özeti sabitlensin" tam hâliyle taslak kaydı ister (§13).
 
 ## 2. S2 — cevaptan önce yazılıp sonra içeri alınan mesaj
 
@@ -249,16 +260,21 @@ kategorilerini etkiler → anahtar KAPALI yazılır, mevcut ölçüm setleriyle 
 İstemin bazı bölümlerinde aynı sadeleştirme zaten anahtarla var (`AI_HOST_DECISION_HOLD_ENABLED`: "…kaydedildi, ev sahibiniz görebilir" →
 "Bu ev sahibinizin kararıdır."); yeni iş onu bütün devir yerlerine genişletir.
 
-## 12. Onayınızı isteyen yeni metinler
+## 12. Onayınızı isteyen yeni metinler ve küçük kararlar
 
-| Yer | Metin |
-|---|---|
-| S1, ikinci onaylayan | "Bu cevap gönderim kuyruğunda." · "Bu cevap az önce gönderildi." · "Bu cevabın sonucu doğrulanıyor." |
-| S4, liste başlığı | "Otomatik atananlar" · "Sizin atadıklarınız (seçerseniz aktarılır)" |
-| S6, ayar çakışması | "Bu ayar başka bir yerde değiştirildi. Güncel hâli aşağıda; sizin yazdığınız korunuyor." |
-| 3b, kural kutusu | "Daha önce konaklamış misafire otomatik gönderme" · rezervasyonda: "Bu rezervasyonda yapay zekâ otomatik cevap vermesin" |
-| 3c, misafir | "Ayşe · Ev sahibi" · "Mehmet · Ekip" · adı kapalıysa "İşletme ekibi" |
-| 3d, öneri alanı | "Yapay zekâ önerisi şu an hazırlanamadı." · "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin" |
+Koda girmiş ama onayınızı bekleyen tek yeni metin 3d rozetidir (Railway kapalı — hiçbir müşteri görmedi); ötekiler henüz yazılmadı.
+
+| Yer | Metin / karar | Durum |
+|---|---|---|
+| 3d, yalnız kayıtlı bilgiden kurulan taslağın rozeti | "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin" | kodda, onay bekliyor |
+| 3d, öneri alanı notu | "Yapay zekâ önerisi şu an hazırlanamadı." | sizin metniniz, kodda |
+| S1, ikinci onaylayan | Bugünkü metinler kullanıldı ("Mesaj sıraya alındı — birazdan gönderilecek." · "Mesaj gönderildi." · "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor."). İsterseniz ayrı bir cümle: "Bu öneri az önce başka biri tarafından gönderildi." | karar sizde |
+| S1, öneriden sonra yeni misafir mesajı gelirse | Bugün onaya izin var (öneri yeni mesajı görmeden yazılmış olsa da). Engelleyip "Yeni mesaj geldi — öneriyi yenileyin" demek ayrı karar | karar sizde |
+| S8, ev sahibine görünürlük | Kanalın reddettiği otomatik mesaj bugün yalnız operatör alarmında. "Otomatik mesajlar" kartına satır: "Bu mesaj kanal tarafından reddedildi; yeniden deneniyor." | karar sizde |
+| S4, liste başlığı | "Otomatik atananlar" · "Sizin atadıklarınız (seçerseniz aktarılır)" | migration turu |
+| S6, ayar çakışması | "Bu ayar başka bir yerde değiştirildi. Güncel hâli aşağıda; sizin yazdığınız korunuyor." | migration turu |
+| 3b, kural kutusu | "Daha önce konaklamış misafire otomatik gönderme" · rezervasyonda: "Bu rezervasyonda yapay zekâ otomatik cevap vermesin" | 3b kararına bağlı |
+| 3c, misafir | "Ayşe · Ev sahibi" · "Mehmet · Ekip" · adı kapalıysa "İşletme ekibi" | migration turu |
 
 ## 13. Migration turu (tek onay)
 
@@ -273,6 +289,6 @@ Hepsi yalnız-ekleme (yeni boş sütun / yeni tablo; dolu tabloya zorunlu alan, 
 
 ## 14. Çalışma sırası
 
-1. Şemasız ve ölçümsüz olanlar: 3c görsel kısmı · 3d · S8 · S7 · S1 (her biri kırmızı-önce + mutasyon + tam kapı).
+1. Şemasız ve ölçümsüz olanlar: 3c görsel kısmı · 3d · S8 · S7 · S1 (her biri kırmızı-önce + mutasyon + tam kapı) — ✅ 11-11 gece yazıldı.
 2. Migration turu (§13) — onayınızla.
 3. Ölçüm isteyenler, anahtar kapalı: S3 → S2 → §11 (devir alanı). Her biri eski / yeni kıyasıyla size gelir.

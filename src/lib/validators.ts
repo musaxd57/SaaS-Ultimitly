@@ -179,6 +179,13 @@ export const conversationReplySchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9-]{8,64}$/, "Geçersiz istek kimliği")
     .optional(),
+  // S1 (kurucu kararı 11-11): yapay zekâ önerisinin ONAYINDA, önerinin üretildiği andaki konuşma sonu (son gerçek mesajın kimliği —
+  // sunucu verir: "AI cevap öner" yanıtı / kayıtlı taslak). Gönderim işleminin kimliği bundan türer: iki yönetici aynı öneriyi ayrı
+  // sekmelerde onaylarsa TEK mesaj gider. Sunucu konuşmaya ait olduğunu doğrular; elle yazılan cevapta gönderilmez.
+  anchorMessageId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{8,64}$/, "Geçersiz mesaj kimliği")
+    .optional(),
   // Reserved sender names: "GuestOps AI" is the AI-message classification magic
   // string (reports count on it) and "Lixus AI" is its rendered brand alias — a
   // manual reply claiming either would self-inflate the org's AI metrics or

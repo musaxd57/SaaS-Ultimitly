@@ -18,6 +18,8 @@ import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
 import { applyHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
 import { reportError } from "@/lib/report-error";
+import { notAutomationMessageWhere } from "@/lib/message-author";
+import { undeliveredOutboundIds } from "@/lib/operator-replies";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -42,6 +44,13 @@ export interface HostSendInput {
   idempotencyKey: string;
   /** Anahtar istemcinin istek kimliğinden mi (aynı kimlik farklı içerikle gelirse 409 — yeni mesajı yutmasın). */
   strictIdempotency: boolean;
+  /**
+   * S1 (kurucu kararı 11-11): anahtar bir İŞLEMİN kimliği (yapay zekâ önerisinin onayı: konuşma + önerinin üretildiği andaki konuşma sonu).
+   * Aynı işlem ikinci kez gelirse — başka yöneticiden, başka sekmeden, bir iki kelimesi farklı bir öneri metniyle de olsa — yeni gönderim
+   * AÇILMAZ: var olan gönderimin durumu döner (içerik farkı "çakışma" sayılmaz; ilk onay geçerlidir). `anchorCreatedAt` o konuşma sonunun
+   * anı: ondan SONRA gerçek bir cevap yazılmışsa (başka biri cevapladı, yapay zekâ cevapladı) öneri artık geçersizdir → gönderilmez.
+   */
+  operation?: { anchorCreatedAt: Date };
 }
 
 export type HostSendResult =
@@ -57,6 +66,8 @@ export type HostSendResult =
   | { status: "idempotency_conflict" }
   /** Aynı metin az önce gönderildi / hâlâ gönderiliyor. */
   | { status: "duplicate" }
+  /** S1: önerinin üretildiği andan sonra konuşmaya gerçek bir cevap yazılmış — öneri geçersiz, hiçbir şey gönderilmedi. */
+  | { status: "already_answered" }
   /** Çift gönderim kalkanı okunamadı. */
   | { status: "claim_unavailable" }
   /** Kanal KESİN reddetti (hiçbir şey teslim edilmedi; kalkan bırakıldı, aynı metin hemen yeniden denenebilir). */
@@ -66,7 +77,11 @@ export type HostSendResult =
   /** Teslim edildi ve kaydedildi (`message` yalnız eşzamanlı senkronun satırı bulunamazsa null — teslim yine gerçekleşti). */
   | { status: "sent"; message: Message | null };
 
-export async function sendHostMessage(input: HostSendInput): Promise<HostSendResult> {
+export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSendResult> {
+  // S1: işlem kimlikli onayda anahtar, işlemin ŞU ANKİ gönderimine çözülür (önceki gönderim misafire kesinlikle ulaşmadıysa yenisi).
+  const input: HostSendInput = rawInput.operation
+    ? { ...rawInput, idempotencyKey: await currentOperationKey(rawInput.organizationId, rawInput.idempotencyKey) }
+    : rawInput;
   const { conversation } = input;
   const id = conversation.id;
   // Deliver on the guest's channel FIRST — don't persist a reply that never reached the guest (Airbnb/Booking via Hospitable,
@@ -96,6 +111,19 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // Kuyruk yolu gövde (metin) talebi ALMAZ — bilinçli (Codex 07-23 kararı, testle pinli): niyet istemcinin istek kimliğindedir; farklı
     // kimlikle gelen aynı metin ev sahibinin BİLEREK yaptığı ikinci gönderimdir. (İki ekip üyesinin aynı taslağı aynı anda onaylaması
     // ayrı kimlik taşır → iki mesaj; bunun nasıl ele alınacağı kurucu sorusu — `docs/INCELEME-2026-11-11-codex-bulgulari.md` M1.)
+    // S1: işlem kimlikli onay — bu işlemin kuyruk satırı zaten varsa onun durumu döner; yoksa ve konuşma bu arada cevaplanmışsa yeni
+    // gönderim açılmaz. (İki eşzamanlı onay ikisi de buradan geçerse kuyruğun tekil anahtarı birini tekilleştirir — aşağıda.)
+    if (input.operation) {
+      const existing = await queuedRequestResult(input);
+      if (existing) {
+        if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+        return existing;
+      }
+      if (await repliedSince(id, input.operation.anchorCreatedAt)) {
+        if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+        return { status: "already_answered" };
+      }
+    }
     let enq: Awaited<ReturnType<typeof enqueueOutbound>>;
     try {
       enq = await enqueueOutbound({
@@ -121,7 +149,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     if (enq.deduped) {
       const existing = await prisma.messageOutbox.findUnique({ where: { id: enq.outboxId }, select: { body: true, messageId: true, status: true } });
       deliveryStatus = existing?.status ?? "pending";
-      if (input.strictIdempotency) {
+      // İşlem kimliğinde içerik farkı çakışma DEĞİLDİR (S1): ikinci onayın metni gönderilmez, ilk gönderimin durumu döner.
+      if (input.strictIdempotency && !input.operation) {
         const existingMsg = existing?.messageId
           ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
           : null;
@@ -164,6 +193,13 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       // Başka bir deneme (doğrudan ya da eşzamanlı kuyruk denemesi) bu kimliği tutuyor → "az önce gönderildi / hâlâ gönderiliyor".
       return req.result === "unavailable" ? { status: "claim_unavailable" } : { status: "duplicate" };
     }
+  }
+  // S1: işlem kimlikli onay — talepler alındıktan SONRA (eşzamanlı iki onay ikisi birden geçemesin) konuşma bu arada cevaplanmış mı diye
+  // bakılır. Cevaplandıysa (ilk onay 24 saatten eskiyse talebi düşmüş olabilir; ya da başka biri elle / yapay zekâ cevapladı) gönderilmez.
+  if (input.operation && (await repliedSince(id, input.operation.anchorCreatedAt))) {
+    await releaseOutboundSend(id, input.claimBody, attempt);
+    await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+    return { status: "already_answered" };
   }
   // Fırlatılan hata / çöken süreç BELİRSİZDİR: iki talep de doğduğu 2 dk'da kalır (uzatma yalnız kesin başarıda).
   const outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
@@ -274,6 +310,51 @@ async function queuedRequestResult(input: HostSendInput): Promise<HostSendResult
   });
   if (!existing) return null;
   const message = existing.messageId ? await prisma.message.findUnique({ where: { id: existing.messageId } }) : null;
-  if (existing.body !== input.body || (message != null && message.aiAssisted !== input.aiAssisted)) return { status: "idempotency_conflict" };
+  // İşlem kimliğinde (S1) içerik farkı çakışma değildir: ilk onayın gönderimi geçerlidir, durumu döner.
+  if (!input.operation && (existing.body !== input.body || (message != null && message.aiAssisted !== input.aiAssisted))) return { status: "idempotency_conflict" };
   return { status: "queued", message, deduped: true, deliveryStatus: existing.status };
+}
+
+/**
+ * Konuşmaya `since` anından SONRA gerçek bir cevap yazılmış mı (giden, otomatik şablon mesajı değil — karşılama / giriş / çıkış mesajı cevap
+ * sayılmaz; yapay zekânın ve ekibin cevabı, kuyruktaki bekleyen cevap sayılır). Kuyrukta misafire KESİNLİKLE ulaşmamış (başarısız / iptal /
+ * engellenmiş) mesaj cevap DEĞİLDİR — `operator-replies.ts` ile aynı kural (talimat 09-07 §5). S1: önerinin üretildiği andan sonra
+ * konuşma cevaplandıysa o önerinin onayı gönderilmez.
+ */
+async function repliedSince(conversationId: string, since: Date): Promise<boolean> {
+  const undelivered = await undeliveredOutboundIds(conversationId);
+  const reply = await prisma.message.findFirst({
+    where: {
+      conversationId,
+      direction: "outbound",
+      createdAt: { gt: since },
+      ...notAutomationMessageWhere(),
+      ...(undelivered.length > 0 ? { id: { notIn: undelivered } } : {}),
+    },
+    select: { id: true },
+  });
+  return reply !== null;
+}
+
+/** Bir işlemin en çok bu kadar yeniden denemesi izlenir (her biri bir önceki "gönderilemedi" satırından türer). */
+const OPERATION_RETRY_CHAIN_MAX = 20;
+
+/**
+ * S1: işlem kimliğinin ŞU ANKİ gönderim anahtarı. Bu işlemin kuyruktaki gönderimi misafire KESİNLİKLE ulaşmadıysa (başarısız / iptal)
+ * öneri yeniden onaylanabilir — doğrudan yoldaki "kesin ret işlemi kilitlemez" kuralının kuyruk karşılığı. Yeni anahtar o satırdan
+ * türer: iki yönetici aynı yeniden denemede yine AYNI anahtara düşer (tek mesaj). Bekleyen, gönderilmiş, sonucu doğrulanamayan ya da
+ * abonelik yüzünden bekleyen ("engellendi" — kendiliğinden yeniden gider) gönderim yeniden denenmez: anahtar onun kalır, durumu döner.
+ * Kuyruk hiç kullanılmadıysa tek indeksli okuma, sonuç taban anahtar.
+ */
+async function currentOperationKey(organizationId: string, baseKey: string): Promise<string> {
+  let key = baseKey;
+  for (let i = 0; i < OPERATION_RETRY_CHAIN_MAX; i++) {
+    const row = await prisma.messageOutbox.findUnique({
+      where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: key } },
+      select: { id: true, status: true },
+    });
+    if (!row || (row.status !== "failed" && row.status !== "canceled")) return key;
+    key = `${baseKey}:retry:${row.id}`;
+  }
+  return key;
 }

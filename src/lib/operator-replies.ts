@@ -16,7 +16,7 @@ export const PRIOR_OPERATOR_REPLY_WHERE = { direction: "outbound", systemEventTy
  * Kuyrukta terminal ve misafire KESİNLİKLE ulaşmamış (iptal / başarısız / engellenmiş) giden mesajların kimlikleri (talimat 09-07 §5).
  * Kuyruk kapalıyken tablo boştur → sorgu YOK (bugünkü maliyet). `Message` ile kuyruk satırı arasında ilişki yok; bağ `messageId`.
  */
-async function undeliveredOutboundIds(conversationId: string): Promise<string[]> {
+export async function undeliveredOutboundIds(conversationId: string): Promise<string[]> {
   // Anahtar kapatıldıktan sonra da (kuyrukta satır kaldıysa) süzgeç açık kalır (Opus F3, `outbox/presence.ts`).
   if (!(await undeliveredFilterActive())) return [];
   const rows = await prisma.messageOutbox.findMany({

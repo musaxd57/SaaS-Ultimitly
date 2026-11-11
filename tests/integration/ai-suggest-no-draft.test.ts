@@ -69,7 +69,7 @@ async function suggest(id: string) {
     new NextRequest(`http://localhost/api/conversations/${id}/ai-suggest`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) }),
     { params: Promise.resolve({ id }) },
   );
-  return { status: res.status, body: (await res.json()) as { reply?: string; source?: string; risk?: string | null } };
+  return { status: res.status, body: (await res.json()) as { reply?: string; source?: string; risk?: string | null; anchorMessageId?: string } };
 }
 const stored = (messageId: string) => prisma.message.findUniqueOrThrow({ where: { id: messageId }, select: { aiSuggestedReply: true, aiConfidence: true, aiIntent: true } });
 
@@ -122,6 +122,23 @@ describe("POST /api/conversations/[id]/ai-suggest — model yokken taslak yok (3
     mockSuggest.mockResolvedValueOnce({ ...RESULT, intent: "wifi", confidence: 0.9, reply: "Merhaba Ada,\n\nWi-Fi bilgileri: Ağ LaleApt, şifre 12345678", risk: null, usedSources: ["kb:wifi"] } as never);
     await suggest(id);
     expect(await stored(messageId)).toEqual({ aiSuggestedReply: null, aiConfidence: null, aiIntent: "wifi" });
+  });
+
+  // S1 (kurucu kararı 11-11): yanıt, önerinin üretildiği andaki konuşma sonunu taşır — "Onayla ve gönder" onu geri yollar ve gönderim
+  // işleminin kimliği olur (iki yönetici aynı öneriyi onaylarsa tek mesaj).
+  it("🚨 S1: yanıt konuşma sonunu taşır — son gerçek mesaj; otomatik şablon mesajı sayılmaz, ekibin cevabı sayılır", async () => {
+    const { id, messageId } = await seed(null);
+    const model = { ...RESULT, source: "openai", reply: "İade koşullarımız rezervasyon sayfasında yazıyor." };
+    mockSuggest.mockResolvedValue(model as never);
+    expect((await suggest(id)).body.anchorMessageId).toBe(messageId); // son mesaj misafirin mesajı
+
+    // Araya otomatik şablon mesajı (karşılama) girdi: konuşma sonu yine misafirin mesajı.
+    await prisma.message.create({ data: { conversationId: id, direction: "outbound", authorType: "automation", senderName: "GuestOps AI", body: "Hoş geldiniz." } });
+    expect((await suggest(id)).body.anchorMessageId).toBe(messageId); // ⬅️ otomatik mesaj sayılsaydı iki yöneticinin kimliği ayrışabilirdi
+
+    // Ekip cevap yazdı: bundan sonra üretilen öneri YENİ bir işlemdir (konuşma sonu o cevap).
+    const reply = await prisma.message.create({ data: { conversationId: id, direction: "outbound", authorType: "host", senderName: "Ekip", body: "Bakıyorum." } });
+    expect((await suggest(id)).body.anchorMessageId).toBe(reply.id);
   });
 
   it("KONTROL: MODELİN cevabı (boş olsa da) eski kuralla kaydedilir — istisna yalnız 'model yok + taslak yok'", async () => {
