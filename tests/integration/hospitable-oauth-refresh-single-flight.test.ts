@@ -50,6 +50,17 @@ function rotatingProvider(delayMs: number) {
   });
 }
 
+/**
+ * Kilit deposu arızası taklidi: açıkken kilit satırı yazımı fırlatır (kod "kilitsiz devam et" der). Casus dosya başında BİR KEZ kurulur
+ * ve geri alınmaz (Prisma temsilcisinde geri alma yöntemi siliyor); kapalıyken aynen geçirir.
+ */
+let lockStoreDown = false;
+const realCreateMany = prisma.systemLock.createMany.bind(prisma.systemLock);
+vi.spyOn(prisma.systemLock, "createMany").mockImplementation(((args: Parameters<typeof realCreateMany>[0]) => {
+  if (lockStoreDown) return Promise.reject(new Error("lock store down")) as never;
+  return realCreateMany(args);
+}) as never);
+
 async function expiredOrg() {
   const org = await prisma.organization.create({ data: { name: "Org" } });
   await setOrgHospitableOAuthTokens(org.id, { accessToken: "access-old", refreshToken: "refresh-old", expiresAt: new Date(Date.now() - 1000) }, "5 mülk");
@@ -65,8 +76,12 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     mockGetConfig.mockReset();
     mockGetConfig.mockReturnValue(FAKE_CONFIG);
     __setOAuthRefreshWaitForTests(2_000, 40);
+    lockStoreDown = false;
   });
-  afterEach(() => __setOAuthRefreshWaitForTests(8_000, 250));
+  afterEach(() => {
+    __setOAuthRefreshWaitForTests(8_000, 250);
+    lockStoreDown = false;
+  });
 
   it("🚨 aynı anda iki istek: sağlayıcıya TEK yenileme gider, ikisi de yeni anahtarı alır, bağlantı DÜŞMEZ", async () => {
     const orgId = await expiredOrg();
@@ -139,6 +154,16 @@ describe("OAuth yenileme — tek uçuş (O1)", () => {
     expect(await prisma.systemLock.findUnique({ where: { name: oauthRefreshLockName(orgId) } })).toBeNull();
     mockRefresh.mockResolvedValueOnce(fresh("recovered"));
     expect(await getOrgHospitableToken(orgId)).toBe("access-recovered");
+  });
+
+  it("🚨 kilit deposu okunamıyorken de aynı süreçteki eşzamanlı çağrılar TEK isteği paylaşır (yenileme kilit arızasında durmaz, çiftlenmez)", async () => {
+    const orgId = await expiredOrg();
+    rotatingProvider(120);
+    lockStoreDown = true; // kilit yazılamıyor → kod "kilitsiz devam" eder; koruma süreç içi paylaşımdan gelir
+    const [a, b] = await Promise.all([getOrgHospitableToken(orgId), getOrgHospitableToken(orgId)]);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect([a, b]).toEqual(["access-new", "access-new"]);
+    expect((await getConnectionInfo(orgId)).connected).toBe(true);
   });
 
   it("iki ayrı işletmenin yenilemeleri birbirini beklemez (kilit işletme başına)", async () => {
