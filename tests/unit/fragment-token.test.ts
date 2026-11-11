@@ -27,8 +27,9 @@ describe("fragmentToken — e-posta bağlantısı parça anahtarı", () => {
 
 // Arayüz P1-b: sunucu kilidi kalkınca "Ödemeniz işleniyor" kartı da açılır (durum yalnız ilk değerle kuruluyordu).
 describe("ödeme kartı — sunucu kilidi durumu izlenir", () => {
-  it("checkoutPending false olunca yerel işleniyor durumu kapanır", () => {
+  it("sunucu kilidi İKİ yönde izlenir: false olunca yerel işleniyor durumu kapanır, sonradan true gelince kilitlenir (ödeme P7, 11-11)", () => {
+    // Davranışı `tests/ui/paddle-checkout-pending.test.tsx` sınar; burada bağın kaynakta durduğu pinlenir.
     const src = readFileSync(join(process.cwd(), "src/components/settings/paddle-plans.tsx"), "utf8");
-    expect(src).toMatch(/useEffect\(\(\) => \{\s*if \(!checkoutPending\) setProcessing\(false\);\s*\}, \[checkoutPending\]\);/);
+    expect(src).toMatch(/useEffect\(\(\) => \{\s*checkoutPendingRef\.current = Boolean\(checkoutPending\);\s*setProcessing\(Boolean\(checkoutPending\)\);\s*\}, \[checkoutPending\]\);/);
   });
 });

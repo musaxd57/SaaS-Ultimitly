@@ -74,10 +74,13 @@ describe("A1 — KB onay sözleşmesi", () => {
   it("kurucu T4: şablon yolları (gönderici + önizleme) bilgi tabanından OKUMAZ — yalnız dairenin otomatik mesaj kaydı", () => {
     const src = read("src/lib/automation.ts");
     for (const cat of ["welcome", "checkin", "checkout"]) {
-      // Gönderici ve önizleme = 2 okuma, ikisi de `loadAutoMessage`.
-      expect(src.match(new RegExp(`loadAutoMessage\\(r\\.propertyId, "${cat}"\\)`, "g"))?.length, cat).toBe(2);
+      // Önizleme = kategori başına 1 okuma (`loadAutoMessage`); gönderici ortak aday hazırlığından okur (11-11, mesaj A26 — ↓ tek okuma).
+      expect(src.match(new RegExp(`loadAutoMessage\\(r\\.propertyId, "${cat}"\\)`, "g"))?.length, cat).toBe(1);
+      expect(src, cat).toMatch(new RegExp(`await prepareLifecycleCandidates<[A-Za-z]+>\\(\\{\\s*kind: "${cat}"`));
       expect(src, cat).not.toMatch(new RegExp(`category: "${cat}"`));
     }
+    // Göndericilerin TEK okuma noktası: aday hazırlığı, yine `loadAutoMessage` (bilgi tabanı değil).
+    expect(src.match(/loadAutoMessage\(r\.propertyId, opts\.kind\)/g)?.length).toBe(1);
     const sent = read("src/app/(app)/sent/page.tsx");
     expect(sent).toContain("prisma.autoMessageTemplate.findMany");
     expect(sent).not.toMatch(/knowledgeBaseItem/);

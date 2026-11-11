@@ -69,8 +69,17 @@ describe("gönderici kapısı — fail-closed", () => {
     // üç yolun ÜÇÜNE de bağlandığı — bir gönderici atlanırsa o kanal sessizce
     // ham belirteç göndermeye devam ederdi (tam olarak bu turun düzelttiği
     // kusur sınıfı, yalnız bir yolda).
-    const hits = src().match(/if \(hasUnfilledPlaceholders\(body\)\) \{/g) ?? [];
-    expect(hits.length).toBe(3);
+    // 11-11 (mesaj A26): kapı üç göndericide ayrı ayrı yazılıydı; artık ORTAK aday hazırlığında tek yerde ve üç gönderici de adaylarını
+    // yalnız oradan alır (hazırlıktan geçmeyen satır gönderim döngüsüne giremez). Ölçülen şey aynı: üç yolun ÜÇÜ de kapıya bağlı.
+    const s = src();
+    expect((s.match(/if \(hasUnfilledPlaceholders\(body\)\) \{/g) ?? []).length).toBe(1);
+    const helper = s.slice(s.indexOf("async function prepareLifecycleCandidates"), s.indexOf("export async function sendDueWelcomes"));
+    expect(helper).toContain("if (hasUnfilledPlaceholders(body)) {");
+    for (const kind of ["welcome", "checkin", "checkout"]) {
+      expect(s, kind).toMatch(new RegExp(`await prepareLifecycleCandidates<[A-Za-z]+>\\(\\{\\s*kind: "${kind}"`));
+    }
+    // Üç gönderim döngüsü de yalnız hazırlanmış adayları dolaşır (gövde hazırlıktan gelir, döngüde yeniden kurulmaz).
+    expect((s.match(/for \(const \{ r, tpl(?:: welcome)?, body \} of ready\) \{/g) ?? []).length).toBe(3);
   });
 
   it("🚨 kapı GÖVDE KURULDUKTAN SONRA çalışır (ikame edilmiş metni denetler)", () => {

@@ -93,21 +93,9 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       if (req.result === "held" && req.by !== "queue") return { status: "duplicate" };
       ownRequestClaim = req.result === "claimed";
     }
-    // 🚨 GÖVDE TALEBİ KUYRUK YOLUNDA DA (mesaj M1, Codex 11-10): kuyruk yalnız istek kimliğiyle tekilleşiyordu → aynı metni AYNI ANDA gönderen
-    // iki ayrı istek (iki sekme / iki yönetici aynı taslağı onayladı — kimlikler farklı) ikisi de kuyruğa giriyor, misafire iki kez gidiyordu;
-    // doğrudan yol bunu 2 dk'lık gövde talebiyle zaten durduruyordu. Aynı İSTEĞİN tekrarı (talep zaten kuyruğun) gövde talebine bakmaz —
-    // kuyruk satırı anahtarla tekilleşir. Gövde talebi tutuluyorsa ve bu anahtarın kuyruk satırı varsa bu yine aynı isteğin tekrarıdır
-    // (kimliksiz istemci: anahtar = gövde + 2 dk kova; ya da istek talebinin süresi dolmuş) → kuyruğun tekilleştirme cevabı.
-    let ownBodyClaim = false;
-    if (!input.strictIdempotency || ownRequestClaim) {
-      const bodyClaim = await claimOutboundSend(id, input.claimBody, attempt);
-      if (bodyClaim !== "claimed") {
-        if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
-        if (bodyClaim === "unavailable") return { status: "claim_unavailable" };
-        return (await queuedRequestResult(input)) ?? { status: "duplicate" };
-      }
-      ownBodyClaim = true;
-    }
+    // Kuyruk yolu gövde (metin) talebi ALMAZ — bilinçli (Codex 07-23 kararı, testle pinli): niyet istemcinin istek kimliğindedir; farklı
+    // kimlikle gelen aynı metin ev sahibinin BİLEREK yaptığı ikinci gönderimdir. (İki ekip üyesinin aynı taslağı aynı anda onaylaması
+    // ayrı kimlik taşır → iki mesaj; bunun nasıl ele alınacağı kurucu sorusu — `docs/INCELEME-2026-11-11-codex-bulgulari.md` M1.)
     let enq: Awaited<ReturnType<typeof enqueueOutbound>>;
     try {
       enq = await enqueueOutbound({
@@ -125,7 +113,6 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     } catch (err) {
       // Kuyruğa yazılamadı → hiçbir şey gönderilmeyecek: talep tutulursa (anahtar kapanınca) doğrudan yolun yeniden denemesi 24 sa kilitlenirdi.
       if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
-      if (ownBodyClaim) await releaseOutboundSend(id, input.claimBody, attempt);
       throw err;
     }
     // (Codex r2 #3 + r3) İstek kimlikli dedupe-hit'te PAYLOAD eşleşmesi ŞART — gövde VE aiAssisted: aynı kimliği farklı gövdeyle
@@ -139,8 +126,6 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
           ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
           : null;
         if (existing && (existing.body !== input.body || (existingMsg != null && existingMsg.aiAssisted !== input.aiAssisted))) {
-          // Bu gövdeyle hiçbir şey kuyruğa girmedi → az önce alınan gövde talebi bırakılır (aynı metin doğru kimlikle hemen gönderilebilsin).
-          if (ownBodyClaim) await releaseOutboundSend(id, input.claimBody, attempt);
           return { status: "idempotency_conflict" };
         }
       }

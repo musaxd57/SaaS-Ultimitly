@@ -5944,7 +5944,7 @@ export async function sendDueCheckins(
         take,
       }),
   });
-  for (const { r, tpl: tpl, body } of ready) {
+  for (const { r, tpl, body } of ready) {
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
@@ -6309,7 +6309,7 @@ export async function sendDueCheckouts(
         take,
       }),
   });
-  for (const { r, tpl: tpl, body } of ready) {
+  for (const { r, tpl, body } of ready) {
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.

@@ -343,51 +343,16 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect((await sendAs(RID2, "Wi-Fi şifresi")).status).toBe(201); // gövde talebi de bırakılmış
   });
 
-  it("🚨 M1: kuyruk yolunda aynı metni AYNI ANDA gönderen iki AYRI istek (iki sekme / iki yönetici) → yalnız biri kuyruğa girer", async () => {
+  it("KONTROL (M1): kuyruk yolunda FARKLI istek kimliği bilinçli ikinci gönderimdir (Codex 07-23 kararı değişmedi — kuyruk yolu metin kilidi almaz)", async () => {
     outboxOn();
-    expect((await send("Aynı taslak onaylandı")).status).toBe(202);
-    const second = await sendAs(RID2, "Aynı taslak onaylandı");
-    expect(second.status).toBe(409); // ⬅️ ESKİDE 202 (misafire iki kez gidiyordu)
-    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
-    // Reddedilen isteğin kimlik talebi hemen bırakıldı (yalnız ilk isteğinki duruyor).
-    expect(await prisma.systemLock.count({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } })).toBe(1);
-    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
-    // Reddedilen isteğin kimliği kilitli kalmaz: gövde talebi bitince (2 dk) aynı kimlik yeni mesaj olarak kuyruğa girer.
-    await twoMinutesPass();
-    expect((await sendAs(RID2, "Aynı taslak onaylandı")).status).toBe(202);
+    expect((await send("Aynı metin iki kez")).status).toBe(202);
+    expect((await sendAs(RID2, "Aynı metin iki kez")).status).toBe(202);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
-  });
-
-  it("KONTROL (M1): kuyruk yolunda AYNI isteğin tekrarı gövde talebine takılmaz (200 tekilleşme); kimliksiz istemcinin tekrarı da", async () => {
-    outboxOn();
-    expect((await send("Tek mesaj")).status).toBe(202);
-    expect((await send("Tek mesaj")).status).toBe(200);
-    // İstek talebi düşmüş olsa da (2 dk) aynı kimlik kuyruk satırıyla tekilleşir.
+    // Aynı isteğin tekrarı ise tek satıra düşer — istek talebi düşmüş olsa da (2 dk) kuyruk satırıyla tekilleşir.
+    expect((await send("Aynı metin iki kez")).status).toBe(200);
     await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } });
-    expect((await send("Tek mesaj")).status).toBe(200);
-    // Kimliksiz (eski) istemci: anahtar gövde + 2 dk kova → tekrar yine 200.
-    const first = await sendAs(null, "Kimliksiz mesaj");
-    expect(first.status).toBe(202);
-    const again = await sendAs(null, "Kimliksiz mesaj");
-    expect([200, 409]).toContain(again.status); // kova sınırına denk gelirse "az önce gönderildi" (409) — ikisi de ikinci kopya üretmez
+    expect((await send("Aynı metin iki kez")).status).toBe(200);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
-  });
-
-  it("M1: kuyruk yolunda içerik çakışması (aynı kimlik, başka metin) yeni metnin gövde talebini TUTMAZ → doğru kimlikle hemen gönderilebilir", async () => {
-    outboxOn();
-    expect((await send("İlk metin")).status).toBe(202);
-    await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } }); // istek talebi düştü; satır duruyor
-    expect((await send("İkinci metin")).status).toBe(409); // çakışma
-    expect((await sendAs(RID2, "İkinci metin")).status).toBe(202); // gövde talebi bırakılmış olmalı
-  });
-
-  it("M1: kuyruğa yazılamayan isteğin gövde talebi de bırakılır (aynı metin başka kimlikle hemen kuyruğa girer)", async () => {
-    outboxOn();
-    vi.mocked(enqueueOutbound).mockRejectedValueOnce(new Error("db down (test)"));
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const failed = await send("Su ısıtıcısı mutfakta").catch(() => null);
-    expect(failed === null || failed.status >= 500).toBe(true);
-    expect((await sendAs(RID2, "Su ısıtıcısı mutfakta")).status).toBe(202);
   });
 
   it("🚨 A25 (ev sahibi yolu): cevap satırının zamanı gönder'e basılan andır — gönderim sürerken içeri alınan misafir mesajı cevaptan SONRA sayılır", async () => {
