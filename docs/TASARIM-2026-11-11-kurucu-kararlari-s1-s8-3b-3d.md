@@ -163,9 +163,15 @@ zamanı geçince kendiliğinden düşer. Kalıcı kuyruk açıkken bu defter oku
 **Açık kalan — ev sahibine görünürlük (soru, §12).** Doğrudan yolda reddedilen mesajı bugün yalnız operatör alarmı söylüyor; ev sahibinin
 "Otomatik mesajlar" kartında görünmüyor. Yeni metin gerektirdiği için sorulacak.
 
-**Yanında bulunan (kalıcı kuyruk yolu, ayrı düzeltme adayı).** Giriş göndericisi her turda "ertelenmiş" kuyruk satırının vadesini şimdiye
-çekiyor (Y4, tarih yeniden pencereye girdiyse beklemesin diye). Aynı satır, işçinin kesin retten sonra geri çekilmesi ya da hız sınırı
-beklemesi yüzünden ileri atılmış da olabilir → o bekleme de siliniyor. Kuyruk kapalı olduğu için bugün etkisi yok; açılmadan önce düzeltilecek.
+**Yanında bulunan ve düzeltilen (kalıcı kuyruk yolu).** Giriş göndericisi her turda "ertelenmiş" kuyruk satırının vadesini şimdiye
+çekiyordu (tarih yeniden pencereye girdiyse beklemesin diye). Aynı satır, işçinin kesin retten sonra geri çekilmesi ya da hız sınırı
+beklemesi yüzünden ileri atılmış da olabiliyordu → o bekleme de siliniyordu. Kural artık yalnız hata bilgisi boş satıra uygulanır; işçi
+tarihe göre ertelerken hata bilgisini temizler. İşçi de "çok fazla istek" cevabının izini silmiyor, "reddedildi" diye yazıyordu —
+kuyruk kapatılırsa doğrudan yolun defteri onu sayardı; iki yol artık aynı kuralı uygular.
+
+**Kanıt.** Kırmızı-önce (eski kodda yeni testler kırmızı) · mutasyon 43/44 → yaşayan tek mutant (defterin tür süzgeci) aynı metinli iki
+türle pinlendi · ilgili 118 dosya yeşil · Haiku incelemesi (6 soru): gövde özeti üç göndericide de gönderilen metinle birebir aynı;
+uygulanan tek bulgu işçinin 429 izi.
 
 ## 8. 3b — erken giriş cevabı herkese gitmesin (kurucu sorusu)
 

@@ -192,6 +192,20 @@ describe("yaşam döngüsü göndericileri — reddedilen mesajın yeniden denem
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 tür defterin anahtarındadır: karşılama ile giriş metni BİREBİR aynı olsa da (aynı içerik özeti) birinin reddi ötekini bekletmez", async () => {
+    // Yukarıdaki testte iki metin farklı → içerik özeti zaten ayrışıyor. Burada özet aynı: ayrımı yalnız TÜR yapar (mutasyon 11-11).
+    const { orgId, propertyId } = await seedOrg();
+    await seedAutoMessage(propertyId, "checkin", WELCOME); // karşılama metninin aynısı
+    await seedReservations(propertyId, "res", 1, 2);
+    await rejectOnePass(() => sendDueWelcomes(orgId));
+    await addFailedAttempts("res-0", [1_000, 2_000, 3_000, 4_000]);
+    const welcomeRow = await prisma.automatedMessageSend.findFirstOrThrow({ where: { kind: "welcome" } });
+
+    expect((await sendDueCheckins(orgId)).sent).toBe(1); // ⬅️ tür süzgeci olmasaydı karşılamanın beş reddi giriş mesajını saatlerce bekletirdi
+    const checkinRow = await prisma.automatedMessageSend.findFirstOrThrow({ where: { kind: "checkin" } });
+    expect(checkinRow.bodyHash).toBe(welcomeRow.bodyHash); // senaryo gerçekten "aynı özet" (anti-vakum)
+  });
+
   it("🚨 işletme başına: başka işletmenin aynı kimlikli rezervasyonundaki ret bu işletmeyi bekletmez", async () => {
     const a = await seedOrg("A");
     const b = await seedOrg("B");
@@ -297,7 +311,7 @@ describe("yaşam döngüsü göndericileri — reddedilen mesajın yeniden denem
     {
       kind: "checkin" as const,
       run: (orgId: string) => sendDueCheckins(orgId),
-      timezone: () => "Europe/Istanbul",
+      timezone: (): string => "Europe/Istanbul",
       text: "Merhaba {isim}, giriş bilgileriniz hazır.",
       stay: (i: number) => ({ arrival: new Date(Date.now() + 2 * DAY + i * MIN), departure: new Date(Date.now() + 5 * DAY) }),
       stamp: "checkinSentAt" as const,

@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
-import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
+import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
@@ -1467,12 +1467,16 @@ async function processOne(
   const traceId = await traceOutboxLifecycleSend(row, now);
   const outcome = await deps.send(row, providerToken);
   const kind = classifySendResult(outcome);
-  await settleAutomatedSend(
-    prisma,
-    traceId,
-    kind === "definitive_success" ? "sent" : kind === "ambiguous" ? "unverified" : "failed",
-    outcome.providerMessageId,
-  );
+  // "Çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (S8, Haiku incelemesi 11-11): doğrudan yolla AYNI kural. Kalsaydı,
+  // kuyruk kapatıldığında doğrudan yolun yeniden deneme defteri (`automated-sends.ts`) bu satırları "reddedildi" sayıp mesajı bekletirdi.
+  if (kind === "rate_limited") await discardAutomatedSend(prisma, traceId);
+  else
+    await settleAutomatedSend(
+      prisma,
+      traceId,
+      kind === "definitive_success" ? "sent" : kind === "ambiguous" ? "unverified" : "failed",
+      outcome.providerMessageId,
+    );
   if (kind === "rate_limited") {
     // 429 — nothing was delivered. Defer to the provider's Retry-After (or a bounded
     // backoff) WITHOUT consuming a terminal attempt, so a rate-limit storm can never

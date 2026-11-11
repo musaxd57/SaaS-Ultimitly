@@ -252,6 +252,8 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     expect(waiting.status).toBe("pending");
     expect(waiting.lastErrorKind).toBe("rate_limited");
     expect(waiting.availableAt.getTime()).toBeGreaterThan(Date.now() + 8 * 60_000);
+    // Hız sınırı mesajın hatası değil: otomatik gönderim kaydında "reddedildi" izi kalmaz (kuyruk kapatılırsa doğrudan yol bekletmesin).
+    expect(await prisma.automatedMessageSend.count({ where: { organizationId: orgId } })).toBe(0); // ⬅️ ESKİDE 1 ("failed")
 
     // Gönderici bir sonraki turda aynı rezervasyonu yine görür (damga yok) → "zaten kuyrukta" → vadeye DOKUNMAZ.
     expect((await sendDueCheckins(orgId)).sent).toBe(0);
@@ -271,6 +273,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     expect(waiting.status).toBe("pending");
     expect(waiting.lastErrorKind).toBe("definitive_failure");
     expect(waiting.availableAt.getTime()).toBeGreaterThan(Date.now() + 10_000);
+    expect(await prisma.automatedMessageSend.count({ where: { organizationId: orgId, state: "failed" } })).toBe(1); // KONTROL: gerçek ret izi kalır
     await sendDueCheckins(orgId);
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).availableAt.getTime()).toBe(waiting.availableAt.getTime());
   });
