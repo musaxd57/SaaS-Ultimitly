@@ -55,7 +55,7 @@ import {
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor, signatureForChannel, signatureForContactWindow, signatureStripsContactFor } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
-import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
+import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb, heldPetLeak, heldPetSplitEnabled } from "@/lib/conversation-items/pet-policy";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -668,11 +668,19 @@ export function autoReplyGateVerdict(
   // evcil hayvan isteğini HİÇ çıkarmadıysa (Haiku 10-28: "Köpeğimizle gelebilir miyiz? Giriş kaçta?" → yalnız giriş saati) misafirin mesajı
   // yine okunur — kemer yalnız öğe olduğunda devreye girerse kaçırılan istekte hiç devreye girmez. Yardımcı hayvan da aynı: evcil hayvan
   // öğesi yoksa misafirin cümlesine bakılır (öğe varsa o öğe zaten tutulur, öteki sorular gider — 4.3).
-  const petsItem = !!items && (items.answerableKinds.includes("pets") || items.held.some((h) => h.kind === "pets"));
+  const petsAnswerable = !!items && items.answerableKinds.includes("pets");
+  const petsHeld = !!items && items.held.some((h) => h.kind === "pets");
+  const petsItem = petsAnswerable || petsHeld;
   const petTurn = petsItem || mentionsPets(guestMessage);
   const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!petsItem && mentionsAssistanceAnimal(guestMessage));
-  // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
-  if (
+  if (heldPetSplitEnabled() && petsHeld && !petsAnswerable) {
+    // S3 (kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED` KAPALI): evcil hayvan isteği ev sahibine BIRAKILDIYSA (ayrı öğe, tutuluyor —
+    // cevap modeline "değinme" dendi) öteki isteklerin cevabı yalnız bu yüzden tutulmaz. Şart: cevap o isteğe dair hiçbir onay / ret / koşul /
+    // ima taşımamalı (`pet-policy.heldPetLeak`: hayvan sözcüğü, "evet / tabii / maalesef", getirme-izin fiili, konusuz olumsuzluk ya da ücret).
+    // İstek öğe olarak çıkarılamadıysa (yalnız misafirin cümlesinde) ya da cevaplanabilir sayıldıysa aşağıdaki bugünkü kemer aynen.
+    if (heldPetLeak(result.reply) !== null) return hold("reply_pet_policy");
+  } else if (
+    // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
     (mentionsPets(result.reply) || petTurn) &&
     (context?.petsFreeAllowed !== true || assistanceAnimal || petReplyStraysFromFreeKb(result.reply, petTurn))
   ) {

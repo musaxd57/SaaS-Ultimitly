@@ -140,6 +140,8 @@ export const PIPELINE_FLAGS = [
   "AI_STAY_DEFERRAL_PLAIN_ENABLED",
   "AI_ACCESS_CODE_COMPLETE_ENABLED",
   "AI_HOST_DECISION_HOLD_ENABLED",
+  // S3 (11-11): tutulan evcil hayvan sorusu öteki cevabı tutmasın — hem istemi hem kapıyı değiştirir.
+  "AI_HELD_PET_SPLIT_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
   // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).

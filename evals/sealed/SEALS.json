@@ -76,5 +76,20 @@
     "runSha": "9413d0419af888f401aaa32e37e715e4444b31f3",
     "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.md",
     "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md"
+  },
+  "held-pet-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun S3 kuralı (aynı mesajda evcil hayvan + cevaplanabilir başka soru: öteki cevap gider, evcil hayvan sorusu ev sahibinde kalır; ücretsiz ve koşulsuz kabul istisnası; yardımcı hayvan her zaman ev sahibinde) düz anlatımla verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı. Yazarın taslak betiği oturumun geçici klasöründe kaldı (silme izni reddedildi); geliştirici açmadı, depoda değil.",
+    "sha256": "d82c1838d5a195c2e0610928e3954ae53df84804176e2e67891749830ca9e7bf",
+    "items": {
+      "scenarios": 51,
+      "needs": 96,
+      "answered": 47,
+      "open": 49,
+      "kbSets": 5,
+      "languages": 7,
+      "bytes": 71924
+    },
+    "state": "sealed"
   }
 }

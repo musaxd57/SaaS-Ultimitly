@@ -87,20 +87,56 @@ yeniden okunur. Cevap güncel bağlamla üretilir (eski mesaja eski cevap değil
 
 ## 3. S3 — "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?"
 
-**Bugünkü kod.** Kapı misafir MESAJINA bakıyor: mesajda ev kuralı konusu varsa bütün cevap tutulur (bilinçli, testle pinli).
+**Bugünkü kod (11-12'de yeniden okundu — ilk yazdığım eksikti).** İstek ayrımı zaten var: öğe kipinde (canlıda açık) anlama katmanı
+"evcil hayvan" ile "Wi-Fi"yi ayrı istek çıkarır, plan evcil hayvanı ev sahibine bırakır, cevap modeline yalnız Wi-Fi verilir ve "bırakılana
+değinme" denir. Cevabın TAMAMINI tutan tek yer kapıdaki evcil hayvan kemeri: 10-28 düzeltmesi (hayvanı anmayan "Evet, getirebilirsiniz.
+Gecelik ücret 200 TL." cümlesi geçiyordu) tutulan öğeyi de "hayvan turu" saydı; bilgi tabanı açıkça "ücretsiz kabul" demiyorsa o turda
+HER cevap tutuluyor — yalnız "Wi-Fi şifresi: …" yazan cevap da. Yani 10-23'te verdiğiniz "köpek sorusu bütün mesajı tutmasın" kararı
+(4.3) 10-28'deki sıkılaştırmayla fiilen geri alınmıştı. Aynı kemer, önceki bir mesajdan bekleyen evcil hayvan sorusu varken sonraki
+bütün cevapları da tutuyor.
 
 **Eleştiri.** Beş adımlı akış doğru; iki ekleme: (1) okuyucunun "dolaylı izin" denetimi yalnız hayvan için yazılırsa aynı sınıf (sigara,
 parti, ek kişi, erken giriş…) bir sonraki hatada geri gelir — denetim "ev sahibinde kalan HER ihtiyaç için cevapta onay / ret / ima var mı"
 diye genel yazılmalı. (2) "Tabii, sorun değil!" örneği gösteriyor ki tek cümlelik selam bile ima taşıyabilir: gönderilebilir ihtiyaç tek ve
 bilgi türündeyse cevap selamsız, yalnız bilgi cümlesi olmalı (kodla kurulabilen yerde kodla).
 
-**Yapılacak (anahtar KAPALI).** Anlama katmanı ihtiyaçları ayrı kimlikle çıkarır → ev sahibinde kalan ihtiyaç işaretlenir → cevap yalnız
-gönderilebilir ihtiyaç için üretilir → okuyucu özgün mesajın tamamıyla "kalan ihtiyaçlara dair onay / ret / ima" arar → gönderim kaydı yalnız
-karşılanan ihtiyacı kapatır; ötekiler açık kalır ve ev sahibine "Wi-Fi cevaplandı · hayvan sorusu sizde" diye görünür.
+**Yapılan (anahtar `AI_HELD_PET_SPLIT_ENABLED`, KAPALI — ölçüm sonucu görülmeden açılmaz).** Yeni sistem yok; var olan öğe akışında tek
+kapı dalı + istemde tek cümle:
+
+- Evcil hayvan isteği ev sahibine BIRAKILMIŞSA (ayrı öğe, tutuluyor) öteki isteklerin cevabı yalnız bu yüzden tutulmaz. Şart: cevap o
+  isteğe dair hiçbir onay / ret / koşul / ima taşımaz (`pet-policy.heldPetLeak`, kod):
+  1. hayvanı / yardımcı hayvanı anan cümle ("Köpeğiniz için ayrıca döneceğiz" dahil);
+  2. onay / ret sözcüğü — "evet", "tabii", "elbette", "sorun değil", "maalesef", "hayır", "yes", "of course", "unfortunately" … yedi dil.
+     Konusu ne olursa olsun: aynı turda cevapsız bir evet / hayır sorusu var, "Evet, Wi-Fi şifresi …" ilk soruya da okunur. Anlamı yere
+     göre değişenler ("olur", "tamam", "sure", "no", "ja") yalnız cümle / yan cümle başında;
+  3. getirme / kabul / izin / yasak fiili ("getirebilirsiniz", "kabul edilir", "allowed", "bring", "erlaubt" …);
+  4. başka bir hizmetin adını taşımayan cümlede olumsuzluk ya da ücret ("Gecelik ücret 200 TL." · "Bu mümkün olmuyor.").
+  Şüphede tutar; bedeli gereksiz tutmadır ve ölçülür.
+- Cevap modeli kuralı bilir (kural + kapı çifti): evcil hayvan isteği tutulurken isteme "hayvandan söz etme; cevabı onay / ret sözcüğüyle
+  başlatma, içinde de kullanma; yalnız bilgiyi düz cümleyle ver" cümlesi eklenir. Anahtar kapalıyken istem bayt bayt aynı.
+- Gönderim yalnız karşılanan isteği kapatır; evcil hayvan isteği ev sahibinde açık kalır ve tutulan öğenin bugünkü bildirimi gider
+  (var olan davranış — ödeme isteği + Wi-Fi örneğiyle aynı yol).
+- DEĞİŞMEYENLER: anlama katmanı evcil hayvan isteğini öğe olarak çıkaramadıysa (yalnız misafirin cümlesinde) cevap bugünkü gibi tutulur ·
+  bilgi tabanı "ücretsiz ve koşulsuz kabul" diyorsa evcil hayvan cevabı bugünkü kuralla gider · yalnız evcil hayvan soran mesajda hiçbir
+  şey gitmez · evcil hayvan + şikâyet / iade / tarih değişikliği bugünkü gibi · yardımcı hayvan sorusu her zaman ev sahibinde (öteki bilgi
+  gider) · QR misafir sohbeti kapsam DIŞI (orada öğe kipi yok; bugünkü kural).
+- Genel denetim (eleştiri 1) bu dilimde yok: sigara / parti / ek kişi içeren mesaj bugünkü gibi bütünüyle tutulur (güvenli yön). Aynı
+  kalıp ("tutulan tür → cevap ona değiyor mu") arızalı cihaz için zaten var; evcil hayvan ikinci örneği. Ölçüm iyi çıkarsa öteki türler
+  aynı kalıpla, her biri kendi ölçümüyle eklenir.
+
+**Örnek (anahtar açık; misafir: "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?").**
+
+| Modelin yazdığı | Bugün | Anahtar açıkken |
+|---|---|---|
+| "Wi-Fi ağı Lale_Home, şifresi Lale2024." | gitmez (ikisi de sizde) | gider; evcil hayvan sorusu sizde açık |
+| "Evet, getirebilirsiniz. Wi-Fi şifresi Lale2024." | gitmez | gitmez |
+| "Tabii! Wi-Fi şifresi Lale2024." | gitmez | gitmez ("Tabii" köpek sorusuna da okunur) |
+| "Wi-Fi şifresi Lale2024. Köpeğiniz için ayrıca döneceğiz." | gitmez | gitmez (hayvandan söz ediyor) |
 
 **Ölçüm (kurucu: "sonuç görülmeden açılmasın; testleri çalıştırabilirsin").** İki sayı birlikte: yanlış izin gönderimi (hedef 0) ve doğru
-bilgi cevabının gereksiz tutulması. Geliştirme setinden AYRI yeni kör set (Türkçe + İngilizce + en az iki dil daha, çok turlu konuşmalar);
-kör seti ben görmeden hazırlatırım (ayrı ajan yazar, mühürlü klasöre koyar; ben yalnız toplam sonucu okurum).
+bilgi cevabının gereksiz tutulması. Ürünün kanal akışı olduğu gibi koşar (gerçek model çağrıları, hiçbir şey kimseye gitmez); anahtar
+kapalı ve açık iki kol. Geliştirme seti açık (27 senaryo, yedi dil, dört bilgi tabanı: kural yok / ücretli-koşullu / yasak / ücretsiz).
+Kabul ölçümü ayrı yazarın görmediğim setiyle (mühürlü; ben yalnız toplam sayıları okurum). Sonuçlar: §3.1.
 
 ## 4. S4 — temizlikçi değişince aktarma listesi
 

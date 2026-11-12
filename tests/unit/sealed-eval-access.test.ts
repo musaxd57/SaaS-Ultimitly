@@ -26,6 +26,9 @@ const NEEDLE_E = ["needs", "blind", "2026", "10", "23"].join("-");
 /** Yanan setin yerine yeni kabul seti (10-23 sabah-3, Codex: "ayrıntılar geliştirmede kullanılırsa sonraki kabul yeni, görülmemiş setle"). */
 const NEEDLE_K = ["needs", "kabul", "2026", "10", "23"].join("-");
 
+/** S3 kabul seti (kurucu 11-11: "sonuç görülmeden özellik açılmamalı"; evcil hayvan + cevaplanabilir başka soru) — aynı kurallar. */
+const NEEDLE_P = ["held", "pet", "kabul", "2026", "11", "12"].join("-");
+
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
   "evals/sealed/SEALS.json",
@@ -59,6 +62,8 @@ const ALLOWED_K = new Set([
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md",
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.json",
 ]);
+// S3 kabul koşusu (iki kol: anahtar kapalı / açık) — yakma raporları koşudan sonra buraya eklenir.
+const ALLOWED_P = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_P}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
@@ -111,6 +116,7 @@ describe("mühürlü final eval seti", () => {
       if (text.includes(NEEDLE_UX) && !ALLOWED_UX.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_E) && !ALLOWED_E.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_K) && !ALLOWED_K.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_P) && !ALLOWED_P.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });

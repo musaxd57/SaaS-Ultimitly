@@ -30,7 +30,12 @@ export interface ReplyItemsInput {
    * Cevap parçaları kipi (`AI_ANSWER_PARTS_ENABLED`, `ai/answer-parts.ts`): cevap modeli istek başına parça + alıntı yazar, misafire
    * yalnız kodun doğruladığı parçalar gider. Verilmezse istem ve sonuç bayt bayt eski.
    */
-  parts?: true;
+  parts?: true;  /**
+   * S3 (`AI_HELD_PET_SPLIT_ENABLED`): evcil hayvan isteği ev sahibine bırakıldı ve öteki isteklerin cevabı gidebilecek — cevap o isteğe
+   * dair onay / ret / ima taşımasın diye bloğa TEK cümle eklenir (kapının `heldPetLeak` denetiminin istemdeki karşılığı). Verilmezse blok
+   * bayt bayt eski.
+   */
+  petHeldRule?: true;
 }
 
 /**
@@ -93,6 +98,14 @@ bırakılan bir konu hakkında tek cümle bile yazma; ev sahibi misafire o konud
       : "";
   // K-1029-A (kurucu 10-29 gece): yalnız ÖĞE KİPİNDE "o isteği cevaplama" — istek ev sahibinde açık kalır (defter burada; QR / defterli
   // olmayan kanalda soru sessizce kaybolurdu, o yüzden ana istem yalnız cümleyi yasaklar).
+  // S3: kural + kapı çifti — model kuralı bilir, kapı yine de denetler (`pet-policy.heldPetLeak`).
+  const petHeldRule = items.petHeldRule
+    ? `
+Evcil hayvan isteği ev sahibine bırakıldı: cevapta hayvandan, hayvanın gelip gelemeyeceğinden, ücretinden ya da koşulundan HİÇ söz
+etme; cevabı "Evet / Tabii / Elbette / Olur / Tamam / Hayır / Maalesef" gibi bir onay ya da ret sözcüğüyle BAŞLATMA, cevabın içinde de
+kullanma ("getirebilirsiniz", "sorun değil", "kabul edilir", "izin verilir" de YAZMA) — yalnız cevaplanacak isteklerin bilgisini düz
+cümleyle ver.`
+    : "";
   const hostContactRule = hostContactPromptBanEnabled()
     ? "\nBir isteğe verebileceğin tek cevap misafiri ev sahibine yazmaya / ulaşmaya / aramaya yönlendirmek olacaksa o isteği CEVAPLAMA ve answeredRequests'e KOYMA (istek ev sahibinde açık kalır)."
     : "";
@@ -106,7 +119,7 @@ ${held.length > 0 ? held.join("\n") : "  (yok)"}${earlierBlock}
 KURALLAR: reply YALNIZ cevaplanacak istekleri cevaplar; bırakılan bir isteği (ödeme yöntemi, şikâyet, iade, ev sahibiyle
 görüşme vb.) onaylama, reddetme, özür dileme, ödeme yöntemi / hesap bilgisi yazma. intent, riskLevel ve riskType'ı her
 zamanki gibi TÜM cevapsız mesajlara göre ver (bırakılanlar dahil — ayrımı kod yapar). JSON'a "answeredRequests" alanını
-da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].${precedence}${fixRule}${hostContactRule}`;
+da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].${precedence}${fixRule}${hostContactRule}${petHeldRule}`;
 }
 
 /**

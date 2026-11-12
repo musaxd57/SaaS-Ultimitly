@@ -20,6 +20,7 @@ import { needTerms, topicAbsenceEnabled } from "./topic-absence";
 import { asksHypotheticalSituation } from "@/lib/ai/absence";
 import { answerPartsEnabled } from "@/lib/ai/answer-parts";
 import { itemOrdinalEnabled } from "./flag";
+import { heldPetSplitEnabled } from "./pet-policy";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity; ordinal?: number };
 
@@ -159,6 +160,10 @@ export function composeItemsPlan<T extends PlanItem>(input: {
         ...(parts ? { need: needOf(item) } : {}),
       })),
       ...(parts ? { parts: true as const } : {}),
+      // S3: evcil hayvan isteği tutuluyor (cevaplanabilir değil) ve gidecek başka cevap var → istemdeki "onay / ret sözcüğü yazma" cümlesi.
+      ...(heldPetSplitEnabled() && answerable.length > 0 && input.held.some((h) => h.kind === "pets") && !answerable.some((a) => a.item.kind === "pets")
+        ? { petHeldRule: true as const }
+        : {}),
       held: [
         ...input.held.map((h) => (h.earlier ? { kind: h.kind, earlier: true } : { kind: h.kind })),
         ...dependent.map((d) => ({ kind: d.kind })),

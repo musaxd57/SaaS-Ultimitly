@@ -123,7 +123,8 @@ const SEALED = process.env.EVAL_SEALED_FINAL === "1";
  */
 const BURNED_DEV = process.env.EVAL_BURNED_DEV === "1";
 if (SEALED && BURNED_DEV) throw new Error("EVAL_SEALED_FINAL ve EVAL_BURNED_DEV birlikte kullanılamaz.");
-const SEALED_NAMES = ["needs-blind-2026-10-23.json", "needs-kabul-2026-10-23.json"] as const;
+// Üçüncü ad (11-12): S3 kabul seti — evcil hayvan + cevaplanabilir başka soru (`AI_HELD_PET_SPLIT_ENABLED`; iki kol: kapalı / açık).
+const SEALED_NAMES = ["needs-blind-2026-10-23.json", "needs-kabul-2026-10-23.json", "held-pet-kabul-2026-11-12.json"] as const;
 const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
 const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
@@ -752,7 +753,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         `# Canlı hat — MÜHÜRLÜ KÖR SET (${SEALED_NAME}) — ${MODEL} (${stamp})`,
         "",
         `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · maliyet $${usd().toFixed(4)}`,
-        `Parça kipi: \`AI_ANSWER_PARTS_ENABLED=${process.env.AI_ANSWER_PARTS_ENABLED?.trim() || "(boş)"}\` · okuyucu: \`AI_SENIOR_READER_ENABLED=${process.env.AI_SENIOR_READER_ENABLED?.trim() || "(boş)"}\``,
+        `Parça kipi: \`AI_ANSWER_PARTS_ENABLED=${process.env.AI_ANSWER_PARTS_ENABLED?.trim() || "(boş)"}\` · okuyucu: \`AI_SENIOR_READER_ENABLED=${process.env.AI_SENIOR_READER_ENABLED?.trim() || "(boş)"}\` · evcil hayvan ayrımı: \`AI_HELD_PET_SPLIT_ENABLED=${process.env.AI_HELD_PET_SPLIT_ENABLED?.trim() || "(boş)"}\``,
         "",
         "| ölçü | değer |",
         "|---|---|",

@@ -158,3 +158,97 @@ export function petReplyStraysFromFreeKb(reply: string | null | undefined, petTu
   }
   return false;
 }
+
+// ---------------------------------------------------------------------------
+// S3 (kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED`, VARSAYILAN KAPALI) — "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?"
+//
+// Evcil hayvan isteği ev sahibine BIRAKILDIĞINDA (öğe kipi: istek ayrı öğe, tutuluyor) öteki isteklerin cevabı bugün yalnız bu yüzden
+// tutuluyor (10-28 R18 kemeri: tutulan öğe de "hayvan turu" sayılır). Karar: öteki cevap GİDER, evcil hayvan sorusu ev sahibinde KALIR —
+// ama cevap o soruya dair hiçbir onay / ret / koşul / ima taşımamalı. "Evet, getirebilirsiniz." hayvanı anmaz; "Tabii! Wi-Fi şifresi …"
+// deki "Tabii" misafirin ilk sorusuna da okunur. Bu yüzden denetim hayvan sözcüğü aramakla yetinmez:
+//   1. hayvanı / yardımcı hayvanı anan cümle → sızıntı;
+//   2. onay / ret / kabul sözcüğü ("evet", "tabii", "maalesef", "yes", "of course" …) → sızıntı (konusu ne olursa olsun: aynı turda cevapsız
+//      bir evet / hayır sorusu var); anlamı yere göre değişen sözcükler ("olur", "sure", "ja", "no") yalnız cümle / yan cümle başında;
+//   3. getirme / izin / yasak fiili ("getirebilirsiniz", "kabul edilir", "allowed", "bring", "erlaubt" …) → sızıntı;
+//   4. başka bir hizmetin adını taşımayan cümlede olumsuzluk ya da ücret ("Maalesef mümkün değil." · "Gecelik ücret 200 TL.") → sızıntı
+//      (`petReplyStraysFromFreeKb` ile aynı okuma).
+// Şüphede TUTAR (güvenli yön); gereksiz tutma oranı ölçülür. Saf, doğrusal (çapalı almaşıklar, iç içe niceleyici yok).
+// ---------------------------------------------------------------------------
+
+/** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
+export function heldPetSplitEnabled(): boolean {
+  return process.env.AI_HELD_PET_SPLIT_ENABLED === "1";
+}
+
+/** Sızıntının türü (ölçüm ve kanıt için; karar yalnız "var / yok"). */
+export type HeldPetLeak = "pet_mention" | "verdict_word" | "permission" | "unanchored_verdict";
+
+/** Yeri ne olursa olsun onay / ret / kabullenme bildiren sözcükler (katlanmış). */
+const VERDICT_ANYWHERE = new RegExp(
+  "(?<![\\p{L}\\p{N}])(?:" +
+    "evet|tabi{1,2}(?: ?ki)?|elbette|memnuniyetle|hayir|maalesef|ne yazik ki|uzgunu[mz]|mumkun degil|" +
+    "sorun (?:degil|yok|olmaz)|problem (?:degil|yok|olmaz)|sakinca(?:si)? yok|mahsuru yok|" +
+    "yes|yeah|yep|of course|no problem|no worries|not a problem|unfortunately|sorry|afraid|" +
+    "naturlich|selbstverstandlich|kein problem|leider|" +
+    "oui|bien sur|pas de probleme|aucun probleme|malheureusement|desolee?s?|" +
+    "por supuesto|sin problema|no hay problema|lamentablemente|desafortunadamente|lo siento|" +
+    "конечно|без проблем|к сожалению|извините|" +
+    "نعم|بالتاكيد|طبعا|للاسف" +
+    ")(?![\\p{L}\\p{N}])",
+  "u",
+);
+
+/** Başka yerde başka anlam taşıyan onay / ret sözcükleri — yalnız cümle ya da yan cümle BAŞINDA ("Olur, …" · "Sure, …" · "No, …"). */
+const VERDICT_INITIAL = new RegExp(
+  "^(?:olur|kesinlikle|tamam|peki|sure|certainly|absolutely|definitely|okay|ok|alright|no|ja|klar|gerne|nein|in ordnung|" +
+    "non|d accord|si|claro|vale|да|нет|хорошо|ладно|لا|تمام)(?![\\p{L}\\p{N}])",
+  "u",
+);
+
+/** Getirme / kabul / izin / yasak fiilleri (katlanmış) — tutulan evcil hayvan sorusunun cevabı olarak okunur. */
+const PERMISSION_VERB = new RegExp(
+  "(?<![\\p{L}\\p{N}])(?:" +
+    "getirebilir\\p{L}{0,8}|getirin\\p{L}{0,3}|gelebilir\\p{L}{0,8}|kabul ed\\p{L}{0,12}|izin (?:ver\\p{L}{0,10}|var\\p{L}{0,4}|yok)|" +
+    "serbest\\p{L}{0,4}|yasak\\p{L}{0,6}|beraberinizde|yaninizda getir\\p{L}{0,8}|" +
+    "bring|allowed|permitted|accepted|forbidden|prohibited|(?:is|are|re) (?:very |most )?welcome|welcome to (?:bring|come)|" +
+    "mitbring\\p{L}{0,4}|mitzubringen|erlaubt|gestattet|verboten|(?:ist|sind) (?:herzlich )?willkommen|" +
+    "amener|autoris\\p{L}{0,4}|accept\\p{L}{0,4}|interdit\\p{L}{0,3}|(?:est|sont) l(?:e|a|es) bienvenu\\p{L}{0,2}|" +
+    "traer|permitid\\p{L}{0,2}|admit\\p{L}{0,5}|acept\\p{L}{0,5}|prohibid\\p{L}{0,2}|(?:es|son) bienvenid\\p{L}{0,2}|" +
+    "можно|разреш\\p{L}{0,6}|запрещ\\p{L}{0,6}|нельзя|привози\\p{L}{0,3}|взять с собои|" +
+    "مسموح|ممنوع|احضار" +
+    ")(?![\\p{L}\\p{N}])",
+  "u",
+);
+
+/**
+ * "Yapamıyoruz / mümkün olmuyor / not possible" türü yeterlilik olumsuzu (katlanmış). Başka bir hizmetin cümlesinde bilgidir ("Check-in is not
+ * possible before 15:00", "Havuz kışın kullanılamıyor") → yalnız KONUSUZ cümlede sızıntı sayılır ("Bu mümkün olmuyor." hangi sorunun cevabı?).
+ */
+const ABILITY_NEGATION = new RegExp(
+  "(?<![\\p{L}\\p{N}])(?:" +
+    "mumkun (?:olmuyor|olmaz|olmayacak)|olmuyor|yapamiyoruz|yapamayiz|edemiyoruz|edemeyiz|alamiyoruz|alamayiz|veremiyoruz|veremeyiz|" +
+    "not possible|cannot|can t|won t be able|unable|nicht moglich|geht nicht|pas possible|impossible|no es posible|imposible|" +
+    "невозможно|не можем|не получится" +
+    ")(?![\\p{L}\\p{N}])",
+  "u",
+);
+
+/** Yan cümle bölme (virgül / noktalı virgül / iki nokta / parantez / boşluklu tire) — "Merhaba, olur." de yakalansın; "Wi-Fi" bölünmez. */
+const clauses = (sentence: string) => sentence.split(/[,;:()]|\s[-–—]\s/u).map((c) => c.trim()).filter(Boolean);
+
+/**
+ * Cevap, ev sahibine bırakılan evcil hayvan isteğine dair bir onay / ret / koşul / ima taşıyor mu (S3)? `null` = taşımıyor (öteki isteklerin
+ * cevabı gidebilir). Saf.
+ */
+export function heldPetLeak(reply: string | null | undefined): HeldPetLeak | null {
+  if (!reply) return null;
+  if (mentionsPets(reply)) return "pet_mention";
+  for (const raw of sentences(reply)) {
+    const f = fold(raw);
+    if (VERDICT_ANYWHERE.test(f)) return "verdict_word";
+    if (clauses(raw).some((c) => VERDICT_INITIAL.test(fold(c)))) return "verdict_word";
+    if (PERMISSION_VERB.test(f)) return "permission";
+    if (!OTHER_SUBJECT.test(f) && !STAY_TIME_SUBJECT.test(f) && ABILITY_NEGATION.test(f)) return "unanchored_verdict";
+  }
+  return petReplyStraysFromFreeKb(reply, true) ? "unanchored_verdict" : null;
+}
