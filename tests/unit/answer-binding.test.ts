@@ -1433,6 +1433,15 @@ describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, par�
     expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', "Wi-Fi ağ adı: Lale_Home. Wi-Fi şifresi: Lale2024.").issues).not.toContain("value_not_in_evidence");
   });
 
+  it("🚨 değer sınırı: kalemdeki adın ÖN EKİ ad değildir; konuyu anmayan kalemde kısa yol yok", () => {
+    const longer = "Wi-Fi: Ağ adı: Lale_Home_5G, şifre: Lale2024.";
+    expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', longer).issues).toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi ağ adı "Lale_Home_5G", şifre "Lale2024".', longer).issues).not.toContain("value_not_in_evidence");
+    // Kapı kaleminin şifresi Wi-Fi şifresi diye verilemez: kalem Wi-Fi'yi hiç anmıyor → eski sıkı denetim (değer alıntıda kod olarak yok).
+    const door = "Kapı: Kapı şifresi: lalekapi.";
+    expect(wifi('Wi-Fi şifresi "lalekapi".', door).issues).toContain("value_not_in_evidence");
+  });
+
   it("ayıklayıcı: 'Wi-Fi şifresi: \"…\"' yazımında asıl etiket (şifresi) okunur — eskiden 'wi-fi' etiketi sözcüğü yutuyor, tırnaklı rakamsız değer hiç denetlenmiyordu", async () => {
     const { claimSpans } = await import("@/lib/ai/claim-support");
     const keys = (t: string) => claimSpans(t).claims.map((c) => c.keys[0]);
@@ -1497,13 +1506,18 @@ describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi'
     const kb = "Havuz her gün 20:00'de kapanır. Sauna 22:00'de kapanır.";
     expect(checkAnswerBinding({ part: "Havuz 22:00'de kapanır.", evidence: "Sauna 22:00'de kapanır.", sourceText: kb, ...n }).ok).toBe(false);
     expect(checkAnswerBinding({ part: "Havuz 20:00'de kapanır.", evidence: "Havuz her gün 20:00'de kapanır.", sourceText: kb, ...n }).ok).toBe(true);
-    // "çalışır", "ödenir", "getirir", "gösterir", "değişir", "başlatır" — yalnız fiilden oluşan ihtiyaçta bile başka tesisin cümlesi dayanak olmaz.
+    // Her geniş zaman kuyruğu ayrı pinli (-ışır · -enir · -irir · -ıtır · -erir · -atır): fiil konu sözcüğü olsaydı başka tesisin aynı fiilli
+    // cümlesi "konuyu anıyor" sayılır, dayanak olurdu. Fiil konu olmadığı için alıntı konusuzdur → subject_missing.
     for (const [q, part, evidence, source] of [
       ["klima nasıl çalışır", "Klima kumandayla çalışır.", "Kombi düğmeyle çalışır.", "Klima kumandayla çalışır. Kombi düğmeyle çalışır."],
       ["otopark ücreti nasıl ödenir", "Otopark ücreti nakit ödenir.", "Depozito kartla ödenir.", "Otopark ücreti girişte ödenir. Depozito kartla ödenir."],
+      ["valizleri kim getirir", "Valizleri görevli getirir.", "Havluları görevli getirir.", "Valizleri siz taşırsınız. Havluları görevli getirir."],
+      ["havuzu ne ısıtır", "Havuzu güneş paneli ısıtır.", "Saunayı güneş paneli ısıtır.", "Havuz ısıtmasızdır. Saunayı güneş paneli ısıtır."],
+      ["otoparkı kim gösterir", "Otoparkı görevli gösterir.", "Daireyi görevli gösterir.", "Otopark bina arkasındadır. Daireyi görevli gösterir."],
+      ["klimayı ne başlatır", "Klimayı kumanda başlatır.", "Kombiyi düğme başlatır.", "Klima duvardadır. Kombiyi düğme başlatır."],
     ] as const) {
       const r = checkAnswerBinding({ part, evidence, sourceText: source, ...need([q]) });
-      expect([q, r.ok]).toEqual([q, false]);
+      expect([q, r.issues.includes("subject_missing")]).toEqual([q, true]);
     }
   });
 
@@ -1549,6 +1563,22 @@ describe("11-12 ölçümü: çok konulu kalemde olumluluk KİMLİK başına (iki
     expect(run("Evet, dairede kurutma makinesi var.").issues).toContain("polarity_mismatch");
     expect(run("Çamaşır makinesi banyodadır.").issues).not.toContain("polarity_mismatch");
     expect(run("Çamaşır makinesi yoktur.").issues).toContain("polarity_mismatch");
+  });
+
+  it("🚨 kimliğin kalemdeki olumluluğu TEK değilse kimlik okuması hüküm vermez — eski bütün-kalem kıyası (tutucu)", () => {
+    // Havuz hem açık hem kapalı anılıyor (mevsim) → "Havuz açıktır" kendi tesisinin olumluluğuyla doğrulanamaz.
+    const kb = "Havuz açıktır. Kışın havuz kapalıdır. Sauna kapalıdır.";
+    const n = need(["havuz ve sauna açık mı"]);
+    expect(checkAnswerBinding({ part: "Havuz açıktır, sauna kapalıdır.", evidence: kb, sourceText: kb, ...n }).issues).toContain("polarity_mismatch");
+  });
+
+  it("🚨 iki tesisi birden anan yan cümle İKİSİNİN de olumluluğunda olmalı; tesis anmayan izin yan cümlesi yine bütüne göre", () => {
+    // Parçanın bütünü olumsuzluk taşıyor ("ütü yoktur") → bütün-kalem kıyası tek başına yakalamaz; ilk yan cümle kurutma makinesini olumlu veriyor.
+    expect(run("Çamaşır makinesi de kurutma makinesi de var, ancak ütü yoktur.").issues).toContain("polarity_mismatch");
+    const two = "Havuz açıktır. Sauna kapalıdır.";
+    const n = need(["havuz ve sauna açık mı", "are the pool and sauna open"]);
+    expect(checkAnswerBinding({ part: "Havuz açıktır, sauna kapalıdır; yine de kullanılabilir.", evidence: two, sourceText: two, ...n }).issues).toContain("polarity_mismatch");
+    expect(checkAnswerBinding({ part: "The pool is open, the sauna is closed, but it is allowed.", evidence: two, sourceText: two, ...n }).issues).toContain("polarity_mismatch");
   });
 
   it("KONTROL (R13 sürüyor): tesis anmayan izin yan cümlesi kalemin bütününe göre sınanır", () => {
