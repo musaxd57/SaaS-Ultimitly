@@ -84,8 +84,6 @@ export async function planItemsTurn(
     understanding: MessageUnderstanding | null | undefined;
     expectedMessageIds: readonly string[];
     now: Date;
-    /** S2 (`late-turn.ts`): bu turun geç ulaşan misafir mesajları — plan onlardan çıkan istekleri işaretler. Verilmezse bugünkü plan. */
-    lateMessageIds?: ReadonlySet<string>;
     /**
      * Cevap modeline giden bilgi tabanı kalemleri (getirmenin seçtiği): arıza çözümü yalnız bunların içinde o konunun TARİFİ varsa
      * sunulur (`relation.kbRecipeTopics`, karar 23 kör doğrulaması). Verilmezse hiçbir arıza çözümü sunulmaz.
@@ -182,7 +180,6 @@ export async function planItemsTurn(
       needQueries,
       ...(relations ? { relations, kbRecipeTopics: kbRecipeTopics(input.knowledgeBase ?? []) } : {}),
       ...(faultRequests ? { faultRequests } : {}),
-      ...(input.lateMessageIds && input.lateMessageIds.size > 0 ? { lateMessageIds: input.lateMessageIds } : {}),
       producedKeys: new Set(extracted.messages.flatMap((m) => m.items.map((it) => hintKey(m.messageId, it.kind, it.ordinal)))),
     }),
   };

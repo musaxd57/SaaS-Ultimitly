@@ -1,7 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { LATE_MESSAGE_MAX_AGE_MS, lateMessageReplyEnabled, lateTurnView } from "@/lib/late-turn";
-import { buildItemsPromptBlock, type ReplyItemsInput } from "@/lib/conversation-items/reply-block";
-import { composeItemsPlan } from "@/lib/conversation-items/plan";
 
 // ---------------------------------------------------------------------------
 // S2 (kurucu kararı 11-11; anahtar `AI_LATE_MESSAGE_REPLY_ENABLED` KAPALI): geç içeri alınan misafir mesajı, otomatik cevap akışının OKUDUĞU
@@ -111,44 +109,5 @@ describe("lateTurnView — geç mesaj kaçırdığı yapay zekâ cevabının ard
     // 10:01 ev sahibi platformdan yazdı (10:02'de alındı) → ondan ESKİ misafir mesajını gördü; sonraki geç mesaj yine taşınır.
     const rows = thread(guest("m0", 0, 6), providerReply("app", 1, 2), guest("m2", 2, 6), ours("ai", 3));
     expect(ids(lateTurnView(rows, NOW).messages)).toEqual(["m0", "app", "ai", "m2"]);
-  });
-});
-
-describe("istem bloğu — geç ulaşan istek modele işaretlenir (bağlam: son cevabımız onu görmeden gitti)", () => {
-  const base: ReplyItemsInput = {
-    answerable: [
-      { ref: "R1", kind: "wifi", hint: "wifi şifresi" },
-      { ref: "R2", kind: "parking", hint: "otopark" },
-    ],
-    held: [],
-  };
-
-  it("işaret yoksa blok BAYT BAYT eski; varsa yalnız o istek 'GEÇ ULAŞTI' taşır ve kural cümlesi eklenir", () => {
-    const before = buildItemsPromptBlock(base);
-    expect(before).not.toContain("GEÇ ULAŞTI");
-    const after = buildItemsPromptBlock({ ...base, answerable: [{ ...base.answerable[0]!, late: true }, base.answerable[1]!] });
-    expect(after).toContain('R1 · Wi-Fi · "wifi şifresi" · GEÇ ULAŞTI');
-    expect(after).not.toContain('"otopark" · GEÇ ULAŞTI');
-    // Kural: o cevabın zaten verdiği bilgi yeniden gönderilmez; yeni soru her zamanki gibi cevaplanır.
-    expect(after).toContain("son cevabımızdan ÖNCE yazdı");
-    expect(after).toMatch(/yeniden\s+CEVAPLAMA ve answeredRequests'e KOYMA/);
-    expect(after).toContain("YENİ bir soruysa her zamanki gibi cevapla");
-    // İşaret dışında blok aynı: işaret ve kural çıkarılınca eski metin kalır.
-    const stripped = after.replace(" · GEÇ ULAŞTI", "");
-    expect(stripped.startsWith(before)).toBe(true);
-    expect(stripped.slice(before.length).trim().startsWith("GEÇ ULAŞTI istekleri:")).toBe(true);
-  });
-
-  it("plan: yalnız geç ulaşan mesajdan çıkan cevaplanabilir istek işaretlenir; küme verilmezse / boşsa plan bugünkü", () => {
-    const late = { messageId: "m-late", kind: "parking" as const, sensitivity: "none" as const };
-    const fresh = { messageId: "m-new", kind: "checkout_time" as const, sensitivity: "none" as const };
-    const plan = (ids?: ReadonlySet<string>) =>
-      composeItemsPlan({ turnItems: [late, fresh], held: [], hints: new Map(), ...(ids ? { lateMessageIds: ids } : {}) }).replyItems.answerable.map((a) => [a.kind, a.late ?? false]);
-    expect(plan(new Set(["m-late"]))).toEqual([["parking", true], ["checkout_time", false]]);
-    expect(plan()).toEqual([["parking", false], ["checkout_time", false]]);
-    expect(plan(new Set())).toEqual([["parking", false], ["checkout_time", false]]);
-    // Alan yokken nesne biçimi de aynı kalır (anahtar eklenmez).
-    const plain = composeItemsPlan({ turnItems: [late], held: [], hints: new Map() }).replyItems.answerable[0]!;
-    expect("late" in plain).toBe(false);
   });
 });
