@@ -1,0 +1,3660 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "7c2d5edb",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.23366768,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 15,
+        "in": 1034,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 105,
+        "in": 505420,
+        "cached": 454656,
+        "out": 11336,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "tm-tr-iki-bilinen",
+      "cls": "two_known",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Otopark ücretsizdir ve binanın arkasındadır.\nÇıkış saatimiz 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Otopark ücretsizdir ve binanın arkasındadır.\nÇıkış saatimiz 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Bir de çıkış saati kaç?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdoouh700087dyercw7g4wz",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoouh700067dyekdd1kksp",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoouh700077dye9ff9wrig",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking",
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 9.1,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 432.3,
+            "rr": "ok",
+            "rrMs": 1509,
+            "rrA": 1,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 3442,
+            "ui": [
+              "parking",
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22405,
+            "ct": 289,
+            "cpt": 20480,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking",
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "property:checkOutTime"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otopark ücretsizdir ve binanın arkasındadır.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Çıkış saatimiz 11:00.",
+            "evidence": "Check-out saati: 11:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          },
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "çıkış saati"
+          }
+        ]
+      ],
+      "ms": 19482,
+      "retried": false
+    },
+    {
+      "id": "tm-en-two-known",
+      "cls": "two_known",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Parking is free and located behind the building.\nYou can leave the trash in the container on the right side of the building entrance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Parking is free and located behind the building.\nYou can leave the trash in the container on the right side of the building entrance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "And where do we leave the trash?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdop9o3001p7dye7x18gkgd",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdop9o3001n7dyep6xwtbb1",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 3.2,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 404.9,
+            "rr": "ok",
+            "rrMs": 1413,
+            "rrA": 2,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2262,
+            "ui": [
+              "parking",
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22496,
+            "ct": 283,
+            "cpt": 20608,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Parking is free and located behind the building.",
+            "evidence": "Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "You can leave the trash in the container on the right side of the building entrance.",
+            "evidence": "Çöpler bina girişinin sağındaki konteynere atılır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          },
+          {
+            "intent": "trash",
+            "query_tr": "çöp atma yerleri çöp kutusu",
+            "query_original": "trash disposal"
+          }
+        ]
+      ],
+      "ms": 12831,
+      "retried": false
+    },
+    {
+      "id": "tm-de-zwei-bekannt",
+      "cls": "two_known",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Es gibt einen kostenlosen Parkplatz hinter dem Gebäude.\nDer Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Es gibt einen kostenlosen Parkplatz hinter dem Gebäude.\nDer Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Und bis wann ist der Pool geöffnet?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdopjmc00357dyempc7a1bf",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdopjmc00347dyevxor05ts",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdopjmc00367dyeu34vkd2q",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking",
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 6,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 381.6,
+            "rr": "ok",
+            "rrMs": 925,
+            "rrA": 2,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2313,
+            "ui": [
+              "parking",
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 2,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22519,
+            "ct": 306,
+            "cpt": 20480,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking",
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "kb:general"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Es gibt einen kostenlosen Parkplatz hinter dem Gebäude.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Der Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.",
+            "evidence": "Havuz: Havuz her gün 09:00–20:00 arası açıktır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "Parkplatz parken"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "havuz çalışma saatleri açık mı",
+            "query_original": "Pool Öffnungszeiten geöffnet"
+          }
+        ]
+      ],
+      "ms": 11769,
+      "retried": false
+    },
+    {
+      "id": "tm-fr-deux-connues",
+      "cls": "two_known",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Oui, il y a un parking gratuit derrière l’immeuble.\nVous pouvez jeter les poubelles dans le conteneur à droite de l’entrée de l’immeuble.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Oui, il y a un parking gratuit derrière l’immeuble.\nVous pouvez jeter les poubelles dans le conteneur à droite de l’entrée de l’immeuble.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Et où jeter les poubelles ?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdopsro004n7dye1udx14z9",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdopsrn004l7dyevg8kfd29",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdopsro004o7dyeo920xb80",
+              "v": "2026-08-31T23:56:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdopsrn004k7dyeb6pe6r5m",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking",
+            "kb:rules"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 4,
+            "cand": 34,
+            "ms": 2.3,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 398.6,
+            "rr": "ok",
+            "rrMs": 936,
+            "rrA": 2,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2284,
+            "ui": [
+              "parking",
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22558,
+            "ct": 325,
+            "cpt": 20480,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking",
+            "kb:rules"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "kb:rules"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "subject_missing"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Oui, il y a un parking gratuit derrière l’immeuble.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Vous pouvez jeter les poubelles dans le conteneur à droite de l’entrée de l’immeuble.",
+            "evidence": "Çöp: Çöpler bina girişinin sağındaki konteynere atılır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          },
+          {
+            "intent": "trash",
+            "query_tr": "çöp atma yeri konteyner",
+            "query_original": "jeter les poubelles ordures"
+          }
+        ]
+      ],
+      "ms": 13488,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-uc-bilinen",
+      "cls": "three_known",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Otopark ücretsiz, binanın arkasında bulunuyor.\nÇöpleri bina girişinin sağındaki konteynere atabilirsiniz.\nHavuz her gün 09:00 ile 20:00 arasında açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Otopark ücretsiz, binanın arkasında bulunuyor.\nÇöpleri bina girişinin sağındaki konteynere atabilirsiniz.\nHavuz her gün 09:00 ile 20:00 arasında açık.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Havuz kaça kadar açık?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdoq39b00637dyelqme1b7x",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoq39b00647dyeee3of558",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoq39b00627dyem6isvu1j",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking",
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 3,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 4.5,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 2,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 361.1,
+            "rr": "ok",
+            "rrMs": 1220,
+            "rrA": 3,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 5690,
+            "ui": [
+              "parking",
+              "trash",
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 2,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22447,
+            "ct": 394,
+            "cpt": 20352,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking",
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2",
+              "R3"
+            ]
+          }
+        }
+      },
+      "items": 3,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "kb:general"
+        ],
+        "declared": 3
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "trash",
+          "status": "answered"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        },
+        {
+          "ref": "R3",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otopark ücretsiz, binanın arkasında bulunuyor.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.",
+            "evidence": "Çöp: Çöpler bina girişinin sağındaki konteynere atılır."
+          },
+          {
+            "ref": "R3",
+            "status": "answered",
+            "text": "Havuz her gün 09:00 ile 20:00 arasında açık.",
+            "evidence": "Havuz: Havuz her gün 09:00–20:00 arası açıktır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          },
+          {
+            "intent": "trash",
+            "query_tr": "çöp atma noktası çöp kutusu",
+            "query_original": "çöpü nereye atıyoruz"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "havuz kullanım saatleri",
+            "query_original": "havuz kaça kadar açık"
+          }
+        ]
+      ],
+      "ms": 17925,
+      "retried": false
+    },
+    {
+      "id": "tm-en-three-known",
+      "cls": "three_known",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "There is free parking behind the building.\nThe Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".\nCheck-out time is 11:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "There is free parking behind the building.\nThe Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".\nCheck-out time is 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "What time is check-out?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdoqh51007k7dyeor3vnkve",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoqh51007l7dyez19mylk9",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoqh51007n7dye954eog8v",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoqh51007m7dyeaxwc0w9w",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking",
+            "kb:wifi",
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 3,
+            "fb": "none",
+            "sel": 4,
+            "cand": 34,
+            "ms": 3.6,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 2,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 411.4,
+            "rr": "ok",
+            "rrMs": 990,
+            "rrA": 2,
+            "uq": 6,
+            "un": "ok",
+            "unMs": 3072,
+            "ui": [
+              "parking",
+              "wifi",
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 3,
+            "ctx": 3,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22590,
+            "ct": 381,
+            "cpt": 20480,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking",
+            "kb:wifi",
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2",
+              "R3"
+            ]
+          }
+        }
+      },
+      "items": 3,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking",
+          "kb:wifi",
+          "property:checkOutTime"
+        ],
+        "declared": 3
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "value_bound_elsewhere"
+          ]
+        },
+        {
+          "ref": "R3",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "There is free parking behind the building.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "The Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R3",
+            "status": "answered",
+            "text": "Check-out time is 11:00.",
+            "evidence": "Check-out saati: 11:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi password"
+          },
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "check-out time"
+          }
+        ]
+      ],
+      "ms": 14551,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-soru-sonra-tesekkur",
+      "cls": "known_then_thanks",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Otoparkımız vardır, ücretsizdir ve binanın arkasındadır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Otoparkımız vardır, ücretsizdir ve binanın arkasındadır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Şimdiden teşekkürler",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdoqsez00947dye1y8t95ss",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.2,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 338.8,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2314,
+            "ui": [
+              "parking",
+              "greeting_thanks"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22335,
+            "ct": 214,
+            "cpt": 20736,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otoparkımız vardır, ücretsizdir ve binanın arkasındadır.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          },
+          {
+            "intent": "greeting_thanks",
+            "query_tr": "",
+            "query_original": "Şimdiden teşekkürler"
+          }
+        ]
+      ],
+      "ms": 10209,
+      "retried": false
+    },
+    {
+      "id": "tm-en-question-then-thanks",
+      "cls": "known_then_thanks",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "You can leave the trash in the container on the right side of the building entrance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "You can leave the trash in the container on the right side of the building entrance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Thanks in advance!",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdor0cg00am7dye0wv1i5xo",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:rules"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.5,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 391,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2607,
+            "ui": [
+              "trash",
+              "greeting_thanks"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22453,
+            "ct": 213,
+            "cpt": 20608,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:rules"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "You can leave the trash in the container on the right side of the building entrance.",
+            "evidence": "Çöpler bina girişinin sağındaki konteynere atılır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "trash",
+            "query_tr": "çöp atma yeri konteyner",
+            "query_original": "trash garbage disposal"
+          },
+          {
+            "intent": "greeting_thanks",
+            "query_tr": "",
+            "query_original": "Thanks in advance"
+          }
+        ]
+      ],
+      "ms": 11153,
+      "retried": false
+    },
+    {
+      "id": "tm-en-unknown-then-known",
+      "cls": "unknown_then_known",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "You can leave the trash in the container on the right side of the building entrance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "You can leave the trash in the container on the right side of the building entrance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Where do we leave the trash?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdor90500c27dye5pkxs17v",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 5.2,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 347.7,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2640,
+            "ui": [
+              "amenities",
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22473,
+            "ct": 248,
+            "cpt": 21504,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [
+            "information about iron availability"
+          ],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "subject_missing"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "You can leave the trash in the container on the right side of the building entrance.",
+            "evidence": "Çöpler bina girişinin sağındaki konteynere atılır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "ütü mevcut mu",
+            "query_original": "iron amenity"
+          },
+          {
+            "intent": "trash",
+            "query_tr": "çöp nereye atılır çöp alanı",
+            "query_original": "trash garbage where to leave"
+          }
+        ]
+      ],
+      "ms": 16633,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-bilinmeyen-sonra-bilinen",
+      "cls": "unknown_then_known",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Otopark ücretsizdir ve binanın arkasındadır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Otopark ücretsizdir ve binanın arkasındadır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Otopark var mı?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdorlwg00dh7dyeonwhxb8k",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdorlwg00dl7dyevn1bfy7u",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 1.7,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 343.4,
+            "rr": "ok",
+            "rrMs": 914,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2468,
+            "ui": [
+              "local_recommendations",
+              "parking"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22377,
+            "ct": 239,
+            "cpt": 20480,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        },
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Otopark ücretsizdir ve binanın arkasındadır.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "Yakında eczane var mı"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "Otopark var mı"
+          }
+        ]
+      ],
+      "ms": 11545,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-evcil-sonra-wifi",
+      "cls": "sensitive_then_known",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "trace": {
+        "guest": "Wi-Fi şifresi ne?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdoruvm00ex7dyeg3aezxks",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdoruvm00f07dyendgmsktv",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:wifi"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 2.7,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 355.8,
+            "rr": "ok",
+            "rrMs": 796,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2283,
+            "ui": [
+              "pets",
+              "wifi"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22668,
+            "ct": 216,
+            "cpt": 20608,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "reply_pet_policy",
+            "lx": [
+              "rule_violation"
+            ]
+          },
+          "hr": [
+            {
+              "t": "pets",
+              "s": "asks_permission",
+              "p": "ask_host",
+              "k": "hold"
+            }
+          ]
+        },
+        "declared": {
+          "usedSources": [
+            "kb:wifi"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "value_bound_elsewhere"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi şifresi ne"
+          }
+        ]
+      ],
+      "ms": 9071,
+      "retried": false
+    },
+    {
+      "id": "tm-en-latecheckout-then-trash",
+      "cls": "sensitive_then_known",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "You can leave the trash in the container to the right of the building entrance.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "status": "new",
+      "escalated": false,
+      "trace": {
+        "guest": "Where do we leave the trash?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdos1xs00gf7dyec0wdkw6x",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdos1xs00ge7dyeut01ud7h",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdos1xs00gc7dyedh2vcgpc",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 2.8,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 345.5,
+            "rr": "ok",
+            "rrMs": 1243,
+            "rrA": 1,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2754,
+            "ui": [
+              "late_checkout",
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 1,
+            "op": 0,
+            "echo": 1,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": [
+              "time"
+            ]
+          },
+          "llm": {
+            "pt": 22548,
+            "ct": 366,
+            "cpt": 20864,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "availability_unconfirmed",
+            "ev": "availability_unconfirmed",
+            "lx": "-",
+            "d": "late_checkout/defers",
+            "g": "ok",
+            "gv": "qt",
+            "u": "req",
+            "ri": "late_checkout"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "late_checkout",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "late_checkout",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "late_checkout",
+          "status": "open"
+        },
+        {
+          "kind": "trash",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ],
+          "advisory": [
+            "unsupported_content"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "verified",
+          "advisory": [
+            "subject_missing"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Our standard check-out time is 11:00. Leaving at 14:00 would be a late check-out and depends on our availability and schedule.",
+            "evidence": "Check-out saati: 11:00"
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "You can leave the trash in the container to the right of the building entrance.",
+            "evidence": "Çöpler bina girişinin sağındaki konteynere atılır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "late_checkout",
+            "query_tr": "geç çıkış saat 14:00",
+            "query_original": "late check-out 2pm"
+          },
+          {
+            "intent": "trash",
+            "query_tr": "çöp nerede bırakılır çöp alanı",
+            "query_original": "where to leave the trash garbage"
+          }
+        ]
+      ],
+      "ms": 14532,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-ayni-soru-iki-kez",
+      "cls": "same_twice",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Wi-Fi şifresini alabilir miyim?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdosd7w00hr7dyesy3rzui9",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:wifi"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.4,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 365.7,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2520,
+            "ui": [
+              "wifi",
+              "wifi"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22358,
+            "ct": 216,
+            "cpt": 20736,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:wifi"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": null,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "superseded"
+        },
+        {
+          "kind": "wifi",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "value_bound_elsewhere"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi şifresi"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi şifresi"
+          }
+        ]
+      ],
+      "ms": 11371,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-tek-mesaj",
+      "cls": "control_single",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Otopark var mı?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdosm2400j97dyeaaihc3j4",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 1.7,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 2.6,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1977,
+            "ui": [
+              "parking"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22099,
+            "ct": 216,
+            "cpt": 20608,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          }
+        ]
+      ],
+      "ms": 10130,
+      "retried": false
+    },
+    {
+      "id": "tm-en-single",
+      "cls": "control_single",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Check-out is at 11:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Check-out is at 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "What time is check-out?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kq7dye3wlkegs2",
+              "v": "2026-08-31T23:57:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kp7dye9vfe0qq4",
+              "v": "2026-08-31T23:58:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kn7dye5730rb5x",
+              "v": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00ko7dyetqr4jht0",
+              "v": "2026-08-31T23:59:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kr7dyenvrq297l",
+              "v": "2026-08-31T23:56:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00ks7dyeeewz914e",
+              "v": "2026-08-31T23:55:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kt7dyeldgb5px5",
+              "v": "2026-08-31T23:53:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00ku7dyel9zuftnk",
+              "v": "2026-08-31T23:52:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kv7dyeo215n3vd",
+              "v": "2026-08-31T23:51:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kw7dyes2k30bez",
+              "v": "2026-08-31T23:50:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kx7dyea4kcns69",
+              "v": "2026-08-31T23:49:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00ky7dye86ma0u4n",
+              "v": "2026-08-31T23:48:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00kz7dyeipmmmugx",
+              "v": "2026-08-31T23:47:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l07dye1k610mwi",
+              "v": "2026-08-31T23:46:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l17dyeisw4hq7y",
+              "v": "2026-08-31T23:45:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l27dyez89jrwde",
+              "v": "2026-08-31T23:44:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l37dyergjutrgc",
+              "v": "2026-08-31T23:43:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l47dye807kb0y1",
+              "v": "2026-08-31T23:42:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l57dyeibx9xr83",
+              "v": "2026-08-31T23:41:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l67dyer6ruv3um",
+              "v": "2026-08-31T23:40:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l77dye0yr9n82p",
+              "v": "2026-08-31T23:39:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l87dyecy4aygul",
+              "v": "2026-08-31T23:38:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00l97dyeg2t26mm7",
+              "v": "2026-08-31T23:37:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00la7dyei0h99svs",
+              "v": "2026-08-31T23:36:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00lb7dyetxq3yez0",
+              "v": "2026-08-31T23:35:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00lc7dyen5pjll4k",
+              "v": "2026-08-31T23:34:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00ld7dyevyzp0p1j",
+              "v": "2026-08-31T23:33:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00le7dyehb3p7uvb",
+              "v": "2026-08-31T23:32:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00lf7dyep0x7szb8",
+              "v": "2026-08-31T23:31:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdostxh00lg7dye5p92635n",
+              "v": "2026-08-31T23:30:00.000Z"
+            }
+          ],
+          "used": [
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "no_lexical_hits",
+            "sel": 0,
+            "cand": 34,
+            "ms": 2,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 3.2,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 3898,
+            "ui": [
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22808,
+            "ct": 195,
+            "cpt": 20736,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Check-out is at 11:00.",
+            "evidence": "Check-out saati: 11:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "check-out time"
+          }
+        ]
+      ],
+      "ms": 11261,
+      "retried": false
+    },
+    {
+      "id": "tm-tr-dun-sonra-bugun",
+      "cls": "other_day",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Otopark ücretsizdir; binanın arkasındadır.\nÇıkış saatimiz 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Otopark ücretsizdir; binanın arkasındadır.\nÇıkış saatimiz 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Çıkış saati kaç?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdot2nw00m37dyeo1t2a0rv",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdot2nw00m57dye60igcr4t",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdot2nw00m47dyebodaixjw",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 2,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 438.8,
+            "rr": "ok",
+            "rrMs": 1058,
+            "rrA": 1,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 1984,
+            "ui": [
+              "parking",
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 22179,
+            "ct": 265,
+            "cpt": 20224,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1",
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otopark ücretsizdir; binanın arkasındadır.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Çıkış saatimiz 11:00.",
+            "evidence": "Check-out saati: 11:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "Otopark var mı?"
+          },
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "Çıkış saati kaç?"
+          }
+        ]
+      ],
+      "ms": 12225,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "7c2d5edb",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+      "AI_LATE_MESSAGE_REPLY_ENABLED": "(boş)",
+      "AI_NO_SOURCE_RULE_ENABLED": "1",
+      "AI_TURN_MESSAGES_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "1",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "1",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "d409de06877e",
+      "replyVariant": "1e7ff567fc39",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

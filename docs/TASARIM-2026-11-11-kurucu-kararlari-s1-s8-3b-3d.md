@@ -136,6 +136,62 @@ cevap yazıyorsa isteme kısa bir zaman notu eklenir ve yeniden ölçülür (kö
 **Bilerek yapılmayan.** Geç mesajın yeri ekranlarda değişmez (misafirin platformda gördüğü sırayla aynı kalır) · ev sahibi cevabından
 sonraki geç mesaj yapay zekâya verilmez · 24 saat sınırı ayar değildir.
 
+### 2.2 Ölçüm sonuçları — geliştirme seti (11-12; cevap modeli gpt-5.1, planlanan canlı yapılandırma)
+
+Açık set (`evals/late-message-dev.json`). Ürünün kanal akışı olduğu gibi koştu (gerçek model çağrıları, hiçbir şey kimseye gitmez). İki ölçüm:
+ilk yazımda 31 senaryo (`…-late-message-dev-s2-kapali` / `-s2-acik`), dilim sonu incelemesinin düzeltmelerinden sonra 35 senaryo
+(`…-s2b-kapali` / `-s2b-acik`; zamanlama üretimdeki gibi: geç mesaj cevabımızdan 4 saniye önce yazılmış). Tablo ikinci ölçümdür.
+
+| Sınıf (senaryo) | Bugün (kapalı) — giden | Açık — giden | Not |
+|---|---|---|---|
+| Geç mesaj yeni, cevabı bilgi tabanında olan soru (9) | 0/9 | **9/9** | dokuzu da doğru değerle; beş dil |
+| Geç mesaj + sonradan yazılmış yeni mesaj (2) | 2/2 | 2/2 | iki kolda da çoğunlukla yalnız SON mesaj cevaplanıyor; geç soru istek defterinde açık kalıyor (aşağıda) |
+| Cevabı bilgi tabanında olmayan soru (3) | 0/3 | **1/3** 🚨 | "Kahvaltı veriyor musunuz?" → "Kahvaltı servisi sunmuyorum." — bilinen genel uydurma (S2'ye özgü değil; `docs/INCELEME-2026-11-12-istem-denetimi.md`) |
+| Hassas istek — evcil hayvan, geç çıkış, uzatma (3) | 0/3 | 0/3 | ev sahibinde |
+| Kapanış — "Tamam, teşekkürler" (2) | 0/2 | 0/2 | konuşma gizlenmedi (hedef 0) |
+| Tekrar / dürtme (5) | 0/5 | **2/5** | aynı soru yeniden sorulmuşsa aynı cevap ikinci kez gitti; "Orada mısınız?" · "Cevap bekliyorum" gitmedi |
+| Geri çekme — "Boşverin, buldum" (2) | 0/2 | 0/2 | |
+| Acil · şikâyet (2) | 0/2 | 0/2 | acil ev sahibine yükseltildi |
+| Kaçırılan cevabımız soru / teklifle bitiyor, geç mesaj "Evet lütfen" (3) | 0/3 | 0/3 | tur açılmaz (şart 4) |
+| Şart dışı — cevabı ev sahibi yazmış · 25 saat (2) | 0/2 | 0/2 | `already_answered` (bugünkü davranış) |
+| Kontrol — geç değil (2) | 2/2 | 2/2 | |
+
+Açık kolda 33 geç senaryonun 28'inde tur açıldı (kapalı kolda 0): cevap gitti 14 · kapanış sayıldı 2 · acil yükseltme 1 · tutuldu 11.
+
+**Geç + yeni mesaj sınıfı S2'nin değil, çok mesajlı turun sorunu.** Geç OLMAYAN iki cevapsız mesajda da ("Otopark var mı?" · "Çıkış saati kaç?")
+cevap üç koşunun üçünde yalnız son mesajı karşıladı. Sebep cevap isteminin yapısı ("misafir mesajı" bloğu yalnız son mesajı taşıyor); ayrı
+anahtar `AI_TURN_MESSAGES_ENABLED` ve ölçümü istem denetimi belgesinde (§6.3).
+
+**Tekrar sınıfı için denenen ve geri alınan.** Modele "bu istek son cevabımızdan önce yazıldı; o cevabın zaten verdiği bilgiyi yeniden
+gönderme" işareti eklendi ve aynı set yeniden ölçüldü: tekrar eden soruda cevap yine gitti (2/5 → 3/5), yeni sorular aynı kaldı,
+geç + yeni mesajlı turda geç sorunun cevabı bir senaryoda düştü. Ölçülmüş faydası olmayan istem eklemesi geri alındı. Rapor: `…-s2-acik-isaretli`.
+
+**Kurucu kararı gereken iki nokta (§12).**
+
+1. *Tekrar eden soru.* Misafir 10:00'da "Wi-Fi şifresi ne?", 10:00:40'ta "Wi-Fi şifresini alabilir miyim?" yazdı; 10:01'de cevabımız
+   gitti; ikinci mesaj bize 10:03'te ulaştı. Açıkken bugün ölçülen: aynı cevap ikinci kez gidiyor. Seçenekler: (A) böyle kalsın —
+   misafire zararsız bir tekrar; (B) kod kuralı: son cevabımızın karşıladığı TÜRDEN bir istek geç mesajda yeniden gelirse yapay zekâ
+   cevaplamaz, istek size kalır (bedeli: aynı türden gerçekten yeni soru — "Havuz kaçta açılıyor?" cevaplandı, geç mesaj "Havuzda havlu
+   var mı?" — da size kalır).
+2. *Bilgi tabanında olmayan soru.* S2 açılırsa geç mesajlar olağan mesajlarla aynı kurallara girer; olağan mesajlardaki uydurma sorunu
+   geç mesajlarda da aynen vardır. Önerim: S2, o sorunun yapısal çözümünden (cevap parçaları kipi) ÖNCE açılmasın.
+
+### 2.3 Kabul ölçümü — görülmemiş set
+
+**HENÜZ KOŞMADI.** Ayrı yazarın yazdığı kabul seti hazır ve mühürlü; koşu OpenAI hesabının kredisi bittiği için yapılamadı
+(`credit_balance_exhausted`, 11-12 akşam). Mühür "sealed", setten hiçbir şey görülmedi.
+
+Kredi gelince koşacak üç kol (komut biçimi: `docs/INCELEME-2026-11-12-istem-denetimi.md` §6.4; set adı geç mesaj kabul seti):
+
+| Kol etiketi | Bayraklar | Neyi ölçer |
+|---|---|---|
+| `s2-kor-kapali` | (yok) | bugünkü davranış: geç mesaj turu açılmaz |
+| `s2-kor-acik` | `AI_LATE_MESSAGE_REPLY_ENABLED=1` | S2 tek başına |
+| `s2-kor-tam` | `AI_LATE_MESSAGE_REPLY_ENABLED=1` + parça kipi + okuyucu + istem katmanı + `AI_TURN_MESSAGES_ENABLED=1` | önerilen birleşim: uydurma sorunu ve çok mesajlı tur çözülmüş hâlde S2 |
+
+Bu sonuç görülmeden S2 için "açılabilir" denmez. Geliştirme setindeki iki açık (tekrar eden soruya ikinci cevap · bilgi tabanında olmayan
+soruda uydurma) §2.2'de; ikincisinin yapısal çözümü parça kipidir ve onun kabul ölçümü de aynı krediyi bekliyor.
+
 ## 3. S3 — "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?"
 
 **Bugünkü kod (11-12'de yeniden okundu — ilk yazdığım eksikti).** İstek ayrımı zaten var: öğe kipinde (canlıda açık) anlama katmanı
@@ -470,6 +526,8 @@ Koda girmiş ama onayınızı bekleyen tek yeni metin 3d rozetidir (Railway kapa
 | S3, anahtarı açma | Kör sette yanlış izin 0/45, yanındaki soru 29/38 cevaplandı, **1 yanlış değer gitti (anahtar kapalıyken 0)**. Sert inceleme sonrası önerim: bu hâliyle AÇILMASIN (§3.2). Soru: cevap parçaları kipinin ve okuyucu denetiminin kabul ölçümü öne alınsın mı | karar sizde |
 | S3, önceki mesajdan bekleyen evcil hayvan sorusu | Dün "Köpeğimizi getirebilir miyiz?" (cevaplanmadı), bugün "Otopark nerede?" → bugün gitmez; anahtar açıkken de gitmez. Otopark cevabı gitsin mi (çok turlu ayrı ölçümle) | karar sizde |
 | Bilgi tabanında olmayan soruya uydurma cevap (bugünkü yapılandırma) | Dayanak şartı bütün öğe kipine uygulansın mı ("Kahvaltı hizmeti sunmuyoruz" gitmez; o soru size kalır) | karar sizde |
+| S2, tekrar eden soru | Geç mesaj, cevabımızın az önce karşıladığı soruyu yeniden soruyorsa bugün ölçülen: aynı cevap ikinci kez gidiyor (2/5). (A) kalsın · (B) o türden istek size kalsın (§2.2) | karar sizde |
+| S2, anahtarı açma | Geliştirme setinde yeni sorular 0/9 → 9/9; hassas / kapanış / acil / şikâyet / şart dışı 0 gönderim; bilgi tabanında olmayan soruda bilinen uydurma 1/3. Önerim: uydurma sorununun çözümünden önce açılmasın; kabul ölçümü sonucu §2.3 | karar sizde |
 | S1, öneriden sonra yeni misafir mesajı gelirse | Bugün onaya izin var (öneri yeni mesajı görmeden yazılmış olsa da). Engelleyip "Yeni mesaj geldi — öneriyi yenileyin" demek ayrı karar | karar sizde |
 | S8, ev sahibine görünürlük | Kanalın reddettiği otomatik mesaj bugün yalnız operatör alarmında. "Otomatik mesajlar" kartına satır: "Bu mesaj kanal tarafından reddedildi; yeniden deneniyor." | karar sizde |
 | S4, liste başlığı | "Otomatik atananlar" · "Sizin atadıklarınız (seçerseniz aktarılır)" | migration turu |

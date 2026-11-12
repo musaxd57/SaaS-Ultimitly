@@ -683,3 +683,22 @@
   bir yanlış "ilgisiz" diye etiketlenmez: onu bu değişiklik gönderdi. (d) Ölçülen kapsamdan geniş açılan dal (önceki turdan bekleyen
   istek) ölçülen kapsama daraltılır.
 
+
+- 🚨 **KAYNAĞI OLMAYAN İSTEK CEVAPLANMAZ — "yazmıyorsa yok değildir" (11-12; istem denetimi `docs/INCELEME-2026-11-12-istem-denetimi.md`,
+  tasarım `docs/TASARIM-2026-11-12-dayanak-ve-yetki-mimarisi.md`):** üç ayrı parça, üçü de VARSAYILAN KAPALI ve kör (kabul) ölçümü BEKLİYOR.
+  (1) **İstem katmanı** `AI_NO_SOURCE_RULE_ENABLED` (`ai/no-source-rule.ts`; YALNIZ istek defteri varken — defter yoksa atlanan soru iz
+  bırakmadan kaybolur): kural istek başına; "yok / sunmuyoruz / dahil değil" de iddiadır; başka şeyin kaydındaki değer taşınmaz; güven yalnız
+  hiçbir istek cevaplanamadığında düşürülür; kural cümleleri KONU ADI taşımaz (teste öğretme yok — pinli). Azaltır, durdurmaz (kod kapısı aynı).
+  (2) **Cevap parçaları kipi** yapısal güvencedir. Okuyucu kipinde KODUN tuttuğu sebepler: alıntı yok / kayıtta değil · değer alıntıda değil
+  ya da çelişiyor · konu bilinmiyor · ters olumluluk · iki tesisli istekte eksik tesis (`subject_partial`). 11-12 kuralları: etiketli rakamsız
+  değer ("Ağ adı: …", "Şifre: …") kayıt tarafında kod iddiasıdır — aynı etiket ailesi + değerin cümlesi konuya bağlı + harf birebir (kısa yol
+  YOK); olumluluk tesis başına ve hüküm veren yan cümleden; rol adı ("misafir") tek başına konu değildir; kısa tesis kökünde ad çekimi
+  tanınır ("barı"). (3) **Çok mesajlı tur** `AI_TURN_MESSAGES_ENABLED` (`ai/turn-messages.ts`): cevapsız misafir mesajlarının hepsi "misafir
+  mesajı" bloğuna girer — YALNIZ parça kipinde (parça kipi olmadan önceki mesajdaki bilinmeyen soruya uydurma cevap ölçüldü), aynı takvim
+  gününde, her mesaj tek satır. **Okuyucu (kıdemli okuyucu + bilgim-yok hakemi, ortak kod):** "evet" oyu ancak taslakta GEÇEN içerikli bir
+  cümleyi alıntılıyorsa sayılır (selam / ad maskesi kanıt değil; kısaltılmış "…" alıntının parçaları taslakta aynı sırayla geçmeli; NUL
+  silinir); itirafı yalnız misafir mesajını gören okuma gördüyse kelime kuralı da görmeli; iç kaynak hükmünde dayanaksız oy yalnız taslağı tek
+  başına okuyandan sayılır. 🚨 Dersler: (a) kapalı listeyle YAPISAL karar verilebilen şey okuyucuya bırakılmaz — okuyucu aynı yanlış parçayı
+  üç koşunun birinde geçirdi; (b) bir düzeltme aynı fonksiyonun öteki çağıranını da değiştirir — cevaptaki iddia tespiti için yazılan cümlecik
+  sınırı misafir mesajındaki İSTEK tespitinde izin yönlüydü, iki yan adıyla ayrıldı (`"request"` / `"claim"`); (c) "kısa yol" öteki değerlerin
+  geçtiği denetimleri atlıyorsa deliktir.
