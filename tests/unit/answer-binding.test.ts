@@ -1537,7 +1537,7 @@ describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi'
       ["otoparkı kim gösterir", "Otoparkı görevli gösterir.", "Daireyi görevli gösterir.", "Otopark bina arkasındadır. Daireyi görevli gösterir."],
       ["klimayı ne başlatır", "Klimayı kumanda başlatır.", "Kombiyi düğme başlatır.", "Klima duvardadır. Kombiyi düğme başlatır."],
       // "-aşır" (işteş) ve "-olur": "çamaşır" ile aynı kuyruk — fiildir, ad DEĞİL (Haiku 11-12).
-      ["servis nereye ulaşır", "Servis otele ulaşır.", "Otobüs otele ulaşır.", "Servis yalnız havalimanına gider. Otobüs otele ulaşır."],
+      ["tekne limana ne zaman yaklaşır", "Tekne limana akşam yaklaşır.", "Vapur iskeleye akşam yaklaşır.", "Tekne limanda bekler. Vapur iskeleye akşam yaklaşır."],
       ["anahtar nerede kaybolur", "Anahtar kutuda kaybolur.", "Kumanda kutuda kaybolur.", "Anahtar girişte durur. Kumanda kutuda kaybolur."],
     ] as const) {
       const r = checkAnswerBinding({ part, evidence, sourceText: source, ...need([q]) });

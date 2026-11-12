@@ -349,7 +349,7 @@ export function quoteCarriesContent(quote: string): boolean {
   // En az iki harf (birleşen işaretli yazılarda harfler bitişik olmayabilir — sayılır).
   if ((withoutMasks.match(/\p{L}/gu) ?? []).length < 2) return false;
   // Yalnız TANINAN selam (kapalı hitap listesi) kanıt dışıdır: "Merhaba bilmiyorum." / "Hi sorry!" gerçek bir cümledir (Haiku 11-12).
-  return !isKnownGreetingOnly(quote.trim()) && !isKnownGreetingOnly(withoutMasks);
+  return !isKnownGreetingOnly(withoutMasks);
 }
 
 /**
