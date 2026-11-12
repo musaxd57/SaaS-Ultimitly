@@ -362,8 +362,13 @@ export function composeVerifiedReply(input: {
     const scope: ScopeIssue[] = [];
     if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms, queries).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
-    if (scope.length > 0 && !byReader) {
-      verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
+    // 🚨 EKSİK TESİS okuyucu kipinde de KODDA tutulur (11-12 ölçümü): "Havuz barı kaça kadar açık?" ↔ "Havuzumuz 09:00–20:00 arası açıktır."
+    // parçasını parça okuyucusu üç koşunun birinde geçirdi ve cevap gitti. İstek iki tesis adlandırıyorsa ve parça birini hiç anmıyorsa
+    // karar yapısaldır (kapalı tesis listesi), anlam sorusu değildir. "Yön / nitelik eksik" (`aspect_missing`) okuyucunun sorusu olarak kalır.
+    const keptScope = byReader ? scope.filter((i) => i === "subject_partial") : scope;
+    if (keptScope.length > 0) {
+      const seen = byReader ? [...binding.issues, ...scope.filter((i) => !keptScope.includes(i))] : [];
+      verdicts.push({ ref: need.ref, status: "rejected", issues: keptScope, ...(seen.length > 0 ? { advisory: seen } : {}) });
       continue;
     }
     const advisory: (BindingIssue | ScopeIssue)[] = byReader ? [...binding.issues, ...scope] : [];

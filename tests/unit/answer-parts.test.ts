@@ -719,6 +719,54 @@ describe("Opus e2e 10-23 F2 — sorulan YÖN: doğru ama sorulanı cevaplamayan 
   });
 });
 
+describe("🚨 11-12 ölçümü: 'Havuz barı kaça kadar açık?' — havuzun saati barın cevabı değildir (kodda tutulur, okuyucuya bırakılmaz)", () => {
+  // Canlı hat (parça kipi + okuyucu): model üç koşunun üçünde bu soruya havuzun saatini yazdı; parça okuyucusu ikisinde "soruyu
+  // cevaplamıyor" dedi, BİRİNDE geçirdi ve cevap gitti. Kodun iki açığı: (1) kısa tesis kökü ("bar") yalnız tam sözcükle eşleşiyordu —
+  // "barı" tesis sayılmıyor, istek tek tesisli görünüyordu; (2) eksik tesis okuyucu kipinde yalnız danışma işaretiydi.
+  const kb = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz her gün 09:00–20:00 arası açıktır." }) }];
+  const part = [p("R1", "Havuzumuz her gün 09:00–20:00 saatleri arasında açıktır.", "Havuz her gün 09:00–20:00 arası açıktır.")];
+  const need = (queries: string[]) => ({ ref: "R1", terms: needTerms(queries), topics: ["pool"], queries });
+
+  it.each([
+    ["havuz barı çalışma saatleri", "Havuz barı kaça kadar açık?"],
+    ["havuz barının açık olduğu saatler", "Havuz barı kaça kadar açık?"],
+    ["havuz barında servis saatleri", "Havuz barında servis kaçta bitiyor?"],
+    ["pool bar opening hours", "Until when is the pool bar open?"],
+    ["havuz ve spanın saatleri", "Havuz ve spa kaçta kapanıyor?"],
+  ])("okuyucu kipinde de TUTULUR: %j", (...queries) => {
+    for (const meaningJudge of ["reader", "code"] as const) {
+      const out = composeVerifiedReply({ parts: part, needs: [need(queries)], sources: kb, meaningJudge });
+      expect(out.refs).toEqual([]);
+      expect([meaningJudge, out.verdicts[0]]).toEqual([meaningJudge, expect.objectContaining({ ref: "R1", status: "rejected", issues: ["subject_partial"] })]);
+    }
+  });
+
+  it("KONTROL: tek tesisli soru (havuzun kendisi) iki kipte de gider; 'barış' / 'baraj' tesis değildir", () => {
+    for (const queries of [["havuz çalışma saatleri", "Havuz kaça kadar açık?"], ["havuz saatleri barış içinde", "Havuz kaçta açılıyor?"], ["baraj manzaralı havuz saatleri"]]) {
+      const out = composeVerifiedReply({ parts: part, needs: [need(queries)], sources: kb, meaningJudge: "reader" });
+      expect([queries[0], out.refs]).toEqual([queries[0], ["R1"]]);
+    }
+  });
+
+  it("KONTROL: iki tesisi de cevaplayan parça gider (okuyucu kipi)", () => {
+    const two = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Saatler", content: "Havuz 09:00–20:00 arası açıktır. Havuz barı 11:00–19:00 arası açıktır." }) }];
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz barı 11:00–19:00 arası açıktır.", "Havuz barı 11:00–19:00 arası açıktır.")],
+      needs: [need(["havuz barı çalışma saatleri", "Havuz barı kaça kadar açık?"])],
+      sources: two,
+      meaningJudge: "reader",
+    });
+    expect(out.refs).toEqual(["R1"]);
+  });
+
+  it("okuyucu kipinde 'yön / nitelik eksik' (aspect_missing) danışma olarak KALIR — yalnız eksik tesis kodda tutulur", () => {
+    const heated = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz ısıtmalıdır." }) }];
+    const hours = { ref: "R1", terms: needTerms(["havuz açılış saati"]), topics: ["pool"], queries: ["havuz açılış saati", "pool opening hours"] };
+    const out = composeVerifiedReply({ parts: [p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.")], needs: [hours], sources: heated, meaningJudge: "reader" });
+    expect(out.verdicts[0]).toMatchObject({ ref: "R1", status: "verified", advisory: expect.arrayContaining(["aspect_missing"]) });
+  });
+});
+
 describe("Opus e2e 10-23 F3 — tek sorguda iki tesis: yalnız birini cevaplayan parça isteği kapatmaz", () => {
   const kb = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Saatler", content: "Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açıktır." }) }];
   const n = { ref: "R1", terms: needTerms(["sauna ve havuz kaçta açık"]), topics: ["pool"], queries: ["sauna ve havuz kaçta açık"] };

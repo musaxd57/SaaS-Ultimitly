@@ -1560,11 +1560,26 @@ const FACILITY_ROOTS: Readonly<Record<string, readonly string[]>> = {
   restaurant: ["restoran", "restaurant", "ristorante", "ресторан"],
   reception: ["resepsiyon", "reception", "rezeption", "recepcion", "ресепшн", "ресепшен", "регистрац"],
 };
+/**
+ * KISA tesis kökünde (4 harften az: "bar", "spa", "gym") ad çekimi — kapalı ek kümesi, katlanmış biçim (11-12 ölçümü). Kısa kök yalnız TAM
+ * sözcükle eşleşiyordu: "Havuz BARI kaça kadar açık?" isteğinde "barı" tesis sayılmıyor, istek tek tesisli (havuz) görünüyor ve havuzun saati
+ * barın cevabı diye geçiyordu. Türkçe: çoğul + iyelik + hâl ("barı", "barın", "barında", "barlar", "spası", "spada", "spanın", "spaya");
+ * İngilizce çoğul "-s". "barış", "baraj", "barbekü", "spam" eşleşmez. Kiril kökte yalın hâl ekleri. Doğrusal (çapalı, iç içe niceleyici yok).
+ */
+const SHORT_FACILITY_TAIL = /^(?:s|(?:l[ae]r)?(?:s?[iu](?:m[iu]z|n[iu]z|[mn])?)?(?:[ny]?[ae]|n?d[ae]n?|n?[iu]n|[ny][iu]|l[ae])?)$/;
+const SHORT_FACILITY_TAIL_CYRILLIC = /^(?:а|е|у|ом|ы|ов|ах)?$/u;
+function facilityRootMatches(token: string, root: string): boolean {
+  if (token === root) return true;
+  if (!token.startsWith(root)) return false;
+  if (root.length >= 4) return true;
+  const tail = token.slice(root.length);
+  return (/^[Ѐ-ӿ]/u.test(root) ? SHORT_FACILITY_TAIL_CYRILLIC : SHORT_FACILITY_TAIL).test(tail);
+}
 function facilitiesIn(text: string): Set<string> {
   const out = new Set<string>();
   for (const t of tokenize(text)) {
     for (const [id, roots] of Object.entries(FACILITY_ROOTS)) {
-      if (roots.some((r) => t === r || (r.length >= 4 && t.startsWith(r)))) out.add(id);
+      if (roots.some((r) => facilityRootMatches(t, r))) out.add(id);
     }
   }
   return out;
