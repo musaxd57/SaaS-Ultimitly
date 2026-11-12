@@ -279,6 +279,40 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     expect(autoReplyGateVerdict(fee, GUEST, free)).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
   });
 
+  it("anahtar AÇIK olsa da: evcil hayvan isteği hem TUTULAN hem CEVAPLANABİLİR ise (önceki soru bekliyor, yenisi cevaplanıyor) eski kemer aynen", () => {
+    on();
+    // Önceki turdan bekleyen evcil hayvan sorusu + bu turda cevaplanabilir sayılan yeni evcil hayvan sorusu: ayrım dalı AÇILMAZ; cevap
+    // bilgi tabanı "ücretsiz kabul" demiyorsa bugünkü gibi tutulur (hayvanı anmasa da).
+    const both = {
+      kbFacts: KB,
+      items: {
+        held: [{ kind: "pets", sensitivity: "sensitive", riskType: null, earlier: true }],
+        paymentHeld: false,
+        answerableKinds: ["pets", "wifi"],
+        hostContactNeeds: [{ ref: "R1", topics: ["pets"], terms: ["evcil"], contingency: false }, { ...WIFI_NEED, ref: "R2" }],
+      },
+    } as never;
+    const reply = { ...model(WIFI), answeredRequests: { ok: true as const, refs: ["R2"] } };
+    expect(autoReplyGateVerdict(reply, GUEST, both)).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+  });
+
+  it("🚨 'açık kalan parça' olarak beyan edilen cevap da dayanak ister (metinde gidiyor, yalnız isteği kapatmıyor)", () => {
+    on();
+    const ctx = {
+      kbFacts: KB,
+      items: {
+        held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }],
+        paymentHeld: false,
+        answerableKinds: ["wifi", "amenities"],
+        hostContactNeeds: [WIFI_NEED, { ref: "R2", topics: ["iron"], terms: ["utu"], contingency: false }],
+      },
+    } as never;
+    const reply = { ...model("Wi-Fi şifresi: Lale2024. Dairede ütü bulunmaktadır."), answeredRequests: { ok: true as const, refs: ["R1"], openRefs: ["R2"] } };
+    expect(autoReplyGateVerdict(reply, GUEST, ctx)).toEqual({ reason: "blocked", detail: "items_answer_ungrounded" });
+    // KONTROL: açık kalan parça beyan edilmediyse (yalnız Wi-Fi) cevap gider.
+    expect(autoReplyGateVerdict(model(WIFI), GUEST, ctx)).toBeNull();
+  });
+
   it("KONTROL: evcil hayvan öğesi olmayan turda anahtar hiçbir şeyi değiştirmez", () => {
     const plain = { items: { held: [], paymentHeld: false, answerableKinds: ["wifi"] } } as never;
     const off = autoReplyGateVerdict(model("Evet, Wi-Fi şifresi Lale2024."), "İnternet şifresi ne?", plain);
@@ -315,6 +349,8 @@ describe("istem bloğu — kural + kapı çifti", () => {
     expect(plan([wifi], [])).toBeUndefined(); // evcil hayvan isteği yok
     const freePets = { messageId: "m1", kind: "pets" as const, sensitivity: "none" as const };
     expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [], hints: new Map() }).replyItems.petHeldRule).toBeUndefined(); // cevaplanabilir
+    // Önceki turdan bekleyen evcil hayvan sorusu VAR ama bu turun evcil hayvan sorusu cevaplanabilir → kapı dalı açılmaz, işaret de verilmez.
+    expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [{ ...pets, earlier: true } as never], hints: new Map() }).replyItems.petHeldRule).toBeUndefined();
   });
 });
 
