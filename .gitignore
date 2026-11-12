@@ -41,6 +41,9 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 shots/
+# Claude çalışma paketi çıktıları (iş akışında üretilir; depoya girmez)
+/ux-shots/
+/claude-work-out/
 
 # Gerçek misafir mesajlarından eval seti (anonim, YALNIZ yerel; docs/EVAL-MUHURLU-FINAL.md) — ASLA commit edilmez
 /evals/private/

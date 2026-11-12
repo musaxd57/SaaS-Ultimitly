@@ -6,6 +6,10 @@ name: Claude work
 #  · Actions sekmesinden elle (workflow_dispatch).
 # Betik (`scripts/claude-work/run.ts`) her işin ve paketin dolar tavanını kendisi uygular; önce küçük bir istek biçimi denemesi (ping)
 # yapar, düşerse paket durur. Çıktılar yapıt olarak yüklenir ve arşivi günlüğe base64 basılır (oturum yapıt indiremez). Depoya commit ETMEZ.
+#
+# UX / UI denetimi (`ux_audit`, kurucu 11-12): istek bu işi içeriyorsa önce ücretsiz hazırlık koşar — tohumlanmış (kurgusal) veritabanı +
+# üretim derlemesi + `scripts/claude-work/screenshots.ts` bütün sayfaları masaüstü ve telefon görünümünde çeker. Buradaki sırlar yalnız bu
+# işin geçici değerleridir (CI'daki e2e işiyle aynı düzen); gerçek anahtar, gerçek veri yoktur. Görüntüler ayrı yapıt olarak yüklenir.
 on:
   push:
     branches: ["claude/great-edison-3zqpZ"]
@@ -23,8 +27,26 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      UX_DATABASE_URL: postgresql://postgres@localhost:5432/ux
+      UX_AUTH_SECRET: claude-work-ux-secret-not-used-outside-this-job-42
+      UX_ENCRYPTION_KEY: claude-work-ux-encryption-key-different-40-xx
+      # Abonelik / fiyat ekranı yalnız ödeme yapılandırması varken çizilir. Bunlar gerçek olmayan yer tutuculardır: ekran görünür, ödeme
+      # başlatılamaz (gezi hiçbir plan düğmesine basmaz).
+      NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: test_ux_not_a_real_token
+      PADDLE_PRICE_BASLANGIC: pri_ux_baslangic
+      PADDLE_PRICE_PRO: pri_ux_pro
+      PADDLE_PRICE_ISLETME: pri_ux_isletme
     steps:
       - name: Sır yoksa ücretsiz bitir
         if: env.HAS_KEY != 'true'
@@ -39,6 +61,59 @@ jobs:
       - name: Install dependencies
         if: env.HAS_KEY == 'true'
         run: npm ci
+      - name: İstek UX denetimi içeriyor mu
+        id: plan
+        if: env.HAS_KEY == 'true'
+        run: |
+          if node -e "const r=require('./evals/claude-work-request.json');process.exit(Array.isArray(r.tasks)&&r.tasks.includes('ux_audit')?0:1)"; then
+            echo "ux=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ux=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: UX — tarayıcı
+        if: steps.plan.outputs.ux == 'true'
+        continue-on-error: true
+        run: npx playwright install --with-deps chromium
+      - name: UX — veritabanı (göç + kurgusal tohum)
+        if: steps.plan.outputs.ux == 'true'
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ env.UX_DATABASE_URL }}
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -c 'CREATE DATABASE ux;'
+          npx prisma migrate deploy
+          npx tsx prisma/seed.ts
+      - name: UX — üretim derlemesi
+        if: steps.plan.outputs.ux == 'true'
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ env.UX_DATABASE_URL }}
+          AUTH_SECRET: ${{ env.UX_AUTH_SECRET }}
+          RESEND_API_KEY: claude-work-ux-provider-not-used
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
+      - name: UX — uygulamayı başlat + ekran görüntüleri
+        if: steps.plan.outputs.ux == 'true'
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ env.UX_DATABASE_URL }}
+          AUTH_SECRET: ${{ env.UX_AUTH_SECRET }}
+          ENCRYPTION_KEY: ${{ env.UX_ENCRYPTION_KEY }}
+          RESEND_API_KEY: claude-work-ux-provider-not-used
+          NODE_ENV: production
+          PORT: "3100"
+          INTERNAL_CRON_DISABLED: "1"
+          GUEST_CHAT_ENABLED: "1"
+          REGISTRATION_OPEN: "1"
+        run: |
+          npm run start > ux-server.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3100/api/health; then break; fi
+            sleep 2
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:3100/api/health || { echo "uygulama ayağa kalkmadı"; tail -40 ux-server.log; exit 1; }
+          NODE_ENV=development npx tsx scripts/claude-work/screenshots.ts
+          tail -20 ux-server.log || true
       - name: Claude çalışma paketi
         if: env.HAS_KEY == 'true'
         env:
@@ -61,5 +136,13 @@ jobs:
         with:
           name: claude-work-out
           path: claude-work-out
+          if-no-files-found: warn
+          retention-days: 30
+      - name: UX görüntülerini yükle
+        if: always() && steps.plan.outputs.ux == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-shots
+          path: ux-shots
           if-no-files-found: warn
           retention-days: 30

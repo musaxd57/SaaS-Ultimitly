@@ -10,7 +10,8 @@
 // code_review (bütün kaynak, üç mercek) · scenarios (anlama ölçümü için yeni senaryolar, şema + doğrulayıcıdan geçer) · ux_copy (müşteriye
 // görünen metin denetimi).
 // 11-12: prompt_audit (AI istemlerinin sert denetimi: mercek başına bulgu → çürütme turu → hedef mimari → kurucu raporu) · raw_baseline
-// (geliştirme senaryolarında kapısız, kısa istemle güçlü modelin kararı — ürünün son kararıyla katman atfı için). Model istekten gelir
+// (geliştirme senaryolarında kapısız, kısa istemle güçlü modelin kararı — ürünün son kararıyla katman atfı için) · ux_audit (bütün
+// sayfaların masaüstü + telefon ekran görüntüleri; görüntüleri `screenshots.ts` iş akışında üretir). Model istekten gelir
 // (`claude-fable-5-2` dahil; fiyat tablosu aşağıda).
 // ---------------------------------------------------------------------------
 
@@ -1247,6 +1248,159 @@ async function rawBaseline(): Promise<void> {
   }
 }
 
+// ── İş: UX / UI denetimi — bütün sayfalar, masaüstü + telefon ekran görüntüleriyle (kurucu 11-12 gece) ───────────────────────────────────
+// Görüntüleri `scripts/claude-work/screenshots.ts` üretir (iş akışında, uygulama ayaktayken); bu iş sayfa başına görüntü + görünen metin +
+// ölçülmüş işaretleri (yatay taşma, küçük dokunma hedefi, küçük yazı, konsol hatası) modele verir, sonra tek rapor yazdırır.
+const UX_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["page_summary_tr", "findings"],
+  properties: {
+    page_summary_tr: { type: "string" },
+    findings: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["severity", "viewport", "area", "title_tr", "what_tr", "why_tr", "fix_tr", "seen_in"],
+        properties: {
+          severity: { type: "string", enum: ["P0", "P1", "P2"] },
+          viewport: { type: "string", enum: ["mobile", "desktop", "both"] },
+          area: {
+            type: "string",
+            enum: ["layout", "readability", "copy", "flow", "trust", "accessibility", "error_state", "empty_state", "consistency", "navigation", "form", "other"],
+          },
+          title_tr: { type: "string" },
+          what_tr: { type: "string" },
+          why_tr: { type: "string" },
+          fix_tr: { type: "string" },
+          seen_in: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+const UX_SYSTEM = `You are a senior product designer and UX writer doing a harsh, concrete review of a real product, page by page, from screenshots. The owner asked for severity, not politeness.
+
+PRODUCT. "Lixus AI" (lixusai.com): a Turkish-first SaaS for short-term-rental hosts (Airbnb / Booking.com). It answers guest messages with AI, keeps risky messages for the host, and manages check-ins, cleaning tasks, a knowledge base and a guest QR chat. USERS: small hosts and their cleaners, mostly on a PHONE, not technical; and GUESTS (any language) on the QR chat page. The landing and sign-in pages must earn trust in seconds; the panel must let a busy host act with one thumb.
+
+YOU GET, per page: screenshots in viewport-height slices (first the DESKTOP slices, then the PHONE slices — the caption lists them in order), the page's visible text, and MEASURED signals (horizontal overflow in px, count of tap targets smaller than 40 px, count of text nodes under 12 px, console errors, HTTP status). The data is seed / demo data.
+
+REVIEW EACH PAGE FOR:
+- Phone first: anything cut off, overlapping, overflowing sideways, too small to tap or read, sticky bars covering content, tables that do not fit, modals that do not fit, key action below the fold or far from the thumb.
+- First impression and trust (landing, sign-in, sign-up, pricing, legal): is it clear in five seconds what this is, for whom, what it costs, and what happens next? Anything that looks unfinished, generic, inconsistent, or untrustworthy.
+- Words: every label, button, helper, error and empty-state text. Flag jargon, internal terms, machine-sounding or translated-sounding Turkish, inconsistent terminology for the same thing, vague errors that do not say what to do, walls of text, truncated text, typos. The house style is plain Turkish in the "-in" imperative ("Şifre oluşturun"), no technical explanation to the customer. Text shown to GUESTS must sound like the host speaking in the first person, never "your host".
+- Flow and states: is the next step obvious; are primary and secondary actions distinguishable; empty states; error states; loading; destructive actions; what a first-time host sees with no data.
+- Hierarchy, density, spacing, alignment, contrast, consistency of components between pages.
+- Accessibility basics: contrast, focus, labels, tap size, text size.
+
+RULES. Report only what you can SEE in the screenshots / text / signals — no guesses about pages you were not shown. Name where it is ("phone slice 2, the green button at the bottom"). If a measured signal says overflow or small targets, find the cause in the screenshot. A page may be longer than what was captured ("screensTotal" vs "screensCaptured" in the signals) — do not report the missing part as a defect. Some captures are labelled as taken with the reply model disconnected; judge what the screen shows the person in that situation, not the missing AI answer. At most 8 findings per page, most damaging first, each field one or two sentences; if the page is good, say so and return few. Every free-text field in TURKISH, plain and direct.`;
+
+/** Bir çağrıda modele verilen en çok görüntü (fazlası ayrıntıyı seyreltir; uzun sayfa bölünür). */
+const UX_IMAGES_PER_CALL = 8;
+
+interface UxManifest {
+  shotsDir: string;
+  pages: { id: string; label: string; group: string; url: string; viewport: string; status: number | null; title: string; text: string; shots: string[]; metrics: Record<string, number> | null; consoleErrors: string[]; error?: string }[];
+}
+
+/** Bütçe yetmezse en son hangi sayfalar düşsün: önce ilk izlenim ve misafir ekranı, en son yasal metinler. */
+function uxPriority(group: string, id: string): number {
+  if (id === "landing") return 0;
+  if (group === "auth") return 1;
+  if (group === "guest") return 2;
+  if (group === "app") return 3;
+  if (group === "staff") return 4;
+  if (group === "empty") return 5;
+  return id.startsWith("yasal-") ? 7 : 6;
+}
+
+async function uxAudit(): Promise<void> {
+  const manifestPath = path.join(OUT, "ux/manifest.json");
+  if (!existsSync(manifestPath)) {
+    console.error("[claude-work] ux_audit: ekran görüntüsü dökümü yok (screenshots.ts koşmadı) — iş atlandı");
+    write("ux/SKIPPED.md", "Ekran görüntüsü dökümü bulunamadı; UX denetimi yapılmadı.\n");
+    return;
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as UxManifest;
+  const shotsDir = path.join(ROOT, manifest.shotsDir);
+  const byPage = new Map<string, UxManifest["pages"]>();
+  for (const p of manifest.pages) byPage.set(p.id, [...(byPage.get(p.id) ?? []), p]);
+  const jobs = [...byPage.entries()].sort((a, b) => uxPriority(a[1][0].group, a[0]) - uxPriority(b[1][0].group, b[0]));
+  console.log(`[claude-work] ux_audit: ${jobs.length} sayfa`);
+  const skipped: string[] = [];
+  const all: Record<string, unknown>[] = [];
+  const summaries: Record<string, string> = {};
+  await pool(jobs, async ([id, views]) => {
+    const ordered = [...views].sort((a, b) => (a.viewport === b.viewport ? 0 : a.viewport === "desktop" ? -1 : 1));
+    // Görüntüler: önce masaüstü parçaları, sonra telefon parçaları. Bir çağrıda en çok UX_IMAGES_PER_CALL görüntü — uzun sayfa (tanıtım)
+    // birkaç çağrıya bölünür; her çağrı sayfanın hangi kısmına baktığını bilir.
+    const slices: { file: string; caption: string }[] = [];
+    for (const v of ordered) {
+      v.shots.forEach((file, i) => {
+        if (existsSync(path.join(shotsDir, file))) slices.push({ file, caption: `${v.viewport === "mobile" ? "PHONE" : "DESKTOP"} slice ${i + 1} of ${v.shots.length}` });
+      });
+    }
+    if (slices.length === 0) return;
+    const groups: (typeof slices)[] = [];
+    if (slices.length <= UX_IMAGES_PER_CALL) groups.push(slices);
+    else {
+      // Bölünürken görünümler karışmaz: masaüstü grupları, sonra telefon grupları.
+      for (const vp of ["DESKTOP", "PHONE"]) {
+        const part = slices.filter((x) => x.caption.startsWith(vp));
+        for (let i = 0; i < part.length; i += UX_IMAGES_PER_CALL) groups.push(part.slice(i, i + UX_IMAGES_PER_CALL));
+      }
+    }
+    const signals = ordered
+      .map((v) => `${v.viewport.toUpperCase()}: http ${v.status ?? "?"} · ${JSON.stringify(v.metrics ?? {})}${v.consoleErrors.length ? ` · console errors: ${v.consoleErrors.join(" | ")}` : ""}${v.error ? ` · capture error: ${v.error}` : ""}`)
+      .join("\n");
+    const text = ordered.find((v) => v.viewport === "mobile")?.text ?? ordered[0].text;
+    const head = ordered[0];
+    const findings: Record<string, unknown>[] = [];
+    const partSummaries: string[] = [];
+    let reviewedParts = 0;
+    for (let g = 0; g < groups.length; g++) {
+      const group = groups[g];
+      const images = group.map((x) => ({ mediaType: "image/jpeg" as const, data: readFileSync(path.join(shotsDir, x.file)).toString("base64") }));
+      const captions = group.map((x, i) => `image ${i + 1}: ${x.caption}`).join("\n");
+      const partNote = groups.length > 1 ? `\nTHIS CALL IS PART ${g + 1} OF ${groups.length} of the same page (the other parts are reviewed separately — judge only what these images show).` : "";
+      const r = await call({
+        task: "ux_audit",
+        system: UX_SYSTEM,
+        user: `PAGE: ${head.label} (${head.group}) — ${head.url}${partNote}\nIMAGES:\n${captions}\n\nMEASURED SIGNALS (whole page):\n${signals}\n\nVISIBLE TEXT (phone view, whole page, truncated):\n${text}\n\nReturn the JSON object only.`,
+        images,
+        effort: "medium",
+        maxTokens: 16000,
+        schema: UX_SCHEMA,
+      });
+      const parsed = r ? parseJson<{ page_summary_tr: string; findings: Record<string, unknown>[] }>(r.text) : null;
+      if (!parsed) continue;
+      reviewedParts += 1;
+      partSummaries.push(parsed.page_summary_tr ?? "");
+      findings.push(...(parsed.findings ?? []).map((f) => ({ ...f, page: id, label: head.label, group: head.group, url: head.url, ...(groups.length > 1 ? { part: `${g + 1}/${groups.length}` } : {}) })));
+    }
+    if (reviewedParts < groups.length) skipped.push(`${id} (${head.label})${reviewedParts > 0 ? ` — ${groups.length - reviewedParts}/${groups.length} kısmına bakılamadı` : ""}`);
+    if (reviewedParts === 0) return;
+    all.push(...findings);
+    summaries[id] = partSummaries.filter(Boolean).join(" ");
+    write(`ux/page-${id}.json`, JSON.stringify({ label: head.label, url: head.url, signals, parts: groups.length, reviewedParts, summary: summaries[id], findings }, null, 2));
+  });
+  // Sessiz kırpma yok: bütçe / hata yüzünden bakılamayan sayfalar adıyla yazılır.
+  if (skipped.length > 0) console.log(`[claude-work] ux_audit: ${skipped.length} sayfaya bakılamadı: ${skipped.join(" · ")}`);
+  write("ux/all-findings.json", JSON.stringify({ reviewed: Object.keys(summaries).length, skipped, summaries, findings: all }, null, 2));
+
+  // Rapor ayrı bütçe kaleminde (`ux_report`): sayfa incelemeleri tavanı doldursa da rapor yazılır.
+  const report = await call({
+    task: "ux_report",
+    system: UX_SYSTEM,
+    user: `FINAL REPORT for the founder (non-engineer; Turkish; plain language). You reviewed every page; below are all per-page findings and summaries as JSON. Write Turkish Markdown, at most ~450 lines:\n- "İlk izlenim": landing + giriş + kayıt — bir ev sahibi telefonda ilk beş saniyede ne görüyor, neye güvenmiyor.\n- "Telefonda bozulanlar": taşma, küçük hedef, okunmayan yazı — sayfa sayfa, en kötüden.\n- "Yazılar": tutarsız terimler (aynı şeye farklı ad), teknik / çeviri kokan ifadeler, ne yapılacağını söylemeyen hata mesajları — mevcut metin → önerilen metin tablosu.\n- "Akış": boş durumlar, hata durumları, birincil eylemin belirsiz olduğu yerler.\n- "Misafirin gördüğü ekran" (QR sohbeti) ayrı başlıkta.\n- "Önce bunlar": etkisi en yüksek 15 düzeltme, sırayla, her biri tek cümle + hangi sayfa.\n- "İyi olanlar": dokunulmaması gerekenler (kısa).\nDo not invent findings that are not in the JSON. If the list below names pages that could not be reviewed, say so in one line at the top.\n\nPAGES NOT REVIEWED: ${skipped.length ? skipped.join(" · ") : "none"}\n\nFINDINGS (JSON):\n${JSON.stringify(all)}\n\nPAGE SUMMARIES:\n${JSON.stringify(summaries)}`,
+    effort: "high",
+    maxTokens: 48000,
+  });
+  if (report) write("ux/REPORT.md", report.text);
+}
+
 // ── Ana akış ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const TASKS: Record<string, () => Promise<void>> = {
   market,
@@ -1261,6 +1415,7 @@ const TASKS: Record<string, () => Promise<void>> = {
   redteam,
   prompt_audit: promptAudit,
   raw_baseline: rawBaseline,
+  ux_audit: uxAudit,
 };
 
 async function main(): Promise<void> {
