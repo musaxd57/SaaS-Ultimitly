@@ -141,9 +141,12 @@ export const SENIOR_READER_SYSTEM_PROMPT = `${ABSENCE_JUDGE_SYSTEM_PROMPT}\n${SE
  * Ücret kuralı açıkken ödeme tanımına eklenen açıklama (kurucu kararı 4.13, 10-28: "Bilgi tabanında yazan hizmet ücreti cevaplansın"). Canlı
  * ölçümde (fee413-parts) "…getirebiliyoruz; ikisi birlikte 250 TL'dir." gibi 7 taslak "ev sahibine platform dışı ödeme" sayılıp tutuldu —
  * taslaklar ödemenin nasıl / nereye yapılacağını söylemiyordu. Elden / havale / bağlantı / kapıda ödeme isteyen taslak yine ödemedir.
+ * 11-12 ölçümü: satır açıkken de okuyucu BİRİNCİ TEKİL kalıbı ("Havalimanı transferini ben ayarlıyorum, tek yön ücreti 900 TL.") 8 okumanın
+ * 8'inde "bana ödeyin" sayıyordu ("biz ayarlıyoruz" 0/8) — ev sahibi sesi kuralı birinci şahıs istediği için hizmet ücreti cevapları tutuluyordu.
+ * Satır artık hizmeti KİMİN verdiğinin fiyatı ödeme talimatına çevirmediğini ve birinci şahıs kalıbını açıkça söyler (örnek ölçüm setlerinden farklı).
  */
 export const SENIOR_READER_FEE_LINE =
-  "A draft that only states the price of a service or item (also one the host provides), without saying how or where to pay, is NOT pays_host_off_platform; it is still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door.";
+  "A draft that only states the price of a service or item (also one the host provides, or arranges personally in the first person: 'I do the laundry myself, it is 10 EUR per load' is only a price), without saying how or where to pay, is NOT pays_host_off_platform; who provides the service does not turn a price into a payment instruction. It is still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door.";
 const SENIOR_FEE_ANCHOR = "parking operator, museum, bike or car rental) or when the draft says payment is made through the platform.\n";
 
 /** Kıdemli okuyucunun istemi: ücret kuralı kapalıyken `SENIOR_READER_SYSTEM_PROMPT` bayt bayt; açıkken ödeme tanımının ardına açıklama. */

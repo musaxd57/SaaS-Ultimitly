@@ -54,6 +54,15 @@ describe("istem", () => {
     expect(SENIOR_READER_FEE_LINE).toMatch(/still true when the draft also asks/);
   });
 
+  it("🚨 satır birinci şahıs kalıbını kapsar: hizmeti KİMİN verdiği fiyatı ödeme talimatına çevirmez (11-12 ölçümü)", () => {
+    // "Havalimanı transferini ben ayarlıyorum, tek yön ücreti 900 TL." eski satırla 8 okumanın 8'inde "ev sahibine ödeme" sayılıyordu
+    // ("biz ayarlıyoruz" 0/8); yeni satırla 0/32, ödeme yönü taşıyan taslaklar ("bana elden", "ödemeyi bana") 16/16 tutuldu.
+    expect(SENIOR_READER_FEE_LINE).toMatch(/arranges personally in the first person/);
+    expect(SENIOR_READER_FEE_LINE).toMatch(/who provides the service does not turn a price into a payment instruction/);
+    // Ödeme tarafı gevşemedi: nakit / havale / bağlantı / kapıda dört yol da satırda duruyor.
+    for (const way of ["in cash", "by transfer", "through a link", "at the door"]) expect(SENIOR_READER_FEE_LINE).toContain(way);
+  });
+
   it("satır ölçüm setlerindeki taslakları ezberlemez", () => {
     for (const f of ["airbnb-fee-statements.json", "airbnb-message-policy.json"]) {
       const set = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals", f), "utf8")) as { cases: { draft: string }[] };
