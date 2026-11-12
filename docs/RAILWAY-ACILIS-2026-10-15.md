@@ -350,6 +350,11 @@ kurucu onayıyla §1'e taşındı.)
   yanlış izin 0/45, yanındaki sorunun doğru cevabı 0/38 → 29/38, ama 1 yanlış değer gitti (anahtar kapalıyken 0). Açma sırası: parça
   kipinin kabul ölçümü → cevabı misafirin mesajıyla okuyan denetim → yeni mühürlü setle S3 → kurucu kararı.
   Tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3 / §3.1 / §3.2.
+- `AI_LATE_MESSAGE_REPLY_ENABLED` (kurucu kararı 11-11 S2: "geç alınan mesajı yapay zekâ değerlendirsin — anahtar + ücretli ölçüm") —
+  🚨 **ölçüm sonucu görülmeden AÇILMAZ.** Misafirin otomatik cevabımızdan önce yazıp bize sonra ulaşan mesajı bugün cevaplanmıyor
+  (konuşma "Yeni" kalır, ev sahibi görür). Açıkken o mesaj cevapsız tur olarak okunur ve bugünkü bütün denetimlerden geçerek
+  cevaplanır. Şartlar: kaçırılan cevap yapay zekânın · sonrasında ev sahibi yazmamış · mesaj en çok 24 saatlik. Yeni model çağrısı /
+  tablo / metin yok. Tasarım `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §2.1.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

@@ -95,5 +95,21 @@
     "runSha": "74f5f5432170afc54f4e74bd60330187408104c9",
     "report": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-acik.md",
     "compareReport": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md"
+  },
+  "late-message-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralları + S2 kuralı (otomatik cevabımızdan önce yazılıp bize sonra ulaşan misafir mesajı; şartlar: kaçırılan cevap yapay zekânın, sonrasında ev sahibi yazmamış, mesaj en çok 24 saatlik) verildi. Geliştirici (Claude) içeriği okumadı: dosya yazarın geçici klasöründen kopyalandı, yalnız toplu sayılar ve biçim denetimi (kimlik tekilliği, bilgi kümesi anahtarı, geç senaryoda giden mesaj) koşuldu.",
+    "sha256": "c1327ca7cd16cb709af601cc073d84a449ba7d665d3342b4a1dd3dbfbec89fdb",
+    "items": {
+      "scenarios": 53,
+      "needs": 39,
+      "answered": 21,
+      "open": 18,
+      "kbSets": 3,
+      "languages": 7,
+      "late": 49,
+      "bytes": 40302
+    },
+    "state": "sealed"
   }
 }

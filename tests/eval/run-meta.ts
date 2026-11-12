@@ -142,6 +142,8 @@ export const PIPELINE_FLAGS = [
   "AI_HOST_DECISION_HOLD_ENABLED",
   // S3 (11-11): tutulan evcil hayvan sorusu öteki cevabı tutmasın — hem istemi hem kapıyı değiştirir.
   "AI_HELD_PET_SPLIT_ENABLED",
+  // S2 (11-11): geç içeri alınan misafir mesajı cevapsız tur olarak okunur — hangi mesajın cevaplandığını değiştirir.
+  "AI_LATE_MESSAGE_REPLY_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
   // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).

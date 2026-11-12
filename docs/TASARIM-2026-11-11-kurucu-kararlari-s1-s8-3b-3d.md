@@ -85,6 +85,57 @@ ev sahibi o mesajdan sonra yazmamış · konuşma "Sorunlu" / bekletmede değil 
 bağlantıdaki toplu geçmiş değil · öğe hâlâ açık (sonraki mesajlarda geri çekilmemiş, cevaplanmamış). Gönderimden hemen önce aynı şartlar
 yeniden okunur. Cevap güncel bağlamla üretilir (eski mesaja eski cevap değil).
 
+### 2.1 Ayrıntılı tasarım (11-12; mevcut kod okundu — envanter + doğrulama)
+
+**Bugün neden cevaplanmıyor.** Konuşma, mesajın YAZILDIĞI ana göre sıralanır. Misafirin cevabımızdan önce yazıp bize sonra ulaşan mesajı
+sırada cevabımızın ÖNÜNE düşer; "son mesaj bizim cevabımız" görünür ve akış `already_answered` der. Aynı sebeple, misafir sonradan yeni
+bir mesaj yazsa bile o geç mesaj "cevaplanmış geçmiş" gibi okunur — yapay zekâ onu hiç değerlendirmez.
+
+**Yapılacak tek şey (anahtar `AI_LATE_MESSAGE_REPLY_ENABLED`, KAPALI).** Otomatik cevap akışı konuşmayı okurken, şartlar sağlanıyorsa
+geç mesajı kaçırdığı cevabın ARDINA koyar (yalnız bu okumada; veritabanındaki sıra ve ekranlar değişmez, mesajın kendi yazılma anı
+aynı kalır — "yarın" gibi sözler doğru güne okunur). Sonrası bugünkü akışın aynısıdır: kapanış denetimi, acil ağı, anlama katmanı,
+istek öğeleri, kapılar, gönderim öncesi yeniden okuma. Yeni model çağrısı, yeni tablo, yeni metin yok.
+
+**Şartlar (hepsi; biri sağlanmazsa bugünkü davranış — konuşma "Yeni" kalır, ev sahibi görür):**
+
+1. Kaçırılan cevap BİZİM otomatik cevabımız (yazarı yapay zekâ). Ev sahibinin panelden ya da platformdan yazdığı cevaptan sonra
+   gelen geç mesaja yapay zekâ karışmaz — ev sahibi konuşmanın içindedir.
+2. Geç mesajın yazıldığı andan sonra ev sahibi hiç yazmamış.
+3. Geç mesaj en çok 24 saat önce yazılmış (kararın verildiği ana göre). Birden çok geç mesaj varsa hepsi bu sınırda olmalı.
+4. Konuşma "Sorunlu" / bekletmede değil; rezervasyon iptal / bitmiş değil; önceki cevabımızın teslimi doğrulanmış (hepsi var olan
+   erken dönüşler — değişmez).
+5. Acil ağı önce koşar (bugünkü sıra): geç mesaj acilse konuşma "Sorunlu" olur, yapay zekâ cevaplamaz.
+
+"İlk bağlantıdaki toplu geçmiş" kendiliğinden kapsam dışıdır: geç sayılmak için mesajın BİZİM bir cevabımızdan sonra içeri alınmış
+olması gerekir; ilk bağlantıda bizim cevabımız yoktur. "Öğe hâlâ açık" şartı bugünkü öğe akışıyla sağlanır: misafir sonradan
+"boşverin" yazdıysa o mesaj da aynı turdadır ve istek geri çekilir.
+
+**Gönderim öncesi yeniden okuma (var olan iki yol, değişmez).** Doğrudan yolda gönderim hakkı ancak "okuduğum andan beri yeni misafir
+mesajı gelmedi" şartıyla alınır (küme bazlı — sıra değişikliğinden etkilenmez). Kuyruk yolunda gönderim anı vetosu taslaktan sonra
+gelen misafir / ev sahibi mesajında cevabı durdurur; cevabını kaçırdığımız eski mesaj taslaktan eski olduğu için yanlış veto üretmez.
+
+**Örnekler (anahtar açık).**
+
+| Durum | Bugün | Anahtar açıkken |
+|---|---|---|
+| 10:00 "Wi-Fi şifresi ne?" → 10:01 cevabımız. Misafirin 10:00:40'ta yazdığı "Bir de otopark var mı?" bize 10:03'te ulaşıyor | gitmez; konuşma "Yeni", ev sahibi görür | otopark cevabı gider (bilgi tabanında varsa; yoksa bugünkü gibi ev sahibine kalır) |
+| Aynı durum, geç mesaj "Köpeğimizi getirebilir miyiz?" | gitmez | gitmez — hassas istek ev sahibinde (bugünkü kural) |
+| Aynı durum, geç mesaj "Tamam, teşekkürler" | gitmez | gitmez (kapanış) |
+| Geç mesaj cevabımızın zaten karşıladığı soruyu tekrarlıyor ("Wi-Fi şifresi lazım") ya da "Orada mısınız?" | gitmez | ❓ ölçülecek — hedef: tekrar cevap gitmesin |
+| Kaçırılan cevabı ev sahibi yazmış | gitmez | gitmez |
+| Geç mesaj 30 saat önce yazılmış | gitmez | gitmez |
+| Geç mesaj "Mutfakta duman var" | acil uyarı + "Sorunlu" | aynı (acil ağı önce) |
+
+**Ölçüm (kurucu: "anahtar + ücretli ölçüm").** Ürünün kanal akışı olduğu gibi koşar; senaryo geçmişine "bu mesaj cevaptan önce yazıldı,
+sonra ulaştı" işareti eklenir. Sınıflar: cevabı bilgi tabanında olan yeni soru (gitmeli) · bilgi tabanında olmayan soru (gitmemeli,
+uydurma 0) · hassas istek · kapanış · tekrar / "orada mısınız" (gitmemeli) · geri çekme · geç mesaj + sonradan yazılmış yeni mesaj ·
+şart dışı (ev sahibi yazmış, 24 saatten eski). İki sayı birlikte: yanlış / gereksiz gönderim (hedef 0) ve doğru cevabın gitmesi.
+Geliştirme seti açık; kabul ayrı yazarın mühürlü setiyle. Önce yalnız sıra değişikliği ölçülür; "tekrar" sınıfında model gereksiz
+cevap yazıyorsa isteme kısa bir zaman notu eklenir ve yeniden ölçülür (kör sete kadar).
+
+**Bilerek yapılmayan.** Geç mesajın yeri ekranlarda değişmez (misafirin platformda gördüğü sırayla aynı kalır) · ev sahibi cevabından
+sonraki geç mesaj yapay zekâya verilmez · 24 saat sınırı ayar değildir.
+
 ## 3. S3 — "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?"
 
 **Bugünkü kod (11-12'de yeniden okundu — ilk yazdığım eksikti).** İstek ayrımı zaten var: öğe kipinde (canlıda açık) anlama katmanı

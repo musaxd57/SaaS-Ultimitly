@@ -130,6 +130,7 @@ import { discardAutomatedSend, loadFailedSendLedger, recordAutomatedSend, settle
 import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { lateMessageReplyEnabled, lateTurnView } from "@/lib/late-turn";
 import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
 import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -2217,11 +2218,20 @@ export async function applyChannelAutoReply(
   // K7 (09-30): thread'in SONUNDAKİ otomatik şablon mesajları (karşılama / giriş / çıkış) bir cevap DEĞİLDİR ve cevaplanacak
   // misafir mesajından SONRA gittiler → değerlendirme son GERÇEK mesaja kadar (misafir sorusu otomatik mesajın arkasında
   // kalıp "cevaplandı" sayılmasın). Aradaki otomatik mesajlar geçmişte kalır ("[OTOMATİK MESAJ]"). Süzgeç + kesme `threadView`.
-  let messages = threadView(thread.rows, undeliveredIds);
+  // S2 (kurucu kararı 11-11; anahtar `AI_LATE_MESSAGE_REPLY_ENABLED` KAPALI): geç içeri alınan misafir mesajı kaçırdığı yapay zekâ cevabının
+  // ARDINA okunur (`late-turn.ts` — şartlar orada) → aşağıdaki konumsal tur sınırı onu cevapsız tur sayar. Anahtar kapalıyken ya da şartlar
+  // sağlanmıyorsa dizi aynen: son mesaj giden → `already_answered` (S1, 11-04: konuşma "Yeni" kalır, ev sahibi görür).
+  const lateOn = lateMessageReplyEnabled();
+  const turnNow = new Date();
+  const viewOf = (rows: typeof thread.rows) => {
+    const view = threadView(rows, undeliveredIds);
+    return lateOn ? [...lateTurnView(view, turnNow).messages] : view;
+  };
+  let messages = viewOf(thread.rows);
   // Kesit süzgeçten sonra boş kaldıysa konuşmanın daha eskisi okunur (bugün: tamamı süzülürdü).
   while (messages.length === 0 && !thread.complete) {
     thread = await extendThread(conversation.id, thread);
-    messages = threadView(thread.rows, undeliveredIds);
+    messages = viewOf(thread.rows);
   }
   if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
   const last = messages[messages.length - 1];
@@ -2231,7 +2241,7 @@ export async function applyChannelAutoReply(
   // toplamlar (misafire giden cevap sayısı, iz tanısının atlanan satırı) kesitten ÖNCESİ için veritabanında SAYILIR — satır okunmaz.
   while (!thread.complete && !(threadWindowSufficient(messages) && conversationStateWindowSufficient(messages))) {
     thread = await extendThread(conversation.id, thread);
-    messages = threadView(thread.rows, undeliveredIds);
+    messages = viewOf(thread.rows);
   }
 
   // 🚨 K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa yapay zekâ CEVAP ÜRETMEZ —

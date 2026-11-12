@@ -59,6 +59,7 @@ import { moneyAmountsOf } from "@/lib/ai/stay-money";
 import { writeSidecar, uniqueReportName, reviewQuote } from "./sidecar";
 import { evalRuntime } from "./run-meta";
 import { forbiddenIn, productCategory } from "./live-shared";
+import { lateTurnView } from "@/lib/late-turn";
 
 interface Scenario {
   id: string;
@@ -66,8 +67,17 @@ interface Scenario {
   lang: string;
   /** Bilgi tabanı kümesinin adı (`kbSets` anahtarı): "full" / "sparse" + 10-01 setlerinde "crowded" / "conflict". */
   kb: string;
-  history?: { direction: "inbound" | "outbound"; body: string }[];
+  /** `author` (yalnız giden): cevabı kim yazdı — varsayılan yapay zekâ; "host" = ev sahibi panelden yazdı (S2 şart dışı senaryoları). */
+  history?: { direction: "inbound" | "outbound"; body: string; author?: "ai" | "host" }[];
   message: string;
+  /**
+   * S2 (geç içeri alınan mesaj): `message`, geçmişteki SON giden mesajdan ÖNCE yazıldı ama ondan SONRA içeri alındı (`scenarioMessageRows`).
+   * `lateWrittenMinutesAgo`: mesajın yazılmasından bu yana geçen dakika (varsayılan 21; 24 saat sınırı senaryoları büyütür).
+   * `after`: son giden mesajdan SONRA yazılmış olağan bir misafir mesajı (geç mesajla aynı turda).
+   */
+  late?: true;
+  lateWrittenMinutesAgo?: number;
+  after?: string;
   /** Kod selamı seti (`evals/code-greeting.json`): misafirin adı, kanalın ayrı ad alanı, adın kökeni. Yoksa sabit "Alex Doe". */
   guest?: { name: string; givenName: string | null; nameSource: string };
   /** Org cevap tonu (yoksa şema varsayılanı "warm"). */
@@ -124,7 +134,12 @@ const SEALED = process.env.EVAL_SEALED_FINAL === "1";
 const BURNED_DEV = process.env.EVAL_BURNED_DEV === "1";
 if (SEALED && BURNED_DEV) throw new Error("EVAL_SEALED_FINAL ve EVAL_BURNED_DEV birlikte kullanılamaz.");
 // Üçüncü ad (11-12): S3 kabul seti — evcil hayvan + cevaplanabilir başka soru (`AI_HELD_PET_SPLIT_ENABLED`; iki kol: kapalı / açık).
-const SEALED_NAMES = ["needs-blind-2026-10-23.json", "needs-kabul-2026-10-23.json", "held-pet-kabul-2026-11-12.json"] as const;
+const SEALED_NAMES = [
+  "needs-blind-2026-10-23.json",
+  "needs-kabul-2026-10-23.json",
+  "held-pet-kabul-2026-11-12.json",
+  "late-message-kabul-2026-11-12.json",
+] as const;
 const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
 const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
@@ -277,6 +292,60 @@ function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<type
 }
 
 // ── Senaryo kurulumu ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+type SeedMessageRow = {
+  direction: "inbound" | "outbound";
+  senderName: string;
+  authorType?: string;
+  body: string;
+  createdAt: Date;
+  ingestedAt?: Date;
+  externalId?: string;
+};
+
+/**
+ * Senaryonun mesaj satırları (saf). Olağan senaryoda bugünkü biçim BİREBİR: geçmiş 10'ar dakika arayla, son misafir mesajı bir dakika
+ * önce, içeri alınma anı yazılmaz. `late` senaryoda (S2) ürünün "geç içeri alınan mesaj" ölçütü kurulur (`message-author.lateGuestMessages`):
+ * misafir satırları içeri alınma anı taşır, giden satırlar BİZİM yazdığımız cevaptır (içeri alınma anı yok, teslim edilmiş), `message`
+ * son giden mesajdan bir dakika ÖNCE yazılmış ve bir dakika önce İÇERİ ALINMIŞTIR; `after` yarım dakika önce yazılmış olağan mesajdır.
+ */
+export function scenarioMessageRows(
+  s: Pick<Scenario, "history" | "message" | "late" | "lateWrittenMinutesAgo" | "after">,
+  now: number,
+  guestName: string,
+): SeedMessageRow[] {
+  const history = s.history ?? [];
+  const MIN = 60_000;
+  if (!s.late) {
+    return [
+      ...history.map((h, i) => ({
+        direction: h.direction,
+        senderName: h.direction === "inbound" ? guestName : "GuestOps AI",
+        ...(h.direction === "outbound" ? { authorType: h.author ?? "ai" } : {}),
+        body: h.body,
+        createdAt: new Date(now - (history.length - i + 1) * 10 * MIN),
+      })),
+      { direction: "inbound" as const, senderName: guestName, body: s.message, createdAt: new Date(now - MIN) },
+    ];
+  }
+  const lastOut = history.findLastIndex((h) => h.direction === "outbound");
+  if (lastOut < 0) throw new Error("late senaryosu geçmişte en az bir giden mesaj ister");
+  // Geç mesaj `lateWrittenMinutesAgo` dakika önce yazıldı; kaçırdığı cevap ondan bir dakika SONRA. Geçmişin öteki satırları cevaba göre
+  // 10'ar dakika geriye / ileriye dizilir (cevaptan sonraki geçmiş satırı olursa — ör. ev sahibinin sonraki cevabı — cevaptan sonra kalır).
+  const lateAt = now - (s.lateWrittenMinutesAgo ?? 21) * MIN;
+  const replyAt = lateAt + MIN;
+  const rows: SeedMessageRow[] = history.map((h, i) => {
+    const createdAt = new Date(i === lastOut ? replyAt : i < lastOut ? replyAt - (lastOut - i) * 10 * MIN : Math.min(replyAt + (i - lastOut) * 5 * MIN, now - 2 * MIN));
+    return h.direction === "inbound"
+      ? { direction: "inbound" as const, senderName: guestName, authorType: "guest", body: h.body, createdAt, ingestedAt: new Date(createdAt.getTime() + 30_000), externalId: `ext-h${i}` }
+      : { direction: "outbound" as const, senderName: "GuestOps AI", authorType: h.author ?? "ai", body: h.body, createdAt, externalId: `ext-h${i}` };
+  });
+  rows.push({ direction: "inbound", senderName: guestName, authorType: "guest", body: s.message, createdAt: new Date(lateAt), ingestedAt: new Date(now - MIN), externalId: "ext-late" });
+  if (s.after) {
+    rows.push({ direction: "inbound", senderName: guestName, authorType: "guest", body: s.after, createdAt: new Date(now - 30_000), ingestedAt: new Date(now - 20_000), externalId: "ext-after" });
+  }
+  return rows;
+}
+
 async function seed(s: Scenario): Promise<{ conversationId: string }> {
   const now = Date.now();
   const org = await prisma.organization.create({
@@ -333,7 +402,6 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       sourceReference: `res-${s.id}`,
     },
   });
-  const history = s.history ?? [];
   const conversation = await prisma.conversation.create({
     data: {
       propertyId: property.id,
@@ -342,18 +410,7 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       guestIdentifier: guestName,
       status: "new",
       externalReservationId: `res-${s.id}`,
-      messages: {
-        create: [
-          ...history.map((h, i) => ({
-            direction: h.direction,
-            senderName: h.direction === "inbound" ? guestName : "GuestOps AI",
-            ...(h.direction === "outbound" ? { authorType: "ai" } : {}),
-            body: h.body,
-            createdAt: new Date(now - (history.length - i + 1) * 10 * 60_000),
-          })),
-          { direction: "inbound", senderName: guestName, body: s.message, createdAt: new Date(now - 60_000) },
-        ],
-      },
+      messages: { create: scenarioMessageRows(s, now, guestName) },
     },
     select: { id: true },
   });
@@ -1006,6 +1063,41 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     const about: NeedSpec[] = [{ kind: "about_assistant", want: "open", forbid: ["asistan", "otomatik"] }];
     expect(scoreNeeds(about, "Sauna yok.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ textOk: true, wrongAnswered: false });
     expect(scoreNeeds(about, "Ben otomatik bir asistanım.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ wrongAnswered: true });
+  });
+
+  it("S2 geç mesaj senaryosu: olağan senaryonun satırları bugünkü biçimde; `late` senaryosu ürünün geç mesaj ölçütünü kurar", () => {
+    const now = Date.UTC(2026, 10, 12, 10, 0, 0);
+    const history = [
+      { direction: "inbound" as const, body: "Wi-Fi şifresi ne?" },
+      { direction: "outbound" as const, body: "Wi-Fi şifresi Lale2024." },
+    ];
+    // Olağan: içeri alınma anı / sağlayıcı kimliği YOK, geçmiş 10'ar dakika arayla, son mesaj bir dakika önce (eski biçimle birebir).
+    expect(scenarioMessageRows({ history, message: "Otopark var mı?" }, now, "Alex")).toEqual([
+      { direction: "inbound", senderName: "Alex", body: "Wi-Fi şifresi ne?", createdAt: new Date(now - 30 * 60_000) },
+      { direction: "outbound", senderName: "GuestOps AI", authorType: "ai", body: "Wi-Fi şifresi Lale2024.", createdAt: new Date(now - 20 * 60_000) },
+      { direction: "inbound", senderName: "Alex", body: "Otopark var mı?", createdAt: new Date(now - 60_000) },
+    ]);
+    // Geç: yazılma sırasında cevaptan ÖNCE, ama cevaptan SONRA içeri alındı → ürünün görünümü onu cevabın ardına taşır.
+    const view = (rows: ReturnType<typeof scenarioMessageRows>) => {
+      const sorted = rows
+        .map((r, i) => ({ id: `m${i}`, direction: r.direction, authorType: r.authorType ?? null, createdAt: r.createdAt, ingestedAt: r.ingestedAt ?? null, body: r.body }))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      return { written: sorted.map((r) => r.body), seen: lateTurnView(sorted, new Date(now)).messages.map((r) => r.body) };
+    };
+    const late = view(scenarioMessageRows({ history, message: "Otopark var mı?", late: true }, now, "Alex"));
+    expect(late.written).toEqual(["Wi-Fi şifresi ne?", "Otopark var mı?", "Wi-Fi şifresi Lale2024."]);
+    expect(late.seen).toEqual(["Wi-Fi şifresi ne?", "Wi-Fi şifresi Lale2024.", "Otopark var mı?"]);
+    // `after`: cevaptan sonra yazılmış olağan mesaj en sonda kalır.
+    const both = view(scenarioMessageRows({ history, message: "Otopark var mı?", late: true, after: "Çıkış kaçta?" }, now, "Alex"));
+    expect(both.seen).toEqual(["Wi-Fi şifresi ne?", "Wi-Fi şifresi Lale2024.", "Otopark var mı?", "Çıkış kaçta?"]);
+    // Şart dışı senaryolar gerçekten şart dışı kurulur: cevabı ev sahibi yazdı · mesaj 24 saatten eski.
+    const hostReply = [history[0]!, { ...history[1]!, author: "host" as const }];
+    const byHost = view(scenarioMessageRows({ history: hostReply, message: "Otopark var mı?", late: true }, now, "Alex"));
+    expect(byHost.seen).toEqual(byHost.written);
+    const old = view(scenarioMessageRows({ history, message: "Otopark var mı?", late: true, lateWrittenMinutesAgo: 24 * 60 + 5 }, now, "Alex"));
+    expect(old.seen).toEqual(old.written);
+    // Geçmişte giden mesaj yoksa geç senaryo kurulamaz (sessizce olağan senaryoya dönmez).
+    expect(() => scenarioMessageRows({ history: [history[0]!], message: "x", late: true }, now, "Alex")).toThrow(/giden mesaj/);
   });
 
   it("S3 evcil hayvan ayrımı sayıları: yanlış izin evcil hayvan ihtiyacından, öteki sorunun yanlışı ayrı sayılır; evcil hayvansız senaryo kapsam dışı", () => {

@@ -1,0 +1,1579 @@
+{
+  "version": 1,
+  "_about": "Blind acceptance set: late-ingested guest message (fictional property Lale)",
+  "property": {
+    "name": "Lale",
+    "guestDisplayName": "Lale Moda Dairesi",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Çiçek Sokak No:7, Moda, Kadıköy",
+    "city": "İstanbul"
+  },
+  "kbSets": {
+    "lale_rich": [
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arkasında misafirlerimize ait bir otopark var, günlük ücreti 250 TL. Sokağa park etmek yasaktır."
+      },
+      {
+        "category": "transport",
+        "title": "Havalimanından ulaşım",
+        "content": "Sabiha Gökçen Havalimanı'ndan Havabus ile Kadıköy'e yaklaşık 75 dakikada gelinir, bilet 180 TL. Kadıköy iskelesinden dairemize yürüyerek 12 dakika."
+      },
+      {
+        "category": "local",
+        "title": "Market",
+        "content": "En yakın market 3 dakika yürüme mesafesinde, her gün 07:00–23:00 arası açık."
+      },
+      {
+        "category": "local",
+        "title": "Sahil",
+        "content": "Moda sahili dairemize 8 dakika yürüme mesafesinde."
+      },
+      {
+        "category": "local",
+        "title": "Restoran önerisi",
+        "content": "Kordon Balık restoranını öneririz, 5 dakika yürüme mesafesinde; akşam için rezervasyon yaptırmanızı tavsiye ederiz."
+      },
+      {
+        "category": "appliances",
+        "title": "Çamaşır makinesi",
+        "content": "Banyoda çamaşır makinesi var; deterjan lavabonun altındaki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Her odada klima var; kumandası yatağın yanındaki komodinin çekmecesinde."
+      },
+      {
+        "category": "amenities",
+        "title": "Saç kurutma makinesi",
+        "content": "Banyodaki çekmecede saç kurutma makinesi var."
+      },
+      {
+        "category": "amenities",
+        "title": "Ütü",
+        "content": "Ütü ve ütü masası yatak odasındaki gardıropta."
+      },
+      {
+        "category": "building",
+        "title": "Kat ve asansör",
+        "content": "Binada asansör yok, dairemiz 3. katta."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Çöpleri her akşam 20:00'den sonra bina girişindeki yeşil konteynere bırakabilirsiniz."
+      },
+      {
+        "category": "cleaning",
+        "title": "Ara temizlik",
+        "content": "4 geceden uzun konaklamalarda 4. gün ücretsiz ara temizlik ve havlu değişimi yapıyoruz."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Sessizlik saatleri 23:00–08:00 arasıdır. Daire içinde sigara içilmez."
+      }
+    ],
+    "lale_sparse": [
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Dairemize ait otopark yok. En yakın kapalı otopark Bahariye Otoparkı, 400 metre uzaklıkta, saatlik ücreti 60 TL."
+      },
+      {
+        "category": "local",
+        "title": "Bakkal",
+        "content": "Sokağın köşesinde 24 saat açık bir bakkal var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Saat 22:00'den sonra sessizlik rica ediyoruz. Daire içinde sigara içilmez."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Çöpleri sokak başındaki gri konteynere atabilirsiniz, kapının önüne bırakmayın."
+      }
+    ],
+    "lale_mid": [
+      {
+        "category": "building",
+        "title": "Asansör",
+        "content": "Binamızda asansör var, dairemiz 5. katta."
+      },
+      {
+        "category": "amenities",
+        "title": "Saç kurutma makinesi",
+        "content": "Banyodaki çekmecede saç kurutma makinesi var."
+      },
+      {
+        "category": "appliances",
+        "title": "Kahve makinesi",
+        "content": "Mutfakta kapsül kahve makinesi var; 10 kapsül ikramımızdır."
+      },
+      {
+        "category": "transport",
+        "title": "Havalimanından ulaşım",
+        "content": "İstanbul Havalimanı'ndan Havaist otobüsüyle Kadıköy'e yaklaşık 90 dakikada gelinir."
+      },
+      {
+        "category": "local",
+        "title": "Süpermarket",
+        "content": "En yakın süpermarket 250 metre ileride, her gün 09:00–22:00 arası açık."
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "lnq-tr-parking",
+      "class": "late_new_question",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, giriş saati kaçta?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Merhaba! Girişimiz 15:00'ten itibaren."
+        }
+      ],
+      "message": "otopark var mı arabayla geliyoruz",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "250|٢٥٠"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-tr-laundry",
+      "class": "late_new_question",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "çöpleri nereye atıyoruz"
+        },
+        {
+          "direction": "outbound",
+          "body": "Çöpleri her akşam 20:00'den sonra bina girişindeki yeşil konteynere bırakabilirsiniz."
+        }
+      ],
+      "message": "çamaşır makinesi var mı peki? deterjan getirmemiz lazım mı",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "lavabo|dolap"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-en-trash",
+      "class": "late_new_question",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hi! whats the checkout time?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hi! Check-out is by 11:00."
+        }
+      ],
+      "message": "also where do we put the trash",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "\\b20\\b|٢٠|8 ?p\\.?m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-de-parking",
+      "class": "late_new_question",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hallo! Ab wann können wir einchecken?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hallo! Der Check-in ist bei uns ab 15:00 Uhr möglich."
+        }
+      ],
+      "message": "Gibt es einen Parkplatz? Wir kommen mit dem Auto",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "250|٢٥٠"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-de-elevator",
+      "class": "late_new_question",
+      "lang": "de",
+      "kb": "lale_mid",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hallo, gibt es einen Föhn in der Wohnung?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hallo! Ja, in der Schublade im Badezimmer liegt ein Föhn."
+        }
+      ],
+      "message": "gibts nen aufzug? haben schwere koffer",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "\\b5\\b|fünft"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-fr-airport",
+      "class": "late_new_question",
+      "lang": "fr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Bonjour, quelle est l'adresse exacte svp ?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Bonjour ! Notre adresse : Çiçek Sokak No:7, Moda, Kadıköy, Istanbul."
+        }
+      ],
+      "message": "et depuis l'aéroport Sabiha Gökçen on fait comment ?",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "directions_transport",
+            "want": "answered",
+            "all": [
+              "Havabus|75"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-es-beach",
+      "class": "late_new_question",
+      "lang": "es",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hola! a q hora es el check in?"
+        },
+        {
+          "direction": "outbound",
+          "body": "¡Hola! El check-in es a partir de las 15:00."
+        }
+      ],
+      "message": "y la playa queda lejos?",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "\\b8\\b|٨|eight|acht|huit|ocho|восемь|ثماني"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-ru-market",
+      "class": "late_new_question",
+      "lang": "ru",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Привет! Во сколько заселение?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Здравствуйте! Заселение у нас с 15:00."
+        }
+      ],
+      "message": "а магазин рядом есть? до скольки работает",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "23|٢٣"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-ru-checkin",
+      "class": "late_new_question",
+      "lang": "ru",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "здравствуйте, есть парковка?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Здравствуйте! За домом есть наша парковка, 250 лир в сутки. Парковаться на улице запрещено."
+        }
+      ],
+      "message": "и во сколько можно заселиться?",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15|١٥|3 ?p\\.?m|3 de la tarde"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-ar-parking",
+      "class": "late_new_question",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "مرحبا، متى وقت تسجيل الدخول؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "أهلاً بك! يبدأ تسجيل الدخول لدينا من الساعة 15:00."
+        }
+      ],
+      "message": "وهل يوجد موقف للسيارات؟ معنا سيارة",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "250|٢٥٠"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lnq-ar-checkout",
+      "class": "late_new_question",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "ما هو العنوان بالضبط؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "عنواننا: Çiçek Sokak No:7، مودا، كاديكوي، إسطنبول."
+        }
+      ],
+      "message": "ومتى موعد تسجيل الخروج؟",
+      "late": true,
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11|١١|11 ?a\\.?m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lpn-tr-trash-market",
+      "class": "late_plus_new",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "merhaba adres tam olarak neresi"
+        },
+        {
+          "direction": "outbound",
+          "body": "Merhaba! Adresimiz: Çiçek Sokak No:7, Moda, Kadıköy, İstanbul."
+        }
+      ],
+      "message": "çöpü nereye atıcaz",
+      "late": true,
+      "after": "bir de en yakın market ne kadar uzakta?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "\\b20\\b|yeşil"
+            ]
+          },
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "\\b3\\b|üç"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lpn-en-iron-beach",
+      "class": "late_plus_new",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hey what time is check in"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hi! Check-in is from 15:00."
+        }
+      ],
+      "message": "is there an iron?",
+      "late": true,
+      "after": "and how far is the beach from u?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "wardrobe|closet|bedroom"
+            ]
+          },
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "\\b8\\b|٨|eight|acht|huit|ocho|восемь|ثماني"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lpn-de-unknown-iron-parking",
+      "class": "late_plus_new",
+      "lang": "de",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hallo, wann ist Check-out?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hallo! Der Check-out ist bis 11:00 Uhr."
+        }
+      ],
+      "message": "Gibt es ein Bügeleisen?",
+      "late": true,
+      "after": "und wo kann man in der Nähe parken?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "400|٤٠٠|Bahariye"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "open",
+            "forbid": [
+              "keine Information|weiß (ich )?(es )?nicht|nicht bekannt"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lpn-fr-unknown-hairdryer-checkin",
+      "class": "late_plus_new",
+      "lang": "fr",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "bonjour, il y a un parking ?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Bonjour ! Nous n'avons pas de parking privé. Le parking couvert le plus proche est le Bahariye Otoparkı, à 400 mètres, 60 TL de l'heure."
+        }
+      ],
+      "message": "y a-t-il un sèche-cheveux ?",
+      "late": true,
+      "after": "et l'arrivée c'est à quelle heure ?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15|١٥|3 ?p\\.?m|3 de la tarde"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "open",
+            "forbid": [
+              "pas d'information|je ne sais pas|aucune information"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lu-tr-hairdryer",
+      "class": "late_unknown",
+      "lang": "tr",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "otopark var mı"
+        },
+        {
+          "direction": "outbound",
+          "body": "Dairemize ait otopark yok. En yakın kapalı otopark Bahariye Otoparkı, 400 metre uzaklıkta, saatlik 60 TL."
+        }
+      ],
+      "message": "saç kurutma makinesi var mı evde?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lu-tr-iron",
+      "class": "late_unknown",
+      "lang": "tr",
+      "kb": "lale_mid",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "asansör var mı"
+        },
+        {
+          "direction": "outbound",
+          "body": "Evet, binamızda asansör var; dairemiz 5. katta."
+        }
+      ],
+      "message": "ütü var mı?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lu-en-washer",
+      "class": "late_unknown",
+      "lang": "en",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "is there parking nearby"
+        },
+        {
+          "direction": "outbound",
+          "body": "We don't have our own parking. The nearest covered car park is Bahariye Otoparkı, 400 m away, 60 TL per hour."
+        }
+      ],
+      "message": "do u have a washing machine?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lu-ru-airport",
+      "class": "late_unknown",
+      "lang": "ru",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "есть парковка?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Своей парковки у нас нет. Ближайшая крытая парковка — Bahariye Otoparkı, в 400 метрах, 60 лир в час."
+        }
+      ],
+      "message": "как добраться из аэропорта сабиха?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "directions_transport",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lu-ar-elevator",
+      "class": "late_unknown",
+      "lang": "ar",
+      "kb": "lale_sparse",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "هل يوجد موقف سيارات؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "لا يوجد لدينا موقف خاص، أقرب موقف مغطى هو Bahariye على بعد 400 متر، بسعر 60 ليرة للساعة."
+        }
+      ],
+      "message": "هل يوجد مصعد في المبنى؟ معنا حقائب كثيرة",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "amenities",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-tr-pets",
+      "class": "late_sensitive",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "çıkış saat kaçta"
+        },
+        {
+          "direction": "outbound",
+          "body": "Çıkışımız saat 11:00'e kadar."
+        }
+      ],
+      "message": "küçük bir köpeğimiz var getirebilir miyiz",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-en-early",
+      "class": "late_sensitive",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hi whats the address"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hi! Our address is Çiçek Sokak No:7, Moda, Kadıköy, Istanbul."
+        }
+      ],
+      "message": "our flight lands at 8am, can we check in early like 10?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "early_checkin",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-de-late-checkout",
+      "class": "late_sensitive",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wo ist der nächste Supermarkt?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Der nächste Supermarkt ist 3 Gehminuten entfernt und täglich von 07:00 bis 23:00 Uhr geöffnet."
+        }
+      ],
+      "message": "Können wir am Sonntag erst um 14 Uhr auschecken?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "late_checkout",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-fr-invoice",
+      "class": "late_sensitive",
+      "lang": "fr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "a quelle heure le check-out ?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Le départ est à 11h00."
+        }
+      ],
+      "message": "est ce que je peux avoir une facture au nom de ma société ?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "payment_invoice",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-es-extend",
+      "class": "late_sensitive",
+      "lang": "es",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hay lavadora?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Sí, tenemos lavadora en el baño; el detergente está en el armario debajo del lavabo."
+        }
+      ],
+      "message": "podriamos quedarnos una noche mas?",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "extend_stay",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ls-ar-refund",
+      "class": "late_sensitive",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "ما وقت تسجيل الخروج؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "وقت تسجيل الخروج لدينا حتى الساعة 11:00."
+        }
+      ],
+      "message": "إذا ألغيت الحجز هل أسترجع المبلغ؟",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "cancellation_refund",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lc-tr-thanks",
+      "class": "late_closing",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "otopark var mı?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Binanın arkasında otoparkımız var, günlük ücreti 250 TL."
+        },
+        {
+          "direction": "inbound",
+          "body": "bir de giriş saati kaçtı?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Girişimiz 15:00'ten itibaren."
+        }
+      ],
+      "message": "tamamdır çok teşekkürler 🙏",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lc-en-thx",
+      "class": "late_closing",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "how far is the beach?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Moda beach is an 8-minute walk from our apartment."
+        },
+        {
+          "direction": "inbound",
+          "body": "and is there a supermarket close by"
+        },
+        {
+          "direction": "outbound",
+          "body": "Yes, the nearest market is a 3-minute walk away and open daily 07:00–23:00."
+        }
+      ],
+      "message": "ok cool thx",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lc-de-danke",
+      "class": "late_closing",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wo werfen wir den Müll hin?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Den Müll können Sie jeden Abend ab 20:00 Uhr in den grünen Container am Hauseingang werfen."
+        },
+        {
+          "direction": "inbound",
+          "body": "Und gibt es eine Waschmaschine?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Ja, die Waschmaschine steht im Bad; Waschmittel finden Sie im Schrank unter dem Waschbecken."
+        }
+      ],
+      "message": "super, danke!!",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lc-ar-thanks",
+      "class": "late_closing",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "هل يوجد موقف سيارات؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "نعم، لدينا موقف خلف المبنى بسعر 250 ليرة في اليوم."
+        },
+        {
+          "direction": "inbound",
+          "body": "ومتى تسجيل الدخول؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "يبدأ تسجيل الدخول من الساعة 15:00."
+        }
+      ],
+      "message": "تمام شكرا جزيلا",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-tr-repeat-checkin",
+      "class": "late_duplicate",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "giriş saati kaç?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Girişimiz 15:00'ten itibaren."
+        }
+      ],
+      "message": "kaçta girebiliyoruz eve",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-en-nudge",
+      "class": "late_duplicate",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "is there an elevator? we have big bags"
+        },
+        {
+          "direction": "outbound",
+          "body": "There's no elevator in the building; our apartment is on the 3rd floor."
+        }
+      ],
+      "message": "hello?? anyone there",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-de-questionmark",
+      "class": "late_duplicate",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wie weit ist der Strand?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Der Strand von Moda ist von unserer Wohnung 8 Gehminuten entfernt."
+        }
+      ],
+      "message": "?",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-fr-repeat-parking",
+      "class": "late_duplicate",
+      "lang": "fr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Il y a un parking ?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Oui, nous avons un parking derrière l'immeuble, 250 TL par jour. Le stationnement dans la rue est interdit."
+        }
+      ],
+      "message": "on peut garer la voiture où ?",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-es-waiting",
+      "class": "late_duplicate",
+      "lang": "es",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "donde se tira la basura?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Puede dejar la basura cada noche después de las 20:00 en el contenedor verde de la entrada del edificio."
+        }
+      ],
+      "message": "hola?? sigo esperando respuesta",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "ld-ru-repeat-checkout",
+      "class": "late_duplicate",
+      "lang": "ru",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Во сколько выезд?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Выезд у нас до 11:00."
+        }
+      ],
+      "message": "подскажите время выезда пожалуйста",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lw-tr-self-withdraw",
+      "class": "late_withdraw",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "giriş kaçta"
+        },
+        {
+          "direction": "outbound",
+          "body": "Girişimiz 15:00'ten itibaren."
+        }
+      ],
+      "message": "klimanın kumandası nerde? tamam boşverin buldum",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lw-en-after-withdraw",
+      "class": "late_withdraw",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "whats the checkin time"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hi! Check-in is from 15:00."
+        }
+      ],
+      "message": "is there a hair dryer?",
+      "late": true,
+      "after": "nvm found it in the bathroom 👍",
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "lw-ru-after-withdraw",
+      "class": "late_withdraw",
+      "lang": "ru",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "во сколько заезд?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Заезд у нас с 15:00."
+        }
+      ],
+      "message": "а где утюг?",
+      "late": true,
+      "after": "ой уже нашла в шкафу, не надо",
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "em-tr-smoke",
+      "class": "emergency",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "çöpleri nereye atıyoruz"
+        },
+        {
+          "direction": "outbound",
+          "body": "Çöpleri her akşam 20:00'den sonra bina girişindeki yeşil konteynere bırakabilirsiniz."
+        }
+      ],
+      "message": "mutfakta duman var ocak yanıyor galiba acil!!",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "emergency",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "em-en-gas",
+      "class": "emergency",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "how do i use the AC remote"
+        },
+        {
+          "direction": "outbound",
+          "body": "The AC remote is in the drawer of the nightstand next to the bed."
+        }
+      ],
+      "message": "theres a strong gas smell in the kitchen what do i do??",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "emergency",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "co-de-ac",
+      "class": "complaint",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wann ist Check-out?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Der Check-out ist bis 11:00 Uhr."
+        }
+      ],
+      "message": "Die Klimaanlage im Schlafzimmer geht nicht, es ist total heiß",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "complaint_issue",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "co-fr-hotwater",
+      "class": "complaint",
+      "lang": "fr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "il y a un sèche-cheveux ?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Oui, il y a un sèche-cheveux dans le tiroir de la salle de bain."
+        }
+      ],
+      "message": "bonsoir, pas d'eau chaude dans la douche depuis ce matin",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "complaint_issue",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "co-ar-toilet",
+      "class": "complaint",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "أين أقرب سوبرماركت؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "أقرب سوق على بعد 3 دقائق سيراً، ويفتح يومياً من 07:00 إلى 23:00."
+        }
+      ],
+      "message": "المرحاض مسدود والسيفون لا يعمل",
+      "late": true,
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "complaint_issue",
+            "want": "open"
+          }
+        ]
+      }
+    },
+    {
+      "id": "oos-es-host-reply",
+      "class": "late_out_of_scope",
+      "lang": "es",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hay parking?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Sí, tenemos aparcamiento detrás del edificio, 250 TL por día.",
+          "author": "host"
+        }
+      ],
+      "message": "y a que hora es el checkout?",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "oos-ar-host-reply",
+      "class": "late_out_of_scope",
+      "lang": "ar",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "متى تسجيل الدخول؟"
+        },
+        {
+          "direction": "outbound",
+          "body": "أهلاً، تسجيل الدخول لدينا من الساعة 15:00.",
+          "author": "host"
+        }
+      ],
+      "message": "وأين نرمي القمامة؟",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "oos-en-host-reply",
+      "class": "late_out_of_scope",
+      "lang": "en",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "what time is check out"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hi! Check-out is by 11:00, see you soon!",
+          "author": "host"
+        }
+      ],
+      "message": "where is the nearest supermarket?",
+      "late": true,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "oos-ru-too-old",
+      "class": "late_out_of_scope",
+      "lang": "ru",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "во сколько заселение"
+        },
+        {
+          "direction": "outbound",
+          "body": "Заселение у нас с 15:00."
+        }
+      ],
+      "message": "а парковка есть?",
+      "late": true,
+      "lateWrittenMinutesAgo": 1600,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "oos-tr-too-old",
+      "class": "late_out_of_scope",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "otopark var mı"
+        },
+        {
+          "direction": "outbound",
+          "body": "Binanın arkasında otoparkımız var, günlük ücreti 250 TL."
+        }
+      ],
+      "message": "plaj ne kadar uzak?",
+      "late": true,
+      "lateWrittenMinutesAgo": 1700,
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "cn-tr-trash",
+      "class": "control_normal",
+      "lang": "tr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "giriş kaçta"
+        },
+        {
+          "direction": "outbound",
+          "body": "Girişimiz 15:00'ten itibaren."
+        }
+      ],
+      "message": "süper. çöpleri nereye atıyoruz?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "\\b20\\b|٢٠|8 ?p\\.?m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cn-de-checkout",
+      "class": "control_normal",
+      "lang": "de",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wo kann ich parken?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Hinter dem Gebäude haben wir einen Parkplatz für unsere Gäste, 250 TL pro Tag."
+        }
+      ],
+      "message": "Danke! Wann ist der Check-out?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11|١١|11 ?a\\.?m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cn-fr-trash",
+      "class": "control_normal",
+      "lang": "fr",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "c'est à quelle heure le check-in?"
+        },
+        {
+          "direction": "outbound",
+          "body": "L'arrivée est possible à partir de 15h00."
+        }
+      ],
+      "message": "merci! et pour les poubelles on fait comment ?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "\\b20\\b|٢٠|8 ?p\\.?m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cn-es-beach",
+      "class": "control_normal",
+      "lang": "es",
+      "kb": "lale_rich",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "hay aire acondicionado?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Sí, hay aire acondicionado en cada habitación; el mando está en el cajón de la mesita junto a la cama."
+        }
+      ],
+      "message": "genial. y cuanto se tarda andando a la playa?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "\\b8\\b|٨|eight|acht|huit|ocho|восемь|ثماني"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

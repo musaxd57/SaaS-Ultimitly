@@ -29,6 +29,9 @@ const NEEDLE_K = ["needs", "kabul", "2026", "10", "23"].join("-");
 /** S3 kabul seti (kurucu 11-11: "sonuç görülmeden özellik açılmamalı"; evcil hayvan + cevaplanabilir başka soru) — aynı kurallar. */
 const NEEDLE_P = ["held", "pet", "kabul", "2026", "11", "12"].join("-");
 
+/** S2 kabul seti (kurucu 11-11: "anahtar + ücretli ölçüm"; cevabımızdan önce yazılıp sonra ulaşan misafir mesajı) — aynı kurallar. */
+const NEEDLE_L = ["late", "message", "kabul", "2026", "11", "12"].join("-");
+
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
   "evals/sealed/SEALS.json",
@@ -72,6 +75,8 @@ const ALLOWED_P = new Set([
   "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md",
   "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.json",
 ]);
+// S2 kabul seti: mühür kaydı, dosyanın kendisi ve ölçer. Koşu raporları eklendiğinde bu listeye BİLEREK yazılır.
+const ALLOWED_L = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_L}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
@@ -125,6 +130,7 @@ describe("mühürlü final eval seti", () => {
       if (text.includes(NEEDLE_E) && !ALLOWED_E.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_K) && !ALLOWED_K.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_P) && !ALLOWED_P.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_L) && !ALLOWED_L.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });

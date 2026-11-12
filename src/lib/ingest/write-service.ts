@@ -637,7 +637,8 @@ export async function importCanonicalThread(
   // misafir mesajı SAĞLAYICI sırasında cevaptan ÖNCE düşer → yukarıdaki hesap "answered" der, acil ağı ve gelen kutusu mesajı görmez.
   // Cevabı BİZ yazdıysak ve misafir mesajı ondan SONRA içeri alındıysa konuşma "Yeni" kalır (`lateGuestMessages`). Ev sahibinin / kuralın
   // kararı (Sorunlu / Tamamlandı / Beklemede) korunur. Yapay zekâ bu mesaja kendiliğinden CEVAP VERMEZ (son mesaj giden — "already_answered");
-  // ev sahibi görür, acilse uyarı geçişi bildirir.
+  // ev sahibi görür, acilse uyarı geçişi bildirir. S2 (11-11; anahtar `AI_LATE_MESSAGE_REPLY_ENABLED` kapalı): açıkken otomatik cevap akışı
+  // bu mesajı cevapsız tur olarak okur (`late-turn.ts`); buradaki "Yeni" çevirmesi o akışın aday sorgusuna girmesinin ön şartıdır.
   if (computedStatus === "answered" && existing && !["problem", "closed", "waiting"].includes(existing.status)) {
     const tail = await db.message.findMany({
       where: { conversationId },
