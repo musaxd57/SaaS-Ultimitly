@@ -202,6 +202,18 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
     for (const reply of ["Wi-Fi şifresi Lale2024. Gecelik ücret 200 TL'dir.", "Wi-Fi şifresi Lale2024. Bu mümkün olmuyor.", "The Wi-Fi password is Lale2024. There is a fee of 20 EUR per night."]) {
       expect([reply, heldPetLeak(reply)]).toEqual([reply, "unanchored_verdict"]);
     }
+    // Tutar YOK, yapamama fiili YOK: yalnız son denetim (ücret sözcüğü / olumsuzluk) tutar — mutasyonda o denetim silinince hiçbir test
+    // kırmızı olmuyordu (yukarıdaki örnekleri artık tutar ve yapamama kalıpları da yakalıyor).
+    for (const reply of [
+      "Wi-Fi şifresi Lale2024. Ek ücret alınır.",
+      "Wi-Fi şifresi Lale2024. Depozito alınır.",
+      "Wi-Fi şifresi Lale2024. Olmaz.",
+      "Wi-Fi şifresi Lale2024. Bu ücretsiz değil.",
+      "The Wi-Fi password is Lale2024. A fee applies.",
+      "Das WLAN-Passwort lautet Lale2024. Es fällt eine Gebühr an.",
+    ]) {
+      expect([reply, heldPetLeak(reply)]).toEqual([reply, "unanchored_verdict"]);
+    }
   });
 
   it("✅ yalnız öteki isteğin bilgisini veren düz cevap → sızıntı YOK (yedi dil; başka hizmetin ücreti / olumsuzu serbest)", () => {
@@ -447,7 +459,9 @@ describe("istem bloğu — kural + kapı çifti", () => {
     expect(plan([wifi], [])).toBeUndefined(); // evcil hayvan isteği yok
     const freePets = { messageId: "m1", kind: "pets" as const, sensitivity: "none" as const };
     expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [], hints: new Map() }).replyItems.petHeldRule).toBeUndefined(); // cevaplanabilir
-    // Önceki turdan bekleyen evcil hayvan sorusu VAR ama bu turun evcil hayvan sorusu cevaplanabilir → kapı dalı açılmaz, işaret de verilmez.
+    // AYNI turda biri tutulan, biri cevaplanabilir sayılan iki evcil hayvan isteği → kapı dalı açılmaz (`!petsAnswerable`), işaret de verilmez.
+    // (Tutulan öğe bu turdan olmalı: önceki turdan bekleyen öğe zaten işaret vermez ve bu şartı sınamazdı — mutasyonda yaşayan P2.)
+    expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [pets], hints: new Map() }).replyItems.petHeldRule).toBeUndefined();
     expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [{ ...pets, earlier: true } as never], hints: new Map() }).replyItems.petHeldRule).toBeUndefined();
   });
 });
