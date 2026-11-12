@@ -573,17 +573,25 @@ const HOST_DECISION = rx([
  * (`retrieval/time-fields.ts`teki aynı kusur 09-27'de düzeltilmişti). Yalnız "SS:DD." — ölçülen kusurun EN DAR düzeltmesi. Sıra sayısından
  * ("15. günü", "3. gece") sonra da bölmek bugünkü kalıplarda sonucu değiştirmiyor (mutasyonda eşdeğer: iddia sıra sayısına değil ardındaki
  * sözcüklere bağlı; 18 örnekle ölçüldü) ama bölme genişledikçe iddia parçalanır — izin yönlü olduğu için alınmadı. Noktalı tarih ("15.07.")
- * hiçbir sürümde bölünmez. Yalnız bu tespit fonksiyonu; saat okuması (`RAW_CLAUSE_SPLIT`) ve standart çıkış ayıklaması (`CLAUSE_SPLIT`) eski
- * sınırla kalır (orada daha çok bölmek izin yönlüdür).
+ * hiçbir sürümde bölünmez. Saat okuması (`RAW_CLAUSE_SPLIT`) ve standart çıkış ayıklaması (`CLAUSE_SPLIT`) eski sınırla kalır (orada daha
+ * çok bölmek izin yönlüdür).
+ *
+ * 🚨 YALNIZ CEVAP tarafı (`"claim"`): misafir mesajındaki İSTEK tespiti (`"request"`) eski sınırla böler (Opus 11-12 P2-1). Aynı bölücü iki
+ * yanda da kullanılıyordu ve misafir tarafında daha çok bölmek İZİN yönlüdür: "Çıkış saati 11:00. Biraz uzatabilir miyiz?" tek cümlecikken
+ * geç çıkış isteğiydi (`late`); saatten sonra bölününce ikinci parça yalnız "uzatma" (`extend`) okunuyordu — isteğin TÜRÜ değişiyordu
+ * (yayınlanmış kodla kıyas, ölçüldü). İki yan artık adıyla ayrılır; çağıran yanını yazmak zorundadır.
  */
 const CLAIM_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|(?<=\d:\d{2})\.(?!\d)|[!?;\n…؟]|。)+/u;
-function clausesOf(form: string): string[] {
-  return form.split(CLAIM_CLAUSE_SPLIT).map((c) => c.trim()).filter(Boolean);
+const REQUEST_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u;
+/** `"request"` = misafir mesajında istek aranıyor · `"claim"` = cevapta iddia / söz aranıyor. */
+type ClauseSide = "request" | "claim";
+function clausesOf(side: ClauseSide, form: string): string[] {
+  return form.split(side === "claim" ? CLAIM_CLAUSE_SPLIT : REQUEST_CLAUSE_SPLIT).map((c) => c.trim()).filter(Boolean);
 }
 
-function anyClauseMatches(text: string, patterns: readonly RegExp[], transform?: (clause: string) => string): boolean {
+function anyClauseMatches(side: ClauseSide, text: string, patterns: readonly RegExp[], transform?: (clause: string) => string): boolean {
   for (const form of restrictiveMatchForms(text)) {
-    for (const raw of clausesOf(form)) {
+    for (const raw of clausesOf(side, form)) {
       const clause = transform ? transform(raw) : raw;
       for (const re of patterns) if (re.test(clause)) return true;
     }
@@ -622,14 +630,14 @@ const REQUEST_KIND_ORDER = ["date_change", "late", "early", "extend"] as const;
 export function detectAvailabilityRequest(message: string | null | undefined): AvailabilityRequestKind | null {
   if (typeof message !== "string" || message.trim() === "") return null;
   for (const kind of REQUEST_KIND_ORDER) {
-    if (anyClauseMatches(message, REQUEST_PATTERNS[kind])) return kind;
+    if (anyClauseMatches("request", message, REQUEST_PATTERNS[kind])) return kind;
   }
   return isGeneralAvailabilityRequest(message) ? "availability" : null;
 }
 
 /** Genel müsaitlik sorusu: kalıp + tarih sözcüğü + yalnız üçüncü taraf yapısı DEĞİL (iki dedektörün TEK kaynağı). */
 function isGeneralAvailabilityRequest(message: string): boolean {
-  return anyClauseMatches(message, REQUEST_PATTERNS.availability) && anyFormMatches(message, [DATE_WORD]) && !onlyThirdPartyAvailability(message);
+  return anyClauseMatches("request", message, REQUEST_PATTERNS.availability) && anyFormMatches(message, [DATE_WORD]) && !onlyThirdPartyAvailability(message);
 }
 
 /**
@@ -639,7 +647,7 @@ function isGeneralAvailabilityRequest(message: string): boolean {
  */
 export function detectAvailabilityRequestKinds(message: string | null | undefined): AvailabilityRequestKind[] {
   if (typeof message !== "string" || message.trim() === "") return [];
-  const kinds: AvailabilityRequestKind[] = REQUEST_KIND_ORDER.filter((kind) => anyClauseMatches(message, REQUEST_PATTERNS[kind]));
+  const kinds: AvailabilityRequestKind[] = REQUEST_KIND_ORDER.filter((kind) => anyClauseMatches("request", message, REQUEST_PATTERNS[kind]));
   if (isGeneralAvailabilityRequest(message)) kinds.push("availability");
   return kinds;
 }
@@ -652,7 +660,7 @@ function onlyThirdPartyAvailability(message: string): boolean {
   const form = permissiveForm(message);
   const residual = form.replace(THIRD_PARTY_CONSTRUCTIONS, " ");
   if (residual === form) return false;
-  return !anyClauseMatches(residual, REQUEST_PATTERNS.availability);
+  return !anyClauseMatches("request", residual, REQUEST_PATTERNS.availability);
 }
 
 /** Saat okumasında cümlecik içi gün dilimi işaretleri (Türkçe ASCII katlanmış). "öğleden sonra" öğlen değildir. */
@@ -704,7 +712,7 @@ function anyClauseTimeBeforeCheckIn(text: string, stayTimes: StayTimes | null | 
  */
 export function luggageDropTimes(message: string | null | undefined): string[] {
   if (typeof message !== "string" || message.trim() === "") return [];
-  if (!anyClauseMatches(message, [LUGGAGE_DROP_CLAUSE])) return [];
+  if (!anyClauseMatches("request", message, [LUGGAGE_DROP_CLAUSE])) return [];
   return normalizeMeridiem(message).split(RAW_CLAUSE_SPLIT).flatMap(clauseTimes);
 }
 
@@ -716,8 +724,8 @@ export function luggageBeforeCheckIn(message: string | null | undefined, stayTim
 /** Cevap takvim durumu söylüyor ya da konaklama değişikliğine izin veriyor mu? */
 export function detectAvailabilityClaim(reply: string | null | undefined): "calendar" | "grant" | null {
   if (typeof reply !== "string" || reply.trim() === "") return null;
-  if (anyClauseMatches(reply, CALENDAR_CLAIMS)) return "calendar";
-  if (anyClauseMatches(reply, GRANT_CLAIMS)) return "grant";
+  if (anyClauseMatches("claim", reply, CALENDAR_CLAIMS)) return "calendar";
+  if (anyClauseMatches("claim", reply, GRANT_CLAIMS)) return "grant";
   return null;
 }
 
@@ -1077,15 +1085,15 @@ function withoutGroundedParkingAssignment(clause: string, windows: readonly stri
 function lexicalClaim(text: string, stayTimes: StayTimes | null | undefined, kbFacts?: readonly string[] | null): boolean {
   const windows = parkingAssignmentWindows(kbFacts);
   const strip = windows.length > 0 ? (clause: string) => withoutGroundedParkingAssignment(clause, windows) : undefined;
-  if (anyClauseMatches(text, CALENDAR_CLAIMS, strip)) return true;
+  if (anyClauseMatches("claim", text, CALENDAR_CLAIMS, strip)) return true;
   if (luggageGrantBeforeCheckIn(text, stayTimes)) return true;
-  return anyClauseMatches(withoutStandardCheckoutUntil(text, stayTimes), GRANT_CLAIMS, strip);
+  return anyClauseMatches("claim", withoutStandardCheckoutUntil(text, stayTimes), GRANT_CLAIMS, strip);
 }
 
 /** Cevap giriş öncesi bavul bırakmaya İZİN veriyor mu (erken bağlam sözcüğüyle ya da giriş saatinden önceki açık saatle)? */
 function luggageGrantBeforeCheckIn(text: string, stayTimes: StayTimes | null | undefined): boolean {
-  if (anyClauseMatches(text, [LUGGAGE_EARLY_GRANT])) return true;
-  if (!anyClauseMatches(text, [LUGGAGE_GRANT_CLAUSE])) return false;
+  if (anyClauseMatches("claim", text, [LUGGAGE_EARLY_GRANT])) return true;
+  if (!anyClauseMatches("claim", text, [LUGGAGE_GRANT_CLAUSE])) return false;
   return anyClauseTimeBeforeCheckIn(text, stayTimes);
 }
 
@@ -1099,10 +1107,10 @@ const LUGGAGE_GRANT_VERB_EARLY = new RegExp(
   "iu",
 );
 function luggageAnswerGrantsEarly(reply: string, guestTexts: readonly (string | null | undefined)[], stayTimes: StayTimes | null | undefined): boolean {
-  const asked = guestTexts.some((t) => typeof t === "string" && t.trim() !== "" && anyClauseMatches(t, [LUGGAGE_DROP_CLAUSE]));
+  const asked = guestTexts.some((t) => typeof t === "string" && t.trim() !== "" && anyClauseMatches("request", t, [LUGGAGE_DROP_CLAUSE]));
   if (!asked) return false;
-  if (anyClauseMatches(reply, [LUGGAGE_GRANT_VERB_EARLY])) return true;
-  return anyClauseMatches(reply, [LUGGAGE_GRANT_VERB_ONLY]) && anyClauseTimeBeforeCheckIn(reply, stayTimes);
+  if (anyClauseMatches("claim", reply, [LUGGAGE_GRANT_VERB_EARLY])) return true;
+  return anyClauseMatches("claim", reply, [LUGGAGE_GRANT_VERB_ONLY]) && anyClauseTimeBeforeCheckIn(reply, stayTimes);
 }
 
 /** Kanıt için PII'siz sinyal özeti (kapalı küme kodlar; metin taşımaz). */

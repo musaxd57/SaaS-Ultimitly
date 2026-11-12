@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectAvailabilityRequest,
+  detectAvailabilityRequestKinds,
   detectAvailabilityClaim,
   hasAvailabilityDeferral,
   vetoAvailability,
@@ -76,6 +77,23 @@ describe("iddia tespiti (cevap)", () => {
   it("olumsuz takvim cümlesi de iddiadır ('boş değil' = dolu); soru ise değildir", () => {
     expect(detectAvailabilityClaim("Maalesef o gece boş değil.")).toBe("calendar");
     expect(detectAvailabilityClaim("O gece boş mu, ev sahibinize soralım.")).toBeNull();
+  });
+});
+
+describe("🚨 cümlecik sınırı değişikliği YALNIZ cevap tarafında (Opus 11-12 P2-1): misafir isteğinin tespiti eski sınırla", () => {
+  // Aynı bölücü iki yanda kullanılıyordu; misafir tarafında daha çok bölmek izin yönlü. Yayınlanmış kodla kıyas (ölçüldü): bu mesaj tek
+  // cümlecikken geç çıkış isteği (`late`) — saatten sonra bölününce ikinci parça yalnız uzatma (`extend`) okunuyordu, isteğin TÜRÜ değişiyordu.
+  it("misafir: 'Çıkış saati 11:00. Biraz uzatabilir miyiz?' geç çıkış isteği olarak kalır", () => {
+    expect(detectAvailabilityRequestKinds("Çıkış saati 11:00. Biraz uzatabilir miyiz?")).toEqual(["late", "extend"]);
+    expect(detectAvailabilityRequest("Çıkış saati 11:00. Biraz uzatabilir miyiz?")).toBe("late");
+  });
+  it("misafir: saatten sonra gelen ayrı istekler aynen okunur (iki dilde)", () => {
+    expect(detectAvailabilityRequest("Giriş 15:00. Daha erken girebilir miyiz?")).toBe("early");
+    expect(detectAvailabilityRequest("Check-out is at 11:00. Can we extend it a bit?")).toBe("extend");
+    expect(detectAvailabilityRequest("Check-out 11:00. Is the apartment available on the 15th of July as well?")).toBe("availability");
+  });
+  it("cevap: saatten sonraki nokta cümle sonudur — iki cümle birleşip takvim iddiası sayılmaz", () => {
+    expect(detectAvailabilityClaim("The pool is open every day from 09:00 to 20:00. Parking is also available free of charge behind the building.")).toBeNull();
   });
 });
 
