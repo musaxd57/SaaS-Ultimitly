@@ -32,7 +32,7 @@ vi.mock("@/lib/outbox/enqueue", async (orig) => {
 });
 
 import { sendOnChannel } from "@/lib/messaging";
-import { enqueueOutbound } from "@/lib/outbox/enqueue";
+import { enqueueOutbound, SupersededRowRevivedError } from "@/lib/outbox/enqueue";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
 import { OUTBOUND_REQUEST_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
 import { requeueFailedOutbox, listOutboxDeliveries } from "@/lib/outbox/ops";
@@ -324,6 +324,85 @@ describe("yapay zekâ önerisinin onayı — işlem kimliği (S1)", () => {
         expect((await res.json()).outbox).toMatchObject({ status: "queued", deduped: true, delivery: "pending" });
         expect((await rows()).map((r) => r.status)).toEqual(["pending"]);
         expect(await outbound()).toHaveLength(1); // yarım kalan ikinci mesaj satırı da yok (işlem geri alındı)
+      });
+
+      describe("satır kilidi (iki işlem aynı satırda buluşur — kilit kalkarsa yarış geri gelir)", () => {
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        /** Bir işlemi açık tutar: `work` bittikten sonra `release()` çağrılana dek COMMIT etmez. */
+        function heldTransaction(work: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<void>) {
+          let release!: () => void;
+          const gate = new Promise<void>((r) => (release = r));
+          let ready!: () => void;
+          const started = new Promise<void>((r) => (ready = r));
+          const done = prisma.$transaction(
+            async (tx) => {
+              await work(tx);
+              ready();
+              await gate;
+            },
+            { timeout: 20_000 },
+          );
+          return { started, release, done };
+        }
+        const retryRowArgs = (old: { id: string; idempotencyKey: string }) => ({
+          organizationId: orgId,
+          conversationId,
+          channel: "airbnb",
+          externalReservationId: "res-1",
+          body: "Evet, otopark var.",
+          senderName: "Ekip",
+          authorType: "host" as const,
+          messageType: "manual" as const,
+          aiAssisted: true,
+          idempotencyKey: `${old.idempotencyKey}:retry:${old.id}`,
+          supersedes: old.id,
+        });
+
+        it("🚨 yeniden onayın yazımı, elle yeniden denemenin COMMIT'ini BEKLER ve güncel durumu görür (kilitsiz okuma eski 'gönderilemedi'yi görüp ikinci satırı açardı)", async () => {
+          const old = await failFirst();
+          // Elle yeniden deneme satırı güncelledi ama işlemi henüz bitmedi.
+          const retry = heldTransaction(async (tx) => {
+            await tx.messageOutbox.update({ where: { id: old.id }, data: { status: "pending" } });
+          });
+          await retry.started;
+          const write = enqueueOutbound(retryRowArgs(old)).then(
+            () => "yazıldı",
+            (err: unknown) => err,
+          );
+          expect(await Promise.race([write, sleep(300).then(() => "bekliyor")])).toBe("bekliyor"); // ⬅️ kilit yoksa "yazıldı"
+          retry.release();
+          await retry.done;
+          expect(await write).toBeInstanceOf(SupersededRowRevivedError);
+          expect((await rows()).map((r) => r.status)).toEqual(["pending"]);
+          expect(await outbound()).toHaveLength(1);
+        });
+
+        it("🚨 elle yeniden deneme, yeniden onayın COMMIT'ini BEKLER ve yerine açılan satırı görür (önceden bakıp sonra güncelleseydi iki satır da giderdi)", async () => {
+          const old = await failFirst();
+          // Yeniden onay: eski satırı paylaşımlı kilitledi, yeni satırı yazdı ama işlemi henüz bitmedi.
+          const approval = heldTransaction(async (tx) => {
+            await tx.$queryRaw`SELECT "status" FROM "MessageOutbox" WHERE "id" = ${old.id} FOR SHARE`;
+            await tx.messageOutbox.create({
+              data: { organizationId: orgId, conversationId, channel: "airbnb", externalReservationId: "res-1", body: "Evet, otopark var.", idempotencyKey: `${old.idempotencyKey}:retry:${old.id}`, status: "pending", availableAt: new Date() },
+            });
+          });
+          await approval.started;
+          const retry = requeueFailedOutbox(orgId, old.id);
+          expect(await Promise.race([retry, sleep(300).then(() => "bekliyor")])).toBe("bekliyor");
+          approval.release();
+          await approval.done;
+          expect(await retry).toEqual({ outcome: "not_retryable", status: "failed" }); // ⬅️ ön denetim + sonradan güncelleme: "requeued"
+          expect((await rows()).map((r) => r.status)).toEqual(["failed", "pending"]);
+        });
+
+        it("KONTROL: yerine geçilecek satır artık YOKSA (silinmiş) yazım engellenmez; 'iptal' satırın yerine de yazılır", async () => {
+          const old = await failFirst();
+          await prisma.messageOutbox.update({ where: { id: old.id }, data: { status: "canceled" } });
+          expect((await enqueueOutbound(retryRowArgs(old))).deduped).toBe(false);
+          const gone = { id: "cmissingrow0000000000000000", idempotencyKey: old.idempotencyKey };
+          expect((await enqueueOutbound({ ...retryRowArgs(gone), supersedes: gone.id })).deduped).toBe(false);
+          expect(await rows()).toHaveLength(3);
+        });
       });
 
       it("🚨 YARIŞ (gerçek eşzamanlılık): yeniden onay ile elle yeniden deneme AYNI ANDA — hangi sırayla bitseler de gönderilecek TEK satır kalır", async () => {
