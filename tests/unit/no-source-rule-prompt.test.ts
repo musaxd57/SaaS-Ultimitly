@@ -136,6 +136,46 @@ describe("anahtar AÇIK — yalnız öğe kipinde", () => {
     for (const anchor of [OLD_NEVER_SKIP, OLD_NOT_SENT, OLD_RULE3]) expect(REPLY_SYSTEM_PROMPT).toContain(anchor);
   });
 
+  // Opus dilim sonu (P2-10, P2-11, D-1, P3-5): katmanın dokunmadığı altı cümle kuralla çelişiyordu.
+  const LEFTOVERS: readonly (readonly [string, string])[] = [
+    // KURAL-1 parantezi: iki soruluk turda bilinen cevabın güveni de 0.4 altına iniyordu.
+    ["(kısa tut, somut şey iddia etme, confidence 0.4 altına düşür)", "(o soruyu yazma; yazacak başka cevabın da yoksa kısa tut, somut şey iddia etme, confidence 0.4 altına düşür)"],
+    // KURAL-5 maddeleri.
+    ["    · Cevabı TEK kısa cümlede tut.\n", "    · O soruya cevap YAZMA. Yazacak başka cevabın da yoksa (hiçbir isteğin cevabı kaynaklarında değil) metni TEK kısa cümlede tut.\n"],
+    ['    · "confidence" değerini 0.4\'ün ALTINA yaz.\n', '    · "confidence" değerini YALNIZ hiçbir isteği cevaplayamadığında 0.4\'ün ALTINA yaz'],
+    // KURAL-3 yol tarifi: bilgisizlik açıklaması emrediyordu.
+    ["rota kayıtlarında yoksa bunu söyle.", "rota kaynaklarında yoksa rota isteğini cevaplama (KURAL-5: bilgisizlik açıklaması da yazma)."],
+    // Niyet bölümü + ÖRNEK 24 başlığı.
+    ["misafirin sorduğu TÜM soruları kısaca ve eksiksiz yanıtla.", "misafirin sorduğu, cevabı kaynaklarında olan TÜM soruları kısaca ve eksiksiz yanıtla"],
+    ["→ HİÇBİRİNİ atlama, sırayla", "→ cevabı kaynaklarında olanların HİÇBİRİNİ atlama, sırayla"],
+  ];
+  it.each(LEFTOVERS)("🚨 çelişen cümle %j öğe kipinde yeniden yazılır; kapalıyken ve öğe kipi dışında aynen durur", (old, next) => {
+    quiet();
+    const offSys = replyRequestIdentity(withItems).system;
+    expect(offSys).toContain(old);
+    expect(offSys).not.toContain(next);
+    expect(REPLY_SYSTEM_PROMPT).toContain(old); // taban metinde çapa duruyor
+    vi.stubEnv(FLAG, "1");
+    const on = replyRequestIdentity(withItems).system;
+    expect(on).toContain(next);
+    expect(on).not.toContain(old);
+    expect(replyRequestIdentity(base).system).toContain(old); // istek defteri yoksa dokunulmaz
+  });
+  it("🚨 açıkken hiçbir cümle güveni KOŞULSUZ 0.4 altına indirtmez (iki soruluk turda bilinen cevap tutulmasın)", () => {
+    quiet();
+    vi.stubEnv(FLAG, "1");
+    const sys = replyRequestIdentity(withItems).system;
+    // KURAL-1 + KURAL-5'teki her "0.4 altına" geçişi "başka cevabın yoksa / hiçbir isteği cevaplayamadığında" koşuluna bağlı.
+    const from = sys.indexOf("KURAL-1 [");
+    const to = sys.indexOf("BÖLÜM 2 —");
+    expect(from).toBeGreaterThan(0);
+    expect(to).toBeGreaterThan(from);
+    const rule = sys.slice(from, to);
+    const hits = [...rule.matchAll(/[^\n]*0\.4[^\n]*/gu)].map((m) => m[0]);
+    expect(hits.length).toBeGreaterThanOrEqual(2);
+    for (const line of hits) expect([line, /yazacak başka cevabın da yoksa|hiçbir isteği cevaplayamadığında/u.test(line)]).toEqual([line, true]);
+  });
+
   it("parça kipinde iki soruluk örnek eklenmez (çıktı biçimi farklı; `no_info` aynı işi görür), kuralın kendisi eklenir", () => {
     const parts = replySystemPromptFor({ ...off, itemsMode: true, itemsParts: true, hostContactBan: true, noSourceRule: true });
     expect(parts).toContain(NEW_PER_REQUEST);
@@ -175,6 +215,21 @@ describe("kullanıcı istemi + öğe bloğu", () => {
     expect(user).toContain(BLOCK_RULE);
     expect(user).toContain("isteğin TÜRÜNE göre kuruldu");
     expect(user).toContain("o isteği CEVAPLAMA ve answeredRequests'e KOYMA");
+  });
+
+  it("🚨 üçüncü kaynak (ev sahibinin bu sohbetteki açık cevabı — KURAL-1) blokta ve başlık notunda sayılır; parça kipinde notta YOK", () => {
+    quiet();
+    vi.stubEnv(FLAG, "1");
+    const HOST = "Ev sahibinin bu sohbette aynı soruya verdiği AÇIK cevap ayrı bir kaynaktır";
+    const user = replyRequestIdentity(withItems).user;
+    expect(user).toContain("cevabının kaynaklarında (bilgi tabanı, mülk bilgisi, ev\nsahibinin bu sohbette aynı soruya verdiği açık cevap) bulunduğu DOĞRULANMADI");
+    expect(user).not.toContain("cevabının bilgi tabanında ya da mülk bilgisinde bulunduğu");
+    expect(user).toContain(HOST);
+    // Parça kipi: cevap parçası yalnız bilgi tabanı / mülk bilgisinden alıntıyla geçer → not üçüncü kaynağı ANMAZ (çelişki olmasın).
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const parts = replyRequestIdentity({ ...withItems, conversationItems: { ...ITEMS, parts: true } }).user;
+    expect(parts).toContain(KB_NOTE);
+    expect(parts).not.toContain(HOST);
   });
 
   it("öğe bloğu: kapalıyken eski biçim; açıkken kural bloğun SONUNDA; parça kipinde eklenmez", () => {

@@ -118,8 +118,8 @@ CEVAPLAMA ve answeredRequests'e KOYMA; tahmin yürütme, "var" ya da "yok" deme 
   const sourceRule =
     noSourceRuleEnabled() && !items.parts
       ? `
-KAYNAK ŞARTI: yukarıdaki "cevaplanacak" listesi isteğin TÜRÜNE göre kuruldu — cevabının bilgi tabanında ya da mülk bilgisinde bulunduğu
-DOĞRULANMADI. Her istek için önce cevabı AÇIKÇA söyleyen satırı bul. Bulamıyorsan o isteği CEVAPLAMA ve answeredRequests'e KOYMA: "var"
+KAYNAK ŞARTI: yukarıdaki "cevaplanacak" listesi isteğin TÜRÜNE göre kuruldu — cevabının kaynaklarında (bilgi tabanı, mülk bilgisi, ev
+sahibinin bu sohbette aynı soruya verdiği açık cevap) bulunduğu DOĞRULANMADI. Her istek için önce cevabı AÇIKÇA söyleyen satırı bul. Bulamıyorsan o isteği CEVAPLAMA ve answeredRequests'e KOYMA: "var"
 da "yok" da deme (bir şeyin yazmaması onun olmadığını göstermez — "bulunmuyor / sunmuyoruz / dahil değil" de kaynak ister), başka bir
 şeyin kaydındaki mesafeyi / saati / ücreti / koşulu ona taşıma, konu olarak yakın bir kaydı cevap sayma. O istek ev sahibinde açık
 kalır; öteki istekleri her zamanki gibi cevapla ve "confidence" değerini yalnız YAZDIĞIN cevaba göre ver.`
