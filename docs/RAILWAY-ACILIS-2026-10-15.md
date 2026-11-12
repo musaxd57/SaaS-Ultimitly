@@ -344,8 +344,10 @@ kurucu onayıyla §1'e taşındı.)
   AÇILMAZ**) — misafir aynı mesajda hem evcil hayvan hem başka bir şey sorarsa ("Köpeğimizi getirebilir miyiz? İnternet şifresi ne?") bugün
   cevabın tamamı ev sahibine kalıyor. Açıkken öteki sorunun cevabı gider, evcil hayvan sorusu ev sahibinde açık kalır; giden cevap o soruya
   dair onay / ret / ima taşıyorsa ("Evet, …", "Tabii!", "getirebilirsiniz", hayvanın adı, konusuz ücret) yine tutulur. Yalnız
-  `AI_CONVERSATION_ITEMS_ENABLED` açıkken etkili; QR misafir sohbeti kapsam dışı (orada bugünkü kural). Tasarım + ölçüm
-  `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3.
+  `AI_CONVERSATION_ITEMS_ENABLED` açıkken etkili; QR misafir sohbeti kapsam dışı (orada bugünkü kural). Aynı dalda dayanak şartı:
+  cevaplanan sorunun konusu bilgi tabanında (giriş / çıkış saatinde mülk alanında) geçmiyorsa cevap gitmez. Ölçüm (11-12, mühürlü kabul
+  seti): yanlış izin 0/45, yanındaki sorunun doğru cevabı 0/38 → 29/38, evcil hayvanla ilgisiz 1 yanlış değer — KURUCU KARARI BEKLİYOR.
+  Tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3 / §3.1.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

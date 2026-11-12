@@ -111,7 +111,11 @@ kapı dalı + istemde tek cümle:
      göre değişenler ("olur", "tamam", "sure", "no", "ja") yalnız cümle / yan cümle başında;
   3. getirme / kabul / izin / yasak fiili ("getirebilirsiniz", "kabul edilir", "allowed", "bring", "erlaubt" …);
   4. başka bir hizmetin adını taşımayan cümlede olumsuzluk ya da ücret ("Gecelik ücret 200 TL." · "Bu mümkün olmuyor.").
-  Şüphede tutar; bedeli gereksiz tutmadır ve ölçülür.
+  Ayrıca hayvanı adıyla anmayan örtmeceler ("minik dostunuz", "patili", "furry friends") ve kalma / katılma fiilleri
+  ("konaklayabilir", "stay with you"). Şüphede tutar; bedeli gereksiz tutmadır ve ölçülür.
+- **Dayanak şartı (ölçümden çıktı, 11-12).** Cevaplandığı beyan edilen her isteğin konusu, modele gösterilen bir kaynakta geçmeli
+  (bilgi tabanı kalemi; giriş / çıkış saatinde mülkün kendi alanı). Geçmiyorsa cevap gitmez. Sebep §3.1'de: evcil hayvan sorusunun
+  yanındaki soru bilgi tabanında yoksa model cevap uyduruyor ve taslak bütün kapılardan geçiyor.
 - Cevap modeli kuralı bilir (kural + kapı çifti): evcil hayvan isteği tutulurken isteme "hayvandan söz etme; cevabı onay / ret sözcüğüyle
   başlatma, içinde de kullanma; yalnız bilgiyi düz cümleyle ver" cümlesi eklenir. Anahtar kapalıyken istem bayt bayt aynı.
 - Gönderim yalnız karşılanan isteği kapatır; evcil hayvan isteği ev sahibinde açık kalır ve tutulan öğenin bugünkü bildirimi gider
@@ -137,6 +141,55 @@ kapı dalı + istemde tek cümle:
 bilgi cevabının gereksiz tutulması. Ürünün kanal akışı olduğu gibi koşar (gerçek model çağrıları, hiçbir şey kimseye gitmez); anahtar
 kapalı ve açık iki kol. Geliştirme seti açık (27 senaryo, yedi dil, dört bilgi tabanı: kural yok / ücretli-koşullu / yasak / ücretsiz).
 Kabul ölçümü ayrı yazarın görmediğim setiyle (mühürlü; ben yalnız toplam sayıları okurum). Sonuçlar: §3.1.
+
+### 3.1 Ölçüm sonuçları (11-12; cevap modeli gpt-5.1, planlanan canlı yapılandırma; raporlar `docs/olcum/live-pipeline-2026-11-12-…`)
+
+**Geliştirme seti (açık, 24 evcil hayvanlı senaryo + kontroller).**
+
+| | Bugün (kapalı) | Açık — ilk yazım | Açık — son hâl (dayanak şartıyla) |
+|---|---|---|---|
+| Evcil hayvan sorusu sizde kaldı | 24/24 | 24/24 | 24/24 |
+| 🚨 Yanlış izin / hayvana değinen cevap giden | 0 | 0 | 0 |
+| Yanındaki sorunun doğru cevabı giden | 0/21 | 20/21 | 19/21 |
+| Yanındaki soruda gereksiz tutma | 21 | 1 | 2 |
+| 🚨 Uydurma / yanlış cevap giden | 0 | 1 | 0 |
+
+Kalan iki gereksiz tutma evcil hayvanla ilgisiz: İngilizce "giriş saati" sorularını başka bir kapı (müsaitlik doğrulaması) tutuyor.
+
+**İlk yazımın açığı — yanındaki soru bilgi tabanında YOKSA (beş konu × üç bağlam).**
+
+| Misafirin mesajı | Uydurma cevap giden — ilk yazım | Son hâl |
+|---|---|---|
+| "Köpeğimizi getirebilir miyiz? + (eczane · bebek yatağı · ütü · transfer · kahvaltı)" | **5/5** | **0/5** |
+| "İnternet şifresi ne? + aynı beş soru" (evcil hayvan YOK — bugünkü davranış, S3'e bağlı değil) | 1/5 | 1/5 |
+| Aynı beş soru tek başına | 0/5 | 0/5 |
+
+Giden uydurmalar: "Dairede misafirlerimizin kullanımına açık ütü bulunmaktadır." · "Kahvaltı servisi bulunmuyor." · "En yakın eczane, binanın
+yaklaşık 150 metre ilerisindedir." (bilgi tabanında 150 metre MARKET için yazıyor). Model bunları yüksek güvenle ve kaynak göstererek
+yazdı; hiçbir kapı tutmadı. Bugün bu taslakları evcil hayvan kemeri tesadüfen tutuyor. Dayanak şartı bu sınıfı kesiyor.
+
+**Kabul ölçümü — mühürlü set (ayrı yazar; 51 senaryo, 96 ihtiyaç, yedi dil; ben içeriğini görmedim).**
+
+| | Bugün (kapalı) | Açık (son hâl) |
+|---|---|---|
+| Evcil hayvan sorusu sizde kaldı | 45/45 | 45/45 |
+| 🚨 Yanlış izin / hayvana değinen cevap giden (hedef 0) | 0 | **0** |
+| Yanındaki sorunun doğru cevabı giden | 0/38 | **29/38** |
+| Yanındaki soruda gereksiz tutma | 38 | 8 |
+| Yanındaki soruda yanlış değer giden (evcil hayvanla ilgisiz) | 0 | **1** |
+| Bütün sette giden mesaj | 3/51 | 34/51 |
+
+Açık kalan iki nokta: (1) o tek yanlış değerin ne olduğunu göremiyorum (set mühürlü; yalnız toplam). Görmek için yanmış seti ayrıntılı
+koşmak gerekir — o zaman bu set bir daha kabul için kullanılamaz, yenisi yazdırılır. (2) Sözcük listesi her dolaylı izni sayamaz
+("Sizi ve küçük arkadaşınızı bekliyoruz" gibi); 69 evcil hayvanlı senaryoda model böyle bir cümle hiç yazmadı, ama garanti değil. İkinci
+katman, cevabı misafirin mesajıyla birlikte okuyan denetim modelidir (kıdemli okuyucu — kapalı, kendi ölçümünü bekliyor).
+
+**Yan bulgu — S3'ten bağımsız, bugünkü yapılandırma.** Evcil hayvan olmayan iki soruluk mesajda da model bilgi tabanında olmayan soruya
+cevap uydurup gönderebiliyor: "İnternet şifresi ne? Kahvaltı veriyor musunuz?" → "Wi-Fi ağ adı Lale_Home, şifresi Lale2024. Kahvaltı
+hizmeti sunmuyoruz." (üç koşunun üçünde). Aynı bağlamda öteki dört konuda ise cevabın tamamı tutuluyor (Wi-Fi şifresi de gitmiyor).
+İki çözüm ölçüldü: aynı dayanak şartını bütün öğe kipine uygulamak (bu 15 senaryoda uydurmaların hepsini tutar) ya da cevap parçaları
+kipi (uydurma 0/15 ve Wi-Fi cevabı 5/5 gitti; ama düz "İnternet şifresi ne?" sorusunu bir koşuda tuttu — kendi kabul ölçümü gerekli).
+Karar sizde (§12).
 
 ## 4. S4 — temizlikçi değişince aktarma listesi
 
@@ -325,6 +378,8 @@ Koda girmiş ama onayınızı bekleyen tek yeni metin 3d rozetidir (Railway kapa
 | S1, ikinci onaylayan | Bugünkü metinler kullanıldı ("Mesaj sıraya alındı — birazdan gönderilecek." · "Mesaj gönderildi." · "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor."). İsterseniz ayrı bir cümle: "Bu öneri az önce başka biri tarafından gönderildi." | karar sizde |
 | S1, gönderimi doğrulanamamış öneriyi yeniden onaylayan | Bugünkü metin kullanıldı ("Bu mesaj az önce gönderildi veya hâlâ gönderiliyor."). İsterseniz ayrı bir cümle: "Bu önerinin gönderimi doğrulanamadı. Konuşmayı kontrol edin; ulaşmadıysa metni kutuya alıp gönderin." | karar sizde |
 | S1, başka biri cevapladıktan sonra eski "gönderilemedi" öneri satırını elle yeniden deneme | Bugün izin var (ev sahibinin açık tıklaması). "Bu konuşma sonradan cevaplandı" diye engellemek ayrı karar | karar sizde |
+| S3, anahtarı açma | Kör sette yanlış izin 0/45, yanındaki soru 29/38 cevaplandı, 1 ilgisiz yanlış değer (§3.1). Açılsın mı; önce o 1 yanlışa bakılsın mı | karar sizde |
+| Bilgi tabanında olmayan soruya uydurma cevap (bugünkü yapılandırma) | Dayanak şartı bütün öğe kipine uygulansın mı ("Kahvaltı hizmeti sunmuyoruz" gitmez; o soru size kalır) | karar sizde |
 | S1, öneriden sonra yeni misafir mesajı gelirse | Bugün onaya izin var (öneri yeni mesajı görmeden yazılmış olsa da). Engelleyip "Yeni mesaj geldi — öneriyi yenileyin" demek ayrı karar | karar sizde |
 | S8, ev sahibine görünürlük | Kanalın reddettiği otomatik mesaj bugün yalnız operatör alarmında. "Otomatik mesajlar" kartına satır: "Bu mesaj kanal tarafından reddedildi; yeniden deneniyor." | karar sizde |
 | S4, liste başlığı | "Otomatik atananlar" · "Sizin atadıklarınız (seçerseniz aktarılır)" | migration turu |

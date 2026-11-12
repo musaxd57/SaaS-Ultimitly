@@ -90,6 +90,10 @@
       "languages": 7,
       "bytes": 71924
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-11-12",
+    "runSha": "74f5f5432170afc54f4e74bd60330187408104c9",
+    "report": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-acik.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md"
   }
 }

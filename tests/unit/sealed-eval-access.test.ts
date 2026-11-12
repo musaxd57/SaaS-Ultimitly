@@ -62,8 +62,16 @@ const ALLOWED_K = new Set([
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md",
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.json",
 ]);
-// S3 kabul koşusu (iki kol: anahtar kapalı / açık) — yakma raporları koşudan sonra buraya eklenir.
-const ALLOWED_P = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_P}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
+// S3 kabul koşusu (11-12, tek koşu, iki kol: anahtar kapalı / açık) yakma raporları — yalnız toplu sayı + kimlik.
+const ALLOWED_P = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_P}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-acik.md",
+  "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-acik.json",
+  "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md",
+  "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.json",
+]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
