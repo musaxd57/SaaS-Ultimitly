@@ -1,14 +1,16 @@
 {
-  "note": "Bu dosya değişip itilince .github/workflows/claude-work.yml Claude çalışma paketini koşar (anahtar Actions sırrında). budgetUsd paket tavanı (en çok 95), taskBudgetUsd iş tavanları. request her koşuda +1.",
-  "request": 3,
-  "model": "claude-sonnet-5-5",
+  "note": "Bu dosya değişip itilince .github/workflows/claude-work.yml Claude çalışma paketini koşar (anahtar Actions sırrında). budgetUsd paket tavanı (en çok 95), taskBudgetUsd iş tavanları. request her koşuda +1. İstek 4 (kurucu 11-12 gece): Fable 5.2 ile AI istemlerinin sert denetimi + ham model kolu; toplam üst sınır 80 $ (bu istek en çok 55; kalan UX / UI isteğine).",
+  "request": 4,
+  "model": "claude-fable-5-2",
   "tasks": [
-    "redteam"
+    "prompt_audit",
+    "raw_baseline"
   ],
-  "budgetUsd": 10,
+  "budgetUsd": 55,
   "taskBudgetUsd": {
     "ping": 1,
-    "redteam": 9
+    "prompt_audit": 44,
+    "raw_baseline": 10
   },
   "concurrency": 3,
   "scenarioBatches": 24,

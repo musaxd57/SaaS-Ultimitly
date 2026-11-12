@@ -9,6 +9,9 @@
 // İşler: ping (istek biçimi denemesi — düşerse paket durur) · market (web aramalı pazar / rakip araştırması + strateji sentezi) ·
 // code_review (bütün kaynak, üç mercek) · scenarios (anlama ölçümü için yeni senaryolar, şema + doğrulayıcıdan geçer) · ux_copy (müşteriye
 // görünen metin denetimi).
+// 11-12: prompt_audit (AI istemlerinin sert denetimi: mercek başına bulgu → çürütme turu → hedef mimari → kurucu raporu) · raw_baseline
+// (geliştirme senaryolarında kapısız, kısa istemle güçlü modelin kararı — ürünün son kararıyla katman atfı için). Model istekten gelir
+// (`claude-fable-5-2` dahil; fiyat tablosu aşağıda).
 // ---------------------------------------------------------------------------
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -38,28 +41,37 @@ const BUDGET = Math.min(Math.max(req.budgetUsd ?? 0, 0), 95);
 const CONCURRENCY = Math.min(Math.max(req.concurrency ?? 3, 1), 6);
 
 // ── Maliyet ($ / 1M token; web araması $0.01) ────────────────────────────────────────────────────────────────────────────────
-const PRICES: { prefix: string; in: number; out: number; cacheRead: number; cacheWrite: number }[] = [
-  { prefix: "claude-sonnet-5-5", in: 2, out: 10, cacheRead: 0.2, cacheWrite: 2.5 },
-  { prefix: "claude-opus-5-5", in: 4, out: 20, cacheRead: 0.2, cacheWrite: 5 },
-  { prefix: "claude-haiku-5-5", in: 0.1, out: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+// Fable 5.2 satırı resmî fiyat sayfasından (platform.claude.com/docs/en/about-claude/pricing, 11-12'de okundu): girdi 8, çıktı 40 (düşünme
+// belirteçleri çıktı sayılır), önbellek okuma 0,20, 5 dk yazma 10, 1 sa yazma 16. Tabloda OLMAYAN model en pahalı satırdan (Fable) sayılır —
+// tavan eksik hesaplanmasın (eskiden bilinmeyen model Opus fiyatına düşüyordu).
+const PRICES: { prefix: string; in: number; out: number; cacheRead: number; cacheWrite: number; cacheWrite1h: number }[] = [
+  { prefix: "claude-fable-5-2", in: 8, out: 40, cacheRead: 0.2, cacheWrite: 10, cacheWrite1h: 16 },
+  { prefix: "claude-sonnet-5-5", in: 2, out: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 },
+  { prefix: "claude-opus-5-5", in: 4, out: 20, cacheRead: 0.2, cacheWrite: 5, cacheWrite1h: 8 },
+  { prefix: "claude-haiku-5-5", in: 0.1, out: 0.5, cacheRead: 0.01, cacheWrite: 0.125, cacheWrite1h: 0.2 },
 ];
-const ledger = { total: 0, byTask: {} as Record<string, number>, calls: 0, searches: 0, refusals: 0, errors: 0, inTok: 0, outTok: 0, cacheRead: 0 };
+const ledger = { total: 0, byTask: {} as Record<string, number>, calls: 0, searches: 0, refusals: 0, errors: 0, inTok: 0, outTok: 0, cacheRead: 0, cacheWrite: 0 };
 
 type Usage = {
   input_tokens?: number | null;
   output_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   cache_creation_input_tokens?: number | null;
+  cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null;
   server_tool_use?: { web_search_requests?: number | null } | null;
 };
 function charge(task: string, model: string, u: Usage | undefined): number {
-  const p = PRICES.find((x) => model.startsWith(x.prefix)) ?? PRICES[1];
+  const p = PRICES.find((x) => model.startsWith(x.prefix)) ?? PRICES[0];
   const searches = u?.server_tool_use?.web_search_requests ?? 0;
+  // Önbellek yazması süreye göre ayrı fiyatlanır; döküm yoksa tamamı 5 dakikalık sayılır.
+  const write1h = u?.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+  const write5m = u?.cache_creation ? (u.cache_creation.ephemeral_5m_input_tokens ?? 0) : (u?.cache_creation_input_tokens ?? 0);
   const usd =
     ((u?.input_tokens ?? 0) * p.in +
       (u?.output_tokens ?? 0) * p.out +
       (u?.cache_read_input_tokens ?? 0) * p.cacheRead +
-      (u?.cache_creation_input_tokens ?? 0) * p.cacheWrite) /
+      write5m * p.cacheWrite +
+      write1h * p.cacheWrite1h) /
       1e6 +
     searches * 0.01;
   ledger.total += usd;
@@ -69,6 +81,7 @@ function charge(task: string, model: string, u: Usage | undefined): number {
   ledger.inTok += u?.input_tokens ?? 0;
   ledger.outTok += u?.output_tokens ?? 0;
   ledger.cacheRead += u?.cache_read_input_tokens ?? 0;
+  ledger.cacheWrite += write5m + write1h;
   return usd;
 }
 function overBudget(task: string): boolean {
@@ -87,6 +100,10 @@ interface CallOpts {
   maxTokens?: number;
   schema?: Record<string, unknown>;
   webSearch?: number;
+  /** Sistem isteminin önbellek süresi. Aynı büyük bağlamı dakikalarca süren çok sayıda çağrı paylaşacaksa "1h" (yazma 2 kat, bir kez). */
+  cacheTtl?: "1h";
+  /** Kullanıcı mesajına eklenecek görüntüler (PNG / JPEG, base64). */
+  images?: { mediaType: "image/png" | "image/jpeg"; data: string }[];
 }
 
 /**
@@ -95,14 +112,21 @@ interface CallOpts {
  */
 async function call(o: CallOpts): Promise<{ text: string; model: string; stop: string } | null> {
   if (overBudget(o.task)) return null;
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: o.user }];
+  const userContent =
+    o.images && o.images.length > 0
+      ? [
+          ...o.images.map((im) => ({ type: "image" as const, source: { type: "base64" as const, media_type: im.mediaType, data: im.data } })),
+          { type: "text" as const, text: o.user },
+        ]
+      : o.user;
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: userContent as never }];
   let acc = "";
   let last: { text: string; model: string; stop: string } | null = null;
   for (let turn = 0; turn < 7; turn++) {
     const params = {
       model: MODEL,
       max_tokens: o.maxTokens ?? 32000,
-      system: [{ type: "text", text: o.system, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: o.system, cache_control: o.cacheTtl ? { type: "ephemeral", ttl: o.cacheTtl } : { type: "ephemeral" } }],
       messages,
       output_config: { effort: o.effort ?? "high", ...(o.schema ? { format: { type: "json_schema", schema: o.schema } } : {}) },
       ...(o.webSearch ? { tools: [{ type: "web_search_20260209", name: "web_search", max_uses: o.webSearch }] } : {}),
@@ -846,6 +870,383 @@ async function marketFollowup(): Promise<void> {
   });
 }
 
+// ── İş: AI istemlerinin sert denetimi (kurucu 11-12 gece: "Fable 5.2 … AI promptlarını sertçe yorumlasın, AI'ı etkileyen görece saçma
+// şeyleri yazsın … kelime ve ek bazlı çalıştırma yerine LLM'lerin anladığı gibi … Anthropic, OpenAI bu işi yapacağı şeklin aynısı") ──────
+// Aşamalar: (1) aynı önbellekli bağlam üzerinde mercek başına bulgu listesi · (2) hedef istem mimarisi + yeniden yazım taslağı ·
+// (3) en ağır bulguların çürütme turu · (4) Türkçe son rapor. Çıktı KARAR DEĞİLDİR: bulgular kodda doğrulanır, misafire gideni değiştiren
+// her öneri kurucuya önce / sonra örneğiyle sorulur.
+const PROMPT_FILES = [
+  "src/lib/ai/prompts.ts",
+  "src/lib/ai/semantic/understand.ts",
+  "src/lib/ai/semantic/understanding-schema.ts",
+  "src/lib/ai/semantic/intent-risk.ts",
+  "src/lib/ai/semantic/guard.ts",
+  "src/lib/ai/semantic/stay-change.ts",
+  "src/lib/ai/semantic/absence-judge.ts",
+  "src/lib/ai/semantic/part-reader.ts",
+  "src/lib/ai/semantic/referral-judge.ts",
+  "src/lib/ai/semantic/senior-rewrite.ts",
+  "src/lib/ai/semantic/rerank.ts",
+  "src/lib/conversation-items/reply-block.ts",
+  "src/lib/ai/no-source-rule.ts",
+  "src/lib/ai/turn-messages.ts",
+  "src/lib/ai/late-turn.ts",
+  "src/lib/ai/part-rewrite.ts",
+  "src/lib/ai/code-greeting.ts",
+  "src/lib/ai/kb-fee-rule.ts",
+  "src/lib/ai/access-code-complete.ts",
+  "src/lib/ai/complaint-followup.ts",
+  "src/lib/ai/no-apology-rule.ts",
+  "src/lib/ai/host-contact-ban-rule.ts",
+  "src/lib/ai/host-voice-guard.ts",
+  "src/lib/ai/translate.ts",
+  "src/lib/decisions/ai-text.ts",
+];
+/** İkincil istemler (misafire doğrudan gitmeyen ya da operatöre dönük): ayrı, tek çağrılık mercek. */
+const SECONDARY_PROMPT_FILES = [
+  "src/lib/quality-audit.ts",
+  "src/lib/shadow-ai.ts",
+  "src/lib/history-learn/extract.ts",
+  "src/lib/host-channel/compose.ts",
+  "src/lib/supply-ai.ts",
+];
+
+const AUDIT_BRIEF = `You are auditing the prompts of a production AI product. Be harsh, concrete and technically precise. You are not here to be polite or balanced: the owner explicitly asked for a severe review.
+
+PRODUCT. "Lixus AI" answers guest messages for short-term-rental hosts (Airbnb / Booking.com), Turkish-first, multilingual guests. The assistant writes AS THE HOST (first person; never "your host"). Safe, sourced answers are sent automatically; anything risky stays with the human host. Pipeline per guest message:
+  1. understanding model (structured JSON: intents, per-request items, relation, risk) + a keyword classifier in code;
+  2. need ledger ("conversation items": each guest request tracked as answerable / held for host);
+  3. retrieval over the host's knowledge base (lexical + embeddings + optional reranker), packed into the prompt as "GERÇEK BİLGİLER";
+  4. reply model (OpenAI gpt-5.1, structured JSON output) with a very long Turkish system prompt (src/lib/ai/prompts.ts) built from a base text plus string-replacement LAYERS switched by flags;
+  5. code gates on the reply (regex / word lists: "no-info" phrases, promises, hand-off sentences, host voice, language, availability claims, secret leakage ...) and optional model judges ("okuyucu" = reader, absence judge, referral judge, part reader);
+  6. send or hold for the host.
+
+THE OWNER'S GOAL (verbatim intent): "We still run on word and suffix matching instead of understanding the way LLMs understand. If a customer wrote this same message to Claude or ChatGPT, the answer should show exactly that level of understanding — and the same care in using the information. I want it done the way Anthropic or OpenAI would do it: advanced and sustainable." Topic / intent understanding, how questions relate, whether a source supports an answer, and implied permission should rest on the MODEL. CODE should keep only hard rules: tenant / property boundary, source version, explicit authority, transaction validity, idempotency, secrets. Embedding scores, word overlap and the model's own confidence are not proof of correctness. A source supports an answer only at this level: right entity, the attribute asked, the actual value, conditions, exceptions. Examples the owner cares about: a "restaurant recommendations" note is related to a breakfast question but does not support "we don't serve breakfast"; "the pool is open until 23:00 on weekends" does not answer a weekday question; "the market is 150 m away" must not become the pharmacy's distance. Unnecessarily holding a correct answer is a failure, not a safe default.
+
+WHAT YOU ARE GIVEN (below, after this brief): the full source of every file that carries a model prompt (line-numbered; cite file and line), and two binding product-decision documents (so you can tell a deliberate founder decision from an accident — but a decision is NOT exempt from criticism: if a documented rule itself fights LLM-level understanding or produces unnatural replies, say so and say what it costs).
+
+GROUND RULES FOR FINDINGS.
+- Quote the exact prompt text you criticise (short quote) with file and line. No finding without a quote.
+- Explain the MECHANISM: how a capable model reading this text is pushed toward the wrong behaviour (contradiction it must resolve, keyword-style rule it will over-apply, example it will copy, rule buried under 20 others, instruction that only makes sense to the programmer, etc.).
+- Give a concrete guest message, what this prompt makes the model do, and what a strong assistant (Claude / ChatGPT with the same sources) would do instead.
+- Propose the change: either a before → after rewrite of the passage or a structural change (move to schema, delete, replace N rules with one principle, give sources ids and metadata, ask for citations ...).
+- Do not report style nits. Do not invent text that is not in the corpus. If something is fine, do not pad the list.
+- Write every free-text field in TURKISH (plain, direct). Keep quotes in their original language.`;
+
+const AUDIT_SCHEMA_OUT = {
+  type: "object",
+  additionalProperties: false,
+  required: ["findings", "overall_tr"],
+  properties: {
+    overall_tr: { type: "string" },
+    findings: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["severity", "kind", "file", "line", "quote", "title_tr", "mechanism_tr", "guest_example_tr", "proposed_change_tr", "conflicts_with", "confidence"],
+        properties: {
+          severity: { type: "string", enum: ["P0", "P1", "P2"] },
+          kind: {
+            type: "string",
+            enum: ["contradiction", "keyword_rule", "absurd_or_unnatural", "overload_or_order", "source_use", "example_bias", "schema_or_question", "language_or_tone", "code_gate_conflict", "missing_context", "other"],
+          },
+          file: { type: "string" },
+          line: { type: "integer" },
+          quote: { type: "string" },
+          title_tr: { type: "string" },
+          mechanism_tr: { type: "string" },
+          guest_example_tr: { type: "string" },
+          proposed_change_tr: { type: "string" },
+          conflicts_with: { type: "string" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+        },
+      },
+    },
+  },
+};
+
+const AUDIT_LENSES: { id: string; text: string }[] = [
+  {
+    id: "celiski",
+    text: "LENS 1 — CONTRADICTIONS AND IMPOSSIBLE INSTRUCTIONS. Find instructions that cannot all be satisfied (inside one prompt, between the base prompt and a layer, between the system prompt and the per-call user prompt blocks such as answer-length / items / source rules, between the reply prompt and the judges that later evaluate the reply). Typical shape: 'answer EVERY question, skip none' next to 'do not answer what is not in your sources' next to 'never say you lack information' next to 'never tell the guest to contact the host' — what is the model supposed to output for a two-question message where one answer is not in the sources? Trace each such trap to the exact lines. Also: rules whose exceptions live far away; numbered rules that refer to sections that say something different; layers that patch a sentence but leave an example that still teaches the old behaviour. Up to 25 findings, most damaging first.",
+  },
+  {
+    id: "kelime",
+    text: "LENS 2 — KEYWORD-STYLE THINKING IMPOSED ON THE MODEL. Find every place where the prompt makes a language model behave like a pattern matcher: trigger-word lists, 'if the message contains X', topic enumerations the model must map to, closed intent / kind enums that force a wrong bucket, examples so specific they will be copied or over-generalised, rules phrased around surface forms (a word, a suffix, punctuation, a count of question marks) instead of meaning, instructions that exist only because a regex gate downstream needs a particular wording. For each: what meaning-level instruction or structured field should replace it? Also flag where the prompt leaks the vocabulary of the code gates (teaching the model phrases that the gates then block, or forbidding phrasings a normal host would use). Up to 25 findings.",
+  },
+  {
+    id: "tuhaf",
+    text: "LENS 3 — THINGS A SENSIBLE ASSISTANT WOULD NEVER BE TOLD (the owner's words: 'relatively absurd things that affect the AI'). Rules that make replies evasive, robotic, cold or strange; prohibitions so broad they remove normal human courtesy or clarity; defensive rules added for one past incident that now distort every answer; SHOUTED capitals, emoji alarms, threats; instructions about internal mechanics the model cannot act on; rules that duplicate each other in different words; 'never' rules that have obvious legitimate exceptions; places where the model is asked to pretend, to hide the obvious, or to produce an answer that would confuse the guest (for example silently skipping a question). Judge each against: would a thoughtful human host, or Claude / ChatGPT given the same sources, behave this way? Up to 25 findings, ranked by how much they degrade real answers.",
+  },
+  {
+    id: "kaynak",
+    text: "LENS 4 — USE OF SOURCES (GROUNDING). Audit how knowledge is presented to the reply model and how it is told to use it. Are sources separable items with identity, title, category, freshness, and scope (which property; which condition) — or an undifferentiated block labelled as 'facts'? Is the model asked to tie each answer to a specific source passage (citation / quote) before writing prose? What does the prompt do to prevent near-miss grounding (related topic ≠ support; other entity's value; condition that does not cover the question; partial lists read as exhaustive; absence of a note read as 'no')? Where does the prompt itself PUSH toward fabrication (must answer all, must not admit ignorance, must not defer) or toward over-refusal? How should 'no source for this request' be expressed in the output schema so that code — not prose — handles it? Compare with how Anthropic / OpenAI document grounded answering: documents with ids and metadata, quote-first / citations, explicit abstention channel, contextual retrieval (each chunk carries the context of its parent). Up to 20 findings plus, in overall_tr, the target design in 10 lines.",
+  },
+  {
+    id: "yapi",
+    text: "LENS 5 — STRUCTURE, LENGTH, ORDER, LAYERING, OUTPUT SCHEMA. The reply system prompt is tens of thousands of characters with dozens of numbered rules, examples and section cross-references, assembled by string replacement. Assess: what a model actually retains from it; which rules are diluted by position; duplication; where critical rules sit relative to the data; whether examples outnumber and overpower principles; whether the string-replacement layering leaves inconsistent text in some flag combinations (find concrete combinations from the layer tables); whether per-call blocks in the user prompt contradict the system prompt. Then the STRUCTURED OUTPUT: which fields ask the model for judgments it can make well, which ask for self-reported confidence or bookkeeping that code then trusts or discards; which missing fields would let code verify instead of guess (per-request decision, entity asked vs entity in source, attribute, quoted evidence, condition coverage). Propose the cut list: what to delete, merge, move into schema, or move into a separate judge. Estimate the size of a prompt that keeps the product rules but is written the way a top lab would write it. Up to 20 findings.",
+  },
+  {
+    id: "yargic",
+    text: "LENS 6 — UNDERSTANDING MODEL, GUARDS, JUDGES, READER, RERANKER. For each of these prompts and schemas: is the question well-posed and answerable from what the model is shown? Are the enums closed in a way that forces misclassification? Are verdict fields leading (the wording presupposes the answer)? Does the judge see what it needs (guest message, sources, the draft) or is it asked to judge blind? Are two models asked the same question with different wording so they can disagree for no reason? Where does a judge re-implement a keyword rule in natural language? Which judgments that code currently makes with word lists should be asked HERE instead (same entity? does the condition cover the question? is this an admission of ignorance? is this a promise? is the guest reporting a current fault or asking how something works?) — give the exact field you would add. Is the reranker asked for 'relevance' when the product needs 'supports the answer'? Up to 25 findings.",
+  },
+  {
+    id: "dil",
+    text: "LENS 7 — LANGUAGES, VOICE, TONE. The prompts are written in Turkish and serve guests in many languages. Find: Turkish-specific rules or examples that mis-transfer to other languages; instructions about greeting, names, formality ('siz'), first-person host voice, closing lines, courtesy, apology and empathy that would produce stilted or inappropriate replies in English, German, Russian, Arabic etc.; places where the language of the answer can be decided wrongly; translation prompt issues; rules that forbid natural empathy or a plain apology in situations where any decent host would offer one, and what that costs; rules about what may be promised. Also the decision-writer prompt (src/lib/decisions/ai-text.ts). Up to 20 findings.",
+  },
+];
+
+const VERIFY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdicts"],
+  properties: {
+    verdicts: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "verdict", "reason_tr", "quote"],
+        properties: {
+          key: { type: "string" },
+          verdict: { type: "string", enum: ["confirmed", "partly", "refuted"] },
+          reason_tr: { type: "string" },
+          quote: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+type AuditFinding = Record<string, unknown> & { severity?: string; lens?: string; key?: string };
+
+/** Cevap modelinin gerçekten gördüğü girdi (alt süreç; `server-only` taklidiyle). Düşerse boş döner — denetim kaynak metinle sürer. */
+function assembledPrompts(): { system: Record<string, string>; samples: { id: string; note: string; guestMessage: string; built?: { text?: string }; error?: string }[] } | null {
+  try {
+    const out = execFileSync("npx", ["tsx", "--tsconfig", "tests/workers/tsconfig.json", "scripts/claude-work/assemble-prompts.ts"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const line = out.trim().split("\n").pop() ?? "";
+    return JSON.parse(line);
+  } catch (err) {
+    console.error(`[claude-work] prompt_audit: birleştirilmiş istem kurulamadı: ${err instanceof Error ? err.message.slice(0, 300) : err}`);
+    return null;
+  }
+}
+
+async function promptAudit(): Promise<void> {
+  const files = PROMPT_FILES.filter((f) => existsSync(path.join(ROOT, f)));
+  const corpus = bundles(files, Number.MAX_SAFE_INTEGER)
+    .map((b) => b.text)
+    .join("");
+  const system = [
+    AUDIT_BRIEF,
+    "",
+    "════════ PRODUCT DECISIONS (documented; for context, not exempt from criticism) ════════",
+    "----- docs/claude/ai-guvenlik.md -----",
+    docFile("docs/claude/ai-guvenlik.md"),
+    "----- docs/claude/kalici-urun-kararlari.md -----",
+    docFile("docs/claude/kalici-urun-kararlari.md"),
+    "",
+    "════════ PROMPT SOURCES (line-numbered) ════════",
+    corpus,
+  ].join("\n");
+  write("prompt-audit/corpus-files.json", JSON.stringify({ files, chars: system.length }, null, 2));
+  console.log(`[claude-work] prompt_audit: bağlam ${system.length} karakter, ${files.length} dosya`);
+
+  const all: AuditFinding[] = [];
+  const overall: Record<string, string> = {};
+  const runLens = async (lens: { id: string; text: string }, extraUser = ""): Promise<void> => {
+    const r = await call({
+      task: "prompt_audit",
+      system,
+      cacheTtl: "1h",
+      user: `${lens.text}\n\nReturn the JSON object only.${extraUser}`,
+      effort: "high",
+      maxTokens: 48000,
+      schema: AUDIT_SCHEMA_OUT,
+    });
+    if (!r) return;
+    const parsed = parseJson<{ findings: AuditFinding[]; overall_tr: string }>(r.text);
+    const findings = (parsed?.findings ?? []).map((f, i) => ({ ...f, lens: lens.id, key: `${lens.id}-${String(i + 1).padStart(2, "0")}` }));
+    all.push(...findings);
+    overall[lens.id] = parsed?.overall_tr ?? "";
+    write(`prompt-audit/lens-${lens.id}.json`, JSON.stringify({ model: r.model, stop: r.stop, overall_tr: parsed?.overall_tr ?? r.text.slice(0, 4000), findings }, null, 2));
+    console.log(`[claude-work] prompt_audit: mercek ${lens.id} → ${findings.length} bulgu, $${(ledger.byTask.prompt_audit ?? 0).toFixed(2)}`);
+  };
+
+  // 1) İlk mercek TEK başına (önbelleği yazar); kalanlar paralel (hepsi önbellekten okur).
+  await runLens(AUDIT_LENSES[0]);
+  await pool(AUDIT_LENSES.slice(1), (l) => runLens(l));
+
+  // 1b) Gerçek birleştirilmiş istem üzerinden yürüyüş (modelin gördüğü hâl).
+  const asm = assembledPrompts();
+  if (asm) {
+    write("prompt-audit/assembled.json", JSON.stringify(asm, null, 2));
+    const sampleText = asm.samples
+      .map((x) => `--- SAMPLE ${x.id} — ${x.note}\nGUEST MESSAGE: ${x.guestMessage}\nUSER PROMPT AS SENT TO THE MODEL:\n${x.built?.text ?? `(could not build: ${x.error ?? "?"})`}`)
+      .join("\n\n");
+    await runLens(
+      {
+        id: "birlesik",
+        text: "LENS 8 — THE ASSEMBLED INPUT, READ AS THE MODEL READS IT. Below is the exact system prompt the reply model receives in the launch configuration, followed by the exact user prompts for three sample conversations. Read them top to bottom as the model would, then for EACH sample state: what a strong assistant would answer from these sources; what THIS prompt most likely makes the model output, and why (cite the instruction responsible, by quoting it); where the per-call blocks fight the system prompt. Then list the 12 passages of the assembled system prompt that do the most damage to answer quality, and the 12 that are essential and should survive a rewrite. Report as findings (file = 'assembled:system' or 'assembled:user:<sample id>', line = 0).",
+      },
+      `\n\n════════ ASSEMBLED SYSTEM PROMPT (launch configuration) ════════\n${asm.system.opening ?? ""}\n\n════════ ASSEMBLED USER PROMPTS ════════\n${sampleText}`,
+    );
+  }
+
+  // 1c) İkincil istemler (ayrı bağlam, tek çağrı).
+  const secondary = bundles(SECONDARY_PROMPT_FILES.filter((f) => existsSync(path.join(ROOT, f))), Number.MAX_SAFE_INTEGER)
+    .map((b) => b.text)
+    .join("");
+  if (secondary && !overBudget("prompt_audit")) {
+    const r = await call({
+      task: "prompt_audit",
+      system: `${AUDIT_BRIEF}\n\n════════ SECONDARY PROMPT SOURCES (line-numbered) ════════\n${secondary}`,
+      user: "LENS 9 — SECONDARY PROMPTS (quality auditor, shadow run, learning from past host replies, host-channel composer, supplies). Same severity. Focus on: prompts that ask a model to grade with keyword-like criteria; extraction prompts that will hallucinate structure; anything that feeds back into what guests receive (learned knowledge-base suggestions, style profile). Up to 15 findings. Return the JSON object only.",
+      effort: "high",
+      maxTokens: 32000,
+      schema: AUDIT_SCHEMA_OUT,
+    });
+    const parsed = r ? parseJson<{ findings: AuditFinding[]; overall_tr: string }>(r.text) : null;
+    const findings = (parsed?.findings ?? []).map((f, i) => ({ ...f, lens: "ikincil", key: `ikincil-${String(i + 1).padStart(2, "0")}` }));
+    all.push(...findings);
+    overall.ikincil = parsed?.overall_tr ?? "";
+    write("prompt-audit/lens-ikincil.json", JSON.stringify({ overall_tr: parsed?.overall_tr ?? "", findings }, null, 2));
+  }
+  write("prompt-audit/all-findings.json", JSON.stringify({ overall, findings: all }, null, 2));
+
+  // 2) Çürütme turu: P0 / P1 bulguları, onar onar, aynı önbellekli bağlamla.
+  const heavy = all.filter((f) => f.severity === "P0" || f.severity === "P1");
+  const verdicts: Record<string, { verdict: string; reason_tr: string; quote: string }> = {};
+  const chunks: AuditFinding[][] = [];
+  for (let i = 0; i < heavy.length; i += 12) chunks.push(heavy.slice(i, i + 12));
+  await pool(chunks.slice(0, 8), async (chunk) => {
+    const r = await call({
+      task: "prompt_audit",
+      system,
+      cacheTtl: "1h",
+      user: `SKEPTICAL RE-CHECK. Below are findings another reviewer reported about the prompt corpus. For EACH one, go to the cited file and line and try to REFUTE it: is the quote really there; does surrounding text (an exception, a later rule, a layer) already resolve the alleged problem; would a capable model really be misled; is the claimed conflict real in the launch configuration. Verdict 'confirmed' only if it survives; 'partly' if the core is right but overstated; 'refuted' with the text that refutes it. Quote the decisive line. Return the JSON object only.\n\nFINDINGS:\n${JSON.stringify(
+        chunk.map((f) => ({ key: f.key, file: f.file, line: f.line, quote: f.quote, title: f.title_tr, mechanism: f.mechanism_tr, conflicts_with: f.conflicts_with })),
+      )}`,
+      effort: "high",
+      maxTokens: 24000,
+      schema: VERIFY_SCHEMA,
+    });
+    const parsed = r ? parseJson<{ verdicts: { key: string; verdict: string; reason_tr: string; quote: string }[] }>(r.text) : null;
+    for (const v of parsed?.verdicts ?? []) verdicts[v.key] = { verdict: v.verdict, reason_tr: v.reason_tr, quote: v.quote };
+  });
+  write("prompt-audit/verify.json", JSON.stringify(verdicts, null, 2));
+  const surviving = all.filter((f) => !f.key || verdicts[f.key]?.verdict !== "refuted");
+
+  // 3) Hedef mimari + yeniden yazım taslağı (çürütülmeyen bulgularla).
+  const digest = JSON.stringify(
+    surviving.map((f) => ({ key: f.key, sev: f.severity, kind: f.kind, file: f.file, line: f.line, title: f.title_tr, change: f.proposed_change_tr, verdict: f.key ? (verdicts[f.key]?.verdict ?? "unchecked") : "unchecked" })),
+  );
+  const redesign = await call({
+    task: "prompt_audit",
+    system,
+    cacheTtl: "1h",
+    user: `REDESIGN. Using the surviving findings below and the corpus, write (in TURKISH, Markdown) the target design the way Anthropic or OpenAI would build this assistant:\n1. Hedef mimari — hangi karar modelde, hangi kesin kural kodda; kaynakların modele sunumu (kimlikli belgeler, üst bağlam, güncellik, kapsam); cevap şeması (istek başına: karar = cevapla / kaynak yok / ev sahibinin kararı; sorulan varlık, kaynaktaki varlık, özellik, değer, koşul, alıntı); bağımsız yargıç (ne sorulur, neyi görür); kodun doğruladığı kesin şeyler.\n2. Bugünkü sistem isteminin YERİNE geçecek taslak — tam metin, en çok ~250 satır, ürün kurallarını (ev sahibi ağzı, bilgisizlik misafire gitmez, riskli iş ev sahibinde, platform dışı ödeme / iletişim yok …) İLKE olarak koruyan; örnekleri en aza indiren; kelime listesi içermeyen.\n3. Silinecek / birleştirilecek / şemaya taşınacak kuralların listesi (bugünkü dosya:satır → yeni yer).\n4. Geçiş sırası: hangi dilim önce, her dilim nasıl ölçülür (ham model kararı ↔ ürünün son kararı; gereksiz tutma da hata), hangi güvenlik yedeği ne zaman kaldırılır.\n5. Bu tasarımın RİSKLERİ ve senin emin olmadığın yerler.\n\nSURVIVING FINDINGS (JSON):\n${digest}`,
+    effort: "xhigh",
+    maxTokens: 64000,
+  });
+  if (redesign) write("prompt-audit/redesign.md", redesign.text);
+
+  // 4) Kurucuya son rapor.
+  const report = await call({
+    task: "prompt_audit",
+    system,
+    cacheTtl: "1h",
+    user: `FINAL REPORT for the founder (non-engineer; reads Turkish; wants plain language and concrete examples; no jargon, no flattery). In TURKISH Markdown, at most ~500 lines:\n- "En kötü 20": the twenty findings that hurt real guest answers most. For each: what the prompt says (short quote), what goes wrong (one guest message → what the assistant writes today → what it should write), what to change. Use ONLY findings that were not refuted.\n- "Saçma bulduklarım": the absurd / unnatural instructions, bluntly.\n- "Çelişki haritası": the instruction traps, as a short table.\n- "Kelimeye bağlanan yerler": where the prompt forces pattern matching.\n- "Bilgi kullanımı": what is wrong in how sources are given and used.\n- "Ne yapmalı": the first five changes in order, each with expected effect and how to measure it.\n- "Emin olmadıklarım": honest list.\nEvery example reply must be written in the HOST'S voice (first person; never "ev sahibiniz" / "your host").\n\nFINDINGS WITH VERDICTS (JSON):\n${digest}\n\nLENS SUMMARIES:\n${JSON.stringify(overall)}`,
+    effort: "high",
+    maxTokens: 48000,
+  });
+  if (report) write("prompt-audit/REPORT.md", report.text);
+}
+
+// ── İş: ham model kolu (kurucu 11-12 gece / Codex: "aynı girdide ham model kararıyla ürünün son kararını karşılaştır") ───────────────────
+// Geliştirme senaryolarında (mühürlü / kör setler ASLA) aynı mesaj + aynı kaynaklarla, kapısız ve kısa bir istemle güçlü bir modelin ne
+// yaptığını kaydeder: istek başına karar + alıntı + varlık / koşul değerlendirmesi + misafire gidecek metin. Ürünün kayıtlı kararlarıyla
+// karşılaştırma oturumda (çevrimdışı) yapılır.
+const RAW_SETS = ["evals/grounding-dev.json", "evals/turn-messages-dev.json"];
+const RAW_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["requests", "reply", "would_send"],
+  properties: {
+    requests: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["request_tr", "decision", "entity_asked", "entity_in_source", "same_entity", "attribute_asked", "condition_in_source", "condition_covers_question", "evidence_note", "evidence_quote", "sentence", "reason_tr"],
+        properties: {
+          request_tr: { type: "string" },
+          decision: { type: "string", enum: ["answer", "no_source", "host_decides"] },
+          entity_asked: { type: "string" },
+          entity_in_source: { type: "string" },
+          same_entity: { type: "string", enum: ["yes", "no", "n/a"] },
+          attribute_asked: { type: "string" },
+          condition_in_source: { type: "string" },
+          condition_covers_question: { type: "string", enum: ["yes", "no", "unknown", "n/a"] },
+          evidence_note: { type: "string" },
+          evidence_quote: { type: "string" },
+          sentence: { type: "string" },
+          reason_tr: { type: "string" },
+        },
+      },
+    },
+    reply: { type: "string" },
+    would_send: { type: "boolean" },
+  },
+};
+const RAW_SYSTEM = `You reply to guests on behalf of a short-term-rental host. You ARE the host's voice: first person ("we" / "I"), never "your host".
+
+Use only the property information and the host's notes given in the message. For each thing the guest asks:
+- "answer" when the notes support the answer at this level: the same entity the guest asks about, the attribute asked, the actual value, and any condition in the note covers the guest's case. Give the note id in "evidence_note" (for example "N3", or "PROPERTY" for the property fields) and copy the passage you rely on into "evidence_quote" EXACTLY, character for character. "sentence" is the part of the reply that answers this request (empty for the other two decisions).
+- "no_source" when the notes do not contain it (a related note about something else is not a source; a condition that does not cover the case is not a source; absence of a note is not a "no").
+- "host_decides" when it needs the host's decision or action (exceptions, refunds, changes to the stay, pets when the notes do not state a policy, anything risky).
+
+Then write "reply": the message to send to the guest, in the guest's language, covering ONLY the "answer" requests, naturally and briefly. Do not mention missing information, do not promise to check, do not tell the guest to contact anyone — requests that are not answered are simply left for the host, who sees them separately. If nothing can be answered, "reply" is an empty string and would_send is false.
+Use the conversation so far: a question from an earlier guest message that is still unanswered counts as asked.`;
+
+interface DevSet {
+  property: Record<string, unknown>;
+  kbSets: Record<string, { category: string; title: string; content: string }[]>;
+  scenarios: { id: string; lang?: string; kb: string; message: string; history?: { direction: string; body: string }[] }[];
+}
+
+async function rawBaseline(): Promise<void> {
+  const jobs: { set: string; scenario: DevSet["scenarios"][number]; data: DevSet }[] = [];
+  for (const rel of RAW_SETS) {
+    if (!existsSync(path.join(ROOT, rel))) continue;
+    const data = JSON.parse(readFileSync(path.join(ROOT, rel), "utf8")) as DevSet;
+    for (const scenario of data.scenarios) jobs.push({ set: path.basename(rel, ".json"), scenario, data });
+  }
+  console.log(`[claude-work] raw_baseline: ${jobs.length} senaryo`);
+  const out: Record<string, unknown[]> = {};
+  await pool(jobs, async (j) => {
+    const notes = (j.data.kbSets[j.scenario.kb] ?? []).map((k, i) => `[N${i + 1}] (${k.category}) ${k.title}: ${k.content}`).join("\n");
+    const history = (j.scenario.history ?? []).map((h) => `${h.direction === "inbound" ? "GUEST" : "HOST"}: ${h.body}`).join("\n");
+    const user = [
+      `PROPERTY: ${JSON.stringify(j.data.property)}`,
+      `HOST'S NOTES:\n${notes || "(none)"}`,
+      history ? `CONVERSATION SO FAR:\n${history}` : "CONVERSATION SO FAR: (this is the first message)",
+      `NEW GUEST MESSAGE:\n${j.scenario.message}`,
+    ].join("\n\n");
+    const r = await call({ task: "raw_baseline", system: RAW_SYSTEM, user, effort: "medium", maxTokens: 8000, schema: RAW_SCHEMA });
+    const parsed = r ? parseJson<Record<string, unknown>>(r.text) : null;
+    (out[j.set] ??= []).push({ id: j.scenario.id, lang: j.scenario.lang ?? null, message: j.scenario.message, model: r?.model ?? null, result: parsed, raw: parsed ? undefined : (r?.text ?? null) });
+  });
+  for (const [set, rows] of Object.entries(out)) {
+    write(`raw-baseline/${set}.json`, JSON.stringify(rows.sort((a, b) => String((a as { id: string }).id).localeCompare(String((b as { id: string }).id))), null, 2));
+  }
+}
+
 // ── Ana akış ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const TASKS: Record<string, () => Promise<void>> = {
   market,
@@ -858,6 +1259,8 @@ const TASKS: Record<string, () => Promise<void>> = {
   judge2,
   market_followup: marketFollowup,
   redteam,
+  prompt_audit: promptAudit,
+  raw_baseline: rawBaseline,
 };
 
 async function main(): Promise<void> {
