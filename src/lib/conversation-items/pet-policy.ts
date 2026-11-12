@@ -203,7 +203,9 @@ const VERDICT_ANYWHERE = new RegExp(
     "klar doch|na klar|geht in ordnung|geht klar|das ist moglich|es posible|разумеется|ничего страшного|" +
     "por supuesto|sin problema|no hay problema|lamentablemente|desafortunadamente|lo siento|" +
     "конечно|без проблем|к сожалению|извините|" +
-    "نعم|بالتاكيد|طبعا|بالطبع|للاسف|مرحب\\p{L}{0,3}|يسمح|مسموح|ممنوع|يمكنكم|لا يمكن|لا مشكلة|لا مانع|لا باس" +
+    // "مرحب به / بها / بهم" (… kabul edilir) — selam "مرحبا (بكم)" DEĞİL (ölçüm 11-12: Arapça her cevap selam yüzünden tutuluyordu).
+    // "يمكنكم" tek başına "yapabilirsiniz"dir (bağlanabilirsiniz, park edebilirsiniz) → yalnız getirme fiiliyle.
+    "نعم|بالتاكيد|طبعا|بالطبع|للاسف|مرحب به\\p{L}{0,2}|يسمح|مسموح|ممنوع|يمكنكم (?:احضار|اصطحاب|جلب)\\p{L}{0,4}|لا يمكن|لا مشكلة|لا مانع|لا باس" +
     ")(?![\\p{L}\\p{N}])",
   "u",
 );

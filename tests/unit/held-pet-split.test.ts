@@ -85,6 +85,8 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
       ["لا يُسمح بالكلاب. كلمة المرور Lale2024.", "pet_mention"],
       ["لا، كلمة المرور Lale2024.", "verdict_word"],
       ["ممكن. كلمة المرور Lale2024.", "verdict_word"],
+      ["مرحب بها. كلمة المرور Lale2024.", "verdict_word"],
+      ["يمكنكم إحضارها. كلمة المرور Lale2024.", "verdict_word"],
       // Ücret sözcüğü yok, konusuz cümlede tutar var → tutulan evcil hayvan sorusunun ücreti gibi okunur.
       ["Wi-Fi şifresi Lale2024. Ekstra gecelik 300 TL eklenir.", "unanchored_verdict"],
       ["The Wi-Fi password is Lale2024. It's an extra $20 per night.", "unanchored_verdict"],
@@ -221,6 +223,9 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
       "La contraseña del Wi-Fi es Lale2024.",
       "Пароль от Wi-Fi: Lale2024.",
       "كلمة مرور الواي فاي هي Lale2024.",
+      // Ölçüm 11-12 (gerçek taslak): Arapça selam "مرحباً" onay sözcüğü değildir; "يمكنكم" tek başına "yapabilirsiniz"dir.
+      'مرحباً Alex،\n\nشبكة الواي فاي اسمها "Lale_Home"، وكلمة المرور هي Lale2024.',
+      "أهلاً ومرحباً بكم. يمكنكم الاتصال بشبكة الواي فاي Lale_Home.",
       "Welcome to Lale! The Wi-Fi password is Lale2024.", // selam "welcome" izin fiili değildir
       "Hoş geldiniz! Wi-Fi şifresi Lale2024.",
     ]) {
