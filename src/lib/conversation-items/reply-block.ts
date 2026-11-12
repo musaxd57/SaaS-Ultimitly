@@ -104,7 +104,8 @@ bırakılan bir konu hakkında tek cümle bile yazma; ev sahibi misafire o konud
 Evcil hayvan isteği ev sahibine bırakıldı: cevapta hayvandan, hayvanın gelip gelemeyeceğinden, ücretinden ya da koşulundan HİÇ söz
 etme; cevabı "Evet / Tabii / Elbette / Olur / Tamam / Hayır / Maalesef" gibi bir onay ya da ret sözcüğüyle BAŞLATMA, cevabın içinde de
 kullanma ("getirebilirsiniz", "sorun değil", "kabul edilir", "izin verilir" de YAZMA) — yalnız cevaplanacak isteklerin bilgisini düz
-cümleyle ver.`
+cümleyle ver. Cevaplanacak bir isteğin bilgisi sana verilen notlarda YOKSA o isteği CEVAPLAMA ve answeredRequests'e KOYMA; tahmin
+yürütme, "var" ya da "yok" deme (o istek de ev sahibinde kalır).`
     : "";
   const hostContactRule = hostContactPromptBanEnabled()
     ? "\nBir isteğe verebileceğin tek cevap misafiri ev sahibine yazmaya / ulaşmaya / aramaya yönlendirmek olacaksa o isteği CEVAPLAMA ve answeredRequests'e KOYMA (istek ev sahibinde açık kalır)."

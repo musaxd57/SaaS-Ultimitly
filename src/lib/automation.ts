@@ -56,6 +56,7 @@ import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor, signatureForChannel, signatureForContactWindow, signatureStripsContactFor } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
 import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb, heldPetLeak, heldPetSplitEnabled } from "@/lib/conversation-items/pet-policy";
+import { ungroundedAnsweredRefs } from "@/lib/conversation-items/answer-grounding";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -679,6 +680,16 @@ export function autoReplyGateVerdict(
     // ima taşımamalı (`pet-policy.heldPetLeak`: hayvan sözcüğü, "evet / tabii / maalesef", getirme-izin fiili, konusuz olumsuzluk ya da ücret).
     // İstek öğe olarak çıkarılamadıysa (yalnız misafirin cümlesinde) ya da cevaplanabilir sayıldıysa aşağıdaki bugünkü kemer aynen.
     if (heldPetLeak(result.reply) !== null) return hold("reply_pet_policy");
+    // 🚨 Ölçüm 11-12: evcil hayvan isteği tutulurken yanındaki soru bilgi tabanında YOKSA model cevap uyduruyor (5/5) ve taslak bütün
+    // kapılardan geçiyor — bugün onu yalnız yukarıdaki kemer tutuyordu. Kemer daralırken şart: cevaplandığı beyan edilen her isteğin
+    // konusu modele gösterilen bir kaynakta geçmeli (`answer-grounding.ungroundedAnsweredRefs`); yoksa cevap ev sahibine kalır. Beyan
+    // yok / bozuksa öğe kapısı aşağıda zaten tutar.
+    const declared = result.answeredRequests;
+    if (declared?.ok === true) {
+      const needs = (items.hostContactNeeds ?? []).map((n, i) => ({ ref: n.ref, kind: items.answerableKinds[i], terms: n.terms, topics: n.topics }));
+      const ungrounded = ungroundedAnsweredRefs({ needs, answeredRefs: sentRefs(declared), kbFacts: context?.kbFacts, stayTimes: context?.stayTimes });
+      if (ungrounded.length > 0) return hold("items_answer_ungrounded");
+    }
   } else if (
     // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
     (mentionsPets(result.reply) || petTurn) &&

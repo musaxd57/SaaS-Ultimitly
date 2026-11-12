@@ -37,6 +37,9 @@ export const GATE_BLOCK_DETAILS = [
   "items_fix_hazard", // cevaplanan arıza çözümü tehlike sınıfına değiyor (elektrik / gaz / sıcak su cihazı / yangın)
   "items_fix_money", // arıza çözümü diye cevaplanan istekte tutar / muafiyet (kör set 7 k7-22: iade turunda "otopark günlük 200 TL")
   "items_held_touched", // cevap ev sahibine bırakılan arızanın cihazına değiniyor (uydurma adım / "talimatım yok" — kör set 5)
+  // S3 ölçümü 11-12 (yalnız `AI_HELD_PET_SPLIT_ENABLED` dalında): cevaplandığı beyan edilen isteğin konusu modele gösterilen hiçbir
+  // kaynakta geçmiyor (uydurma cevap — "Dairede ütü bulunmaktadır."); `conversation-items/answer-grounding.ts`.
+  "items_answer_ungrounded",
   // Kurucu 10-15 ("BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`): cevapta bilgi tabanında
   // tarifi (arıza giderme) / konusu (kullanım) olmayan cihaz için adım — öğe kipinden bağımsız.
   "reply_fix_unsupported",

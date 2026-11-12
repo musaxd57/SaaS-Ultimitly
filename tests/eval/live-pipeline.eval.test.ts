@@ -495,6 +495,40 @@ export function needMetrics(all: readonly NeedResult[]) {
   };
 }
 
+/**
+ * S3 (kurucu 11-11: "yanlış izin gönderimi ve gereksiz tutma birlikte ölçülsün"): evcil hayvan isteğinin AÇIK kalması beklenen senaryolar.
+ * `petWrong` = o senaryoda evcil hayvana dair bir şey gitti / istek "cevaplandı" sayıldı (yanlış izin — hedef 0). Aynı senaryodaki öteki
+ * cevaplanması gereken ihtiyaçlar: doğru giden / gereksiz tutulan / yanlış değer giden. Toplam "yanlış gönderim" satırı evcil hayvanla
+ * ilgisiz yanlışları da sayar (ör. modelin uydurduğu bir mesafe); bu satır onu ayırır. Yalnız toplu sayı (kör rapora da yazılabilir).
+ */
+export function petSplitMetrics(rows: readonly { needs?: readonly NeedResult[] }[]) {
+  const scoped = rows.filter((r) => r.needs?.some((n) => n.kind === "pets" && n.want === "open"));
+  const pets = scoped.flatMap((r) => r.needs!.filter((n) => n.kind === "pets" && n.want === "open"));
+  const others = scoped.flatMap((r) => r.needs!.filter((n) => n.want === "answered"));
+  return {
+    scenarios: scoped.length,
+    petOpen: pets.length,
+    petOpenOk: pets.filter((n) => n.textOk && !n.wrongAnswered).length,
+    petWrong: pets.filter((n) => n.wrongAnswered).length,
+    other: others.length,
+    otherOk: others.filter((n) => n.textOk && !n.wrongAnswered).length,
+    otherNeedlessHold: others.filter((n) => !n.textOk && !n.wrongAnswered).length,
+    otherWrong: others.filter((n) => n.wrongAnswered).length,
+  };
+}
+/** Rapor satırları (evcil hayvan ihtiyacı olan set yoksa boş). */
+function petSplitLines(rows: readonly { needs?: readonly NeedResult[] }[]): string[] {
+  const m = petSplitMetrics(rows);
+  if (m.petOpen === 0) return [];
+  return [
+    `| S3 · evcil hayvan sorusu ev sahibinde kalmalı: kaldı | ${pct(m.petOpenOk, m.petOpen)} |`,
+    `| 🚨 S3 · YANLIŞ İZİN / evcil hayvana değinen cevap giden (hedef 0) | ${m.petWrong} |`,
+    `| S3 · aynı mesajdaki öteki soru: doğru değerle giden | ${pct(m.otherOk, m.other)} |`,
+    `| S3 · aynı mesajdaki öteki soru: GEREKSİZ TUTMA | ${m.otherNeedlessHold} |`,
+    `| S3 · aynı mesajdaki öteki soru: yanlış değer giden (evcil hayvanla ilgisiz) | ${m.otherWrong} |`,
+  ];
+}
+
 let lastStart = 0;
 async function throttle(): Promise<void> {
   const gap = 60_000 / RPM;
@@ -763,6 +797,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         `| 🚨 YANLIŞ GÖNDERİM (yanlış değer / yanlış "cevaplandı"; hedef 0) | ${m.wrong} |`,
         `| 🚨 "bilgim yok" / iç kaynak anlatımı giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
         `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
+        ...petSplitLines(rows.filter((r) => r.ok)),
         "",
         // Opus 10-23 sabah F14: yalnız toplu sayı + kimlik (ihtiyaç türü / sonuç dökümü setin yapısını sızdırır).
         "Senaryo kimlikleri: " + rows.map((r) => `\`${r.id}\``).join(" "),
@@ -865,6 +900,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
               `| öğe durumu beklentiyle uyumlu (tek öğeli tür) | ${pct(st.filter((n) => n.statusOk).length, st.length)} |`,
               `| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
               `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
+              ...petSplitLines(rows.filter((r) => r.ok)),
               "",
               "| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış) | öğeler | parça kararları |",
               "|---|---|---|---|",
@@ -964,6 +1000,22 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     const about: NeedSpec[] = [{ kind: "about_assistant", want: "open", forbid: ["asistan", "otomatik"] }];
     expect(scoreNeeds(about, "Sauna yok.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ textOk: true, wrongAnswered: false });
     expect(scoreNeeds(about, "Ben otomatik bir asistanım.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ wrongAnswered: true });
+  });
+
+  it("S3 evcil hayvan ayrımı sayıları: yanlış izin evcil hayvan ihtiyacından, öteki sorunun yanlışı ayrı sayılır; evcil hayvansız senaryo kapsam dışı", () => {
+    const need = (kind: string, want: "answered" | "open", textOk: boolean, wrongAnswered = false) => ({ kind, want, textOk, statusOk: null, wrongAnswered });
+    const rows = [
+      { needs: [need("pets", "open", true), need("wifi", "answered", true)] }, // öteki cevap gitti, evcil hayvan açık
+      { needs: [need("pets", "open", true), need("parking", "answered", false)] }, // tutuldu → gereksiz tutma
+      { needs: [need("pets", "open", false, true), need("wifi", "answered", true)] }, // yanlış izin
+      { needs: [need("pets", "open", true), need("local_recommendations", "answered", false, true)] }, // öteki soruda yanlış değer
+      { needs: [need("pets", "open", true)] }, // yalnız evcil hayvan sorusu
+      { needs: [need("wifi", "answered", false)] }, // evcil hayvansız → sayılmaz
+      { needs: [need("pets", "answered", true), need("wifi", "answered", true)] }, // ücretsiz kabul (cevaplanır) → sayılmaz
+      {},
+    ];
+    expect(petSplitMetrics(rows)).toEqual({ scenarios: 5, petOpen: 5, petOpenOk: 4, petWrong: 1, other: 4, otherOk: 2, otherNeedlessHold: 1, otherWrong: 1 });
+    expect(petSplitMetrics([{ needs: [need("wifi", "answered", true)] }]).petOpen).toBe(0);
   });
 
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {

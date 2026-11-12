@@ -909,6 +909,51 @@
      }
     ]
    }
+  },
+  {
+   "id": "c-tr-eczane-yalniz",
+   "class": "control_other",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane.*(var|metre|yakın)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "c-tr-wifi-eczane",
+   "class": "control_other",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane.*(var|metre|yakın)"
+      ]
+     }
+    ]
+   }
   }
  ]
 }

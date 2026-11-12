@@ -12,6 +12,7 @@ import { heldPetLeak, heldPetSplitEnabled } from "@/lib/conversation-items/pet-p
 import { autoReplyGateVerdict } from "@/lib/automation";
 import { buildItemsPromptBlock, type ReplyItemsInput } from "@/lib/conversation-items/reply-block";
 import { composeItemsPlan } from "@/lib/conversation-items/plan";
+import { ungroundedAnsweredRefs } from "@/lib/conversation-items/answer-grounding";
 
 afterEach(() => vi.unstubAllEnvs());
 const on = () => vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
@@ -159,8 +160,15 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     reply,
     answeredRequests: { ok: true as const, refs: ["R1"] },
   });
-  const heldPets = (over: Record<string, unknown> = {}) =>
-    ({ items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null, ...over }], paymentHeld: false, answerableKinds: ["wifi"] } }) as never;
+  const WIFI_NEED = { ref: "R1", topics: ["wifi"], terms: ["internet", "sifresi", "wifi"], contingency: false };
+  const KB = ["Wi-Fi\nAğ adı: Lale_Home, şifre: Lale2024.", "Market\nEn yakın market binanın 150 metre ilerisindedir."];
+  /** Evcil hayvan isteği tutuluyor + cevaplanabilir tek istek (varsayılan: Wi-Fi; bilgi tabanında karşılığı var). */
+  const heldPets = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) =>
+    ({
+      kbFacts: KB,
+      items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null, ...over }], paymentHeld: false, answerableKinds: ["wifi"], hostContactNeeds: [WIFI_NEED] },
+      ...extra,
+    }) as never;
   const GUEST = "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?";
   const WIFI = "Wi-Fi şifresi: Lale2024.";
 
@@ -189,6 +197,39 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     ]) {
       expect([reply, autoReplyGateVerdict(model(reply), GUEST, heldPets())]).toEqual([reply, { reason: "blocked", detail: "reply_pet_policy" }]);
     }
+  });
+
+  it("🚨 anahtar AÇIK: yanındaki sorunun cevabı bilgi tabanında YOKSA uydurulan cevap GİTMEZ (ölçüm 11-12: model 5/5 uydurdu)", () => {
+    on();
+    const unknown = (kind: string, need: { topics: string[]; terms: string[] }) =>
+      ({
+        kbFacts: KB,
+        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: [kind], hostContactNeeds: [{ ref: "R1", contingency: false, ...need }] },
+      }) as never;
+    for (const [reply, ctx] of [
+      // Marketin mesafesi eczaneye yazıldı: "150 metre" bilgi tabanında var ama eczane yok.
+      ["En yakın eczane, binanın yaklaşık 150 metre ilerisindedir.", unknown("local_recommendations", { topics: ["pharmacy"], terms: ["eczane", "yakin", "yakinda"] })],
+      ["Dairede misafirlerimizin kullanımına açık ütü bulunmaktadır.", unknown("amenities", { topics: ["iron"], terms: ["utu"] })],
+      ["Kahvaltı servisi bulunmuyor.", unknown("amenities", { topics: ["restaurant"], terms: ["kahvalti", "musunuz"] })],
+      ["Dairede sabit bir bebek yatağı bulunmuyor.", unknown("amenities", { topics: ["baby"], terms: ["bebek", "besik", "yatagi"] })],
+    ] as const) {
+      expect([reply, autoReplyGateVerdict(model(reply), "Köpeğimizi getirebilir miyiz? Bir sorum daha var.", ctx)]).toEqual([reply, { reason: "blocked", detail: "items_answer_ungrounded" }]);
+    }
+    // Modele hiç bilgi tabanı gösterilmediyse de aynı (dayanak bilinmiyor = tut).
+    expect(autoReplyGateVerdict(model(WIFI), GUEST, heldPets({}, { kbFacts: null }))).toEqual({ reason: "blocked", detail: "items_answer_ungrounded" });
+  });
+
+  it("giriş / çıkış saati mülkün kendi alanından cevaplanır: alan doluysa dayanak vardır; boşsa cevap gitmez", () => {
+    on();
+    const time = (stayTimes: Record<string, string | null>) =>
+      ({
+        kbFacts: KB,
+        stayTimes,
+        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: ["checkout_time"], hostContactNeeds: [{ ref: "R1", contingency: false, topics: ["checkout"], terms: ["cikis"] }] },
+      }) as never;
+    const reply = model("Çıkış saati 11:00.");
+    expect(autoReplyGateVerdict(reply, "Köpeğimizi getirebilir miyiz? Çıkış saati kaç?", time({ checkIn: "15:00", checkOut: "11:00" }))).toBeNull();
+    expect(autoReplyGateVerdict(reply, "Köpeğimizi getirebilir miyiz? Çıkış saati kaç?", time({ checkIn: "15:00", checkOut: null }))).toEqual({ reason: "blocked", detail: "items_answer_ungrounded" });
   });
 
   it("anahtar AÇIK olsa da: istek öğe olarak ÇIKARILAMADIYSA (yalnız misafirin cümlesinde) bugünkü kemer aynen — cevap tutulur", () => {
@@ -228,6 +269,8 @@ describe("istem bloğu — kural + kapı çifti", () => {
     const added = after.slice(before.length);
     expect(added).toContain("Evcil hayvan isteği ev sahibine bırakıldı");
     for (const word of ["Evet", "Tabii", "Maalesef", "getirebilirsiniz"]) expect(added).toContain(word);
+    // Ölçüm 11-12: bilgisi olmayan isteği cevaplamasın (uydurmasın) — kuralın istemdeki yarısı.
+    expect(added).toContain("o isteği CEVAPLAMA ve answeredRequests'e KOYMA");
   });
 
   it("plan işareti yalnız: anahtar açık + evcil hayvan tutuluyor + gidecek başka cevap var", () => {
@@ -242,5 +285,38 @@ describe("istem bloğu — kural + kapı çifti", () => {
     expect(plan([wifi], [])).toBeUndefined(); // evcil hayvan isteği yok
     const freePets = { messageId: "m1", kind: "pets" as const, sensitivity: "none" as const };
     expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [], hints: new Map() }).replyItems.petHeldRule).toBeUndefined(); // cevaplanabilir
+  });
+});
+
+describe("ungroundedAnsweredRefs — cevaplanan isteğin konusu gösterilen bir kaynakta geçiyor mu", () => {
+  const kbFacts = ["Wi-Fi\nAğ adı: Lale_Home, şifre: Lale2024.", "Otopark\nOtopark ücretsizdir; binanın arkasındadır.", "Market\nEn yakın market binanın 150 metre ilerisindedir."];
+  const wifi = { ref: "R1", kind: "wifi" as const, topics: ["wifi"], terms: ["internet", "sifresi", "wifi"] };
+  const pharmacy = { ref: "R2", kind: "local_recommendations" as const, topics: ["pharmacy"], terms: ["eczane", "yakin", "yakinda"] };
+  const checkout = { ref: "R3", kind: "checkout_time" as const, topics: ["checkout"], terms: ["cikis"] };
+
+  it("konusu bilgi tabanında geçen istek dayanaklı; geçmeyen dayanaksız (yakın konu / ortak sıfat yetmez: 'en yakın market' eczane değildir)", () => {
+    expect(ungroundedAnsweredRefs({ needs: [wifi, pharmacy], answeredRefs: ["R1"], kbFacts })).toEqual([]);
+    expect(ungroundedAnsweredRefs({ needs: [wifi, pharmacy], answeredRefs: ["R1", "R2"], kbFacts })).toEqual(["R2"]);
+    // Cevaplanmayan isteğe bakılmaz (ev sahibinde açık kalır).
+    expect(ungroundedAnsweredRefs({ needs: [wifi, pharmacy], answeredRefs: [], kbFacts })).toEqual([]);
+  });
+
+  it("yabancı dilde sorulan soru Türkçe sorgusuyla eşlenir (anlama katmanı her isteğe Türkçe sorgu yazar)", () => {
+    const wlan = { ref: "R1", kind: "wifi" as const, topics: ["wifi"], terms: ["passwort", "sifresi", "wifi", "wlan"] };
+    expect(ungroundedAnsweredRefs({ needs: [wlan], answeredRefs: ["R1"], kbFacts })).toEqual([]);
+  });
+
+  it("giriş / çıkış saati: mülk alanı doluysa bilgi tabanına bakılmaz; boşsa bilgi tabanında konu aranır", () => {
+    expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts, stayTimes: { checkOut: "11:00" } })).toEqual([]);
+    expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts, stayTimes: { checkOut: " " } })).toEqual(["R3"]);
+    expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts: [...kbFacts, "Çıkış\nÇıkışta anahtarı kutuya bırakın."], stayTimes: null })).toEqual([]);
+  });
+
+  it("şüphede dayanaksız: tanınmayan kimlik, sözcüğü / konusu olmayan istek, boş ya da verilmemiş bilgi tabanı", () => {
+    expect(ungroundedAnsweredRefs({ needs: [wifi], answeredRefs: ["R9"], kbFacts })).toEqual(["R9"]);
+    expect(ungroundedAnsweredRefs({ needs: [{ ref: "R1", terms: [], topics: [] }], answeredRefs: ["R1"], kbFacts })).toEqual(["R1"]);
+    expect(ungroundedAnsweredRefs({ needs: [wifi], answeredRefs: ["R1"], kbFacts: [] })).toEqual(["R1"]);
+    expect(ungroundedAnsweredRefs({ needs: [wifi], answeredRefs: ["R1"], kbFacts: undefined })).toEqual(["R1"]);
+    expect(ungroundedAnsweredRefs({ needs: [wifi], answeredRefs: ["R1"], kbFacts: ["", "  "] })).toEqual(["R1"]);
   });
 });

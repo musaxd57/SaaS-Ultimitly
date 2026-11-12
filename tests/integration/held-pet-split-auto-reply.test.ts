@@ -5,7 +5,7 @@ import { prisma, resetDb } from "../helpers/db";
 // S3 (kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED`, VARSAYILAN KAPALI) — KANAL OTO-YANITI UÇTAN UCA.
 //
 // "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?" → bugün cevabın TAMAMI ev sahibine kalıyor (evcil hayvan kemeri tutulan öğeyi de
-// "hayvan turu" sayıyor). Anahtar açıkken Wi-Fi cevabı gider, evcil hayvan isteği ev sahibinde AÇIK kalır ve ev sahibine bildirilir; cevap o
+// "hayvan turu" sayıyor). Anahtar açıkken öteki sorunun cevabı gider, evcil hayvan isteği ev sahibinde AÇIK kalır ve ev sahibine bildirilir; cevap o
 // isteğe dair onay / ret / ima taşıyorsa yine gitmez. Model çağrıları sahte (cevap modeli + anlama katmanı), veritabanı gerçek.
 // ---------------------------------------------------------------------------
 
@@ -50,8 +50,9 @@ const mockMail = vi.mocked(emailService.sendReporting);
 const mockSend = vi.mocked(sendOnChannel);
 const mockUnderstand = vi.mocked(understandGuestMessages);
 
-const BOTH = "Köpeğimizi getirebilir miyiz? İnternet şifresi ne?";
-const WIFI_ANSWER = "Wi-Fi ağı Lale_Home, şifresi Lale2024.";
+// Öteki soru bilerek sır içermiyor (otopark): rezervasyonsuz konuşmada şifre taşıyan kalem modele hiç gösterilmez (sır kapısı).
+const BOTH = "Köpeğimizi getirebilir miyiz? Otopark var mı?";
+const WIFI_ANSWER = "Otopark ücretsizdir, binanın arkasındadır.";
 
 const STAY_NONE = { requested: false, kind: "none", checkin_time: null, checkout_time: null };
 function understood(requests: { intent: string; message: number }[]): MessageUnderstanding {
@@ -67,7 +68,7 @@ const understands = (requests: { intent: string; message: number }[]) =>
 
 function verdict(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
   return {
-    intent: "wifi",
+    intent: "parking",
     confidence: 0.95,
     reply: WIFI_ANSWER,
     risk: null,
@@ -85,7 +86,7 @@ function verdict(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
   };
 }
 
-async function seed(message: string, kb: { title: string; content: string }[] = [{ title: "Wi-Fi", content: "Ağ adı: Lale_Home, şifre: Lale2024." }]) {
+async function seed(message: string, kb: { title: string; content: string }[] = [{ title: "Otopark", content: "Otopark ücretsizdir; binanın arkasındadır." }]) {
   const org = await prisma.organization.create({
     data: {
       name: "Org",
@@ -98,7 +99,10 @@ async function seed(message: string, kb: { title: string; content: string }[] = 
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 7" } });
   for (const item of kb) {
-    await prisma.knowledgeBaseItem.create({ data: { propertyId: property.id, category: "general", title: item.title, content: item.content } });
+    // Onaylı kalem (A1): onaysız kalem cevap modeline gitmez — o zaman hiçbir cevabın dayanağı olmaz.
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId: property.id, category: "general", title: item.title, content: item.content, isActive: true, source: "host_manual", reviewState: "approved" },
+    });
   }
   const createdAt = new Date(Date.now() - 20 * 60_000);
   const conversation = await prisma.conversation.create({
@@ -123,7 +127,7 @@ const sentBodies = () => mockSend.mock.calls.map((c) => String((c[0] as { body?:
 const outboundCount = (conversationId: string) => prisma.message.count({ where: { conversationId, direction: "outbound" } });
 const PETS_AND_WIFI = [
   { intent: "pets", message: 1 },
-  { intent: "wifi", message: 1 },
+  { intent: "parking", message: 1 },
 ];
 
 describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
@@ -139,7 +143,7 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("anahtar KAPALI (bugün): Wi-Fi cevabı da GİTMEZ; iki istek de ev sahibinde", async () => {
+  it("anahtar KAPALI (bugün): otopark cevabı da GİTMEZ; iki istek de ev sahibinde", async () => {
     const { conversationId } = await seed(BOTH);
     understands(PETS_AND_WIFI);
     mockSuggest.mockResolvedValueOnce(verdict());
@@ -150,7 +154,7 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
     expect((await itemsOf(conversationId)).map((i) => i.status)).not.toContain("answered");
   });
 
-  it("🚨 anahtar AÇIK: Wi-Fi cevabı GİDER; evcil hayvan isteği ev sahibinde açık kalır ve ev sahibine bildirilir", async () => {
+  it("🚨 anahtar AÇIK: otopark cevabı GİDER; evcil hayvan isteği ev sahibinde açık kalır ve ev sahibine bildirilir", async () => {
     vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
     const { orgId, conversationId } = await seed(BOTH);
     understands(PETS_AND_WIFI);
@@ -158,11 +162,11 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(true); // ⬅️ ESKİDE false: cevabın tamamı tutuluyordu
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(sentBodies()[0]).toContain("Lale2024");
+    expect(sentBodies()[0]).toContain("Otopark ücretsizdir");
     expect(sentBodies()[0]).not.toMatch(/köpe|evet|getirebilir/iu);
     expect(await itemsOf(conversationId)).toEqual([
       { kind: "pets", sensitivity: "sensitive", status: "pending_host" },
-      { kind: "wifi", sensitivity: "none", status: "answered" },
+      { kind: "parking", sensitivity: "none", status: "answered" },
     ]);
     // Ev sahibi evcil hayvan sorusundan haberdar (tutulan öğenin bugünkü bildirimi) ve konuşmada açık iş duruyor.
     expect(mockMail).toHaveBeenCalledTimes(1);
@@ -172,7 +176,7 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
     expect(mockSuggest.mock.calls[0]![0]).toMatchObject({ conversationItems: { petHeldRule: true, held: [{ kind: "pets" }] } });
   });
 
-  it("🚨 anahtar AÇIK: cevap izin / onay / hayvan sözü taşıyorsa yine GİTMEZ (Wi-Fi 'cevaplandı' YAZILMAZ)", async () => {
+  it("🚨 anahtar AÇIK: cevap izin / onay / hayvan sözü taşıyorsa yine GİTMEZ (otopark 'cevaplandı' YAZILMAZ)", async () => {
     vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
     for (const reply of [`Evet, getirebilirsiniz. ${WIFI_ANSWER}`, `Tabii! ${WIFI_ANSWER}`, `${WIFI_ANSWER} Köpeğiniz için ayrıca döneceğiz.`]) {
       await resetDb();
@@ -189,24 +193,59 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
     }
   });
 
-  it("anahtar AÇIK olsa da: anlama katmanı evcil hayvan isteğini ÇIKARAMADIYSA (yalnız Wi-Fi öğesi) cevap bugünkü gibi tutulur", async () => {
+  it("🚨 anahtar AÇIK: yanındaki sorunun cevabı bilgi tabanında YOKSA modelin uydurduğu cevap GİTMEZ; iki istek de ev sahibinde kalır", async () => {
+    vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
+    // Bilgi tabanında yalnız otopark var; misafir kahvaltıyı soruyor. Ölçüm 11-12: model bu durumda "Kahvaltı servisi bulunmuyor." uydurdu.
+    const { conversationId } = await seed("Köpeğimizi getirebilir miyiz? Kahvaltı veriyor musunuz?");
+    mockUnderstand.mockResolvedValueOnce({
+      status: "ok",
+      ms: 1,
+      cached: false,
+      value: (() => {
+        const u = parseUnderstanding(
+          {
+            language: "tr",
+            requests: [
+              { intent: "pets", message: 1, query_tr: "evcil hayvan köpek kabul", query_original: "köpeğimizi getirebilir miyiz" },
+              { intent: "amenities", message: 1, query_tr: "kahvaltı var mı", query_original: "Kahvaltı veriyor musunuz?" },
+            ],
+            stay_change: STAY_NONE,
+            withdrawn: [],
+          },
+          { items: true },
+        );
+        if (!u) throw new Error("fixture");
+        return u;
+      })(),
+    });
+    mockSuggest.mockResolvedValue(verdict({ intent: "general", reply: "Kahvaltı servisi bulunmuyor." }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false); // ⬅️ dayanak şartı olmasaydı uydurma cevap misafire giderdi
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).map((i) => i.status)).not.toContain("answered");
+    const events = await prisma.riskEvent.findMany({ where: { conversationId }, select: { finalDecision: true, kbEvidenceJson: true } });
+    expect(events.map((e) => e.finalDecision)).toEqual(["human_review"]);
+    expect(events[0]!.kbEvidenceJson ?? "").toContain("items_answer_ungrounded"); // tutma gerekçesi karar kaydında
+  });
+
+  it("anahtar AÇIK olsa da: anlama katmanı evcil hayvan isteğini ÇIKARAMADIYSA (yalnız otopark öğesi) cevap bugünkü gibi tutulur", async () => {
     vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
     const { conversationId } = await seed(BOTH);
-    understands([{ intent: "wifi", message: 1 }]);
+    understands([{ intent: "parking", message: 1 }]);
     mockSuggest.mockResolvedValue(verdict());
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("KONTROL: evcil hayvan sorusu olmayan turda anahtar hiçbir şeyi değiştirmez (Wi-Fi cevabı iki durumda da gider; istem işareti yok)", async () => {
+  it("KONTROL: evcil hayvan sorusu olmayan turda anahtar hiçbir şeyi değiştirmez (otopark cevabı iki durumda da gider; istem işareti yok)", async () => {
     for (const flag of ["", "1"]) {
       await resetDb();
       mockSend.mockClear();
       mockSuggest.mockReset();
       vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", flag);
-      const { conversationId } = await seed("İnternet şifresi ne?");
-      understands([{ intent: "wifi", message: 1 }]);
+      const { conversationId } = await seed("Otopark var mı?");
+      understands([{ intent: "parking", message: 1 }]);
       mockSuggest.mockResolvedValueOnce(verdict());
       expect([flag, (await applyChannelAutoReply(conversationId)).sent]).toEqual([flag, true]);
       expect((mockSuggest.mock.calls[0]![0] as { conversationItems?: { petHeldRule?: true } }).conversationItems?.petHeldRule).toBeUndefined();

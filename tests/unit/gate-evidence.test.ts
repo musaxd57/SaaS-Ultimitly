@@ -100,6 +100,22 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     ["öğe kipi: şikâyete bağlı istek cevaplanabilir sayılmış", declared, WIFI_Q, ITEMS_COMPLAINT, "items_complaint_dependent"],
     ["öğe kipi: arıza çözümü bilgi tabanına dayanmıyor", { ...declared, usedSources: [] }, WIFI_Q, ITEMS_FIX, "items_fix_unverified"],
     [
+      // S3 (`AI_HELD_PET_SPLIT_ENABLED`): evcil hayvan isteği tutulurken cevaplanan isteğin konusu gösterilen hiçbir kaynakta geçmiyor.
+      "öğe kipi (evcil hayvan ayrımı): cevaplanan isteğin konusu hiçbir kaynakta yok",
+      { ...declared, reply: "The nearest pharmacy is about 150 metres down the street." },
+      "Can we bring our dog? Is there a pharmacy nearby?",
+      {
+        kbFacts: ["Market\nEn yakın market binanın 150 metre ilerisindedir."],
+        items: {
+          held: [{ kind: "pets" as const, sensitivity: "sensitive" as const, riskType: null }],
+          paymentHeld: false,
+          answerableKinds: ["local_recommendations" as const],
+          hostContactNeeds: [{ ref: "R1", topics: ["pharmacy"], terms: ["eczane", "pharmacy", "nearby"], contingency: false }],
+        },
+      },
+      "items_answer_ungrounded",
+    ],
+    [
       "öğe kipi: cevap ev sahibine bırakılan arızanın cihazına değiniyor",
       { ...declared, reply: "The Wi-Fi password is Lale2025. For the dishwasher, unplug it for a minute and restart it." },
       WIFI_Q,
@@ -200,6 +216,7 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
       vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", detail === "reply_fix_unsupported" ? "1" : "");
+      vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", detail === "items_answer_ungrounded" ? "1" : "");
       vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", detail === "reply_apology" ? "1" : "");
       vi.stubEnv("AI_HOST_VOICE_GUARD_DISABLED", "");
       try {
