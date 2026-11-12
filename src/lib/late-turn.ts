@@ -53,9 +53,9 @@ export function lateTurnView<T extends LateRow>(
   attempts: readonly AttemptRow[] = messages,
 ): { messages: readonly T[]; late: readonly T[] } {
   const same = { messages, late: [] as T[] };
+  // Kaçırılan cevap = en yeni cevaplayan giden. Hiç yoksa ya da bizim yazdığımız değilse (`ingestedAt` dolu) `lateGuestMessages` boş döner
+  // → aşağıdaki boşluk kontrolü çıkar (ayrı bir "cevap yok" dalı ölü koddu); geç mesajlar hep o cevaptan ÖNCE yazılmıştır.
   const at = messages.findLastIndex((m) => isAnsweringOutbound(m));
-  if (at < 0) return same;
-  // Kaçırılan cevabın bizim yazdığımız (`ingestedAt` boş) olduğunu `lateGuestMessages` şart koşar; geç mesajlar hep ondan ÖNCE yazılmıştır.
   const lateIds = new Set(lateGuestMessages([...messages].reverse()).map((m) => m.id));
   if (lateIds.size === 0) return same;
   const first = messages.findIndex((m) => lateIds.has(m.id));

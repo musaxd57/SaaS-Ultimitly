@@ -475,6 +475,24 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     expect(await applyChannelAutoReply(conversationId)).toMatchObject({ sent: true, queued: true });
   });
 
+  it("🚨 ilk okunan sayfa süzülünce boş kalırsa (sonda iki otomatik şablon) genişleyen görünümde de geç mesaj cevabın ardına gelir", async () => {
+    // Sayfa boyu 2: en yeni iki satır bizim otomatik şablonlarımız (cevap değildir, sondan kırpılır) → görünüm boş → bir sayfa daha okunur.
+    __setChannelThreadPageForTests(2);
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed();
+    for (const [i, minAgo] of [[1, 7], [2, 6]] as const) {
+      await prisma.message.create({
+        data: { conversationId, direction: "outbound", senderName: "GuestOps AI", authorType: "automation", body: `Giriş bilgisi ${i}`, externalId: `ext-auto-${i}`, createdAt: new Date(Date.now() - minAgo * MIN) },
+      });
+    }
+    understands([{ intent: "parking", message: 1 }]);
+    mockSuggest.mockResolvedValueOnce(verdict());
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    const input = mockSuggest.mock.calls[0]![0] as { guestMessage: string };
+    expect(input.guestMessage).toContain(LATE);
+  });
+
   it("🚨 kesit geriye genişleyince 24 saati aşan ESKİ bir geç mesaj okunursa tur açılmaz (ilk sayfada taşınmış olsa da)", async () => {
     // Sayfa boyu 2: ilk sayfa [geç mesaj, cevabımız] → taşınır; ikinci sayfada 25 saatlik geç mesaj okunur → "biri bile aşıyorsa hiçbiri".
     __setChannelThreadPageForTests(2);

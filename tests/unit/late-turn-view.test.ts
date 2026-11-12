@@ -117,6 +117,8 @@ describe("lateTurnView — geç mesaj kaçırdığı yapay zekâ cevabının ard
     // KONTROL: teslim edilememiş YAPAY ZEKÂ taslağı engel değil; geç mesajdan ÖNCEKİ ev sahibi denemesi de (o tur kapandı).
     expect(ids(lateTurnView(view, NOW, thread(...view, ours("ai-failed", 4))).messages)).toEqual(["m1", "ai", "m2"]);
     expect(ids(lateTurnView(view, NOW, thread(...view, ours("host-early", 1.5, "host"))).messages)).toEqual(["m1", "ai", "m2"]);
+    // Geç mesajla AYNI anda yazılmış ev sahibi denemesi de sayılır (eşitlikte şüphe → taşınmaz).
+    expect(lateTurnView(view, NOW, thread(...view, ours("host-same", 2, "host"))).messages).toBe(view);
     // Otomatik şablon (karşılama / giriş) cevap değildir → ham dizide de engel değil.
     expect(ids(lateTurnView(view, NOW, thread(...view, ours("auto", 4, "automation"))).messages)).toEqual(["m1", "ai", "m2"]);
   });
