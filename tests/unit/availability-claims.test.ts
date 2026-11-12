@@ -79,6 +79,38 @@ describe("iddia tespiti (cevap)", () => {
   });
 });
 
+describe("cümlecik sınırı: iki noktalı saatten sonraki nokta cümle sonudur (11-12 ölçümü)", () => {
+  // Ölçümde tutulan doğru cevap: havuz saati + otopark. İki cümle AYRI AYRI iddia değil; "20:00." sınır sayılmayınca tek cümlecik oluyor,
+  // "every day … available" takvim iddiası sanılıyordu (`availability_claim` → iki soruluk doğru cevap misafire gitmedi).
+  const HELD = "The pool is open every day from 09:00 to 20:00. Parking is also available free of charge behind the building.";
+  it("🚨 saatle biten cümleden sonraki olanak cümlesi takvim iddiası DEĞİL (eskiden 'calendar')", () => {
+    expect(detectAvailabilityClaim(HELD)).toBeNull();
+    // İki cümle tek tek de iddia değil (anti-vakum: düzeltme iddiayı yok saymıyor, cümleleri ayırıyor).
+    expect(detectAvailabilityClaim("The pool is open every day from 09:00 to 20:00.")).toBeNull();
+    expect(detectAvailabilityClaim("Parking is also available free of charge behind the building.")).toBeNull();
+    // Kapıdan da geçer: iki soruluk bilgi cevabı konaklama isteği olmayan mesajda gider.
+    expect(
+      passesAutoReplySafetyGate(
+        { intent: "amenity", riskLevel: "none", confidence: 0.96, source: "openai", riskType: null, reply: HELD },
+        "What time does the pool open?",
+      ),
+    ).toBe(true);
+  });
+  it("🚨 KONTROL: saatle biten cümleden SONRAKİ cümlede gerçek takvim iddiası yine yakalanır", () => {
+    expect(detectAvailabilityClaim("Check-out is at 11:00. The apartment is available the next night.")).toBe("calendar");
+    expect(detectAvailabilityClaim("Çıkış 11:00. Ertesi gece daire boş.")).toBe("calendar");
+    expect(detectAvailabilityClaim("Yes, you can stay until 14:00. No problem.")).toBe("grant");
+  });
+  it("🚨 KONTROL: AYNI cümlede saat + takvim iddiası bölünmez", () => {
+    expect(detectAvailabilityClaim("The apartment is available every day from 09:00 to 20:00 for viewing next week.")).not.toBeNull();
+  });
+  it("sıra sayısı ve noktalı tarih BÖLÜNMEZ (iddia tarihle aynı cümlecikte aranır)", () => {
+    expect(detectAvailabilityClaim("Ayın 15. günü dairemiz müsait.")).toBe("calendar");
+    expect(detectAvailabilityClaim("3. gece için daire boş.")).toBe("calendar");
+    expect(detectAvailabilityClaim("Le 15.07 l'appartement est libre.")).toBe("calendar");
+  });
+});
+
 describe("erteleme tespiti", () => {
   it("istemin standart cümleleri ve türevleri (TR/EN/DE/FR/ES/RU/AR) erteleme sayılır", () => {
     expect(DEFERRALS.filter((t) => !hasAvailabilityDeferral(t))).toEqual([]);

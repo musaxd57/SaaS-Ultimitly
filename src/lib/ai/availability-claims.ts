@@ -565,9 +565,18 @@ const HOST_DECISION = rx([
 
 // ─── çekirdek ────────────────────────────────────────────────────────────────
 
-/** Cümleciklere böl: nokta (rakam arası değil), ünlem, soru, noktalı virgül, satır. */
+/**
+ * Cümleciklere böl: nokta (rakam arası değil), ünlem, soru, noktalı virgül, satır.
+ * 🚨 İKİ NOKTALI SAATTEN sonraki nokta da cümle sonudur (11-12 ölçümü): "The pool is open every day from 09:00 to 20:00. Parking is also
+ * available free of charge behind the building." tek cümlecik sayılıyor, "every day … available" takvim iddiası sanılıp doğru iki soruluk
+ * cevap tutuluyordu (`availability_claim`; iki cümle ayrı ayrı iddia değil). Eski kalıp rakamdan SONRA gelen noktayı hiç sınır saymıyordu
+ * (`retrieval/time-fields.ts`teki aynı kusur 09-27'de düzeltilmişti). Yalnız "SS:DD." — sıra sayısı ("15. günü", "3. gece") ve noktalı
+ * tarih ("15.07.") BÖLÜNMEZ: orada iddia tarihle aynı cümlecikte aranır, bölmek iddiayı kaçırırdı. Yalnız bu tespit fonksiyonu; saat
+ * okuması (`RAW_CLAUSE_SPLIT`) ve standart çıkış ayıklaması (`CLAUSE_SPLIT`) eski sınırla kalır (orada daha çok bölmek izin yönlüdür).
+ */
+const CLAIM_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|(?<=\d:\d{2})\.(?!\d)|[!?;\n…؟]|。)+/u;
 function clausesOf(form: string): string[] {
-  return form.split(/(?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+/u).map((c) => c.trim()).filter(Boolean);
+  return form.split(CLAIM_CLAUSE_SPLIT).map((c) => c.trim()).filter(Boolean);
 }
 
 function anyClauseMatches(text: string, patterns: readonly RegExp[], transform?: (clause: string) => string): boolean {
@@ -879,7 +888,7 @@ function untilMinutes(h: string, mm: string | undefined, ap: string | undefined)
   return (hour % 24) * 60 + min;
 }
 
-/** Cümlecik sınırları (`clausesOf` ile aynı) — ayraçlar korunarak bölmek için yakalayan grup. */
+/** Cümlecik sınırları (`clausesOf`un 11-12 öncesi kalıbı; iki noktalı saatten sonraki nokta burada sınır DEĞİL) — ayraçlar korunarak bölmek için yakalayan grup. */
 const CLAUSE_SPLIT = /((?:(?<!\d)\.(?!\d)|[!?;\n…؟]|。)+)/u;
 const EN_UNTIL = /(?<![\p{L}\p{N}])(?:until|till)\s+(\d{1,2})(?:[:.](\d{2}))?(?:\s*(a\.?\s?m\.?|p\.?\s?m\.?))?(?![\p{L}\p{N}])/giu;
 // Türkçe yönelme eki YALNIZ ('e/'a/'ye/'ya): eski `\p{L}{1,3}` yuvası "8 GÜN kadar" / "Ayın 10'UNA kadar" yutuyordu.
