@@ -124,6 +124,11 @@ const SET = (process.env.EVAL_LIVE_SET?.trim() || "model-reply-compare.json").re
  * Mühürlü kör set (kurucu 10-23 sabah, Soru 11: "Parça kipi, son kodla uçtan uca kör ölçüm geçene kadar kapalı kalsın"): `EVAL_SEALED_FINAL=1`
  * + `EVAL_SEALED_NAME`. Set ayrı yazarın (geliştirici açmadı); yalnız SHA-256'sı kayıtla eşleşir ve durumu "sealed" ise koşar, kısmi koşu
  * yasak; rapor yalnız TOPLU SAYI + senaryo kimliği basar, hiçbir misafir / cevap metni yazılmaz.
+ *
+ * 🚨 Kurucu kararı 11-12 ("koşusu yapılmış kör setler teşhis için açılır; açılan set geliştirme setine taşınır, kabul yeni setle"): koşu
+ * aynı anda AYRINTI dosyasını da yazar (`…-ayrinti.json`: senaryolar + tam satırlar + teşhis izi). S3 kabul koşusunda yalnız kimlik + geçti
+ * yazılmıştı ve ölçüm veritabanı sonraki koşuyla silindi → "o bir yanlış gönderimin kayıtlı çıktısı" bulunamadı; aynı hata yeni koşuda
+ * çıkmayabilir. Ayrıntı dosyası setin adını TAŞIMAZ (`BURNED_LABEL`; erişim pini), toplu rapor yine metinsizdir. Set bu koşuyla yanar.
  */
 const SEALED = process.env.EVAL_SEALED_FINAL === "1";
 /**
@@ -455,6 +460,18 @@ interface Row {
   escalated: boolean;
   /** S2: senaryo "geç içeri alınan mesaj" kuruyor (`lateTurnMetrics`). */
   late?: true;
+  /**
+   * Teşhis izi (kurucu 11-12: "yalnız toplamlara değil, başarısız koşunun kaydına bak"): misafirin yazdığı, ürünün karar kaydındaki kanıt
+   * (getirilen bilgi tabanı kalemleri, kapı gerekçesi, iddia ölçümü) ve modelin kendi beyanları. Neden analizi yeni bir model koşusuna
+   * muhtaç kalmasın — aynı hata ikinci koşuda çıkmayabilir.
+   */
+  trace?: {
+    guest: string;
+    after?: string;
+    kb: string;
+    evidence: unknown;
+    declared: { usedSources: readonly string[]; missingInfo: readonly string[]; answeredRequests: unknown } | null;
+  };
   items: number;
   heldItems: number;
   emails: number;
@@ -631,6 +648,31 @@ export function lateTurnMetrics(rows: readonly { late?: true; sent: boolean; ski
     held: opened.filter((r) => !r.sent && !r.escalated && r.skippedReason !== "closing_ack" && r.skippedReason !== "closing_ack_open").length,
   };
 }
+/**
+ * Kör koşunun AYRINTI dosyası (saf): toplu rapordan farklı olarak senaryoların kendisini ve tam satırları taşır; setin dosya adını değil
+ * `label`ı. Koşudan sonra neden analizi bu dosyadan yapılır (set bu koşuyla yanmıştır; kabul ölçüsü yeni, görülmemiş setle alınır).
+ */
+export function sealedDetail<R extends { id: string }>(input: {
+  label: string;
+  model: string;
+  commit: string;
+  status: string;
+  data: Pick<Dataset, "version" | "property" | "kbSets" | "scenarios">;
+  rows: readonly R[];
+  runtime: unknown;
+}) {
+  const byId = new Map(input.data.scenarios.map((sc) => [sc.id, sc]));
+  return {
+    suite: "live-pipeline-sealed-detail",
+    version: input.data.version,
+    meta: { set: input.label, model: input.model, commit: input.commit, status: input.status },
+    property: input.data.property,
+    kbSets: input.data.kbSets,
+    rows: input.rows.map((r) => ({ scenario: byId.get(r.id) ?? null, result: r })),
+    runtime: input.runtime,
+  };
+}
+
 /** Rapor satırları (geç mesaj senaryosu olmayan sette boş). */
 function lateTurnLines(rows: Parameters<typeof lateTurnMetrics>[0]): string[] {
   const m = lateTurnMetrics(rows);
@@ -711,8 +753,10 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     select: { reason: true, kbEvidenceJson: true },
   });
   let evidence: { g?: { d?: string }; claims?: { u?: number }; rw?: string[] } = {};
+  let evidenceRaw: unknown = null;
   try {
-    evidence = ev?.kbEvidenceJson ? (JSON.parse(String(ev.kbEvidenceJson)) as typeof evidence) : {};
+    evidenceRaw = ev?.kbEvidenceJson ? JSON.parse(String(ev.kbEvidenceJson)) : null;
+    evidence = (evidenceRaw ?? {}) as typeof evidence;
   } catch {
     evidence = {};
   }
@@ -745,6 +789,16 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     status: conv?.status ?? null,
     escalated: conv?.status === "problem",
     ...(s.late ? { late: true as const } : {}),
+    trace: {
+      guest: s.message,
+      ...(s.after ? { after: s.after } : {}),
+      kb: s.kb,
+      evidence: evidenceRaw,
+      declared:
+        raw?.source === "openai"
+          ? { usedSources: raw.usedSources ?? [], missingInfo: raw.missingInfo ?? [], answeredRequests: raw.answeredRequests ?? null }
+          : null,
+    },
     items: items.length,
     heldItems: items.filter((i) => i.status === "pending_host").length,
     emails: mockMail.mock.calls.length,
@@ -931,6 +985,12 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         rows: rows.map((r) => ({ id: r.id, ok: r.ok })),
         runtime,
       });
+      // Ayrıntı dosyası (kurucu 11-12): kendi başına okunur — senaryolar, bilgi tabanı kümeleri, tam satırlar. Setin adı yok.
+      writeFileSync(
+        path.join(dir, name.replace(/\.md$/u, "-ayrinti.json")),
+        `${JSON.stringify(sealedDetail({ label: BURNED_LABEL, model: MODEL, commit, status, data, rows, runtime }), null, 2)}\n`,
+        "utf8",
+      );
       return;
     }
     const usageLines = [...usageByModel].map(
@@ -1162,6 +1222,31 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     const bothRows = scenarioMessageRows({ history, message: "Otopark var mı?", late: true, after: "Çıkış kaçta?" }, now, "Alex");
     expect(scenarioLastMessageAt(bothRows, true)!.getTime() - at("Çıkış kaçta?", bothRows)).toBe(1000);
     expect(scenarioLastMessageAt(scenarioMessageRows({ history, message: "Otopark var mı?" }, now, "Alex"), undefined)).toBeUndefined();
+  });
+
+  it("kör koşunun ayrıntı dosyası: senaryo + tam satır birlikte, setin dosya adı YOK (etiketle anılır)", () => {
+    const data = {
+      version: 1,
+      property: { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" },
+      kbSets: { std: [{ category: "wifi", title: "Wi-Fi", content: "Şifre Lale2024." }] },
+      scenarios: [
+        { id: "a", class: "c", lang: "tr", kb: "std", message: "Wi-Fi şifresi ne?", expect: { autoSend: "yes" as const } },
+        { id: "b", class: "c", lang: "tr", kb: "std", message: "Kahvaltı var mı?", expect: { autoSend: "no" as const } },
+      ],
+    };
+    const rows = [
+      { id: "a", ok: true, sentText: "Şifre Lale2024." },
+      { id: "b", ok: true, sentText: null },
+    ];
+    const out = sealedDetail({ label: "yanmis-9", model: "m", commit: "abc", status: "GEÇERLİ", data: data as never, rows, runtime: { x: 1 } });
+    expect(out.meta).toEqual({ set: "yanmis-9", model: "m", commit: "abc", status: "GEÇERLİ" });
+    expect(out.rows.map((r) => [r.scenario?.message, r.result.sentText])).toEqual([
+      ["Wi-Fi şifresi ne?", "Şifre Lale2024."],
+      ["Kahvaltı var mı?", null],
+    ]);
+    expect(out.kbSets).toBe(data.kbSets);
+    // Setin dosya adı ayrıntı dosyasına girmez (erişim pini yalnız izinli dosyalarda görür).
+    for (const sealedName of ["needs-blind", "needs-kabul", "held-pet", "late-message"]) expect(JSON.stringify(out)).not.toContain(sealedName);
   });
 
   it("S2 geç tur sayıları: tur açıldı / açılmadı ayrımı — anahtar kapalı kolun 'gitmedi'si ile açık kolun tutması aynı sayılmaz", () => {
