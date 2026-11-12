@@ -316,6 +316,35 @@ const LEGIT_SOLUTION: Record<string, string[]> = {
   ],
 };
 
+describe("'bilgi burada paylaşılmamış' (11-12 canlı hat ölçümü, bugünkü hat) — iki yön", () => {
+  // Bilgi tabanında yalnız Wi-Fi olan dairede "Wi-Fi şifresi ne? Otopark var mı?" sorusuna giden cevap: "… Otoparkla ilgili bilgi şu anda
+  // burada paylaşılmamış." — "burada belirtilmemiş"in edilgen eşi ağda yalnız "bana / bize" çapasıyla vardı, bu yazım misafire GİTTİ.
+  it("🚨 bilgi nesnesi + 'burada' + edilgen olumsuz (paylaşılmamış / verilmemiş / iletilmedi) TUTULUR", () => {
+    for (const t of [
+      "Wi-Fi ağ adı Lale_Home, şifre Lale2024. Otoparkla ilgili bilgi şu anda burada paylaşılmamış.",
+      "Otopark bilgisi burada paylaşılmamış.",
+      "Otopark bilgisi burada paylaşılmamıştır.",
+      "Havuz saatleriyle ilgili detay burada verilmemiş.",
+      "Bu konudaki bilgi henüz burada iletilmedi.",
+    ]) {
+      expect([t, admitsMissingKnowledge(t)]).toEqual([t, true]);
+    }
+  });
+  it("gizlilik güvencesi, söz ve olumlu cümle TUTULMAZ (yer çapası ve bilgi nesnesi şart)", () => {
+    for (const t of [
+      "Kişisel bilgileriniz kimseyle paylaşılmamıştır.",
+      "Bilgileriniz üçüncü kişilerle paylaşılmadı.",
+      "Kapı kodu girişten önce paylaşılacak.",
+      "Bilgiler rezervasyon mesajlarında paylaşılmıştır.",
+      "Giriş bilgileri burada paylaşılmıştır.",
+      "Anahtar burada verilmedi, kutuda duruyor.",
+      "Bilgi burada: Wi-Fi şifresi Lale2024.",
+    ]) {
+      expect([t, admitsMissingKnowledge(t)]).toEqual([t, false]);
+    }
+  });
+});
+
 describe("'çözüm öneremiyorum' itirafı (10-01 gece, kör set 5 regresyonu) — yedi dil, iki yön", () => {
   for (const [lang, list] of Object.entries(ADMITS_NO_SOLUTION)) {
     it(`${lang}: 1. şahıs "çözüm öneremiyorum / bulamadım" TUTULUR`, () => {

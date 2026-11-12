@@ -243,6 +243,10 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`${L}(?:bilgi(?!sayar)\\p{L}{0,24}|detay\\p{L}{0,24}) ${gap(2)}(?:olmadığı|bulunmadığı)\\p{L}{0,12}`, "u"),
   // "Aksi belirtilmemişse" koşuldur → sağ sınır şart.
   new RegExp(`${L}belirtilme(?:miş|mektedir|di)(?:tir)?(?![\\p{L}])`, "u"),
+  // 11-12 (canlı hat ölçümü, bugünkü hat): "Otoparkla ilgili bilgi şu anda burada paylaşılmamış." misafire GİTTİ — "burada belirtilmemiş"in
+  // edilgen eşleri ağda yalnız "bana / bize" çapasıyla vardı. BİLGİ nesnesi + YER çapası ("burada") şart: "Bilgileriniz kimseyle
+  // paylaşılmamıştır" gizlilik güvencesidir, "Kapı kodu girişten önce paylaşılacak" sözdür — ikisi de itiraf DEĞİLDİR.
+  new RegExp(`${TR_OBJ} ${gap(2)}burada (?:paylaşılma|verilme|iletilme)(?:miş|mış|di|dı)(?:tir|tır)?(?![\\p{L}])`, "u"),
   // FR — "je n'ai pas (d')information", "aucune information", "ne sont pas précisées ici", "je ne dispose pas de…", "je ne sais pas".
   // "indiqué" BİLEREK yok ("il n'est pas indiqué de…" = tavsiye edilmez).
   new RegExp(`n'(?:ai|avons) pas (?:d'|de |des |les |l'|cette |ces |cet |la |le )?${gap(1)}${FR_OBJ}`, "u"),
