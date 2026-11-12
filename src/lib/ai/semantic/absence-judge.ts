@@ -63,7 +63,9 @@ export function absenceReaderStrict(): boolean {
  * bugünkü kelime kuralı karar verir. Saf; kanal ve QR kapısı AYNI fonksiyonu kullanır.
  */
 export function absenceHolds(lexicalHit: boolean, judge: AbsenceJudgeOutcome | undefined): boolean {
-  if (judge?.status === "ok") return judge.admits || (judge.ungrounded === true && lexicalHit);
+  // `guestOnly`: itirafı YALNIZ misafir mesajını gören okuma gördü (taslağı tek başına okuyan görmedi) → kelime kuralı da görüyorsa tutar
+  // (`combineAbsenceReadings`).
+  if (judge?.status === "ok") return (judge.admits && (judge.guestOnly !== true || lexicalHit)) || (judge.ungrounded === true && lexicalHit);
   return lexicalHit;
 }
 
@@ -246,6 +248,8 @@ export type AbsenceJudgeOutcome =
       quote: string;
       checks?: SeniorChecks;
       ungrounded?: true;
+      /** İtirafı yalnız misafir mesajını gören okuma gördü; taslağı tek başına okuyan okuma görmedi (`absenceHolds`: kelime kuralı da görürse tutar). */
+      guestOnly?: true;
       /** Ek hükümlerden YALNIZ bir okumanın dayanaksız "evet" dediği (o hüküm için karar bugünkü kurala kalır, Opus 10-22 F1). */
       ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>;
       /** Ayrı üçüncü taraf yönlendirme denetiminin hükmü (S-1); denetim koşmadıysa / düştüyse yok (kod yedeği karar verir). */
@@ -436,8 +440,17 @@ export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Rea
     }
     checks = { checks: merged, ...(Object.keys(ungr).length > 0 ? { ungroundedChecks: ungr } : {}) };
   }
-  if (withGuest.admits) return { status: "ok", admits: true, quote: withGuest.quote, ...checks };
-  if (draftOnly.admits) return { status: "ok", admits: true, quote: draftOnly.quote, ...checks };
+  if (draftOnly.admits) return { status: "ok", admits: true, quote: withGuest.admits ? withGuest.quote : draftOnly.quote, ...checks };
+  // 🚨 İtirafı YALNIZ misafir mesajını gören okuma gördüyse (11-12 ölçümü) hüküm kelime kuralının da görmesine bağlıdır (`guestOnly`):
+  // itiraf taslaktaki bir CÜMLENİN özelliğidir, taslağı tek başına okuyan da görür (17 gerçek itiraf × 3 okuma: 51/51 iki okuma da gördü;
+  // kelime kuralı 17/17). Misafirin sorduğu bir şeye taslağın hiç DEĞİNMEMESİ itiraf değildir (istem de böyle der), ama misafir mesajını
+  // gören okuma 23 sessiz taslak × 3 okumada 7 kez "itiraf" dedi — birinde taslağın gerçek, ilgisiz bir cümlesini kanıt göstererek
+  // ("Ja, es gibt einen Parkplatz …"); taslağı tek başına okuyan 0/69, kelime kuralı 0/66. Parça kipinde sessiz taslak olağandır (cevabı
+  // olmayan istek ev sahibinde kalır), yani bu yanlış oy doğru cevabı tutuyordu. Taslağı tek başına okuyan okuma dayanaksız da olsa "evet"
+  // dediyse iki okuma uyuşmuştur → tam hüküm.
+  if (withGuest.admits) {
+    return { status: "ok", admits: true, quote: withGuest.quote, ...checks, ...(draftOnly.ungrounded ? {} : { guestOnly: true as const }) };
+  }
   if (withGuest.ungrounded && draftOnly.ungrounded) return { status: "ok", admits: true, quote: "", ...checks };
   const ungrounded = withGuest.ungrounded || draftOnly.ungrounded ? { ungrounded: true as const } : {};
   return { status: "ok", admits: false, quote: "", ...checks, ...ungrounded };

@@ -71,8 +71,9 @@ describe("alıntı kanıtı", () => {
     expect(absenceHolds(false, out)).toBe(false); // çöp cevabı: kelime kuralı da itiraf görmüyor → gider
     expect(absenceHolds(true, out)).toBe(true); // kelime kuralı itiraf görüyorsa tutulur (bugünkü davranış)
     expect(judgeReleases(out)).toBe(false);
-    // Dayanaklı itiraf her durumda tutar; iki okuma da "yok" derse serbest.
-    expect(absenceHolds(false, combineAbsenceReadings({ admits: true, quote: "x", checks: NO }, { admits: false, quote: "", checks: NO }))).toBe(true);
+    // Taslağı tek başına okuyan okumanın dayanaklı itirafı her durumda tutar (ikisi birlikte de); iki okuma da "yok" derse serbest.
+    expect(absenceHolds(false, combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: true, quote: "x", checks: NO }))).toBe(true);
+    expect(absenceHolds(false, combineAbsenceReadings({ admits: true, quote: "x", checks: NO }, { admits: true, quote: "y", checks: NO }))).toBe(true);
     const clean = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: false, quote: "", checks: NO });
     expect(clean).toEqual({ status: "ok", admits: false, quote: "", checks: NO });
     expect(absenceHolds(true, clean)).toBe(false);
@@ -86,6 +87,24 @@ describe("alıntı kanıtı", () => {
     expect(quoteGroundedIn("Wi\uFF0DFi şifresi Lale2025", "Wi-Fi şifresi Lale2025")).toBe(true);
     // Tam genişlikli harf / rakam (uyumluluk biçimi, NFKC): taslakta "Ｌａｌｅ２０２５", model düz yazıyla kopyalıyor.
     expect(quoteGroundedIn("Wi-Fi şifresi \uFF2C\uFF41\uFF4C\uFF45\uFF12\uFF10\uFF12\uFF15", "Wi-Fi şifresi Lale2025")).toBe(true);
+  });
+
+  it("🚨 itirafı YALNIZ misafir mesajını gören okuma gördüyse kelime kuralı da görmeli (11-12 ölçümü: değinilmeyen soru itiraf değildir)", () => {
+    // Birinci argüman misafir mesajını gören okuma, ikincisi taslağı tek başına okuyan. Ölçülen vaka: taslak "Ja, es gibt einen Parkplatz …",
+    // misafir ayrıca köpek sormuş; bağlamlı okuma "itiraf" deyip bu gerçek cümleyi alıntıladı.
+    const guestOnly = combineAbsenceReadings({ admits: true, quote: "Ja, es gibt einen Parkplatz", checks: NO }, { admits: false, quote: "", checks: NO });
+    expect(guestOnly).toMatchObject({ status: "ok", admits: true, guestOnly: true });
+    expect(absenceHolds(false, guestOnly)).toBe(false); // kelime kuralı itiraf görmüyor → gider
+    expect(absenceHolds(true, guestOnly)).toBe(true); // kelime kuralı da görüyor → tutulur
+    expect(judgeReleases(guestOnly)).toBe(false); // "itiraf yok" diye serbest bırakma da değil
+    // Taslağı tek başına okuyan dayanaksız da olsa "evet" dediyse iki okuma uyuşmuştur → tam hüküm.
+    const agreed = combineAbsenceReadings({ admits: true, quote: "x", checks: NO }, { admits: false, quote: "", checks: NO, ungrounded: true });
+    expect(agreed).not.toHaveProperty("guestOnly");
+    expect(absenceHolds(false, agreed)).toBe(true);
+    // Taslağı tek başına okuyan gördüyse alıntı hangi okumadan gelirse gelsin tam hüküm.
+    const draftSaw = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: true, quote: "Bilgim yok.", checks: NO });
+    expect(draftSaw).toEqual({ status: "ok", admits: true, quote: "Bilgim yok.", checks: NO });
+    expect(combineAbsenceReadings({ admits: true, quote: "a", checks: NO }, { admits: true, quote: "b", checks: NO })).toEqual({ status: "ok", admits: true, quote: "a", checks: NO });
   });
 
   it("itirafta İKİ okuma da dayanaksız 'evet' derse geçerli, tek okumada kelime kuralına kalır (Opus 10-22 F1/F2)", () => {
