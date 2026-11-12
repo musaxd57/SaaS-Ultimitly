@@ -103,6 +103,13 @@ söylemek platform dışı ödeme değildir" satırı. Okuyucu satırı gerçek 
 `EVAL_SENIOR_SET=airbnb-fee-statements.json` ve `airbnb-message-policy.json` ölçülsün. Ayrıca `DATA_RETENTION_MONTHS=24`, `TRUSTED_PROXY_HOPS=2`,
 `SENTRY_DSN`, `ERROR_ALERT_EMAIL`. `TRUST_CF_HEADER` EKLEMEYİN.
 
+**ÖLÇÜM-TABANI** — canlı hat ölçümünün açılış kipi (`EVAL_PROFILE=launch`; `tests/eval/launch-profile.ts` ile BİREBİR, pinli —
+`tests/unit/eval-launch-profile.test.ts`). Açılışta "1" verilecek ve kanal cevap hattını etkileyen anahtarlar (bu bölüm + §5'te "AÇILIŞTA 1"
+yazanlar); buraya anahtar eklenince o dosyaya da eklenir, yoksa kapı kırmızı olur:
+`AUTO_REPLY_ENABLED` · `KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` · `AI_HOUSE_RULES_SHADOW` · `AI_CODE_GREETING_ENABLED` · `AI_HOST_DECISION_HOLD_ENABLED` · `AI_ACCESS_CODE_COMPLETE_ENABLED` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` · `AI_KB_FEE_RULE_ENABLED` · `AI_NO_APOLOGY_RULE_ENABLED` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED` · `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED`
+(11-12 gece: son dördü o güne kadar HİÇBİR ölçüm kolunda açık değildi — 11-12 ve öncesinin canlı hat sayıları bu dört kural olmadan
+alınmıştır; mühürlü kabul koşuları artık yalnız açılış kipinde başlar.)
+
 ## 2. Model ayarları (kurucu kararı 10-10; kod varsayılanı 5.1, değişiklik yalnız env)
 
 | Değişken | Değer |

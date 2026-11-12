@@ -60,6 +60,7 @@ import { writeSidecar, uniqueReportName, reviewQuote } from "./sidecar";
 import { evalRuntime } from "./run-meta";
 import { forbiddenIn, productCategory } from "./live-shared";
 import { lateTurnView } from "@/lib/late-turn";
+import { LAUNCH_REPLY_FLAGS, evalProfileOf, launchDeviations, launchOverrides } from "./launch-profile";
 
 interface Scenario {
   id: string;
@@ -225,6 +226,18 @@ const LIVE_FLAGS: Record<string, string> = {
   AI_SEMANTIC_MODEL: "gpt-5.1",
   AI_SEMANTIC_REASONING_EFFORT: "",
 };
+
+// 🚨 Kör (kabul) seti yalnız ürünün açılacağı bayrak tabanında yakılır (kurucu 11-12 gece): eksik tabanla alınan sonuç "ürün böyle
+// davranır" demek olmaz ve set bir daha kullanılamaz. Hiçbir senaryo koşmadan, modül yüklenirken durur.
+if (SEALED) {
+  const effective = { ...process.env, ...launchOverrides(process.env, Object.keys(LIVE_FLAGS)), ...LIVE_FLAGS };
+  const off = launchDeviations(effective);
+  if (evalProfileOf(process.env) !== "launch" || off.length > 0) {
+    throw new Error(
+      `Mühürlü set yalnız açılış kipinde koşar: EVAL_PROFILE=launch verin ve şu anahtarları kapatmayın: ${off.join(", ") || "(yok — yalnız kip eksik)"}`,
+    );
+  }
+}
 
 const mockSend = vi.mocked(sendOnChannel);
 const mockMail = vi.mocked(emailService.sendReporting);
@@ -943,9 +956,15 @@ export function summarizeLive(rows: Row[]): string[] {
 describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
   const rows: Row[] = [];
   let stoppedForBudget = false;
+  /** Rapor başlığı: koşunun bayrak tabanı (bayraklar geri alınmadan ÖNCE hesaplanır — `afterAll` başında). */
+  let PROFILE_LINE = "";
 
   beforeAll(() => {
+    // Açılış kipi (`EVAL_PROFILE=launch`, `tests/eval/launch-profile.ts`): belgede "açılışta 1" olan ve cevap hattını etkileyen anahtarlar
+    // ölçerin sabit listesine EK olarak açılır; kabukta açıkça verilen değer korunur (kol bir anahtarı bilerek kapatabilir).
+    const launch = launchOverrides(process.env, Object.keys(LIVE_FLAGS));
     for (const [k, v] of Object.entries(LIVE_FLAGS)) vi.stubEnv(k, v);
+    for (const [k, v] of Object.entries(launch)) vi.stubEnv(k, v);
     globalThis.fetch = meteredFetch as typeof fetch;
   });
 
@@ -954,6 +973,13 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
     // SONRASI hesaplıyordu → rapor koşunun bayraklarını "(boş)" ve anlama istemini öğe / kural kipsiz yazıyordu (koşunun
     // kendisi `LIVE_FLAGS` ile doğru yapılmıştı).
     const runtime = evalRuntime();
+    {
+      const off = launchDeviations(process.env);
+      PROFILE_LINE =
+        evalProfileOf(process.env) === "launch"
+          ? `Kip: **açılış** (\`EVAL_PROFILE=launch\`, ${LAUNCH_REPLY_FLAGS.length} anahtar)${off.length > 0 ? ` — kolun KAPATTIKLARI: ${off.map((k) => `\`${k}\``).join(" · ")}` : " — açılış anahtarlarının tamamı açık"}`
+          : `Kip: **eski taban** (açılış kipi DEĞİL) — açılışta açık olup bu koşuda kapalı kalanlar: ${off.map((k) => `\`${k}\``).join(" · ") || "(yok)"}`;
+    }
     globalThis.fetch = realFetch;
     vi.unstubAllEnvs();
     if (!enabled || rows.length === 0) return;
@@ -1039,6 +1065,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · bilgi tabanı ${PAD_TO > 0 ? `nötr dolguyla ${PAD_TO} kaleme (seçim + gömme + sıralayıcı koşar)` : "dolgusuz"}`,
       `Bayraklar harness'ta sabit (canlı): ${Object.entries(LIVE_FLAGS).map(([k, v]) => `\`${k}=${v || "(boş)"}\``).join(" · ")}`,
+      PROFILE_LINE,
       `Set: ${BURNED_DEV ? `YANMIŞ mühürlü set \`${BURNED_LABEL}\` (geliştirme verisi; kabul ölçüsü değil)` : `\`evals/${SET}\``} · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · giriş kodu: \`AI_ACCESS_CODE_COMPLETE_ENABLED=${process.env.AI_ACCESS_CODE_COMPLETE_ENABLED?.trim() || "(boş)"}\` · ev sahibi kararı tutulur: \`AI_HOST_DECISION_HOLD_ENABLED=${process.env.AI_HOST_DECISION_HOLD_ENABLED?.trim() || "(boş)"}\` · şikâyet takibi: \`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=${process.env.AI_COMPLAINT_FOLLOWUP_RULE_ENABLED?.trim() || "(boş)"}\` · hâl hatır: \`AI_COURTESY_RULE_ENABLED=${process.env.AI_COURTESY_RULE_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
       "",
       ...summarizeLive(rows),
