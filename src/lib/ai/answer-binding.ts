@@ -1067,9 +1067,10 @@ const PLACE_SEP = "|";
 const placesTokens = (places: readonly string[]): string[] => places.flatMap((p, k) => (k > 0 ? [PLACE_SEP, ...tokenize(p)] : tokenize(p)));
 
 /** Bir metnin (alıntı ya da kalem) yapısı + konu ve yer okumaları; her tablo bir kez kurulur → toplam doğrusal. */
-function documentOf(raw: string, subj: Subject) {
-  // "№" NFKC'de "No" olur (olumsuzluk sanılır — R12); uzunluk korunur.
-  const { text, claims } = claimSpans(raw.replace(/№/g, " "));
+function documentOf(raw: string, subj: Subject, record = false) {
+  // "№" NFKC'de "No" olur (olumsuzluk sanılır — R12); uzunluk korunur. `record` = bilgi tabanı kalemi: "etiket: değer" yazımındaki rakamsız,
+  // tırnaksız değer de kod iddiasıdır (`claimSpans` `labelledLiterals`); parça (cevap) tarafında değil.
+  const { text, claims } = claimSpans(raw.replace(/№/g, " "), record ? { labelledLiterals: true } : {});
   const sentences = structure(text, claims, languageOf(raw) === "tr");
   const subjectIn = (s: string) => hasSubject(s, subj);
   const segPrefix = new Map<Sentence, number[]>();
@@ -1433,7 +1434,7 @@ function cachedDocument(raw: string, subj: Subject): Doc {
     docCache.set(key, hit);
     return hit;
   }
-  const d = documentOf(raw, subj);
+  const d = documentOf(raw, subj, true);
   docCache.set(key, d);
   if (docCache.size > DOC_CACHE_MAX) docCache.delete(docCache.keys().next().value as string);
   return d;
@@ -2020,18 +2021,25 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
           }),
         );
       }
-      if (hits.length === 0) {
-        // Etiketli, rakamsız değer (11-12 ölçümü): kalemde `Ağ adı: Lale_Home` tırnaksız → ayıklayıcı kod saymaz; parçada `ağ adı "Lale_Home"`
-        // tırnaklı → kod. Değer kalemde AYNI etiket ailesinin ardında birebir yazıyorsa dayanaklıdır. Yalnız alıntının kendi kaleminde, kalem
-        // ihtiyacın konusunu taşıyorsa ve tek konuluysa (iki konulu kalemde hangi konunun değeri olduğu ancak yer okumasıyla bilinir → eski
-        // sıkı denetim).
-        if (subjectKnown && !multiAt(ev) && ev.hasSubjectAnywhere() && labelledLiteralInRecord(pdoc.text, c, ev.text)) {
-          anchored = true;
-          continue;
-        }
+      // 🚨 Kalemin ETİKETLİ, rakamsız değeri ("Ağ adı: Lale_Home", "Şifre: lalemisafir" — `lit`) ancak sıkı şartla dayanaktır: (a) parçadaki
+      // etiket ailesiyle aynı aile (ağ adı "şifre" diye, şifre "ağ adı" diye verilemez; yalın "Wi-Fi" etiketi nötr) ve (b) değerin cümlesi
+      // ihtiyacın konusuna bağlı (başka nesnenin gizli değeri — "Kapı kodu: lalekapi. Wi-Fi bilgisi kartta." — Wi-Fi şifresi olamaz). Bu
+      // değerler 11-12'ye kadar hiç dayanak sayılmıyordu; şartı sağlamayan eşleşme eskisi gibi "değer alıntıda yok"tur (kodda tutulur, okuyucuya
+      // bırakılmaz). Rakamlı / tırnaklı kalem değerlerinin yolu değişmedi.
+      const partFamily = labelFamilyAt(pdoc.text, c);
+      const usable = hits.filter((h) => {
+        const e = h.sent.groups[h.gi].claims[h.idx];
+        if (!e.lit) return true;
+        const family = labelFamilyAt(h.d.text, e);
+        if (family !== null && partFamily !== null && family !== partFamily) return false;
+        return h.d.boundAt(h.si, h.gi) || labelLineInherits(h.d, h.si);
+      });
+      if (usable.length === 0) {
         issues.add("value_not_in_evidence");
         continue;
       }
+      hits.length = 0;
+      hits.push(...usable);
       if (!subjectKnown) continue;
       const bound = hits.filter((h) => h.d.boundAt(h.si, h.gi));
       if (bound.length === 0) {
@@ -2155,17 +2163,42 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
     // ihtiyaçta yalnız PARÇANIN konusunu anan yerler ("Havuz açıktır. Sauna kapalıdır." → "Havuz kapalıdır" tutulur).
     const places: string[] = [];
     const sentencesRead = new Set<Sentence>();
+    // 🚨 Kimlik başına olumluluk (çok konulu kalem — 11-12 ölçümü + Opus P1-3). Her tesis KENDİ yan cümlesinin olumluluğuyla okunur:
+    //   · hüküm veren yan cümle = yüklemli, olumsuzluk taşıyan ya da BULUNMA ekli ad cümlesi ("Çamaşır makinesi mutfakta" — olumlu varlık);
+    //   · hüküm vermeyen yalın yan cümle (kalem başlığı "Çamaşır:", ortak yüklemi bekleyen sıralama "Çamaşır makinesi, kurutma makinesi yok")
+    //     aynı cümlede kendisinden SONRA gelen ilk hüküm veren yan cümlenin olumluluğunu alır; yoksa bütün cümleninkini.
+    // Eski okuma yüklemsiz yan cümleye BÜTÜN cümlenin olumluluğunu yazıyordu: "Çamaşır makinesi mutfakta, kurutma makinesi yok." kaleminde
+    // çamaşır makinesi de "yok" sayılıyor, "Çamaşır makinesi yok, kurutma makinesi de yok." geçiyor, doğru cevap tutuluyordu.
+    const identityPolarity = new Map<string, Set<boolean>>();
+    const locative = (w: string) => w.length >= 5 && /n?[dt][ae]$/.test(w);
     for (const sent of ev.sentences) {
+      const row: { ids: Set<string>; verdict: boolean | null }[] = [];
       for (const cl of sent.clauses) {
         const clause = ev.text.slice(cl[0], cl[1]);
+        const clauseTokens = tokenize(clause);
+        const predicated = hasPredicate(clauseTokens);
+        if (multiSubject) {
+          const neg = negative(clauseTokens);
+          const decides = predicated || neg || clauseTokens.some(locative);
+          row.push({ ids: ev.subjectIn(clause) ? subjectIdentitiesIn(clause, subj, identities) : new Set(), verdict: decides ? neg : null });
+        }
         if (!ev.subjectIn(clause)) continue;
         if (multiSubject && partIdentitiesAll.size > 0) {
           const ids = subjectIdentitiesIn(clause, subj, identities);
           if (ids.size > 0 && ![...ids].some((x) => partIdentitiesAll.has(x))) continue;
         }
-        places.push(hasPredicate(tokenize(clause)) ? clause : ev.text.slice(sent.s, sent.e));
+        places.push(predicated ? clause : ev.text.slice(sent.s, sent.e));
         sentencesRead.add(sent);
       }
+      row.forEach((r, i) => {
+        if (r.ids.size === 0) return;
+        const verdict = r.verdict ?? row.slice(i + 1).find((x) => x.verdict !== null)?.verdict ?? negative(tokenize(ev.text.slice(sent.s, sent.e)));
+        for (const id of r.ids) {
+          let seen = identityPolarity.get(id);
+          if (!seen) identityPolarity.set(id, (seen = new Set()));
+          seen.add(verdict);
+        }
+      });
     }
     if (partIdentitiesAll.size === 0 && multiSubject) issues.add("subject_mismatch");
     // Değersiz parçada alıntı tek dayanaktır: konuyu anmayan alıntı (havuz cümlesiyle "evcil hayvan kabul edilmiyor") dayanak olmaz.
@@ -2193,17 +2226,6 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
       // tersini de kapatır: tek cümlelik karışık kalemde ("Çamaşır makinesi var, kurutma makinesi yok.") iki yönü de taşıyan ama YER DEĞİŞTİRMİŞ
       // cevap ("Çamaşır makinesi yok, kurutma makinesi var.") eskiden geçiyordu. Kimliğin kalemdeki olumluluğu tek değilse (aynı tesis hem
       // olumlu hem olumsuz anılıyor) kimlik okuması hüküm vermez — eski bütün-kalem kıyası sürer.
-      const identityPolarity = new Map<string, Set<boolean>>();
-      if (multiSubject) {
-        for (const place of places) {
-          const neg = negative(tokenize(place));
-          for (const id of subjectIdentitiesIn(place, subj, identities)) {
-            let seen = identityPolarity.get(id);
-            if (!seen) identityPolarity.set(id, (seen = new Set()));
-            seen.add(neg);
-          }
-        }
-      }
       /** Yan cümlenin andığı kimliklerin HEPSİ kalemde tek olumluluktaysa o olumluluklar; değilse null (kimlik okuması hüküm vermez). */
       const ownPolarity = (cl: string): Set<boolean>[] | null => {
         if (!multiSubject) return null;
@@ -2361,53 +2383,46 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
 type Doc = ReturnType<typeof documentOf>;
 
 /**
- * Etiket aileleri (`claim-support` etiketli kod kuralının etiketleri, iki aile): ağ ADI ve GİZLİ değer (şifre / kod). Aile değişirse değer
- * taşınmış demektir — ağ adı "şifre" diye verilemez.
+ * Etiketli kod değerinin etiket ailesi (aralık etiketle başlar): "name" = ağ adı / SSID, "secret" = şifre / parola / kod / PIN; yalın "Wi-Fi",
+ * "WLAN", "zil" gibi etiketler ve etiketsiz değer → null (nötr). Metin `claimSpans`ın katlanmış metnidir.
  */
-const LABEL_FAMILIES: readonly string[] = [
-  "(?:ssid|ag adi|agin adi|ag ismi|network(?: name)?|wi-?fi(?: agi[a-z]*| adi)?|wlan)",
-  "(?:sifre[a-z]*|parola[a-z]*|password|passcode|pin|kod[a-z]*|code|zil|kapi no|door code|keybox)",
-];
-const LABEL_FAMILY_START = LABEL_FAMILIES.map((f) => new RegExp(`^${f}(?![a-z])`));
-
-/**
- * Parçanın etiketli kod değeri (`c` — aralığı etiket + değer) kalemde AYNI ailenin etiketi + ayraç (":" / "=") ardında birebir yazıyor mu.
- * İki metin de `claimSpans`ın katlanmış metnidir. Kalem tarafında ayraç ŞART ("Ağ adı: Lale_Home"); düz cümlede geçen sözcük ad sayılmaz.
- * Sınırlı niceleyiciler (doğrusal).
- */
-function labelledLiteralInRecord(partText: string, c: Span, recordText: string): boolean {
-  // Etiketle başlamayan değer (saat, tutar, etiketsiz harf + rakam belirteci) kısa yola girmez: yalnız etiketli kod aralığı etiketle başlar.
-  const family = LABEL_FAMILY_START.findIndex((re) => re.test(partText.slice(c.at, c.end)));
-  if (family < 0) return false;
-  const key = c.keys.find((k) => k.startsWith("c"));
-  if (!key) return false;
-  const token = foldForClaims(key.slice(1));
-  if (token.length < 3) return false;
-  // 🚨 Kalemde o aileden TEK etiketli değer olmalı (Haiku 11-12): "Kapı kodu: 4471. Wi-Fi şifresi: abc." kaleminde kapı sorusuna
-  // 'Kapı kodu "abc"' — Wi-Fi şifresi kapı kodu diye — geçiyordu (ihtiyaç tek konulu, kalem konuyu anıyor, aile aynı). İki gizli değer taşıyan
-  // kalemde hangisinin sorulan şeye ait olduğu ancak yer okumasıyla bilinir → kısa yol yok, eski sıkı denetim.
-  const values = labelledValues(recordText, family);
-  return values.length === 1 && values[0] === token;
+const NAME_LABEL = /^(?:ssid|ag adi|agin adi|ag ismi|network(?: name)?|wi-?fi (?:agi[a-z]*|adi))(?![a-z])/;
+const SECRET_LABEL = /^(?:sifre[a-z]*|parola[a-z]*|password|passcode|pin|kod[a-z]*|code|door code)(?![a-z])/;
+/** Cümle yalnız etiketli değer(ler)den mi ibaret ("Şifre: lalemisafir", "Ağ adı: Lale_Home") — değer aralıkları çıkınca harf kalmıyor. */
+function labelOnlySentence(d: Doc, si: number): boolean {
+  const sent = d.sentences[si];
+  if (sent.groups.length === 0) return false;
+  let rest = "";
+  let from = sent.s;
+  for (const g of sent.groups) {
+    for (const c of g.claims) {
+      if (c.cls !== "code") return false;
+      rest += d.text.slice(from, Math.max(from, c.at));
+      from = Math.max(from, c.end);
+    }
+  }
+  rest += d.text.slice(from, sent.e);
+  return !/\p{L}/u.test(rest);
 }
 
-const ANY_LABEL_AT = new RegExp(`^(?:${LABEL_FAMILIES.join("|")})(?![a-z])[^\\S\\n]{0,3}[:=]`);
-
 /**
- * Kalemde verilen ailenin etiketi + ayraç (":" / "=") ardında yazan değerler (katlanmış metin; sırayla). Etiketin ardındaki şey BAŞKA bir
- * etiketse ("Wi-Fi: Ağ adı: …" başlığı) değer değildir, tarama o etiketten sürer. Sınırlı niceleyiciler; her adımda ilerleme (doğrusal).
+ * Yalnız etiketli değerden ibaret satır ("Wi-Fi: Ağ adı: Lale_Home" satırının ALTINDAKİ "Şifre: lalemisafir") konuyu, kendisinden önceki ilk
+ * içerikli cümleden devralır — o cümle ihtiyacın konusunu anıyorsa. Arada başka nesnenin cümlesi varsa ("Kapı kodu: …") devralmaz; kendi
+ * içinde başka sözcük taşıyan satır ("Otopark bariyeri şifresi: …") etiket satırı değildir. Sınırlı geri yürüyüş.
  */
-function labelledValues(recordText: string, family: number): string[] {
-  const re = new RegExp(`(?<![a-z0-9])${LABEL_FAMILIES[family]}(?![a-z])[^\\S\\n]{0,3}[:=][^\\S\\n]{0,3}["']?([^\\s"',;()]{1,40})`, "g");
-  const out: string[] = [];
-  for (let m = re.exec(recordText); m; m = re.exec(recordText)) {
-    const valueAt = m.index + m[0].length - m[1].length;
-    if (ANY_LABEL_AT.test(recordText.slice(valueAt, valueAt + 64))) {
-      re.lastIndex = valueAt;
-      continue;
-    }
-    out.push(m[1].replace(/[.!?:=]+$/, ""));
+function labelLineInherits(d: Doc, si: number): boolean {
+  if (!labelOnlySentence(d, si)) return false;
+  for (let k = si - 1, steps = 0; k >= 0 && steps < 6; k--, steps++) {
+    if (labelOnlySentence(d, k)) continue;
+    const prev = d.sentences[k];
+    return d.subjectIn(d.text.slice(prev.s, prev.e));
   }
-  return out;
+  return false;
+}
+
+function labelFamilyAt(text: string, c: Span): "name" | "secret" | null {
+  const head = text.slice(c.at, Math.min(c.end, c.at + 32));
+  return NAME_LABEL.test(head) ? "name" : SECRET_LABEL.test(head) ? "secret" : null;
 }
 
 function variantOmitted(src: Doc, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {

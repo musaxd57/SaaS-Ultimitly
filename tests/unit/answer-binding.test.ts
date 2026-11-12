@@ -1384,6 +1384,9 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
 describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, parçada tırnaklı (Wi-Fi ağ adı)", () => {
   // Parça kipinde Wi-Fi cevabı 14 gereksiz tutmanın 8'iydi: değer ayıklayıcı etiketten sonraki sözcüğü ancak RAKAM içeriyor ya da TIRNAKLIYSA
   // kod sayar → kalemdeki `Ağ adı: Lale_Home` kod değil, modelin yazdığı `ağ adı "Lale_Home"` kod → "değer alıntıda yok".
+  // Çözüm (Opus 11-12 sonrası): KALEM tarafında "etiket: değer" yazımı da kod iddiasıdır (`claimSpans` `labelledLiterals`) ve cevap değeri
+  // olağan denetimden geçer — özgün yazımla birebir, aynı etiket ailesi, konuya bağlı cümle. (İlk yazım bir "kısa yol"du; başka nesnenin tek
+  // gizli değerini bağlayabildiği ve harf farkını yok saydığı için kaldırıldı.)
   const WIFI_KB = "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024.";
   const WIFI = need(["wifi şifresi ne", "what is the wifi password"]);
   const wifi = (part: string, sourceText = WIFI_KB, evidence = sourceText) => checkAnswerBinding({ part, evidence, sourceText, ...WIFI });
@@ -1453,6 +1456,47 @@ describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, par�
     expect(wifi('Wi-Fi şifresi "lalemisafir".', "Wi-Fi: Wi-Fi şifresi: lalemisafir.").issues).not.toContain("value_not_in_evidence");
     expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024.").issues).not.toContain("value_not_in_evidence");
     expect(wifi('The Wi-Fi network is "LaleNet".', "Wi-Fi: Network: LaleNet. Password: 12345678.").issues).not.toContain("value_not_in_evidence");
+  });
+
+  it("🚨 Opus P1-1: başka nesnenin TEK gizli değeri sorulan şeye bağlanamaz (kalem konuyu başka cümlede ansa da)", () => {
+    const kb = "Kapı kodu: lalekapi. Wi-Fi bilgisi yatak odasındaki kartta.";
+    expect(wifi('Wi-Fi şifresi "lalekapi".', kb).issues).toContain("value_not_in_evidence");
+    const gate = "Giriş: Bina kapısı gündüz açıktır. Otopark bariyeri şifresi: yesilkapi.";
+    const door = need(["bina kapısı kodu"]);
+    expect(checkAnswerBinding({ part: 'Bina kapısının kodu "yesilkapi".', evidence: "Otopark bariyeri şifresi: yesilkapi.", sourceText: gate, ...door }).issues).toContain("value_not_in_evidence");
+  });
+
+  it("🚨 Opus P1-2: değer ÖZGÜN yazımla birebir olmalı — büyük / küçük harf ve Türkçe harf farkı başka değerdir", () => {
+    expect(wifi('Wi-Fi şifresi "lalemisafir".', "Wi-Fi: Şifre: LaleMisafir").issues).toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi şifresi "LaleMisafir".', "Wi-Fi: Şifre: LaleMisafir").issues).not.toContain("value_not_in_evidence");
+    const name = need(["wifi ağ adı"]);
+    const kb = "Wi-Fi: Ağ adı: Kuşadası_Home";
+    expect(checkAnswerBinding({ part: 'Wi-Fi ağ adı "Kusadasi_Home".', evidence: kb, sourceText: kb, ...name }).issues).toContain("value_not_in_evidence");
+    expect(checkAnswerBinding({ part: 'Wi-Fi ağ adı "Kuşadası_Home".', evidence: kb, sourceText: kb, ...name }).issues).not.toContain("value_not_in_evidence");
+  });
+
+  it("çok satırlı kalem: yalnız etiketten ibaret satır konuyu ÜSTTEKİ konu satırından devralır; arada başka nesne varsa devralmaz", () => {
+    const part = 'Wi-Fi ağ adı "Lale_Home", şifre "lalemisafir".';
+    for (const kb of ["Wi-Fi: Ağ adı: Lale_Home\nŞifre: lalemisafir", "Wi-Fi bilgileri aşağıdadır.\nAğ adı: Lale_Home\nŞifre: lalemisafir", "- [WIFI] Wi-Fi: Ağ adı: Lale_Home\nŞifre: lalemisafir"]) {
+      expect([kb, wifi(part, kb).issues.includes("value_not_in_evidence")]).toEqual([kb, false]);
+    }
+    expect(wifi('The Wi-Fi network is "LaleNet" and the password is "lalemisafir".', "Wi-Fi: Network: LaleNet\nPassword: lalemisafir").issues).not.toContain("value_not_in_evidence");
+    // Arada kapı satırı var → "Şifre: abc" artık kapının altında; kapı satırının kendisi de Wi-Fi değeri değil; başta duran etiket satırı sahipsiz.
+    expect(wifi('Wi-Fi şifresi "abc".', "Wi-Fi: Ağ adı: Lale_Home\nKapı kodu: lalekapi\nŞifre: abc").issues).toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi şifresi "lalekapi".', "Wi-Fi: Ağ adı: Lale_Home\nKapı kodu: lalekapi").issues).toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi şifresi "abc".', "Şifre: abc\nWi-Fi salonda çeker.").issues).toContain("value_not_in_evidence");
+  });
+
+  it("kalem tarafı etiketli değer yalnız KALEMDE kod sayılır: cevapta 'şifre: panoda yazıyor' olağan sözdür", async () => {
+    const { claimSpans } = await import("@/lib/ai/claim-support");
+    const keys = (t: string, record = false) => claimSpans(t, record ? { labelledLiterals: true } : {}).claims.map((c) => c.keys[0]);
+    expect(keys("Şifre: lalemisafir", true)).toEqual(["clalemisafir"]);
+    expect(keys("Şifre: lalemisafir")).toEqual([]);
+    expect(keys("Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024.", true)).toEqual(["cLale_Home", "cLale2024"]);
+    // Ayraç şart; ayraçtan sonraki şey başka etiketse değer değil; rakamlı / tırnaklı değer iki tarafta da kod.
+    expect(keys("Wi-Fi ağımız Lale_Home adını taşır.", true)).toEqual([]);
+    expect(keys("Wi-Fi: Şifre: abcdef", true)).toEqual(["cabcdef"]);
+    expect(keys("Şifre: Lale2024")).toEqual(["cLale2024"]);
   });
 
   it("🚨 etiketle başlamayan kod değeri kısa yola GİRMEZ (kalemde olmayan harf + rakam belirteci tutulur)", () => {
@@ -1603,6 +1647,18 @@ describe("11-12 ölçümü: çok konulu kalemde olumluluk KİMLİK başına (iki
     const n = need(["havuz ve sauna açık mı", "are the pool and sauna open"]);
     expect(checkAnswerBinding({ part: "Havuz açıktır, sauna kapalıdır; yine de kullanılabilir.", evidence: two, sourceText: two, ...n }).issues).toContain("polarity_mismatch");
     expect(checkAnswerBinding({ part: "The pool is open, the sauna is closed, but it is allowed.", evidence: two, sourceText: two, ...n }).issues).toContain("polarity_mismatch");
+  });
+
+  it("🚨 Opus P1-3: bulunma ekli ad cümlesi kendi tesisinin OLUMLU yeridir — ortak yüklemli yalın sıralama bütün cümleyi okur", () => {
+    const kb = "Çamaşır: Çamaşır makinesi mutfakta, kurutma makinesi yok.";
+    const ev = "Çamaşır makinesi mutfakta, kurutma makinesi yok.";
+    // Eskiden yüklemsiz ilk yan cümle bütün cümlenin olumsuzluğunu devralıyordu: yanlış cevap geçiyor, doğru cevap tutuluyordu.
+    expect(run("Çamaşır makinesi yok, kurutma makinesi de yok.", ev, kb).issues).toContain("polarity_mismatch");
+    expect(run("Çamaşır makinesi mutfaktadır, kurutma makinesi yoktur.", ev, kb).issues).not.toContain("polarity_mismatch");
+    // KONTROL: yalın sıralama ortak yüklemi paylaşır — ikisi de yok.
+    const list = "Çamaşır: Çamaşır makinesi, kurutma makinesi yok.";
+    expect(run("Çamaşır makinesi de kurutma makinesi de yok.", "Çamaşır makinesi, kurutma makinesi yok.", list).issues).not.toContain("polarity_mismatch");
+    expect(run("Çamaşır makinesi var, kurutma makinesi yok.", "Çamaşır makinesi, kurutma makinesi yok.", list).issues).toContain("polarity_mismatch");
   });
 
   it("KONTROL (R13 sürüyor): tesis anmayan izin yan cümlesi kalemin bütününe göre sınanır", () => {

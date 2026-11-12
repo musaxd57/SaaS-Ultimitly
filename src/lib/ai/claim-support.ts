@@ -87,6 +87,8 @@ interface Claim {
   tkeys?: string[];
   /** Yalnız eşleştirme için (kod büyük/küçük harf) — ASLA kaydedilmez. */
   raw: string;
+  /** Kalem tarafı etiketli değer ("Ağ adı: Lale_Home" — rakamsız, tırnaksız; `labelledLiterals`). Dayanak şartı daha sıkıdır (`answer-binding`). */
+  lit?: true;
   at: number;
   end: number;
 }
@@ -418,7 +420,7 @@ export function mixedCodeTokenMatches(text: string): RegExpExecArray[] {
 }
 
 /** Katlanmış + sayıya çevrilmiş metinden iddialar. `raw` = özgün metin (kod büyük/küçük harfi için). */
-function extract(text: string, raw: string): Claim[] {
+function extract(text: string, raw: string, opts: { labelledLiterals?: boolean } = {}): Claim[] {
   const out: Claim[] = [];
   let rawIndex: Map<string, string> | undefined;
   const rawToken = (foldedTok: string) => (rawIndex ??= rawTokenIndex(raw)).get(foldedTok) ?? foldedTok;
@@ -613,16 +615,25 @@ function extract(text: string, raw: string): Claim[] {
   // sözcüğünü aday diye alıp reddediyor, tarama adayın SONUNDAN sürdüğü için asıl etiket ("şifresi:") hiç denenmiyordu → tırnaklı, rakamsız
   // değer kod sayılmıyor, parça doğrulayıcısı onu hiç denetlemiyordu. Reddedilen adayda tarama adayın BAŞINA döner (aday en az 3 karakter
   // ileride başlar → ilerleme kesin; aday uzunluğu sınırlı → toplam iş doğrusal).
-  const labelledCode = new RegExp(`${KW}[^\\S\\n]*(?:(?:[:=]|(?:is|olarak|de|da)(?![a-z]))[^\\S\\n]*)?(["']?)([^\\s"',;()]{3,40})`, "g");
+  // 🚨 KAYIT tarafı (`labelledLiterals`, 11-12): bilgi tabanı kaleminde "etiket: değer" yazımı ("Ağ adı: Lale_Home", "Şifre: lalemisafir") —
+  // değer rakamsız ve tırnaksız da olsa KODDUR. Eskiden kalemdeki bu değer iddia sayılmıyor, modelin tırnak içinde yazdığı aynı değer kod
+  // sayılıyordu → doğru Wi-Fi cevabı "değer alıntıda yok" diye tutuluyordu (parça kipinde 14 tutmanın 8'i). Kalem değeri iddia olunca cevap
+  // değeri OLAĞAN denetimden geçer: özgün yazımla birebir (büyük / küçük harf dahil), konuya bağlı yerde. Açık ayraç (":" / "=") şart; ayraçtan
+  // sonraki şey başka bir etiketse ("Wi-Fi: Ağ adı: …" başlığı) değer değildir. Yalnız kalem tarafında: cevap metninde "şifre: panoda yazıyor"
+  // gibi olağan söz kod sayılmaz.
+  const labelledCode = new RegExp(`${KW}[^\\S\\n]*(?:(?:([:=])|(?:is|olarak|de|da)(?![a-z]))[^\\S\\n]*)?(["']?)([^\\s"',;()]{3,40})`, "g");
+  const labelAt = new RegExp(`^${KW.slice(2)}[^\\S\\n]{0,3}[:=]`);
   take(labelledCode, (m) => {
-    const tok = m[2].replace(/[.!?:]+$/, "");
-    const rejected = (!/\d/.test(tok) && m[1] === "") || /^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok);
+    const tok = m[3].replace(/[.!?:]+$/, "");
+    const tokenAt = m.index + m[0].length - m[3].length;
+    const literal = opts.labelledLiterals === true && m[1] !== undefined && m[2] === "" && !labelAt.test(text.slice(tokenAt, tokenAt + 48));
+    const rejected = (!/\d/.test(tok) && m[2] === "" && !literal) || /^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok);
     if (rejected) {
-      labelledCode.lastIndex = m.index + m[0].length - m[2].length;
+      labelledCode.lastIndex = tokenAt;
       return null;
     }
     const r = rawToken(tok);
-    return { cls: "code", keys: [`c${r}`], raw: r };
+    return { cls: "code", keys: [`c${r}`], raw: r, ...(literal && !/\d/.test(tok) ? { lit: true as const } : {}) };
   });
   // Harf + rakam karışık tekil belirteç ("3b", "lalenet_5g"); "15te", "2nd", "10dk" DEĞİL.
   take(mixedCodeTokenMatches(text), (m) => {
@@ -797,12 +808,18 @@ const CONSTANT_KEYS = new Set(["k112", "k155", "k156", "k110", "k177", "k911", "
  * göredir (katlama + sayı sözcükleri). Kullanan: cevap parçası doğrulayıcısı (`ai/answer-binding.ts`, kurucu 10-23 A — değer konuya bağlı
  * mı; yalnız `AI_ANSWER_PARTS_ENABLED` açıkken karar verir). Bu modülün kendi denetimi (`auditClaims`) hâlâ yalnız ÖLÇÜMDÜR.
  */
-export function claimSpans(text: string): {
+export function claimSpans(
+  text: string,
+  opts: { labelledLiterals?: boolean } = {},
+): {
   text: string;
-  claims: { cls: ClaimClass; keys: string[]; tkeys?: string[]; at: number; end: number }[];
+  claims: { cls: ClaimClass; keys: string[]; tkeys?: string[]; lit?: true; at: number; end: number }[];
 } {
   const t = wordsToDigits(foldForClaims(text), "unit");
-  return { text: t, claims: extract(t, text).map(({ cls, keys, tkeys, at, end }) => ({ cls, keys, ...(tkeys ? { tkeys } : {}), at, end })) };
+  return {
+    text: t,
+    claims: extract(t, text, opts).map(({ cls, keys, tkeys, lit, at, end }) => ({ cls, keys, ...(tkeys ? { tkeys } : {}), ...(lit ? { lit } : {}), at, end })),
+  };
 }
 
 /** Cevaptaki iddiaları çıkar ve desteğini sınıfla. Saf; asla fırlatmaması çağıranda sarılarak sağlanır. */
