@@ -68,7 +68,11 @@ interface Scenario {
   /** Bilgi tabanı kümesinin adı (`kbSets` anahtarı): "full" / "sparse" + 10-01 setlerinde "crowded" / "conflict". */
   kb: string;
   /** `author` (yalnız giden): cevabı kim yazdı — varsayılan yapay zekâ; "host" = ev sahibi panelden yazdı (S2 şart dışı senaryoları). */
-  history?: { direction: "inbound" | "outbound"; body: string; author?: "ai" | "host" }[];
+  /**
+   * `hoursAgo` (isteğe bağlı; olağan senaryo): satırın yazıldığı an şimdiden bu kadar saat önce — verilmezse satırlar 10'ar dakika arayla
+   * dizilir. Önceki satırlar gerekirse ondan da eskiye itilir (sıra korunur). Cevapsız mesajları FARKLI GÜNLERE koyan senaryo için.
+   */
+  history?: { direction: "inbound" | "outbound"; body: string; author?: "ai" | "host"; hoursAgo?: number }[];
   message: string;
   /**
    * S2 (geç içeri alınan mesaj): `message`, geçmişteki SON giden mesajdan ÖNCE yazıldı ama ondan SONRA içeri alındı (`scenarioMessageRows`).
@@ -109,6 +113,12 @@ interface NeedSpec {
   want: "answered" | "open";
   all?: string[];
   forbid?: string[];
+  /**
+   * İhtiyacın KONUSU (isteğe bağlı; Opus 11-12 P2-14): giden metinde geçiyorsa o ihtiyaca DEĞİNİLMİŞTİR. Cevaplanması gereken ihtiyaçta konu
+   * geçip beklenen değer yoksa yanlış / eksik değer gitmiştir → yanlış gönderim (öğe eşleşmesi kurulamasa da: aynı türden iki ihtiyaç, başka
+   * türe konmuş istek). Konu geçmiyorsa ihtiyaç giden cevapta ATLANMIŞTIR (gereksiz tutma). Açık kalması gereken ihtiyaçta konu `forbid`e yazılır.
+   */
+  about?: string[];
 }
 interface Dataset {
   version: number;
@@ -336,13 +346,18 @@ export function scenarioMessageRows(
   const history = s.history ?? [];
   const MIN = 60_000;
   if (!s.late) {
+    // Varsayılan 10'ar dakika; `hoursAgo` verilen satır o ana, ondan önceki satırlar (sıra bozulmasın diye) en geç onun 10 dakika öncesine.
+    const at = history.map((h, i) => (h.hoursAgo !== undefined ? now - h.hoursAgo * 60 * MIN : now - (history.length - i + 1) * 10 * MIN));
+    // Son geçmiş satırı güncel mesajdan (bir dakika önce) ÖNCE kalır — `hoursAgo: 0` sırayı ters çevirmesin (Haiku 11-12).
+    if (at.length > 0 && at[at.length - 1] >= now - MIN) at[at.length - 1] = now - 2 * MIN;
+    for (let i = at.length - 2; i >= 0; i--) if (at[i] >= at[i + 1]) at[i] = at[i + 1] - 10 * MIN;
     return [
       ...history.map((h, i) => ({
         direction: h.direction,
         senderName: h.direction === "inbound" ? guestName : "GuestOps AI",
         ...(h.direction === "outbound" ? { authorType: h.author ?? "ai" } : {}),
         body: h.body,
-        createdAt: new Date(now - (history.length - i + 1) * 10 * MIN),
+        createdAt: new Date(at[i]),
       })),
       { direction: "inbound" as const, senderName: guestName, body: s.message, createdAt: new Date(now - MIN) },
     ];
@@ -530,6 +545,12 @@ interface NeedResult {
   statusOk: boolean | null;
   /** 🚨 open beklenip giden metinde yasak desen ya da öğe "answered" — yanlış "cevaplandı". */
   wrongAnswered: boolean;
+  /**
+   * Cevaplanması gereken ihtiyaç: misafire METİN GİTTİ ama bu ihtiyacın beklenen değeri içinde yok ve yanlış gönderim de sayılamadı (Opus 11-12
+   * P2-14). İki olasılık: ihtiyaç giden cevapta atlandı (kısmi tutma) ya da ölçerin göremediği yanlış değer gitti → satır elle incelenir;
+   * "tur hiç gitmedi" tutmasından AYRI sayılır.
+   */
+  sentMissing?: boolean;
 }
 
 const rx = (p: string) => new RegExp(p, "iu");
@@ -564,11 +585,15 @@ export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, 
     // değer de yanlış sayılabilir; ölçüm yanlış gönderimi eksik değil fazla sayar).
     const pats = n.all ?? [];
     const partialSent = text.length > 0 && pats.length >= 2 && pats.some((p) => rx(p).test(text)) && !allOk;
+    // Opus 11-12 P2-14: konusu giden metinde geçen ama beklenen değeri taşımayan ihtiyaç = yanlış / eksik değer gitti (öğe eşleşmesinden
+    // bağımsız — "Otopark ücretlidir." ücretsiz otoparkta, istek başka türe konmuş olsa da yanlış gönderimdir).
+    const addressedWithoutValue = n.want === "answered" && text.length > 0 && !allOk && (n.about ?? []).some((p) => rx(p).test(text));
     const wrongAnswered =
       n.want === "open"
         ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem)
-        : forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem && !allOk) || (sameKind > 1 && partialSent);
-    return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered };
+        : forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem && !allOk) || (sameKind > 1 && partialSent) || addressedWithoutValue;
+    const sentMissing = n.want === "answered" && text.length > 0 && !textOk && !wrongAnswered;
+    return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered, ...(sentMissing ? { sentMissing: true } : {}) };
   });
 }
 
@@ -583,6 +608,8 @@ export function needMetrics(all: readonly NeedResult[]) {
     answered: answered.length,
     answeredOk: answered.filter((n) => n.textOk && !n.wrongAnswered).length,
     needlessHold: answered.filter((n) => !n.textOk && !n.wrongAnswered).length,
+    /** `needlessHold`in alt kümesi: metin gitti ama bu ihtiyacın beklenen değeri yok (atlanmış ihtiyaç ya da ölçerin göremediği yanlış değer). */
+    sentMissing: answered.filter((n) => n.sentMissing === true).length,
     open: open.length,
     openOk: open.filter((n) => n.textOk && !n.wrongAnswered).length,
     wrong: all.filter((n) => n.wrongAnswered).length,
@@ -672,6 +699,11 @@ export function sealedDetail<R extends { id: string }>(input: {
     rows: input.rows.map((r) => ({ scenario: byId.get(r.id) ?? null, result: r })),
     runtime: input.runtime,
   };
+}
+
+/** Ayrıntı dosyası yalnız eksiksiz biten (GEÇERLİ) kör koşuda yazılır — kısmi koşu senaryoları açığa çıkarmaz. Saf. */
+export function sealedDetailAllowed(status: string): boolean {
+  return status === "GEÇERLİ";
 }
 
 /** Rapor satırları (geç mesaj senaryosu olmayan sette boş). */
@@ -962,6 +994,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         "|---|---|",
         `| cevaplanması gereken ihtiyaç: doğru değerle giden | ${pct(m.answeredOk, m.answered)} |`,
         `| GEREKSİZ TUTMA (cevabı olan ihtiyaç misafire gitmedi / eksik gitti) | ${m.needlessHold} |`,
+        `| ↳ bunların içinde: metin GİTTİ ama bu ihtiyacın beklenen değeri yok (atlanmış ihtiyaç ya da ölçerin göremediği yanlış değer — ayrıntı dosyasından incelenir) | ${m.sentMissing} |`,
         `| açık kalması gereken ihtiyaç: açık kaldı | ${pct(m.openOk, m.open)} |`,
         `| 🚨 YANLIŞ GÖNDERİM (yanlış değer / yanlış "cevaplandı"; hedef 0) | ${m.wrong} |`,
         `| 🚨 "bilgim yok" / iç kaynak anlatımı giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
@@ -987,11 +1020,15 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         runtime,
       });
       // Ayrıntı dosyası (kurucu 11-12): kendi başına okunur — senaryolar, bilgi tabanı kümeleri, tam satırlar. Setin adı yok.
-      writeFileSync(
-        path.join(dir, name.replace(/\.md$/u, "-ayrinti.json")),
-        `${JSON.stringify(sealedDetail({ label: BURNED_LABEL, model: MODEL, commit, status, data, rows, runtime }), null, 2)}\n`,
-        "utf8",
-      );
+      // 🚨 YALNIZ GEÇERLİ koşuda (Opus 11-12 P3-8): bütçe tavanında / düşen satırla biten koşu kabul ölçüsü değildir; senaryoları diske
+      // yazmak seti kısmi koşuda yakardı ("kısmi koşu yasak").
+      if (sealedDetailAllowed(status)) {
+        writeFileSync(
+          path.join(dir, name.replace(/\.md$/u, "-ayrinti.json")),
+          `${JSON.stringify(sealedDetail({ label: BURNED_LABEL, model: MODEL, commit, status, data, rows, runtime }), null, 2)}\n`,
+          "utf8",
+        );
+      }
       return;
     }
     const usageLines = [...usageByModel].map(
@@ -1069,10 +1106,11 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
               "",
               "| ölçü | değer |",
               "|---|---|",
-              `| cevaplanması gereken ihtiyaç: doğru değerle misafire giden | ${pct(ans.filter((n) => n.textOk).length, ans.length)} |`,
+              `| cevaplanması gereken ihtiyaç: doğru değerle misafire giden | ${pct(needMetrics(all).answeredOk, ans.length)} |`,
               `| açık kalması gereken ihtiyaç: açık kaldı | ${pct(open.filter((n) => n.textOk && !n.wrongAnswered).length, open.length)} |`,
               `| 🚨 yanlış "cevaplandı" / yanlış değer misafire giden (hedef 0) | ${all.filter((n) => n.wrongAnswered).length} |`,
               `| gereksiz tutma (cevabı olan ihtiyaç gitmedi / eksik gitti) | ${needMetrics(all).needlessHold} |`,
+              `| ↳ bunların içinde: metin GİTTİ ama bu ihtiyacın beklenen değeri yok (atlanmış ihtiyaç ya da ölçerin göremediği yanlış değer — satır incelenir) | ${needMetrics(all).sentMissing} |`,
               `| öğe durumu beklentiyle uyumlu (tek öğeli tür) | ${pct(st.filter((n) => n.statusOk).length, st.length)} |`,
               `| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
               `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
@@ -1085,7 +1123,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
                 .filter((r) => r.needs)
                 .map(
                   (r) =>
-                    `| ${r.id} | ${r.needs!.map((n) => `${n.kind}:${n.want}${n.textOk && !n.wrongAnswered ? "✔" : "✖"}`).join(" ")} | ${(r.itemStates ?? []).map((i) => `${i.kind}=${i.status}`).join(" ")} | ${(r.parts ?? []).map((p) => `${p.ref}=${p.status}${p.issues ? `(${p.issues.join(",")})` : ""}`).join(" ") || "—"} |`,
+                    `| ${r.id} | ${r.needs!.map((n) => `${n.kind}:${n.want}${n.textOk && !n.wrongAnswered ? "✔" : n.wrongAnswered ? "✖YANLIŞ" : n.sentMissing ? "✖eksik-gitti" : "✖"}`).join(" ")} | ${(r.itemStates ?? []).map((i) => `${i.kind}=${i.status}`).join(" ")} | ${(r.parts ?? []).map((p) => `${p.ref}=${p.status}${p.issues ? `(${p.issues.join(",")})` : ""}`).join(" ") || "—"} |`,
                 ),
               "",
             ];
@@ -1179,6 +1217,68 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     expect(scoreNeeds(about, "Ben otomatik bir asistanım.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ wrongAnswered: true });
   });
 
+  it("🚨 Opus 11-12 P2-14: konusu giden metinde geçen ama beklenen değeri taşımayan ihtiyaç YANLIŞ GÖNDERİMDİR; atlanan ihtiyaç ayrı sayılır", () => {
+    const parking: NeedSpec[] = [{ kind: "parking", want: "answered", all: ["ücretsiz"], about: ["otopark|park yeri"] }];
+    // Yanlış değer gitti; istek başka türe konmuş (öğe eşleşmesi yok) → eskiden "gereksiz tutma" sayılıyordu.
+    const wrongValue = scoreNeeds(parking, "Otopark ücretlidir.", [{ kind: "amenities", status: "answered" }]);
+    expect(wrongValue[0]).toMatchObject({ textOk: false, wrongAnswered: true });
+    expect(wrongValue[0].sentMissing).toBeUndefined();
+    expect(needMetrics(wrongValue)).toMatchObject({ wrong: 1, needlessHold: 0, sentMissing: 0 });
+    // Aynı türden iki ihtiyaçta da (öğe bağlanamaz, tek desen → `partialSent` devreye girmez).
+    const twoLocal: NeedSpec[] = [
+      { kind: "local_recommendations", want: "answered", all: ["150"], about: ["market|shop"] },
+      { kind: "local_recommendations", want: "open", forbid: ["\\batms?\\b"] },
+    ];
+    expect(scoreNeeds(twoLocal, "The nearest shop is about 300 meters away.", [])[0]).toMatchObject({ wrongAnswered: true });
+    expect(scoreNeeds(twoLocal, "There are ATMs available in the area. The nearest shop is 150 meters away.", [])[1]).toMatchObject({ wrongAnswered: true });
+    // İhtiyaç giden cevapta ATLANDI (konu geçmiyor): yanlış değil, gereksiz tutma — ama "tur hiç gitmedi"den ayrı sayılır.
+    const skipped = scoreNeeds(parking, "Wi-Fi şifremiz Lale2024.", []);
+    expect(skipped[0]).toMatchObject({ textOk: false, wrongAnswered: false, sentMissing: true });
+    expect(needMetrics(skipped)).toMatchObject({ wrong: 0, needlessHold: 1, sentMissing: 1 });
+    // Tur hiç gitmedi: gereksiz tutma, "metin gitti" alt kümesinde DEĞİL.
+    const held = scoreNeeds(parking, null, []);
+    expect(held[0].sentMissing).toBeUndefined();
+    expect(needMetrics(held)).toMatchObject({ wrong: 0, needlessHold: 1, sentMissing: 0 });
+    // Doğru değer gitti: konu deseni sonucu değiştirmez.
+    expect(scoreNeeds(parking, "Otoparkımız misafirlerimize ücretsizdir.", [])[0]).toMatchObject({ textOk: true, wrongAnswered: false });
+    // Konu deseni yoksa eski davranış: metin gitti + değer yok + öğe eşleşmesi yok → yanlış sayılamaz, "eksik gitti" satırına düşer.
+    const noAbout: NeedSpec[] = [{ kind: "parking", want: "answered", all: ["ücretsiz"] }];
+    expect(scoreNeeds(noAbout, "Otopark ücretlidir.", [])[0]).toMatchObject({ wrongAnswered: false, sentMissing: true });
+    // Açık kalması gereken ihtiyaçta `sentMissing` hiç yazılmaz.
+    expect(scoreNeeds([{ kind: "amenities", want: "open", forbid: ["sauna"] }], "Wi-Fi şifremiz Lale2024.", [])[0].sentMissing).toBeUndefined();
+  });
+
+  it("Opus 11-12 P2-15: `hoursAgo` cevapsız mesajı başka güne koyar; önceki satırlar sıra bozulmadan ondan eskiye itilir", () => {
+    const now = Date.UTC(2026, 10, 12, 12, 0, 0);
+    const MIN = 60_000;
+    const rows = scenarioMessageRows(
+      {
+        history: [
+          { direction: "inbound", body: "Merhaba, haftaya geliyoruz." },
+          { direction: "outbound", body: "Merhaba, sizi bekliyoruz." },
+          { direction: "inbound", body: "Otopark var mı?", hoursAgo: 30 },
+        ],
+        message: "Çıkış saati kaç?",
+      },
+      now,
+      "Alex",
+    );
+    expect(rows.map((r) => [r.body, (now - r.createdAt.getTime()) / MIN])).toEqual([
+      ["Merhaba, haftaya geliyoruz.", 30 * 60 + 20],
+      ["Merhaba, sizi bekliyoruz.", 30 * 60 + 10],
+      ["Otopark var mı?", 30 * 60],
+      ["Çıkış saati kaç?", 1],
+    ]);
+    // `hoursAgo` yoksa satırlar eski düzende (10'ar dakika) — var olan senaryoların zamanı değişmez.
+    const plain = scenarioMessageRows({ history: [{ direction: "inbound", body: "a" }, { direction: "outbound", body: "b" }], message: "c" }, now, "Alex");
+    expect(plain.map((r) => (now - r.createdAt.getTime()) / MIN)).toEqual([30, 20, 1]);
+    // `hoursAgo: 0` (ya da bir dakikadan yeni) satır güncel mesajın önünde kalır; iki `hoursAgo` ters verilse de sıra korunur.
+    const zero = scenarioMessageRows({ history: [{ direction: "inbound", body: "a", hoursAgo: 0 }], message: "c" }, now, "Alex");
+    expect(zero.map((r) => (now - r.createdAt.getTime()) / MIN)).toEqual([2, 1]);
+    const reversed = scenarioMessageRows({ history: [{ direction: "inbound", body: "a", hoursAgo: 1 }, { direction: "inbound", body: "b", hoursAgo: 5 }], message: "c" }, now, "Alex");
+    expect(reversed.map((r) => (now - r.createdAt.getTime()) / MIN)).toEqual([310, 300, 1]);
+  });
+
   it("S2 geç mesaj senaryosu: olağan senaryonun satırları bugünkü biçimde; `late` senaryosu ürünün geç mesaj ölçütünü kurar", () => {
     const now = Date.UTC(2026, 10, 12, 10, 0, 0);
     const history = [
@@ -1247,7 +1347,10 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     ]);
     expect(out.kbSets).toBe(data.kbSets);
     // Setin dosya adı ayrıntı dosyasına girmez (erişim pini yalnız izinli dosyalarda görür).
-    for (const sealedName of ["needs-blind", "needs-kabul", "held-pet", "late-message"]) expect(JSON.stringify(out)).not.toContain(sealedName);
+    for (const sealedName of ["needs-blind", "needs-kabul", "held-pet", "late-message", "grounding-kabul"]) expect(JSON.stringify(out)).not.toContain(sealedName);
+    // Opus 11-12 P3-8: ayrıntı dosyası yalnız eksiksiz biten koşuda (bütçe tavanı / düşen satır = set açığa çıkmaz).
+    expect(sealedDetailAllowed("GEÇERLİ")).toBe(true);
+    for (const bad of ["GEÇERSİZ — 2 satır düştü", "GEÇERSİZ — bütçe tavanı", "", "GEÇERLİ değil"]) expect([bad, sealedDetailAllowed(bad)]).toEqual([bad, false]);
   });
 
   it("S2 geç tur sayıları: tur açıldı / açılmadı ayrımı — anahtar kapalı kolun 'gitmedi'si ile açık kolun tutması aynı sayılmaz", () => {

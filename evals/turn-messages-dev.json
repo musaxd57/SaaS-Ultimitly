@@ -1,6 +1,6 @@
 {
  "version": 1,
- "_about": "ÇOK MESAJLI TUR geliştirme seti (11-12; `AI_TURN_MESSAGES_ENABLED`). Misafir son cevabımızdan sonra birden çok mesaj yazıyor; hepsi cevapsız. Ölçülen kusur: cevap yalnız SON mesajı karşılıyor. Sınıflar: iki / üç bilinen soru (dört dil) · soru + teşekkür · bilinmeyen + bilinen · ev sahibindeki konu + bilinen · aynı soru iki kez · tek mesaj (kontrol). AÇIK settir (geliştirme); kabul için ayrı yazarın görülmemiş seti gerekir.",
+ "_about": "ÇOK MESAJLI TUR geliştirme seti (11-12; `AI_TURN_MESSAGES_ENABLED`). Misafir son cevabımızdan sonra birden çok mesaj yazıyor; hepsi cevapsız. Ölçülen kusur: cevap yalnız SON mesajı karşılıyor. Sınıflar: iki / üç bilinen soru (dört dil) · soru + teşekkür · bilinmeyen + bilinen · ev sahibindeki konu + bilinen · aynı soru iki kez · tek mesaj (kontrol). AÇIK settir (geliştirme); kabul için ayrı yazarın görülmemiş seti gerekir. 11-12 (Opus P2-15): yasak desenler genişletildi, konu desenleri eklendi, cevapsız mesajları farklı günlere koyan senaryo eklendi (`hoursAgo`).",
  "property": {
   "name": "Lale – bahçe katı (iç kod L1)",
   "guestDisplayName": "Bahçe Katı Daire 1",
@@ -71,14 +71,20 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "ücretsiz"
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
       "kind": "checkout_time",
       "want": "answered",
       "all": [
-       "11:00"
+       "11[:.]00"
+      ],
+      "about": [
+       "çıkış|check-?out"
       ]
      }
     ]
@@ -111,14 +117,20 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "free"
+       "free|no charge|behind|\\byes\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
       "kind": "trash",
       "want": "answered",
       "all": [
-       "container"
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      }
     ]
@@ -151,14 +163,20 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "kostenlos|kostenfrei|gratis"
+       "kostenlos|kostenfrei|gratis|hinter|\\bja\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
       "kind": "amenities",
       "want": "answered",
       "all": [
-       "20:00|20 Uhr"
+       "20[:.]00|20 Uhr"
+      ],
+      "about": [
+       "havuz|pool"
       ]
      }
     ]
@@ -191,14 +209,20 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "gratuit"
+       "gratuit|derrière|\\boui\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
       "kind": "trash",
       "want": "answered",
       "all": [
-       "conteneur"
+       "conteneur|benne|\\bbac\\b|à droite"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      }
     ]
@@ -235,21 +259,30 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "ücretsiz"
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
       "kind": "trash",
       "want": "answered",
       "all": [
-       "konteyner"
+       "konteyner|sağında"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      },
      {
       "kind": "amenities",
       "want": "answered",
       "all": [
-       "20:00"
+       "20[:.]00"
+      ],
+      "about": [
+       "havuz|pool"
       ]
      }
     ]
@@ -286,7 +319,10 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "free"
+       "free|no charge|behind|\\byes\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      },
      {
@@ -294,13 +330,19 @@
       "want": "answered",
       "all": [
        "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
       ]
      },
      {
       "kind": "checkout_time",
       "want": "answered",
       "all": [
-       "11:00|11 ?am"
+       "11[:.]00|\\b11 ?a\\.?m\\.?"
+      ],
+      "about": [
+       "çıkış|check-?out"
       ]
      }
     ]
@@ -333,7 +375,10 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "ücretsiz"
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      }
     ]
@@ -366,7 +411,10 @@
       "kind": "trash",
       "want": "answered",
       "all": [
-       "container"
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      }
     ]
@@ -399,14 +447,17 @@
       "kind": "amenities",
       "want": "open",
       "forbid": [
-       "iron"
+       "\\biron"
       ]
      },
      {
       "kind": "trash",
       "want": "answered",
       "all": [
-       "container"
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      }
     ]
@@ -446,7 +497,10 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "ücretsiz"
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      }
     ]
@@ -479,7 +533,8 @@
       "kind": "pets",
       "want": "open",
       "forbid": [
-       "getirebilir|kabul ed|izin ver|evet|maalesef|tabii|elbette"
+       "köpe[kğ]|kedi|evcil|hayvan|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|olmaz|\\bhayır\\b|\\bevet\\b|maalesef|\\btabii\\b|elbette|sorun (değil|olmaz|yok)"
       ]
      },
      {
@@ -487,6 +542,9 @@
       "want": "answered",
       "all": [
        "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
       ]
      }
     ]
@@ -519,14 +577,17 @@
       "kind": "late_checkout",
       "want": "open",
       "forbid": [
-       "2 ?pm|14:00|no problem|of course|sure"
+       "2 ?pm|14:00|no problem|of course|\\bsure\\b|that works|is possible|is fine|late check-?out"
       ]
      },
      {
       "kind": "trash",
       "want": "answered",
       "all": [
-       "container"
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
       ]
      }
     ]
@@ -560,6 +621,9 @@
       "want": "answered",
       "all": [
        "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
       ]
      }
     ]
@@ -588,7 +652,10 @@
       "kind": "parking",
       "want": "answered",
       "all": [
-       "ücretsiz"
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
       ]
      }
     ]
@@ -617,7 +684,47 @@
       "kind": "checkout_time",
       "want": "answered",
       "all": [
-       "11:00|11 ?am"
+       "11[:.]00|\\b11 ?a\\.?m\\.?"
+      ],
+      "about": [
+       "çıkış|check-?out"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-dun-sonra-bugun",
+   "class": "other_day",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, haftaya geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?",
+     "hoursAgo": 30
+    }
+   ],
+   "message": "Çıkış saati kaç?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00"
+      ],
+      "about": [
+       "çıkış|check-?out"
       ]
      }
     ]

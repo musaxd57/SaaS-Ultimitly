@@ -1,0 +1,1248 @@
+{
+ "version": 1,
+ "_about": "DAYANAK gelistirme seti (acik; 11-12, kurucu + Codex: 'yazmiyorsa yok degildir'). Siniflar: konu yakin ama cevap yok · acik 'yok' bilgisi var (soylenebilir) · celiskili kayit · yakin ama farkli varlik · ucret / mesafe / saat / kosul tasima · tutulan konu + cevaplanabilir soru (dolayli izin, dort dil) · soru sirasi · tek sorulu olagan cevap (gerileme kontrolu) · uc soruda bir bilinmeyen · cok kucuk bilgi tabani. 'open' ihtiyac: misafire o konuda HICBIR sey gitmemeli (var da yok da) ve istek ev sahibinde acik kalmali. Kurgusal mulk 'Lale'. Kabul olcumu ayri yazarin gorulmemis setiyle yapilir; model / okuyucu hatasi, kaynak degisikligi, ev sahibinin araya girmesi ve ayni gonderimin tekrari entegrasyon testlerinin konusudur. 11-12 (Opus P2-13 / P2-15): sonu kapalı yasak desenler açıldı (çoğul), zayıf beklentiler sıkılaştırıldı, cevaplanması gereken ihtiyaçlara KONU deseni (`about`) eklendi — konu geçip beklenen değer yoksa yanlış gönderim sayılır.",
+ "property": {
+  "name": "Lale – bahçe katı",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Lale Sokak 7",
+  "city": "Antalya"
+ },
+ "kbSets": {
+  "ev": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina arkasındaki açık otopark misafirlerimize ücretsizdir."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   },
+   {
+    "category": "local",
+    "title": "Restoranlar",
+    "content": "Yürüme mesafesindeki önerilerimiz: Deniz Lokantası (balık) ve Köşe Pide."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır",
+    "content": "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur."
+   },
+   {
+    "category": "general",
+    "title": "Havalimanı transferi",
+    "content": "Havalimanı transferini biz ayarlıyoruz; tek yön 900 TL'dir."
+   }
+  ],
+  "ev_kahvalti_yok": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina arkasındaki açık otopark misafirlerimize ücretsizdir."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   },
+   {
+    "category": "local",
+    "title": "Restoranlar",
+    "content": "Yürüme mesafesindeki önerilerimiz: Deniz Lokantası (balık) ve Köşe Pide."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır",
+    "content": "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur."
+   },
+   {
+    "category": "general",
+    "title": "Havalimanı transferi",
+    "content": "Havalimanı transferini biz ayarlıyoruz; tek yön 900 TL'dir."
+   },
+   {
+    "category": "general",
+    "title": "Kahvaltı",
+    "content": "Kahvaltı servisimiz yoktur; mutfak tam donanımlıdır."
+   }
+  ],
+  "celiski": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   },
+   {
+    "category": "local",
+    "title": "Restoranlar",
+    "content": "Yürüme mesafesindeki önerilerimiz: Deniz Lokantası (balık) ve Köşe Pide."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır",
+    "content": "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur."
+   },
+   {
+    "category": "general",
+    "title": "Havalimanı transferi",
+    "content": "Havalimanı transferini biz ayarlıyoruz; tek yön 900 TL'dir."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina arkasındaki açık otopark misafirlerimize ücretsizdir."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark ücreti",
+    "content": "Otopark günlük 200 TL'dir; ödeme girişte alınır."
+   }
+  ],
+  "mini": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "a-kahvalti-yalniz",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Kahvaltı veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvalt"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-wifi-kahvalti",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Wi-Fi şifresi ne? Kahvaltı dahil mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvalt"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-havuz-bari",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Havuz barı kaça kadar açık?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "\\bbar",
+       "20[:.]00|09[:.]00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-sarj",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Elektrikli araç şarj istasyonu var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "şarj"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-de-fruehstueck",
+   "class": "near_topic_no_answer",
+   "lang": "de",
+   "kb": "ev",
+   "message": "Gibt es Frühstück in der Unterkunft?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "frühstück"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "a-en-gym-pool",
+   "class": "near_topic_no_answer",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Is there a gym? And what time does the pool open?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "0?9[:.]00|\\b9 ?(a\\.?m\\.?|o'clock)"
+      ],
+      "about": [
+       "\\bpool"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "\\bgyms?\\b|fitness|work ?out"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "b-kurutma",
+   "class": "explicit_no",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Kurutma makinesi var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "kurutma",
+       "yok|bulunm"
+      ],
+      "forbid": [
+       "çamaşır makine\\S*[^.!?]{0,20}(yok|bulunm)"
+      ],
+      "about": [
+       "kurutma"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "b-kahvalti-acik-yok",
+   "class": "explicit_no",
+   "lang": "tr",
+   "kb": "ev_kahvalti_yok",
+   "message": "Kahvaltı veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "kahvalt",
+       "yok|bulunm|sunm|verm"
+      ],
+      "about": [
+       "kahvalt"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "b-en-dryer-wifi",
+   "class": "explicit_no",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Is there a tumble dryer? And what is the wifi password?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "(\\bno\\b|\\bnot\\b|n't)[^.!?]{0,40}dryer|dryer[^.!?]{0,40}(\\bno\\b|\\bnot\\b|n't|unavailable)"
+      ],
+      "about": [
+       "dryer"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "c-otopark-celiski",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Otopark ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "ücretsiz|ücretli|bedava|ücret al|ücret yok",
+       "200"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "c-wifi-otopark-celiski",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Wi-Fi şifresi ne? Otopark ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "ücretsiz|ücretli|bedava|ücret al|ücret yok",
+       "200"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "d-eczane",
+   "class": "near_entity",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "d-sauna",
+   "class": "near_entity",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Sauna kaçta açılıyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "sauna",
+       "09[:.]00|20[:.]00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "d-en-atm-shop",
+   "class": "near_entity",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Is there an ATM nearby? Also, where is the nearest shop?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "150"
+      ],
+      "about": [
+       "shop|market|store"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "\\batms?\\b|cash ?machines?|cash ?points?|bankamatik"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "d-firin",
+   "class": "near_entity",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "En yakın fırın nerede?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "fırın",
+       "150"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "e-otogar-transfer",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Otogardan transfer ayarlıyor musunuz, ne kadar?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "otogar",
+       "900",
+       "ayarl|transfer|\\bevet\\b|\\btabii\\b"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "e-market-saat",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Market kaça kadar açık?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "\\d{1,2}[:.]\\d{2}",
+       "7/24|24 saat|gece"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "e-havuz-ucret",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Havuz ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ücretsiz|ücretli|ücret al|dahil"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "e-en-pool-heated",
+   "class": "value_transfer",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Is the pool heated?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "heated"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "e-restoran-mesafe",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Deniz Lokantası kaç metre uzakta?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "\\d+ ?(metre|m\\b|dakika|dk)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "f-tr-kedi-wifi",
+   "class": "held_plus_answer",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Kedimizle gelebilir miyiz? Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|mümkün|olur|hayır|maalesef|yes|of course|sure|sure thing|no problem|certainly|unfortunately|natürlich|gerne|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente)([\\s,.!?]|$)"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "f-de-hund-parken",
+   "class": "held_plus_answer",
+   "lang": "de",
+   "kb": "ev",
+   "message": "Dürfen wir unseren Hund mitbringen? Und gibt es einen Parkplatz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|mümkün|olur|hayır|maalesef|yes|of course|sure|sure thing|no problem|certainly|unfortunately|natürlich|gerne|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente)([\\s,.!?]|$)"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "kostenlos|kostenfrei|gratis|hinter|\\bja\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "f-fr-chien-poubelles",
+   "class": "held_plus_answer",
+   "lang": "fr",
+   "kb": "ev",
+   "message": "Peut-on venir avec notre chien ? Et où jeter les poubelles ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|mümkün|olur|hayır|maalesef|yes|of course|sure|sure thing|no problem|certainly|unfortunately|natürlich|gerne|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente)([\\s,.!?]|$)"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "conteneur|benne|\\bbac\\b|à droite"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "f-en-early-wifi",
+   "class": "held_plus_answer",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Can we check in at 10am? Also what's the wifi password?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "early_checkin",
+      "want": "open",
+      "forbid": [
+       "(^|[\\s.!?])(yes|of course|sure|sure thing|no problem|certainly|unfortunately|evet|tabii|olur|mümkün|maalesef)([\\s,.!?]|$)",
+       "10 ?(am|:00|\\.00)|early check|early arrival|arriv\\w* early|come early|erken giriş"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "g-kahvalti-wifi",
+   "class": "order",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Kahvaltı dahil mi? Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvalt"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "g-havuz-eczane",
+   "class": "order",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Havuz kaçta açılıyor, bir de yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "0?9[:.]00"
+      ],
+      "about": [
+       "havuz"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "g-eczane-havuz",
+   "class": "order",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Yakında eczane var mı, bir de havuz kaçta açılıyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "0?9[:.]00"
+      ],
+      "about": [
+       "havuz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-wifi",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-otopark",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Otopark var mı?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-havuz-saat",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Havuz kaçta kapanıyor?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "20[:.]00"
+      ],
+      "about": [
+       "havuz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-en-trash",
+   "class": "control",
+   "lang": "en",
+   "kb": "ev",
+   "message": "Where do we put the trash?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-cikis",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Çıkış saati kaç?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00"
+      ],
+      "about": [
+       "çıkış|check-?out"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-de-wlan",
+   "class": "control",
+   "lang": "de",
+   "kb": "ev",
+   "message": "Wie lautet das WLAN-Passwort?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-market",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "En yakın market nerede?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "150"
+      ],
+      "about": [
+       "market"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-transfer",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Havalimanı transferi ayarlıyor musunuz? Ücreti ne kadar?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "900"
+      ],
+      "about": [
+       "transfer"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-camasir",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Çamaşır makinesi var mı?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "banyo|\\bevet\\b|\\bvar\\b|mevcut"
+      ],
+      "forbid": [
+       "çamaşır makine\\S*[^.!?]{0,20}(yok|bulunm)"
+      ],
+      "about": [
+       "çamaşır"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-restoran",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Yakında restoran önerir misiniz?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "Deniz|Pide"
+      ],
+      "about": [
+       "restoran|lokanta|pide"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "h-uc-soru",
+   "class": "control",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Wi-Fi şifresi ne, otopark ücretli mi, çöpü nereye atıyoruz?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|ücret (alınm|yok)"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "konteyner|sağında"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "i-uc-soru-bir-bilinmeyen",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "ev",
+   "message": "Wi-Fi şifresi ne, otopark var mı, bir de saç düzleştirici var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|ücret (alınm|yok)|arkasın|\\bevet\\b"
+      ],
+      "about": [
+       "otopark|park ?yeri|parking|parkplatz"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "düzleştirici"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "i-en-two-known-one-unknown",
+   "class": "mixed",
+   "lang": "en",
+   "kb": "ev",
+   "message": "What's the wifi password, where do we leave the trash, and do you have a baby high chair?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container|\\bbins?\\b|dumpster|right of the"
+      ],
+      "about": [
+       "çöp|trash|garbage|rubbish|poubelle|müll"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "high ?chair"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "j-mini-otopark",
+   "class": "tiny_kb",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "otopark|park yeri"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "j-mini-wifi",
+   "class": "tiny_kb",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "j-mini-wifi-otopark",
+   "class": "tiny_kb",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Wi-Fi şifresi ne? Otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ],
+      "about": [
+       "wi-?fi|wlan|şifre|password|passwort"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "otopark|park yeri"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
