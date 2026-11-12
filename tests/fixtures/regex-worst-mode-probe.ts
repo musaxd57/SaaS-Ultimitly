@@ -8,6 +8,7 @@ import { lifeSafetyOf } from "@/lib/ai/life-safety";
 import { personDangerOf } from "@/lib/ai/person-danger";
 import { hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import { mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
+import { heldPetLeak } from "@/lib/conversation-items/pet-policy";
 
 const N = 4_000;
 const SHAPES: [string, string][] = [
@@ -52,4 +53,13 @@ mentionsAnotherDay(["Kasım'ın 15'inde"], NOW_EC, "Europe/Istanbul");
 out["başka gün · ay tamlaması tekrarı"] = ms(() => mentionsAnotherDay(["kasım'ın 14'ünde ".repeat(N / 17)], NOW_EC, "Europe/Istanbul"));
 out["başka gün · sıra-gün + sabahın tekrarı"] = ms(() => mentionsAnotherDay(["sabahın 14'ünde ".repeat(N / 16)], NOW_EC, "Europe/Istanbul"));
 out["başka gün · ay adı + boşluk dizisi"] = ms(() => mentionsAnotherDay(["kasım'ın" + " ".repeat(N) + "x"], NOW_EC, "Europe/Istanbul"));
+// Tutulan evcil hayvan isteği sızıntı denetimi (S3, 11-12): cevap modelinin metnine uygulanır. Ek gelmeyen kök tekrarı, rakam + para
+// birimi gelmeyen sayı tekrarı, virgüllü yan cümle tekrarı, Arap harfi dizisi (alt dize eşlemesi) ve tek uzun sözcük.
+heldPetLeak("Wi-Fi şifresi Lale2024.");
+out["evcil hayvan sızıntısı · tek uzun sözcük"] = ms(() => heldPetLeak("a".repeat(N)));
+out["evcil hayvan sızıntısı · boşluk dizisi"] = ms(() => heldPetLeak("Wi-Fi" + " ".repeat(N) + "şifresi Lale2024."));
+out["evcil hayvan sızıntısı · kök tekrarı (ek gelmiyor)"] = ms(() => heldPetLeak("kabul minik is very no ".repeat(N / 23)));
+out["evcil hayvan sızıntısı · sayı tekrarı (para birimi gelmiyor)"] = ms(() => heldPetLeak("100 200 ".repeat(N / 8)));
+out["evcil hayvan sızıntısı · virgüllü yan cümle tekrarı"] = ms(() => heldPetLeak("bilgi, ".repeat(N / 7)));
+out["evcil hayvan sızıntısı · Arap harfi dizisi"] = ms(() => heldPetLeak("\u0627\u0644".repeat(N / 2)));
 process.stdout.write(`${JSON.stringify(out)}\n`);

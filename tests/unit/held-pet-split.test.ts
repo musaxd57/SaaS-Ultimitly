@@ -6,6 +6,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 // Bugün: evcil hayvan isteği ev sahibine bırakılınca (öğe kipi) öteki isteğin cevabı da tutuluyor. Karar: Wi-Fi cevabı GİDER, evcil hayvan
 // sorusu ev sahibinde KALIR. Şart: giden cevap o soruya dair hiçbir onay / ret / koşul / ima taşımaz. "Evet, getirebilirsiniz." hayvanı
 // anmaz; "Tabii! Wi-Fi şifresi …"deki "Tabii" ilk soruya da okunur → ikisi de tutulur.
+//
+// Opus sert incelemesi (11-12, kodla doğrulandı): sözcük denetimi ve kaba dayanak şartı TEK BAŞINA yetmez → dal yalnız kodun doğruladığı
+// cevap parçalarında (`verifiedPartsOnly`) açılır; anahtar tek başına hiçbir şeyi değiştirmez.
 // ---------------------------------------------------------------------------
 
 import { heldPetLeak, heldPetSplitEnabled } from "@/lib/conversation-items/pet-policy";
@@ -67,6 +70,57 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
     }
   });
 
+  it("🚨 Opus 11-12 (kodla doğrulandı): denetimden GEÇEN onay kalıpları, Arapça ve ücret sözcüğü olmayan tutar artık sızıntı", () => {
+    for (const [reply, kind] of [
+      ["Mümkün. Wi-Fi şifresi Lale2024.", "verdict_word"],
+      ["That's possible. The Wi-Fi password is Lale2024.", "verdict_word"],
+      ["Sure thing! The Wi-Fi password is Lale2024.", "verdict_word"],
+      ["Sure—the Wi-Fi password is Lale2024.", "verdict_word"],
+      ["¡Claro que sí! La contraseña es Lale2024.", "verdict_word"],
+      ["Pas de souci. Le mot de passe est Lale2024.", "verdict_word"],
+      ["Kein Thema. Das WLAN-Passwort lautet Lale2024.", "verdict_word"],
+      ["Можно. Пароль: Lale2024.", "verdict_word"],
+      // Arapça: hayvan sözcüğü, izin / yasak fiili, tek başına "لا".
+      ["الحيوانات الأليفة مرحب بها. كلمة مرور الواي فاي هي Lale2024.", "pet_mention"],
+      ["لا يُسمح بالكلاب. كلمة المرور Lale2024.", "pet_mention"],
+      ["لا، كلمة المرور Lale2024.", "verdict_word"],
+      ["ممكن. كلمة المرور Lale2024.", "verdict_word"],
+      // Ücret sözcüğü yok, konusuz cümlede tutar var → tutulan evcil hayvan sorusunun ücreti gibi okunur.
+      ["Wi-Fi şifresi Lale2024. Ekstra gecelik 300 TL eklenir.", "unanchored_verdict"],
+      ["The Wi-Fi password is Lale2024. It's an extra $20 per night.", "unanchored_verdict"],
+      ["Das WLAN-Passwort lautet Lale2024. Das macht 15 € pro Nacht.", "unanchored_verdict"],
+      // Haiku 11-12 (kodla doğrulandı: hepsi `null` dönüyordu).
+      ["Uygundur. Wi-Fi şifresi Lale2024.", "verdict_word"],
+      ["Yok, Wi-Fi şifresi Lale2024.", "verdict_word"],
+      ["Out of the question. The Wi-Fi password is Lale2024.", "verdict_word"],
+      ["لا مشكلة. كلمة المرور Lale2024.", "verdict_word"],
+      ["Gern. Das WLAN-Passwort lautet Lale2024.", "verdict_word"],
+      ["Разумеется. Пароль: Lale2024.", "verdict_word"],
+      ["Con mucho gusto. La contraseña es Lale2024.", "verdict_word"],
+      ["بالطبع. كلمة المرور Lale2024.", "verdict_word"],
+      ["Pourquoi pas. Le mot de passe est Lale2024.", "verdict_word"],
+      ["كـلاب. كلمة المرور Lale2024.", "pet_mention"], // uzatma çizgisi sözcüğü bölmez
+      ["Le mot de passe est Lale2024. Cela fait 15 euros par nuit.", "unanchored_verdict"],
+      ["Wi-Fi şifresi Lale2024. Gecelik 300 liradır.", "unanchored_verdict"],
+      ["Le mot de passe est Lale2024. Un supplément s'applique.", "unanchored_verdict"],
+      ["Wi-Fi şifresi Lale2024. Ek ödeme gerekir.", "unanchored_verdict"],
+    ] as const) {
+      expect([reply, heldPetLeak(reply)]).toEqual([reply, kind]);
+    }
+    // KONTROL: başka bir hizmetin adını taşıyan cümlede tutar bilgidir.
+    for (const reply of [
+      "Otopark ücreti gecelik 100 TL.",
+      "Parking is 10 € per day.",
+      "Kahvaltı kişi başı 250 TL, 08:00–10:30 arası.",
+      // Aynı sözcükler bilgi cümlesinin parçasıyken tutmaz.
+      "Daire dört kişiye uygundur. Wi-Fi şifresi Lale2024.",
+      "Dairede ütü yok ama askı var, Wi-Fi şifresi Lale2024.",
+      "Otopark için ek ödeme gerekmez.",
+    ]) {
+      expect([reply, heldPetLeak(reply)]).toEqual([reply, null]);
+    }
+  });
+
   it("🚨 anlamı yere göre değişen sözcükler TEK BAŞINA ünlemken sızıntıdır ('Olur.' · 'Sure, …' · 'No. …' · 'Merhaba, olur.')", () => {
     for (const reply of [
       "Olur. Wi-Fi şifresi Lale2024.",
@@ -76,6 +130,7 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
       "Hi Ada, sure! The Wi-Fi password is Lale2024.",
       "No. The Wi-Fi password is Lale2024.",
       "OK — the Wi-Fi password is Lale2024.",
+      "Tamam - Wi-Fi şifresi Lale2024.", // boşluklu kısa çizgi de yan cümle sınırıdır
       "Ja, das WLAN-Passwort lautet Lale2024.",
       "Gerne! Das WLAN-Passwort lautet Lale2024.",
       "Claro, la contraseña es Lale2024.",
@@ -135,7 +190,7 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
       "C'est autorisé. Le mot de passe est Lale2024.",
       "Está permitido. La contraseña es Lale2024.",
       "Это разрешено. Пароль: Lale2024.",
-      "Можно. Пароль: Lale2024.",
+      "Его можно взять с собой. Пароль: Lale2024.",
     ]) {
       expect([reply, heldPetLeak(reply)]).toEqual([reply, "permission"]);
     }
@@ -158,6 +213,9 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
       "The Wi-Fi network is Lale_Home and the password is Lale2024.",
       "Check-in is not possible before 15:00.",
       "Parking is free of charge.",
+      // Başka hizmetin adı + yapamama olumsuzluğu bilgidir (Opus 11-12 S3-6a: bu koruma pinsizdi).
+      "Parking cannot be reserved in advance.",
+      "Otoparkta yer ayırmak mümkün olmuyor.",
       "Das WLAN-Passwort lautet Lale2024.",
       "Le mot de passe Wi-Fi est Lale2024.",
       "La contraseña del Wi-Fi es Lale2024.",
@@ -182,6 +240,8 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     riskType: null as string | null,
     reply,
     answeredRequests: { ok: true as const, refs: ["R1"] },
+    // Cevap parçaları kipinin işareti: metin yalnız kodun doğruladığı parçalardan kuruldu (dalın ön şartı).
+    verifiedPartsOnly: true as const,
   });
   const WIFI_NEED = { ref: "R1", topics: ["wifi"], terms: ["internet", "sifresi", "wifi"], contingency: false };
   const KB = ["Wi-Fi\nAğ adı: Lale_Home, şifre: Lale2024.", "Market\nEn yakın market binanın 150 metre ilerisindedir."];
@@ -199,13 +259,38 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     expect(autoReplyGateVerdict(model(WIFI), GUEST, heldPets())).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
   });
 
+  it("🚨 anahtar AÇIK ama cevap doğrulanmış parçalardan kurulmadıysa (parça kipi kapalı) hiçbir şey değişmez — bugünkü gibi tutulur", () => {
+    on();
+    const plain = { ...model(WIFI), verifiedPartsOnly: undefined };
+    expect(autoReplyGateVerdict(plain, GUEST, heldPets())).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    // KONTROL: aynı cevap doğrulanmış parçalardan kurulduysa gider.
+    expect(autoReplyGateVerdict(model(WIFI), GUEST, heldPets())).toBeNull();
+  });
+
   it("🚨 anahtar AÇIK: yalnız Wi-Fi bilgisini veren cevap GİDER (evcil hayvan isteği öğe olarak ev sahibinde kalır)", () => {
     on();
     expect(autoReplyGateVerdict(model(WIFI), GUEST, heldPets())).toBeNull();
     // Yardımcı hayvan isteği de aynı: soru ev sahibinde, öteki bilgi gider.
     expect(autoReplyGateVerdict(model(WIFI), "Rehber köpeğimle geleceğim. İnternet şifresi ne?", heldPets({ riskType: "assistance_animal" }))).toBeNull();
-    // Önceki turdan bekleyen evcil hayvan sorusu bugünkü Wi-Fi sorusunu da tutmaz.
-    expect(autoReplyGateVerdict(model(WIFI), "İnternet şifresi ne?", heldPets({ earlier: true }))).toBeNull();
+  });
+
+  it("🚨 anahtar AÇIK: yalnız ÖNCEKİ turdan bekleyen evcil hayvan sorusu dalı AÇMAZ — bugünkü kemer aynen (kapsam ölçülen kadar)", () => {
+    on();
+    // Dün sorulan köpek sorusu ev sahibinde bekliyor; bugün yalnız Wi-Fi soruldu → bugünkü gibi tutulur (turlar arası serbest bırakma ayrı karar).
+    expect(autoReplyGateVerdict(model(WIFI), "İnternet şifresi ne?", heldPets({ earlier: true }))).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    // Anlama katmanının bu turda ÇIKARAMADIĞI yeni evcil hayvan sorusu: önceki öğe dalı açsaydı misafirin cümlesi hiç okunmazdı.
+    expect(autoReplyGateVerdict(model(WIFI), "Köpek 5 kg, sorun olur mu? İnternet şifresi ne?", heldPets({ earlier: true }))).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    // KONTROL: aynı tur içinde çıkarılmış evcil hayvan isteği (önceki öğe de bekliyor olsa) dalı açar.
+    const both = {
+      kbFacts: KB,
+      items: {
+        held: [{ kind: "pets", sensitivity: "sensitive", riskType: null, earlier: true }, { kind: "pets", sensitivity: "sensitive", riskType: null }],
+        paymentHeld: false,
+        answerableKinds: ["wifi"],
+        hostContactNeeds: [WIFI_NEED],
+      },
+    } as never;
+    expect(autoReplyGateVerdict(model(WIFI), GUEST, both)).toBeNull();
   });
 
   it("anahtar AÇIK: boş cevap da tutulur (gönderecek metin yokken dal açık kalmaz)", () => {
@@ -234,7 +319,7 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     const unknown = (kind: string, need: { topics: string[]; terms: string[] }) =>
       ({
         kbFacts: KB,
-        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: [kind], hostContactNeeds: [{ ref: "R1", contingency: false, ...need }] },
+        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: [kind], hostContactNeeds: [{ ref: "R1", kind, contingency: false, ...need }] },
       }) as never;
     for (const [reply, ctx] of [
       // Marketin mesafesi eczaneye yazıldı: "150 metre" bilgi tabanında var ama eczane yok.
@@ -255,7 +340,7 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
       ({
         kbFacts: KB,
         stayTimes,
-        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: ["checkout_time"], hostContactNeeds: [{ ref: "R1", contingency: false, topics: ["checkout"], terms: ["cikis"] }] },
+        items: { held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }], paymentHeld: false, answerableKinds: ["checkout_time"], hostContactNeeds: [{ ref: "R1", kind: "checkout_time", contingency: false, topics: ["checkout"], terms: ["cikis"] }] },
       }) as never;
     const reply = model("Çıkış saati 11:00.");
     expect(autoReplyGateVerdict(reply, "Köpeğimizi getirebilir miyiz? Çıkış saati kaç?", time({ checkIn: "15:00", checkOut: "11:00" }))).toBeNull();
@@ -279,14 +364,14 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     expect(autoReplyGateVerdict(fee, GUEST, free)).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
   });
 
-  it("anahtar AÇIK olsa da: evcil hayvan isteği hem TUTULAN hem CEVAPLANABİLİR ise (önceki soru bekliyor, yenisi cevaplanıyor) eski kemer aynen", () => {
+  it("anahtar AÇIK olsa da: evcil hayvan isteği hem TUTULAN hem CEVAPLANABİLİR ise (aynı turda iki evcil hayvan isteği) eski kemer aynen", () => {
     on();
-    // Önceki turdan bekleyen evcil hayvan sorusu + bu turda cevaplanabilir sayılan yeni evcil hayvan sorusu: ayrım dalı AÇILMAZ; cevap
-    // bilgi tabanı "ücretsiz kabul" demiyorsa bugünkü gibi tutulur (hayvanı anmasa da).
+    // Bu turda biri tutulan, biri cevaplanabilir sayılan iki evcil hayvan isteği (sıra kipi): ayrım dalı AÇILMAZ; cevap bilgi tabanı
+    // "ücretsiz kabul" demiyorsa bugünkü gibi tutulur (hayvanı anmasa da).
     const both = {
       kbFacts: KB,
       items: {
-        held: [{ kind: "pets", sensitivity: "sensitive", riskType: null, earlier: true }],
+        held: [{ kind: "pets", sensitivity: "sensitive", riskType: null }],
         paymentHeld: false,
         answerableKinds: ["pets", "wifi"],
         hostContactNeeds: [{ ref: "R1", topics: ["pets"], terms: ["evcil"], contingency: false }, { ...WIFI_NEED, ref: "R2" }],
@@ -334,18 +419,26 @@ describe("istem bloğu — kural + kapı çifti", () => {
     expect(added).toContain("Evcil hayvan isteği ev sahibine bırakıldı");
     for (const word of ["Evet", "Tabii", "Maalesef", "getirebilirsiniz"]) expect(added).toContain(word);
     // Ölçüm 11-12: bilgisi olmayan isteği cevaplamasın (uydurmasın) — kuralın istemdeki yarısı.
-    expect(added).toContain("o isteği CEVAPLAMA ve answeredRequests'e KOYMA");
+    expect(added).toMatch(/o isteği\s+CEVAPLAMA ve answeredRequests'e KOYMA/);
+    // Giriş / çıkış saati ve adres bilgi tabanından değil mülk kaydından gelir — "notlarda yoksa" denirse model onları da cevaplamaz (Opus S3-5a).
+    expect(added).toContain("bilgi tabanında ya da mülk bilgilerinde (giriş / çıkış saati, adres) YOKSA");
   });
 
-  it("plan işareti yalnız: anahtar açık + evcil hayvan tutuluyor + gidecek başka cevap var", () => {
+  it("plan işareti yalnız: anahtar açık + parça kipi + evcil hayvan tutuluyor + gidecek başka cevap var", () => {
     const wifi = { messageId: "m1", kind: "wifi" as const, sensitivity: "none" as const };
     const pets = { messageId: "m1", kind: "pets" as const, sensitivity: "sensitive" as const, riskType: null };
     const plan = (turnItems: (typeof wifi | typeof pets)[], held: (typeof pets)[]) => composeItemsPlan({ turnItems, held, hints: new Map() }).replyItems.petHeldRule;
     expect(plan([pets, wifi], [pets])).toBeUndefined(); // anahtar kapalı
     on();
+    expect(plan([pets, wifi], [pets])).toBeUndefined(); // anahtar açık ama parça kipi kapalı → kapı dalı açılamaz, istem de değişmez
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    expect(plan([pets, wifi], [pets])).toBeUndefined(); // parça kipi sıra kipi olmadan etkisiz
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     expect(plan([pets, wifi], [pets])).toBe(true);
-    expect(plan([wifi], [{ ...pets, earlier: true } as never])).toBe(true); // önceki turdan bekleyen evcil hayvan sorusu
+    expect(plan([wifi], [{ ...pets, earlier: true } as never])).toBeUndefined(); // yalnız ÖNCEKİ turdan bekleyen evcil hayvan sorusu: dal açılmaz, işaret de yok
     expect(plan([pets], [pets])).toBeUndefined(); // gidecek cevap yok
+    // İhtiyaç kendi TÜRÜNÜ taşır: kapının dayanak şartı mülk alanı kısayolunu (giriş / çıkış saati) türden okur — plan sırasıyla dizin eşlemesi yok.
+    expect(composeItemsPlan({ turnItems: [pets, wifi], held: [pets], hints: new Map() }).gateItems.hostContactNeeds?.map((n) => [n.ref, n.kind])).toEqual([["R1", "wifi"]]);
     expect(plan([wifi], [])).toBeUndefined(); // evcil hayvan isteği yok
     const freePets = { messageId: "m1", kind: "pets" as const, sensitivity: "none" as const };
     expect(composeItemsPlan({ turnItems: [freePets, wifi], held: [], hints: new Map() }).replyItems.petHeldRule).toBeUndefined(); // cevaplanabilir
@@ -376,6 +469,20 @@ describe("ungroundedAnsweredRefs — cevaplanan isteğin konusu gösterilen bir 
     expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts, stayTimes: { checkOut: "11:00" } })).toEqual([]);
     expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts, stayTimes: { checkOut: " " } })).toEqual(["R3"]);
     expect(ungroundedAnsweredRefs({ needs: [checkout], answeredRefs: ["R3"], kbFacts: [...kbFacts, "Çıkış\nÇıkışta anahtarı kutuya bırakın."], stayTimes: null })).toEqual([]);
+  });
+
+  it("🚨 BİLİNEN SINIR (Opus 11-12 S3-3c, pinli): soruyla İLGİLİ ama cevabı içermeyen kalem de 'dayanak' sayılır — bu şart tek başına güvence DEĞİLDİR", () => {
+    // Kaba ön süzgeç: isteğin tek sözcüğü ya da kaba sözlük konusu herhangi bir kalemde geçince yeter. Güvence, çağıran dalın şart koştuğu
+    // doğrulanmış cevap parçalarıdır (`automation.ts`). Bu test sınırı YAZAR; biri şartı sıkılaştırırsa bilerek güncellensin.
+    // Kahvaltı sorusu ↔ restoran önerileri kalemi (kaba sözlük konusu `restaurant`).
+    const breakfast = { ref: "R1", kind: "amenities" as const, topics: ["restaurant"], terms: ["kahvalti"] };
+    expect(ungroundedAnsweredRefs({ needs: [breakfast], answeredRefs: ["R1"], kbFacts: ["Restoran önerileri\nYakındaki restoranlar: Lale Lokantası, 5 dakika yürüme mesafesinde."] })).toEqual([]);
+    // "Mutfakta mikrodalga var mı?" ↔ "Mutfakta bulaşık makinesi vardır." (yer sözcüğü ortak).
+    const microwave = { ref: "R1", kind: "amenities" as const, topics: [], terms: ["mutfakta", "mikrodalga"] };
+    expect(ungroundedAnsweredRefs({ needs: [microwave], answeredRefs: ["R1"], kbFacts: ["Mutfak\nMutfakta bulaşık makinesi vardır."] })).toEqual([]);
+    // Wi-Fi HIZI sorusu ↔ Wi-Fi şifresi kalemi (tür konusu `wifi`).
+    const speed = { ref: "R1", kind: "wifi" as const, topics: ["wifi"], terms: ["hizi", "internet"] };
+    expect(ungroundedAnsweredRefs({ needs: [speed], answeredRefs: ["R1"], kbFacts })).toEqual([]);
   });
 
   it("şüphede dayanaksız: tanınmayan kimlik, sözcüğü / konusu olmayan istek, boş ya da verilmemiş bilgi tabanı", () => {

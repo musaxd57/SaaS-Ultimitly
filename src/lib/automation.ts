@@ -674,7 +674,15 @@ export function autoReplyGateVerdict(
   const petsItem = petsAnswerable || petsHeld;
   const petTurn = petsItem || mentionsPets(guestMessage);
   const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!petsItem && mentionsAssistanceAnimal(guestMessage));
-  if (heldPetSplitEnabled() && petsHeld && !petsAnswerable) {
+  // 🚨 Dal YALNIZ kodun doğruladığı cevap parçalarında açılır (`verifiedPartsOnly`; Opus 11-12, kodla doğrulandı): dayanak şartı tek başına
+  // kaba — bilgi tabanında soruyla İLGİLİ ama cevabı içermeyen bir kalem varsa (kahvaltı ↔ "restoran önerileri") uydurma cevap dayanaklı
+  // sayılıyordu. Parça kipinde her cevap bilgi tabanındaki cümleyle birebir alıntı + konu / değer bağıyla doğrulanır. Parça kipi kapalıyken
+  // (ya da metin doğrulanmış parçalardan kurulmadıysa) anahtar hiçbir şeyi değiştirmez: aşağıdaki bugünkü kemer.
+  // Kapsam ÖLÇÜLEN kadar (Opus 11-12 S3-2a): evcil hayvan isteği BU TURUN mesajlarında çıkarılmış olmalı. Yalnız ÖNCEKİ turdan bekleyen
+  // evcil hayvan sorusu varken dal açılmaz — o durumda bugünkü kemer misafirin yeni cümlesini de okur (anlama katmanının bu turda
+  // çıkaramadığı ikinci bir evcil hayvan sorusu: "Köpek 5 kg, sorun olur mu? Otopark nerede?"); turlar arası serbest bırakma ayrı karar + ölçüm.
+  const petsHeldThisTurn = !!items && items.held.some((h) => h.kind === "pets" && h.earlier !== true);
+  if (heldPetSplitEnabled() && result.verifiedPartsOnly === true && petsHeldThisTurn && !petsAnswerable) {
     // S3 (kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED` KAPALI): evcil hayvan isteği ev sahibine BIRAKILDIYSA (ayrı öğe, tutuluyor —
     // cevap modeline "değinme" dendi) öteki isteklerin cevabı yalnız bu yüzden tutulmaz. Şart: cevap o isteğe dair hiçbir onay / ret / koşul /
     // ima taşımamalı (`pet-policy.heldPetLeak`: hayvan sözcüğü, "evet / tabii / maalesef", getirme-izin fiili, konusuz olumsuzluk ya da ücret).
@@ -687,7 +695,7 @@ export function autoReplyGateVerdict(
     // yok / bozuksa öğe kapısı aşağıda zaten tutar.
     const declared = result.answeredRequests;
     if (declared?.ok === true) {
-      const needs = (items.hostContactNeeds ?? []).map((n, i) => ({ ref: n.ref, kind: items.answerableKinds[i], terms: n.terms, topics: n.topics }));
+      const needs = (items.hostContactNeeds ?? []).map((n) => ({ ref: n.ref, kind: n.kind, terms: n.terms, topics: n.topics }));
       const ungrounded = ungroundedAnsweredRefs({ needs, answeredRefs: sentRefs(declared), kbFacts: context?.kbFacts, stayTimes: context?.stayTimes });
       if (ungrounded.length > 0) return hold("items_answer_ungrounded");
     }

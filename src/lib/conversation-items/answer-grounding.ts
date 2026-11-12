@@ -11,6 +11,11 @@
 // (`answer-binding.sourceMentionsNeed`: cevap parçaları doğrulayıcısının AYNI konu okuması) ya da, giriş / çıkış saati sorusunda, mülkün
 // kendi alanı. Geçmiyorsa istek dayanaksız cevaplanmıştır → çağıran cevabı TUTAR. Bu bir ÖN ŞARTTIR (konu hiç yoksa cevap uydurmadır);
 // konu varken değerin doğru aktarıldığını sınamaz — o, cevap parçaları kipinin işidir (`ai/answer-parts.ts`).
+//
+// 🚨 KABA (Opus 11-12, kodla doğrulandı): `sourceMentionsNeed` bilerek geniş bir ön süzgeçtir — isteğin TEK bir sözcüğü ya da kaba sözlük
+// konusu herhangi bir kalemde geçince "dayanak var" der. Kahvaltı sorusu "restoran önerileri" kalemiyle, "mutfakta mikrodalga" sorusu
+// "mutfakta bulaşık makinesi" kalemiyle, Wi-Fi HIZI sorusu Wi-Fi şifresi kalemiyle dayanaklı sayılır. Bu yüzden TEK BAŞINA güvence
+// değildir: çağıran dal ayrıca kodun doğruladığı cevap parçalarını şart koşar (`automation.ts`); burası onun ucuz, ek kemeridir.
 // ---------------------------------------------------------------------------
 
 import { sourceMentionsNeed } from "@/lib/ai/answer-binding";

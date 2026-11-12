@@ -522,7 +522,7 @@ export interface ItemsGateInput {
    * yazın" cümlesi silinince hangi isteğin AÇIK kalacağını `host-contact-settle.ts` buna bakarak karar verir. HER ZAMAN kurulur (yalnız kapı
    * girdisi; istem baytları değişmez). Boş tur → alan yok.
    */
-  hostContactNeeds?: readonly { ref: string; topics: readonly string[]; terms: readonly string[]; contingency: boolean }[];
+  hostContactNeeds?: readonly { ref: string; kind?: ItemKind; topics: readonly string[]; terms: readonly string[]; contingency: boolean }[];
 }
 
 /**

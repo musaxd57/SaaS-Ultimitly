@@ -498,13 +498,16 @@ export function needMetrics(all: readonly NeedResult[]) {
 /**
  * S3 (kurucu 11-11: "yanlış izin gönderimi ve gereksiz tutma birlikte ölçülsün"): evcil hayvan isteğinin AÇIK kalması beklenen senaryolar.
  * `petWrong` = o senaryoda evcil hayvana dair bir şey gitti / istek "cevaplandı" sayıldı (yanlış izin — hedef 0). Aynı senaryodaki öteki
- * cevaplanması gereken ihtiyaçlar: doğru giden / gereksiz tutulan / yanlış değer giden. Toplam "yanlış gönderim" satırı evcil hayvanla
- * ilgisiz yanlışları da sayar (ör. modelin uydurduğu bir mesafe); bu satır onu ayırır. Yalnız toplu sayı (kör rapora da yazılabilir).
+ * cevaplanması gereken ihtiyaçlar: doğru giden / gereksiz tutulan / yanlış değer giden. `otherOpen*` (Opus 11-12 S3-7b): aynı senaryodaki
+ * evcil hayvan DIŞI "açık kalmalı" ihtiyaçlar — bilgi tabanında cevabı olmayan yan soru; uydurma cevap tam burada gider ve eskiden yalnız
+ * toplam "yanlış gönderim" satırında görünüyordu. Bu senaryolarda giden her yanlış, anahtarın açtığı yoldan gittiği için "evcil hayvanla
+ * ilgisiz" diye etiketlenmez (S3-7c). Yalnız toplu sayı (kör rapora da yazılabilir).
  */
 export function petSplitMetrics(rows: readonly { needs?: readonly NeedResult[] }[]) {
   const scoped = rows.filter((r) => r.needs?.some((n) => n.kind === "pets" && n.want === "open"));
   const pets = scoped.flatMap((r) => r.needs!.filter((n) => n.kind === "pets" && n.want === "open"));
   const others = scoped.flatMap((r) => r.needs!.filter((n) => n.want === "answered"));
+  const otherOpen = scoped.flatMap((r) => r.needs!.filter((n) => n.kind !== "pets" && n.want === "open"));
   return {
     scenarios: scoped.length,
     petOpen: pets.length,
@@ -514,6 +517,8 @@ export function petSplitMetrics(rows: readonly { needs?: readonly NeedResult[] }
     otherOk: others.filter((n) => n.textOk && !n.wrongAnswered).length,
     otherNeedlessHold: others.filter((n) => !n.textOk && !n.wrongAnswered).length,
     otherWrong: others.filter((n) => n.wrongAnswered).length,
+    otherOpen: otherOpen.length,
+    otherOpenWrong: otherOpen.filter((n) => n.wrongAnswered).length,
   };
 }
 /** Rapor satırları (evcil hayvan ihtiyacı olan set yoksa boş). */
@@ -525,7 +530,8 @@ function petSplitLines(rows: readonly { needs?: readonly NeedResult[] }[]): stri
     `| 🚨 S3 · YANLIŞ İZİN / evcil hayvana değinen cevap giden (hedef 0) | ${m.petWrong} |`,
     `| S3 · aynı mesajdaki öteki soru: doğru değerle giden | ${pct(m.otherOk, m.other)} |`,
     `| S3 · aynı mesajdaki öteki soru: GEREKSİZ TUTMA | ${m.otherNeedlessHold} |`,
-    `| S3 · aynı mesajdaki öteki soru: yanlış değer giden (evcil hayvanla ilgisiz) | ${m.otherWrong} |`,
+    `| 🚨 S3 · aynı mesajdaki öteki soru: YANLIŞ DEĞER giden | ${m.otherWrong} |`,
+    `| 🚨 S3 · aynı mesajdaki cevabı OLMAYAN soru (açık kalmalı): cevap giden / uydurma | ${m.otherOpenWrong} / ${m.otherOpen} |`,
   ];
 }
 
@@ -1010,11 +1016,25 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
       { needs: [need("pets", "open", false, true), need("wifi", "answered", true)] }, // yanlış izin
       { needs: [need("pets", "open", true), need("local_recommendations", "answered", false, true)] }, // öteki soruda yanlış değer
       { needs: [need("pets", "open", true)] }, // yalnız evcil hayvan sorusu
+      { needs: [need("pets", "open", true), need("amenities", "open", false, true)] }, // cevabı olmayan yan soruya uydurma cevap gitti
+      { needs: [need("pets", "open", true), need("amenities", "open", true)] }, // cevabı olmayan yan soru açık kaldı (doğru)
       { needs: [need("wifi", "answered", false)] }, // evcil hayvansız → sayılmaz
       { needs: [need("pets", "answered", true), need("wifi", "answered", true)] }, // ücretsiz kabul (cevaplanır) → sayılmaz
       {},
     ];
-    expect(petSplitMetrics(rows)).toEqual({ scenarios: 5, petOpen: 5, petOpenOk: 4, petWrong: 1, other: 4, otherOk: 2, otherNeedlessHold: 1, otherWrong: 1 });
+    expect(petSplitMetrics(rows)).toEqual({
+      scenarios: 7,
+      petOpen: 7,
+      petOpenOk: 6,
+      petWrong: 1,
+      other: 4,
+      otherOk: 2,
+      otherNeedlessHold: 1,
+      otherWrong: 1,
+      // Evcil hayvan DIŞI "açık kalmalı" ihtiyaçlar ayrı sayılır (evcil hayvanın kendi açık ihtiyacı buraya girmez).
+      otherOpen: 2,
+      otherOpenWrong: 1,
+    });
     expect(petSplitMetrics([{ needs: [need("wifi", "answered", true)] }]).petOpen).toBe(0);
   });
 

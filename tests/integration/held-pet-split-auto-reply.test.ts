@@ -82,6 +82,8 @@ function verdict(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
     missingInfo: [],
     statedCheckoutTime: null,
     answeredRequests: { ok: true, refs: ["R1"] },
+    // Cevap parçaları kipinin işareti (dalın ön şartı): metin yalnız kodun doğruladığı parçalardan kuruldu.
+    verifiedPartsOnly: true,
     ...over,
   };
 }
@@ -172,8 +174,47 @@ describe("kanal oto-yanıtı — evcil hayvan + başka soru (S3)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
     const messages = await prisma.message.findMany({ where: { conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
     expect(await hasOpenHostWork(orgId, messages)).toBe(true);
-    // Cevap modeline giden istekte evcil hayvan kuralı işareti var (kural + kapı çifti).
-    expect(mockSuggest.mock.calls[0]![0]).toMatchObject({ conversationItems: { petHeldRule: true, held: [{ kind: "pets" }] } });
+    // Cevap modeline bırakılan istek olarak evcil hayvan gider (istemdeki ek cümle parça kipine bağlı — birim testinde).
+    expect(mockSuggest.mock.calls[0]![0]).toMatchObject({ conversationItems: { held: [{ kind: "pets" }] } });
+  });
+
+  it("🚨 anahtar AÇIK ama cevap doğrulanmış parçalardan kurulmadı (parça kipi kapalı): bugünkü gibi GİTMEZ — anahtar tek başına etkisiz", async () => {
+    vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
+    const { conversationId } = await seed(BOTH);
+    understands(PETS_AND_WIFI);
+    mockSuggest.mockResolvedValue(verdict({ verifiedPartsOnly: undefined }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).map((i) => i.status)).not.toContain("answered");
+  });
+
+  it("istem işareti cevap modeline YALNIZ anahtar + parça kipi birlikteyken ulaşır (kural + kapı çifti aynı şartta)", async () => {
+    type Items = { conversationItems?: { petHeldRule?: true; parts?: true } };
+    // Anahtar açık, parça kipi kapalı → işaret yok (kapı dalı da açılamaz).
+    vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "1");
+    let seeded = await seed(BOTH);
+    understands(PETS_AND_WIFI);
+    mockSuggest.mockResolvedValue(verdict());
+    await applyChannelAutoReply(seeded.conversationId);
+    expect((mockSuggest.mock.calls[0]![0] as Items).conversationItems?.petHeldRule).toBeUndefined();
+    // Anahtar + parça kipi → işaret cevap modelinin girdisinde.
+    await resetDb();
+    mockSuggest.mockClear();
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    seeded = await seed(BOTH);
+    understands(PETS_AND_WIFI);
+    await applyChannelAutoReply(seeded.conversationId);
+    expect((mockSuggest.mock.calls[0]![0] as Items).conversationItems).toMatchObject({ petHeldRule: true, parts: true });
+    // Parça kipi açık ama anahtar kapalı → işaret yok.
+    await resetDb();
+    mockSuggest.mockClear();
+    vi.stubEnv("AI_HELD_PET_SPLIT_ENABLED", "");
+    seeded = await seed(BOTH);
+    understands(PETS_AND_WIFI);
+    await applyChannelAutoReply(seeded.conversationId);
+    expect((mockSuggest.mock.calls[0]![0] as Items).conversationItems?.petHeldRule).toBeUndefined();
   });
 
   it("🚨 anahtar AÇIK: cevap izin / onay / hayvan sözü taşıyorsa yine GİTMEZ (otopark 'cevaplandı' YAZILMAZ)", async () => {

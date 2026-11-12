@@ -173,6 +173,11 @@ export function petReplyStraysFromFreeKb(reply: string | null | undefined, petTu
 //   4. başka bir hizmetin adını taşımayan cümlede olumsuzluk ya da ücret ("Maalesef mümkün değil." · "Gecelik ücret 200 TL.") → sızıntı
 //      (`petReplyStraysFromFreeKb` ile aynı okuma).
 // Şüphede TUTAR (güvenli yön); gereksiz tutma oranı ölçülür. Saf, doğrusal (çapalı almaşıklar, iç içe niceleyici yok).
+//
+// 🚨 SINIR (Opus sert incelemesi 11-12, kodla doğrulandı): bu bir SÖZCÜK listesidir, her dolaylı izni sayamaz ("Mümkün.", "Sure thing!",
+// Arapça kalıplar bulunup eklendi; bulunmayanlar vardır). Kör sette yanlış izin 0/45 çıktı, ama "model yazmadı" ≠ "yazamaz". Bu yüzden
+// kapı dalı bu denetimle YETİNMEZ: yalnız kodun doğruladığı cevap parçalarında açılır (`automation.ts`), ve anahtar, cevabı misafirin
+// mesajıyla birlikte okuyan denetim (kıdemli okuyucu) kabul ölçümünden geçmeden AÇILMAZ (Railway belgesi).
 // ---------------------------------------------------------------------------
 
 /** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
@@ -187,13 +192,18 @@ export type HeldPetLeak = "pet_mention" | "verdict_word" | "permission" | "unanc
 const VERDICT_ANYWHERE = new RegExp(
   "(?<![\\p{L}\\p{N}])(?:" +
     "evet|tabi{1,2}(?: ?ki)?|elbette|memnuniyetle|hayir|maalesef|ne yazik ki|uzgunu[mz]|mumkun degil|" +
-    "sorun (?:degil|yok|olmaz)|problem (?:degil|yok|olmaz)|sakinca(?:si)? yok|mahsuru yok|" +
+    "sorun (?:degil|yok|olmaz)|problem (?:degil|yok|olmaz)|sakinca(?:si)? yok|sakinca gormuyoru[mz]|mahsuru yok|" +
     "yes|yeah|yep|of course|no problem|no worries|not a problem|unfortunately|sorry|afraid|" +
     "naturlich|selbstverstandlich|kein problem|leider|" +
     "oui|bien sur|pas de probleme|aucun probleme|malheureusement|desolee?s?|" +
+    "sure thing|you bet|that s possible|it s possible|that is possible|it is possible|" +
+    "kein thema|gar kein problem|pas de souci|aucun souci|avec plaisir|volontiers|con (?:mucho )?gusto|claro que si|" +
+    // Haiku 11-12 (kodla doğrulandı: hepsi denetimden geçiyordu) — ağ yine de ağdır, güvence değil (dosya başındaki SINIR notu).
+    "out of the question|by all means|for sure|that s fine|that is fine|it s fine|pourquoi pas|c est possible|" +
+    "klar doch|na klar|geht in ordnung|geht klar|das ist moglich|es posible|разумеется|ничего страшного|" +
     "por supuesto|sin problema|no hay problema|lamentablemente|desafortunadamente|lo siento|" +
     "конечно|без проблем|к сожалению|извините|" +
-    "نعم|بالتاكيد|طبعا|للاسف" +
+    "نعم|بالتاكيد|طبعا|بالطبع|للاسف|مرحب\\p{L}{0,3}|يسمح|مسموح|ممنوع|يمكنكم|لا يمكن|لا مشكلة|لا مانع|لا باس" +
     ")(?![\\p{L}\\p{N}])",
   "u",
 );
@@ -204,8 +214,8 @@ const VERDICT_ANYWHERE = new RegExp(
  * (Haiku 11-12: yan cümle başında aramak bunları da tutuyordu).
  */
 const VERDICT_INTERJECTION = new RegExp(
-  "^(?:olur|kesinlikle|tamam|peki|sure|certainly|absolutely|definitely|okay|ok|alright|no|ja|klar|gerne|nein|in ordnung|" +
-    "non|d accord|si|claro|vale|да|нет|хорошо|ладно|لا|تمام)$",
+  "^(?:olur|olabilir|kesinlikle|tamam|peki|mumkun|uygun(?:dur)?|yok|sure|certainly|absolutely|definitely|okay|ok|alright|possible|no|ja|klar|gerne?|nein|" +
+    "in ordnung|moglich|non|d accord|si|claro|vale|posible|да|нет|хорошо|ладно|можно|لا|تمام|ممكن)$",
   "u",
 );
 /** "No. 14" / "Nr. 3" / "No: 5" — kapı / daire numarası yazımı ret sözcüğü değildir (cümle bölücü "No." diye ayırır). */
@@ -224,6 +234,12 @@ const PET_EUPHEMISM = new RegExp(
     ")(?![\\p{L}\\p{N}])",
   "u",
 );
+/**
+ * Arapça hayvan sözcükleri (Opus 11-12: hiç yoktu — "evcil hayvanlar kabul edilir" denetimden geçiyordu). Arapçada tanımlık ve edatlar
+ * sözcüğe BİTİŞİK yazılır ("الحيوانات", "بالكلاب") → sözcük sınırı aranmaz, kök alt dize olarak okunur. "قط" tek başına kök değil
+ * ("فقط" = yalnızca) → yalnız "قطة / قطط". Katlamada hemze düşer (أ → ا).
+ */
+const ARABIC_PET = /حيوان|اليف|كلب|كلاب|قطة|قطط/u;
 
 /** Getirme / kabul / izin / yasak fiilleri (katlanmış) — tutulan evcil hayvan sorusunun cevabı olarak okunur. */
 const PERMISSION_VERB = new RegExp(
@@ -256,8 +272,24 @@ const ABILITY_NEGATION = new RegExp(
   "u",
 );
 
-/** Yan cümle bölme (virgül / noktalı virgül / iki nokta / parantez / boşluklu tire) — "Merhaba, olur." de yakalansın; "Wi-Fi" bölünmez. */
-const clauses = (sentence: string) => sentence.split(/[,;:()]|\s[-–—]\s/u).map((c) => c.trim()).filter(Boolean);
+/**
+ * Yan cümle bölme (virgül / noktalı virgül / iki nokta / parantez / uzun tire / boşluklu kısa tire) — "Merhaba, olur." de yakalansın;
+ * "Sure—the Wi-Fi …" de (Opus 11-12: boşluksuz uzun tire bölmüyordu). "Wi-Fi" bölünmez (kısa tire yalnız boşlukluyken).
+ */
+const clauses = (sentence: string) => sentence.split(/[,;:()—–]|\s-\s/u).map((c) => c.trim()).filter(Boolean);
+
+/** Arapça noktalama Latin karşılığına (cümle / yan cümle bölücüler bunları tanısın): ، ؛ ؟ — uzatma çizgisi (ـ) sözcüğü bölmesin diye silinir. */
+const latinPunctuation = (text: string) => text.replace(/ـ/gu, "").replace(/،/gu, ",").replace(/؛/gu, ";").replace(/؟/gu, "?");
+
+/**
+ * Para tutarı (katlanmış): rakam + para birimi ya da simge + rakam. Başka bir hizmetin adını taşımayan cümlede tutar, tutulan evcil hayvan
+ * sorusunun ücreti gibi okunur ("Ekstra gecelik 300 TL eklenir." · "It's an extra $20 per night." — ücret SÖZCÜĞÜ yok; Opus 11-12).
+ */
+const MONEY_AMOUNT =
+  /\p{Nd}[\p{Nd}.,]{0,12}\s?(?:(?:tl|try|eur|usd|gbp|rub)(?![\p{L}])|lira|euro|dolar|dollar|pound|sterlin|рубл|евро|доллар|ليرة|ريال|درهم|دولار|يورو|[₺€$£₽])|[₺€$£₽]\s?\p{Nd}/u;
+
+/** Tutar yazmadan ek ödeme bildiren öbekler (katlanmış) — yalnız başka hizmetin adını taşımayan cümlede okunur ("Un supplément s'applique."). */
+const EXTRA_CHARGE = /(?<![\p{L}])(?:(?:ek|ilave|ekstra) odeme|supplement\p{L}{0,2}|suplemento|zuschlag|aufpreis|extra cost|additional cost|costo adicional)/u;
 
 /**
  * Cevap, ev sahibine bırakılan evcil hayvan isteğine dair bir onay / ret / koşul / ima taşıyor mu (S3)? `null` = taşımıyor (öteki isteklerin
@@ -265,16 +297,18 @@ const clauses = (sentence: string) => sentence.split(/[,;:()]|\s[-–—]\s/u).m
  */
 export function heldPetLeak(reply: string | null | undefined): HeldPetLeak | null {
   if (!reply) return null;
-  if (mentionsPets(reply) || PET_EUPHEMISM.test(fold(reply))) return "pet_mention";
+  const plain = latinPunctuation(reply);
+  const folded = fold(plain);
+  if (mentionsPets(reply) || PET_EUPHEMISM.test(folded) || ARABIC_PET.test(folded)) return "pet_mention";
   // Kapı / daire numarası kısaltması ("No. 14") cümle bölünmeden ÖNCE çıkarılır — yoksa "No." tek başına bir ret cümlesi gibi okunur.
-  const text = reply.replace(NUMBER_ABBREVIATION, "");
+  const text = plain.replace(NUMBER_ABBREVIATION, "");
   for (const raw of sentences(text)) {
     const f = fold(raw);
     if (VERDICT_ANYWHERE.test(f)) return "verdict_word";
     // Yan cümle yalnız harf / rakam / boşluğa indirilir ("Sure!" → "sure"); tek geçiş, doğrusal.
     if (clauses(raw).some((c) => VERDICT_INTERJECTION.test(fold(c).replace(/[^\p{L}\p{N}\s]/gu, "").trim()))) return "verdict_word";
     if (PERMISSION_VERB.test(f)) return "permission";
-    if (!OTHER_SUBJECT.test(f) && !STAY_TIME_SUBJECT.test(f) && ABILITY_NEGATION.test(f)) return "unanchored_verdict";
+    if (!OTHER_SUBJECT.test(f) && !STAY_TIME_SUBJECT.test(f) && (ABILITY_NEGATION.test(f) || MONEY_AMOUNT.test(f) || EXTRA_CHARGE.test(f))) return "unanchored_verdict";
   }
   return petReplyStraysFromFreeKb(text, true) ? "unanchored_verdict" : null;
 }

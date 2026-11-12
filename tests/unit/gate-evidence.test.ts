@@ -102,7 +102,7 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     [
       // S3 (`AI_HELD_PET_SPLIT_ENABLED`): evcil hayvan isteği tutulurken cevaplanan isteğin konusu gösterilen hiçbir kaynakta geçmiyor.
       "öğe kipi (evcil hayvan ayrımı): cevaplanan isteğin konusu hiçbir kaynakta yok",
-      { ...declared, reply: "The nearest pharmacy is about 150 metres down the street." },
+      { ...declared, reply: "The nearest pharmacy is about 150 metres down the street.", verifiedPartsOnly: true as const },
       "Can we bring our dog? Is there a pharmacy nearby?",
       {
         kbFacts: ["Market\nEn yakın market binanın 150 metre ilerisindedir."],
@@ -110,7 +110,7 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
           held: [{ kind: "pets" as const, sensitivity: "sensitive" as const, riskType: null }],
           paymentHeld: false,
           answerableKinds: ["local_recommendations" as const],
-          hostContactNeeds: [{ ref: "R1", topics: ["pharmacy"], terms: ["eczane", "pharmacy", "nearby"], contingency: false }],
+          hostContactNeeds: [{ ref: "R1", kind: "local_recommendations", topics: ["pharmacy"], terms: ["eczane", "pharmacy", "nearby"], contingency: false }],
         },
       },
       "items_answer_ungrounded",

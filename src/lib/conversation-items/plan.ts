@@ -161,7 +161,8 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       })),
       ...(parts ? { parts: true as const } : {}),
       // S3: evcil hayvan isteği tutuluyor (cevaplanabilir değil) ve gidecek başka cevap var → istemdeki "onay / ret sözcüğü yazma" cümlesi.
-      ...(heldPetSplitEnabled() && answerable.length > 0 && input.held.some((h) => h.kind === "pets") && !answerable.some((a) => a.item.kind === "pets")
+      // Yalnız parça kipinde ve yalnız BU TURUN evcil hayvan isteğinde: kapı dalı ancak o zaman açılır; açılamayacağı yerde istem de değişmez.
+      ...(heldPetSplitEnabled() && parts && answerable.length > 0 && input.held.some((h) => h.kind === "pets" && !h.earlier) && !answerable.some((a) => a.item.kind === "pets")
         ? { petHeldRule: true as const }
         : {}),
       held: [
@@ -185,7 +186,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
             hostContactNeeds: answerable.map(({ ref, item }) => {
               const key = hintKey(item.messageId, item.kind, item.ordinal);
               const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
-              return { ref, topics: topicsOfItem(item), terms: needTerms(queries), contingency: queries.some((q) => asksHypotheticalSituation(q)) };
+              return { ref, kind: item.kind, topics: topicsOfItem(item), terms: needTerms(queries), contingency: queries.some((q) => asksHypotheticalSituation(q)) };
             }),
           }
         : {}),
