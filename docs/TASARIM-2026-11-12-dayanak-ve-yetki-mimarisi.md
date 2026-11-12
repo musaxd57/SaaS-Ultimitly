@@ -156,6 +156,14 @@ Ayrıntı, senaryo sınıfları ve bulunan kod hataları: `docs/INCELEME-2026-11
   düşürüyor; D1c bugün doğruluk değil, gereksiz model çıktısını azaltma işi olur. Ertelenebilir.
 - **D1a (okuyucuya "bekleyen konuya izin ima ediyor mu" sorusu) hâlâ açık:** bugün o ayrımı evcil hayvan / erken giriş TUR KEMERİ yapıyor; kemer
   kalkacaksa (S3) D1a onun yerine geçecek anlam denetimidir.
+- **Parça kipinin güvencesi "parça yapısı + okuyucu"dur — kod tek başına yetmiyor (ölçüldü).** On parça koşusunda açık kalması gereken
+  sorulara modelin yazdığı 61 parçanın 11'ini kod, 49'unu yalnız okuyucu tuttu, 1'i geçti. Çelişkili kayıt, otogar transferi ve lokanta
+  mesafesi parçaları gerçek alıntı gösteriyor; kodun danışma işaretleri (`subject_missing`, `value_bound_elsewhere`) doğru cevaplarda da
+  çıktığı için tutma sebebi yapılamıyor. İlke 6 gereği kodun payını büyütecek iki yapısal dilim:
+  **D1d — ücret çelişkisi:** aynı konu için hem "ücretsiz / dahil" hem tutar yazan kayıt çifti çelişkidir (bugün yalnız saat çelişkisi
+  biliniyor; "ücretsiz" değer sayılmıyor). **D1e — değerin sahibi:** bir değer (900 TL, 150 m) kayıtta başka bir adlı nesneye bağlıysa
+  ve sorulan nesnenin adı o cümlede geçmiyorsa parça tutulur — bugün danışma; ayırt edici hâle getirmek için nesne adının kayıt başlığından
+  ve tamlamadan okunması gerekiyor (kök neden raporu §B).
 - **D1b (yeni seçenek): parça okuyucusunu iki kez okutmak** — biri "cevaplamıyor / yarım" derse parça tutulur ("bilgim yok" hakemindeki iki
   okuma düzeninin aynısı). Bedeli cevap başına bir çağrı ve biraz daha fazla tutma. Karar kör set sonucuna göre (kurucu sorusu D-4).
 - **Okuyucu misafir mesajını görünce yanılıyor:** taslak bir soruya değinmediğinde (doğru davranış) "bilgim yok dedi" oyu verip kanıt olarak
@@ -191,6 +199,10 @@ OpenAI kredisi · D-3 çok mesajlı tur · D-4 parça okuyucusu iki okuma · D-5
 **D-6 · Dilim sırası.** Önerim: (1) kör koşu → (2) D5 açma ölçütü birlikte yazılır (hangi sayı "açılabilir" demek) → (3) parça kipi + okuyucu +
 D0 birlikte açılır → (4) çok mesajlı tur → (5) D2 kaynak kimliği + sürümü (şema işi — migration turuyla) → (6) D3 yetki tablosu → (7) D6 QR.
 S2 (geç mesaj) ve S3 (evcil hayvan ayrımı) (3)'ten sonra.
+
+**D2 notu (kök neden incelemesi).** Bugünkü kaynak kaydında "history" (bu sohbetteki önceki cevabımız) içeriğe bakılmadan doğrulanmış
+sayılıyor: geçmişte herhangi bir giden mesaj yeterli. Geç mesaj turunda geçmişte hep bir cevabımız olduğu için uydurma bir cümle kayıtta
+"kaynaklı" görünüyor. Alan yalnız kayıttır (hiçbir kapı okumuyor), ama D2'de kaynak kimliği yazılırken "hangi mesaj, hangi cümle" de yazılmalı.
 
 **D-7 · QR misafir sohbeti.** Aynı cevap istemini kullanıyor, istek defteri ve dayanak kapıları orada yok; uydurma kalıbı QR'da daha az
 kapıdan geçiyor. Parça kipini QR'a taşımak ayrı bir dilim (D6). Kanal tarafı açılıp ölçüldükten sonra mı, yoksa birlikte mi?

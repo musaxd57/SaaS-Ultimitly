@@ -124,8 +124,13 @@ Okuma:
 - **İstem katmanı yardım ediyor ama yetmiyor.** Yanlış gönderim 9 → 5. Kalan beşi: çelişkili otopark kaydında "ücretsiz" (2), havalimanı
   transferinin 900 TL'sinin otogara taşınması, "havuz kullanımı ücretsiz", "Deniz Lokantası yaklaşık 150 metre". İstem modelin eğilimini
   değiştirir; uydurmayı DURDURMAZ (kod kapısı aynı).
-- **Cevap parçaları kipi iki kolda da 0 yanlış.** Uydurma parça alıntı gösteremediği için gitmiyor: "Kahvaltı hizmeti sunmuyorum" parçası düşüyor,
-  aynı mesajdaki Wi-Fi cevabı gidiyor, kahvaltı sorusu ev sahibinde açık kalıyor.
+- **Cevap parçaları kipi iki kolda da 0 yanlış — ama bunu çoğunlukla OKUYUCU sağlıyor, alıntı kuralı değil** (kök neden incelemesi düzeltti;
+  ilk yazımda "uydurma parça alıntı gösteremediği için gitmiyor" demiştim, yanlıştı). On parça koşusunda, açık kalması gereken tek ihtiyaçlı
+  senaryolarda 140 denemenin 79'unda model kendisi "bilgi yok" yazdı; yazdığı 61 parçanın **11'ini kod, 49'unu yalnız okuyucu tuttu, 1'i
+  geçti** ("havuz barı" — artık kodda). Çelişkili otopark, otogar transferi ve lokanta mesafesi parçaları GERÇEK bir alıntı gösteriyor (yakın
+  kayıttan); kod bunlarda yalnız danışma işareti yazıyor ve aynı işaretler doğru cevaplarda da çıkıyor. Sonuç: parça kipinin güvencesi
+  "parça yapısı + okuyucu"dur; okuyucu 50'de 1 kaçırdı. Bu, D-4'ü (okuyucu iki okuma) ve kod tarafını güçlendirecek dilimleri (ücret
+  çelişkisi, değerin hangi nesneye ait olduğu) daha önemli kılıyor.
 - **Bugünkü hat dürüst cevabı tutuyor.** G1'in 10 gereksiz tutmasının 6'sı, modelin bir soruya dürüstçe "bu konuda bilgim yok" yazdığı çok soruluk
   cevaplar: "bilgim yok" kapısı turun TAMAMINI tutuyor, öteki soruların doğru cevabı da gitmiyor (§3'teki tablonun bu setteki karşılığı).
 - **Parça kipinde kalan tutmalar:** dördü tasarım gereği tur kemeri — evcil hayvan sorusu olan turda yanındaki cevap (3 senaryo — S3 kararı),
@@ -213,6 +218,24 @@ için "açılabilir" denmez** — geliştirme seti benim yazdığım, düzeltmel
   yanlış sayılırdı). Kör koşunun ayrıntı dosyası yalnız eksiksiz biten koşuda yazılır.
 - 🚨 Çok mesajlı tur ölçümü İstanbul saatiyle 00:00–00:40 arasında koşmaz: senaryo mesajları onar dakika arayla geriye dizilir, önceki mesaj
   düne düşer ve gün şartı bloğu kapatır (ölçüm yanlış kolu ölçer).
+
+### 6.6 Her hatanın kök nedeni (Opus incelemesi)
+
+Kurucunun isteğiyle, bütün geliştirme koşularındaki her hata tek tek incelendi: `docs/INCELEME-2026-11-12-kok-neden.md` (sınıf tablosu,
+hata başına zincir, kanıt gücü). 153 giden metin bilgi tabanıyla elle karşılaştırıldı: ölçerin kaçırdığı yanlış 0, doğruyu yanlış saydığı
+satır 0. Belgelerde yazmayan ve kodda / veride doğruladığım bulgular:
+
+| Bulgu | Durum |
+|---|---|
+| Parça kipinin "0 yanlış"ı çoğunlukla okuyucudan geliyor (yukarıda) | Belge düzeltildi; D-4 ve D1d |
+| "Otoparkla ilgili bilgi şu anda burada paylaşılmamış." bugünkü hatta misafire GİTTİ (bilgisizlik kuralı bu edilgen yazımı görmüyordu) | Dar kuralla kapatıldı (bilgi nesnesi + "burada" + edilgen olumsuz), iki yönlü pinli |
+| Ücret çelişkisi ("ücretsiz" ↔ "200 TL") kodun hiçbir yerinde görülmüyor: seçici ve istem yalnız SAAT çelişkisini biliyor; parça doğrulayıcısı "ücretsiz"i değer saymıyor — her koşuda yalnız okuyucu tuttu, bugünkü hatta 10/10 gitti | Tasarımda D1d; bu turda uygulanmadı (canlı ölçüm yapılamıyor) |
+| "history" kaynağı içeriğe bakılmadan doğrulanıyor (geçmişte herhangi bir giden mesaj yeter) — geç mesaj turunda uydurma "kaynaklı" görünür | Yalnız kayıt alanı (kapı okumuyor); tasarımda D2 |
+| Parça kipi dışında boş cevap "model arızası" sayılıyor ve en çok üç kez faturalı yeniden deneniyor; istem katmanı "yazman gerekmez" deyince tek bilinmeyen soruluk turda daha sık oluyor (Almanca kahvaltı: 13 denemenin 6'sı) | İstem katmanı parça kipsiz açılmadan ÖNCE düzeltilecek (kayıt) |
+| Sıra kipi kapalıyken aynı türden iki soru tek öğede birleşiyor: katmanlı kolda cevap boşuna tutuluyor (8/8), bugünkü hatta bilinmeyen soru sessizce "cevaplandı" kapanıyor | Sıra kipi parça kollarında açık; bugünkü hat için ayrı karar (kayıt) |
+| Taban istem "mesajınız kaydedildi, ev sahibiniz görebilir" cümlesini 33 yerde öğretiyor, çıktı vetosu aynı cümleyi tutuyor | Bilinen çelişki — `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §11 (kurucu kararı bekliyor) |
+| Okuyucu setindeki üç "iletişim" fazla oyu: beklenti okuyucunun kendi tanımıyla çelişiyor (ödemeyi platform dışına taşımak tanımda iletişim de sayılıyor) | Davranış etkisi yok; set beklentisi düzeltilecek (kayıt) |
+| Ölçerin dört kör noktası (aynı türden iki ihtiyaçta öğe durumu · edilgen itiraf deseni · bu sette altı kaydın aynı kaynak etiketine düşmesi · düşen satırın "model cevap vermedi" sayılması) | Bugün sonucu değiştirmedi; ölçer işi (kayıt) |
 
 ## 7. Öteki istem yüzeyleri
 

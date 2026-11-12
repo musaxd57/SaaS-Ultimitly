@@ -101,7 +101,15 @@ Her çapa pinli: anahtar kapalıyken ve istek defteri olmayan yolda cümle aynen
 | Katmanın kural cümlesindeki örnek sözcüklerinden ikisi mühürlü kabul setinin sorularında geçiyor (yalnız sayı bakıldı) | Örnekler konu adı taşımayan genel anlatıma çevrildi (kör koşudan önce) |
 | Okuyucu setlerinde "iletişim" hükmünde 3 fazla oy (ikisi bugünden önce de vardı): hepsi zaten ödeme için tutulan taslaklar | Davranış etkisi yok; kayıt |
 
-### 2.8 Yapılamayan
+### 2.8 Kök neden incelemesi (ikinci Opus geçişi) ve son Haiku incelemesi
+
+Her hatanın kök nedeni: `docs/INCELEME-2026-11-12-kok-neden.md`. Kodda doğrulanıp bu turda düzeltilenler: (1) "bilgi … burada
+paylaşılmamış" bilgisizlik cümlesi bugünkü hatta misafire gidiyordu → dar kural + iki yönlü pin; (2) kısa tesis kökü ilk yazımda her
+kuyruğu kabul ediyordu — "Spain", "Bari", "bare", "spade" tesis sayılıp doğru cevap tutulurdu → çekim ham sözcükte ünlü uyumuyla aranır
+(bilinen sınır: Türkçe karaktersiz "havuz bari"); (3) belgedeki "uydurma parça alıntı gösteremediği için gitmiyor" cümlesi yanlıştı —
+parça kipinde yazılan 61 uydurma / taşıma parçasının 49'unu yalnız okuyucu tuttu → belgeler düzeltildi, tasarıma D1d / D1e eklendi.
+
+### 2.9 Yapılamayan
 
 Kör (kabul) koşuları: iki kez başlatıldı, ikisi de çıktı yazmadan durdu — ilki ölçüm ortamı yeniden başladığı için, ikincisi OpenAI hesabının
 kredisi bittiği için (`credit_balance_exhausted`). Mühürler sağlam; komutlar denetim belgesi §6.4 ve S2 tasarımı §2.3'te.
