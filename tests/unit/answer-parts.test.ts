@@ -748,6 +748,32 @@ describe("🚨 11-12 ölçümü: 'Havuz barı kaça kadar açık?' — havuzun s
     }
   });
 
+  it("🚨 benzer sözcük tesis DEĞİLDİR — çekim ham sözcükte ünlü uyumuyla aranır: 'Spain', 'Bari', 'bari', 'bare', 'spade' doğru cevabı tutmaz", () => {
+    // Kısa kökte her kuyruğu kabul eden ilk yazım "We are coming from Spain. What time does the pool close?" isteğini iki tesisli (spa +
+    // havuz) sayıp havuzun doğru cevabını tutardı (denemeyle gösterildi). "bar" / "spa" kalın ünlülüdür: ekleri "a" / noktasız "ı".
+    for (const queries of [
+      ["pool closing time", "We are coming from Spain. What time does the pool close?"],
+      ["havuz kapanış saati", "Bari'den geliyoruz, havuz kaçta kapanıyor?"],
+      ["havuz açık mı", "Bari havuz açık mı?"],
+      ["pool hours", "What are the bare minimum pool hours?"],
+      ["pool hours", "Pool hours? Also do you have a spade for the garden?"],
+      ["havuz saatleri", "Havuz bardak yasağı var mı, saatleri ne?"],
+    ]) {
+      for (const meaningJudge of ["reader", "code"] as const) {
+        const out = composeVerifiedReply({ parts: part, needs: [need(queries)], sources: kb, meaningJudge });
+        expect([queries[1], meaningJudge, out.refs]).toEqual([queries[1], meaningJudge, ["R1"]]);
+      }
+    }
+    // Öteki çekimler tanınır (iki kip): iyelik, hâl, çoğul; İngilizce çoğul; Kiril hâl eki.
+    for (const queries of [["havuz ve spası kaçta kapanıyor"], ["havuz, barlar kaçta kapanıyor"], ["pool and bars hours"], ["havuz bara yakın mı, bar kaçta açık"], ["бассейн и бары часы"]]) {
+      const out = composeVerifiedReply({ parts: part, needs: [need(queries)], sources: kb, meaningJudge: "reader" });
+      expect([queries[0], out.refs]).toEqual([queries[0], []]);
+    }
+    // BİLİNEN SINIR (kayıtlı): Türkçe karaktersiz "havuz bari" çekim sayılmaz ("bari" zarfıyla / şehirle ayırt edilemez) — o yazımda karar
+    // okuyucunundur; anlama katmanının Türkçe sorgusu Türkçe karakterle gelir.
+    expect(composeVerifiedReply({ parts: part, needs: [need(["havuz bari saatleri"])], sources: kb, meaningJudge: "reader" }).refs).toEqual(["R1"]);
+  });
+
   it("KONTROL: iki tesisi de cevaplayan parça gider (okuyucu kipi)", () => {
     const two = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Saatler", content: "Havuz 09:00–20:00 arası açıktır. Havuz barı 11:00–19:00 arası açıktır." }) }];
     const out = composeVerifiedReply({

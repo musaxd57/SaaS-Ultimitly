@@ -367,8 +367,8 @@ export function composeVerifiedReply(input: {
     // karar yapısaldır (kapalı tesis listesi), anlam sorusu değildir. "Yön / nitelik eksik" (`aspect_missing`) okuyucunun sorusu olarak kalır.
     const keptScope = byReader ? scope.filter((i) => i === "subject_partial") : scope;
     if (keptScope.length > 0) {
-      const seen = byReader ? [...binding.issues, ...scope.filter((i) => !keptScope.includes(i))] : [];
-      verdicts.push({ ref: need.ref, status: "rejected", issues: keptScope, ...(seen.length > 0 ? { advisory: seen } : {}) });
+      const alsoSeen = byReader ? [...binding.issues, ...scope.filter((i) => !keptScope.includes(i))] : [];
+      verdicts.push({ ref: need.ref, status: "rejected", issues: keptScope, ...(alsoSeen.length > 0 ? { advisory: alsoSeen } : {}) });
       continue;
     }
     const advisory: (BindingIssue | ScopeIssue)[] = byReader ? [...binding.issues, ...scope] : [];

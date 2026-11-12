@@ -1561,26 +1561,37 @@ const FACILITY_ROOTS: Readonly<Record<string, readonly string[]>> = {
   reception: ["resepsiyon", "reception", "rezeption", "recepcion", "ресепшн", "ресепшен", "регистрац"],
 };
 /**
- * KISA tesis kökünde (4 harften az: "bar", "spa", "gym") ad çekimi — kapalı ek kümesi, katlanmış biçim (11-12 ölçümü). Kısa kök yalnız TAM
- * sözcükle eşleşiyordu: "Havuz BARI kaça kadar açık?" isteğinde "barı" tesis sayılmıyor, istek tek tesisli (havuz) görünüyor ve havuzun saati
- * barın cevabı diye geçiyordu. Türkçe: çoğul + iyelik + hâl ("barı", "barın", "barında", "barlar", "spası", "spada", "spanın", "spaya");
- * İngilizce çoğul "-s". "barış", "baraj", "barbekü", "spam" eşleşmez. Kiril kökte yalın hâl ekleri. Doğrusal (çapalı, iç içe niceleyici yok).
+ * KISA tesis kökünde (4 harften az: "bar", "spa", "gym") ad çekimi (11-12 ölçümü). Kısa kök yalnız TAM sözcükle eşleşiyordu: "Havuz BARI
+ * kaça kadar açık?" isteğinde "barı" tesis sayılmıyor, istek tek tesisli (havuz) görünüyor ve havuzun saati barın cevabı diye geçiyordu.
+ *
+ * Çekim HAM (katlanmamış) sözcükte ve ÜNLÜ UYUMUYLA aranır: "bar" / "spa" kalın ünlülüdür, ekleri "a" / noktasız "ı" taşır ("barı", "barın",
+ * "barında", "bara", "barda", "barlar", "spası", "spanın", "spaya"). Noktalı "i" ya da "e" taşıyan benzerler tesis DEĞİLDİR: "Spain", "Bari"
+ * (şehir), "bari" (zarf), "bare", "spade" — yoksa "We are coming from Spain. What time does the pool close?" iki tesisli istek sanılıp doğru
+ * cevap tutulurdu. Bedeli (bilinen sınır): Türkçe karaktersiz yazılan "havuz bari" çekim sayılmaz; o yazımda karar eskisi gibi okuyucunundur
+ * (anlama katmanının Türkçe sorgusu Türkçe karakterle gelir). İngilizce çoğul "-s" her kısa kökte; Kiril kökte yalın hâl ekleri. Doğrusal
+ * (çapalı, iç içe niceleyici yok).
  */
-const SHORT_FACILITY_TAIL = /^(?:s|(?:l[ae]r)?(?:s?[iu](?:m[iu]z|n[iu]z|[mn])?)?(?:[ny]?[ae]|n?d[ae]n?|n?[iu]n|[ny][iu]|l[ae])?)$/;
-const SHORT_FACILITY_TAIL_CYRILLIC = /^(?:а|е|у|ом|ы|ов|ах)?$/u;
-function facilityRootMatches(token: string, root: string): boolean {
-  if (token === root) return true;
-  if (!token.startsWith(root)) return false;
-  if (root.length >= 4) return true;
-  const tail = token.slice(root.length);
-  return (/^[Ѐ-ӿ]/u.test(root) ? SHORT_FACILITY_TAIL_CYRILLIC : SHORT_FACILITY_TAIL).test(tail);
+const SHORT_FACILITY_TAIL_BACK_VOWEL = /^(?:s|(?:lar)?(?:s?ı(?:mız|nız|[mn])?)?(?:[ny]?a|n?dan?|n?ın|[ny]ı|la)?)$/u;
+const SHORT_FACILITY_TAIL_CYRILLIC = /^(?:а|е|у|ом|ы|ов|ах)$/u;
+const BACK_VOWEL_SHORT_ROOTS: ReadonlySet<string> = new Set(["bar", "spa"]);
+/** Ham (küçük harfli, katlanmamış) sözcük kısa kökün çekimli biçimi mi (kökün kendisi hariç — o tam eşleşmeyle bulunur). */
+function shortRootInflected(rawToken: string, root: string): boolean {
+  if (rawToken.length <= root.length || !rawToken.startsWith(root)) return false;
+  const tail = rawToken.slice(root.length);
+  if (/^[Ѐ-ӿ]/u.test(root)) return SHORT_FACILITY_TAIL_CYRILLIC.test(tail);
+  return BACK_VOWEL_SHORT_ROOTS.has(root) ? SHORT_FACILITY_TAIL_BACK_VOWEL.test(tail) : tail === "s";
 }
 function facilitiesIn(text: string): Set<string> {
   const out = new Set<string>();
-  for (const t of tokenize(text)) {
-    for (const [id, roots] of Object.entries(FACILITY_ROOTS)) {
-      if (roots.some((r) => facilityRootMatches(t, r))) out.add(id);
-    }
+  const folded = tokenize(text);
+  // Kısa kök çekimi ham sözcükte (ünlü uyumu katlamada kaybolur: "barı" ↔ "Bari"). Varsayılan küçük harf: "I" → "i" (tümü büyük yazılmış
+  // Türkçe çekim tanınmaz; "SPAIN" de tesis olmaz).
+  const raw = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  for (const [id, roots] of Object.entries(FACILITY_ROOTS)) {
+    const hit = roots.some((r) =>
+      r.length >= 4 ? folded.some((t) => t.startsWith(r)) : folded.includes(r) || raw.some((t) => shortRootInflected(t, r)),
+    );
+    if (hit) out.add(id);
   }
   return out;
 }
