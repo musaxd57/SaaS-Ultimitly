@@ -1589,6 +1589,36 @@ describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi'
     }
   });
 
+  it("🚨 rol adı ('misafir') tek başına konu DEĞİLDİR — hemen her kalemde geçer, kimlik taşımaz (Opus 11-12 P2-3)", () => {
+    // Geniş zaman kuyruğu daraltılınca (11-12) "misafir" fiil sayılmaktan çıktı ve KONU oldu: "Misafir otoparkı ücretsizdir." kaydı "misafir
+    // getirmek ücretli mi" sorusunun konusunu anıyor sayıldı, otoparkın "ücretsiz"i o cevaba dayanak oldu (ölçüldü: doğrulayıcı geçirdi).
+    // İhtiyaçta başka özgül sözcük ve tamlama kuracak genel baş ad yoksa konu BİLİNMİYOR — kodun tuttuğu sebep, okuyucu kipinde de tutar.
+    const kb = "Misafir otoparkı ücretsizdir. Havuz misafirlerimize 09:00–20:00 arası açıktır.";
+    for (const [q, part, evidence] of [
+      ["misafir getirmek ücretli mi", "Misafir getirmek ücretsizdir.", "Misafir otoparkı ücretsizdir."],
+      ["misafir getirebilir miyiz", "Evet, misafir ücretsizdir.", "Misafir otoparkı ücretsizdir."],
+      ["misafirler için ücret var mı", "Misafirler için ücretsizdir.", "Misafir otoparkı ücretsizdir."],
+      ["misafir kaçta gelebilir", "Misafir 09:00'da gelebilir.", "Havuz misafirlerimize 09:00–20:00 arası açıktır."],
+    ] as const) {
+      const r = checkAnswerBinding({ part, evidence, sourceText: kb, ...need([q]) });
+      expect([q, r.ok, r.issues.includes("subject_unknown")]).toEqual([q, false, true]);
+    }
+    // Özgül konu sözcüğünün yanında rol adı DÜŞER ("misafir otoparkı" → otopark): doğru cevap geçer; rol adını anan ama konuyu anmayan
+    // cümle ("Havuz misafirlerimize …") otoparkın konu cümlesi sayılmaz.
+    const parking = need(["misafir otoparkı ücretsiz mi"]);
+    expect(checkAnswerBinding({ part: "Evet, misafir otoparkı ücretsizdir.", evidence: "Misafir otoparkı ücretsizdir.", sourceText: kb, ...parking }).ok).toBe(true);
+    const wrongSentence = checkAnswerBinding({ part: "Misafir otoparkı 20:00'ye kadar açıktır.", evidence: "Havuz misafirlerimize 09:00–20:00 arası açıktır.", sourceText: kb, ...parking });
+    expect(wrongSentence.ok).toBe(false);
+    // Genel baş adla TAMLAMADA rol adı ayırt edicidir ("misafir odası" ≠ "oyun odası") — bir önceki testin pini; burada iki yön birlikte.
+    const rooms = "Odalar: Misafir odası ikinci kattadır. Oyun odası yoktur.";
+    const guestRoom = need(["misafir odası var mı"]);
+    expect(checkAnswerBinding({ part: "Misafir odası yoktur.", evidence: "Oyun odası yoktur.", sourceText: rooms, ...guestRoom }).ok).toBe(false);
+    expect(checkAnswerBinding({ part: "Evet, misafir odası ikinci kattadır.", evidence: "Misafir odası ikinci kattadır.", sourceText: rooms, ...guestRoom }).ok).toBe(true);
+    // KONTROL: "-ar / -ir" ile biten gerçek adlar (daraltmanın amacı) konu kalır.
+    const key = checkAnswerBinding({ part: "Anahtar kutudadır.", evidence: "Anahtar kapının yanındaki kutudadır.", sourceText: "Anahtar kapının yanındaki kutudadır.", ...need(["anahtar nerede"]) });
+    expect(key.issues).not.toContain("subject_unknown");
+  });
+
   it("İngilizce: 'coffee machine' cümlesi 'washing machine' sorusunun konusu değil", () => {
     const kb = "Appliances: The washing machine is in the bathroom. The coffee machine is out of order.";
     const n = need(["is there a washing machine"]);

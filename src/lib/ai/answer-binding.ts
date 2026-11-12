@@ -632,6 +632,13 @@ const GENERIC_HEADS = (
   "makine makinesi makinasi alet aleti cihaz cihazi oda odasi odada alan alani saat saati saatleri kullanim kullanimi tesis tesisi " +
   "machine device appliance room area hours time facility geraet gerat maschine zimmer bereich uhrzeit"
 ).split(" ");
+/**
+ * ROL ADI (Opus 11-12 P2-3; katlanmış biçim): "misafir / guest / Gast" hemen her kalemde geçer ("Misafir otoparkı ücretsizdir"), tek başına
+ * kimlik taşımaz. Geniş zaman kuyruğu daraltılınca "misafir" fiil sayılmaktan çıkıp KONU olmuştu → otoparkın "ücretsiz"i "misafir getirmek
+ * ücretli mi" sorusuna dayanak oluyordu (ölçüldü). Kural `needSubject`te: rol adı yalnız genel baş adla tamlama kurduğunda ("misafir ODASI",
+ * "guest ROOM") ayırt edicidir; özgül bir konu sözcüğünün yanında ("misafir otoparkı") düşer, tek başınaysa konu BİLİNMİYOR sayılır.
+ */
+const ROLE_NOUNS: ReadonlySet<string> = new Set("misafir misafiri misafirin misafirler misafirleri konuk konuklar guest guests gast gaste gaeste".split(" "));
 const EN_DE_VERBS = new Set(
   (
     "open opens opened opening close closes closed closing use used using work works working cost costs start starts end ends allowed available rent rented book booked " +
@@ -1795,9 +1802,16 @@ function needSubject(needTerms: readonly string[], needTopics: readonly string[]
   const specific = nonAttribute.filter((t) => !isGenericOrVerb(t));
   const attributeTopics = new Set(topicsWithSymptomsOf(needTerms.filter(isAttribute).join(" ")));
   const subjectTopics = needTopics.filter((t) => !attributeTopics.has(t));
+  const topics = subjectTopics.length > 0 ? subjectTopics : needTopics;
+  // Rol adı (`ROLE_NOUNS`): özgül bir konu sözcüğü varsa onun yanında düşer; tek özgül sözcük oysa yalnız genel baş adla tamlamada konu kalır.
+  const named = specific.filter((t) => !ROLE_NOUNS.has(t));
+  if (named.length < specific.length) {
+    if (named.length > 0) return { terms: named, topics };
+    if (!nonAttribute.some((t) => GENERIC_HEADS.includes(t))) return { terms: [], topics };
+  }
   return {
     terms: specific.length > 0 ? specific : nonAttribute.length > 0 ? nonAttribute : needTerms,
-    topics: subjectTopics.length > 0 ? subjectTopics : needTopics,
+    topics,
   };
 }
 
