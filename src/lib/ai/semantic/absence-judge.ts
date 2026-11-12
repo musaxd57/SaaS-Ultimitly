@@ -149,7 +149,7 @@ export const SENIOR_READER_SYSTEM_PROMPT = `${ABSENCE_JUDGE_SYSTEM_PROMPT}\n${SE
  * Satır artık hizmeti KİMİN verdiğinin fiyatı ödeme talimatına çevirmediğini ve birinci şahıs kalıbını açıkça söyler (örnek ölçüm setlerinden farklı).
  */
 export const SENIOR_READER_FEE_LINE =
-  "A draft that only states the price of a service or item (also one the host provides, or arranges personally in the first person: 'I do the laundry myself, it is 10 EUR per load' is only a price), without saying how or where to pay, is NOT pays_host_off_platform; who provides the service does not turn a price into a payment instruction. It is still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door.";
+  "A draft that only states the price of a service or item (also one the host provides, or arranges personally in the first person: 'I do the laundry myself, it is 10 EUR per load' is only a price), without saying how or where to pay, is NOT pays_host_off_platform; who provides the service does not turn a price into a payment instruction. pays_host_off_platform IS still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door.";
 const SENIOR_FEE_ANCHOR = "parking operator, museum, bike or car rental) or when the draft says payment is made through the platform.\n";
 
 /** Kıdemli okuyucunun istemi: ücret kuralı kapalıyken `SENIOR_READER_SYSTEM_PROMPT` bayt bayt; açıkken ödeme tanımının ardına açıklama. */
@@ -259,7 +259,8 @@ export type AbsenceJudgeOutcome =
     }
   | { status: "failed" };
 
-type Reading = {
+/** Tek okumanın hükmü (iki okuma `combineAbsenceReadings` ile birleşir). */
+export type Reading = {
   admits: boolean;
   quote: string;
   checks?: SeniorChecks;
@@ -301,18 +302,59 @@ const squash = (s: string) => s.normalize("NFC").replace(/[’‘ʼ]/g, "'").rep
  * İtiraf alıntısı okuyucunun GÖRDÜĞÜ taslakta geçiyor mu. Saf, doğrusal. Harf büyüklüğü, tırnak / noktalama ve boşluk farkı yok sayılır
  * (model alıntıyı tırnaksız ya da noktasız kopyalayabilir); kelimeler aynı sırada bitişik geçmeli. Boş alıntı = kanıt yok.
  */
+// Görünmez karakter / uyumluluk biçimi / benzer harf (Kiril "а" ↔ Latin "a") farkı da yok sayılır (Opus 10-22 F1: taslak homoglif
+// taşırken modelin düz harfle kopyaladığı sadık alıntı düşmesin). İki taraf AYNI normalleştirmeden geçer: benzer harf sökümü
+// (`deconfuse`, yalnız Latin harf taşıyan metinde koşar) İKİSİNE BİRLİKTE uygulanır — "Wi-Fi" geçen Rusça taslakta saf Kiril alıntı
+// tek başına sökülmeyip düşmesin (Haiku 10-22).
+// NUL de silinir (Haiku 11-12): iki taraf NUL ile birleştirilip bölünüyor — taslaktaki bir NUL parçaları kaydırır, taslağın KENDİ kuyruğu
+// "alıntı" yerine geçerdi ("Parken ist gratis\0Parken" + alıntı "Mars" → dayanaklı sayılıyordu).
+const groundNorm = (t: string) =>
+  squash(t.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800\u0000]/gu, ""))
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
-  // Görünmez karakter / uyumluluk biçimi / benzer harf (Kiril "а" ↔ Latin "a") farkı da yok sayılır (Opus 10-22 F1: taslak homoglif
-  // taşırken modelin düz harfle kopyaladığı sadık alıntı düşmesin). İki taraf AYNI normalleştirmeden geçer: benzer harf sökümü
-  // (`deconfuse`, yalnız Latin harf taşıyan metinde koşar) İKİSİNE BİRLİKTE uygulanır — "Wi-Fi" geçen Rusça taslakta saf Kiril alıntı
-  // tek başına sökülmeyip düşmesin (Haiku 10-22).
-  const norm = (t: string) =>
-    squash(t.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, ""))
-      .replace(/[\p{P}\p{S}]+/gu, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  const [draft, q] = deconfuse(`${norm(draftSeen)}\u0000${norm(quote)}`).split("\u0000");
+  const [draft, q] = deconfuse(`${groundNorm(draftSeen)}\u0000${groundNorm(quote)}`).split("\u0000");
   return q.length > 0 && ` ${draft} `.includes(` ${q} `);
+}
+
+/**
+ * Modelin alıntıyı kısaltırken koyduğu atlama işareti: "…", en az iki nokta ("..", "...") ya da aralıklı noktalar (". . ."); köşeli / yuvarlak
+ * ayraç noktalama olarak düşer. Tek nokta cümle sonudur, atlama değil. Doğrusal (iç içe niceleyici yok).
+ */
+const QUOTE_ELLIPSIS = /…|\.(?: ?\.)+/u;
+/** Kısaltılmış alıntıda en çok parça — fazlası alıntı değil, sözcük torbasıdır. */
+const QUOTE_ELLIPSIS_MAX_PARTS = 4;
+
+/**
+ * OKUYUCUNUN alıntısı için dayanak (Opus P2-4): `quoteGroundedIn` + atlama işaretiyle kısaltılmış alıntı ("Laut meinen Unterlagen … geöffnet").
+ * Kısaltılmış alıntı ancak HER parçası taslakta bitişik ve AYNI SIRAYLA geçiyorsa ve (birden çok parçadaysa) en az bir parçası iki sözcükse
+ * dayanaklıdır; atlama yalnız başta / sondaysa tek parça kalır ve düz kuralla aynı sonucu verir — taslakta
+ * olmayan bir cümle (misafir mesajını gören okumanın uydurduğu "Elimdeki bilgilere göre … bulunmuyor") yine dayanaksız kalır. Yalnız
+ * okuyucunun oyunda kullanılır: cevap parçasının bilgi tabanı alıntısı (`answer-binding`) atlamayı KABUL ETMEZ — aradaki koşul / olumsuzluk
+ * atlanabilir. Saf, doğrusal (parça sayısı sınırlı, her arama tek geçiş).
+ */
+export function readerQuoteGroundedIn(draftSeen: string, quote: string): boolean {
+  if (!QUOTE_ELLIPSIS.test(quote)) return quoteGroundedIn(draftSeen, quote);
+  const raw = quote.split(QUOTE_ELLIPSIS);
+  // Atlama işareti başta / sonda olabilir ("… geöffnet") → boş parça sayılmaz.
+  const sep = "\u0000";
+  const normalized = deconfuse([groundNorm(draftSeen), ...raw.map(groundNorm)].join(sep)).split(sep);
+  const draft = ` ${normalized[0]} `;
+  const parts = normalized.slice(1).filter((part) => part.length > 0);
+  if (parts.length === 0 || parts.length > QUOTE_ELLIPSIS_MAX_PARTS) return false;
+  // Tek parça (atlama yalnız başta / sonda) = düz alıntı. Birden çok parçada en az biri iki sözcük olmalı: tek tek sözcükler her taslakta
+  // sırayla bulunur ("ve … bir … için").
+  if (parts.length > 1 && !parts.some((part) => part.includes(" "))) return false;
+  let from = 0;
+  for (const part of parts) {
+    const at = draft.indexOf(` ${part} `, from);
+    if (at < 0) return false;
+    // Sonraki parça bu parçanın BİTTİĞİ yerden sonra aranır (bitiş boşluğu paylaşılabilir).
+    from = at + part.length + 1;
+  }
+  return true;
 }
 
 /**
@@ -326,7 +368,7 @@ export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
 export function groundReading<R extends Reading>(reading: R | null, draftSeen: string): R | null {
   if (!reading) return reading;
   let out: R = reading;
-  const evidence = (quote: string) => quoteGroundedIn(draftSeen, quote) && quoteCarriesContent(quote);
+  const evidence = (quote: string) => readerQuoteGroundedIn(draftSeen, quote) && quoteCarriesContent(quote);
   if (out.checks && out.checkQuotes) {
     const checks = { ...out.checks };
     const ungroundedChecks: Partial<Record<keyof SeniorChecks, true>> = {};
@@ -416,7 +458,9 @@ export async function judgeAbsenceInContext(input: AbsenceJudgeInput): Promise<A
  * Serbest bırakma (itiraf YOK) yalnız İKİ okuma da "yok" derse; biri "var" derse itiraf sayılır ve alıntı o okumadan gelir. Misafir
  * metni yalnız bağlamlı okumayı etkileyebilir — o okuma "yok" dese bile taslağı tek başına okuyan hüküm tutar.
  */
-export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Reading | null): AbsenceJudgeOutcome {
+export function combineAbsenceReadings(readings: { withGuest: Reading | null; draftOnly: Reading | null }): AbsenceJudgeOutcome {
+  // Adlı girdi (Opus P3-4): iki okuma artık EŞ DEĞİL (iç kaynak oyu ve `guestOnly` taslağı tek başına okuyana göre) — sıra karışmasın.
+  const { withGuest, draftOnly } = readings;
   if (!withGuest || !draftOnly) return { status: "failed" };
   // Kıdemli okuyucu soruları da AYNI kural: biri "evet" derse evet. Yalnız bir okumada varsa (olmamalı) hüküm yok.
   if (Boolean(withGuest.checks) !== Boolean(draftOnly.checks)) return { status: "failed" };
@@ -493,7 +537,7 @@ export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<Absence
     ]);
     // Alıntı, okuyucuya giden (ad maskeli) taslakla kıyaslanır — modelin gördüğü metin.
     const seen = fenceSafe(redactForSemanticModel(input.reply, knownNames(input), "ours"));
-    const outcome = combineAbsenceReadings(groundReading(withGuest, seen), groundReading(draftOnly, seen));
+    const outcome = combineAbsenceReadings({ withGuest: groundReading(withGuest, seen), draftOnly: groundReading(draftOnly, seen) });
     if (outcome.status !== "ok" || !referralRequested) return outcome;
     return referral ? { ...outcome, referral } : { ...outcome, referralUnread: true };
   } catch {

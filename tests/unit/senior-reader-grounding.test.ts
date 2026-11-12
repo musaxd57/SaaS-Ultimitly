@@ -17,9 +17,11 @@ import {
   judgeReleases,
   quoteCarriesContent,
   quoteGroundedIn,
+  readerQuoteGroundedIn,
   paymentHeldHolds,
   seniorChecksOf,
   ABSENCE_JUDGE_SYSTEM_PROMPT,
+  type Reading,
 } from "@/lib/ai/semantic/absence-judge";
 import { mergeSeniorRewrite, SENIOR_REWRITE_GATE_DETAILS, SENIOR_REWRITE_QR_REASONS } from "@/lib/ai/semantic/senior-rewrite";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
@@ -37,6 +39,71 @@ describe("alıntı kanıtı", () => {
     expect(quoteGroundedIn(DRAFT, "Duş suyuyla ilgili bilgi notlarımızda özel bir ayar bulunmuyor.")).toBe(false);
     expect(quoteGroundedIn(DRAFT, "")).toBe(false);
     expect(quoteGroundedIn(DRAFT, "nteynerleri")).toBe(false);
+  });
+
+  // Opus P2-4: model alıntıyı atlama işaretiyle kısaltırsa ("Laut meinen Unterlagen … geöffnet") sadık oy "dayanaksız" sayılıyordu; iç
+  // kaynak hükmünde misafir mesajını gören okumanın dayanaksız oyu artık sayılmadığı için o taslak yalnız kelime yedeğine kalıyordu.
+  const DE = "Hallo [Gast],\n\nLaut meinen Unterlagen ist der Pool ab 9 Uhr geöffnet. Handtücher liegen im Schrank.";
+  it("🚨 okuyucu alıntısı: atlama işaretiyle kısaltılmış alıntı, parçaları taslakta AYNI SIRAYLA geçiyorsa kanıttır", () => {
+    expect(quoteGroundedIn(DE, "Laut meinen Unterlagen … geöffnet")).toBe(false); // düz kural: bitişik değil
+    for (const q of [
+      "Laut meinen Unterlagen … geöffnet",
+      "Laut meinen Unterlagen ... geöffnet",
+      "Laut meinen Unterlagen [...] geöffnet.",
+      "… meinen Unterlagen ist der Pool …",
+      // Öteki yazımlar: iki nokta, aralıklı noktalar, ayraç içinde tek karakter.
+      "Laut meinen Unterlagen .. geöffnet",
+      "Laut meinen Unterlagen . . . geöffnet",
+      "Laut meinen Unterlagen (…) geöffnet",
+    ]) {
+      expect([q, readerQuoteGroundedIn(DE, q)]).toEqual([q, true]);
+    }
+    // Atlamasız alıntıda iki kural birebir aynı (kısaltılmamış sadık alıntı / taslakta olmayan cümle / boş / sözcük ortası).
+    for (const q of ["ist der Pool ab 9 Uhr geöffnet", "Der Pool ist leider geschlossen.", "", "nterlagen", "Unterlagen…", "…"]) {
+      expect([q, readerQuoteGroundedIn(DE, q)]).toEqual([q, quoteGroundedIn(DE, q)]);
+    }
+  });
+  it("🚨 kısaltılmış alıntı taslakta OLMAYAN parça taşıyorsa, sırası tersse ya da tek tek sözcüklerden ibaretse kanıt DEĞİLDİR", () => {
+    // Misafir mesajını gören okumanın uydurduğu cümle (11-12 ölçümü): ikinci parça taslakta var, birincisi yok.
+    expect(readerQuoteGroundedIn(DE, "Nach meinen Informationen … geöffnet")).toBe(false);
+    expect(readerQuoteGroundedIn(DE, "Laut meinen Unterlagen … geschlossen")).toBe(false);
+    // Ters sıra: parçalar taslakta var ama alıntıdaki sırayla değil.
+    expect(readerQuoteGroundedIn(DE, "Handtücher liegen … Laut meinen Unterlagen")).toBe(false);
+    // Aynı parça iki kez: ikinci arama birincinin BİTTİĞİ yerden başlar (aynı yeri iki kez sayma).
+    expect(readerQuoteGroundedIn(DE, "meinen Unterlagen … meinen Unterlagen")).toBe(false);
+    // Tek tek sözcükler her taslakta sırayla bulunur → en az bir parça iki sözcük olmalı.
+    expect(readerQuoteGroundedIn(DE, "Laut … Pool … Schrank")).toBe(false);
+    expect(readerQuoteGroundedIn(DE, "Laut … der Pool … Schrank")).toBe(true);
+    // Sözcük torbası: dörtten çok parça alıntı sayılmaz.
+    expect(readerQuoteGroundedIn(DE, "Laut meinen … ist der … ab 9 … Handtücher liegen … im Schrank")).toBe(false);
+    // Sözcük ortasından parça yine geçmez.
+    expect(readerQuoteGroundedIn(DE, "Laut meinen Unterl … geöffnet")).toBe(false);
+    // Tek nokta cümle sonudur, atlama DEĞİL: iki ayrı cümlenin parçaları araya atlama konmadan birleştirilemez.
+    expect(readerQuoteGroundedIn(DE, "Laut meinen Unterlagen. Handtücher liegen im Schrank")).toBe(false);
+    expect(readerQuoteGroundedIn(DE, "geöffnet. Handtücher liegen im Schrank.")).toBe(true); // bitişik iki cümle, düz kural
+  });
+  it("🚨 NUL karakteri parçaları kaydıramaz (Haiku 11-12): taslağın kendi kuyruğu 'alıntı' yerine geçmez", () => {
+    // İki taraf NUL ile birleştirilip bölünüyordu; taslaktaki NUL ikinci parçayı alıntı konumuna itiyordu → uydurma alıntı dayanaklı.
+    expect(quoteGroundedIn("Parken ist gratis\u0000Parken", "Mars")).toBe(false);
+    expect(readerQuoteGroundedIn("Parken ist gratis\u0000Parken", "Mars … Parken")).toBe(false);
+    // NUL taşıyan sadık alıntı / taslak yine eşleşir (karakter yok sayılır).
+    expect(quoteGroundedIn("Parken ist\u0000 gratis", "Parken ist gratis")).toBe(true);
+    expect(quoteGroundedIn("Parken ist gratis", "Parken\u0000 ist gratis")).toBe(true);
+  });
+  it("🚨 kısaltılmış sadık alıntıyla verilen iç kaynak oyu dayanaklıdır (hüküm tutar); cevap parçası doğrulayıcısı atlamayı kabul ETMEZ", () => {
+    const vote: Reading = { admits: false, quote: "", checks: { ...NO, internalSource: true }, checkQuotes: { payHost: "", contact: "", apology: "", internalSource: "Laut meinen Unterlagen … geöffnet" } };
+    const grounded = groundReading(vote, DE);
+    expect(grounded?.checks?.internalSource).toBe(true);
+    expect(grounded?.ungroundedChecks).toBeUndefined();
+    // Misafir mesajını gören okumanın oyu olarak da (taslağı tek başına okuyan "hayır" dese de) hüküm "evet".
+    const silent = { admits: false, quote: "", checks: NO, checkQuotes: { payHost: "", contact: "", apology: "", internalSource: "" } };
+    const out = combineAbsenceReadings({ withGuest: grounded, draftOnly: groundReading(silent, DE) });
+    expect(out.status === "ok" && seniorChecksOf(out)?.internalSource).toBe(true);
+    // Uydurma cümle dayanaksız kalır ve misafir mesajını gören okumadan geldiği için sayılmaz (11-12 kuralı aynen).
+    const invented = groundReading<Reading>({ ...vote, checkQuotes: { payHost: "", contact: "", apology: "", internalSource: "Nach meinen Informationen … geöffnet" } }, DE);
+    expect(invented?.ungroundedChecks).toEqual({ internalSource: true });
+    const out2 = combineAbsenceReadings({ withGuest: invented, draftOnly: groundReading(silent, DE) });
+    expect(out2.status === "ok" && seniorChecksOf(out2)?.internalSource).toBe(false);
   });
 
   it("dayanaksız itiraf oyu düşer; öteki hükümler (ödeme / iletişim / özür) aynen kalır", () => {
@@ -63,18 +130,15 @@ describe("alıntı kanıtı", () => {
   });
 
   it("birleşim: dayanaksız oy tek başına itiraf değil, serbest bırakma da değil — karar kelime kuralına kalır", () => {
-    const out = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungrounded: true },
-      { admits: false, quote: "", checks: NO },
-    );
+    const out = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ungrounded: true }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(out).toEqual({ status: "ok", admits: false, quote: "", checks: NO, ungrounded: true });
     expect(absenceHolds(false, out)).toBe(false); // çöp cevabı: kelime kuralı da itiraf görmüyor → gider
     expect(absenceHolds(true, out)).toBe(true); // kelime kuralı itiraf görüyorsa tutulur (bugünkü davranış)
     expect(judgeReleases(out)).toBe(false);
     // Taslağı tek başına okuyan okumanın dayanaklı itirafı her durumda tutar (ikisi birlikte de); iki okuma da "yok" derse serbest.
-    expect(absenceHolds(false, combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: true, quote: "x", checks: NO }))).toBe(true);
-    expect(absenceHolds(false, combineAbsenceReadings({ admits: true, quote: "x", checks: NO }, { admits: true, quote: "y", checks: NO }))).toBe(true);
-    const clean = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: false, quote: "", checks: NO });
+    expect(absenceHolds(false, combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO }, draftOnly: { admits: true, quote: "x", checks: NO } }))).toBe(true);
+    expect(absenceHolds(false, combineAbsenceReadings({ withGuest: { admits: true, quote: "x", checks: NO }, draftOnly: { admits: true, quote: "y", checks: NO } }))).toBe(true);
+    const clean = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(clean).toEqual({ status: "ok", admits: false, quote: "", checks: NO });
     expect(absenceHolds(true, clean)).toBe(false);
     expect(judgeReleases(clean)).toBe(true);
@@ -92,40 +156,34 @@ describe("alıntı kanıtı", () => {
   it("🚨 itirafı YALNIZ misafir mesajını gören okuma gördüyse kelime kuralı da görmeli (11-12 ölçümü: değinilmeyen soru itiraf değildir)", () => {
     // Birinci argüman misafir mesajını gören okuma, ikincisi taslağı tek başına okuyan. Ölçülen vaka: taslak "Ja, es gibt einen Parkplatz …",
     // misafir ayrıca köpek sormuş; bağlamlı okuma "itiraf" deyip bu gerçek cümleyi alıntıladı.
-    const guestOnly = combineAbsenceReadings({ admits: true, quote: "Ja, es gibt einen Parkplatz", checks: NO }, { admits: false, quote: "", checks: NO });
+    const guestOnly = combineAbsenceReadings({ withGuest: { admits: true, quote: "Ja, es gibt einen Parkplatz", checks: NO }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(guestOnly).toMatchObject({ status: "ok", admits: true, guestOnly: true });
     expect(absenceHolds(false, guestOnly)).toBe(false); // kelime kuralı itiraf görmüyor → gider
     expect(absenceHolds(true, guestOnly)).toBe(true); // kelime kuralı da görüyor → tutulur
     expect(judgeReleases(guestOnly)).toBe(false); // "itiraf yok" diye serbest bırakma da değil
     // Taslağı tek başına okuyan dayanaksız da olsa "evet" dediyse iki okuma uyuşmuştur → tam hüküm.
-    const agreed = combineAbsenceReadings({ admits: true, quote: "x", checks: NO }, { admits: false, quote: "", checks: NO, ungrounded: true });
+    const agreed = combineAbsenceReadings({ withGuest: { admits: true, quote: "x", checks: NO }, draftOnly: { admits: false, quote: "", checks: NO, ungrounded: true } });
     expect(agreed).not.toHaveProperty("guestOnly");
     expect(absenceHolds(false, agreed)).toBe(true);
     // Taslağı tek başına okuyan gördüyse alıntı hangi okumadan gelirse gelsin tam hüküm.
-    const draftSaw = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: true, quote: "Bilgim yok.", checks: NO });
+    const draftSaw = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO }, draftOnly: { admits: true, quote: "Bilgim yok.", checks: NO } });
     expect(draftSaw).toEqual({ status: "ok", admits: true, quote: "Bilgim yok.", checks: NO });
-    expect(combineAbsenceReadings({ admits: true, quote: "a", checks: NO }, { admits: true, quote: "b", checks: NO })).toEqual({ status: "ok", admits: true, quote: "a", checks: NO });
+    expect(combineAbsenceReadings({ withGuest: { admits: true, quote: "a", checks: NO }, draftOnly: { admits: true, quote: "b", checks: NO } })).toEqual({ status: "ok", admits: true, quote: "a", checks: NO });
   });
 
   it("itirafta İKİ okuma da dayanaksız 'evet' derse geçerli, tek okumada kelime kuralına kalır (Opus 10-22 F1/F2)", () => {
-    const both = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungrounded: true },
-      { admits: false, quote: "", checks: NO, ungrounded: true },
-    );
+    const both = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ungrounded: true }, draftOnly: { admits: false, quote: "", checks: NO, ungrounded: true } });
     expect(both).toMatchObject({ status: "ok", admits: true });
     expect(absenceHolds(false, both)).toBe(true);
   });
 
   it("ek hükümlerde dayanaksız 'evet' (tek okumada da) TUTAR — sessizce 'hayır'a dönmez (Haiku 10-22)", () => {
-    const one = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungroundedChecks: { payHost: true, apology: true } },
-      { admits: false, quote: "", checks: NO },
-    );
+    const one = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ungroundedChecks: { payHost: true, apology: true } }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(one).toMatchObject({ status: "ok", admits: false, checks: NO, ungroundedChecks: { payHost: true, apology: true } });
     expect(seniorChecksOf(one)).toEqual({ payHost: true, contact: false, apology: true, internalSource: false });
     expect(paymentHeldHolds(false, seniorChecksOf(one))).toBe(true);
     // Dayanaksız oy yoksa okuyucunun "hayır"ı kelime kuralını ezer (T-d: üçüncü tarafa ödeme bilgisi gider).
-    const clean = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: false, quote: "", checks: NO });
+    const clean = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(seniorChecksOf(clean)).toEqual(NO);
     expect(paymentHeldHolds(true, seniorChecksOf(clean))).toBe(false);
     expect(paymentHeldHolds(true, undefined)).toBe(true);
@@ -144,10 +202,10 @@ describe("alıntı kanıtı", () => {
     const wifi = 'Merhaba [Misafir],\n\nWi-Fi ağ adı "Lale_Home", şifre "Lale2024".';
     const withGuest = groundReading({ admits: true, quote: "Merhaba [Misafir],", checks: NO }, wifi);
     expect(withGuest).toEqual({ admits: false, quote: "", checks: NO, ungrounded: true });
-    const out = combineAbsenceReadings(withGuest, groundReading({ admits: false, quote: "", checks: NO }, wifi));
+    const out = combineAbsenceReadings({ withGuest: withGuest, draftOnly: groundReading({ admits: false, quote: "", checks: NO }, wifi) });
     expect(absenceHolds(false, out)).toBe(false);
     // Ek hükümlerde de: selam satırı ödeme / iç kaynak kanıtı olamaz.
-    const checks = groundReading(
+    const checks = groundReading<Reading>(
       { admits: false, quote: "", checks: { ...NO, payHost: true, internalSource: true }, checkQuotes: { payHost: "Merhaba [Misafir],", contact: "", apology: "", internalSource: "[Misafir]," } },
       wifi,
     );
@@ -159,26 +217,20 @@ describe("alıntı kanıtı", () => {
 
   it("🚨 iç kaynak hükmünde dayanaksız oy yalnız taslağı TEK BAŞINA okuyan okumadan sayılır; ödeme / iletişim / özürde kural aynı", () => {
     // Misafir mesajını gören okuma (birinci) uydurma cümleyle "iç kaynak" dedi; taslağı tek başına okuyan (ikinci) "hayır".
-    const guestOnly = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } },
-      { admits: false, quote: "", checks: NO },
-    );
+    const guestOnly = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(seniorChecksOf(guestOnly)).toEqual(NO);
     expect(guestOnly).not.toHaveProperty("ungroundedChecks");
     // Taslağı tek başına okuyan okumanın dayanaksız oyu (tek başına da, ikisi birlikte de) sayılır.
     for (const first of [{}, { ungroundedChecks: { internalSource: true as const } }]) {
-      const out = combineAbsenceReadings(
-        { admits: false, quote: "", checks: NO, ...first },
-        { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } },
-      );
+      const out = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ...first }, draftOnly: { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } } });
       expect(seniorChecksOf(out)).toEqual({ ...NO, internalSource: true });
     }
     // Dayanaklı iç kaynak oyu hangi okumadan gelirse gelsin tutar.
-    const grounded = combineAbsenceReadings({ admits: false, quote: "", checks: { ...NO, internalSource: true } }, { admits: false, quote: "", checks: NO });
+    const grounded = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: { ...NO, internalSource: true } }, draftOnly: { admits: false, quote: "", checks: NO } });
     expect(seniorChecksOf(grounded)).toEqual({ ...NO, internalSource: true });
     // KONTROL: ödeme / iletişim / özürde misafir mesajlı okumanın dayanaksız oyu tek başına da TUTAR (kural değişmedi).
     for (const k of ["payHost", "contact", "apology"] as const) {
-      const out = combineAbsenceReadings({ admits: false, quote: "", checks: NO, ungroundedChecks: { [k]: true } }, { admits: false, quote: "", checks: NO });
+      const out = combineAbsenceReadings({ withGuest: { admits: false, quote: "", checks: NO, ungroundedChecks: { [k]: true } }, draftOnly: { admits: false, quote: "", checks: NO } });
       expect([k, seniorChecksOf(out)?.[k]]).toEqual([k, true]);
     }
   });

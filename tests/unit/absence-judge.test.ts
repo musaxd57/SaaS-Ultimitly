@@ -169,15 +169,15 @@ describe("S2 — iki okuma birleşimi (saf)", () => {
   const yes = { admits: true, quote: "I don't have that information." };
   const no = { admits: false, quote: "" };
   it("ikisi de 'itiraf yok' → serbest; biri 'var' → itiraf (alıntı o okumadan); biri okuyamadı → hüküm yok", () => {
-    expect(combineAbsenceReadings(no, no)).toEqual({ status: "ok", admits: false, quote: "" });
+    expect(combineAbsenceReadings({ withGuest: no, draftOnly: no })).toEqual({ status: "ok", admits: false, quote: "" });
     // Yalnız misafir mesajını gören okuma (birinci) "var" dediyse hüküm `guestOnly` işaretiyle döner — kelime kuralı da görürse tutar
     // (11-12 ölçümü: değinilmeyen soru itiraf değildir; ayrıntı `senior-reader-grounding.test.ts`). Taslağı tek başına okuyan (ikinci) "var"
     // dediyse tam hüküm: misafir metni o okumayı etkileyemez (S2'nin kuruluş gerekçesi aynen).
-    expect(combineAbsenceReadings(yes, no)).toEqual({ status: "ok", ...yes, guestOnly: true });
-    expect(combineAbsenceReadings(no, yes)).toEqual({ status: "ok", ...yes });
-    expect(combineAbsenceReadings(yes, yes)).toEqual({ status: "ok", ...yes });
-    expect(combineAbsenceReadings(null, no)).toEqual({ status: "failed" });
-    expect(combineAbsenceReadings(no, null)).toEqual({ status: "failed" });
+    expect(combineAbsenceReadings({ withGuest: yes, draftOnly: no })).toEqual({ status: "ok", ...yes, guestOnly: true });
+    expect(combineAbsenceReadings({ withGuest: no, draftOnly: yes })).toEqual({ status: "ok", ...yes });
+    expect(combineAbsenceReadings({ withGuest: yes, draftOnly: yes })).toEqual({ status: "ok", ...yes });
+    expect(combineAbsenceReadings({ withGuest: null, draftOnly: no })).toEqual({ status: "failed" });
+    expect(combineAbsenceReadings({ withGuest: no, draftOnly: null })).toEqual({ status: "failed" });
   });
 });
 

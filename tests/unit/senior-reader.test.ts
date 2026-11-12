@@ -117,21 +117,21 @@ describe("ayrıştırma ve birleşim (saf)", () => {
   it("birleşim: her soru iki okumanın VEYA'sı; yalnız birinde soru varsa hüküm yok", () => {
     const base = { admits: false, quote: "" };
     const none = { ...base, checks: { payHost: false, contact: false, apology: false, internalSource: false } };
-    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: true, contact: false, apology: false, internalSource: false } })).toEqual({
+    expect(combineAbsenceReadings({ withGuest: none, draftOnly: { ...base, checks: { payHost: true, contact: false, apology: false, internalSource: false } } })).toEqual({
       status: "ok",
       admits: false,
       quote: "",
       checks: { payHost: true, contact: false, apology: false, internalSource: false },
     });
-    expect(combineAbsenceReadings({ ...base, checks: { payHost: false, contact: true, apology: false, internalSource: false } }, none)).toMatchObject({
+    expect(combineAbsenceReadings({ withGuest: { ...base, checks: { payHost: false, contact: true, apology: false, internalSource: false } }, draftOnly: none })).toMatchObject({
       checks: { contact: true },
     });
-    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: false, contact: false, apology: true, internalSource: false } })).toMatchObject({
+    expect(combineAbsenceReadings({ withGuest: none, draftOnly: { ...base, checks: { payHost: false, contact: false, apology: true, internalSource: false } } })).toMatchObject({
       checks: { apology: true },
     });
-    expect(combineAbsenceReadings(none, base)).toEqual({ status: "failed" });
+    expect(combineAbsenceReadings({ withGuest: none, draftOnly: base })).toEqual({ status: "failed" });
     // Hakem kipi (soru yok): sonuçta `checks` alanı hiç yok.
-    expect(combineAbsenceReadings(base, base)).toEqual({ status: "ok", admits: false, quote: "" });
+    expect(combineAbsenceReadings({ withGuest: base, draftOnly: base })).toEqual({ status: "ok", admits: false, quote: "" });
   });
 
   it("ödeme öğesi kuralı: okuyucu okuduysa yalnız ev sahibine ödeme tutar; okumadıysa kelime kuralı", () => {

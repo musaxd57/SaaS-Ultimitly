@@ -52,6 +52,10 @@ describe("istem", () => {
     expect(SENIOR_READER_FEE_LINE).toMatch(/only states the price/);
     expect(SENIOR_READER_FEE_LINE).toMatch(/without saying how or where to pay/);
     expect(SENIOR_READER_FEE_LINE).toMatch(/still true when the draft also asks/);
+    // Opus P2-6: "It is still true" en yakın önermeye ("fiyat ödeme talimatı değildir") bağlanıp anlamı tersine çevirebiliyordu → zamir yok,
+    // bayrağın adı açık yazılır.
+    expect(SENIOR_READER_FEE_LINE).toMatch(/pays_host_off_platform IS still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door\.$/);
+    expect(SENIOR_READER_FEE_LINE).not.toMatch(/\bIt is still true\b/);
   });
 
   it("🚨 satır birinci şahıs kalıbını kapsar: hizmeti KİMİN verdiği fiyatı ödeme talimatına çevirmez (11-12 ölçümü)", () => {
