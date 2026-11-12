@@ -1,0 +1,2155 @@
+{
+ "version": 1,
+ "_about": "Blind acceptance set for KB grounding: unstated facts stay open for the host, explicit facts (including explicit negatives) are answered, host-decision topics are never answered.",
+ "property": {
+  "name": "Lale Bahçe Evi",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Gülistan Sokak No 7",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "bahce": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: LaleBahce_5G, şifre: menekse2024"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Sitede açık yüzme havuzu var; 1 Haziran - 30 Eylül arası, 09:00-19:00 açık."
+   },
+   {
+    "category": "amenities",
+    "title": "Makineler",
+    "content": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur."
+   },
+   {
+    "category": "rules",
+    "title": "Sigara",
+    "content": "Sigara içmek yasaktır, balkonda da içilmez."
+   },
+   {
+    "category": "rules",
+    "title": "Sessizlik",
+    "content": "Saat 23:00'ten sonra yüksek sesle müzik yasaktır."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market 200 metre ileride, sokağın köşesinde; her gün 08:00-22:00 açık."
+   },
+   {
+    "category": "local",
+    "title": "Plaj",
+    "content": "Plaja yürüyerek 10 dakika."
+   },
+   {
+    "category": "checkin",
+    "title": "Anahtar",
+    "content": "Anahtar kapının yanındaki şifreli kutuda; kutu şifresi giriş günü mesajla gönderilir."
+   },
+   {
+    "category": "general",
+    "title": "Bebek yatağı",
+    "content": "Bebek yatağı ücretsiz verilir, önceden haber verin."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış",
+    "content": "Çıkışta anahtarı kutuya geri koyun, çöpleri bina girişindeki konteynere bırakın."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesinde."
+   },
+   {
+    "category": "general",
+    "title": "Havaalanı transferi",
+    "content": "Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli."
+   },
+   {
+    "category": "general",
+    "title": "Temizlik",
+    "content": "7 geceden uzun konaklamalarda haftada bir ücretsiz temizlik yapılır."
+   }
+  ],
+  "konak_celiski": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Wi-Fi: LaleKonak, şifre lale1234"
+   },
+   {
+    "category": "wifi",
+    "title": "İnternet",
+    "content": "İnternet şifresi: gul5678 (ağ adı LaleKonak)"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina otoparkı misafirler için ücretsizdir."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark ücreti",
+    "content": "Otopark kullanımı günlük 150 TL'dir."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 08:00-20:00 arası açık."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz saatleri",
+    "content": "Havuz saatleri: 10:00-18:00."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler salı ve cuma akşamı toplanır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp toplama",
+    "content": "Çöp her akşam alınır, kapının önüne bırakın."
+   },
+   {
+    "category": "checkin",
+    "title": "Anahtar",
+    "content": "Anahtar resepsiyondan alınır."
+   },
+   {
+    "category": "local",
+    "title": "Eczane",
+    "content": "En yakın eczane 300 metre, ana caddede."
+   },
+   {
+    "category": "appliances",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyoda, deterjan dolabın üstünde."
+   },
+   {
+    "category": "local",
+    "title": "Fırın",
+    "content": "Fırın sabah 06:30'da açılıyor, binanın karşısında."
+   },
+   {
+    "category": "amenities",
+    "title": "Ütü",
+    "content": "Ütü ve ütü masası koridordaki dolapta."
+   }
+  ],
+  "mini": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Network: LaleNest, password: sunflower88"
+   },
+   {
+    "category": "checkin",
+    "title": "Self check-in",
+    "content": "The key is in the lockbox next to the door; the code is sent on the morning of arrival day."
+   },
+   {
+    "category": "parking",
+    "title": "Parking",
+    "content": "Free street parking in front of the building."
+   }
+  ],
+  "teras_olumsuz": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Network: Lale_Terrace, password: olive2026"
+   },
+   {
+    "category": "amenities",
+    "title": "Elevator",
+    "content": "There is no elevator; the flat is on the 3rd floor."
+   },
+   {
+    "category": "parking",
+    "title": "Parking",
+    "content": "No parking on site. Public paid car park 400 m away, 3 EUR per hour."
+   },
+   {
+    "category": "general",
+    "title": "Airport",
+    "content": "We don't provide airport pickup."
+   },
+   {
+    "category": "amenities",
+    "title": "TV",
+    "content": "There is no TV in the apartment."
+   },
+   {
+    "category": "rules",
+    "title": "Smoking",
+    "content": "Smoking is not allowed anywhere, including the terrace."
+   },
+   {
+    "category": "rules",
+    "title": "Parties",
+    "content": "Parties and events are not allowed."
+   },
+   {
+    "category": "amenities",
+    "title": "Towels",
+    "content": "Towels and bed linen are provided. Beach towels are not provided."
+   },
+   {
+    "category": "amenities",
+    "title": "Hair dryer",
+    "content": "Hair dryer is in the bathroom drawer."
+   },
+   {
+    "category": "appliances",
+    "title": "Coffee",
+    "content": "Capsule coffee machine in the kitchen; capsules are not included."
+   },
+   {
+    "category": "local",
+    "title": "Bakery & pharmacy",
+    "content": "Bakery on the corner opens at 07:00. Pharmacy is 600 m away on the main street."
+   },
+   {
+    "category": "local",
+    "title": "Bus",
+    "content": "Bus stop 150 m from the building; line 12 goes to the old town."
+   },
+   {
+    "category": "amenities",
+    "title": "Laundry",
+    "content": "Washing machine available; no dryer."
+   },
+   {
+    "category": "general",
+    "title": "Garbage",
+    "content": "Bins are at the end of the street; glass goes in the green bin."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "nt1",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Merhaba, sitede sauna var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "sauna",
+       "spa\\b"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "nt2",
+   "class": "near_topic_no_answer",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Is there a gym in the complex? Also what's the wifi password?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "gym",
+       "fitness"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "menekse2024"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "nt3",
+   "class": "near_topic_no_answer",
+   "lang": "de",
+   "kb": "bahce",
+   "message": "Gibt es in der Nähe eine Ladestation für Elektroautos?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "lades",
+       "elektro",
+       "wallbox"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "nt4",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Havuzda havlu veriliyor mu? Bir de çöpleri nereye atıyoruz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "havlu"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "konteyner"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "nt5",
+   "class": "near_topic_no_answer",
+   "lang": "fr",
+   "kb": "bahce",
+   "message": "Est-ce que la piscine est chauffée ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "chauff",
+       "temp[ée]rature",
+       "piscine"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "nt6",
+   "class": "near_topic_no_answer",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Is there an iron I could use? And where can we park the car?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "\\biron"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "street|road"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en1",
+   "class": "explicit_no",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Kapalı otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en2",
+   "class": "explicit_no",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "Is there an elevator in the building?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "\\bno\\b|\\bnot\\b|n't"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en3",
+   "class": "explicit_no",
+   "lang": "de",
+   "kb": "teras_olumsuz",
+   "message": "Holt ihr uns vom Flughafen ab?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "nicht|kein"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en4",
+   "class": "explicit_no",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "Do you have a tumble dryer?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "\\bno\\b|\\bnot\\b|n't"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en5",
+   "class": "explicit_no",
+   "lang": "fr",
+   "kb": "teras_olumsuz",
+   "message": "Y a-t-il une télévision dans l'appartement ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "\\bpas\\b|aucun"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en6",
+   "class": "explicit_no",
+   "lang": "es",
+   "kb": "teras_olumsuz",
+   "message": "¿Ponéis toallas de playa?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "answered",
+      "all": [
+       "(^|[\\s¡,.])no([\\s,.!]|$)"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en7",
+   "class": "explicit_no",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Çamaşır kurutma makinesi var mı? Bulaşık makinesi de var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "bulaşık"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "en8",
+   "class": "explicit_no",
+   "lang": "ru",
+   "kb": "teras_olumsuz",
+   "message": "Можно ли устроить небольшую вечеринку в квартире?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "нельзя|не разреш|запрещ|не допуска"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf1",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "konak_celiski",
+   "message": "Wi-Fi şifresi neydi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "lale1234",
+       "gul5678"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf2",
+   "class": "conflict",
+   "lang": "en",
+   "kb": "konak_celiski",
+   "message": "Is parking free or do we need to pay for it?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "150",
+       "\\bfree\\b",
+       "fee|charge|cost",
+       "park"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf3",
+   "class": "conflict",
+   "lang": "de",
+   "kb": "konak_celiski",
+   "message": "Wann hat der Pool geöffnet?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "0?8[:.]00|\\b8 uhr",
+       "20[:.]00|20 uhr",
+       "10[:.]00|10 uhr",
+       "18[:.]00|18 uhr",
+       "pool"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf4",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "konak_celiski",
+   "message": "Çöpler hangi günler toplanıyor? Ayrıca eczane yakın mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "salı",
+       "cuma",
+       "her akşam",
+       "çöp"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "300"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf5",
+   "class": "conflict",
+   "lang": "ru",
+   "kb": "konak_celiski",
+   "message": "Во сколько открывается бассейн? И где взять ключи?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "0?8[:.]00",
+       "20[:.]00",
+       "10[:.]00",
+       "18[:.]00",
+       "бассейн"
+      ]
+     },
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "ресепш|регистрац|рецепц|стойк"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne1",
+   "class": "near_entity",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Dairede saç kurutma makinesi var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "kurutma",
+       "fön"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne2",
+   "class": "near_entity",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Do you have a high chair for our baby?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "high.?chair",
+       "\\bfree\\b"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne3",
+   "class": "near_entity",
+   "lang": "de",
+   "kb": "bahce",
+   "message": "Gibt es eine Apotheke in der Nähe?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "apotheke",
+       "200"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne4",
+   "class": "near_entity",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "Is there a supermarket close to the apartment?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "supermarket|grocery|market",
+       "600",
+       "corner"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne5",
+   "class": "near_entity",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Sitede çocuk havuzu da var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "havuz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ne6",
+   "class": "near_entity",
+   "lang": "fr",
+   "kb": "teras_olumsuz",
+   "message": "Y a-t-il un arrêt de tram près de l'appartement ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "tram",
+       "150",
+       "bus",
+       "\\b12\\b"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt1",
+   "class": "value_transfer",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "How much would a transfer to the city centre cost?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "25",
+       "€|euro",
+       "transfer"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt2",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Plaja 10 dakika demişsiniz, peki şehir merkezine yürüyerek ne kadar sürer?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "10\\s*dakika",
+       "merkez"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt3",
+   "class": "value_transfer",
+   "lang": "de",
+   "kb": "bahce",
+   "message": "Wann hat der Fitnessraum geöffnet?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "fitness",
+       "0?9[:.]00|9 uhr",
+       "19[:.]00|19 uhr"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt4",
+   "class": "value_transfer",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "How far is the beach from the flat?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "beach",
+       "400",
+       "600",
+       "150"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt5",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Havlular ne sıklıkla değiştiriliyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "havlu",
+       "haftada",
+       "çarşaf"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt6",
+   "class": "value_transfer",
+   "lang": "es",
+   "kb": "bahce",
+   "message": "¿Cuánto cuesta el traslado al aeropuerto y cuánto la limpieza final?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "25"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "limpieza",
+       "gratis|gratuit"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "vt8",
+   "class": "value_transfer",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "The bakery opens at 7 — what time does the pharmacy open?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "0?7[:.]00|7\\s?am|\\b7\\b",
+       "pharmacy"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp1",
+   "class": "held_plus_answer",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Merhaba, küçük köpeğimizi getirebilir miyiz? Wi-Fi şifresi nedir?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "evcil",
+       "köpe",
+       "kedi",
+       "hayvan",
+       "(^|[\\s,.!])(evet|tabii|elbette|sorun değil|sorun yok|maalesef|ne yazık ki)([\\s,.!]|$)"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "menekse2024"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp2",
+   "class": "held_plus_answer",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Could we check in around 11am? Also, what's the exact address?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "early_checkin",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "early",
+       "11\\s?(am|:00)",
+       "\\b(yes|of course|no problem|absolutely|certainly|unfortunately)\\b|(^|[.!]\\s*)sure\\b"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "Gülistan"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp3",
+   "class": "held_plus_answer",
+   "lang": "de",
+   "kb": "bahce",
+   "message": "Können wir am Abreisetag bis 14 Uhr bleiben? Und wo finden wir den Schlüssel?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "late_checkout",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "spät",
+       "14",
+       "verläng",
+       "\\b(ja|klar|natürlich|selbstverständlich|kein problem|leider)\\b"
+      ]
+     },
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "box|kasten|tresor|safe"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp4",
+   "class": "held_plus_answer",
+   "lang": "fr",
+   "kb": "bahce",
+   "message": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "extend_stay",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "nuit suppl",
+       "prolong",
+       "nuit de plus",
+       "disponib",
+       "\\b(oui|bien s[ûu]r|pas de probl[èe]me|avec plaisir|malheureusement|d'accord)\\b"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "rue|gratuit"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp5",
+   "class": "held_plus_answer",
+   "lang": "es",
+   "kb": "bahce",
+   "message": "¿Podemos llevar a nuestro gato? ¿A qué hora es la salida?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "mascota",
+       "perro",
+       "gato",
+       "animal",
+       "(^|[\\s¡,.])(sí|claro|por supuesto|sin problema|lamentablemente|desafortunadamente)([\\s,.!]|$)"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00|11 ?h|las 11"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp6",
+   "class": "held_plus_answer",
+   "lang": "ru",
+   "kb": "bahce",
+   "message": "Если отменим бронь, вернёте деньги? И во сколько заезд?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cancellation_refund",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "возврат|вернём|вернем|вернуть",
+       "отмен",
+       "(^|[\\s,.!])(да|конечно|разумеется|к сожалению|без проблем)([\\s,.!]|$)"
+      ]
+     },
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "15[:.]00|15 ч|с 15"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp7",
+   "class": "held_plus_answer",
+   "lang": "ar",
+   "kb": "bahce",
+   "message": "هل يمكننا إحضار كلبنا؟ وما هي كلمة مرور الواي فاي؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "كلب",
+       "حيوان",
+       "قطة",
+       "نعم|بالتأكيد|طبعا|طبعًا|لا مشكلة|بكل سرور|للأسف|مع الأسف"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "menekse2024"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp8",
+   "class": "held_plus_answer",
+   "lang": "tr",
+   "kb": "teras_olumsuz",
+   "message": "Sabah 9'da giriş yapabilir miyiz? Saç kurutma makinesi nerede?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "early_checkin",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "erken",
+       "0?9[:.]00|saat 9|9'da",
+       "(^|[\\s,.!])(evet|tabii|elbette|sorun değil|sorun yok|maalesef|ne yazık ki)([\\s,.!]|$)"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "banyo|çekmece"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp9",
+   "class": "held_plus_answer",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "Our flight lands early — can we drop our bags and check in at 10? Also, which bus goes to the old town?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "early_checkin",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "early",
+       "\\b10\\b",
+       "\\b(yes|of course|no problem|absolutely|certainly|unfortunately)\\b|(^|[.!]\\s*)sure\\b"
+      ]
+     },
+     {
+      "kind": "luggage",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "bag|luggage|suitcase"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "\\b12\\b"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "hp10",
+   "class": "held_plus_answer",
+   "lang": "de",
+   "kb": "teras_olumsuz",
+   "message": "Wir würden gern zwei Nächte verlängern. Wie lautet das WLAN-Passwort?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "extend_stay",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "verläng",
+       "nächte|nacht",
+       "\\b(ja|klar|natürlich|selbstverständlich|kein problem|leider)\\b"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "olive2026"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "or1a",
+   "class": "order",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Is there a sauna? And what time is check-out?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "sauna"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00|11\\s?am"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "or1b",
+   "class": "order",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "What time is check-out? And is there a sauna?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00|11\\s?am"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "sauna"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "or2a",
+   "class": "order",
+   "lang": "tr",
+   "kb": "teras_olumsuz",
+   "message": "Yakınlarda bisiklet kiralanan bir yer var mı? Wi-Fi şifresini de alabilir miyim?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "bisiklet"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "olive2026"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "or2b",
+   "class": "order",
+   "lang": "tr",
+   "kb": "teras_olumsuz",
+   "message": "Wi-Fi şifresini alabilir miyim? Bir de yakınlarda bisiklet kiralanan bir yer var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "olive2026"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "bisiklet"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "or3a",
+   "class": "order",
+   "lang": "de",
+   "kb": "konak_celiski",
+   "message": "Wo ist das Bügeleisen? Und wie lautet das WLAN-Passwort?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "flur|schrank|korridor|gang"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "wifi",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "lale1234",
+       "gul5678"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "or3b",
+   "class": "order",
+   "lang": "de",
+   "kb": "konak_celiski",
+   "message": "Wie lautet das WLAN-Passwort? Und wo ist das Bügeleisen?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "lale1234",
+       "gul5678"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "flur|schrank|korridor|gang"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c1",
+   "class": "control",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Giriş saati kaç?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "15[:.]00"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c2",
+   "class": "control",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "What's the wifi password?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "menekse2024"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c3",
+   "class": "control",
+   "lang": "de",
+   "kb": "bahce",
+   "message": "Um wie viel Uhr ist der Check-out?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11[:.]00|11 uhr"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c4",
+   "class": "control",
+   "lang": "fr",
+   "kb": "bahce",
+   "message": "Où se trouve la télécommande de la climatisation ?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "tiroir"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c5",
+   "class": "control",
+   "lang": "es",
+   "kb": "teras_olumsuz",
+   "message": "¿Dónde está el secador de pelo?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "baño|cajón"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c6",
+   "class": "control",
+   "lang": "ru",
+   "kb": "teras_olumsuz",
+   "message": "Какой пароль от Wi-Fi?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "olive2026"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c7",
+   "class": "control",
+   "lang": "ar",
+   "kb": "bahce",
+   "message": "متى موعد تسجيل الوصول؟",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "15|١٥|\\b3\\b|٣"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c8",
+   "class": "control",
+   "lang": "en",
+   "kb": "teras_olumsuz",
+   "message": "Where do we put the rubbish?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "\\bbins?\\b|end of the street"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c9",
+   "class": "control",
+   "lang": "tr",
+   "kb": "teras_olumsuz",
+   "message": "Otobüs durağı ne kadar uzakta?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "150"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c10",
+   "class": "control",
+   "lang": "en",
+   "kb": "mini",
+   "message": "How do I get the key when we arrive?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "lock\\s?box|key\\s?box"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c11",
+   "class": "control",
+   "lang": "de",
+   "kb": "teras_olumsuz",
+   "message": "Darf man auf der Terrasse rauchen?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "nicht|verboten|kein"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "c12",
+   "class": "control",
+   "lang": "tr",
+   "kb": "bahce",
+   "message": "Plaj ne kadar uzakta?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "10\\s*dakika"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "m1",
+   "class": "mixed",
+   "lang": "en",
+   "kb": "bahce",
+   "message": "Hi! What's the wifi password, where's the AC remote, and is there an elevator?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "menekse2024"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "drawer"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "elevator|lift"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m2",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "teras_olumsuz",
+   "message": "Merhaba, saat kaçta giriş yapabiliriz, otopark var mı, bir de yakında market var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "15[:.]00"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "400"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "market",
+       "600",
+       "köşe"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m3",
+   "class": "mixed",
+   "lang": "de",
+   "kb": "konak_celiski",
+   "message": "Wo bekommen wir den Schlüssel, wo steht die Waschmaschine und gibt es eine Spülmaschine?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "rezeption"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "bad"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "spülmaschine|geschirrspül"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m4",
+   "class": "mixed",
+   "lang": "fr",
+   "kb": "bahce",
+   "message": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "15"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "interdit|pas autoris|\\bnon\\b"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "fer à repasser|repass"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m5",
+   "class": "mixed",
+   "lang": "es",
+   "kb": "teras_olumsuz",
+   "message": "¿Dónde está la parada de autobús, cómo se llama la red wifi y se puede hacer barbacoa en la terraza?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "150"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale_Terrace|olive2026"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "barbacoa|parrilla"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m6",
+   "class": "mixed",
+   "lang": "ru",
+   "kb": "bahce",
+   "message": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "улиц|бесплат"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "кофе"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m7",
+   "class": "mixed",
+   "lang": "en",
+   "kb": "konak_celiski",
+   "message": "What time does the bakery open, where's the iron, and can we have a couple of friends visit us?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "0?6[:.]30|6:30"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "hallway|corridor|closet|cupboard|wardrobe"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "house_rules",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "visitor",
+       "friend"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "m8",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "konak_celiski",
+   "message": "Anahtarı nereden alacağız, ütü var mı, bir de çarşaflar değiştiriliyor mu?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "resepsiyon"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "koridor|dolap"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "çarşaf",
+       "havlu",
+       "değiş"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "t1",
+   "class": "tiny_kb",
+   "lang": "en",
+   "kb": "mini",
+   "message": "Is there a pool?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "pool"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "t2",
+   "class": "tiny_kb",
+   "lang": "de",
+   "kb": "mini",
+   "message": "Wie ist das WLAN-Passwort, und gibt es eine Waschmaschine?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "sunflower88"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "waschmaschine|wäsche"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "t3",
+   "class": "tiny_kb",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Otopark var mı? Bir de havaalanından buraya nasıl gelebiliriz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "sokak|ücretsiz"
+      ],
+      "forbid": []
+     },
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "havaalan",
+       "taksi",
+       "otobüs",
+       "metro",
+       "transfer"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "t4",
+   "class": "tiny_kb",
+   "lang": "fr",
+   "kb": "mini",
+   "message": "Y a-t-il un sèche-cheveux ? Et quel est le mot de passe wifi ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "s[èe]che"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "sunflower88"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "t5",
+   "class": "tiny_kb",
+   "lang": "ar",
+   "kb": "mini",
+   "message": "هل يوجد مكان لركن السيارة؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "مجان|شارع"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  },
+  {
+   "id": "t6",
+   "class": "tiny_kb",
+   "lang": "es",
+   "kb": "mini",
+   "message": "¿Hay lavavajillas? ¿Cuál es el código de la caja de llaves?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "all": [],
+      "forbid": [
+       "lavavajillas"
+      ]
+     },
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "llegada"
+      ],
+      "forbid": []
+     }
+    ]
+   }
+  }
+ ]
+}

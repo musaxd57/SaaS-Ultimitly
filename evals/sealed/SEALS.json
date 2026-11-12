@@ -111,5 +111,20 @@
       "bytes": 40302
     },
     "state": "sealed"
+  },
+  "grounding-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralları + \"yazmıyorsa yok değildir\" ilkesi (bilgi tabanında açıkça yazmayan soru cevaplanmaz, ev sahibinde açık kalır; konu yakınlığı dayanak değildir; başka bir şeyin değeri taşınmaz) ve kategori listesi (konu yakın ama cevap yok · açık \"yok\" bilgisi · çelişkili kayıt · yakın ama farklı varlık · ücret / mesafe / saat taşıma · ev sahibindeki konu + cevaplanabilir soru · soru sırası · tek sorulu olağan cevap · küçük bilgi tabanı) verildi. Geliştirici (Claude) içeriği okumadı: dosya yazarın geçici klasöründen kopyalandı, yalnız toplu sayılar ve biçim denetimi (alan biçimleri, kimlik tekilliği, bilgi kümesi anahtarı) koşuldu.",
+    "sha256": "7f7bc4c1c9adba374ad37a393a59fd97ea09197eb57e615d74e847bbda091ea1",
+    "items": {
+      "scenarios": 74,
+      "needs": 118,
+      "answered": 64,
+      "open": 54,
+      "kbSets": 4,
+      "languages": 7,
+      "bytes": 41260
+    },
+    "state": "sealed"
   }
 }
