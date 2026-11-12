@@ -97,7 +97,7 @@ describe("şikâyet takibi — cevap istemi katmanı", () => {
 
   it("tüm katman birleşimlerinde kayıp çapa YOK (256 birleşim — öğe kipi alanı + bırakılan istek önceliği 10-02, hâl hatır 10-02 akşam)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(2048); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir katman
+    expect(Object.keys(missing)).toHaveLength(4096); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir; + kaynağı olmayan istek (11-12) → on iki katman
     for (const [name, m] of Object.entries(missing)) expect(m, name).toEqual([]);
   });
 });

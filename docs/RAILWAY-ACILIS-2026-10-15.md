@@ -355,6 +355,12 @@ kurucu onayıyla §1'e taşındı.)
   (konuşma "Yeni" kalır, ev sahibi görür). Açıkken o mesaj cevapsız tur olarak okunur ve bugünkü bütün denetimlerden geçerek
   cevaplanır. Şartlar: kaçırılan cevap yapay zekânın · sonrasında ev sahibi yazmamış · mesaj en çok 24 saatlik. Yeni model çağrısı /
   tablo / metin yok. Tasarım `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §2.1.
+  Ek şart (Opus 11-12): `AI_CONVERSATION_ITEMS_ENABLED=1` olmadan çalışmaz (istek defteri yoksa cevaplanmayan geç soru iz bırakmazdı).
+- `AI_NO_SOURCE_RULE_ENABLED` (kurucu 11-12: "promptların içinde bu yanlışlara sebep olan yazılar"; istem denetimi
+  `docs/INCELEME-2026-11-12-istem-denetimi.md`) — 🚨 **ölçüm sonucu görülmeden AÇILMAZ; açma kararı kurucuda.** Bilgi tabanında karşılığı
+  olmayan soruda model bugün kesin bir cümle uydurabiliyor ("… servisi bulunmuyor"). Açıkken, istek defteri olan turda (konuşma öğeleri)
+  istem kuralı İSTEK BAŞINA kurar: cevabı kaynakta açıkça yazmayan istek cevaplanmaz ve ev sahibinde açık kalır; öteki istekler gider.
+  Yalnız istem metni — kod kapısı değişmez; yapısal güvence cevap parçaları kipidir. `AI_CONVERSATION_ITEMS_ENABLED=1` olmadan etkisiz.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

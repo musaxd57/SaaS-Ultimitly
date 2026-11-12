@@ -49,7 +49,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe("giriş tarifinde kod — istem türevi", () => {
   it("anahtarların TÜM birleşimlerinin HİÇBİRİNDE kayıp çapa yok (yedi katman → 128; şikâyet takibi 10-01, öğe kipi alanı + bırakılan istek önceliği 10-02)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(2048); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir katman
+    expect(Object.keys(missing)).toHaveLength(4096); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir; + kaynağı olmayan istek (11-12) → on iki katman
     for (const [combo, list] of Object.entries(missing)) expect(list, combo).toEqual([]);
   });
 
