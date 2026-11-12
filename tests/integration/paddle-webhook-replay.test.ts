@@ -268,6 +268,9 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       await stored("ok_error");
       await stored("ok_stuck", { status: "received", error: null, ageMs: 16 * MIN });
       await stored("ok_txn", { eventType: "transaction.completed" });
+      // İşleyicinin tanıdığı öteki ödeme olayları da aday (mutasyon 11-12: yalnız "completed" sayan daraltma yaşıyordu).
+      await stored("ok_txn_failed", { eventType: "transaction.payment_failed" });
+      await stored("ok_txn_paid", { eventType: "transaction.paid" });
       await stored("no_review", { error: `${NEEDS_REVIEW_PREFIX} unlinked` });
       await stored("no_redacted", { payloadJson: redactPaddlePayload(JSON.stringify({ event_id: "no_redacted", data: {} }), "org-deleted") });
       await stored("no_apikey", { eventType: "api_key.expiring" });
@@ -278,8 +281,8 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
 
       const { seen, deliver } = recordingDeliver();
       const out = await replayPendingPaddleEvents({ deliver });
-      expect(new Set(seen)).toEqual(new Set(["ok_error", "ok_stuck", "ok_txn", "no_null_error_is_fine"]));
-      expect(out).toMatchObject({ pending: 4, replayed: 4, settled: 4 });
+      expect(new Set(seen)).toEqual(new Set(["ok_error", "ok_stuck", "ok_txn", "ok_txn_failed", "ok_txn_paid", "no_null_error_is_fine"]));
+      expect(out).toMatchObject({ pending: 6, replayed: 6, settled: 6 });
     });
 
     it("🚨 sıklık sınırlı: olay yaşı eşikleri (15 dk, 1 sa, 2 sa …) geçtikçe birer kez; arada kalan turlarda denenmez", async () => {
