@@ -21,6 +21,11 @@ export interface ReplyItemsInput {
     kind: ItemKind;
     hint: string;
     fix?: boolean;
+    /**
+     * S2 (kurucu kararı 11-11; `late-turn.ts`): istek, son cevabımızdan ÖNCE yazılıp bize SONRA ulaşan bir mesajdan. Model bu bağlamı
+     * bilmezse o cevabın zaten verdiği bilgiyi ikinci kez gönderir (ölçüm 11-12: tekrar eden soruda 2/5). Verilmezse blok bayt bayt eski.
+     */
+    late?: boolean;
     /** Cevap parçaları kipinde (kurucu 10-23 A) isteğin kendi sözcükleri + sözlük konuları — parça doğrulayıcısı okur; istemde YOK. */
     need?: { terms: readonly string[]; topics: readonly string[]; queries?: readonly string[] };
   }[];
@@ -68,8 +73,15 @@ function cleanHint(s: string): string {
  */
 export function buildItemsPromptBlock(items: ReplyItemsInput): string {
   const answerable = items.answerable.map(
-    (a) => `  - ${a.ref} · ${ITEM_KIND_LABELS_TR[a.kind]}${a.hint ? ` · "${cleanHint(a.hint)}"` : ""}${a.fix ? " · ARIZA ÇÖZÜMÜ" : ""}`,
+    (a) => `  - ${a.ref} · ${ITEM_KIND_LABELS_TR[a.kind]}${a.hint ? ` · "${cleanHint(a.hint)}"` : ""}${a.fix ? " · ARIZA ÇÖZÜMÜ" : ""}${a.late ? " · GEÇ ULAŞTI" : ""}`,
   );
+  // S2: geç ulaşan istek yoksa blok bayt bayt eski biçim (pinli).
+  const lateRule = items.answerable.some((a) => a.late)
+    ? `
+GEÇ ULAŞTI istekleri: misafir bunları son cevabımızdan ÖNCE yazdı, mesaj bize SONRA ulaştı — o cevap bunları görmeden gitti. Böyle bir
+istek, o cevabın ZATEN verdiği bilgiyi istiyorsa (aynı soru yeniden sorulmuş, "orada mısınız / cevap bekliyorum" gibi) onu yeniden
+CEVAPLAMA ve answeredRequests'e KOYMA. O cevabın karşılamadığı YENİ bir soruysa her zamanki gibi cevapla.`
+    : "";
   // Arıza çözümü yoksa blok bayt bayt eski biçim (pinli).
   const fixRule = items.answerable.some((a) => a.fix)
     ? `
@@ -121,7 +133,7 @@ ${held.length > 0 ? held.join("\n") : "  (yok)"}${earlierBlock}
 KURALLAR: reply YALNIZ cevaplanacak istekleri cevaplar; bırakılan bir isteği (ödeme yöntemi, şikâyet, iade, ev sahibiyle
 görüşme vb.) onaylama, reddetme, özür dileme, ödeme yöntemi / hesap bilgisi yazma. intent, riskLevel ve riskType'ı her
 zamanki gibi TÜM cevapsız mesajlara göre ver (bırakılanlar dahil — ayrımı kod yapar). JSON'a "answeredRequests" alanını
-da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].${precedence}${fixRule}${hostContactRule}${petHeldRule}`;
+da EKLE (zorunlu): cevapladığın isteklerin kimlikleri, ör. ["R1"]; hiçbirini cevaplamadıysan [].${precedence}${fixRule}${hostContactRule}${petHeldRule}${lateRule}`;
 }
 
 /**

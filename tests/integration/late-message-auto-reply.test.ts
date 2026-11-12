@@ -184,9 +184,15 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(sentBodies()[0]).toContain("Otopark ücretsizdir");
     // Cevap modeline giden: son misafir mesajı GEÇ mesaj; geçmişin sırası ilk soru → cevabımız → geç mesaj.
-    const input = mockSuggest.mock.calls[0]![0] as { guestMessage: string; history?: { body: string; direction: string }[] };
+    const input = mockSuggest.mock.calls[0]![0] as {
+      guestMessage: string;
+      history?: { body: string; direction: string }[];
+      conversationItems?: { answerable: { kind: string; late?: boolean }[] };
+    };
     expect(input.guestMessage).toContain(LATE);
     expect(input.history?.map((h) => h.body)).toEqual([FIRST, OUR_REPLY, LATE]);
+    // Cevap modeli isteğin GEÇ ulaştığını bilir (son cevabımız onu görmeden gitti) — tekrar eden soruyu yeniden cevaplamasın diye.
+    expect(input.conversationItems?.answerable.map((a) => [a.kind, a.late ?? false])).toEqual([["parking", true]]);
     // Anlama katmanına yalnız cevapsız tur (geç mesaj) gider — cevapladığımız ilk soru değil.
     const understanding = JSON.stringify(mockUnderstand.mock.calls[0]![0]);
     expect(understanding).toContain(LATE);
@@ -265,8 +271,9 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     understands([{ intent: "checkout_time", message: 1 }]);
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", reply: "Çıkış saati 11:00." }));
     await applyChannelAutoReply(seeded.conversationId);
-    let input = mockSuggest.mock.calls[0]![0] as { history?: { body: string }[] };
+    let input = mockSuggest.mock.calls[0]![0] as { history?: { body: string }[]; conversationItems?: { answerable: { kind: string; late?: boolean }[] } };
     expect(input.history?.map((h) => h.body)).toEqual([FIRST, LATE, OUR_REPLY, AFTER]);
+    expect(input.conversationItems?.answerable.some((a) => a.late)).toBe(false);
     // AÇIK: geç mesaj cevabın ardına, yeni mesajın önüne gelir → ikisi de cevapsız tur.
     await resetDb();
     mockSuggest.mockReset();
@@ -279,8 +286,10 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     ]);
     mockSuggest.mockResolvedValueOnce(verdict({ reply: `${PARKING_ANSWER} Çıkış saati 11:00.`, answeredRequests: { ok: true, refs: ["R1", "R2"] } }));
     await applyChannelAutoReply(seeded.conversationId);
-    input = mockSuggest.mock.calls[0]![0] as { history?: { body: string }[] };
+    input = mockSuggest.mock.calls[0]![0] as { history?: { body: string }[]; conversationItems?: { answerable: { kind: string; late?: boolean }[] } };
     expect(input.history?.map((h) => h.body)).toEqual([FIRST, OUR_REPLY, LATE, AFTER]);
+    // Yalnız geç ulaşan mesajın isteği işaretli; cevaptan sonra yazılan olağan mesajınki değil.
+    expect(input.conversationItems?.answerable.map((a) => [a.kind, a.late ?? false])).toEqual([["parking", true], ["checkout_time", false]]);
     expect((await itemsOf(seeded.conversationId)).map((i) => i.kind).sort()).toEqual(["checkout_time", "parking"]);
   });
 

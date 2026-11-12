@@ -106,6 +106,11 @@ export function composeItemsPlan<T extends PlanItem>(input: {
    * aynı türden bir parçayla kapatabiliyordu. O satır açık kalır (ev sahibinde), ne gösterilir ne kapanır. Verilmezse bugünkü kural.
    */
   producedKeys?: ReadonlySet<string>;
+  /**
+   * S2 (`late-turn.ts`): bu turda cevabımızdan ÖNCE yazılıp SONRA ulaşan misafir mesajlarının kimlikleri. Onlardan çıkan cevaplanabilir
+   * istekler istem bloğunda işaretlenir (`reply-block` "GEÇ ULAŞTI"). Verilmezse / boşsa plan ve istem bayt bayt eski.
+   */
+  lateMessageIds?: ReadonlySet<string>;
 }): ComposedItemsPlan<T> {
   const relations = input.relations;
   // İlişki kipi (kurucu kararı 10-01 sabah): olgular varsa karar `relation.requestDependency`, yoksa bugünkü liste kuralı BİREBİR.
@@ -157,6 +162,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
         kind: item.kind,
         hint: input.hints.get(hintKey(item.messageId, item.kind, item.ordinal)) ?? "",
         ...(relation?.fix.has(item) ? { fix: true } : {}),
+        ...(input.lateMessageIds?.has(item.messageId) ? { late: true } : {}),
         ...(parts ? { need: needOf(item) } : {}),
       })),
       ...(parts ? { parts: true as const } : {}),

@@ -2223,9 +2223,14 @@ export async function applyChannelAutoReply(
   // sağlanmıyorsa dizi aynen: son mesaj giden → `already_answered` (S1, 11-04: konuşma "Yeni" kalır, ev sahibi görür).
   const lateOn = lateMessageReplyEnabled();
   const turnNow = new Date();
+  // Geç ulaşan mesajların kimlikleri (son kurulan görünümden): istek planı onlardan çıkan istekleri cevap modeline işaretler.
+  let lateMessageIds: ReadonlySet<string> = new Set();
   const viewOf = (rows: typeof thread.rows) => {
     const view = threadView(rows, undeliveredIds);
-    return lateOn ? [...lateTurnView(view, turnNow).messages] : view;
+    if (!lateOn) return view;
+    const turned = lateTurnView(view, turnNow);
+    lateMessageIds = new Set(turned.late.map((m) => m.id));
+    return [...turned.messages];
   };
   let messages = viewOf(thread.rows);
   // Kesit süzgeçten sonra boş kaldıysa konuşmanın daha eskisi okunur (bugün: tamamı süzülürdü).
@@ -2619,6 +2624,7 @@ export async function applyChannelAutoReply(
         // kapsamalı.
         expectedMessageIds: itemsTurnMessageIds,
         now: new Date(),
+        ...(lateMessageIds.size > 0 ? { lateMessageIds } : {}),
         // Arıza çözümü yalnız modelin GÖRECEĞİ bilgi tabanında o konunun tarifi varsa sunulur (karar 23 kör doğrulaması, 10-01).
         knowledgeBase: kbForModel,
       });
