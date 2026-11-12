@@ -145,6 +145,7 @@ export const PIPELINE_FLAGS = [
   // S2 (11-11): geç içeri alınan misafir mesajı cevapsız tur olarak okunur — hangi mesajın cevaplandığını değiştirir.
   "AI_LATE_MESSAGE_REPLY_ENABLED",
   "AI_NO_SOURCE_RULE_ENABLED",
+  "AI_TURN_MESSAGES_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
   // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).

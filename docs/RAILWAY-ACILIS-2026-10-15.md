@@ -361,6 +361,11 @@ kurucu onayıyla §1'e taşındı.)
   olmayan soruda model bugün kesin bir cümle uydurabiliyor ("… servisi bulunmuyor"). Açıkken, istek defteri olan turda (konuşma öğeleri)
   istem kuralı İSTEK BAŞINA kurar: cevabı kaynakta açıkça yazmayan istek cevaplanmaz ve ev sahibinde açık kalır; öteki istekler gider.
   Yalnız istem metni — kod kapısı değişmez; yapısal güvence cevap parçaları kipidir. `AI_CONVERSATION_ITEMS_ENABLED=1` olmadan etkisiz.
+- `AI_TURN_MESSAGES_ENABLED` (11-12 ölçümü; `src/lib/ai/turn-messages.ts`) — 🚨 **ölçüm sonucu görülmeden AÇILMAZ; açma kararı kurucuda
+  (misafire gideni değiştirir).** Misafir son cevabımızdan sonra birden çok mesaj yazdıysa bugün cevap çoğunlukla yalnız SON mesajı
+  karşılıyor (ölçüldü: "Otopark var mı?" + "Bir de çıkış saati kaç?" → üç koşunun üçünde yalnız çıkış saati; otopark sorusu istek defterinde
+  açık kalıyor). Açıkken cevap isteminin "misafir mesajı" bloğu cevapsız mesajların hepsini taşır ve soru sayısı hepsinden sayılır. Yalnız
+  istem metni: hangi isteğin cevaplanacağı (istek listesi, tutulan konular), kapılar ve gönderim kimliği değişmez. Tek mesajda etkisiz.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

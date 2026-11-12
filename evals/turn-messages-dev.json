@@ -1,0 +1,627 @@
+{
+ "version": 1,
+ "_about": "ÇOK MESAJLI TUR geliştirme seti (11-12; `AI_TURN_MESSAGES_ENABLED`). Misafir son cevabımızdan sonra birden çok mesaj yazıyor; hepsi cevapsız. Ölçülen kusur: cevap yalnız SON mesajı karşılıyor. Sınıflar: iki / üç bilinen soru (dört dil) · soru + teşekkür · bilinmeyen + bilinen · ev sahibindeki konu + bilinen · aynı soru iki kez · tek mesaj (kontrol). AÇIK settir (geliştirme); kabul için ayrı yazarın görülmemiş seti gerekir.",
+ "property": {
+  "name": "Lale – bahçe katı (iç kod L1)",
+  "guestDisplayName": "Bahçe Katı Daire 1",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "std": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Otopark ücretsizdir; binanın arkasındadır."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "tm-tr-iki-bilinen",
+   "class": "two_known",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    }
+   ],
+   "message": "Bir de çıkış saati kaç?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-two-known",
+   "class": "two_known",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    },
+    {
+     "direction": "inbound",
+     "body": "Is there parking?"
+    }
+   ],
+   "message": "And where do we leave the trash?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "free"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-de-zwei-bekannt",
+   "class": "two_known",
+   "lang": "de",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hallo, wir kommen morgen an."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hallo, wir freuen uns auf Sie."
+    },
+    {
+     "direction": "inbound",
+     "body": "Gibt es einen Parkplatz?"
+    }
+   ],
+   "message": "Und bis wann ist der Pool geöffnet?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "kostenlos|kostenfrei|gratis"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "20:00|20 Uhr"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-fr-deux-connues",
+   "class": "two_known",
+   "lang": "fr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Bonjour, nous arrivons demain."
+    },
+    {
+     "direction": "outbound",
+     "body": "Bonjour, nous vous attendons."
+    },
+    {
+     "direction": "inbound",
+     "body": "Y a-t-il un parking ?"
+    }
+   ],
+   "message": "Et où jeter les poubelles ?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "gratuit"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "conteneur"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-uc-bilinen",
+   "class": "three_known",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    },
+    {
+     "direction": "inbound",
+     "body": "Çöpü nereye atıyoruz?"
+    }
+   ],
+   "message": "Havuz kaça kadar açık?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "konteyner"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "20:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-three-known",
+   "class": "three_known",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    },
+    {
+     "direction": "inbound",
+     "body": "Is there parking?"
+    },
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    }
+   ],
+   "message": "What time is check-out?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "free"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00|11 ?am"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-soru-sonra-tesekkur",
+   "class": "known_then_thanks",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    }
+   ],
+   "message": "Şimdiden teşekkürler",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-question-then-thanks",
+   "class": "known_then_thanks",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    },
+    {
+     "direction": "inbound",
+     "body": "Where do we leave the trash?"
+    }
+   ],
+   "message": "Thanks in advance!",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-unknown-then-known",
+   "class": "unknown_then_known",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    },
+    {
+     "direction": "inbound",
+     "body": "Do you have an iron?"
+    }
+   ],
+   "message": "Where do we leave the trash?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "iron"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-bilinmeyen-sonra-bilinen",
+   "class": "unknown_then_known",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Yakında eczane var mı?"
+    }
+   ],
+   "message": "Otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-evcil-sonra-wifi",
+   "class": "sensitive_then_known",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Köpeğimizi getirebilir miyiz?"
+    }
+   ],
+   "message": "Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "getirebilir|kabul ed|izin ver|evet|maalesef|tabii|elbette"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-latecheckout-then-trash",
+   "class": "sensitive_then_known",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    },
+    {
+     "direction": "inbound",
+     "body": "Can we check out at 2pm instead?"
+    }
+   ],
+   "message": "Where do we leave the trash?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "late_checkout",
+      "want": "open",
+      "forbid": [
+       "2 ?pm|14:00|no problem|of course|sure"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-ayni-soru-iki-kez",
+   "class": "same_twice",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    },
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    }
+   ],
+   "message": "Wi-Fi şifresini alabilir miyim?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-tr-tek-mesaj",
+   "class": "control_single",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yarın geliyoruz."
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, sizi bekliyoruz."
+    }
+   ],
+   "message": "Otopark var mı?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tm-en-single",
+   "class": "control_single",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Hi, we arrive tomorrow."
+    },
+    {
+     "direction": "outbound",
+     "body": "Hello, we look forward to hosting you."
+    }
+   ],
+   "message": "What time is check-out?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00|11 ?am"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
