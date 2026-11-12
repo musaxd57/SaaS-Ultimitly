@@ -660,16 +660,26 @@
 - **Konusuz / "Detaylar için" yönlendirme (kurucu 10-30: "'Binada sauna var.' gitsin"):** silinir, kalan bilgi gider, soru ev sahibine açık
   kalır. Cevabın tamamı yalnız silinen parça TEYİT / doğrulama istiyorsa ya da kalan metin bir izin söylüyorsa tutulur (`CONFIRM_MARKER`).
 
-- 🚨 **EVCİL HAYVAN AYRIMI (S3, kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED` VARSAYILAN KAPALI — kurucu ölçüm sonucuna
-  bakıp açacak; tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3 / §3.1):** öğe kipinde evcil hayvan isteği ev
-  sahibine BIRAKILMIŞSA (ayrı öğe, tutuluyor) öteki isteklerin cevabı yalnız bu yüzden tutulmaz. İki şart, ikisi de kodda:
+- 🚨 **EVCİL HAYVAN AYRIMI (S3, kurucu kararı 11-11; anahtar `AI_HELD_PET_SPLIT_ENABLED` VARSAYILAN KAPALI — 11-12 sert incelemesi: BU
+  HÂLİYLE AÇILMAZ, `docs/INCELEME-2026-11-12-opus-s3.md`; tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md`
+  §3 / §3.1 / §3.2):** öğe kipinde evcil hayvan isteği ev sahibine BIRAKILMIŞSA (ayrı öğe, tutuluyor) öteki isteklerin cevabı yalnız bu
+  yüzden tutulmaz. 🚨 Dal YALNIZ cevap kodun doğruladığı cevap parçalarından kurulduysa (`verifiedPartsOnly` — `AI_ANSWER_PARTS_ENABLED` +
+  `AI_ITEM_ORDINAL_ENABLED`; onlar kapalıyken anahtar hiçbir şeyi değiştirmez) ve evcil hayvan isteği AYNI turda çıkarıldıysa açılır (önceki
+  turdan bekleyen soru bugünkü kemerde). Ek iki şart, ikisi de kodda:
   (1) `pet-policy.heldPetLeak` — cevap o isteğe dair onay / ret / koşul / ima taşımaz: hayvan sözcüğü ve örtmeceler, "evet / tabii /
-  maalesef" türü sözcükler (yedi dil; "olur / sure / no / ja" yalnız tek başına ünlemken), getirme-izin-kalma fiilleri, konusuz olumsuzluk
-  ya da ücret; (2) `answer-grounding.ungroundedAnsweredRefs` — cevaplandığı beyan edilen her isteğin konusu modele gösterilen bir kaynakta
-  geçer (bilgi tabanı kalemi: `answer-binding.sourceMentionsNeed`; giriş / çıkış saatinde mülk alanı). Tutma gerekçeleri `reply_pet_policy` /
+  maalesef" türü sözcükler ve yaygın onay öbekleri (yedi dil + Arapça; "olur / mümkün / sure / no / ja" yalnız tek başına ünlemken),
+  getirme-izin-kalma fiilleri, konusuz olumsuzluk, ücret ya da para tutarı; (2) `answer-grounding.ungroundedAnsweredRefs` — cevaplandığı
+  beyan edilen her isteğin konusu modele gösterilen bir kaynakta geçer (bilgi tabanı kalemi: `answer-binding.sourceMentionsNeed`; giriş /
+  çıkış saatinde mülk alanı). 🚨 (2) KABADIR — soruyla ilgili ama cevabı içermeyen kalem varken uydurmayı dayanaklı sayar (kahvaltı ↔
+  "restoran önerileri"; sınır testte yazılı): tek başına güvence değil, parça doğrulamasının ek kemeri. Tutma gerekçeleri `reply_pet_policy` /
   `items_answer_ungrounded`. İstemde aynı kural tek cümleyle (`reply-block` `petHeldRule`; anahtar kapalıyken blok bayt bayt aynı). İstek
   öğe olarak çıkarılamadıysa, cevaplanabilir sayıldıysa (ücretsiz ve koşulsuz kabul) ya da öğe kipi koşmadıysa 10-28 kemeri aynen; QR
   kapsam dışı. 🚨 Ölçüm dersi: evcil hayvan kemeri, modelin bilgi tabanında olmayan soruya UYDURDUĞU cevabı da tesadüfen tutuyordu (5/5);
   bir kemeri daraltırken onun örttüğü başka hataları ölç — dayanak şartı o ölçümden doğdu. Aynı uydurma evcil hayvansız iki soruluk mesajda
-  bugün de gidebiliyor (genel karar kurucuda).
+  bugün de gidebiliyor (genel karar kurucuda). 🚨 İnceleme dersleri (11-12): (a) sözcük ağı güvence değildir — sayılmamış öbek her zaman
+  kalır (ilk yazımda Arapça hiç yoktu, "Mümkün." / "Sure thing!" / ücret sözcüğü olmayan tutar geçiyordu); misafire gideni değiştiren bir
+  serbest bırakma sözcük ağına DEĞİL kodun doğruladığı yapıya + cevabı misafirin mesajıyla okuyan denetime dayanır. (b) Ölçerin yasak
+  kalıpları kapının sözcük listesiyle aynıysa "yanlış 0" döngüseldir — kabulde bağımsız okuma. (c) Anahtar kapalıyken 0, açıkken 1 olan
+  bir yanlış "ilgisiz" diye etiketlenmez: onu bu değişiklik gönderdi. (d) Ölçülen kapsamdan geniş açılan dal (önceki turdan bekleyen
+  istek) ölçülen kapsama daraltılır.
 

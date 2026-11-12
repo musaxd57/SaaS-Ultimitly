@@ -340,14 +340,16 @@ kurucu onayıyla §1'e taşındı.)
   Yalnız `KB_SEMANTIC_RETRIEVAL` açıkken anlamlı. Müşteriye giden metne dokunmaz (yalnız anlamsal aramanın "soğuk" kalma süresi kısalır).
 - `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED` (kurucu 11-04: "şu anki arızayı kullanım sorusundan ayır ama her zaman şikâyet sabit sözcük kuralına dönüşmesin") — anlama isteminde arıza ↔ kullanım BAĞLAM kuralı (varsayımsal / olumsuzlanan / çözülmüş / konuşma geçmişi / tehlike). Önce / sonra kanıtı `docs/olcum/ARIZA-KULLANIM-ONCE-SONRA-2026-11-04.md` (5.1 canlı kip 65/74 → 73/74). Misafire giden davranışı değiştirir ("düzeldi" diyen misafire arıza işi açılmaz) → ✅ KURUCU ONAYLADI (11-04 akşam: "Açılsın") — açılışta `"1"`.
 - `CONVERSATION_CONTROL_SHADOW_ENABLED` (kurucu 11-04 K-1..K-6 "önerin gibi", migration onayı K-6; migration 90 `ConversationBlock` — Railway açılmadan önce TAZE YEDEK, migration bununla gider) — konuşma kontrolünün G0 GÖLGE ölçümü: bugün "Sorunlu" yazan yollar bir engel kaydı da açar, iki karar noktasında yeni model bugünküyle kıyaslanır, ayrışma yalnız sayılır (`conversation_control.shadow_mismatch`). Misafire giden metne ve kararlara DOKUNMAZ. Tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §11. ✅ KURUCU ONAYLADI (11-04 akşam: "Açılsın anahtarı") — açılışta `"1"`.
-- `AI_HELD_PET_SPLIT_ENABLED` (kurucu kararı 11-11 S3: "Wi-Fi gitsin, evcil hayvan sorusu ev sahibinde kalsın"; **ölçüm sonucu görülmeden
-  AÇILMAZ**) — misafir aynı mesajda hem evcil hayvan hem başka bir şey sorarsa ("Köpeğimizi getirebilir miyiz? İnternet şifresi ne?") bugün
-  cevabın tamamı ev sahibine kalıyor. Açıkken öteki sorunun cevabı gider, evcil hayvan sorusu ev sahibinde açık kalır; giden cevap o soruya
-  dair onay / ret / ima taşıyorsa ("Evet, …", "Tabii!", "getirebilirsiniz", hayvanın adı, konusuz ücret) yine tutulur. Yalnız
-  `AI_CONVERSATION_ITEMS_ENABLED` açıkken etkili; QR misafir sohbeti kapsam dışı (orada bugünkü kural). Aynı dalda dayanak şartı:
-  cevaplanan sorunun konusu bilgi tabanında (giriş / çıkış saatinde mülk alanında) geçmiyorsa cevap gitmez. Ölçüm (11-12, mühürlü kabul
-  seti): yanlış izin 0/45, yanındaki sorunun doğru cevabı 0/38 → 29/38, evcil hayvanla ilgisiz 1 yanlış değer — KURUCU KARARI BEKLİYOR.
-  Tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3 / §3.1.
+- `AI_HELD_PET_SPLIT_ENABLED` (kurucu kararı 11-11 S3: "Wi-Fi gitsin, evcil hayvan sorusu ev sahibinde kalsın") — 🚨 **AÇILIŞTA AÇILMAZ**
+  (11-12 sert incelemesi: bu hâliyle güvenli değil; kayıt `docs/INCELEME-2026-11-12-opus-s3.md`). Misafir aynı mesajda hem evcil hayvan hem
+  başka bir şey sorarsa ("Köpeğimizi getirebilir miyiz? İnternet şifresi ne?") bugün cevabın tamamı ev sahibine kalıyor. Açıkken öteki
+  sorunun cevabı gider, evcil hayvan sorusu ev sahibinde açık kalır; giden cevap o soruya dair onay / ret / ima taşıyorsa ("Evet, …",
+  "Tabii!", "getirebilirsiniz", hayvanın adı, konusuz ücret / tutar) yine tutulur. **Tek başına ETKİSİZDİR:** yalnız cevap kodun doğruladığı
+  cevap parçalarından kurulduysa çalışır (`AI_ANSWER_PARTS_ENABLED` + `AI_ITEM_ORDINAL_ENABLED` — ikisi de kendi kabul ölçümünü bekliyor)
+  ve yalnız evcil hayvan sorusu aynı turda sorulduysa; QR misafir sohbeti kapsam dışı. Ölçüm (11-12, mühürlü kabul seti, öğe kipinde):
+  yanlış izin 0/45, yanındaki sorunun doğru cevabı 0/38 → 29/38, ama 1 yanlış değer gitti (anahtar kapalıyken 0). Açma sırası: parça
+  kipinin kabul ölçümü → cevabı misafirin mesajıyla okuyan denetim → yeni mühürlü setle S3 → kurucu kararı.
+  Tasarım + ölçüm `docs/TASARIM-2026-11-11-kurucu-kararlari-s1-s8-3b-3d.md` §3 / §3.1 / §3.2.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).
