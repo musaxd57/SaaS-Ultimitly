@@ -27,6 +27,11 @@ describe("iddia ölçümü — düşmanca misafir metninde sınırlı süre", ()
     // 10-10 (kurucu: "-1. kat ile 1. kat aynı değil"): eksi kat okuyucusu.
     ["eksi kat + uzun sonek", "-1 kat" + "t".repeat(50000)],
     ["uzun eksi dizisi + kat", "-".repeat(50000) + "1 kat"],
+    // 11-12: etiketli kod taraması reddedilen adayda adayın BAŞINA döner (asıl etiket "wi-fi ŞİFRESİ:" okunsun diye) → art arda etiket
+    // sözcüğü her adımda yeniden aday olur; ilerleme adım başına en az bir etiket boyu (doğrusal) kalmalı.
+    ["art arda etiket sözcüğü", "\u015fifre ".repeat(8000)],
+    ["art arda 'wifi kod' çifti", "wifi kod ".repeat(5500)],
+    ["etiket + 40 karakterlik rakamsız aday dizisi", ("kod " + "a".repeat(40) + " ").repeat(1100)],
   ])("%s (50.000 karakter) → 150 ms altında", (_ad, guest) => {
     auditClaimsSafe("Kapı kodu 1234.", { facts: [], operator: [], guest: ["a"] }); // ısınma
     expect(ms(() => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] }))).toBeLessThan(150);

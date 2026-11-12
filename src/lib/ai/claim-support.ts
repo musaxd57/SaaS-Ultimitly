@@ -609,10 +609,18 @@ function extract(text: string, raw: string): Claim[] {
     "\\b(?:sifre[a-z]*|parola[a-z]*|password|passcode|pin|kod[a-z]*|code|ssid|ag adi|agin adi|ag ismi|network(?: name)?|wi-?fi(?: agi[a-z]*| adi)?|wlan|zil|kapi no|door code|keybox)(?![a-z])";
   // İkinci boşluk dizisi isteğe bağlı ayracın İÇİNDE (ReDoS denetimi 09-28): iki bitişik `[^\S\n]*` uzun boşluk dizisinde
   // karesel geri izliyordu (50.000 boşlukta 2,1 sn). Dil ve yakalamalar aynı (ayraç yoksa iki boşluk dizisi tek dizidir).
-  take(new RegExp(`${KW}[^\\S\\n]*(?:(?:[:=]|(?:is|olarak|de|da)(?![a-z]))[^\\S\\n]*)?(["']?)([^\\s"',;()]{3,40})`, "g"), (m) => {
+  // 🚨 Reddedilen aday ETİKETİN KENDİSİ olabilir (11-12 ölçümü): "Wi-Fi şifresi: \"lalemisafir\"" — "wi-fi" etiketi ardındaki "şifresi"
+  // sözcüğünü aday diye alıp reddediyor, tarama adayın SONUNDAN sürdüğü için asıl etiket ("şifresi:") hiç denenmiyordu → tırnaklı, rakamsız
+  // değer kod sayılmıyor, parça doğrulayıcısı onu hiç denetlemiyordu. Reddedilen adayda tarama adayın BAŞINA döner (aday en az 3 karakter
+  // ileride başlar → ilerleme kesin; aday uzunluğu sınırlı → toplam iş doğrusal).
+  const labelledCode = new RegExp(`${KW}[^\\S\\n]*(?:(?:[:=]|(?:is|olarak|de|da)(?![a-z]))[^\\S\\n]*)?(["']?)([^\\s"',;()]{3,40})`, "g");
+  take(labelledCode, (m) => {
     const tok = m[2].replace(/[.!?:]+$/, "");
-    if (!/\d/.test(tok) && m[1] === "") return null;
-    if (/^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok)) return null;
+    const rejected = (!/\d/.test(tok) && m[1] === "") || /^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok);
+    if (rejected) {
+      labelledCode.lastIndex = m.index + m[0].length - m[2].length;
+      return null;
+    }
     const r = rawToken(tok);
     return { cls: "code", keys: [`c${r}`], raw: r };
   });

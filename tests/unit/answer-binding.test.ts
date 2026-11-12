@@ -1380,3 +1380,185 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
     expect(clean("Otopark kapalıdır.", "Otoparkımız kapalı otoparktır.", ["otopark"])).toContain("polarity_mismatch");
   });
 });
+
+describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, parçada tırnaklı (Wi-Fi ağ adı)", () => {
+  // Parça kipinde Wi-Fi cevabı 14 gereksiz tutmanın 8'iydi: değer ayıklayıcı etiketten sonraki sözcüğü ancak RAKAM içeriyor ya da TIRNAKLIYSA
+  // kod sayar → kalemdeki `Ağ adı: Lale_Home` kod değil, modelin yazdığı `ağ adı "Lale_Home"` kod → "değer alıntıda yok".
+  const WIFI_KB = "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024.";
+  const WIFI = need(["wifi şifresi ne", "what is the wifi password"]);
+  const wifi = (part: string, sourceText = WIFI_KB, evidence = sourceText) => checkAnswerBinding({ part, evidence, sourceText, ...WIFI });
+
+  it("🚨 ağ adı tırnak içinde yazılan doğru cevap GEÇER (eskiden value_not_in_evidence)", () => {
+    for (const part of [
+      'Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".',
+      'Wi-Fi ağ adı "Lale_Home", şifre ise Lale2024.',
+      'The Wi-Fi network name is "Lale_Home" and the password is "Lale2024".',
+    ]) {
+      const r = wifi(part);
+      expect([part, r.issues.includes("value_not_in_evidence")]).toEqual([part, false]);
+    }
+    // KONTROL: tırnaksız yazımlar zaten geçiyordu — değişmedi.
+    expect(wifi("Wi-Fi ağ adı Lale_Home, şifre Lale2024.").issues).not.toContain("value_not_in_evidence");
+    expect(wifi('Unser WLAN heißt "Lale_Home", das Passwort lautet "Lale2024".').issues).not.toContain("value_not_in_evidence");
+  });
+
+  it("🚨 KONTROL: kalemde OLMAYAN ağ adı yine tutulur", () => {
+    expect(wifi('Wi-Fi ağ adı "Lale_Guest", şifre "Lale2024".').issues).toContain("value_not_in_evidence");
+  });
+
+  it("🚨 KONTROL: etiket ailesi değişirse tutulur — ağ adı ŞİFRE diye verilemez", () => {
+    expect(wifi('Wi-Fi şifresi: "Lale_Home".').issues).toContain("value_not_in_evidence");
+  });
+
+  it("rakamsız şifre de aynı kural: kalemde `Şifre: lalemisafir`, parçada tırnaklı → geçer; başka sözcük → tutulur", () => {
+    const kb = "Wi-Fi: Ağ adı: LaleNet, şifre: lalemisafir.";
+    expect(wifi('Wi-Fi şifresi "lalemisafir".', kb).issues).not.toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi şifresi "laleguest".', kb).issues).toContain("value_not_in_evidence");
+    // Şifre AĞ ADI diye verilemez (aile değişti).
+    expect(wifi('Wi-Fi ağ adı "lalemisafir".', kb).issues).toContain("value_not_in_evidence");
+  });
+
+  it("🚨 KONTROL: iki konulu kalemde (Wi-Fi + kapı) kısa yol yok — eski sıkı denetim", () => {
+    const kb = "Wi-Fi şifresi: lalemisafir. Kapı şifresi: lalekapi.";
+    const two = need(["wifi şifresi ne", "kapı şifresi ne"]);
+    const r = checkAnswerBinding({ part: 'Wi-Fi şifresi "lalekapi".', evidence: kb, sourceText: kb, ...two });
+    expect(r.ok).toBe(false);
+  });
+
+  it("kalemde etiket + ayraç şart: düz cümlede geçen sözcük ad sayılmaz", () => {
+    // Ayraçsız ("Wi-Fi ağımız Lale_Home adını taşır") kalemde değer bir etiketin değeri olarak yazılmamıştır → kısa yol yok.
+    const kb = "Wi-Fi ağımız Lale_Home adını taşır. Wi-Fi şifresi: Lale2024.";
+    expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', kb).issues).toContain("value_not_in_evidence");
+    // KONTROL: aynı kalem etiket + ayraçla yazılsa geçer.
+    expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', "Wi-Fi ağ adı: Lale_Home. Wi-Fi şifresi: Lale2024.").issues).not.toContain("value_not_in_evidence");
+  });
+
+  it("ayıklayıcı: 'Wi-Fi şifresi: \"…\"' yazımında asıl etiket (şifresi) okunur — eskiden 'wi-fi' etiketi sözcüğü yutuyor, tırnaklı rakamsız değer hiç denetlenmiyordu", async () => {
+    const { claimSpans } = await import("@/lib/ai/claim-support");
+    const keys = (t: string) => claimSpans(t).claims.map((c) => c.keys[0]);
+    expect(keys('Wi-Fi şifresi: "lalemisafir".')).toEqual(["clalemisafir"]);
+    expect(keys('Wi-Fi şifresi "lalemisafir".')).toEqual(["clalemisafir"]);
+    // KONTROL: rakamsız, tırnaksız sözcük yine kod değil; rakamlı değer eskisi gibi.
+    expect(keys("Wi-Fi şifresi panoda yazıyor.")).toEqual([]);
+    expect(keys("Wi-Fi şifresi: Lale2024.")).toEqual(["cLale2024"]);
+    expect(keys("Şifre kodu: 4821.")).toEqual(["c4821"]);
+  });
+});
+
+describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi' ile 'çamaşır makinesi' ayrı şeylerdir", () => {
+  // Kök neden: konu sözcüğü ayıklamasında "6+ harf ve -ır / -ir / -ur ile biten her sözcük fiildir" kuralı "çamaşır"ı fiil sayıyordu →
+  // "çamaşır makinesi var mı" ihtiyacında özgül sözcük kalmıyor, genel baş ad "makinesi" konu oluyordu → her "… makinesi" cümlesi konu cümlesi.
+  const LAUNDRY = "Çamaşır: Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur.";
+  const WASHER = need(["çamaşır makinesi var mı"]);
+  const DRYER = need(["kurutma makinesi var mı"]);
+  const run = (part: string, evidence: string, n: ReturnType<typeof need>, sourceText = LAUNDRY) => checkAnswerBinding({ part, evidence, sourceText, ...n });
+
+  it("🚨 çamaşır makinesi sorusuna DOĞRU olumlu cevap geçer (eskiden kurutma cümlesinin 'yoktur'u yüzünden polarity_mismatch)", () => {
+    const whole = "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur.";
+    expect(run("Evet, banyoda çamaşır makinesi var; deterjan da lavabonun altındaki dolaptadır.", whole, WASHER).issues).not.toContain("polarity_mismatch");
+    expect(run("Evet, çamaşır makinesi banyodadır; deterjan da lavabonun altındaki dolaptadır.", "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır.", WASHER).issues).not.toContain("polarity_mismatch");
+  });
+
+  it("🚨 GÜVENLİK: kurutma makinesinin 'yoktur'u çamaşır makinesine TAŞINAMAZ (eskiden sorunsuz geçiyordu)", () => {
+    const r = run("Çamaşır makinesi yoktur.", "Kurutma makinesi yoktur.", WASHER);
+    expect(r.ok).toBe(false);
+    expect(r.issues.some((i) => i === "subject_missing" || i === "polarity_mismatch")).toBe(true);
+  });
+
+  it("KONTROL: kurutma makinesi sorusunda 'yoktur' doğru cevaptır; olumlu cevap tutulur", () => {
+    expect(run("Dairede kurutma makinesi yoktur.", "Kurutma makinesi yoktur.", DRYER).issues).not.toContain("polarity_mismatch");
+    expect(run("Evet, kurutma makinesi banyodadır.", "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır.", DRYER).ok).toBe(false);
+  });
+
+  it("KONTROL: ters olumluluk yine tutulur (tek sözcüklü ihtiyaç ve kendi tesisinin 'yoktur'u)", () => {
+    expect(check("Evet, evcil hayvan kabul edilir.", "Evcil hayvan kabul edilmez.", PETS).issues).toContain("polarity_mismatch");
+    const only = "Çamaşır: Kurutma makinesi yoktur.";
+    expect(run("Evet, kurutma makinesi var.", "Kurutma makinesi yoktur.", DRYER, only).issues).toContain("polarity_mismatch");
+    // Çamaşır makinesinin KENDİ "yoktur"u doğru cevaptır; olumlusu tutulur.
+    const none = "Çamaşır: Çamaşır makinesi yoktur.";
+    expect(run("Dairede çamaşır makinesi yoktur.", "Çamaşır makinesi yoktur.", WASHER, none).issues).not.toContain("polarity_mismatch");
+    expect(run("Evet, çamaşır makinesi var.", "Çamaşır makinesi yoktur.", WASHER, none).issues).toContain("polarity_mismatch");
+  });
+
+  it("🚨 aynı kusurun öteki adları: 'misafir', 'yağmur', 'wheelchair', 'armchair' fiil sayılmaz — genel baş ad konu olmaz", () => {
+    // "misafir odası" ihtiyacında "odası" (genel baş ad) konu olursa "Oyun odası yoktur." misafir odasının cevabı sayılırdı.
+    const rooms = "Odalar: Misafir odası ikinci kattadır. Oyun odası yoktur.";
+    const guestRoom = need(["misafir odası var mı"]);
+    expect(checkAnswerBinding({ part: "Misafir odası yoktur.", evidence: "Oyun odası yoktur.", sourceText: rooms, ...guestRoom }).ok).toBe(false);
+    expect(checkAnswerBinding({ part: "Evet, misafir odası ikinci kattadır.", evidence: "Misafir odası ikinci kattadır.", sourceText: rooms, ...guestRoom }).issues).not.toContain("polarity_mismatch");
+    const areas = "Outdoor: The wheelchair area is next to the entrance. The barbecue area is closed.";
+    const wheelchair = need(["is there a wheelchair area"]);
+    expect(checkAnswerBinding({ part: "The wheelchair area is closed.", evidence: "The barbecue area is closed.", sourceText: areas, ...wheelchair }).ok).toBe(false);
+    expect(checkAnswerBinding({ part: "Yes, the wheelchair area is next to the entrance.", evidence: "The wheelchair area is next to the entrance.", sourceText: areas, ...wheelchair }).issues).not.toContain("polarity_mismatch");
+  });
+
+  it("KONTROL: gerçek geniş zaman fiilleri konu OLMAZ — 'havuz kaçta kapanır' ihtiyacında saunanın 'kapanır'ı havuza bağ kurmaz", () => {
+    const n = need(["havuz kaçta kapanır"]);
+    const kb = "Havuz her gün 20:00'de kapanır. Sauna 22:00'de kapanır.";
+    expect(checkAnswerBinding({ part: "Havuz 22:00'de kapanır.", evidence: "Sauna 22:00'de kapanır.", sourceText: kb, ...n }).ok).toBe(false);
+    expect(checkAnswerBinding({ part: "Havuz 20:00'de kapanır.", evidence: "Havuz her gün 20:00'de kapanır.", sourceText: kb, ...n }).ok).toBe(true);
+    // "çalışır", "ödenir", "getirir", "gösterir", "değişir", "başlatır" — yalnız fiilden oluşan ihtiyaçta bile başka tesisin cümlesi dayanak olmaz.
+    for (const [q, part, evidence, source] of [
+      ["klima nasıl çalışır", "Klima kumandayla çalışır.", "Kombi düğmeyle çalışır.", "Klima kumandayla çalışır. Kombi düğmeyle çalışır."],
+      ["otopark ücreti nasıl ödenir", "Otopark ücreti nakit ödenir.", "Depozito kartla ödenir.", "Otopark ücreti girişte ödenir. Depozito kartla ödenir."],
+    ] as const) {
+      const r = checkAnswerBinding({ part, evidence, sourceText: source, ...need([q]) });
+      expect([q, r.ok]).toEqual([q, false]);
+    }
+  });
+
+  it("İngilizce: 'coffee machine' cümlesi 'washing machine' sorusunun konusu değil", () => {
+    const kb = "Appliances: The washing machine is in the bathroom. The coffee machine is out of order.";
+    const n = need(["is there a washing machine"]);
+    expect(checkAnswerBinding({ part: "Yes, the washing machine is in the bathroom.", evidence: "The washing machine is in the bathroom.", sourceText: kb, ...n }).issues).not.toContain("polarity_mismatch");
+    expect(checkAnswerBinding({ part: "The washing machine is out of order.", evidence: "The coffee machine is out of order.", sourceText: kb, ...n }).ok).toBe(false);
+  });
+});
+
+describe("11-12 ölçümü: çok konulu kalemde olumluluk KİMLİK başına (iki tesis, iki yön)", () => {
+  // Gerçek ölçüm satırı (b-kurutma): ihtiyaç iki tesisi anıyor ("kurutma makinesi çamaşır kurutma imkanı"), kalem birini olumlu ötekini olumsuz
+  // söylüyor; modelin iki yönlü DOĞRU cevabı `polarity_mismatch` ile tutuluyordu.
+  const LAUNDRY = "Çamaşır: Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur.";
+  const WHOLE = "Çamaşır makinesi banyodadır; deterjan lavabonun altındaki dolaptadır. Kurutma makinesi yoktur.";
+  const BOTH = need(["kurutma makinesi çamaşır kurutma imkanı", "Kurutma makinesi var mı?"]);
+  const run = (part: string, evidence = WHOLE, sourceText = LAUNDRY, n = BOTH) => checkAnswerBinding({ part, evidence, sourceText, ...n });
+
+  it("🚨 iki yönlü doğru cevap GEÇER (eskiden polarity_mismatch)", () => {
+    expect(run("Dairede çamaşır makinesi var, ancak kurutma makinesi yoktur.").issues).not.toContain("polarity_mismatch");
+    // İngilizce cevap, Türkçe kalem (b-en-dryer-wifi).
+    const en = need(["çamaşır kurutma makinesi var mı", "tumble dryer"]);
+    expect(run("There is no tumble dryer in the apartment; there is only a washing machine in the bathroom.", WHOLE, LAUNDRY, en).issues).not.toContain("polarity_mismatch");
+  });
+
+  it("🚨 GÜVENLİK: yer değiştirmiş cevap tutulur — her tesis KENDİ olumluluğuyla", () => {
+    expect(run("Dairede kurutma makinesi var, ancak çamaşır makinesi yoktur.").issues).toContain("polarity_mismatch");
+    expect(run("Dairede çamaşır makinesi de kurutma makinesi de var.").issues).toContain("polarity_mismatch");
+    expect(run("Dairede çamaşır makinesi de kurutma makinesi de yoktur.").issues).toContain("polarity_mismatch");
+  });
+
+  it("🚨 GÜVENLİK: TEK cümlelik karışık kalemde yer değiştirmiş cevap tutulur (eskiden iki yönü taşıdığı için geçiyordu)", () => {
+    const kb = "Çamaşır: Çamaşır makinesi var, kurutma makinesi yok.";
+    const ev = "Çamaşır makinesi var, kurutma makinesi yok.";
+    expect(run("Çamaşır makinesi yok, kurutma makinesi var.", ev, kb).issues).toContain("polarity_mismatch");
+    // KONTROL: doğru sırayla geçer.
+    expect(run("Çamaşır makinesi var, kurutma makinesi yok.", ev, kb).issues).not.toContain("polarity_mismatch");
+  });
+
+  it("tek tesisi cevaplayan parça öteki tesisin cümlesinden etkilenmez; ters olumluluk yine tutulur", () => {
+    expect(run("Dairede kurutma makinesi yoktur.").issues).not.toContain("polarity_mismatch");
+    expect(run("Evet, dairede kurutma makinesi var.").issues).toContain("polarity_mismatch");
+    expect(run("Çamaşır makinesi banyodadır.").issues).not.toContain("polarity_mismatch");
+    expect(run("Çamaşır makinesi yoktur.").issues).toContain("polarity_mismatch");
+  });
+
+  it("KONTROL (R13 sürüyor): tesis anmayan izin yan cümlesi kalemin bütününe göre sınanır", () => {
+    const kb = "Havuz açıktır. Sauna kapalıdır.";
+    const n = need(["havuz ve sauna açık mı"]);
+    expect(checkAnswerBinding({ part: "Havuz açıktır, sauna kapalıdır.", evidence: kb, sourceText: kb, ...n }).issues).not.toContain("polarity_mismatch");
+    expect(checkAnswerBinding({ part: "Havuz kapalıdır, sauna açıktır.", evidence: kb, sourceText: kb, ...n }).issues).toContain("polarity_mismatch");
+    // Tek konulu kalemde eski kural aynen: "…, but it is allowed on the balcony".
+    const smoke = "Dairede sigara içmek yasaktır.";
+    const s = need(["sigara içebilir miyiz", "can we smoke"]);
+    expect(checkAnswerBinding({ part: "Smoking is not allowed inside, but it is allowed on the balcony.", evidence: smoke, sourceText: smoke, ...s }).ok).toBe(false);
+  });
+});

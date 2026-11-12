@@ -644,10 +644,19 @@ function isGenericOrVerb(t: string): boolean {
   if (GENERIC_HEADS.includes(t) || EN_DE_VERBS.has(t)) return true;
   // Gün / mevsim / koşul sözcüğü ("havuz CUMARTESİ kaçta") ve soru eki ("miyim") konu değildir.
   if (lookup(t, CONDITION_TOKENS) !== undefined || /^m[iu](yim|yiz|sin|siniz|dir|dur)?$/.test(t)) return true;
-  // Türkçe fiil çekimi (çoğul ad "-lar / -ler" hariç): -ılır / -ınır / -abilir / -ıyor / -makta / -mak / -maz / 6+ harfli -ır.
+  // Türkçe fiil çekimi (çoğul ad "-lar / -ler" hariç): -ılır / -ınır / -abilir / -ıyor / -makta / -mak / -maz / 6+ harfli geniş zaman.
   if (/l[ae]r$/.test(t)) return false;
-  return /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(t) || (t.length >= 6 && /[iu]r$/.test(t));
+  return /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(t) || (t.length >= 6 && AORIST_TAIL.test(t));
 }
+/**
+ * 6+ harfli geniş zaman kuyruğu: edilgen / dönüşlü "-anır / -enir" (kapanır, ödenir), işteş "-ışır / -işir" (çalışır, değişir), ettirgen
+ * "-ırır / -tırır / -atır / -ıtır" (getirir, yaptırır, başlatır, ısıtır) ve "-erir" (gösterir, içerir).
+ * 🚨 Eski kural "6+ harf ve -ır / -ir / -ur ile biten HER sözcük" idi (11-12 ölçümü): "çamaşır" fiil sayılıyor, "çamaşır makinesi var mı"
+ * ihtiyacında özgül sözcük kalmadığı için genel baş ad "makinesi" KONU oluyordu → "Kurutma makinesi yoktur." çamaşır makinesinin konu cümlesi
+ * sayılıyor: doğru olumlu cevap `polarity_mismatch` ile tutuluyor VE kurutma makinesinin "yoktur"u çamaşır makinesine taşınabiliyordu
+ * ("Çamaşır makinesi yoktur." geçiyordu). Aynı kusur "misafir", "yağmur", "wheelchair", "armchair" gibi adlarda da vardı.
+ */
+const AORIST_TAIL = /(?:[ae]n|[iu]s|[iu]r|[ae]r|[iu]t|[ae]t)[iu]r$/;
 
 /** Konu kimliği: terimin sözlük konusu (diller arası "pool" ~ "havuz") ya da terimin kendisi. */
 function subjectIdentity(term: string): string {
@@ -2002,6 +2011,14 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
         );
       }
       if (hits.length === 0) {
+        // Etiketli, rakamsız değer (11-12 ölçümü): kalemde `Ağ adı: Lale_Home` tırnaksız → ayıklayıcı kod saymaz; parçada `ağ adı "Lale_Home"`
+        // tırnaklı → kod. Değer kalemde AYNI etiket ailesinin ardında birebir yazıyorsa dayanaklıdır. Yalnız alıntının kendi kaleminde, kalem
+        // ihtiyacın konusunu taşıyorsa ve tek konuluysa (iki konulu kalemde hangi konunun değeri olduğu ancak yer okumasıyla bilinir → eski
+        // sıkı denetim).
+        if (subjectKnown && !multiAt(ev) && ev.hasSubjectAnywhere() && labelledLiteralInRecord(pdoc.text, c, ev.text)) {
+          anchored = true;
+          continue;
+        }
         issues.add("value_not_in_evidence");
         continue;
       }
@@ -2160,7 +2177,35 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
         }
         return pols.size === 2;
       });
-      if (mixedKb) {
+      // 🚨 ÇOK KONULU kalemde olumluluk KİMLİK başına okunur (11-12 ölçümü): "Çamaşır makinesi banyodadır. Kurutma makinesi yoktur." kalemine
+      // "Dairede çamaşır makinesi var, ancak kurutma makinesi yoktur." DOĞRU cevaptır; eski okuma kalemin bütününü tek olumlulukta ("yoktur" →
+      // olumsuz) sayıp çamaşır makinesi yan cümlesini ters buluyordu — iki tesisli kalemde doğru iki yönlü cevap HİÇ geçemiyordu. Aynı okuma
+      // tersini de kapatır: tek cümlelik karışık kalemde ("Çamaşır makinesi var, kurutma makinesi yok.") iki yönü de taşıyan ama YER DEĞİŞTİRMİŞ
+      // cevap ("Çamaşır makinesi yok, kurutma makinesi var.") eskiden geçiyordu. Kimliğin kalemdeki olumluluğu tek değilse (aynı tesis hem
+      // olumlu hem olumsuz anılıyor) kimlik okuması hüküm vermez — eski bütün-kalem kıyası sürer.
+      const identityPolarity = new Map<string, Set<boolean>>();
+      if (multiSubject) {
+        for (const place of places) {
+          const neg = negative(tokenize(place));
+          for (const id of subjectIdentitiesIn(place, subj, identities)) {
+            let seen = identityPolarity.get(id);
+            if (!seen) identityPolarity.set(id, (seen = new Set()));
+            seen.add(neg);
+          }
+        }
+      }
+      /** Yan cümlenin andığı kimliklerin HEPSİ kalemde tek olumluluktaysa o olumluluklar; değilse null (kimlik okuması hüküm vermez). */
+      const ownPolarity = (cl: string): Set<boolean>[] | null => {
+        if (!multiSubject) return null;
+        const own = [...subjectIdentitiesIn(cl, subj, identities)].map((id) => identityPolarity.get(id));
+        return own.length > 0 && own.every((s) => s !== undefined && s.size === 1) ? (own as Set<boolean>[]) : null;
+      };
+      const swapped = partClauses(input.part).some((cl) => {
+        const own = ownPolarity(cl);
+        return own !== null && own.some((s) => !s.has(negative(tokenize(cl))));
+      });
+      if (swapped) issues.add("polarity_mismatch");
+      else if (mixedKb) {
         const partPols = new Set(
           partClauses(input.part)
             .map((cl) => tokenize(cl))
@@ -2171,8 +2216,9 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
       } else if (r.negative !== partNegative) issues.add("polarity_mismatch");
       // Olumluluk YAN CÜMLE başına da (Opus dilim sonu 10-23 R13): "Smoking is not allowed inside, BUT IT IS ALLOWED on the balcony" bütünüyle
       // olumsuz okunup "Dairede sigara içmek yasaktır" kalemine uyuyordu. Konuyu anan ya da izin / yasak yüklemi taşıyan her yan cümle kalemin
-      // olumluluğunda olmalı.
-      else if (!mixedKb && partClauses(input.part).some((cl) => {
+      // olumluluğunda olmalı. Kimlik okumasının hüküm verdiği yan cümle (yukarıda kendi tesisinin olumluluğuyla sınandı) burada yeniden sınanmaz.
+      else if (partClauses(input.part).some((cl) => {
+        if (ownPolarity(cl) !== null) return false;
         const t = tokenize(cl);
         return (hasSubject(cl, subj) || t.some(grantWord) || t.some((_, i) => negAt(t, i))) && negative(t) !== r.negative;
       })) issues.add("polarity_mismatch");
@@ -2303,6 +2349,33 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
  * "cumartesi" hafta sonunu anar) ya da genel değeri o koşulun gününe veriyorsa (`valueDays`) değişke ihmal edilmiştir.
  */
 type Doc = ReturnType<typeof documentOf>;
+
+/**
+ * Etiket aileleri (`claim-support` etiketli kod kuralının etiketleri, iki aile): ağ ADI ve GİZLİ değer (şifre / kod). Aile değişirse değer
+ * taşınmış demektir — ağ adı "şifre" diye verilemez.
+ */
+const LABEL_FAMILIES: readonly string[] = [
+  "(?:ssid|ag adi|agin adi|ag ismi|network(?: name)?|wi-?fi(?: agi[a-z]*| adi)?|wlan)",
+  "(?:sifre[a-z]*|parola[a-z]*|password|passcode|pin|kod[a-z]*|code|zil|kapi no|door code|keybox)",
+];
+const LABEL_FAMILY_START = LABEL_FAMILIES.map((f) => new RegExp(`^${f}(?![a-z])`));
+
+/**
+ * Parçanın etiketli kod değeri (`c` — aralığı etiket + değer) kalemde AYNI ailenin etiketi + ayraç (":" / "=") ardında birebir yazıyor mu.
+ * İki metin de `claimSpans`ın katlanmış metnidir. Kalem tarafında ayraç ŞART ("Ağ adı: Lale_Home"); düz cümlede geçen sözcük ad sayılmaz.
+ * Sınırlı niceleyiciler (doğrusal).
+ */
+function labelledLiteralInRecord(partText: string, c: Span, recordText: string): boolean {
+  if (c.cls !== "code") return false;
+  const family = LABEL_FAMILY_START.findIndex((re) => re.test(partText.slice(c.at, c.end)));
+  if (family < 0) return false;
+  const key = c.keys.find((k) => k.startsWith("c"));
+  if (!key) return false;
+  const token = foldForClaims(key.slice(1));
+  if (token.length < 3) return false;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![a-z0-9])${LABEL_FAMILIES[family]}(?![a-z])[^\\S\\n]{0,3}[:=][^\\S\\n]{0,3}["']?${escaped}(?![a-z0-9_-])`).test(recordText);
+}
 
 function variantOmitted(src: Doc, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {
   const omitted = (cls: string) =>
