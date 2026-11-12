@@ -364,8 +364,12 @@ kurucu onayıyla §1'e taşındı.)
 - `AI_TURN_MESSAGES_ENABLED` (11-12 ölçümü; `src/lib/ai/turn-messages.ts`) — 🚨 **ölçüm sonucu görülmeden AÇILMAZ; açma kararı kurucuda
   (misafire gideni değiştirir).** Misafir son cevabımızdan sonra birden çok mesaj yazdıysa bugün cevap çoğunlukla yalnız SON mesajı
   karşılıyor (ölçüldü: "Otopark var mı?" + "Bir de çıkış saati kaç?" → üç koşunun üçünde yalnız çıkış saati; otopark sorusu istek defterinde
-  açık kalıyor). Açıkken cevap isteminin "misafir mesajı" bloğu cevapsız mesajların hepsini taşır ve soru sayısı hepsinden sayılır. Yalnız
-  istem metni: hangi isteğin cevaplanacağı (istek listesi, tutulan konular), kapılar ve gönderim kimliği değişmez. Tek mesajda etkisiz.
+  açık kalıyor). Açıkken cevap isteminin "misafir mesajı" bloğu cevapsız mesajların hepsini taşır ve soru sayısı hepsinden sayılır.
+  🚨 **ÖN ŞART: `AI_ANSWER_PARTS_ENABLED=1` + `AI_ITEM_ORDINAL_ENABLED=1` (+ `AI_CONVERSATION_ITEMS_ENABLED=1`) — parça kipi kapalıyken anahtar
+  ETKİSİZDİR (kod kemeri).** Ölçülen yan etki: parça kipi olmadan açıldığında önceki mesajdaki bilgi tabanında OLMAYAN soru da cevaplanıyor ve
+  model uyduruyor (15 senaryoda 2 yanlış gönderim; kapalıyken 0). Parça kipiyle birlikte aynı sette 0 yanlış, 21/23 doğru cevap (kapalı 16/23).
+  Yalnız istem metni: hangi isteğin cevaplanacağı (istek listesi, tutulan konular), kapılar ve gönderim kimliği değişmez. Tek mesajda, mesajlar
+  farklı takvim günlerindeyse ya da çok sayıda / çok uzunsa eski biçim.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

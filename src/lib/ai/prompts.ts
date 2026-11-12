@@ -1957,7 +1957,20 @@ Zaman bağlamı: ${timelineLine(timeline, {
 
   // ÇOK MESAJLI TUR (`turn-messages.ts`, anahtar KAPALI): misafir son cevabımızdan sonra birden çok mesaj yazdıysa uzunluk ipucu ve
   // "misafir mesajı" bloğu cevapsız mesajların HEPSİNİ görür. Kapalıyken / tek mesajda `turnEarlier` boş → aşağıdaki her şey bayt bayt eski.
-  const turnEarlier = turnEarlierMessages(unansweredGuestTexts(history ?? [], guestMessage));
+  // Önceki cevapsız mesajlar GEÇMİŞ BLOĞUNDA görünen pencereden (not "geçmişin sonundaki satırlarla aynıdır" der); geçmiş güncel mesajla
+  // bitiyorsa (kanal yolu) o satır sayılmaz — tarih okumasıyla AYNI "aynı mesaj" kuralı (metin aynı ve an biliniyorsa an da aynı).
+  const turnPending = selectedHistory.slice(lastOperativeIdx + 1).filter((m) => m.direction === "inbound");
+  const turnTail = turnPending.at(-1);
+  const turnTailIsCurrent =
+    turnTail !== undefined &&
+    turnTail.body === guestMessage &&
+    (!turnTail.at || !input.guestMessageAt || turnTail.at.getTime() === input.guestMessageAt.getTime());
+  const turnEarlier = turnEarlierMessages({
+    earlier: (turnTailIsCurrent ? turnPending.slice(0, -1) : turnPending).map((m) => ({ text: m.body, at: m.at ?? null })),
+    latestAt: input.guestMessageAt ?? null,
+    parts: input.conversationItems?.parts === true,
+    timeZone: timeline.timeZone,
+  });
   const turnText = turnEarlier.length > 0 ? [...turnEarlier, guestMessage].join("\n") : guestMessage;
   // Mirror the guest's message length numerically (Section 10.5, made concrete).
   const wordCount = turnText.trim().split(/\s+/).filter(Boolean).length;
