@@ -7,7 +7,7 @@ import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
 import { stripDividerRuns } from "../divider-spoof";
 import { deconfuse } from "../fallback";
-import { isGreetingOnly } from "../code-greeting";
+import { isKnownGreetingOnly } from "../code-greeting";
 import { referralJudgeFlag, runReferralJudge, type ReferralVerdict } from "./referral-judge";
 
 // ---------------------------------------------------------------------------
@@ -346,8 +346,10 @@ export function groundReading<R extends Reading>(reading: R | null, draftSeen: s
  */
 export function quoteCarriesContent(quote: string): boolean {
   const withoutMasks = quote.replace(/\[[^\]\n]{1,24}\]/g, " ").replace(/\s+/g, " ").trim();
-  if (!/\p{L}{2,}/u.test(withoutMasks)) return false;
-  return !isGreetingOnly(quote.trim()) && !isGreetingOnly(withoutMasks);
+  // En az iki harf (birleşen işaretli yazılarda harfler bitişik olmayabilir — sayılır).
+  if ((withoutMasks.match(/\p{L}/gu) ?? []).length < 2) return false;
+  // Yalnız TANINAN selam (kapalı hitap listesi) kanıt dışıdır: "Merhaba bilmiyorum." / "Hi sorry!" gerçek bir cümledir (Haiku 11-12).
+  return !isKnownGreetingOnly(quote.trim()) && !isKnownGreetingOnly(withoutMasks);
 }
 
 /**

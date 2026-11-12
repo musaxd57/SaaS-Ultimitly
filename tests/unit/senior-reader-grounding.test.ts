@@ -116,7 +116,9 @@ describe("alıntı kanıtı", () => {
     for (const quote of ["Merhaba [Misafir],", "[Misafir],", "Hello [Guest],", "Merhaba,", "Hallo [Misafir]!", "  [Misafir]  "]) {
       expect([quote, quoteCarriesContent(quote)]).toEqual([quote, false]);
     }
-    for (const quote of ["Bilmiyorum.", "Bu konuda bilgim yok.", "Merhaba [Misafir], bu konuda bilgim yok.", "mavi konteyneri kullanın", "Нет информации о парковке."]) {
+    // Selam sözcüğünden sonra kapalı hitap listesinde OLMAYAN sözcük gelen cümle içeriktir (Haiku 11-12: "Merhaba bilmiyorum." selam sayılıyordu);
+    // birleşen işaretli yazıda harfler bitişik olmasa da içerik sayılır.
+    for (const quote of ["Bilmiyorum.", "Bu konuda bilgim yok.", "Merhaba [Misafir], bu konuda bilgim yok.", "mavi konteyneri kullanın", "Нет информации о парковке.", "Merhaba bilmiyorum.", "Hi sorry!", "Merhaba özür dilerim.", "माफ़ कीजिए"]) {
       expect([quote, quoteCarriesContent(quote)]).toEqual([quote, true]);
     }
     // Ölçülen vaka: taslak yalnız Wi-Fi cevabı; misafir mesajlı okuma "itiraf" deyip selamı alıntıladı → oy düşer, karar kelime kuralına kalır.

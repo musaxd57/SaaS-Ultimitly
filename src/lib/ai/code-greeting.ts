@@ -156,6 +156,14 @@ export function stripLeadingGreeting(reply: string, language?: string | null): s
 }
 
 /**
+ * Metin TANINAN selamdan ibaret mi ("Merhaba", "Merhaba [Misafir],", "Hi there 👋") — hitap KAPALI listeden. `isGreetingOnly`den dar:
+ * selam sözcüğünden sonra listede olmayan sözcük gelen metin ("Merhaba bilmiyorum.", "Hi sorry!") selam değil içeriktir.
+ */
+export function isKnownGreetingOnly(text: string): boolean {
+  return leadingGreeting(text).kind === "only";
+}
+
+/**
  * Metin yalnız selamdan ibaret mi ("Merhaba", "Merhaba Ayşe,") — selamdan ibaret parça bir isteğin cevabı olamaz (Haiku 10-23 sabah). Adla
  * selam (listede olmayan hitap) `other` sayılır; arkasında içerik yoksa o da yalnız selamdır.
  */

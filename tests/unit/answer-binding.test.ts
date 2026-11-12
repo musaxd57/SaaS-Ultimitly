@@ -1442,6 +1442,19 @@ describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, par�
     expect(wifi('Wi-Fi şifresi "lalekapi".', door).issues).toContain("value_not_in_evidence");
   });
 
+  it("🚨 kalemde aynı aileden İKİ etiketli değer varsa kısa yol yok — başka şeyin gizli değeri taşınamaz (Haiku 11-12)", () => {
+    // Tek konulu ihtiyaç (Wi-Fi), kalem konuyu anıyor, aile aynı (şifre) — eskiden kapının şifresi 'Wi-Fi şifresi' diye geçiyordu.
+    const withDoor = "Wi-Fi: Wi-Fi şifresi: lalemisafir. Kapı şifresi: lalekapi.";
+    expect(wifi('Wi-Fi şifresi "lalekapi".', withDoor).issues).toContain("value_not_in_evidence");
+    // İki Wi-Fi değeri (asıl ağ + misafir ağı): hangisinin sorulduğu yer okumasıyla bilinir → kısa yol yok.
+    const two = "Wi-Fi: Wi-Fi şifresi: lalemisafir. Misafir ağı şifresi: laleguest.";
+    expect(wifi('Wi-Fi şifresi "laleguest".', two).issues).toContain("value_not_in_evidence");
+    // KONTROL: tek değerli kalemde kısa yol çalışır; başlık etiketi ("Wi-Fi:") değer sayılmaz, iki AYRI aile (ağ adı + şifre) birbirini bozmaz.
+    expect(wifi('Wi-Fi şifresi "lalemisafir".', "Wi-Fi: Wi-Fi şifresi: lalemisafir.").issues).not.toContain("value_not_in_evidence");
+    expect(wifi('Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024.").issues).not.toContain("value_not_in_evidence");
+    expect(wifi('The Wi-Fi network is "LaleNet".', "Wi-Fi: Network: LaleNet. Password: 12345678.").issues).not.toContain("value_not_in_evidence");
+  });
+
   it("🚨 etiketle başlamayan kod değeri kısa yola GİRMEZ (kalemde olmayan harf + rakam belirteci tutulur)", () => {
     const kb = "Kapı: Kapı kodu 4821'dir; kutu girişin solundadır.";
     const n = need(["kapı kodu ne"]);
@@ -1523,6 +1536,9 @@ describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi'
       ["havuzu ne ısıtır", "Havuzu güneş paneli ısıtır.", "Saunayı güneş paneli ısıtır.", "Havuz ısıtmasızdır. Saunayı güneş paneli ısıtır."],
       ["otoparkı kim gösterir", "Otoparkı görevli gösterir.", "Daireyi görevli gösterir.", "Otopark bina arkasındadır. Daireyi görevli gösterir."],
       ["klimayı ne başlatır", "Klimayı kumanda başlatır.", "Kombiyi düğme başlatır.", "Klima duvardadır. Kombiyi düğme başlatır."],
+      // "-aşır" (işteş) ve "-olur": "çamaşır" ile aynı kuyruk — fiildir, ad DEĞİL (Haiku 11-12).
+      ["servis nereye ulaşır", "Servis otele ulaşır.", "Otobüs otele ulaşır.", "Servis yalnız havalimanına gider. Otobüs otele ulaşır."],
+      ["anahtar nerede kaybolur", "Anahtar kutuda kaybolur.", "Kumanda kutuda kaybolur.", "Anahtar girişte durur. Kumanda kutuda kaybolur."],
     ] as const) {
       const r = checkAnswerBinding({ part, evidence, sourceText: source, ...need([q]) });
       expect([q, r.issues.includes("subject_missing")]).toEqual([q, true]);

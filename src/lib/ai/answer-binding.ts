@@ -646,17 +646,27 @@ function isGenericOrVerb(t: string): boolean {
   if (lookup(t, CONDITION_TOKENS) !== undefined || /^m[iu](yim|yiz|sin|siniz|dir|dur)?$/.test(t)) return true;
   // Türkçe fiil çekimi (çoğul ad "-lar / -ler" hariç): -ılır / -ınır / -abilir / -ıyor / -makta / -mak / -maz / 6+ harfli geniş zaman.
   if (/l[ae]r$/.test(t)) return false;
-  return /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(t) || (t.length >= 6 && AORIST_TAIL.test(t));
+  return (
+    /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(t) ||
+    (t.length >= 6 && AORIST_TAIL.test(t) && !AORIST_LOOKALIKE_NOUNS.has(t))
+  );
 }
 /**
  * 6+ harfli geniş zaman kuyruğu: edilgen / dönüşlü "-anır / -enir" (kapanır, ödenir), işteş "-ışır / -işir" (çalışır, değişir), ettirgen
- * "-ırır / -tırır / -atır / -ıtır" (getirir, yaptırır, başlatır, ısıtır) ve "-erir" (gösterir, içerir).
+ * "-ırır / -tırır / -atır / -ıtır" (getirir, yaptırır, başlatır, ısıtır), "-erir" (gösterir, içerir), "-aşır / -eşir" (ulaşır, yerleşir) ve
+ * "-olur" (kaybolur).
  * 🚨 Eski kural "6+ harf ve -ır / -ir / -ur ile biten HER sözcük" idi (11-12 ölçümü): "çamaşır" fiil sayılıyor, "çamaşır makinesi var mı"
  * ihtiyacında özgül sözcük kalmadığı için genel baş ad "makinesi" KONU oluyordu → "Kurutma makinesi yoktur." çamaşır makinesinin konu cümlesi
  * sayılıyor: doğru olumlu cevap `polarity_mismatch` ile tutuluyor VE kurutma makinesinin "yoktur"u çamaşır makinesine taşınabiliyordu
  * ("Çamaşır makinesi yoktur." geçiyordu). Aynı kusur "misafir", "yağmur", "wheelchair", "armchair" gibi adlarda da vardı.
  */
-const AORIST_TAIL = /(?:[ae]n|[iu]s|[iu]r|[ae]r|[iu]t|[ae]t)[iu]r$/;
+const AORIST_TAIL = /(?:[ae]n|[aeiu]s|[iu]r|[ae]r|[iu]t|[ae]t|ol)[iu]r$/;
+/**
+ * İşteş geniş zaman kuyruğunu ("-aşır": ulaşır, yaklaşır, dolaşır, karşılaşır) taşıyan ADLAR. Kuyruk kuralı kapalı bir biçimbilim listesidir;
+ * bu küme onun tek istisnasıdır (Haiku 11-12: "-aşır" kuyruğu olmadan "ulaşır" gibi fiiller konu sözcüğü oluyordu; kuyrukla "çamaşır" yine
+ * fiil sayılırdı). "-olur" (kaybolur) da kuyrukta.
+ */
+const AORIST_LOOKALIKE_NOUNS: ReadonlySet<string> = new Set(["camasir"]);
 
 /** Konu kimliği: terimin sözlük konusu (diller arası "pool" ~ "havuz") ya da terimin kendisi. */
 function subjectIdentity(term: string): string {
@@ -2373,8 +2383,31 @@ function labelledLiteralInRecord(partText: string, c: Span, recordText: string):
   if (!key) return false;
   const token = foldForClaims(key.slice(1));
   if (token.length < 3) return false;
-  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![a-z0-9])${LABEL_FAMILIES[family]}(?![a-z])[^\\S\\n]{0,3}[:=][^\\S\\n]{0,3}["']?${escaped}(?![a-z0-9_-])`).test(recordText);
+  // 🚨 Kalemde o aileden TEK etiketli değer olmalı (Haiku 11-12): "Kapı kodu: 4471. Wi-Fi şifresi: abc." kaleminde kapı sorusuna
+  // 'Kapı kodu "abc"' — Wi-Fi şifresi kapı kodu diye — geçiyordu (ihtiyaç tek konulu, kalem konuyu anıyor, aile aynı). İki gizli değer taşıyan
+  // kalemde hangisinin sorulan şeye ait olduğu ancak yer okumasıyla bilinir → kısa yol yok, eski sıkı denetim.
+  const values = labelledValues(recordText, family);
+  return values.length === 1 && values[0] === token;
+}
+
+const ANY_LABEL_AT = new RegExp(`^(?:${LABEL_FAMILIES.join("|")})(?![a-z])[^\\S\\n]{0,3}[:=]`);
+
+/**
+ * Kalemde verilen ailenin etiketi + ayraç (":" / "=") ardında yazan değerler (katlanmış metin; sırayla). Etiketin ardındaki şey BAŞKA bir
+ * etiketse ("Wi-Fi: Ağ adı: …" başlığı) değer değildir, tarama o etiketten sürer. Sınırlı niceleyiciler; her adımda ilerleme (doğrusal).
+ */
+function labelledValues(recordText: string, family: number): string[] {
+  const re = new RegExp(`(?<![a-z0-9])${LABEL_FAMILIES[family]}(?![a-z])[^\\S\\n]{0,3}[:=][^\\S\\n]{0,3}["']?([^\\s"',;()]{1,40})`, "g");
+  const out: string[] = [];
+  for (let m = re.exec(recordText); m; m = re.exec(recordText)) {
+    const valueAt = m.index + m[0].length - m[1].length;
+    if (ANY_LABEL_AT.test(recordText.slice(valueAt, valueAt + 64))) {
+      re.lastIndex = valueAt;
+      continue;
+    }
+    out.push(m[1].replace(/[.!?:=]+$/, ""));
+  }
+  return out;
 }
 
 function variantOmitted(src: Doc, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {
