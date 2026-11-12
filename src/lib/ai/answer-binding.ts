@@ -2366,7 +2366,7 @@ const LABEL_FAMILY_START = LABEL_FAMILIES.map((f) => new RegExp(`^${f}(?![a-z])`
  * Sınırlı niceleyiciler (doğrusal).
  */
 function labelledLiteralInRecord(partText: string, c: Span, recordText: string): boolean {
-  if (c.cls !== "code") return false;
+  // Etiketle başlamayan değer (saat, tutar, etiketsiz harf + rakam belirteci) kısa yola girmez: yalnız etiketli kod aralığı etiketle başlar.
   const family = LABEL_FAMILY_START.findIndex((re) => re.test(partText.slice(c.at, c.end)));
   if (family < 0) return false;
   const key = c.keys.find((k) => k.startsWith("c"));

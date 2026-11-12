@@ -104,7 +104,7 @@ describe("cümlecik sınırı: iki noktalı saatten sonraki nokta cümle sonudur
   it("🚨 KONTROL: AYNI cümlede saat + takvim iddiası bölünmez", () => {
     expect(detectAvailabilityClaim("The apartment is available every day from 09:00 to 20:00 for viewing next week.")).not.toBeNull();
   });
-  it("sıra sayısı ve noktalı tarih BÖLÜNMEZ (iddia tarihle aynı cümlecikte aranır)", () => {
+  it("KONTROL: sıra sayısı ve noktalı tarih taşıyan iddia yine yakalanır", () => {
     expect(detectAvailabilityClaim("Ayın 15. günü dairemiz müsait.")).toBe("calendar");
     expect(detectAvailabilityClaim("3. gece için daire boş.")).toBe("calendar");
     expect(detectAvailabilityClaim("Le 15.07 l'appartement est libre.")).toBe("calendar");

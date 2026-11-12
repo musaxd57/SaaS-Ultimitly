@@ -570,9 +570,11 @@ const HOST_DECISION = rx([
  * 🚨 İKİ NOKTALI SAATTEN sonraki nokta da cümle sonudur (11-12 ölçümü): "The pool is open every day from 09:00 to 20:00. Parking is also
  * available free of charge behind the building." tek cümlecik sayılıyor, "every day … available" takvim iddiası sanılıp doğru iki soruluk
  * cevap tutuluyordu (`availability_claim`; iki cümle ayrı ayrı iddia değil). Eski kalıp rakamdan SONRA gelen noktayı hiç sınır saymıyordu
- * (`retrieval/time-fields.ts`teki aynı kusur 09-27'de düzeltilmişti). Yalnız "SS:DD." — sıra sayısı ("15. günü", "3. gece") ve noktalı
- * tarih ("15.07.") BÖLÜNMEZ: orada iddia tarihle aynı cümlecikte aranır, bölmek iddiayı kaçırırdı. Yalnız bu tespit fonksiyonu; saat
- * okuması (`RAW_CLAUSE_SPLIT`) ve standart çıkış ayıklaması (`CLAUSE_SPLIT`) eski sınırla kalır (orada daha çok bölmek izin yönlüdür).
+ * (`retrieval/time-fields.ts`teki aynı kusur 09-27'de düzeltilmişti). Yalnız "SS:DD." — ölçülen kusurun EN DAR düzeltmesi. Sıra sayısından
+ * ("15. günü", "3. gece") sonra da bölmek bugünkü kalıplarda sonucu değiştirmiyor (mutasyonda eşdeğer: iddia sıra sayısına değil ardındaki
+ * sözcüklere bağlı; 18 örnekle ölçüldü) ama bölme genişledikçe iddia parçalanır — izin yönlü olduğu için alınmadı. Noktalı tarih ("15.07.")
+ * hiçbir sürümde bölünmez. Yalnız bu tespit fonksiyonu; saat okuması (`RAW_CLAUSE_SPLIT`) ve standart çıkış ayıklaması (`CLAUSE_SPLIT`) eski
+ * sınırla kalır (orada daha çok bölmek izin yönlüdür).
  */
 const CLAIM_CLAUSE_SPLIT = /(?:(?<!\d)\.(?!\d)|(?<=\d:\d{2})\.(?!\d)|[!?;\n…؟]|。)+/u;
 function clausesOf(form: string): string[] {

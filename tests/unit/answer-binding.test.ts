@@ -1442,6 +1442,14 @@ describe("11-12 ölçümü: etiketli, rakamsız değer kalemde tırnaksız, par�
     expect(wifi('Wi-Fi şifresi "lalekapi".', door).issues).toContain("value_not_in_evidence");
   });
 
+  it("🚨 etiketle başlamayan kod değeri kısa yola GİRMEZ (kalemde olmayan harf + rakam belirteci tutulur)", () => {
+    const kb = "Kapı: Kapı kodu 4821'dir; kutu girişin solundadır.";
+    const n = need(["kapı kodu ne"]);
+    expect(checkAnswerBinding({ part: "Kapı AB12CD ile açılır.", evidence: kb, sourceText: kb, ...n }).issues).toContain("value_not_in_evidence");
+    // KONTROL: kalemdeki değer geçer.
+    expect(checkAnswerBinding({ part: "Kapı kodu 4821'dir.", evidence: kb, sourceText: kb, ...n }).issues).not.toContain("value_not_in_evidence");
+  });
+
   it("ayıklayıcı: 'Wi-Fi şifresi: \"…\"' yazımında asıl etiket (şifresi) okunur — eskiden 'wi-fi' etiketi sözcüğü yutuyor, tırnaklı rakamsız değer hiç denetlenmiyordu", async () => {
     const { claimSpans } = await import("@/lib/ai/claim-support");
     const keys = (t: string) => claimSpans(t).claims.map((c) => c.keys[0]);
