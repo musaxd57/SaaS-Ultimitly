@@ -168,7 +168,7 @@ export function petReplyStraysFromFreeKb(reply: string | null | undefined, petTu
 // deki "Tabii" misafirin ilk sorusuna da okunur. Bu yüzden denetim hayvan sözcüğü aramakla yetinmez:
 //   1. hayvanı / yardımcı hayvanı anan cümle → sızıntı;
 //   2. onay / ret / kabul sözcüğü ("evet", "tabii", "maalesef", "yes", "of course" …) → sızıntı (konusu ne olursa olsun: aynı turda cevapsız
-//      bir evet / hayır sorusu var); anlamı yere göre değişen sözcükler ("olur", "sure", "ja", "no") yalnız cümle / yan cümle başında;
+//      bir evet / hayır sorusu var); anlamı yere göre değişen sözcükler ("olur", "sure", "ja", "no") yalnız tek başına ünlemken;
 //   3. getirme / izin / yasak fiili ("getirebilirsiniz", "kabul edilir", "allowed", "bring", "erlaubt" …) → sızıntı;
 //   4. başka bir hizmetin adını taşımayan cümlede olumsuzluk ya da ücret ("Maalesef mümkün değil." · "Gecelik ücret 200 TL.") → sızıntı
 //      (`petReplyStraysFromFreeKb` ile aynı okuma).
@@ -198,22 +198,45 @@ const VERDICT_ANYWHERE = new RegExp(
   "u",
 );
 
-/** Başka yerde başka anlam taşıyan onay / ret sözcükleri — yalnız cümle ya da yan cümle BAŞINDA ("Olur, …" · "Sure, …" · "No, …"). */
-const VERDICT_INITIAL = new RegExp(
+/**
+ * Başka yerde başka anlam taşıyan onay / ret sözcükleri — yalnız TEK BAŞINA bir ünlem olduklarında ("Olur." · "Sure, …" · "No, …" ·
+ * "Merhaba, olur."): yan cümlenin TAMAMI bu sözcükse. "No smoking inside." · "No hay toallas." · "Хорошо отапливается." bilgi cümlesidir
+ * (Haiku 11-12: yan cümle başında aramak bunları da tutuyordu).
+ */
+const VERDICT_INTERJECTION = new RegExp(
   "^(?:olur|kesinlikle|tamam|peki|sure|certainly|absolutely|definitely|okay|ok|alright|no|ja|klar|gerne|nein|in ordnung|" +
-    "non|d accord|si|claro|vale|да|нет|хорошо|ладно|لا|تمام)(?![\\p{L}\\p{N}])",
+    "non|d accord|si|claro|vale|да|нет|хорошо|ладно|لا|تمام)$",
+  "u",
+);
+/** "No. 14" / "Nr. 3" / "No: 5" — kapı / daire numarası yazımı ret sözcüğü değildir (cümle bölücü "No." diye ayırır). */
+const NUMBER_ABBREVIATION = /(?<![\p{L}\p{N}])(?:no|nr|num)\s?[.:]?\s?(?=\p{Nd})/giu;
+
+/**
+ * Hayvanı adıyla anmadan anan örtmeceler (Haiku 11-12: "Minik dostunuz da konaklayabilir." · "Furry friends are more than welcome." dört
+ * denetimden de geçiyordu). Yalnız BU denetimde okunur — `mentionsPets` (bilgi tabanı ve misafir mesajı okuması) değişmez.
+ */
+const PET_EUPHEMISM = new RegExp(
+  "(?<![\\p{L}\\p{N}])(?:" +
+    "(?:minik|kucuk|tuylu|patili|sevimli|dort ayakli|can) dost\\p{L}{0,8}|patili\\p{L}{0,6}|dort ayakli\\p{L}{0,6}|" +
+    "furry|four legged|four-legged|fur bab(?:y|ies)|little friend\\p{L}{0,1}|companion animal\\p{L}{0,1}|" +
+    "vierbeiner\\p{L}{0,2}|fellnase\\p{L}{0,1}|a quatre pattes|compagnons? a poils?|peludos?|cuatro patas|" +
+    "четвероног\\p{L}{0,4}|пушист\\p{L}{0,4}" +
+    ")(?![\\p{L}\\p{N}])",
   "u",
 );
 
 /** Getirme / kabul / izin / yasak fiilleri (katlanmış) — tutulan evcil hayvan sorusunun cevabı olarak okunur. */
 const PERMISSION_VERB = new RegExp(
   "(?<![\\p{L}\\p{N}])(?:" +
-    "getirebilir\\p{L}{0,8}|getirin\\p{L}{0,3}|gelebilir\\p{L}{0,8}|kabul ed\\p{L}{0,12}|izin (?:ver\\p{L}{0,10}|var\\p{L}{0,4}|yok)|" +
+    "getirebilir\\p{L}{0,8}|getirin\\p{L}{0,3}|gelebilir\\p{L}{0,8}|konaklayabilir\\p{L}{0,8}|kalabilir\\p{L}{0,8}|katilabilir\\p{L}{0,8}|" +
+    "kabul ed\\p{L}{0,12}|izin (?:ver\\p{L}{0,10}|var\\p{L}{0,4}|yok)|" +
     "serbest\\p{L}{0,4}|yasak\\p{L}{0,6}|beraberinizde|yaninizda getir\\p{L}{0,8}|" +
-    "bring|allowed|permitted|accepted|forbidden|prohibited|(?:is|are|re) (?:very |most )?welcome|welcome to (?:bring|come)|" +
+    "bring|allowed|permitted|accepted|forbidden|prohibited|(?:is|are|re|be) (?:[a-z]{1,10} ){0,2}welcome|welcome to (?:bring|come|join|stay)|" +
+    "join (?:you|us)|come along|stay with (?:you|us)|" +
     "mitbring\\p{L}{0,4}|mitzubringen|erlaubt|gestattet|verboten|(?:ist|sind) (?:herzlich )?willkommen|" +
     "amener|autoris\\p{L}{0,4}|accept\\p{L}{0,4}|interdit\\p{L}{0,3}|(?:est|sont) l(?:e|a|es) bienvenu\\p{L}{0,2}|" +
-    "traer|permitid\\p{L}{0,2}|admit\\p{L}{0,5}|acept\\p{L}{0,5}|prohibid\\p{L}{0,2}|(?:es|son) bienvenid\\p{L}{0,2}|" +
+    "traer|permitid\\p{L}{0,2}|admit\\p{L}{0,5}|acept\\p{L}{0,5}|prohibid\\p{L}{0,2}|" +
+    "(?:es|son|sera|seran|sea|sean) (?:\\p{L}{1,10} ){0,2}bienvenid\\p{L}{0,2}|" +
     "можно|разреш\\p{L}{0,6}|запрещ\\p{L}{0,6}|нельзя|привози\\p{L}{0,3}|взять с собои|" +
     "مسموح|ممنوع|احضار" +
     ")(?![\\p{L}\\p{N}])",
@@ -242,13 +265,16 @@ const clauses = (sentence: string) => sentence.split(/[,;:()]|\s[-–—]\s/u).m
  */
 export function heldPetLeak(reply: string | null | undefined): HeldPetLeak | null {
   if (!reply) return null;
-  if (mentionsPets(reply)) return "pet_mention";
-  for (const raw of sentences(reply)) {
+  if (mentionsPets(reply) || PET_EUPHEMISM.test(fold(reply))) return "pet_mention";
+  // Kapı / daire numarası kısaltması ("No. 14") cümle bölünmeden ÖNCE çıkarılır — yoksa "No." tek başına bir ret cümlesi gibi okunur.
+  const text = reply.replace(NUMBER_ABBREVIATION, "");
+  for (const raw of sentences(text)) {
     const f = fold(raw);
     if (VERDICT_ANYWHERE.test(f)) return "verdict_word";
-    if (clauses(raw).some((c) => VERDICT_INITIAL.test(fold(c)))) return "verdict_word";
+    // Yan cümle yalnız harf / rakam / boşluğa indirilir ("Sure!" → "sure"); tek geçiş, doğrusal.
+    if (clauses(raw).some((c) => VERDICT_INTERJECTION.test(fold(c).replace(/[^\p{L}\p{N}\s]/gu, "").trim()))) return "verdict_word";
     if (PERMISSION_VERB.test(f)) return "permission";
     if (!OTHER_SUBJECT.test(f) && !STAY_TIME_SUBJECT.test(f) && ABILITY_NEGATION.test(f)) return "unanchored_verdict";
   }
-  return petReplyStraysFromFreeKb(reply, true) ? "unanchored_verdict" : null;
+  return petReplyStraysFromFreeKb(text, true) ? "unanchored_verdict" : null;
 }

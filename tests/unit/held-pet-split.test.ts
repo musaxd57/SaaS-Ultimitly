@@ -67,7 +67,7 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
     }
   });
 
-  it("🚨 anlamı yere göre değişen sözcükler cümle / yan cümle BAŞINDA sızıntıdır ('Olur, …' · 'Sure, …' · 'No. …' · 'Merhaba, olur.')", () => {
+  it("🚨 anlamı yere göre değişen sözcükler TEK BAŞINA ünlemken sızıntıdır ('Olur.' · 'Sure, …' · 'No. …' · 'Merhaba, olur.')", () => {
     for (const reply of [
       "Olur. Wi-Fi şifresi Lale2024.",
       "Merhaba, olur. Wi-Fi şifresi Lale2024.",
@@ -86,19 +86,42 @@ describe("heldPetLeak — cevap, bırakılan evcil hayvan sorusuna dair onay / r
     }
   });
 
-  it("KONTROL: aynı sözcükler başta DEĞİLKEN bilgi cümlesinin parçasıdır — tutmaz", () => {
+  it("KONTROL: aynı sözcükler bilgi cümlesinin parçasıyken tutmaz — cümle içinde, cümle başında bir öbeğin parçası, adres numarası", () => {
     for (const reply of [
       "Sıcak su 10 dakikada hazır olur. Wi-Fi şifresi Lale2024.",
       "Please make sure the router is on. The Wi-Fi password is Lale2024.",
       "There is no charge for parking. The Wi-Fi password is Lale2024.",
       "Havuz 20:00'de kapanır, sonra bahçe kapısı kilitli olur.",
+      // Haiku 11-12: yan cümle BAŞINDA ama ünlem değil → bilgi.
+      "Хорошо отапливается зимой, пароль от Wi-Fi: Lale2024.",
+      "Tamam yazan düğmeye basınca klima açılır; kumanda çekmecededir.",
+      // Adres / daire numarası: "No. 14" ret sözcüğü değildir.
+      "Adres: Menekşe Sokak No. 14, Alsancak.",
+      "Otopark yeriniz No: 12, binanın arkasında.",
     ]) {
       expect([reply, heldPetLeak(reply)]).toEqual([reply, null]);
     }
   });
 
+  it("🚨 hayvanı adıyla anmayan örtmece → sızıntı (Haiku 11-12: dört denetimden de geçiyordu)", () => {
+    for (const reply of [
+      "Minik dostunuz da bizimle konaklayabilir. Wi-Fi şifresi Lale2024.",
+      "Patili dostlarınızı aramızda görmekten mutluluk duyarız. Wi-Fi şifresi Lale2024.",
+      "Furry friends are more than welcome to join you. The Wi-Fi password is Lale2024.",
+      "Su peludo amigo será más que bienvenido. La contraseña es Lale2024.",
+      "Ihr Vierbeiner kann gerne dabei sein. Das WLAN-Passwort lautet Lale2024.",
+    ]) {
+      expect([reply, heldPetLeak(reply)]).toEqual([reply, "pet_mention"]);
+    }
+  });
+
   it("🚨 getirme / kabul / izin / yasak fiili → sızıntı (hayvan sözcüğü olmadan da)", () => {
     for (const reply of [
+      "Onlar da sizinle kalabilir. Wi-Fi şifresi Lale2024.",
+      "Sizinle birlikte konaklayabilir. Wi-Fi şifresi Lale2024.",
+      "He can stay with you. The Wi-Fi password is Lale2024.",
+      "She is more than welcome. The Wi-Fi password is Lale2024.",
+      "Será muy bienvenido. La contraseña es Lale2024.",
       "Getirebilirsiniz. Wi-Fi şifresi Lale2024.",
       "Wi-Fi şifresi Lale2024, onu da getirin lütfen.",
       "Kabul ediyoruz. Wi-Fi şifresi Lale2024.",
@@ -183,6 +206,13 @@ describe("kapı — tutulan evcil hayvan isteği öteki cevabı yalnız sızınt
     expect(autoReplyGateVerdict(model(WIFI), "Rehber köpeğimle geleceğim. İnternet şifresi ne?", heldPets({ riskType: "assistance_animal" }))).toBeNull();
     // Önceki turdan bekleyen evcil hayvan sorusu bugünkü Wi-Fi sorusunu da tutmaz.
     expect(autoReplyGateVerdict(model(WIFI), "İnternet şifresi ne?", heldPets({ earlier: true }))).toBeNull();
+  });
+
+  it("anahtar AÇIK: boş cevap da tutulur (gönderecek metin yokken dal açık kalmaz)", () => {
+    on();
+    for (const reply of ["", "   ", null]) {
+      expect(autoReplyGateVerdict({ ...model(WIFI), reply } as never, GUEST, heldPets())).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    }
   });
 
   it("🚨 anahtar AÇIK: onay / ret / ima taşıyan cevap yine TUTULUR", () => {

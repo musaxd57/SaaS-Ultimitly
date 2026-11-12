@@ -679,7 +679,8 @@ export function autoReplyGateVerdict(
     // cevap modeline "değinme" dendi) öteki isteklerin cevabı yalnız bu yüzden tutulmaz. Şart: cevap o isteğe dair hiçbir onay / ret / koşul /
     // ima taşımamalı (`pet-policy.heldPetLeak`: hayvan sözcüğü, "evet / tabii / maalesef", getirme-izin fiili, konusuz olumsuzluk ya da ücret).
     // İstek öğe olarak çıkarılamadıysa (yalnız misafirin cümlesinde) ya da cevaplanabilir sayıldıysa aşağıdaki bugünkü kemer aynen.
-    if (heldPetLeak(result.reply) !== null) return hold("reply_pet_policy");
+    // Boş cevap da tutulur (Haiku 11-12: denetim boş metinde "sızıntı yok" der — gönderecek metin yokken dal açık kalmasın).
+    if (!result.reply?.trim() || heldPetLeak(result.reply) !== null) return hold("reply_pet_policy");
     // 🚨 Ölçüm 11-12: evcil hayvan isteği tutulurken yanındaki soru bilgi tabanında YOKSA model cevap uyduruyor (5/5) ve taslak bütün
     // kapılardan geçiyor — bugün onu yalnız yukarıdaki kemer tutuyordu. Kemer daralırken şart: cevaplandığı beyan edilen her isteğin
     // konusu modele gösterilen bir kaynakta geçmeli (`answer-grounding.ungroundedAnsweredRefs`); yoksa cevap ev sahibine kalır. Beyan

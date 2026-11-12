@@ -30,7 +30,8 @@ export interface ReplyItemsInput {
    * Cevap parçaları kipi (`AI_ANSWER_PARTS_ENABLED`, `ai/answer-parts.ts`): cevap modeli istek başına parça + alıntı yazar, misafire
    * yalnız kodun doğruladığı parçalar gider. Verilmezse istem ve sonuç bayt bayt eski.
    */
-  parts?: true;  /**
+  parts?: true;
+  /**
    * S3 (`AI_HELD_PET_SPLIT_ENABLED`): evcil hayvan isteği ev sahibine bırakıldı ve öteki isteklerin cevabı gidebilecek — cevap o isteğe
    * dair onay / ret / ima taşımasın diye bloğa TEK cümle eklenir (kapının `heldPetLeak` denetiminin istemdeki karşılığı). Verilmezse blok
    * bayt bayt eski.
