@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
+import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
 // Acil bildirim (WhatsApp, Tür C) "⚠️ Acil misafir mesajı" e-postasının gittiği HER yolda e-postanın YANINDA (tasarım §3.1 dilim 4):
@@ -83,7 +84,7 @@ async function seed(body: string, org: Record<string, unknown> = {}, phone = "+9
   });
   const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale 7", checkInTime: "15:00", checkOutTime: "11:00" } });
   const r = await prisma.reservation.create({
-    data: { propertyId: p.id, guestName: "Alex Doe", arrivalDate: new Date("2026-11-12T00:00:00Z"), departureDate: new Date("2026-11-15T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    data: { propertyId: p.id, guestName: "Alex Doe", ...upcomingStay(), status: "confirmed", channel: "airbnb" },
   });
   const when = new Date(Date.now() - 2 * 60_000);
   const c = await prisma.conversation.create({
@@ -131,7 +132,7 @@ describe("kelime ağı acil (sendDueAlerts) — yangın / gaz", () => {
     expect((await sendDueAlerts(s.orgId)).alerted).toBe(1);
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: "12–15 Kas", link: s.conversationId } });
+    expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: stayRangeLabel(upcomingStay()), link: s.conversationId } });
     expect(alerts[0]!.message.quote).toContain("yangın");
     expect(alerts[0]!.message.quote).not.toMatch(/alex|555 123/iu);
     expect(await alertRows(s.conversationId)).toMatchObject([{ status: "alerted", turnMessageId: s.messageId }]);

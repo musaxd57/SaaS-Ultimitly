@@ -11,6 +11,7 @@ vi.mock("@/lib/host-send", () => ({ sendHostMessage: sendMock }));
 vi.mock("@/lib/ai/daily-budget", () => ({ consumeDailyAiBudget: budgetMock }));
 
 import { prisma, resetDb } from "../helpers/db";
+import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // Casus dosya başında BİR KEZ kurulur, geri alınmaz (Prisma temsilcisi deseni); bayrak açıkken bağlantı okumasının N'inci çağrısı "yok" döner —
 // gönderimden hemen önceki ikinci bağlantı denetimini sınamak için.
@@ -132,8 +133,8 @@ async function seedQuestion(
     data: {
       propertyId: h.propertyId,
       guestName: "Misafir",
-      arrivalDate: new Date("2026-11-12T00:00:00Z"),
-      departureDate: new Date("2026-11-15T00:00:00Z"),
+      // Tarih bağıl (`tests/helpers/stay-dates.ts`): sabit "12 Kasım" 13 Kasım gecesi erken giriş kartını "süresi doldu"ya düşürdü.
+      ...upcomingStay(),
       status: "confirmed",
       channel: "airbnb",
     },
@@ -255,7 +256,7 @@ describe("WhatsApp cevap dilimi", () => {
     const p = tr.out.find((o) => o.kind === "choices")!;
     expect(p.to).toBe(DIG_A);
     // Hangi daire / konaklama / soru: iki benzer soru karışmasın; önizleme SORU mesajına yanıt (sert inceleme 10-30 A2).
-    expect(p.text.startsWith("Lale · 12–15 Kas\n“Is there a baby cot?”\n\n")).toBe(true);
+    expect(p.text.startsWith(`Lale · ${stayRangeLabel(upcomingStay())}\n“Is there a baby cot?”\n\n`)).toBe(true);
     expect(p.replyTo).toBe("wamid.Q1");
     expect(p.text).toContain("Yes, there is a baby cot in the closet.");
     expect(p.text).toContain("Evet, dolapta bebek yatağı var.");

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
+import { upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
 // DEVAM EDEN TEHLİKE UÇTAN UCA (kurucu 10-31, `docs/TASARIM-2026-10-31-devam-eden-tehlike-uyarisi.md`). Kurucu: "Test yalnız 'acil sınıfına
@@ -86,7 +87,7 @@ async function seed(body: string, opts: { email?: string; phone?: string; conver
   });
   const p = await prisma.property.create({ data: { organizationId: o.id, name: `Lale ${seq}`, checkInTime: "15:00", checkOutTime: "11:00" } });
   const r = await prisma.reservation.create({
-    data: { propertyId: p.id, guestName: "Alex Doe", arrivalDate: new Date("2026-11-12T00:00:00Z"), departureDate: new Date("2026-11-15T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    data: { propertyId: p.id, guestName: "Alex Doe", ...upcomingStay(), status: "confirmed", channel: "airbnb" },
   });
   const when = new Date(Date.now() - (opts.minutesAgo ?? 2) * 60_000);
   const c = await prisma.conversation.create({

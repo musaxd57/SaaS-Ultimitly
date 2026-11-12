@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
+import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KANAL OTO-YANITI UÇTAN UCA (kurucu kararları 09-26; bayrak `AI_CONVERSATION_ITEMS_ENABLED`).
@@ -220,7 +221,7 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     });
     const property = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
     const reservation = await prisma.reservation.create({
-      data: { propertyId: property.id, guestName: "Alex Doe", arrivalDate: new Date("2026-11-12T00:00:00Z"), departureDate: new Date("2026-11-15T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+      data: { propertyId: property.id, guestName: "Alex Doe", ...upcomingStay(), status: "confirmed", channel: "airbnb" },
     });
     await prisma.conversation.update({ where: { id: conversationId }, data: { reservationId: reservation.id } });
     const b = await startHostBinding({ organizationId: orgId, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });
@@ -245,7 +246,7 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(mockMail).not.toHaveBeenCalled();
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(1);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: "12–15 Kas", link: conversationId } });
+    expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: stayRangeLabel(upcomingStay()), link: conversationId } });
     expect(alerts[0]!.message.quote).toContain("IBAN");
     expect(alerts[0]!.message.quote).not.toMatch(/alex/iu);
     expect(await prisma.hostQuestion.findFirstOrThrow({ where: { conversationId } })).toMatchObject({ kind: "alert", status: "alerted" });
