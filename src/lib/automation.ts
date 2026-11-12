@@ -2237,7 +2237,9 @@ export async function applyChannelAutoReply(
     const view = threadView(rows, undeliveredIds);
     // İstek defteri (konuşma öğeleri) kapalıysa taşıma da yok: cevabın karşılamadığı geç soru ancak defterde açık kalarak görünür olur
     // (Opus 11-12 S2-7a). Defter açık ama bu tur bölünemediyse (emin olunmayan anlama / planlama hatası) kapı tutar: `late_without_ledger`.
-    if (!lateOn || !conversationItemsEnabled()) return view;
+    // Önizleme (dryRun) istek defterini kurmaz → taşısaydı kapı her geç turu "defter yok" diye tutulmuş gösterirdi; önizleme bugünkü
+    // davranışı gösterir (Haiku 11-12; öğe kipinin bilinen önizleme farkıyla aynı).
+    if (!lateOn || options.dryRun || !conversationItemsEnabled()) return view;
     // Ham satırlar da verilir: ev sahibinin teslim edilememiş denemesi görünümden süzülmüştür ama turu o almak istemiştir (`late-turn.ts` şart 1).
     const turn = lateTurnView(view, turnNow, rows);
     lateTurnIds = new Set(turn.late.map((m) => m.id));

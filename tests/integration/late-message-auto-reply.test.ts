@@ -423,6 +423,15 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     expect(mockSuggest).not.toHaveBeenCalled();
   });
 
+  it("önizleme (dryRun) geç mesajı taşımaz — bugünkü sonuç, model çağrılmaz (önizleme istek defterini kurmaz)", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId, { dryRun: true });
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("🚨 S2-7a: defter açık ama bu tur öğelere BÖLÜNEMEDİYSE (anlama katmanı sonuç vermedi) geç turun cevabı gönderilmez — `late_without_ledger`", async () => {
     vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
     const { conversationId } = await seed();
