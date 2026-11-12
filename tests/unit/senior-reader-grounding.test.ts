@@ -15,6 +15,7 @@ import {
   combineAbsenceReadings,
   groundReading,
   judgeReleases,
+  quoteCarriesContent,
   quoteGroundedIn,
   paymentHeldHolds,
   seniorChecksOf,
@@ -109,6 +110,56 @@ describe("alıntı kanıtı", () => {
     expect(seniorChecksOf(clean)).toEqual(NO);
     expect(paymentHeldHolds(true, seniorChecksOf(clean))).toBe(false);
     expect(paymentHeldHolds(true, undefined)).toBe(true);
+  });
+
+  it("🚨 selamdan / ad maskesinden ibaret alıntı kanıt DEĞİLDİR (11-12 ölçümü: değinilmeyen soruda selam satırı 'itiraf' kanıtı gösterildi)", () => {
+    for (const quote of ["Merhaba [Misafir],", "[Misafir],", "Hello [Guest],", "Merhaba,", "Hallo [Misafir]!", "  [Misafir]  "]) {
+      expect([quote, quoteCarriesContent(quote)]).toEqual([quote, false]);
+    }
+    for (const quote of ["Bilmiyorum.", "Bu konuda bilgim yok.", "Merhaba [Misafir], bu konuda bilgim yok.", "mavi konteyneri kullanın", "Нет информации о парковке."]) {
+      expect([quote, quoteCarriesContent(quote)]).toEqual([quote, true]);
+    }
+    // Ölçülen vaka: taslak yalnız Wi-Fi cevabı; misafir mesajlı okuma "itiraf" deyip selamı alıntıladı → oy düşer, karar kelime kuralına kalır.
+    const wifi = 'Merhaba [Misafir],\n\nWi-Fi ağ adı "Lale_Home", şifre "Lale2024".';
+    const withGuest = groundReading({ admits: true, quote: "Merhaba [Misafir],", checks: NO }, wifi);
+    expect(withGuest).toEqual({ admits: false, quote: "", checks: NO, ungrounded: true });
+    const out = combineAbsenceReadings(withGuest, groundReading({ admits: false, quote: "", checks: NO }, wifi));
+    expect(absenceHolds(false, out)).toBe(false);
+    // Ek hükümlerde de: selam satırı ödeme / iç kaynak kanıtı olamaz.
+    const checks = groundReading(
+      { admits: false, quote: "", checks: { ...NO, payHost: true, internalSource: true }, checkQuotes: { payHost: "Merhaba [Misafir],", contact: "", apology: "", internalSource: "[Misafir]," } },
+      wifi,
+    );
+    expect(checks?.checks).toEqual(NO);
+    expect(checks?.ungroundedChecks).toEqual({ payHost: true, internalSource: true });
+    // KONTROL: gerçek cümleyi alıntılayan oy aynen geçerli.
+    expect(groundReading({ admits: true, quote: 'Wi-Fi ağ adı "Lale_Home", şifre "Lale2024".', checks: NO }, wifi)?.admits).toBe(true);
+  });
+
+  it("🚨 iç kaynak hükmünde dayanaksız oy yalnız taslağı TEK BAŞINA okuyan okumadan sayılır; ödeme / iletişim / özürde kural aynı", () => {
+    // Misafir mesajını gören okuma (birinci) uydurma cümleyle "iç kaynak" dedi; taslağı tek başına okuyan (ikinci) "hayır".
+    const guestOnly = combineAbsenceReadings(
+      { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } },
+      { admits: false, quote: "", checks: NO },
+    );
+    expect(seniorChecksOf(guestOnly)).toEqual(NO);
+    expect(guestOnly).not.toHaveProperty("ungroundedChecks");
+    // Taslağı tek başına okuyan okumanın dayanaksız oyu (tek başına da, ikisi birlikte de) sayılır.
+    for (const first of [{}, { ungroundedChecks: { internalSource: true as const } }]) {
+      const out = combineAbsenceReadings(
+        { admits: false, quote: "", checks: NO, ...first },
+        { admits: false, quote: "", checks: NO, ungroundedChecks: { internalSource: true } },
+      );
+      expect(seniorChecksOf(out)).toEqual({ ...NO, internalSource: true });
+    }
+    // Dayanaklı iç kaynak oyu hangi okumadan gelirse gelsin tutar.
+    const grounded = combineAbsenceReadings({ admits: false, quote: "", checks: { ...NO, internalSource: true } }, { admits: false, quote: "", checks: NO });
+    expect(seniorChecksOf(grounded)).toEqual({ ...NO, internalSource: true });
+    // KONTROL: ödeme / iletişim / özürde misafir mesajlı okumanın dayanaksız oyu tek başına da TUTAR (kural değişmedi).
+    for (const k of ["payHost", "contact", "apology"] as const) {
+      const out = combineAbsenceReadings({ admits: false, quote: "", checks: NO, ungroundedChecks: { [k]: true } }, { admits: false, quote: "", checks: NO });
+      expect([k, seniorChecksOf(out)?.[k]]).toEqual([k, true]);
+    }
   });
 
   it("Rusça taslakta Latin sözcük varken saf Kiril alıntı kanıttır (benzer harf sökümü iki tarafa birlikte — Haiku 10-22)", () => {

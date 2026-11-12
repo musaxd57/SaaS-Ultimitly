@@ -7,6 +7,7 @@ import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
 import { stripDividerRuns } from "../divider-spoof";
 import { deconfuse } from "../fallback";
+import { isGreetingOnly } from "../code-greeting";
 import { referralJudgeFlag, runReferralJudge, type ReferralVerdict } from "./referral-judge";
 
 // ---------------------------------------------------------------------------
@@ -321,19 +322,32 @@ export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
 export function groundReading<R extends Reading>(reading: R | null, draftSeen: string): R | null {
   if (!reading) return reading;
   let out: R = reading;
+  const evidence = (quote: string) => quoteGroundedIn(draftSeen, quote) && quoteCarriesContent(quote);
   if (out.checks && out.checkQuotes) {
     const checks = { ...out.checks };
     const ungroundedChecks: Partial<Record<keyof SeniorChecks, true>> = {};
     for (const k of SENIOR_CHECK_KEYS) {
-      if (checks[k] && !quoteGroundedIn(draftSeen, out.checkQuotes[k])) {
+      if (checks[k] && !evidence(out.checkQuotes[k])) {
         checks[k] = false;
         ungroundedChecks[k] = true;
       }
     }
     out = { ...out, checks, ...(Object.keys(ungroundedChecks).length > 0 ? { ungroundedChecks } : {}) };
   }
-  if (out.admits && !quoteGroundedIn(draftSeen, out.quote)) out = { ...out, admits: false, quote: "", ungrounded: true };
+  if (out.admits && !evidence(out.quote)) out = { ...out, admits: false, quote: "", ungrounded: true };
   return out;
+}
+
+/**
+ * Alıntı bir hükmün KANITI olabilir mi: selam satırından ("Merhaba [Misafir],") ya da yalnız ad maskesinden ("[Misafir],") ibaret alıntı
+ * taslakta geçse de hiçbir şey söylemez. Ölçüm (11-12, parça kipi): taslak misafirin bir sorusuna hiç değinmediğinde (doğru davranış — o
+ * istek ev sahibinde kalır) misafir mesajını gören okuma "bilgim yok dedi" oyu verip kanıt olarak selam satırını gösteriyordu (8 okumanın
+ * 3'ü) → doğru cevap `reply_absence` ile tutuluyordu. Saf.
+ */
+export function quoteCarriesContent(quote: string): boolean {
+  const withoutMasks = quote.replace(/\[[^\]\n]{1,24}\]/g, " ").replace(/\s+/g, " ").trim();
+  if (!/\p{L}{2,}/u.test(withoutMasks)) return false;
+  return !isGreetingOnly(quote.trim()) && !isGreetingOnly(withoutMasks);
 }
 
 /**
@@ -410,7 +424,13 @@ export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Rea
     const ungr: Partial<Record<keyof SeniorChecks, true>> = {};
     for (const k of SENIOR_CHECK_KEYS) {
       merged[k] = withGuest.checks[k] || draftOnly.checks[k];
-      if (!merged[k] && (withGuest.ungroundedChecks?.[k] || draftOnly.ungroundedChecks?.[k])) ungr[k] = true;
+      // İç kaynak hükmünde yalnız TASLAĞI TEK BAŞINA okuyan okumanın dayanaksız oyu sayılır (11-12 ölçümü): taslak misafirin bir sorusuna
+      // hiç değinmediğinde misafir mesajını gören okuma taslakta OLMAYAN bir cümle uydurup ("Elimdeki bilgilere göre … bulunmuyor") hem
+      // itiraf hem iç kaynak oyu veriyordu (8 okumanın 2'si; taslağı tek başına okuyan okuma 0/8) → doğru cevap `reply_internal_source` ile
+      // tutuluyor, yeniden yazma da düzeltemiyordu (sebep taslakta değil). Ödeme / iletişim / özürde kural değişmedi: tek okumanın
+      // dayanaksız oyu da tutar (Haiku 10-22).
+      const ungrounded = k === "internalSource" ? draftOnly.ungroundedChecks?.[k] : withGuest.ungroundedChecks?.[k] || draftOnly.ungroundedChecks?.[k];
+      if (!merged[k] && ungrounded) ungr[k] = true;
     }
     checks = { checks: merged, ...(Object.keys(ungr).length > 0 ? { ungroundedChecks: ungr } : {}) };
   }
