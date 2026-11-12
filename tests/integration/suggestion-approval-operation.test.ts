@@ -35,6 +35,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
 import { OUTBOUND_REQUEST_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
+import { requeueFailedOutbox, listOutboxDeliveries } from "@/lib/outbox/ops";
 
 const mockSend = vi.mocked(sendOnChannel);
 const DUPLICATE_TEXT = "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor.";
@@ -165,6 +166,51 @@ describe("yapay zekâ önerisinin onayı — işlem kimliği (S1)", () => {
       expect(await outbound()).toHaveLength(1);
     });
 
+    describe("sonucu DOĞRULANAMAYAN gönderim (zaman aşımı / 5xx — mesaj ulaşmış olabilir)", () => {
+      const UNVERIFIED = { ok: false as const, error: "Hospitable API hatası (HTTP 503): upstream timeout" };
+      /** 2 dakika geçti: kısa talepler (aynı metin + istek) düşer; 24 saate uzatılmış talep durur. */
+      const twoMinutesLater = () =>
+        prisma.systemLock.updateMany({ where: { lockedUntil: { lt: new Date(Date.now() + 3 * 60_000) } }, data: { lockedUntil: new Date(Date.now() - 1_000) } });
+
+      it("🚨 öteki yöneticinin 2 dakika SONRAKİ onayı aynı öneriyi körlemesine yeniden göndermez (mesaj ulaşmış, henüz içeri alınmamış olabilir)", async () => {
+        mockSend.mockResolvedValueOnce(UNVERIFIED);
+        const first = await approve("Evet, otopark var.", TAB_A);
+        expect(first.status).toBe(502);
+        expect((await first.json()).ambiguous).toBe(true);
+        await twoMinutesLater();
+
+        const second = await approve("Evet, otopark var.", TAB_B);
+        expect(second.status).toBe(409); // ⬅️ ESKİDE 201: konuşmada henüz cevap satırı yok → ikinci kopya misafire giderdi
+        expect((await second.json()).error).toBe(DUPLICATE_TEXT);
+        expect(mockSend).toHaveBeenCalledTimes(1);
+        expect(await outbound()).toHaveLength(0); // doğrulanamayan gönderim kaydedilmez; senkron getirirse görünür
+      });
+
+      it("KONTROL: ev sahibi konuşmayı kontrol edip aynı metni KUTUDAN bilerek gönderebilir (ayrı, açık işlem — 2 dakika sonra)", async () => {
+        mockSend.mockResolvedValueOnce(UNVERIFIED);
+        expect((await approve("Evet, otopark var.", TAB_A)).status).toBe(502);
+        await twoMinutesLater();
+        expect((await post(conversationId, { body: "Evet, otopark var.", requestId: TAB_B })).status).toBe(201);
+        expect(mockSend).toHaveBeenCalledTimes(2);
+      });
+
+      it("KONTROL: ELLE cevapta kural aynen — doğrulanamayan gönderimden 2 dakika sonra aynı metin yeniden gönderilebilir", async () => {
+        mockSend.mockResolvedValueOnce(UNVERIFIED);
+        expect((await post(conversationId, { body: "Arkada otopark var.", requestId: TAB_A })).status).toBe(502);
+        // 2 dakika dolmadan aynı metin gitmez (bugünkü kalkan).
+        expect((await post(conversationId, { body: "Arkada otopark var.", requestId: TAB_B })).status).toBe(409);
+        await twoMinutesLater();
+        expect((await post(conversationId, { body: "Arkada otopark var.", requestId: TAB_B })).status).toBe(201);
+        expect(mockSend).toHaveBeenCalledTimes(2);
+      });
+
+      it("KONTROL: KESİN ret sonrası (misafire ulaşmadığı belli) işlem kilitlenmez — 2 dakika beklemeden de yeniden onaylanır", async () => {
+        mockSend.mockResolvedValueOnce({ ok: false, error: "Hospitable API hatası (HTTP 422): rejected" });
+        expect((await approve("Evet, otopark var.", TAB_A)).status).toBe(502);
+        expect((await approve("Evet, otopark var.", TAB_B)).status).toBe(201);
+      });
+    });
+
     it("KONTROL: ELLE yazılan cevap bu kuralın dışında — aynı misafir mesajına bilerek ikinci cevap yazılabilir", async () => {
       expect((await approve("Evet, otopark var.", TAB_A)).status).toBe(201);
       expect((await post(conversationId, { body: "Ayrıca giriş kapının sağında.", requestId: TAB_B })).status).toBe(201);
@@ -211,6 +257,93 @@ describe("yapay zekâ önerisinin onayı — işlem kimliği (S1)", () => {
       await prisma.messageOutbox.updateMany({ where: { organizationId: orgId, status: "pending" }, data: { status: "canceled" } });
       expect((await approve("Evet, otopark var.", TAB_B)).status).toBe(202);
       expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(3);
+    });
+
+    describe("gönderim durumu ekranındaki elle 'yeniden dene' × yeniden onay (aynı öneri iki satırdan iki kez gitmez)", () => {
+      const rows = () => prisma.messageOutbox.findMany({ where: { organizationId: orgId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, status: true, idempotencyKey: true } });
+      const failFirst = async () => {
+        expect((await approve("Evet, otopark var.", TAB_A)).status).toBe(202);
+        await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { status: "failed", lastErrorKind: "definitive", lastErrorCode: "HTTP 422" } });
+        return (await rows())[0];
+      };
+      const retryable = async (id: string) => (await listOutboxDeliveries(orgId)).rows.find((r) => r.id === id)?.retryable;
+
+      it("🚨 öneri yeniden onaylandıktan sonra ESKİ 'gönderilemedi' satırı elle yeniden denenemez; listede de denenebilir görünmez", async () => {
+        const old = await failFirst();
+        expect(await retryable(old.id)).toBe(true); // henüz yerine yenisi açılmadı
+        expect((await approve("Evet, otopark var.", TAB_B)).status).toBe(202); // yeniden onay → yeni gönderim satırı
+
+        expect(await requeueFailedOutbox(orgId, old.id)).toEqual({ outcome: "not_retryable", status: "failed" }); // ⬅️ ESKİDE "requeued": iki satır da giderdi
+        expect((await rows()).map((r) => r.status)).toEqual(["failed", "pending"]); // eski satır "gönderilemedi"de kaldı
+        expect(await retryable(old.id)).toBe(false);
+      });
+
+      it("zincirin UCU denenebilir kalır: yeniden onayın satırı da 'gönderilemedi' olursa O elle yeniden denenir, eskisi yine denenemez", async () => {
+        const old = await failFirst();
+        expect((await approve("Evet, otopark var.", TAB_B)).status).toBe(202);
+        const tip = (await rows())[1];
+        await prisma.messageOutbox.update({ where: { id: tip.id }, data: { status: "failed", lastErrorKind: "definitive", lastErrorCode: "HTTP 422" } });
+
+        expect(await retryable(old.id)).toBe(false);
+        expect(await retryable(tip.id)).toBe(true);
+        expect(await requeueFailedOutbox(orgId, old.id)).toMatchObject({ outcome: "not_retryable" });
+        expect(await requeueFailedOutbox(orgId, tip.id)).toEqual({ outcome: "requeued" });
+        expect((await rows()).map((r) => r.status)).toEqual(["failed", "pending"]);
+      });
+
+      it("KONTROL: yerine yenisi açılmamış 'gönderilemedi' öneri satırı elle yeniden denenir; ardından gelen onay yeni satır açmaz (durumu döner)", async () => {
+        const old = await failFirst();
+        expect(await requeueFailedOutbox(orgId, old.id)).toEqual({ outcome: "requeued" });
+        const again = await approve("Evet, otopark var.", TAB_B);
+        expect(again.status).toBe(200);
+        expect((await again.json()).outbox).toMatchObject({ deduped: true, delivery: "pending" });
+        expect(await rows()).toHaveLength(1);
+      });
+
+      it("KONTROL: başka işletmenin aynı anahtarlı satırı 'yerine açılmış' sayılmaz (işletme kapsamı)", async () => {
+        const old = await failFirst();
+        const other = await prisma.organization.create({ data: { name: "Other" } });
+        await prisma.messageOutbox.create({
+          data: { organizationId: other.id, channel: "airbnb", externalReservationId: "res-x", body: "x", idempotencyKey: `${old.idempotencyKey}:retry:${old.id}`, status: "pending", availableAt: new Date() },
+        });
+        expect(await retryable(old.id)).toBe(true);
+        expect(await requeueFailedOutbox(orgId, old.id)).toEqual({ outcome: "requeued" });
+      });
+
+      it("🚨 YARIŞ: yeniden onay 'gönderilemedi' satırını gördükten SONRA, yeni satırı yazmadan ÖNCE o satır elle yeniden kuyruğa alınırsa yeni satır AÇILMAZ", async () => {
+        const old = await failFirst();
+        // Yarış belirli kılınır: onayın kuyruğa yazımından hemen önce öteki yönetici eski satırı "yeniden dene" ile kuyruğa alır.
+        const real = vi.mocked(enqueueOutbound).getMockImplementation()!;
+        vi.mocked(enqueueOutbound).mockImplementationOnce(async (args) => {
+          expect(args.supersedes).toBe(old.id); // onay, yerine geçeceği satırı bildirir (kilitlenip yeniden doğrulanır)
+          expect(await requeueFailedOutbox(orgId, old.id)).toEqual({ outcome: "requeued" });
+          return real(args);
+        });
+        const res = await approve("Evet, otopark var.", TAB_B);
+        expect(res.status).toBe(200); // ⬅️ ESKİDE 202 + ikinci satır: aynı öneri iki kez giderdi
+        expect((await res.json()).outbox).toMatchObject({ status: "queued", deduped: true, delivery: "pending" });
+        expect((await rows()).map((r) => r.status)).toEqual(["pending"]);
+        expect(await outbound()).toHaveLength(1); // yarım kalan ikinci mesaj satırı da yok (işlem geri alındı)
+      });
+
+      it("🚨 YARIŞ (gerçek eşzamanlılık): yeniden onay ile elle yeniden deneme AYNI ANDA — hangi sırayla bitseler de gönderilecek TEK satır kalır", async () => {
+        for (let round = 0; round < 6; round++) {
+          await prisma.messageOutbox.deleteMany({ where: { organizationId: orgId } });
+          await prisma.message.deleteMany({ where: { conversationId, direction: "outbound" } });
+          await prisma.systemLock.deleteMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } } });
+          const old = await failFirst();
+          // Elle yeniden deneme her turda biraz daha geç başlar → iki işlemin kesişme noktası turdan tura değişir (sıra şansa kalır,
+          // sonuç kalmaz: aşağıdaki iki iddia her sırada tutmalı).
+          const lateRetry = new Promise<Awaited<ReturnType<typeof requeueFailedOutbox>>>((resolve, reject) =>
+            setTimeout(() => requeueFailedOutbox(orgId, old.id).then(resolve, reject), [0, 1, 3, 6, 10, 15][round]),
+          );
+          const [approval, retry] = await Promise.all([approve("Evet, otopark var.", round % 2 ? TAB_A : TAB_B), lateRetry]);
+          const live = (await rows()).filter((r) => r.status !== "failed");
+          expect(live, `tur ${round}: onay ${approval.status}, yeniden deneme ${retry.outcome}`).toHaveLength(1);
+          // İkisi birden "ben gönderiyorum" diyemez: ya eski satır dirildi (onay onun durumunu aldı) ya yenisi açıldı (eski denenemedi).
+          expect([approval.status === 202, retry.outcome === "requeued"].filter(Boolean), `tur ${round}`).toHaveLength(1);
+        }
+      });
     });
 
     it("KONTROL: abonelik yüzünden bekleyen ('engellendi') ya da sonucu doğrulanamayan gönderim yeniden DENENMEZ — durumu döner", async () => {

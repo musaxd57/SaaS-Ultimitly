@@ -52,7 +52,20 @@ olduğunu doğrular.
   aynı-metin kuralı aynen. "Adresi tekrar gönderir misiniz?" örneği engellenmez. "Gerçekten yeniden göndermek" = metni kutuya alıp
   göndermek (ayrı, açık işlem).
 - Öneriden sonra yeni MİSAFİR mesajı gelmesi onayı engellemez (bugünkü davranış; değiştirmek ayrı karar — §12).
-- Sonucu belirsiz gönderim (zaman aşımı): körlemesine yeniden gönderilmez; bugünkü "incelemede" yolu.
+- Sonucu belirsiz gönderim (zaman aşımı): körlemesine yeniden gönderilmez; bugünkü "incelemede" yolu. Doğrudan yolda da aynı (Opus
+  dilim sonu incelemesi, 11-12): onaylanan önerinin gönderimi doğrulanamadıysa o öneri için "Onayla ve gönder" 24 saat kapalı kalır
+  (eskiden 2 dakika sonra öteki yöneticinin onayı aynı öneriyi yeniden gönderebiliyordu — mesaj ulaşmış ama henüz içeri alınmamış
+  olabilir). Ev sahibi bugünkü uyarıyı görür ("Gönderim doğrulanamadı — mesaj ulaşmış olabilir. Tekrar göndermeden önce konuşmayı
+  kontrol edin."); mesaj gerçekten ulaşmadıysa metni kutuya alıp gönderir (ayrı, açık işlem; 2 dakikalık aynı-metin kuralı aynen).
+- "Gönderim durumu" ekranındaki elle "yeniden dene" ile yeniden onay aynı öneriyi iki kez gönderemez (Opus incelemesi, 11-12):
+  öneri yeniden onaylanıp yeni gönderimi açıldıysa eski "gönderilemedi" satırı elle yeniden denenmez ve listede denenebilir görünmez;
+  zincirin ucundaki satır denenebilir kalır. İki işlem AYNI ANDA gelirse ikisi aynı satır kilidinde buluşur (yeniden onay, yerine
+  geçeceği satırı kilitleyip hâlâ "gönderilemedi" mi diye bakar; elle yeniden deneme satırı güncelledikten sonra yerine yenisi açılmış
+  mı diye bakar) — biri ötekinin sonucunu görür, gönderilecek tek satır kalır.
+
+**Bilinen sınır (kuyruk anahtarı gönderim sırasında açılıp kapatılırsa).** "Gönderilemedi" satırı kuyruk açıkken doğmuş, yeniden onay
+kuyruk kapalıyken DOĞRUDAN gönderilmişse yerine açılmış bir kuyruk satırı yoktur; o eski satır elle yeniden denenirse ikinci kopya
+gider. Anahtar yalnız operatörce değişir; taslak kaydı (§13) gelince elle yeniden deneme satıra değil işleme bağlanır ve bu da kapanır.
 
 **Bilinen sınır (migration turunda kapanır).** Kimlik bir taslak SÜRÜMÜ değildir: aynı konuşma durumunda iki yönetici ayrı ayrı öneri
 üretip farklı metinleri onaylarsa ilk onaylanan gider, ikincisi gönderilmez ve gönderilen cevap gösterilir; hangi metnin onaylandığı
@@ -135,6 +148,11 @@ gerekmiyor: `error` + tanınan hata öneki yeterli.
   (bir kez + günde bir hatırlatma). Anahtar düzelince ilk turda o sınıftaki bekleyen olayların HEPSİ, yaş sırasını beklemeden geçirilir ve
   alarm durumu kapanır.
 - İmza sırrı ile API anahtarı ayrı kalır: anahtar bozukken de olaylar alınıp saklanır (bugünkü davranış).
+- Kendi yeniden işlememiz "webhook sırrı sağlam" kanıtı sayılmaz (Opus incelemesi, 11-12): gövdeyi biz imzaladığımız için imza hep
+  tutar; sır Paddle'ınkiyle uyuşmuyorken "imza tutmuyor / webhook gelmiyor" alarm durumları yalnız Paddle'ın gerçek teslimiyle kapanır
+  (süreç içi işaret; dışarıdan verilemez). Aksi hâlde her yeniden işleme alarmı sıfırlar, sonraki ret yeniden e-posta atardı.
+- İnceleme bekleyen ve işleyicisi olmayan olaylar aday sorgusunda elenir (okunan dilim 200 satır): çok sayıda eski "inceleme bekliyor"
+  kaydı yeni hataların önünü kesemez.
 
 ## 7. S8 — otomatik mesajın yeniden denenmesi
 
@@ -269,6 +287,8 @@ Koda girmiş ama onayınızı bekleyen tek yeni metin 3d rozetidir (Railway kapa
 | 3d, yalnız kayıtlı bilgiden kurulan taslağın rozeti | "Kayıtlı bilgilerinizden hazırlandı — soruya uygunluğunu kontrol edin" | kodda, onay bekliyor |
 | 3d, öneri alanı notu | "Yapay zekâ önerisi şu an hazırlanamadı." | sizin metniniz, kodda |
 | S1, ikinci onaylayan | Bugünkü metinler kullanıldı ("Mesaj sıraya alındı — birazdan gönderilecek." · "Mesaj gönderildi." · "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor."). İsterseniz ayrı bir cümle: "Bu öneri az önce başka biri tarafından gönderildi." | karar sizde |
+| S1, gönderimi doğrulanamamış öneriyi yeniden onaylayan | Bugünkü metin kullanıldı ("Bu mesaj az önce gönderildi veya hâlâ gönderiliyor."). İsterseniz ayrı bir cümle: "Bu önerinin gönderimi doğrulanamadı. Konuşmayı kontrol edin; ulaşmadıysa metni kutuya alıp gönderin." | karar sizde |
+| S1, başka biri cevapladıktan sonra eski "gönderilemedi" öneri satırını elle yeniden deneme | Bugün izin var (ev sahibinin açık tıklaması). "Bu konuşma sonradan cevaplandı" diye engellemek ayrı karar | karar sizde |
 | S1, öneriden sonra yeni misafir mesajı gelirse | Bugün onaya izin var (öneri yeni mesajı görmeden yazılmış olsa da). Engelleyip "Yeni mesaj geldi — öneriyi yenileyin" demek ayrı karar | karar sizde |
 | S8, ev sahibine görünürlük | Kanalın reddettiği otomatik mesaj bugün yalnız operatör alarmında. "Otomatik mesajlar" kartına satır: "Bu mesaj kanal tarafından reddedildi; yeniden deneniyor." | karar sizde |
 | S4, liste başlığı | "Otomatik atananlar" · "Sizin atadıklarınız (seçerseniz aktarılır)" | migration turu |

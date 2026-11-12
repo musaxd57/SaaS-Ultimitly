@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { inPaddleReplay } from "@/lib/payments/paddle-replay-context";
 import { Prisma } from "@prisma/client";
 import { completeCheckoutIntent } from "@/lib/billing/checkout-intent";
 import { prisma } from "@/lib/db";
@@ -891,10 +892,14 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
   // İmza DOĞRULANDI → yapılandırma sağlam: yapılandırma alarmlarının durumu temizlenir
   // (bir sonraki bozulma yeniden ve HEMEN bildirilsin). Asla fırlatmaz.
-  await clearAlertState("paddle-webhook:signature-mismatch");
-  await clearAlertState("paddle-webhook:signature-stale");
-  await clearAlertState("paddle-webhook:dormant");
-  clearBadSignatureThrottle();
+  // Kendi sakladığımız olayın süreç içi yeniden işlenmesi (S7) bunu KANITLAMAZ — gövdeyi biz imzaladık; sır Paddle'ınkiyle uyuşmuyor
+  // olabilir. O yolda alarm durumlarına dokunulmaz (Opus incelemesi 11-11: yoksa her yeniden işleme alarmı yeniden tetikletirdi).
+  if (!inPaddleReplay()) {
+    await clearAlertState("paddle-webhook:signature-mismatch");
+    await clearAlertState("paddle-webhook:signature-stale");
+    await clearAlertState("paddle-webhook:dormant");
+    clearBadSignatureThrottle();
+  }
 
   let event: PaddleEvent | null = null;
   try {

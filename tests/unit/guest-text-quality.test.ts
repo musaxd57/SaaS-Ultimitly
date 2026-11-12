@@ -317,7 +317,9 @@ describe("suggestReplyFallback — guest-facing copy", () => {
     ];
     for (const msg of highStakes) {
       const reply = suggestReplyFallback(base(msg)).reply;
-      expect(reply, msg).not.toMatch(/İyi günler dileriz|Thank you\.$/);
+      // 3d (11-11): bu konularda artık HİÇ taslak üretilmiyor — kapanış cümlesi de olamaz. Eşitlik bilerek: "kapanış yok" denetimi boş
+      // metinde hep geçerdi (Opus incelemesi: boşa geçen test); taslak geri gelirse burası kırılır.
+      expect(reply, msg).toBe("");
     }
   });
 
@@ -330,9 +332,14 @@ describe("suggestReplyFallback — guest-facing copy", () => {
   });
 
   it("never uses corporate register for the escalation target", () => {
+    // 3d (11-11): devir cümleleri kalktı; tarama kalan (bilgi) taslaklarında sürer — boşa geçmesin diye en az biri dolu olmalı.
+    let nonEmpty = 0;
     for (const msg of ALL) {
-      expect(suggestReplyFallback(base(msg)).reply, msg).not.toMatch(/yöneticimiz|operatörümüz|our manager/i);
+      const reply = suggestReplyFallback(base(msg)).reply;
+      if (reply) nonEmpty++;
+      expect(reply, msg).not.toMatch(/yöneticimiz|operatörümüz|our manager/i);
     }
+    expect(nonEmpty).toBeGreaterThan(0);
   });
 
   it("keeps Turkish replies free of English scheduling jargon", () => {

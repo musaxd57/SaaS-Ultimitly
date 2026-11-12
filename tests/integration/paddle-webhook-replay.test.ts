@@ -47,7 +47,7 @@ import {
   type PaddleRedeliver,
 } from "@/lib/payments/paddle-replay";
 import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
-import { alertStateActive } from "@/lib/alert-state";
+import { alertStateActive, alertOnTransition } from "@/lib/alert-state";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 const KEY_ALARM = "paddle-api-read-unavailable";
@@ -332,6 +332,62 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       const { seen, deliver } = recordingDeliver();
       expect(await replayPendingPaddleEvents({ deliver })).toEqual({ pending: 0, replayed: 0, settled: 0, heldForKey: 0 });
       expect(seen).toEqual([]);
+    });
+
+    it("🚨 inceleme bekleyen çok sayıda ESKİ olay okunan dilimi dolduramaz: yeni hata yine görülür (süzgeç sorguda)", async () => {
+      // Okunan dilim 200 satır, en eskiden. İnceleme bekleyenler bellekte süzülseydi 200'ü de onlar olur, gerçek hata hiç denenmezdi.
+      await prisma.webhookEvent.createMany({
+        data: Array.from({ length: 205 }, (_, i) => ({
+          provider: "paddle",
+          eventType: "subscription.updated",
+          providerEventId: `review_${i}`,
+          payloadJson: JSON.stringify({ event_id: `review_${i}`, event_type: "subscription.updated", data: {} }),
+          status: "error",
+          error: `${NEEDS_REVIEW_PREFIX} bağlanamadı`,
+          createdAt: new Date(Date.now() - 3 * HOUR + i * 1_000),
+        })),
+      });
+      // İşleyicisi olmayan türler de dilimi doldurmasın.
+      await prisma.webhookEvent.createMany({
+        data: Array.from({ length: 205 }, (_, i) => ({
+          provider: "paddle",
+          eventType: "address.updated",
+          providerEventId: `other_${i}`,
+          payloadJson: JSON.stringify({ event_id: `other_${i}`, event_type: "address.updated", data: {} }),
+          status: "error",
+          error: "Error: x",
+          createdAt: new Date(Date.now() - 3 * HOUR + i * 1_000),
+        })),
+      });
+      await stored("fresh_error"); // 20 dk önce — 410 eski satırın ARKASINDA
+      await stored("fresh_stuck", { status: "received", error: null, ageMs: 16 * MIN }); // hata metni BOŞ satır dışarıda kalmamalı
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(seen.sort()).toEqual(["fresh_error", "fresh_stuck"]); // ⬅️ ESKİDE []: dilim inceleme bekleyenlerle doluydu
+      expect(out).toMatchObject({ pending: 2, replayed: 2 });
+    });
+
+    it("🚨 kendi yeniden işlememiz 'webhook sırrı sağlam' KANITI değildir: imza / sessizlik alarmlarının durumu KAPANMAZ (yalnız Paddle'ın gerçek teslimi kapatır)", async () => {
+      // Sır Paddle'ınkiyle uyuşmuyor (alarm açık). Saklı olayı biz kendi sırrımızla imzalayıp işleyiciden geçiriyoruz — imza hep tutar.
+      for (const key of ["paddle-webhook:signature-mismatch", "paddle-webhook:signature-stale", "paddle-webhook:dormant"]) {
+        await alertOnTransition(key, "paddle-webhook-signature-mismatch", new Error("x"));
+      }
+      await seedSub("sub_A", "active");
+      const ev = subEvent("sub_A", "past_due");
+      await prisma.webhookEvent.create({
+        data: { provider: "paddle", eventType: ev.event_type, providerEventId: ev.event_id, payloadJson: JSON.stringify(ev), status: "error", error: "Error: connection reset", createdAt: new Date(Date.now() - 20 * MIN) },
+      });
+      expect(await replayPendingPaddleEvents()).toMatchObject({ replayed: 1, settled: 1 }); // olay yine işlenir
+      expect((await sub(orgId)).status).toBe("past_due");
+      for (const key of ["paddle-webhook:signature-mismatch", "paddle-webhook:signature-stale", "paddle-webhook:dormant"]) {
+        expect(await alertStateActive(key), key).toBe(true); // ⬅️ ESKİDE false: her yeniden işleme alarmı sıfırlar, sonraki ret yeniden e-posta atardı
+      }
+
+      // KONTROL: Paddle'ın GERÇEK (imzası tutan) teslimi durumu kapatır — eski davranış aynen.
+      expect((await postEvent(subEvent("sub_A", "active"))).status).toBe(200);
+      for (const key of ["paddle-webhook:signature-mismatch", "paddle-webhook:signature-stale", "paddle-webhook:dormant"]) {
+        expect(await alertStateActive(key), key).toBe(false);
+      }
     });
 
     it("🚨 yeniden teslim GERÇEK işleyicinin imza kontrolünden geçer (saklı gövde kendi sırrımızla imzalanır) ve olayı işler", async () => {

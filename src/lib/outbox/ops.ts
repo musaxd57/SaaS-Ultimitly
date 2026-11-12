@@ -1,8 +1,10 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ANON_BODY } from "@/lib/data-retention";
 import { isOutboxStatus, OUTBOX_STATUSES, type OutboxStatus } from "./state";
+import { operationBaseKey, operationRetryKey } from "./operation-key";
 
 // ---------------------------------------------------------------------------
 // Durable Outbox — host-facing OPERATIONS view (#8 görünürlük).
@@ -117,19 +119,56 @@ export async function listOutboxDeliveries(
     take,
   });
 
+  // "Devralınmış satır" hesabı anahtarı ister; anahtar listeye KARIŞMASIN diye ayrı, dar bir okumayla alınır (yalnız sayfada
+  // "gönderilemedi" satırı varsa).
+  const failedIds = raw.filter((r) => r.status === "failed").map((r) => r.id);
+  const superseded =
+    failedIds.length === 0
+      ? new Set<string>()
+      : await supersededOperationRows(
+          prisma,
+          organizationId,
+          await prisma.messageOutbox.findMany({ where: { organizationId, id: { in: failedIds } }, select: { id: true, idempotencyKey: true } }),
+        );
   const counts = Object.fromEntries(OUTBOX_STATUSES.map((s) => [s, 0])) as Record<OutboxStatus, number>;
   for (const g of grouped) {
     if (isOutboxStatus(g.status)) counts[g.status] = g._count._all;
   }
 
   return {
-    rows: raw.map((r) => ({ ...r, retryable: canManualRetry(r.status, r.lastErrorCode) })),
+    rows: raw.map((r) => ({ ...r, retryable: canManualRetry(r.status, r.lastErrorCode) && !superseded.has(r.id) })),
     total,
     page,
     take,
     counts,
   };
 }
+
+/**
+ * Yeniden denemeyle DEVRALINMIŞ işlem satırları (S1, Opus incelemesi 11-11). Yapay zekâ önerisinin gönderimi "gönderilemedi" ile bittikten
+ * sonra öneri yeniden onaylandıysa yeni bir gönderim satırı açılmıştır (anahtarı eski satırdan türer). Eski satır elle "yeniden dene" ile
+ * kuyruğa alınırsa aynı öneri misafire İKİNCİ kez giderdi → devralınmış satır elle yeniden denenmez. Sayfa başına tek sorgu.
+ */
+async function supersededOperationRows(
+  db: Pick<Prisma.TransactionClient, "messageOutbox">,
+  organizationId: string,
+  rows: readonly { id: string; idempotencyKey: string }[],
+): Promise<Set<string>> {
+  const rowBySuccessorKey = new Map<string, string>();
+  for (const r of rows) {
+    const base = operationBaseKey(r.idempotencyKey);
+    if (base) rowBySuccessorKey.set(operationRetryKey(base, r.id), r.id);
+  }
+  if (rowBySuccessorKey.size === 0) return new Set();
+  const successors = await db.messageOutbox.findMany({
+    where: { organizationId, idempotencyKey: { in: [...rowBySuccessorKey.keys()] } },
+    select: { idempotencyKey: true },
+  });
+  return new Set(successors.map((x) => rowBySuccessorKey.get(x.idempotencyKey)).filter((id): id is string => Boolean(id)));
+}
+
+/** Elle yeniden deneme, yerine yenisi açılmış satıra geldi — işlemi geri alır (yalnız bu dosyada). */
+class SupersededRetryError extends Error {}
 
 export type RequeueResult =
   | { outcome: "requeued" }
@@ -144,29 +183,44 @@ export type RequeueResult =
  * double-apply, and a crafted id from another org matches nothing (IDOR-safe).
  */
 export async function requeueFailedOutbox(organizationId: string, outboxId: string): Promise<RequeueResult> {
-  const res = await prisma.messageOutbox.updateMany({
-    where: {
-      id: outboxId,
-      organizationId,
-      status: "failed",
-      NOT: { lastErrorCode: "HTTP 402" }, // blocked-class: reconnect requeues it, never a manual hammer
-      // İKİNCİ SAVUNMA (denetim, 08-01): gövdesi temizlenmiş satır ASLA yeniden
-      // kuyruğa alınmaz. Birinci savunma süpürgelerin bu satırı `canceled`
-      // yapmasıdır (ERASABLE_STATUSES); bu koşul, süpürge bir bağı kaçırsa bile
-      // (yetim satır) silinmiş misafire sentinel metnin tek tıkla gitmesini
-      // engeller. `reactivateBlockedOutbox` ile aynı kural.
-      body: { not: ANON_BODY },
-    },
-    data: {
-      status: "pending",
-      attemptCount: 0,
-      availableAt: new Date(),
-      claimedBy: null,
-      claimExpiresAt: null,
-      lastErrorKind: null,
-      lastErrorCode: null,
-    },
-  });
+  let res: { count: number };
+  try {
+    res = await prisma.$transaction(async (tx) => {
+      const updated = await tx.messageOutbox.updateMany({
+        where: {
+          id: outboxId,
+          organizationId,
+          status: "failed",
+          NOT: { lastErrorCode: "HTTP 402" }, // blocked-class: reconnect requeues it, never a manual hammer
+          // İKİNCİ SAVUNMA (denetim, 08-01): gövdesi temizlenmiş satır ASLA yeniden
+          // kuyruğa alınmaz. Birinci savunma süpürgelerin bu satırı `canceled`
+          // yapmasıdır (ERASABLE_STATUSES); bu koşul, süpürge bir bağı kaçırsa bile
+          // (yetim satır) silinmiş misafire sentinel metnin tek tıkla gitmesini
+          // engeller. `reactivateBlockedOutbox` ile aynı kural.
+          body: { not: ANON_BODY },
+        },
+        data: {
+          status: "pending",
+          attemptCount: 0,
+          availableAt: new Date(),
+          claimedBy: null,
+          claimExpiresAt: null,
+          lastErrorKind: null,
+          lastErrorCode: null,
+        },
+      });
+      if (updated.count !== 1) return updated;
+      // 🚨 Devralınmış işlem satırı (↑ `supersededOperationRows`): öneri yeniden onaylanıp yeni gönderimi açılmışsa eskisi kuyruğa
+      // ALINMAZ (aynı öneri ikinci kez giderdi). Denetim, güncellemenin aldığı SATIR KİLİDİ altında yapılır: yeniden onay da yeni satırı
+      // yazmadan önce aynı satırı kilitler (`enqueueOutbound` `supersedes`) → ikisi aynı anda geçemez; biri ötekinin sonucunu görür.
+      const row = await tx.messageOutbox.findUnique({ where: { id: outboxId }, select: { id: true, idempotencyKey: true } });
+      if (row && (await supersededOperationRows(tx, organizationId, [row])).has(row.id)) throw new SupersededRetryError();
+      return updated;
+    });
+  } catch (err) {
+    if (!(err instanceof SupersededRetryError)) throw err;
+    return { outcome: "not_retryable", status: "failed" }; // işlem geri alındı: satır "gönderilemedi"de kaldı
+  }
   if (res.count === 1) return { outcome: "requeued" };
 
   // Distinguish "not yours / doesn't exist" (404) from "exists but not retryable" (409).

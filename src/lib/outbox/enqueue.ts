@@ -83,6 +83,21 @@ export interface EnqueueOutboundArgs {
    * ilk girişin kararı geçerli kalır.
    */
   handoffHoldExempt?: boolean;
+  /**
+   * S1: bu gönderim, misafire KESİNLİKLE ulaşmamış ("gönderilemedi" / "iptal") bir önceki kuyruk satırının YERİNE açılıyor (yapay zekâ
+   * önerisinin yeniden onayı). Yazmadan önce o satır AYNI işlemde paylaşımlı kilitlenir ve hâlâ o durumda mı diye bakılır: bu arada elle
+   * "yeniden dene" ile kuyruğa geri alındıysa (`requeueFailedOutbox` satırı güncellerken kilidi tutar) yeni satır AÇILMAZ →
+   * `SupersededRowRevivedError`. İki yol aynı satır kilidinde buluşur; aynı öneri iki ayrı satırdan iki kez gidemez.
+   */
+  supersedes?: string;
+}
+
+/** `supersedes` ile verilen satır artık "gönderilemedi / iptal" değil (elle yeniden kuyruğa alınmış) — yeni gönderim açılmadı. */
+export class SupersededRowRevivedError extends Error {
+  constructor() {
+    super("superseded outbox row was revived");
+    this.name = "SupersededRowRevivedError";
+  }
 }
 
 export interface EnqueueResult {
@@ -104,6 +119,12 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
   const connectionId = await activeMessagingConnectionId(args.organizationId);
   try {
     const result = await prisma.$transaction(async (tx) => {
+      if (args.supersedes) {
+        // Paylaşımlı satır kilidi: elle yeniden deneme o satırı güncelliyorsa işlemi bitene dek bekler, sonra GÜNCEL durumu okur.
+        const prior = await tx.$queryRaw<{ status: string }[]>`
+          SELECT "status" FROM "MessageOutbox" WHERE "id" = ${args.supersedes} AND "organizationId" = ${args.organizationId} FOR SHARE`;
+        if (prior[0] && prior[0].status !== "failed" && prior[0].status !== "canceled") throw new SupersededRowRevivedError();
+      }
       const message = await tx.message.create({
         data: {
           conversationId: args.conversationId,

@@ -14,12 +14,13 @@ import {
   newClaimOwner,
 } from "@/lib/outbound-claim";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
-import { enqueueOutbound } from "@/lib/outbox/enqueue";
+import { enqueueOutbound, SupersededRowRevivedError } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
 import { applyHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
 import { reportError } from "@/lib/report-error";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { undeliveredOutboundIds } from "@/lib/operator-replies";
+import { operationRetryKey } from "@/lib/outbox/operation-key";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -79,9 +80,8 @@ export type HostSendResult =
 
 export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSendResult> {
   // S1: işlem kimlikli onayda anahtar, işlemin ŞU ANKİ gönderimine çözülür (önceki gönderim misafire kesinlikle ulaşmadıysa yenisi).
-  const input: HostSendInput = rawInput.operation
-    ? { ...rawInput, idempotencyKey: await currentOperationKey(rawInput.organizationId, rawInput.idempotencyKey) }
-    : rawInput;
+  const resolved = rawInput.operation ? await currentOperation(rawInput.organizationId, rawInput.idempotencyKey) : null;
+  const input: HostSendInput = resolved ? { ...rawInput, idempotencyKey: resolved.key } : rawInput;
   const { conversation } = input;
   const id = conversation.id;
   // Deliver on the guest's channel FIRST — don't persist a reply that never reached the guest (Airbnb/Booking via Hospitable,
@@ -137,10 +137,17 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
         messageType: "manual",
         aiAssisted: input.aiAssisted,
         idempotencyKey: input.idempotencyKey,
+        ...(resolved?.supersedes ? { supersedes: resolved.supersedes } : {}),
       });
     } catch (err) {
       // Kuyruğa yazılamadı → hiçbir şey gönderilmeyecek: talep tutulursa (anahtar kapanınca) doğrudan yolun yeniden denemesi 24 sa kilitlenirdi.
       if (ownRequestClaim) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+      // S1: yerine yenisini açacağımız "gönderilemedi" satırı tam bu arada elle yeniden kuyruğa alındı → işlemin gönderimi YİNE o satır.
+      // Yeni satır açılmadı; işlemin güncel gönderiminin durumu döner (ikinci mesaj yok).
+      if (err instanceof SupersededRowRevivedError) {
+        const current = await currentOperation(rawInput.organizationId, rawInput.idempotencyKey);
+        return (await queuedRequestResult({ ...input, idempotencyKey: current.key })) ?? { status: "duplicate" };
+      }
       throw err;
     }
     // (Codex r2 #3 + r3) İstek kimlikli dedupe-hit'te PAYLOAD eşleşmesi ŞART — gövde VE aiAssisted: aynı kimliği farklı gövdeyle
@@ -213,6 +220,11 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
       return { status: "failed_definitive", error: outcome.error };
     }
     // Belirsiz: istek talebi doğduğu 2 dk'da kalır — "kontrol edip yeniden gönder" penceresi eskisi gibi.
+    // 🚨 İşlem kimlikli onayda (S1, Opus incelemesi 11-11) talep başarıdaki gibi UZATILIR: mesaj ulaşmış olabilir ve senkron onu henüz
+    // içeri almamış (ya da kanal rolüyle "otomatik mesaj" yazmış) olabilir — o durumda "konuşma cevaplandı mı" kontrolü onu görmez ve
+    // ikinci yöneticinin 2 dakika sonraki onayı aynı öneriyi körlemesine yeniden gönderirdi. "Onayla ve gönder" bu işlem için kapanır;
+    // ev sahibi konuşmayı kontrol edip gerekirse metni kutuya alarak (ayrı, açık işlem) yeniden gönderir.
+    if (input.operation) await extendOutboundRequest(id, input.idempotencyKey, attempt);
     return { status: "failed_ambiguous" };
   }
   // KESİN başarı: istek talebi 24 saate uzar (yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz). Uzatılamazsa bir kez daha
@@ -340,21 +352,24 @@ async function repliedSince(conversationId: string, since: Date): Promise<boolea
 const OPERATION_RETRY_CHAIN_MAX = 20;
 
 /**
- * S1: işlem kimliğinin ŞU ANKİ gönderim anahtarı. Bu işlemin kuyruktaki gönderimi misafire KESİNLİKLE ulaşmadıysa (başarısız / iptal)
+ * S1: işlem kimliğinin ŞU ANKİ gönderim anahtarı (+ türediği satır). Bu işlemin kuyruktaki gönderimi misafire KESİNLİKLE ulaşmadıysa (başarısız / iptal)
  * öneri yeniden onaylanabilir — doğrudan yoldaki "kesin ret işlemi kilitlemez" kuralının kuyruk karşılığı. Yeni anahtar o satırdan
  * türer: iki yönetici aynı yeniden denemede yine AYNI anahtara düşer (tek mesaj). Bekleyen, gönderilmiş, sonucu doğrulanamayan ya da
  * abonelik yüzünden bekleyen ("engellendi" — kendiliğinden yeniden gider) gönderim yeniden denenmez: anahtar onun kalır, durumu döner.
  * Kuyruk hiç kullanılmadıysa tek indeksli okuma, sonuç taban anahtar.
  */
-async function currentOperationKey(organizationId: string, baseKey: string): Promise<string> {
+async function currentOperation(organizationId: string, baseKey: string): Promise<{ key: string; supersedes: string | null }> {
   let key = baseKey;
+  // Anahtarın türediği satır (misafire ulaşmamış son gönderim): kuyruğa yazarken kilitlenip yeniden doğrulanır (`enqueueOutbound`).
+  let supersedes: string | null = null;
   for (let i = 0; i < OPERATION_RETRY_CHAIN_MAX; i++) {
     const row = await prisma.messageOutbox.findUnique({
       where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: key } },
       select: { id: true, status: true },
     });
-    if (!row || (row.status !== "failed" && row.status !== "canceled")) return key;
-    key = `${baseKey}:retry:${row.id}`;
+    if (!row || (row.status !== "failed" && row.status !== "canceled")) return { key, supersedes };
+    key = operationRetryKey(baseKey, row.id);
+    supersedes = row.id;
   }
-  return key;
+  return { key, supersedes };
 }

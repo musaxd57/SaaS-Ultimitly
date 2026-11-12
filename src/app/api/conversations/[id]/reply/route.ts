@@ -8,6 +8,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { translate } from "@/lib/ai/translate";
 import { sendHostMessage } from "@/lib/host-send";
+import { suggestionOperationKey } from "@/lib/outbox/operation-key";
 import { createHash } from "crypto";
 import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
@@ -100,7 +101,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     });
     if (!anchor) return badRequest({ anchorMessageId: "Geçersiz mesaj kimliği" });
     operation = { anchorCreatedAt: anchor.createdAt };
-    operationKey = `suggestion:${id}:${anchor.id}`;
+    operationKey = suggestionOperationKey(id, anchor.id);
   }
   const idempotencyKey =
     operationKey ??

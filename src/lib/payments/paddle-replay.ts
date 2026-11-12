@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { alertOnTransition, alertStateActive, clearAlertState } from "@/lib/alert-state";
 import { isRedactedPaddlePayload, NEEDS_REVIEW_PREFIX } from "@/lib/data-retention";
 import { getPaddleWebhookSecret, probePaddleRead, signPaddleWebhook } from "@/lib/payments/paddle";
+import { runAsPaddleReplay } from "@/lib/payments/paddle-replay-context";
 
 // ---------------------------------------------------------------------------
 // İŞLENEMEYEN PADDLE OLAYI YALNIZ PADDLE'IN TEKRARINA BIRAKILMAZ (S7, kurucu kararı 11-11).
@@ -27,7 +28,11 @@ import { getPaddleWebhookSecret, probePaddleRead, signPaddleWebhook } from "@/li
 // ---------------------------------------------------------------------------
 
 export const PADDLE_REPLAY_WINDOW_MS = 14 * 86_400_000;
-/** "Alındı"da bu kadar kalan olay yarıda kalmış sayılır (işleme saniyeler sürer; Paddle'ın kendi tekrarıyla yarışmasın diye pay). */
+/**
+ * İlk alınışından bu kadar sonra hâlâ "alındı"da duran olay yarıda kalmış sayılır (işleme saniyeler sürer; pay İLK teslimle yarışmamak
+ * içindir). Paddle'ın sonraki tekrarıyla aynı anda işlenebilir — satırda "son güncelleme" anı yok; sorun değil: işleyiciler tekrar
+ * edilebilir (abonelik yazımı sıra korumalı ve koşullu, fatura sağlayıcı kimliğinde veritabanı düzeyinde tekil).
+ */
 export const PADDLE_REPLAY_STUCK_MS = 15 * 60_000;
 const HOUR = 3_600_000;
 /** Olayın yaşı bu eşikleri geçtikçe birer kez yeniden işlenir. */
@@ -98,20 +103,21 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
       provider: "paddle",
       providerEventId: { not: null },
       createdAt: { gte: new Date(now.getTime() - PADDLE_REPLAY_WINDOW_MS) },
-      OR: [{ status: "error" }, { status: "received", createdAt: { lte: new Date(now.getTime() - PADDLE_REPLAY_STUCK_MS) } }],
+      AND: [
+        { OR: [{ status: "error" }, { status: "received", createdAt: { lte: new Date(now.getTime() - PADDLE_REPLAY_STUCK_MS) } }] },
+        // İşleyicisi olan türler + inceleme bekleyen HARİÇ — SORGUDA (Opus incelemesi 11-11): bellekte süzülseydi inceleme bekleyen
+        // 200 eski satır okunan dilimi doldurur, yeni hatalar hiç görülmezdi. `error` boş olabilen alan: "şununla başlamayan" koşulu
+        // boş değerli satırı da dışarıda bırakırdı → boş değer açıkça kabul edilir.
+        { OR: [{ eventType: { startsWith: "subscription." } }, { eventType: { startsWith: "transaction." } }] },
+        { OR: [{ error: null }, { NOT: { error: { startsWith: NEEDS_REVIEW_PREFIX } } }] },
+      ],
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: PADDLE_REPLAY_BATCH,
     select: { id: true, providerEventId: true, eventType: true, status: true, error: true, payloadJson: true, createdAt: true },
   });
-  // İnceleme bekleyen olay insan kararı ister; işleyicisi olmayan tür ve küçültülmüş yük yeniden işlenmez. (Süzgeç burada: `error` boş
-  // olabilen bir alan — sorguda "şununla başlamayan" koşulu boş değerli satırı da dışarıda bırakırdı.)
-  const candidates = rows.filter(
-    (r) =>
-      !(r.error ?? "").startsWith(NEEDS_REVIEW_PREFIX) &&
-      (r.eventType?.startsWith("subscription.") || r.eventType?.startsWith("transaction.")) &&
-      !isRedactedPaddlePayload(r.payloadJson),
-  );
+  // Küçültülmüş (kişisel verisi silinmiş) yük yeniden işlenmez — gövdenin içeriğine bakar, sorguda süzülemez.
+  const candidates = rows.filter((r) => !isRedactedPaddlePayload(r.payloadJson));
   result.pending = candidates.length;
 
   const lastPass = await prisma.systemLock.findUnique({ where: { name: LAST_PASS_LOCK }, select: { lockedUntil: true } }).catch(() => null);
@@ -148,13 +154,13 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
   for (const row of chosen) {
     result.replayed++;
     try {
-      const res = await deliver(
-        new NextRequest("http://internal.invalid/api/webhooks/paddle", {
-          method: "POST",
-          headers: { "content-type": "application/json", "paddle-signature": signPaddleWebhook(row.payloadJson, secret, Math.floor(Date.now() / 1000)) },
-          body: row.payloadJson,
-        }),
-      );
+      const request = new NextRequest("http://internal.invalid/api/webhooks/paddle", {
+        method: "POST",
+        headers: { "content-type": "application/json", "paddle-signature": signPaddleWebhook(row.payloadJson, secret, Math.floor(Date.now() / 1000)) },
+        body: row.payloadJson,
+      });
+      // Süreç içi işaret: işleyici bu teslimi "Paddle'dan geldi, sır doğru" kanıtı saymaz (`paddle-replay-context.ts`).
+      const res = await runAsPaddleReplay(() => deliver(request));
       if (res.status >= 200 && res.status < 300) result.settled++;
     } catch {
       // İşleyici fırlatmaz (kendi hatasını kayda yazar); yine de tek olay turu düşürmesin.
