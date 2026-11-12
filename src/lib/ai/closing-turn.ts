@@ -132,7 +132,7 @@ const OFFER = new RegExp(
 );
 
 /** Son cevap misafirden bir CEVAP bekliyor mu: soru (işaretli ya da Türkçe soru ekiyle) ya da teklif. */
-function invitesAnswer(body: string): boolean {
+export function invitesAnswer(body: string): boolean {
   const text = body.replace(/[‘’ʼ]/g, "'");
   return asksQuestion(text) || folds(text).some((f) => OFFER.test(f));
 }

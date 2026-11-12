@@ -212,6 +212,14 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       undefined,
       "reply_host_voice",
     ],
+    [
+      // S2 (`AI_LATE_MESSAGE_REPLY_ENABLED`; Opus 11-12 S2-7a): çağıran yalnız geç mesajın taşındığı ve defterin olmadığı turda işaretler.
+      "geç içeri alınan mesajın turu istek defteri olmadan gönderilecekti",
+      ok,
+      WIFI_Q,
+      { lateWithoutLedger: true },
+      "late_without_ledger",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
@@ -229,6 +237,19 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       }
     });
   }
+
+  it("geç tur kemeri kapının SON kontrolüdür: başka bir kontrolün tuttuğu turun gerekçesi değişmez; işaret yokken karar bugünkü", () => {
+    const late = { lateWithoutLedger: true };
+    // Düşük güven → kendi gerekçesi (geç tur kemeri onu gölgelemez).
+    expect(autoReplyGateVerdict({ ...ok, confidence: 0.3 }, WIFI_Q, late)).toEqual({ reason: "blocked", detail: "low_confidence" });
+    // Cevapta üçüncü kişi → kendi gerekçesi (kemerden hemen önceki kontrol).
+    expect(
+      autoReplyGateVerdict({ ...ok, reply: "The Wi-Fi password is Lale2025. Your host lives next door if you need anything." }, WIFI_Q, late),
+    ).toEqual({ reason: "blocked", detail: "reply_host_voice" });
+    // İşaret yok / false → gönderilebilir.
+    expect(autoReplyGateVerdict(ok, WIFI_Q, {})).toBeNull();
+    expect(autoReplyGateVerdict(ok, WIFI_Q, { lateWithoutLedger: false })).toBeNull();
+  });
 
   it("kanıtsız adım kemeri anahtar KAPALIYKEN koşmaz (bağlam verilse de) — bugünkü karar", () => {
     vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "");

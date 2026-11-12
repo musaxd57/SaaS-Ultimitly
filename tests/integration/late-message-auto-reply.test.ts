@@ -98,13 +98,23 @@ type SeedOptions = {
   replyMinAgo?: number;
   /** Cevaptan SONRA yazılmış (olağan) yeni misafir mesajı. */
   after?: string;
+  /** Kaçırılan cevabın metni. */
+  replyBody?: string;
+  /** Geç mesajdan SONRA yazılıp cevabımızdan ÖNCE içeri alınmış (cevabın gördüğü) misafir mesajı. */
+  seenAfterLate?: string;
+  /** Geç mesaj cevabımızdan kaç milisaniye önce yazıldı (verilirse `lateWrittenMinAgo` yerine) + sağlayıcının son mesaj damgası cevabımızın anı. */
+  lateBeforeReplyMs?: number;
+  /** İşletmede kısa nezaket cevabı açık. */
+  closingReply?: boolean;
+  /** 25 saat önce yazılmış, cevabımızdan sonra içeri alınmış ikinci (eski) geç mesaj. */
+  oldLate?: string;
 };
 
 /** İlk soru (cevaptan önce alındı) → cevabımız → cevaptan ÖNCE yazılıp SONRA alınan geç mesaj. Konuşma "Yeni" (S1 çevirmesi). */
 async function seed(o: SeedOptions = {}) {
   const now = Date.now();
   const replyAt = now - (o.replyMinAgo ?? 15) * MIN;
-  const lateAt = now - (o.lateWrittenMinAgo ?? 16) * MIN;
+  const lateAt = o.lateBeforeReplyMs !== undefined ? replyAt - o.lateBeforeReplyMs : now - (o.lateWrittenMinAgo ?? 16) * MIN;
   const org = await prisma.organization.create({
     data: {
       name: "Org",
@@ -113,6 +123,7 @@ async function seed(o: SeedOptions = {}) {
       autoReplyStartHour: 0,
       autoReplyEndHour: 0,
       autoReplyEnabledAt: new Date(now - 30 * 24 * 60 * MIN),
+      ...(o.closingReply ? { autoClosingReplyEnabled: true } : {}),
     },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 7" } });
@@ -126,11 +137,18 @@ async function seed(o: SeedOptions = {}) {
       guestIdentifier: "Alex",
       externalReservationId: "res-1",
       status: "new",
-      lastMessageAt: new Date(now - 10 * MIN),
+      // Senkron konuşmaya sağlayıcının SON mesaj anını yazar: üretimde bu, kaçırılan cevabımızın anıdır.
+      lastMessageAt: new Date(o.lateBeforeReplyMs !== undefined ? replyAt + 1000 : now - 10 * MIN),
       messages: {
         create: [
           { direction: "inbound", senderName: "Alex", authorType: "guest", body: FIRST, externalId: "ext-1", createdAt: new Date(replyAt - 5 * MIN), ingestedAt: new Date(replyAt - 4 * MIN) },
-          { direction: "outbound", senderName: "GuestOps AI", authorType: o.replyAuthor ?? "ai", body: OUR_REPLY, externalId: "ext-r", createdAt: new Date(replyAt) },
+          ...(o.oldLate
+            ? [{ direction: "inbound", senderName: "Alex", authorType: "guest", body: o.oldLate, externalId: "ext-old", createdAt: new Date(now - 25 * 60 * MIN), ingestedAt: new Date(now - 10 * MIN) }]
+            : []),
+          { direction: "outbound", senderName: "GuestOps AI", authorType: o.replyAuthor ?? "ai", body: o.replyBody ?? OUR_REPLY, externalId: "ext-r", createdAt: new Date(replyAt) },
+          ...(o.seenAfterLate
+            ? [{ direction: "inbound", senderName: "Alex", authorType: "guest", body: o.seenAfterLate, externalId: "ext-seen", createdAt: new Date(lateAt + 5000), ingestedAt: new Date(lateAt + 6000) }]
+            : []),
           { direction: "inbound", senderName: "Alex", authorType: "guest", body: o.late ?? LATE, externalId: "ext-2", createdAt: new Date(lateAt), ingestedAt: new Date(now - 10 * MIN) },
           ...(o.after
             ? [{ direction: "inbound", senderName: "Alex", authorType: "guest", body: o.after, externalId: "ext-3", createdAt: new Date(now - 9 * MIN), ingestedAt: new Date(now - 8 * MIN) }]
@@ -336,5 +354,135 @@ describe("kanal oto-yanıtı — geç içeri alınan misafir mesajı (S2)", () =
     delivered.length = 0;
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(delivered).toHaveLength(0);
+  });
+
+  // ── Opus dilim sonu incelemesi 11-12 (S2-4a · S2-2a · S2-2b · S2-7a · S2-10d) ───────────────────────────────────────────────────────
+
+  it("🚨 S2-4a: geç mesajdan SONRA yazılıp cevabımızın gördüğü misafir mesajı varsa tur açılmaz (kuyruk vetosu taslağı her turda iptal ederdi)", async () => {
+    // 10:00:00 "Otopark var mı?" (sağlayıcı geciktirdi) · 10:00:05 "Wi-Fi şifresi?" (hemen alındı) · cevabımız Wi-Fi'ı cevapladı · geç mesaj sonra alındı.
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { conversationId } = await seed({ seenAfterLate: "Wi-Fi şifresini de alabilir miyim?" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(0);
+    expect(await statusOf(conversationId)).toBe("new"); // ev sahibi görür (bugünkü davranış)
+  });
+
+  it("🚨 S2-2a: kaçırılan cevabımız TEKLİFLE bitiyorsa geç 'Evet lütfen' cevapsız tura alınmaz (o teklifin kabulü gibi okunmasın)", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed({ replyBody: "Havlular dolapta; isterseniz ekstra havlu da bırakabilirim.", late: "Evet lütfen" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockUnderstand).not.toHaveBeenCalled();
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 S2-2b: geç 'teşekkürler' cevabımızdan 2 saniye önce yazıldıysa konuşma GİZLENMEZ ve kısa nezaket cevabı gitmez", async () => {
+    // Üretim biçimi: misafir model çalışırken yazdı → mesajın anı sağlayıcının son mesaj damgasına (cevabımız) 5 saniyeden yakın.
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed({ late: "Tamam, teşekkürler", lateBeforeReplyMs: 2000, closingReply: true });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "closing_ack_open" });
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await statusOf(conversationId)).toBe("new");
+    // KONTROL: aynı dizilimde geç mesaj bir SORUYSA yakınlık engel değil — cevaplanır.
+    await resetDb();
+    const asked = await seed({ lateBeforeReplyMs: 2000, closingReply: true });
+    understands([{ intent: "parking", message: 1 }]);
+    mockSuggest.mockResolvedValueOnce(verdict());
+    expect((await applyChannelAutoReply(asked.conversationId)).sent).toBe(true);
+  });
+
+  it("KONTROL (S2-2b): cevabımızdan SONRA yazılmış olağan 'teşekkürler' bugünkü gibi kapanır ve kısa nezaket cevabı gider", async () => {
+    // Geç mesaj YOK: misafir cevabımızı gördü ve teşekkür etti; sağlayıcının son mesaj damgası bu mesajın anı → gizleme kuralı bugünkü.
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed({ late: "Kartı buldum", lateWrittenMinAgo: 20, replyMinAgo: 15 });
+    const thanksAt = new Date(Date.now() - 5 * MIN);
+    await prisma.message.updateMany({ where: { conversationId, externalId: "ext-2" }, data: { createdAt: new Date(Date.now() - 20 * MIN), ingestedAt: new Date(Date.now() - 19 * MIN) } });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", authorType: "guest", body: "Tamam, teşekkürler", externalId: "ext-thanks", createdAt: thanksAt, ingestedAt: new Date(thanksAt.getTime() + 1000) },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: thanksAt } });
+    const org = await prisma.organization.findFirstOrThrow({ select: { id: true } });
+    await prisma.organization.update({ where: { id: org.id }, data: { autoClosingReplyEnabled: true } });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason === "closing_ack" || out.sent === true).toBe(true);
+    expect(out.skippedReason).not.toBe("closing_ack_open");
+  });
+
+  it("🚨 S2-7a: istek defteri (konuşma öğeleri) KAPALIYSA geç mesaj taşınmaz — model çağrılmadan bugünkü sonuç", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "");
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockSuggest).not.toHaveBeenCalled();
+  });
+
+  it("🚨 S2-7a: defter açık ama bu tur öğelere BÖLÜNEMEDİYSE (anlama katmanı sonuç vermedi) geç turun cevabı gönderilmez — `late_without_ledger`", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed();
+    mockUnderstand.mockResolvedValue({ status: "failed", ms: 1 } as never);
+    mockSuggest.mockResolvedValue(verdict({ answeredRequests: undefined }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSuggest).toHaveBeenCalled(); // tur açıldı, model yazdı — kapı tuttu
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await statusOf(conversationId)).toBe("new");
+    const events = await prisma.riskEvent.findMany({ where: { conversationId }, select: { kbEvidenceJson: true } });
+    expect(events.map((e) => e.kbEvidenceJson ?? "").join("|")).toContain("late_without_ledger");
+  });
+
+  it("KONTROL (S2-7a): aynı defter yokluğu OLAĞAN turda (geç mesaj yok) bu gerekçeyle tutulmaz", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed({ after: "Çıkış saati kaç?" });
+    // Geç mesajı olağan hâle getir (cevabımızdan önce içeri alınmış) → tur yalnız cevaptan sonraki mesaj.
+    await prisma.message.updateMany({ where: { conversationId, externalId: "ext-2" }, data: { ingestedAt: new Date(Date.now() - 15.5 * MIN) } });
+    mockUnderstand.mockResolvedValue({ status: "failed", ms: 1 } as never);
+    mockSuggest.mockResolvedValue(verdict({ intent: "checkout_time", reply: "Çıkış saati 11:00.", answeredRequests: undefined }));
+    await applyChannelAutoReply(conversationId);
+    const events = await prisma.riskEvent.findMany({ where: { conversationId }, select: { kbEvidenceJson: true } });
+    expect(events.map((e) => e.kbEvidenceJson ?? "").join("|")).not.toContain("late_without_ledger");
+  });
+
+  it("🚨 S2-10d: ev sahibinin TESLİM EDİLEMEMİŞ cevabı geç mesajdan sonraysa yapay zekâ o turu almaz", async () => {
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { conversationId } = await seed();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { property: { select: { organizationId: true } } } });
+    const hostTry = await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Ev Sahibi", authorType: "host", body: "Otopark arkada.", createdAt: new Date(Date.now() - 9 * MIN) },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        availableAt: new Date(), organizationId: conv.property.organizationId, conversationId, messageId: hostTry.id, channel: "airbnb",
+        externalReservationId: "res-1", messageType: "manual", body: "Otopark arkada.", idempotencyKey: "manual-late-1", status: "failed",
+      },
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockSuggest).not.toHaveBeenCalled();
+    // KONTROL: aynı kuyruk satırı YAPAY ZEKÂNIN düşmüş taslağıysa engel değil.
+    await prisma.message.update({ where: { id: hostTry.id }, data: { authorType: "ai", senderName: "GuestOps AI" } });
+    await prisma.messageOutbox.updateMany({ where: { messageId: hostTry.id }, data: { messageType: "ai" } });
+    understands([{ intent: "parking", message: 1 }]);
+    mockSuggest.mockResolvedValueOnce(verdict());
+    expect(await applyChannelAutoReply(conversationId)).toMatchObject({ sent: true, queued: true });
+  });
+
+  it("🚨 kesit geriye genişleyince 24 saati aşan ESKİ bir geç mesaj okunursa tur açılmaz (ilk sayfada taşınmış olsa da)", async () => {
+    // Sayfa boyu 2: ilk sayfa [geç mesaj, cevabımız] → taşınır; ikinci sayfada 25 saatlik geç mesaj okunur → "biri bile aşıyorsa hiçbiri".
+    __setChannelThreadPageForTests(2);
+    vi.stubEnv("AI_LATE_MESSAGE_REPLY_ENABLED", "1");
+    const { conversationId } = await seed({ oldLate: "Dün sormuştum: bebek yatağı var mı?" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out).toMatchObject({ sent: false, skippedReason: "already_answered" });
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

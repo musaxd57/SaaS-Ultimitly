@@ -9,12 +9,16 @@ import { LATE_MESSAGE_MAX_AGE_MS, lateMessageReplyEnabled, lateTurnView } from "
 
 const T = (min: number) => new Date(Date.UTC(2026, 10, 12, 10, min));
 const NOW = T(10);
-type Row = { id: string; direction: "inbound" | "outbound"; authorType: string | null; createdAt: Date; ingestedAt: Date | null };
-const guest = (id: string, created: number, ingested: number | null): Row => ({
-  id, direction: "inbound", authorType: "guest", createdAt: T(created), ingestedAt: ingested === null ? null : T(ingested),
+type Row = { id: string; direction: "inbound" | "outbound"; authorType: string | null; body: string; createdAt: Date; ingestedAt: Date | null };
+const guest = (id: string, created: number, ingested: number | null, body = "Otopark var mı?"): Row => ({
+  id, direction: "inbound", authorType: "guest", body, createdAt: T(created), ingestedAt: ingested === null ? null : T(ingested),
 });
-const ours = (id: string, created: number, authorType: string | null = "ai"): Row => ({ id, direction: "outbound", authorType, createdAt: T(created), ingestedAt: null });
-const providerReply = (id: string, created: number, ingested: number): Row => ({ id, direction: "outbound", authorType: "host", createdAt: T(created), ingestedAt: T(ingested) });
+const ours = (id: string, created: number, authorType: string | null = "ai", body = "Wi-Fi şifresi Lale2024."): Row => ({
+  id, direction: "outbound", authorType, body, createdAt: T(created), ingestedAt: null,
+});
+const providerReply = (id: string, created: number, ingested: number): Row => ({
+  id, direction: "outbound", authorType: "host", body: "Wi-Fi şifresi Lale2024.", createdAt: T(created), ingestedAt: T(ingested),
+});
 /** Akışın verdiği sıra: yazılma anı ARTAN. */
 const thread = (...rows: Row[]) => [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 const ids = (rows: readonly Row[]) => rows.map((r) => r.id);
@@ -101,6 +105,58 @@ describe("lateTurnView — geç mesaj kaçırdığı yapay zekâ cevabının ard
     const two = thread(guest("old", 1, 6), guest("fresh", 2, 6), ours("ai", 3));
     expect(lateTurnView(two, new Date(T(1).getTime() + LATE_MESSAGE_MAX_AGE_MS + 1)).messages).toBe(two);
     expect(ids(lateTurnView(two, new Date(T(1).getTime() + LATE_MESSAGE_MAX_AGE_MS)).messages)).toEqual(["ai", "old", "fresh"]);
+  });
+
+  it("🚨 şart 1 — ev sahibinin TESLİM EDİLEMEMİŞ denemesi (görünümden süzülmüş, ham dizide) geç mesajdan sonraysa dizi AYNEN", () => {
+    // Görünüm: m1, m2 (geç), ai. Ham dizide 10:04'te ev sahibinin kuyrukta başarısız olmuş cevabı da var → turu o almak istedi.
+    const view = thread(guest("m1", 0, 1), guest("m2", 2, 6), ours("ai", 3));
+    const failedHost = ours("host-failed", 4, "host");
+    expect(lateTurnView(view, NOW, thread(...view, failedHost)).messages).toBe(view);
+    // Yazarı bilinmeyen teslim edilememiş giden de "bizim değil" sayılır (şüphede taşınmaz).
+    expect(lateTurnView(view, NOW, thread(...view, ours("legacy-failed", 4, null))).messages).toBe(view);
+    // KONTROL: teslim edilememiş YAPAY ZEKÂ taslağı engel değil; geç mesajdan ÖNCEKİ ev sahibi denemesi de (o tur kapandı).
+    expect(ids(lateTurnView(view, NOW, thread(...view, ours("ai-failed", 4))).messages)).toEqual(["m1", "ai", "m2"]);
+    expect(ids(lateTurnView(view, NOW, thread(...view, ours("host-early", 1.5, "host"))).messages)).toEqual(["m1", "ai", "m2"]);
+    // Otomatik şablon (karşılama / giriş) cevap değildir → ham dizide de engel değil.
+    expect(ids(lateTurnView(view, NOW, thread(...view, ours("auto", 4, "automation"))).messages)).toEqual(["m1", "ai", "m2"]);
+  });
+
+  it("🚨 şart 3 — geç mesajdan SONRA yazılıp cevabımızın gördüğü misafir mesajı varsa dizi AYNEN (kuyruk vetosu geç mesajı 'geçilmiş' sayardı)", () => {
+    // 10:02:00 "Bir de havuz var mı?" (sağlayıcı geciktirdi, 10:06'da alındı) · 10:02:30 "Wi-Fi şifresi?" (hemen alındı) · 10:03 cevabımız.
+    const rows = thread(guest("late", 2, 6), guest("seen", 2.5, 2.6), ours("ai", 3));
+    expect(lateTurnView(rows, NOW).messages).toBe(rows);
+    // Gövdesiz misafir satırı (yalnız fotoğraf) da sayılır — veto gövdeye bakmaz.
+    const photo = thread(guest("late", 2, 6), guest("photo", 2.5, 2.6, ""), ours("ai", 3));
+    expect(lateTurnView(photo, NOW).messages).toBe(photo);
+    // İki geç mesajın arasına düşen görülmüş mesaj da aynı hüküm.
+    const between = thread(guest("late1", 2, 6), guest("seen", 2.3, 2.4), guest("late2", 2.6, 6), ours("ai", 3));
+    expect(lateTurnView(between, NOW).messages).toBe(between);
+    // KONTROL: görülmüş mesaj geç mesajdan ESKİYSE taşınır (geç mesaj cevaptan önceki en yeni misafir mesajı).
+    const older = thread(guest("seen", 1.5, 1.6), guest("late", 2, 6), ours("ai", 3));
+    expect(ids(lateTurnView(older, NOW).messages)).toEqual(["seen", "ai", "late"]);
+    // KONTROL: aradaki satır önceki yapay zekâ cevabıysa (misafir mesajı değil) taşınır.
+    const aiBetween = thread(guest("late", 2, 6), ours("ai0", 2.5), ours("ai", 3));
+    expect(ids(lateTurnView(aiBetween, NOW).messages)).toEqual(["ai0", "ai", "late"]);
+  });
+
+  it("🚨 şart 4 — cevabımız soru ya da teklifle bitiyorsa dizi AYNEN (geç 'Evet lütfen' o teklifin kabulü gibi okunmasın)", () => {
+    const late = guest("m2", 2, 6, "Evet lütfen");
+    for (const body of [
+      "Havlu dolapta; isterseniz ekstra havlu da bırakabilirim.",
+      "Kaç kişi olacaksınız?",
+      "The towels are in the closet. Would you like me to send the directions as well?",
+    ]) {
+      const rows = thread(guest("m1", 0, 1, "Havlu var mı?"), late, ours("ai", 3, "ai", body));
+      expect([body, lateTurnView(rows, NOW).messages === rows]).toEqual([body, true]);
+    }
+    // Cevaptan sonra yazılmış yeni mesaj olsa da aynı hüküm (geç mesaj yine teklifin hemen ardına düşerdi).
+    const withAfter = thread(guest("m1", 0, 1), late, ours("ai", 3, "ai", "İsterseniz ekstra havlu da bırakabilirim."), guest("after", 7, 8));
+    expect(lateTurnView(withAfter, NOW).messages).toBe(withAfter);
+    // KONTROL: düz bilgi cevabı taşınır; teklif ÖNCEKİ cevaptaysa da taşınır (o teklifin kabulü olarak okunması doğru okumadır).
+    const plain = thread(guest("m1", 0, 1), late, ours("ai", 3, "ai", "Havlular banyodaki dolapta."));
+    expect(ids(lateTurnView(plain, NOW).messages)).toEqual(["m1", "ai", "m2"]);
+    const earlierOffer = thread(ours("ai0", 0.5, "ai", "Kapı kodunu şimdi gönderebilirim, ister misiniz?"), guest("m1", 1, 1.2), late, ours("ai", 3, "ai", "Havlular banyodaki dolapta."));
+    expect(ids(lateTurnView(earlierOffer, NOW).messages)).toEqual(["ai0", "m1", "ai", "m2"]);
   });
 
   it("içeri alınma anı bilinmeyen misafir satırı geç sayılmaz; sağlayıcıda yazılmış eski cevabın gördüğü mesajlar da", () => {

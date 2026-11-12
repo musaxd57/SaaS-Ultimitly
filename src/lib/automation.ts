@@ -292,6 +292,11 @@ export interface AutoReplyGateContext {
    * (`host-contact-settle.hostContactOpenWithoutLedger`) — defter yokken gönderilen tur "Cevaplandı" görünürdü; tur tutulur, ev sahibi yanıtlar.
    */
   hostContactOpen?: boolean;
+  /**
+   * S2 (Opus 11-12 S2-7a): bu turda geç içeri alınmış misafir mesajı cevapsız tura taşındı ama tur öğelere BÖLÜNEMEDİ (defter yok). Cevap
+   * geç soruyu karşılamazsa hiçbir kayıt açık kalmaz, konuşma "Cevaplandı" görünürdü → tur gönderilmez, ev sahibi yanıtlar.
+   */
+  lateWithoutLedger?: boolean;
   history?: string[];
   guestName?: string | null;
   /** Son giden yanıttan SONRA gelen, henüz cevaplanmamış misafir mesajları
@@ -881,6 +886,9 @@ export function autoReplyGateVerdict(
   ) {
     return hold("reply_host_voice");
   }
+  // ── S2: GEÇ MESAJ TURU İSTEK DEFTERİ OLMADAN GÖNDERİLMEZ (anahtar `AI_LATE_MESSAGE_REPLY_ENABLED`; çağıran yalnız o turda işaretler) ──
+  // En sonda: gönderilecek olan tur tutulur, başka bir kontrolün tuttuğu turun gerekçesi değişmez.
+  if (context?.lateWithoutLedger === true) return hold("late_without_ledger");
   return null;
 }
 
@@ -2223,9 +2231,17 @@ export async function applyChannelAutoReply(
   // sağlanmıyorsa dizi aynen: son mesaj giden → `already_answered` (S1, 11-04: konuşma "Yeni" kalır, ev sahibi görür).
   const lateOn = lateMessageReplyEnabled();
   const turnNow = new Date();
+  // Bu turda ardına taşınan geç mesajların kimlikleri (boş = taşıma yok → aşağıdaki iki kemer de koşmaz).
+  let lateTurnIds: ReadonlySet<string> = new Set<string>();
   const viewOf = (rows: typeof thread.rows) => {
     const view = threadView(rows, undeliveredIds);
-    return lateOn ? [...lateTurnView(view, turnNow).messages] : view;
+    // İstek defteri (konuşma öğeleri) kapalıysa taşıma da yok: cevabın karşılamadığı geç soru ancak defterde açık kalarak görünür olur
+    // (Opus 11-12 S2-7a). Defter açık ama bu tur bölünemediyse (emin olunmayan anlama / planlama hatası) kapı tutar: `late_without_ledger`.
+    if (!lateOn || !conversationItemsEnabled()) return view;
+    // Ham satırlar da verilir: ev sahibinin teslim edilememiş denemesi görünümden süzülmüştür ama turu o almak istemiştir (`late-turn.ts` şart 1).
+    const turn = lateTurnView(view, turnNow, rows);
+    lateTurnIds = new Set(turn.late.map((m) => m.id));
+    return [...turn.messages];
   };
   let messages = viewOf(thread.rows);
   // Kesit süzgeçten sonra boş kaldıysa konuşmanın daha eskisi okunur (bugün: tamamı süzülürdü).
@@ -2243,6 +2259,9 @@ export async function applyChannelAutoReply(
     thread = await extendThread(conversation.id, thread);
     messages = viewOf(thread.rows);
   }
+  // S2: kesit geriye genişleyince geç mesaj şartı düşmüş olabilir (daha eski, 24 saati aşan bir geç mesaj okundu → taşıma yok): son mesaj
+  // artık kaçırılan cevabın kendisidir. Anahtar kapalıyken genişleme son mesajı değiştirmez (yalnız eski satır ekler).
+  if (lateOn && messages[messages.length - 1].id !== last.id) return { sent: false, skippedReason: "already_answered", ...meta };
 
   // 🚨 K10-t (kurucu kararı 09-28): cevapsız misafir mesajlarından biri 8.000 karakteri aşarsa yapay zekâ CEVAP ÜRETMEZ —
   // model / kalıp işlemlerinden (kapanış tespiti, sınıflandırıcı, anlama katmanı, kapı) ÖNCE. Metin kırpılıp modele
@@ -2296,6 +2315,9 @@ export async function applyChannelAutoReply(
   let closingHideDecision: Promise<boolean> | null = null;
   const closingHide = (): Promise<boolean> =>
     (closingHideDecision ??= (async () =>
+      // S2 (Opus 11-12 S2-2b): karar verilen mesaj ardına taşınmış GEÇ mesajsa konuşma gizlenmez, kısa nezaket cevabı da gitmez — misafir o
+      // "teşekkürler"i son cevabımızı görmeden yazdı (yazılma anı cevabımıza saniyelerle yakın olduğu için damga kıyası onu ayıramaz).
+      !lateTurnIds.has(last.id) &&
       conversation.lastMessageAt.getTime() - last.createdAt.getTime() <= CLOSING_SYNC_TOLERANCE_MS &&
       closingMayHide({
         messages,
@@ -2826,6 +2848,9 @@ export async function applyChannelAutoReply(
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
+    // S2 (Opus 11-12 S2-7a): geç mesaj ardına taşındı ama bu turun istek defteri yok → gönderilirse cevabın karşılamadığı geç soru iz
+    // bırakmadan "Cevaplandı" olurdu. Kapının SON kontrolü (öteki tutma gerekçeleri ve acil yolu aynen).
+    ...(lateTurnIds.size > 0 && !itemsPlan ? { lateWithoutLedger: true } : {}),
     // Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur: okuyucunun hükmü (T-b) + iletişim DEĞERİ için anahtarsız kod
     // yedeği (kurucu 10-23 akşam 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"; okuyucu kapalı / düştüyse de).
     offPlatformContactHolds: contactWindow,

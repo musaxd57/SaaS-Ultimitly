@@ -306,8 +306,22 @@ type SeedMessageRow = {
  * Senaryonun mesaj satırları (saf). Olağan senaryoda bugünkü biçim BİREBİR: geçmiş 10'ar dakika arayla, son misafir mesajı bir dakika
  * önce, içeri alınma anı yazılmaz. `late` senaryoda (S2) ürünün "geç içeri alınan mesaj" ölçütü kurulur (`message-author.lateGuestMessages`):
  * misafir satırları içeri alınma anı taşır, giden satırlar BİZİM yazdığımız cevaptır (içeri alınma anı yok, teslim edilmiş), `message`
- * son giden mesajdan bir dakika ÖNCE yazılmış ve bir dakika önce İÇERİ ALINMIŞTIR; `after` yarım dakika önce yazılmış olağan mesajdır.
+ * son giden mesajdan DÖRT SANİYE önce yazılmış ve bir dakika önce İÇERİ ALINMIŞTIR; `after` yarım dakika önce yazılmış olağan mesajdır.
+ * Dört saniye üretim biçimidir (Opus 11-12 S2-9a): misafir cevap modeli çalışırken yazar; bir dakikalık aralık kapanış gizleme kuralının
+ * 5 saniyelik damga kıyasını (ve onun geç mesajdaki kemerini) hiç sınamıyordu. Konuşmanın son mesaj damgası için `scenarioLastMessageAt`.
  */
+/** Geç mesajın yazılması ile kaçırdığı cevabımız arasındaki süre (gizleme kuralının 5 saniyelik toleransının İÇİNDE). */
+const LATE_GAP_MS = 4_000;
+
+/**
+ * Konuşmanın `lastMessageAt`i — senkron yazıcısı oraya SAĞLAYICININ son mesaj anını yazar (şema varsayılanı "şimdi" değil). Olağan senaryoda
+ * bugünkü davranış (alan yazılmaz → undefined); `late` senaryoda sağlayıcı sırasındaki son mesaj: `after` varsa o, yoksa kaçırılan cevabımız.
+ */
+export function scenarioLastMessageAt(rows: readonly SeedMessageRow[], late: boolean | undefined): Date | undefined {
+  if (!late) return undefined;
+  return new Date(Math.max(...rows.map((r) => r.createdAt.getTime())) + 1000);
+}
+
 export function scenarioMessageRows(
   s: Pick<Scenario, "history" | "message" | "late" | "lateWrittenMinutesAgo" | "after">,
   now: number,
@@ -329,10 +343,10 @@ export function scenarioMessageRows(
   }
   const lastOut = history.findLastIndex((h) => h.direction === "outbound");
   if (lastOut < 0) throw new Error("late senaryosu geçmişte en az bir giden mesaj ister");
-  // Geç mesaj `lateWrittenMinutesAgo` dakika önce yazıldı; kaçırdığı cevap ondan bir dakika SONRA. Geçmişin öteki satırları cevaba göre
+  // Geç mesaj `lateWrittenMinutesAgo` dakika önce yazıldı; kaçırdığı cevap ondan `LATE_GAP_MS` SONRA. Geçmişin öteki satırları cevaba göre
   // 10'ar dakika geriye / ileriye dizilir (cevaptan sonraki geçmiş satırı olursa — ör. ev sahibinin sonraki cevabı — cevaptan sonra kalır).
   const lateAt = now - (s.lateWrittenMinutesAgo ?? 21) * MIN;
-  const replyAt = lateAt + MIN;
+  const replyAt = lateAt + LATE_GAP_MS;
   const rows: SeedMessageRow[] = history.map((h, i) => {
     const createdAt = new Date(i === lastOut ? replyAt : i < lastOut ? replyAt - (lastOut - i) * 10 * MIN : Math.min(replyAt + (i - lastOut) * 5 * MIN, now - 2 * MIN));
     return h.direction === "inbound"
@@ -402,6 +416,8 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       sourceReference: `res-${s.id}`,
     },
   });
+  const messageRows = scenarioMessageRows(s, now, guestName);
+  const lastMessageAt = scenarioLastMessageAt(messageRows, s.late);
   const conversation = await prisma.conversation.create({
     data: {
       propertyId: property.id,
@@ -410,7 +426,8 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       guestIdentifier: guestName,
       status: "new",
       externalReservationId: `res-${s.id}`,
-      messages: { create: scenarioMessageRows(s, now, guestName) },
+      ...(lastMessageAt ? { lastMessageAt } : {}),
+      messages: { create: messageRows },
     },
     select: { id: true },
   });
@@ -436,6 +453,8 @@ interface Row {
   riskReason: string | null;
   status: string | null;
   escalated: boolean;
+  /** S2: senaryo "geç içeri alınan mesaj" kuruyor (`lateTurnMetrics`). */
+  late?: true;
   items: number;
   heldItems: number;
   emails: number;
@@ -592,6 +611,37 @@ function petSplitLines(rows: readonly { needs?: readonly NeedResult[] }[]): stri
   ];
 }
 
+/**
+ * S2 (Opus 11-12 S2-9b): "geç mesaj" senaryolarında akış turu AÇTI mı. Anahtar kapalıyken hepsi `already_answered`dır ve "gönderilmemeli"
+ * beklentisini o da karşılar — yalnız "gitmedi" saymak, mesajı sessizce düşüren bir gerilemeyi doğru kabul ederdi. `opened` = tur açıldı
+ * (cevaplandı / kapanış sayıldı / tutuldu / yükseltildi); `notOpened` = `already_answered` (şart dışı senaryolar ve anahtar kapalı kol).
+ * Yalnız toplu sayı (kör rapora da yazılabilir).
+ */
+export function lateTurnMetrics(rows: readonly { late?: true; sent: boolean; skippedReason: string | null; escalated: boolean }[]) {
+  const late = rows.filter((r) => r.late);
+  const opened = late.filter((r) => r.skippedReason !== "already_answered");
+  return {
+    scenarios: late.length,
+    opened: opened.length,
+    notOpened: late.length - opened.length,
+    sent: opened.filter((r) => r.sent).length,
+    closing: opened.filter((r) => r.skippedReason === "closing_ack" || r.skippedReason === "closing_ack_open").length,
+    closingHidden: opened.filter((r) => r.skippedReason === "closing_ack").length,
+    escalated: opened.filter((r) => r.escalated).length,
+    held: opened.filter((r) => !r.sent && !r.escalated && r.skippedReason !== "closing_ack" && r.skippedReason !== "closing_ack_open").length,
+  };
+}
+/** Rapor satırları (geç mesaj senaryosu olmayan sette boş). */
+function lateTurnLines(rows: Parameters<typeof lateTurnMetrics>[0]): string[] {
+  const m = lateTurnMetrics(rows);
+  if (m.scenarios === 0) return [];
+  return [
+    `| S2 · geç mesaj senaryosu: tur AÇILDI (\`already_answered\` değil) | ${m.opened} / ${m.scenarios} |`,
+    `| S2 · açılan tur: cevap gitti · kapanış sayıldı · acil yükseltme · tutuldu | ${m.sent} · ${m.closing} · ${m.escalated} · ${m.held} |`,
+    `| 🚨 S2 · geç kapanış mesajında konuşma GİZLENDİ (hedef 0) | ${m.closingHidden} |`,
+  ];
+}
+
 let lastStart = 0;
 async function throttle(): Promise<void> {
   const gap = 60_000 / RPM;
@@ -694,6 +744,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     riskReason: ev?.reason ?? null,
     status: conv?.status ?? null,
     escalated: conv?.status === "problem",
+    ...(s.late ? { late: true as const } : {}),
     items: items.length,
     heldItems: items.filter((i) => i.status === "pending_host").length,
     emails: mockMail.mock.calls.length,
@@ -861,6 +912,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         `| 🚨 "bilgim yok" / iç kaynak anlatımı giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
         `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
         ...petSplitLines(rows.filter((r) => r.ok)),
+        ...lateTurnLines(rows.filter((r) => r.ok)),
         "",
         // Opus 10-23 sabah F14: yalnız toplu sayı + kimlik (ihtiyaç türü / sonuç dökümü setin yapısını sızdırır).
         "Senaryo kimlikleri: " + rows.map((r) => `\`${r.id}\``).join(" "),
@@ -964,6 +1016,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
               `| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
               `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
               ...petSplitLines(rows.filter((r) => r.ok)),
+              ...lateTurnLines(rows.filter((r) => r.ok)),
               "",
               "| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış) | öğeler | parça kararları |",
               "|---|---|---|---|",
@@ -1098,6 +1151,33 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     expect(old.seen).toEqual(old.written);
     // Geçmişte giden mesaj yoksa geç senaryo kurulamaz (sessizce olağan senaryoya dönmez).
     expect(() => scenarioMessageRows({ history: [history[0]!], message: "x", late: true }, now, "Alex")).toThrow(/giden mesaj/);
+    // Üretim zamanlaması (Opus 11-12 S2-9a): geç mesaj cevabımızdan 4 sn önce yazıldı; konuşmanın son mesaj damgası sağlayıcının son mesajı
+    // (cevabımız, +1 sn) → geç mesaj gizleme kuralının 5 saniyelik toleransının İÇİNDE. `after` varsa damga onun anıdır; olağan senaryoda yazılmaz.
+    const lateRows = scenarioMessageRows({ history, message: "Otopark var mı?", late: true }, now, "Alex");
+    const at = (body: string, rows = lateRows) => rows.find((r) => r.body === body)!.createdAt.getTime();
+    expect(at("Wi-Fi şifresi Lale2024.") - at("Otopark var mı?")).toBe(4000);
+    const stamp = scenarioLastMessageAt(lateRows, true)!.getTime();
+    expect(stamp - at("Wi-Fi şifresi Lale2024.")).toBe(1000);
+    expect(stamp - at("Otopark var mı?")).toBeLessThanOrEqual(5000);
+    const bothRows = scenarioMessageRows({ history, message: "Otopark var mı?", late: true, after: "Çıkış kaçta?" }, now, "Alex");
+    expect(scenarioLastMessageAt(bothRows, true)!.getTime() - at("Çıkış kaçta?", bothRows)).toBe(1000);
+    expect(scenarioLastMessageAt(scenarioMessageRows({ history, message: "Otopark var mı?" }, now, "Alex"), undefined)).toBeUndefined();
+  });
+
+  it("S2 geç tur sayıları: tur açıldı / açılmadı ayrımı — anahtar kapalı kolun 'gitmedi'si ile açık kolun tutması aynı sayılmaz", () => {
+    const row = (late: boolean, sent: boolean, skippedReason: string | null, escalated = false) => ({ ...(late ? { late: true as const } : {}), sent, skippedReason, escalated });
+    const rows = [
+      row(true, true, null), // cevaplandı
+      row(true, false, "closing_ack_open"), // kapanış, görünür
+      row(true, false, "closing_ack"), // kapanış, GİZLENDİ (hedef 0)
+      row(true, false, "escalated_to_human", true), // acil
+      row(true, false, "low_confidence_or_risky"), // tutuldu
+      row(true, false, "already_answered"), // tur açılmadı (şart dışı / anahtar kapalı)
+      row(false, true, null), // olağan senaryo — kapsam dışı
+      row(false, false, "already_answered"),
+    ];
+    expect(lateTurnMetrics(rows)).toEqual({ scenarios: 6, opened: 5, notOpened: 1, sent: 1, closing: 2, closingHidden: 1, escalated: 1, held: 1 });
+    expect(lateTurnMetrics([row(false, true, null)]).scenarios).toBe(0);
   });
 
   it("S3 evcil hayvan ayrımı sayıları: yanlış izin evcil hayvan ihtiyacından, öteki sorunun yanlışı ayrı sayılır; evcil hayvansız senaryo kapsam dışı", () => {

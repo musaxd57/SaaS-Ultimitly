@@ -1,6 +1,6 @@
 {
  "version": 1,
- "_about": "S2 (kurucu karari 11-11) GELISTIRME seti (acik): misafirin otomatik cevabimizdan ONCE yazip bize SONRA ulasan mesaji (late: true). Siniflar: yeni soru (gitmeli) · gec + sonradan yeni mesaj · bilgi tabaninda olmayan soru · hassas istek · kapanis · tekrar / durtme (tekrar cevap gitmemeli) · geri cekme · acil / sikayet · sart disi (ev sahibi yazdi, 24 saatten eski) · kontrol (gec degil). Anahtar kapaliyken gec senaryolarin hicbiri gitmez. Kurgusal mulk 'Lale'. Kabul olcumu ayri yazarin gorulmemis setiyle yapilir.",
+ "_about": "S2 (kurucu karari 11-11) GELISTIRME seti (acik): misafirin otomatik cevabimizdan ONCE yazip bize SONRA ulasan mesaji (late: true). Siniflar: yeni soru (gitmeli) · gec + sonradan yeni mesaj · bilgi tabaninda olmayan soru · hassas istek · kapanis · tekrar / durtme (tekrar cevap gitmemeli) · geri cekme · acil / sikayet · sart disi (ev sahibi yazdi, 24 saatten eski) · cevabimiz soru / teklifle bitiyor (tur acilmamali, Opus 11-12 S2-2a) · kontrol (gec degil). Anahtar kapaliyken gec senaryolarin hicbiri gitmez. Kurgusal mulk 'Lale'. Kabul olcumu ayri yazarin gorulmemis setiyle yapilir.",
  "property": {
   "name": "Lale – bahçe katı (iç kod L1)",
   "guestDisplayName": "Bahçe Katı Daire 1",
@@ -854,6 +854,107 @@
       "want": "answered",
       "all": [
        "container|bin"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-teklif-evet",
+   "class": "late_offer_reply",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Havuz kaçta açılıyor?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Havuz her gün 09:00 - 20:00 arasında açık; isterseniz yol tarifini de gönderebilirim."
+    }
+   ],
+   "message": "Evet lütfen",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-en-offer-then-question",
+   "class": "late_offer_reply",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What is the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The network is Lale_Home and the password is Lale2024. Would you like me to send the parking details as well?"
+    }
+   ],
+   "message": "Where do we leave the trash?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-soru-ile-biten",
+   "class": "late_offer_reply",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Yarın geliyoruz, bir şey gerekiyor mu?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Hayır, hazırız. Kaç kişi olacaksınız?"
+    }
+   ],
+   "message": "Tamam",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-iki-tur-sonra",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    },
+    {
+     "direction": "inbound",
+     "body": "Havuz kaçta açılıyor?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Havuz her gün 09:00 - 20:00 arasında açık."
+    }
+   ],
+   "message": "Çöpü nereye bırakıyoruz?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "konteyner"
       ]
      }
     ]

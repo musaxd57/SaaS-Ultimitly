@@ -64,6 +64,8 @@ export const GATE_BLOCK_DETAILS = [
   // Kurucu 10-30 ("mesajı ev sahibi yazıyor", `ai/host-voice-guard.ts`, VARSAYILAN AÇIK): gönderilecek metinde ev sahibinden üçüncü kişi
   // olarak söz, arka plan anlatımı ya da üçüncü taraf işletmeye gönderme kaldı.
   "reply_host_voice",
+  // S2 (`AI_LATE_MESSAGE_REPLY_ENABLED`; Opus 11-12 S2-7a): geç içeri alınan mesajın turu istek defteri olmadan gönderilecekti.
+  "late_without_ledger",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 
