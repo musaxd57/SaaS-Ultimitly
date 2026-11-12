@@ -1609,6 +1609,11 @@ describe("11-12 ölçümü: 'çamaşır' fiil DEĞİLDİR — 'kurutma makinesi'
     expect(checkAnswerBinding({ part: "Evet, misafir otoparkı ücretsizdir.", evidence: "Misafir otoparkı ücretsizdir.", sourceText: kb, ...parking }).ok).toBe(true);
     const wrongSentence = checkAnswerBinding({ part: "Misafir otoparkı 20:00'ye kadar açıktır.", evidence: "Havuz misafirlerimize 09:00–20:00 arası açıktır.", sourceText: kb, ...parking });
     expect(wrongSentence.ok).toBe(false);
+    // Sözlükte KONU ETİKETİ olmayan özgül sözcükte de (mutasyon B10: özgül sözcük düşerse konu etiketi olan "otopark" yine geçiyordu):
+    // "misafir kileri" → konu "kiler"; rol adı düşer, özgül sözcük kalır.
+    const pantry = need(["misafir kileri var mı"]);
+    expect(pantry.needTopics).toEqual([]);
+    expect(checkAnswerBinding({ part: "Evet, misafir kileri bodrumdadır.", evidence: "Misafir kileri bodrumdadır.", sourceText: "Misafir kileri bodrumdadır. Havuz misafirlerimize açıktır.", ...pantry }).ok).toBe(true);
     // Genel baş adla TAMLAMADA rol adı ayırt edicidir ("misafir odası" ≠ "oyun odası") — bir önceki testin pini; burada iki yön birlikte.
     const rooms = "Odalar: Misafir odası ikinci kattadır. Oyun odası yoktur.";
     const guestRoom = need(["misafir odası var mı"]);

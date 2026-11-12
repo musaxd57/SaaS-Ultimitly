@@ -270,6 +270,15 @@ describe("🚨 ölçüm setlerinin konuları katman metninde YOK (teste öğretm
     expect(layerText).toContain("Her kayıt YALNIZ");
   });
   // Geliştirme setlerinde "bilgi tabanında cevabı olmayan soru" olarak ölçülen konular (held-pet-unknown-dev · late-message-dev · luna-dev-2).
+  // 11-12: mühürlü kabul setinin sorularında katmanın eski örnek sözcüklerinden ikisi geçiyordu (içerik açılmadan, yalnız SAYI bakıldı) →
+  // kural cümleleri konu adı taşımayan genel anlatıma çevrildi; eski örnek sözcükleri geri gelmesin.
+  it.each(["plaj", "iskele", "kuru temizleme", "çamaşır", "beach", "laundry"])("eski örnek sözcüğü %j katman metninde yok", (word) => {
+    expect(layerText.toLocaleLowerCase("tr")).not.toContain(word);
+  });
+  it("kural cümlesi genel anlatımla duruyor (taşıma + yakın konu)", () => {
+    expect(layerText).toContain("bir yerin mesafesi, ona yakın ya da");
+    expect(layerText).toContain("aynı türden başka bir cihazın, hizmetin ya da yerin");
+  });
   it.each(["kahvaltı", "eczane", "market", "ütü", "bebek", "transfer", "kuaför", "saç kurutma", "spor salonu", "pharmacy", "breakfast", "iron"])(
     "%j geçmez",
     (topic) => {

@@ -249,6 +249,11 @@ kurucu onayıyla §1'e taşındı.)
   ✅ S2 KODDA (10-22, kurucu: "Kandırmasına izin verilmesin"): taslak iki kez okunur (misafir mesajıyla + misafir mesajı OLMADAN, paralel);
   serbest bırakma ikisi de "itiraf yok" derse. Çağrı sayısı ikiye çıktı (gecikme aynı). Açmadan önce hakem ölçümü YENİDEN koşulur
   (`tests/eval/absence-judge.eval.test.ts`) — 16/17 · 0/51 sonucu tek okumayla alınmıştı.
+  11-12 (kıdemli okuyucuyla ORTAK kod — bu hakemi de değiştirir): "itiraf" oyu ancak taslakta geçen İÇERİKLİ bir cümleyi alıntılıyorsa
+  sayılır (yalnız selam / ad maskesi kanıt değildir; kısaltılmış "…" alıntı parçaları taslakta aynı sırayla geçiyorsa kanıttır) ve itirafı
+  YALNIZ misafir mesajını gören okuma gördüyse kelime kuralının da görmesi gerekir (ölçüm: 17 gerçek itiraf × 3 okuma 51/51 iki okumada da
+  görüldü; 23 sessiz taslak × 3 okumada misafirli okuma 7 kez yanlış "itiraf" dedi, taslağı tek başına okuyan 0/69). Açmadan önceki hakem
+  ölçümü bu kuralla yeniden koşulur.
 - `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
   + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
 - 🚨 (10-30 gece ölçümü) yedi dilde 56 iç sistem anlatımı ("kayıtlarımda yok", "ilanda belirtilmemiş", "not provided in our system"): kod kapısı

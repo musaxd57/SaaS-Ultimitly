@@ -1555,14 +1555,16 @@ const HOST_CONTACT_BAN_PARTS_REPLACEMENTS: readonly Replacement[] = [
 // ── KAYNAĞI OLMAYAN İSTEK CEVAPLANMAZ (`no-source-rule.ts`; anahtar `AI_NO_SOURCE_RULE_ENABLED` KAPALI; YALNIZ öğe kipinde) ──────────────
 // İstem denetimi 11-12: taban metin bilgisizlik açıklamasını, yönlendirmeyi, sözü ve çekinceli dili yasaklarken "hiçbir soruyu atlama"yı
 // dört yerde emrediyor; tek izinli çıkış turun tamamını tutuyor → model iki soruluk mesajda uyduruyor. Katman kuralı İSTEK BAŞINA kurar.
-// Örnek cümleler ölçüm setlerindeki konulardan bilerek FARKLI (plaj / iskele, çamaşır makinesi / kuru temizleme, mangal).
+// Kural cümleleri KONU ADI taşımaz (11-12: mühürlü kabul setinin sorularında eski örnek sözcüklerinden ikisi geçiyordu — yalnız sayı bakıldı;
+// teste öğretme olmasın diye örnekler genel anlatıma çevrildi). İki soruluk örnek Wi-Fi + mangal (ölçüm setlerinde bilinmeyen soru değil).
 const NO_SOURCE_RULE_REPLACEMENTS: readonly Replacement[] = [
   [
     '    · SOMUT hiçbir şey iddia etme (saat, rakam, kod, fiyat, yer tarifi, "var/yok" hükmü).\n',
     '    · SOMUT hiçbir şey iddia etme (saat, rakam, kod, fiyat, yer tarifi, "var/yok" hükmü). Bir şeyin kaynaklarında YAZMAMASI onun\n' +
       '      OLMADIĞINI göstermez: "bulunmuyor / sunmuyoruz / dahil değil / mevcut değil" de bir İDDİADIR ve "bulunuyor" kadar kaynak ister.\n' +
-      "    · Başka bir şey hakkındaki kaydın değerini (mesafe, saat, ücret, koşul) sorulan şeye TAŞIMA (plajın mesafesi iskelenin mesafesi\n" +
-      "      değildir); konu olarak yakın bir kaydı (çamaşır makinesi ↔ kuru temizleme hizmeti) o sorunun cevabı SAYMA.\n",
+      "    · Başka bir şey hakkındaki kaydın değerini (mesafe, saat, ücret, koşul) sorulan şeye TAŞIMA (bir yerin mesafesi, ona yakın ya da\n" +
+      "      benzeyen başka bir yerin mesafesi değildir); konu olarak yakın bir kaydı (aynı türden başka bir cihazın, hizmetin ya da yerin\n" +
+      "      kaydını) o sorunun cevabı SAYMA.\n",
   ],
   [
     "  Bu durumda yazdığın metin misafire GÖNDERİLMEZ: ürün konuyu ev sahibine devreder ve misafir\n  standart teslim bildirimini alır.",
