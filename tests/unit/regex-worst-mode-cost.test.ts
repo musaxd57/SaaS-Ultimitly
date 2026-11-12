@@ -15,21 +15,30 @@ const MODES = ["--no-regexp-optimization", "--regexp-interpret-all"];
 
 describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı süre", () => {
   it.each(MODES)(
-    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı + kişisel tehlike + evcil hayvan sızıntısı 4.000 karakterde 1,5 sn altında",
+    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı + kişisel tehlike + evcil hayvan sızıntısı 4.000 karakterde 1,5 sn altında ya da doğrusal",
     (mode) => {
       const r = spawnSync(process.execPath, [mode, "--import", "tsx", "tests/fixtures/regex-worst-mode-probe.ts"], {
         cwd: process.cwd(),
         encoding: "utf8",
-        timeout: 90_000,
+        timeout: 240_000,
       });
-      // Zaman aşımı (status null) da kırmızıdır — karesel iş alt süreci 90 sn'de bitiremez.
-      expect(r.status, `${r.error ?? ""} ${r.stderr}`).toBe(0);
-      const line = r.stdout.trim().split("\n").pop() ?? "{}";
-      const times = JSON.parse(line) as Record<string, number>;
+      // Sonuçlar satır satır gelir: zaman aşımında (status null) bile o ana kadarki ölçümler ve nerede kalındığı okunur.
+      const rows = r.stdout
+        .split("\n")
+        .filter((l) => l.startsWith("{"))
+        .map((l) => JSON.parse(l) as { name?: string; ms?: number; ok?: boolean; note?: string; done?: boolean });
+      const times = rows.filter((t) => t.name !== undefined);
+      const last = times.length > 0 ? `son biten ölçüm: ${times[times.length - 1].name}` : "hiçbir ölçüm bitmedi";
+      // Zaman aşımı da kırmızıdır — karesel iş alt süreci 240 sn'de bitiremez. (Eski tavan 90 sn idi; sınır aşılan her ölçüm artık
+      // hakem için 5 tam + 5 küçük koşu harcar: yavaş makinede birkaç ölçüm hakeme giderse 90 sn yetmezdi — Opus incelemesi 11-12.)
+      expect(r.status, `${r.error ?? ""} ${r.stderr} (${times.length} / 28 ölçüm; ${last})`).toBe(0);
+      expect(rows[rows.length - 1]?.done).toBe(true);
       // 22 eski ölçüm + tutulan evcil hayvan isteği sızıntı denetiminin altı biçimi (S3, 11-12: en çok 31 ms).
-      expect(Object.keys(times)).toHaveLength(28);
-      for (const [name, t] of Object.entries(times)) expect(t, name).toBeLessThan(1_500);
+      expect(times).toHaveLength(28);
+      expect(new Set(times.map((t) => t.name)).size).toBe(28);
+      // Hüküm alt süreçte verilir (`tests/helpers/linear-cost.ts`): 1,5 sn altında ya da — yavaş makinede aşıldıysa — doğrusal.
+      for (const t of times) expect(t.ok, `${t.name}: ${t.note}`).toBe(true);
     },
-    120_000,
+    300_000,
   );
 });

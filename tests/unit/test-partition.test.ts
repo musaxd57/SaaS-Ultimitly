@@ -15,6 +15,7 @@ import {
 // ---------------------------------------------------------------------------
 const CLOCK = "performance" + ".now()";
 const LESS = "toBe" + "LessThan";
+const COST_HELPER = "../helpers/" + "linear-cost";
 
 describe("test kapısı bölümlemesi", () => {
   const p = partitionTestFiles();
@@ -43,6 +44,8 @@ describe("test kapısı bölümlemesi", () => {
     expect(isTimingSensitive("tests/unit/x-perf.test.ts", "")).toBe(true);
     expect(isTimingSensitive("tests/unit/x.test.ts", `const t = ${CLOCK}; expect(${CLOCK} - t).${LESS}(5);`)).toBe(true);
     expect(isTimingSensitive("tests/unit/x.test.ts", `const t0 = Date.now(); expect(Date.now() - t0).${LESS}(500);`)).toBe(true);
+    // Süre pini yardımcısını kullanan dosya saati kendisi okumaz (11-12): içe aktarma yeter — yoksa paralel kola düşer, işlemci paylaşır.
+    expect(isTimingSensitive("tests/unit/x.test.ts", `import { measureCost } from "${COST_HELPER}";`)).toBe(true);
     // KONTROL: saat okuyup süre iddiası yapmayan (ör. sabit tarih) dosya süre ölçen DEĞİL
     expect(isTimingSensitive("tests/unit/x.test.ts", "const now = Date.now(); expect(f(now)).toBe(1);")).toBe(false);
     expect(isTimingSensitive("tests/unit/x.test.ts", `expect(a).${LESS}(3);`)).toBe(false);
@@ -51,6 +54,8 @@ describe("test kapısı bölümlemesi", () => {
   it("süre ölçen kol yalnız veritabanısız dosyalardan; ölçülmüş süre pinleri orada", () => {
     for (const f of p.timing) expect(p.db).not.toContain(f);
     expect(p.timing).toContain("tests/unit/claim-support-cost.test.ts"); // 10-15 ölçümünde paralelde kırmızı olan süre pini
+    expect(p.timing).toContain("tests/unit/task-detect.test.ts"); // adı -cost değil; saat farkı + yardımcı ile tanınır
+    expect(p.timing).toContain("tests/unit/linear-cost.test.ts"); // yardımcının kendi testi (gerçek saatli iki vaka)
   });
 
   it("veritabanısız kolların adresi ulaşılamaz (loopback, port 1) — yanlış sınıflanan veritabanlı test sessiz geçmez", () => {

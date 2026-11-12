@@ -6,7 +6,7 @@
 //              TEK SIRA, `globalSetup` (PostgreSQL 5433) ile — işçi başına yalıtılmış veritabanı olmadan paralellik YOK.
 //   • nodb   — geri kalanı; N işçiyle paralel, veritabanı adresi ULAŞILAMAZ (yanlış sınıflanmış veritabanlı test sessiz geçmez,
 //              bağlantı hatasıyla KIRMIZI olur).
-//   • timing — veritabanısız ama SÜRE ÖLÇEN dosyalar (`*-cost` / `*-perf` ya da saat farkı + `toBeLessThan`): iki kol bittikten SONRA,
+//   • timing — veritabanısız ama SÜRE ÖLÇEN dosyalar (`*-cost` / `*-perf`, saat farkı + `toBeLessThan` ya da süre pini yardımcısı): iki kol bittikten SONRA,
 //              tek sıra, makine boşken (paralel CPU paylaşımında 150 ms pini 173 ms ölçmüştü — `docs/arastirma-2026-10-15/test-paralellik.md`).
 // Varsayılan güvenli yön: yeni bir `tests/integration` dosyası otomatik db koluna (tek sıra) girer.
 import { readdirSync, readFileSync } from "node:fs";
@@ -36,10 +36,12 @@ const TEST_FILE = /\.test\.tsx?$/;
 const TIMING_NAME = /-(cost|perf)\.test\.tsx?$/;
 const TIMING_CLOCK = /performance\.now\(\)|Date\.now\(\)\s*-\s*[A-Za-z_$][\w$]*/;
 const TIMING_ASSERT = /toBeLessThan/;
+// Süre pini yardımcısını (`tests/helpers/linear-cost.ts`) kullanan dosya saati kendisi okumaz ama süre ölçer (11-12).
+const TIMING_HELPER = /helpers\/linear-cost/;
 
 /** Süre ölçen dosya mı (paralel CPU paylaşımında kararsızlaşır). */
 export function isTimingSensitive(file, source) {
-  return TIMING_NAME.test(file) || (TIMING_CLOCK.test(source) && TIMING_ASSERT.test(source));
+  return TIMING_NAME.test(file) || TIMING_HELPER.test(source) || (TIMING_CLOCK.test(source) && TIMING_ASSERT.test(source));
 }
 
 function walk(root, dir, out) {

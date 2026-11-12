@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { costMessage, measureCost } from "../helpers/linear-cost";
 import {
   detectOperationalTask,
   buildOperationalTaskData,
@@ -314,17 +315,36 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     expect(detect("THE WIFI IS NOT WORKING")?.type).toBe("maintenance");
   });
 
-  it("uzun girdide doğrusal (karesel iş yok — misafir metni)", () => {
-    const t0 = performance.now();
-    detect(`${"Su akmıyor mu, ".repeat(2_000)}x`);
-    detect("a".repeat(50_000));
-    detect(`${"bozuk ".repeat(8_000)}değil`);
-    detect(`${" ".repeat(50_000)}bozuk`);
-    detect(`${",".repeat(50_000)}klima bozuk`);
-    detect("klima bozuk değil ".repeat(3_000));
+  // Eski pin on iki girdiyi TEK ölçümde topluyordu ("toplam 4 sn altında"; yerelde ~2,6 sn, yavaş makine benzetiminde 5,2 sn). Toplam,
+  // tek bir girdideki karesel gerilemeyi seyreltir (Opus incelemesi 11-12: O6 hatası tek birimde geri gelse oran 46 kalırdı). Artık her
+  // girdi AYRI ölçülür: "1,5 sn altında — ya da doğrusal ve 6 sn altında" (`tests/helpers/linear-cost.ts`). Eski pinde tek girdinin payı
+  // en çok ~1,4 sn artabiliyordu; girdi başına 1,5 sn sınırı (yerelde girdi başına 0,1–0,5 sn) ondan gevşek değildir.
+  const kesmeBirimi = (unit: string): [string, number, (n: number) => string] => [
     // Opus O6 (ölçüldü: 48.000 karakterde 5,9 sn): kesme işaretiyle bitişik arıza sözcükleri her eşleşmede dizinin sonuna kadar okunuyordu.
-    for (const unit of ["bozuk'", "bozuk’", "su yok'", "broken'", "kırık'yok "]) detect(unit.repeat(Math.floor(48_000 / unit.length)));
-    detect("Klima bozuk mu? ".repeat(3_000));
-    expect(performance.now() - t0).toBeLessThan(4_000);
-  });
+    `kesmeli birim ${JSON.stringify(unit)} tekrarı (48.000 karakter)`,
+    Math.floor(48_000 / unit.length),
+    (n) => unit.repeat(n),
+  ];
+  it.each<[string, number, (n: number) => string]>([
+    ["soru ekli bildirim × 2.000", 2_000, (n) => `${"Su akmıyor mu, ".repeat(n)}x`],
+    ["50.000 harflik tek sözcük", 50_000, (n) => "a".repeat(n)],
+    ["'bozuk' × 8.000 + değil", 8_000, (n) => `${"bozuk ".repeat(n)}değil`],
+    ["50.000 boşluk + bozuk", 50_000, (n) => `${" ".repeat(n)}bozuk`],
+    ["50.000 virgül + klima bozuk", 50_000, (n) => `${",".repeat(n)}klima bozuk`],
+    ["'klima bozuk değil' × 3.000", 3_000, (n) => "klima bozuk değil ".repeat(n)],
+    kesmeBirimi("bozuk'"),
+    kesmeBirimi("bozuk’"),
+    kesmeBirimi("su yok'"),
+    kesmeBirimi("broken'"),
+    kesmeBirimi("kırık'yok "),
+    ["'Klima bozuk mu?' × 3.000", 3_000, (n) => "Klima bozuk mu? ".repeat(n)],
+  ])(
+    "uzun girdide doğrusal (karesel iş yok — misafir metni): %s → 1,5 sn altında ya da doğrusal",
+    (_ad, n, family) => {
+      detect("Isınma: klima bozuk mu?");
+      const v = measureCost(detect, family, n, 1_500);
+      expect(v.ok, costMessage(v, 1_500)).toBe(true);
+    },
+    60_000,
+  );
 });

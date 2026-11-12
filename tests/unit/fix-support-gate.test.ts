@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { costMessage, measureCost } from "../helpers/linear-cost";
 
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })) }));
 
@@ -337,16 +338,24 @@ describe("kemerin bağlamı ve tavanı (mutasyon H5 / H6)", () => {
 });
 
 describe("süre — model metni uzun olabilir (karesel iş yok)", () => {
-  it("50.000 karakterlik tek sözcük / boşluk dizisi / tekrarlanan koşul doğrusal", () => {
-    const t0 = performance.now();
-    holds("a".repeat(50_000));
-    holds(`${" ".repeat(50_000)}kontrol edin`);
-    holds("if the ".repeat(7_000));
-    holds("görüntü yoksa ".repeat(3_500));
-    holds("kumanda ".repeat(6_000));
-    holds(`${"emin olun ".repeat(4_000)}televizyon`);
-    expect(performance.now() - t0).toBeLessThan(4_000);
-  });
+  // Eski pin altı girdiyi TEK ölçümde topluyordu ("toplam 4 sn altında"; yavaş makine benzetiminde 4,6 sn). Toplam, tek girdideki karesel
+  // gerilemeyi seyreltir; artık her girdi AYRI ölçülür: "1,5 sn altında — ya da doğrusal ve 6 sn altında" (`tests/helpers/linear-cost.ts`).
+  it.each<[string, number, (n: number) => string]>([
+    ["50.000 harflik tek sözcük", 50_000, (n) => "a".repeat(n)],
+    ["50.000 boşluk + kontrol edin", 50_000, (n) => `${" ".repeat(n)}kontrol edin`],
+    ["'if the' × 7.000", 7_000, (n) => "if the ".repeat(n)],
+    ["'görüntü yoksa' × 3.500", 3_500, (n) => "görüntü yoksa ".repeat(n)],
+    ["'kumanda' × 6.000", 6_000, (n) => "kumanda ".repeat(n)],
+    ["'emin olun' × 4.000 + televizyon", 4_000, (n) => `${"emin olun ".repeat(n)}televizyon`],
+  ])(
+    "%s → 1,5 sn altında ya da doğrusal",
+    (_ad, n, family) => {
+      holds("Isınma: kumandayı kontrol edin.");
+      const v = measureCost(holds, family, n, 1_500);
+      expect(v.ok, costMessage(v, 1_500)).toBe(true);
+    },
+    60_000,
+  );
 });
 
 describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, bilgi tabanında OLMAYAN cihazın kullanım yönergesi", () => {

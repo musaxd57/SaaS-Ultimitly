@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { costMessage, measureCost } from "../helpers/linear-cost";
 import { detectKbInstructionHijack, detectRiskTypes, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { isPhysicalEmergency, withoutSecretKbItems } from "@/lib/guest-chat";
 import { detectAvailabilityRequestKinds, evaluateAvailability } from "@/lib/ai/availability-claims";
@@ -71,25 +72,36 @@ describe("bilgi tabanı talimat süzgeci — kesme / aksan dizisinde sınırlı 
 });
 
 describe("acil ağı — kesme / aksan dizisinde sınırlı süre, hüküm aynı", () => {
-  it.each([
-    ["xfire + 50.000 kesme", "xfire" + AP(50_000) + "x"],
-    ["no emergency non + 50.000 kesme", "no emergency non" + AP(50_000) + "x"],
-    ["acil değil break + 50.000 kesme", "acil değil break" + AP(50_000) + "x"],
-    ["polis merkezi nerede break + 50.000 kesme", "polis merkezi nerede break" + AP(50_000) + "x"],
-    ["acil değil break + 50.000 akut aksan", "acil değil break" + ACUTE(50_000) + "x"],
-  ])("%s → isSafetyEmergencyText 300 ms altında, acil değil", (_ad, girdi) => {
-    isSafetyEmergencyText("Isınma: havlu nerede?");
-    let r = true;
-    expect(ms(() => (r = isSafetyEmergencyText(girdi)))).toBeLessThan(300);
-    expect(r).toBe(false);
-  });
+  // Süre "sınırın altında — ya da doğrusal ve sınırın 4 katının altında" (11-12, `tests/helpers/linear-cost.ts`): sınırlar aynı (300 /
+  // 400 ms); yavaş makine benzetiminde `detectRiskTypes` 645 ms ölçtü (iş aynı). Hüküm ayrıca tam girdide sınanır.
+  it.each<[string, (n: number) => string]>([
+    ["xfire + 50.000 kesme", (n) => "xfire" + AP(n) + "x"],
+    ["no emergency non + 50.000 kesme", (n) => "no emergency non" + AP(n) + "x"],
+    ["acil değil break + 50.000 kesme", (n) => "acil değil break" + AP(n) + "x"],
+    ["polis merkezi nerede break + 50.000 kesme", (n) => "polis merkezi nerede break" + AP(n) + "x"],
+    ["acil değil break + 50.000 akut aksan", (n) => "acil değil break" + ACUTE(n) + "x"],
+  ])(
+    "%s → isSafetyEmergencyText 300 ms altında ya da doğrusal, acil değil",
+    (_ad, family) => {
+      isSafetyEmergencyText("Isınma: havlu nerede?");
+      const v = measureCost(isSafetyEmergencyText, family, 50_000, 300);
+      expect(v.ok, costMessage(v, 300)).toBe(true);
+      expect(isSafetyEmergencyText(family(50_000))).toBe(false);
+    },
+    30_000,
+  );
 
-  it("detectRiskTypes ('acil değil break' + 50.000 kesme) → 400 ms altında, risk yok", () => {
-    detectRiskTypes("Isınma: havlu nerede?");
-    let r: string[] = ["?"];
-    expect(ms(() => (r = detectRiskTypes("acil değil break" + AP(50_000) + "x")))).toBeLessThan(400);
-    expect(r).toEqual([]);
-  });
+  it(
+    "detectRiskTypes ('acil değil break' + 50.000 kesme) → 400 ms altında ya da doğrusal, risk yok",
+    () => {
+      const family = (n: number) => "acil değil break" + AP(n) + "x";
+      detectRiskTypes("Isınma: havlu nerede?");
+      const v = measureCost(detectRiskTypes, family, 50_000, 400);
+      expect(v.ok, costMessage(v, 400)).toBe(true);
+      expect(detectRiskTypes(family(50_000))).toEqual([]);
+    },
+    30_000,
+  );
 
   // QR'ın fiziksel acil yüklemi nötrlemeyi HAM (katlanmış, boşluğu normalize edilmemiş) mesaja uygular: yazım burada da doğrusal olmalı
   // (QR mesajı 2.000 karakterle sınırlı ama yüklemin kendisi sınır taşımaz).

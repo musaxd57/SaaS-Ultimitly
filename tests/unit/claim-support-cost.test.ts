@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SCALED_FULL, costMessage, measureCost, scaled, type Repeat } from "../helpers/linear-cost";
 import { auditClaimsSafe, mixedCodeTokenMatches } from "@/lib/ai/claim-support";
 
 // ---------------------------------------------------------------------------
@@ -16,26 +17,34 @@ const ms = (fn: () => unknown) => {
 };
 
 describe("iddia ölçümü — düşmanca misafir metninde sınırlı süre", () => {
-  it.each([
-    ["rakamsız tireli dizi", "a-".repeat(25000)],
-    ["anahtar sözcük + uzun boşluk", "\u015fifre" + " ".repeat(50000) + ","],
-    ["sonda tek rakamlı tireli dizi", "a-".repeat(25000) + "1"],
+  // Her girdi bir AİLE (`r(birim, sayı)` = ölçekli tekrar; tam boyutta `birim.repeat(sayı)` ile birebir): sınır aşılırsa — yavaş makine
+  // benzetiminde "rakam-tire dizisi + kat" 161 ms ölçtü — aynı ailenin 1/16 boyutuyla kıyaslanır (`tests/helpers/linear-cost.ts`).
+  it.each<[string, (r: Repeat) => string]>([
+    ["rakamsız tireli dizi", (r) => r("a-", 25000)],
+    ["anahtar sözcük + uzun boşluk", (r) => "\u015fifre" + r(" ", 50000) + ","],
+    ["sonda tek rakamlı tireli dizi", (r) => r("a-", 25000) + "1"],
     // 10-10 (Haiku incelemesi): merdiven basamağı / üleştirme eki / eksi işaretli kat yolları.
-    ["rakam-tire dizisi + kat", "1-".repeat(25000) + "kat"],
-    ["tekrarlanan 'adet' öneki", "1 " + "adet ".repeat(10000) + "basamak"],
-    ["tekrarlanan 'iç merdiven'", "52 " + "iç merdiven ".repeat(4000) + "basamağı"],
+    ["rakam-tire dizisi + kat", (r) => r("1-", 25000) + "kat"],
+    ["tekrarlanan 'adet' öneki", (r) => "1 " + r("adet ", 10000) + "basamak"],
+    ["tekrarlanan 'iç merdiven'", (r) => "52 " + r("iç merdiven ", 4000) + "basamağı"],
     // 10-10 (kurucu: "-1. kat ile 1. kat aynı değil"): eksi kat okuyucusu.
-    ["eksi kat + uzun sonek", "-1 kat" + "t".repeat(50000)],
-    ["uzun eksi dizisi + kat", "-".repeat(50000) + "1 kat"],
+    ["eksi kat + uzun sonek", (r) => "-1 kat" + r("t", 50000)],
+    ["uzun eksi dizisi + kat", (r) => r("-", 50000) + "1 kat"],
     // 11-12: etiketli kod taraması reddedilen adayda adayın BAŞINA döner (asıl etiket "wi-fi ŞİFRESİ:" okunsun diye) → art arda etiket
     // sözcüğü her adımda yeniden aday olur; ilerleme adım başına en az bir etiket boyu (doğrusal) kalmalı.
-    ["art arda etiket sözcüğü", "\u015fifre ".repeat(8000)],
-    ["art arda 'wifi kod' çifti", "wifi kod ".repeat(5500)],
-    ["etiket + 40 karakterlik rakamsız aday dizisi", ("kod " + "a".repeat(40) + " ").repeat(1100)],
-  ])("%s (50.000 karakter) → 150 ms altında", (_ad, guest) => {
-    auditClaimsSafe("Kapı kodu 1234.", { facts: [], operator: [], guest: ["a"] }); // ısınma
-    expect(ms(() => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] }))).toBeLessThan(150);
-  });
+    ["art arda etiket sözcüğü", (r) => r("\u015fifre ", 8000)],
+    ["art arda 'wifi kod' çifti", (r) => r("wifi kod ", 5500)],
+    ["etiket + 40 karakterlik rakamsız aday dizisi", (r) => r("kod " + "a".repeat(40) + " ", 1100)],
+  ])(
+    "%s (50.000 karakter) → 150 ms altında ya da doğrusal",
+    (_ad, build) => {
+      auditClaimsSafe("Kapı kodu 1234.", { facts: [], operator: [], guest: ["a"] }); // ısınma
+      const run = (guest: string) => auditClaimsSafe("Kapı kodu 1234, saat 15:00, 100 TL.", { facts: [], operator: [], guest: [guest] });
+      const v = measureCost(run, scaled(build), SCALED_FULL, 150);
+      expect(v.ok, costMessage(v, 150)).toBe(true);
+    },
+    30_000,
+  );
 });
 
 describe("rakam yoğun girdi — DOĞRUSAL (karesel değil)", () => {

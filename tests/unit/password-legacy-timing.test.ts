@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { median } from "../helpers/linear-cost";
 import bcrypt from "bcryptjs";
 import { verifyPasswordForLogin, dummyVerifyPassword } from "@/lib/auth/password";
 
@@ -91,13 +92,21 @@ describe("maliyeti düşük hash'te başarısız giriş — iş eşitliği", () 
     expect(work(fail12)).toBe(1);
   });
 
+  // Altı bcrypt doğrulaması (yerelde ~2 sn): yavaş makinede vitest'in 5 sn'lik varsayılanını aşar (yük altında ölçüldü) → açık sınır.
   it("gerçek dünya teyidi (süre): maliyet-10 başarısız giriş sahte yol kadar sürer", async () => {
     const h10 = await bcrypt.hash("dogru-parola-1", 10);
     await dummyVerifyPassword("isinma");
-    const dummy = await timed(() => dummyVerifyPassword("yanlis-parola"));
-    const legacyFail = await timed(() => verifyPasswordForLogin("yanlis-parola", h10));
-    // Eski kod ~0.25 (80 ms / 315 ms). Geniş bant: süre testi titrer, kesin iddia yukarıda.
-    expect(legacyFail / dummy).toBeGreaterThan(0.7);
-    expect(legacyFail / dummy).toBeLessThan(1.5);
-  });
+    // İki yol dönüşümlü üçer kez ölçülür, ORTANCALAR kıyaslanır (11-12): tek ölçüm çiftinde işlemci paylaşımı oranı 0,64'e
+    // düşürdü (yavaş makine benzetimi; bant aynı). Eski kod ~0,25 (80 ms / 315 ms) — ortancayla da bandın çok altında kalır.
+    const dummyRuns: number[] = [];
+    const legacyRuns: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      dummyRuns.push(await timed(() => dummyVerifyPassword("yanlis-parola")));
+      legacyRuns.push(await timed(() => verifyPasswordForLogin("yanlis-parola", h10)));
+    }
+    const ratio = median(legacyRuns) / median(dummyRuns);
+    // Geniş bant: süre testi titrer, kesin iddia yukarıda (iş sayımı).
+    expect(ratio).toBeGreaterThan(0.7);
+    expect(ratio).toBeLessThan(1.5);
+  }, 30_000);
 });
