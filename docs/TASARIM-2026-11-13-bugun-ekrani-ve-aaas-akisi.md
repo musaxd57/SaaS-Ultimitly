@@ -76,7 +76,7 @@ fonksiyonda; önizleme, otomatik gönderim ve elle gönderim aynı fonksiyondan 
 | | Ne | Atomik mi | Bedel |
 |---|---|---|---|
 | A | Bugünkü: gider, kartta uyarı | — | yanlış kod misafire gidebilir |
-| B | Önceki önerim: işaret kalkana kadar tut + Girişler'de satır | hayır — işaret ve kapı yine ayrı; ev sahibi farkı kendisi bulur | düşük |
+| B | Önceki önerim: işaret kalkana kadar tut + Girişler'de satır (SİLİNMEDİ — kısa yol olarak AT-1'de duruyor; C kurulana kadar ara çözüm olabilir) | hayır — işaret ve kapı yine ayrı; ev sahibi farkı kendisi bulur | düşük |
 | C | **Olgu düzeyinde tek kaynak + metinlerde atıf + yazım anında çelişki denetimi + kapı metni kuran fonksiyonda** | **evet** | orta (yeni tablo + daire sayfası alanları) |
 | D | Yapay zekâyla periyodik çelişki taraması (bilgi tabanı içinde "bu iki kalem çelişiyor") | hayır (sonradan) | yanlış pozitif; model maliyeti; C'nin TAMAMLAYICISI |
 
