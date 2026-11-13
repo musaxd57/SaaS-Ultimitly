@@ -10,7 +10,7 @@
      kullanıcıyı çıkışsız bir kırıntıya düşürebiliyordu. iframe içinde
      gösterilmesi bundan etkilenmez — noindex yalnız arama sonuçlarını keser. -->
 <meta name="robots" content="noindex, nofollow">
-<title>Lixus AI — API Bağlama Anlatımı</title>
+<title>Lixus AI — Kurulum nasıl yapılır?</title>
 <style>
   /* ⚠️ INTER KENDİ SUNUCUMUZDAN SERVİS EDİLİR — Google Fonts'a GERİ DÖNME.
      Bu iki dosya `<link href="https://fonts.googleapis.com/...">` kullanıyordu
@@ -106,6 +106,9 @@
   .ctaRow{display:flex;gap:12px;align-items:center}
   .btn-primary{font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--navy),#26345e);
     padding:13px 22px;border-radius:11px;box-shadow:0 12px 26px -10px rgba(27,39,71,.6)}
+  /* UX-5 (kurucu 11-13): animasyondaki CTA'lar artık GERÇEK bağlantı (eskiden tıklanamaz sahte düğmeydi) — görünüm aynı kalır. */
+  a.free,a.btn-primary,a.btn-ghost{display:inline-block;text-decoration:none;cursor:pointer}
+  a.btn-ghost{color:var(--navy)}
   .btn-ghost{font-size:13.5px;font-weight:600;color:var(--navy);padding:13px 16px;border-radius:11px;border:1px solid #d7ddea}
   .trust{margin-top:16px;font-size:11.5px;color:#8a93a6;font-weight:500}
   .heroCard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;
@@ -289,7 +292,7 @@
   .controls{width:100%;max-width:960px;position:absolute;left:50%;transform:translateX(-50%);
     display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;
     padding:11px 16px;box-shadow:0 18px 40px -22px rgba(20,30,60,.35)}
-  .pbtn{width:38px;height:38px;border-radius:10px;border:none;background:var(--navy);color:#fff;cursor:pointer;
+  .pbtn{width:40px;height:40px;border-radius:10px;border:none;background:var(--navy);color:#fff;cursor:pointer;
     display:grid;place-items:center;flex:0 0 auto;transition:transform .12s}
   .pbtn:hover{transform:translateY(-1px)}
   .pbtn svg{width:16px;height:16px}
@@ -304,8 +307,8 @@
   <div class="head">
     <div class="brandmark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18M7 8h2M7 12h2M16 12h1M16 16h1" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <div>
-      <h1>Lixus AI — API bağlama anlatımı</h1>
-      <p>Ücretsiz dene → hesap aç → e-posta onayı → Bağlantıyı kur → token'ı yapıştır</p>
+      <h1>Kurulum nasıl yapılır?</h1>
+      <p>Ücretsiz deneyin → hesabınızı açın → e-postanızı onaylayın → Airbnb / Booking'i bağlayın</p>
     </div>
     <div class="spacer"></div>
     <div class="badge">5 adım · ~20 sn</div>
@@ -332,7 +335,7 @@
               <div class="lplogo"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
               <div class="links"><span>Nasıl çalışır</span><span>Özellikler</span><span>Fiyatlar</span><span>SSS</span></div>
               <div class="sp"></div>
-              <div class="free">Ücretsiz Dene</div>
+              <a class="free" href="/register" target="_top">Ücretsiz Dene</a>
             </div>
             <div class="lphero">
               <div>
@@ -340,15 +343,15 @@
                 <h2>Misafirlerinize gece 3'te bile, <span>kendi dillerinde</span> cevap veren AI</h2>
                 <p>Misafir hangi dilde yazarsa Lixus AI o dilde dakikalar içinde cevaplar. Üslubu siz ayarlarsınız; hassas mesajları onayınıza bırakır.</p>
                 <div class="ctaRow">
-                  <div class="btn-primary" id="freeBtn">14 gün ücretsiz dene</div>
-                  <div class="btn-ghost">Nasıl çalışır?</div>
+                  <a class="btn-primary" id="freeBtn" href="/register" target="_top">14 gün ücretsiz dene</a>
+                  <a class="btn-ghost" href="/#nasil" target="_top">Nasıl çalışır?</a>
                 </div>
                 <div class="trust">Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal</div>
               </div>
               <div class="heroCard">
                 <div class="hcTop"><span class="av"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="#fff"/></svg></span><div><b>Lixus AI</b><small>misafire yanıt veriyor…</small></div></div>
-                <div class="bubble in"><span class="lang">EN · Misafir</span>Hi! Is early check-in possible?</div>
-                <div class="bubble out"><span class="lang">EN · Lixus AI</span>Hello! Early check-in from 13:00 is available — I'll confirm with the host. 😊</div>
+                <div class="bubble in"><span class="lang">EN · Misafir</span>What time is check-out?</div>
+                <div class="bubble out"><span class="lang">EN · Lixus AI</span>Check-out is at 11:00.</div>
               </div>
             </div>
           </div>
@@ -434,7 +437,7 @@
                 </div>
                 <div class="orow active">
                   <span class="num">1</span>
-                  <div class="tx"><b>Airbnb / Booking bağlantısını kur</b><span>Misafir mesajlarınızın akması için Hospitable token'ını Ayarlar'dan bağlayın.</span></div>
+                  <div class="tx"><b>Airbnb / Booking bağlantısını kur</b><span>Misafir mesajlarınızın gelmesi için bağlantınızı Ayarlar'dan kurun.</span></div>
                   <span class="obtn" id="connBtn">Bağlantıyı kur <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 </div>
                 <div class="orow muted">
@@ -487,17 +490,17 @@
               </div>
               <div class="scard" id="hospCard">
                 <h4>Hospitable Bağlantısı (Airbnb / Booking)</h4>
-                <p class="desc">Airbnb &amp; Booking mesajlarını çekmek için Hospitable kişisel erişim anahtarını (token) gir → Bağla.</p>
+                <p class="desc">Airbnb ve Booking mesajlarınızı Hospitable adlı hizmet üzerinden alıyoruz.</p>
                 <div class="okbox" id="okbox"><span class="ck"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Bağlı. <span>Hospitable bağlantısı kullanılıyor.</span></div>
-                <div class="tokenLabel">Hospitable Personal Access Token</div>
+                <div class="tokenLabel">Hospitable bağlantı anahtarı</div>
                 <div class="tokenRow">
                   <div class="tokenInput" id="tokenInput">
-                    <span id="tokenText"><span class="ph">hospitable_pat_…</span></span>
+                    <span id="tokenText"><span class="ph">Bağlantı anahtarını buraya yapıştırın</span></span>
                     <svg class="lockic" id="tokenLock" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#7c8499" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#7c8499" stroke-width="1.6"/></svg>
                   </div>
                   <div class="bagla" id="saveBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M9 7l5 5-5 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Bağla</div>
                 </div>
-                <p class="tokenHint" id="tokenHint">Token <b>şifreli olarak</b> saklanır — bir daha görüntülenmez, biz bile göremeyiz.</p>
+                <p class="tokenHint" id="tokenHint">Bağlantı anahtarı <b>şifreli</b> saklanır ve bir daha görüntülenmez.</p>
               </div>
               <div style="height:60px"></div>
             </div></div>
@@ -513,7 +516,7 @@
         <div class="done" id="done">
           <div class="doneCard">
             <div class="big"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#15a34a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <h3>Hazır! API bağlandı 🎉</h3>
+            <h3>Hazır! Bağlantı kuruldu 🎉</h3>
             <p>Airbnb &amp; Booking mesajların artık Lixus AI'a akıyor. Misafirler kendi dillerinde, sizin tonunuzla yanıt alır.</p>
             <div class="pill">Kurulum tamam · AI yanıtlamaya hazır</div>
           </div>
@@ -522,7 +525,7 @@
     </div>
 
     <div class="controls" id="controls">
-      <button class="pbtn" id="playBtn"></button>
+      <button type="button" class="pbtn" id="playBtn" aria-label="Oynat"></button>
       <div class="track" id="track"><div class="fill" id="fill"></div></div>
       <div class="stepname" id="stepname">Adım <b>1/5</b> · Ücretsiz dene</div>
     </div>
@@ -664,14 +667,14 @@
     {at:12050,fn:function(){ clickEl($('connBtn')); }},
     {at:12400,fn:function(){ hideRing(); hideTip(); }},
 
-    {at:12650,fn:function(){ showScene('s5'); setUrl('lixusai.com','/settings'); setChip(5,'API anahtarını yapıştır'); hideCursor(); }},
+    {at:12650,fn:function(){ showScene('s5'); setUrl('lixusai.com','/settings'); setChip(5,'Bağlantı anahtarını yapıştır'); hideCursor(); }},
     {at:13050,fn:function(){ settApp.classList.add('scrolled'); }},
     {at:14200,fn:function(){
         tokenInput.classList.add('focus');
         var b=bbox(tokenInput);
         showSpot(b.x-10,b.y-10,b.w+20,b.h+20);
         ringEl(tokenInput,9);
-        tipEl(tokenInput,"Token'ı buraya yapıştır 👇");
+        tipEl(tokenInput,"Anahtarı buraya yapıştır 👇");
         aim(tokenInput);
     }},
     {at:14800,fn:function(){ st.typing=true; st.typeStart=clock; tokenText.innerHTML=''; }},
@@ -679,7 +682,7 @@
         st.typing=false; st.typed=true;
         tokenText.innerHTML='••••••••••••••••••••••••';
         tokenLock.style.display='block';
-        tokenHint.innerHTML='🔒 <b>Bağlı ve kilitli.</b> Token şifreli saklanır — bir daha görüntülenmez, biz bile göremeyiz.';
+        tokenHint.innerHTML='🔒 <b>Bağlı ve kilitli.</b> Bağlantı anahtarı şifreli saklanır ve bir daha görüntülenmez.';
         hideTip(); hideRing();
     }},
     {at:17400,fn:function(){ aim($('saveBtn')); ringEl($('saveBtn'),8); tipEl($('saveBtn'),'Bağla'); }},
@@ -692,9 +695,9 @@
   function resetAll(){
     settApp.classList.remove('scrolled');
     tokenInput.classList.remove('focus');
-    tokenText.innerHTML='<span class="ph">hospitable_pat_…</span>';
+    tokenText.innerHTML='<span class="ph">Bağlantı anahtarını buraya yapıştırın</span>';
     tokenLock.style.display='none';
-    tokenHint.innerHTML='Token <b>şifreli olarak</b> saklanır — bir daha görüntülenmez, biz bile göremeyiz.';
+    tokenHint.innerHTML='Bağlantı anahtarı <b>şifreli</b> saklanır ve bir daha görüntülenmez.';
     okbox.classList.remove('show');
     blurField($('rBiz')); blurField($('rName')); blurField($('rMail')); blurField($('rPass'));
     $('rBiz').innerHTML='<span class="ph">Örn. Bosphorus Stays</span>';
@@ -716,7 +719,7 @@
     [2950,7400,'2/5','Hesap oluştur'],
     [7400,10050,'3/5','E-posta onayı'],
     [10050,12650,'4/5','Bağlantıyı kur'],
-    [12650,19400,'5/5','API yapıştır'],
+    [12650,19400,'5/5','Anahtarı yapıştır'],
     [19400,DUR,'✓','Tamamlandı']
   ];
   function updateStepLabel(){
@@ -754,7 +757,7 @@
 
   var PLAY='<svg viewBox="0 0 24 24" fill="none"><path d="M7 5l12 7-12 7V5z" fill="#fff"/></svg>';
   var PAUSE='<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1" fill="#fff"/><rect x="14" y="5" width="4" height="14" rx="1" fill="#fff"/></svg>';
-  function setPlayIcon(){ playBtn.innerHTML = paused?PLAY:PAUSE; }
+  function setPlayIcon(){ playBtn.innerHTML = paused?PLAY:PAUSE; playBtn.setAttribute('aria-label', paused?'Oynat':'Duraklat'); }
   playBtn.addEventListener('click', function(){ if(clock>=DUR){ reset(); } paused=!paused; last=0; setPlayIcon(); });
   track.addEventListener('click', function(e){
     var r=track.getBoundingClientRect(); var t=(e.clientX-r.left)/r.width*DUR;
