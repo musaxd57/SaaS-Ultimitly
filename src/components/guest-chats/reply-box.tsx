@@ -123,8 +123,9 @@ export function GuestChatReply({
         </p>
       ) : null}
       <p className="text-[11px] leading-snug text-muted-foreground">
-        ⚠️ Bu, misafirle <strong>paylaşılan</strong> bir sohbet kanalıdır. Kapı kodu, Wi-Fi şifresi ve
-        kişisel/hassas bilgileri buraya yazmayın — bunları Airbnb/Booking mesajından iletin.
+        {/* UX-2 (kurucu onayı 11-13): Wi-Fi QR'da verilebilir (kurucu kararı 10-11) → uyarı yalnız kapı kodunu ve kişisel bilgiyi anar. */}
+        ⚠️ Bu, misafirle <strong>paylaşılan</strong> bir sohbet kanalıdır. Kapı kodu ve kişisel/hassas bilgileri buraya
+        yazmayın — bunları Airbnb/Booking mesajından iletin.
       </p>
     </div>
   );

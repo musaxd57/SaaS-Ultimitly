@@ -64,6 +64,10 @@ export function GuestChatAvatar({ kind }: { kind: "ai" | "host" }) {
  */
 export function GuestChatThread({ messages, locale = "tr" }: { messages: readonly GuestChatMessage[]; locale?: GuestLocale }) {
   const t = GUEST_COPY[locale];
+  // UX-1: yalnız akışın SON satırı misafirin KAYDEDİLMİŞ mesajıysa (saati var — gönderilmekte olan yerel satırın saati yoktur) ve arkasından
+  // cevap gelmediyse. Her balonun altında değil (gürültü); cevap gelince işaret kalkar (cevabın kendisi yeterli işarettir).
+  const last = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  const sentId = last && last.role === "guest" && last.time ? last.id : null;
   return (
     <>
       {messages.map((m) => {
@@ -86,6 +90,11 @@ export function GuestChatThread({ messages, locale = "tr" }: { messages: readonl
                 <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
                 </div>
+                {m.id === sentId ? (
+                  <p data-guest-sent className="mr-1 mt-0.5 text-xs text-muted-foreground">
+                    {t.sent}
+                  </p>
+                ) : null}
               </div>
             </Fragment>
           );

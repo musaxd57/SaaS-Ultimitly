@@ -9,16 +9,22 @@ import { GuestChatReply } from "@/components/guest-chats/reply-box";
 
 // The QR guest-chat is a SHARED channel (first-scan device binding is not guest
 // authentication). Host replies land in a thread a wrong-first-scanner could read,
-// so the reply box must warn the host to keep secrets (door code / Wi-Fi) out of it
-// and use the OTA message instead. Lock that warning in.
+// so the reply box must warn the host to keep the door code and personal data out of
+// it and use the OTA message instead. Lock that warning in.
+// UX-2 (kurucu onayı 11-13): Wi-Fi QR'da verilebilir (kurucu kararı 10-11) → uyarı artık Wi-Fi'yi YASAKLAMAZ.
 describe("GuestChatReply — shared-channel warning", () => {
   afterEach(() => cleanup());
 
   it("warns the host not to put door codes / Wi-Fi / personal data in the shared channel", () => {
     render(<GuestChatReply conversationId="c1" />);
     expect(screen.getByText(/paylaşılan/i)).toBeTruthy();
-    expect(screen.getByText(/Kapı kodu, Wi-Fi şifresi/i)).toBeTruthy();
+    expect(screen.getByText(/Kapı kodu ve kişisel\/hassas bilgileri buraya/i)).toBeTruthy();
     expect(screen.getByText(/Airbnb\/Booking mesajından/i)).toBeTruthy();
+  });
+
+  it("UX-2: uyarı Wi-Fi'yi anmaz (Wi-Fi QR'da verilebilir — kurucu kararı 10-11)", () => {
+    const { container } = render(<GuestChatReply conversationId="c1" />);
+    expect(container.textContent).not.toMatch(/wi-?fi/i);
   });
 });
 

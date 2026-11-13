@@ -49,6 +49,12 @@ export interface GuestChatCopy {
   senderHost: string;
   senderAi: string;
   typing: string;
+  /**
+   * UX-1 (kurucu onayı 11-13): misafirin SON mesajı kaydedildiyse ve arkasından henüz cevap yoksa balonun altında küçük durum işareti.
+   * Cümle DEĞİL (K10: "mesajınız alındı / iletildi" gibi bildirim cümlesi misafire gitmez); ev sahibi adına söz, okundu iddiası yok —
+   * yalnız mesajın ulaştığını söyler. Misafir eskiden cevap gelmeyince aynı soruyu yeniden yazıyordu.
+   */
+  sent: string;
   inputPlaceholder: string;
   send: string;
   stalled: string;
@@ -67,9 +73,13 @@ export interface GuestChatCopy {
   unavailableTitle: string;
   unavailableBody: string;
   unavailableHint: string;
+  /**
+   * UX-9 (kurucu onayı 11-13): konaklama dışında (boş daire / girişten önce / çıkıştan sonra) TEK metin — kodun fotoğrafını çeken biri
+   * dairenin bir konaklamanın öncesinde mi sonrasında mı olduğunu öğrenemez; çıkış yapmış misafire de anlamlı ("giriş gününüzde tekrar
+   * okutun" eski metni çıkış yapmış misafire de gidiyordu; "aktif konaklama" iç terimdi). İpucu kutusu yok.
+   */
   inactiveTitle: string;
   inactiveBody: string;
-  inactiveHint: string;
 }
 
 export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
@@ -86,6 +96,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     senderHost: "İşletme ekibi",
     senderAi: "Lixus AI",
     typing: "Lixus AI yazıyor…",
+    sent: "Gönderildi",
     inputPlaceholder: "Sorunuzu yazın…",
     send: "Gönder",
     stalled: "Yeni mesajlar şu an alınamıyor. Bağlantınızı kontrol edip sayfayı yenileyebilirsiniz.",
@@ -105,9 +116,8 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     unavailableTitle: "Bu sohbet şu anda kullanılamıyor",
     unavailableBody: "Karekod artık geçerli değil ya da sohbet kapatılmış olabilir.",
     unavailableHint: "Yardıma ihtiyacınız varsa rezervasyonunuzu yaptığınız uygulamanın mesaj bölümünden bize yazın.",
-    inactiveTitle: "Şu an aktif bir konaklama görünmüyor",
-    inactiveBody: "Sohbet yalnızca konaklamanız sürerken açıktır.",
-    inactiveHint: "Bir rezervasyonunuz varsa giriş gününüzde bu karekodu tekrar okutarak buraya ulaşabilirsiniz.",
+    inactiveTitle: "Bu sohbet yalnız konaklama süresince açık",
+    inactiveBody: "Bize rezervasyon yaptığınız uygulamanın mesajlarından yazabilirsiniz.",
   },
   en: {
     title: "Lixus AI Guest Assistant",
@@ -121,6 +131,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     senderHost: "Host team",
     senderAi: "Lixus AI",
     typing: "Lixus AI is typing…",
+    sent: "Sent",
     inputPlaceholder: "Type your question…",
     send: "Send",
     stalled: "New messages can't be loaded right now. Check your connection and refresh the page.",
@@ -140,9 +151,8 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
     unavailableTitle: "This chat isn't available right now",
     unavailableBody: "The code may no longer be valid, or the chat may have been turned off.",
     unavailableHint: "If you need help, message us in the messages section of the app you booked with.",
-    inactiveTitle: "There's no active stay right now",
-    inactiveBody: "The chat is only open during your stay.",
-    inactiveHint: "If you have a booking, scan this code again on your check-in day to reach this page.",
+    inactiveTitle: "This chat is open only during your stay",
+    inactiveBody: "You can message us through the app you booked with.",
   },
 };
 

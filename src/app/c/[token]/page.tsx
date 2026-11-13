@@ -60,7 +60,7 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
   // Closed outside an active stay (vacant / before check-in / after checkout).
   if (!ctx.open) {
     return (
-      <GuestNotice lang={locale} brand={t.title} title={t.inactiveTitle} body={t.inactiveBody} hint={t.inactiveHint} />
+      <GuestNotice lang={locale} brand={t.title} title={t.inactiveTitle} body={t.inactiveBody} />
     );
   }
 
