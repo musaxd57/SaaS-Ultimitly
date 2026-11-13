@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
+import { isUndeliverableEmail } from "@/lib/team-contacts/core";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
@@ -266,7 +267,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // DEMO HESABI HİÇBİR ŞEY GÖNDERMEZ (Tur 4, 11-05): demo personeli `lxdemo-staff-*@example.com` — teslim edilemeyen ayrılmış alan adı;
   // inceleme ekibinin her yeniden ataması gerçek bir gönderim denemesi + geri dönen e-posta (gönderici itibarı) + alarm üretiyordu.
   const mailAllowed =
-    newAssignee && !isDemoOrg(session.organizationId)
+    newAssignee && !isDemoOrg(session.organizationId) && !isUndeliverableEmail(newAssignee.email) // ekip kişisi (T3) e-posta almaz
       ? (await rateLimit(`task-assign-mail:${task.id}`, TASK_ASSIGN_MAILS_PER_HOUR, 60 * 60_000)).ok
       : false;
   if (newAssignee && mailAllowed) {

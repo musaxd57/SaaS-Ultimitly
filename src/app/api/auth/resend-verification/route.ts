@@ -56,10 +56,12 @@ export async function POST(req: NextRequest) {
 
   // Tur 7 (Codex 11-05 gece): buradan sonrası hesaba bağlı iş — her dal aynı en kısa sürede cevaplanır (↓padResponseTime).
   const startedAt = performance.now();
-  const user = await prisma.user.findUnique({
+  const found = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, createdAt: true, emailVerifiedAt: true, emailVerifyExpiresAt: true },
+    select: { id: true, createdAt: true, emailVerifiedAt: true, emailVerifyExpiresAt: true, loginDisabled: true },
   });
+  // Ekip kişisi (T3) bilinmeyen hesapla aynı dala düşer.
+  const user = found && !found.loginDisabled ? found : null;
   // Only a genuinely-unverified, gated account gets a fresh link.
   // 🚨 U12 (kurucu 10-22): son 10 dakikada üretilmiş geçerli bağlantı varsa YENİSİ ÜRETİLMEZ ve e-posta gitmez — cevap yine aynı 200.
   // Eskiden başkası kurbanın adresiyle 6 kez basıp her seferinde öncekini geçersiz kılıyordu; kişi e-postadaki bağlantıya basınca "süresi

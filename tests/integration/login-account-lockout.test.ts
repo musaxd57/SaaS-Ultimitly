@@ -22,7 +22,11 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
 
   it("kullanıcı aranmadan ÖNCE hesap kovasına HİÇ dokunulmaz", async () => {
     const src = await loginSource();
-    const beforeLookup = src.slice(0, src.indexOf("const user = await prisma.user.findUnique"));
+    // T3 (11-13): kullanıcı araması `found` adını aldı (ekip kişisi süzgeci ardından `user`). Çapa bulunamazsa slice(0, -1) bütün dosyayı
+    // alırdı → çapanın varlığı ayrıca doğrulanır.
+    const at = src.indexOf("const found = await prisma.user.findUnique");
+    expect(at).toBeGreaterThan(0);
+    const beforeLookup = src.slice(0, at);
     expect(beforeLookup).not.toMatch(/login-acct:/); // ⬅️ kapı geri gelirse kırmızı
   });
 

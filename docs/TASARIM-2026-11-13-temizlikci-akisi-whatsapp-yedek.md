@@ -85,7 +85,7 @@ döner); yeni "Yapılamıyor" yazılamaz.
 |---|---|---|---|---|
 | T1 | "Yapamıyorum" kaldırılır (UI + yeni yazım yolu); "iş izi" dar tanımı §5 (Girişler'den atama + temizlikçi değişince aktarım) | hayır | hayır | ✅ `65f79bb1` (mutasyon 7/7) |
 | T2 | Daire sayfasında **yedek temizlikçi** (aynı kural kaydında `backupUserId`; temizlikçi değişince / "Kimse"de kaybolmaz; temizlikçiyle aynı kişi olamaz); Girişler'de kişi değişecekken yedek ön seçili "(yedek)", atama yine "Atayın" ile | hayır | hayır | ✅ `dad2c203` |
-| T3 | **Ekip kişisi + kanıt modeli:** giriş yapamayan personel kullanıcısı (İ5) + "personel kanal bağı" tablosu; kişinin kendi ilk WhatsApp mesajıyla bağlanma (İ3, QR / `wa.me` kodu) | hayır | **evet** (kurucu onayı) | tasarım |
+| T3 | **Ekip kişisi + kanıt modeli:** giriş yapamayan personel kullanıcısı (İ5) + "personel kanal bağı" tablosu; kişinin kendi ilk WhatsApp mesajıyla bağlanma (İ3, QR / `wa.me` kodu) | hayır | **evet** (kurucu onayı) | ✅ kod (§10, anahtar KAPALI) |
 | T4 | **Teklif motoru** (kanaldan bağımsız; yalnız [Gelemem] / son saat geçince yedeğe — İ1) + Panel'de "kimse onay vermedi" istisnası; sahte taşıyıcıyla test | hayır | **evet** (teklif tablosu) | tasarım |
 | T5 | WhatsApp düğmeleri ([Gelemem] · [Gelirim] · [Başladım] · [Bitti]) + fotoğraf eki; şablon başvurusu YENİDEN yazılır (İ4) | **evet** | hayır | tasarım |
 | T6 | Telefonsuz temizlikçi için ev sahibine tek "bitti mi?" sorusu (kişi kaydı T3'te) | hayır | hayır | tasarım |
@@ -121,3 +121,26 @@ Ajan raporu `scratchpad/handoff/OPUS-1113K-temizlikci-tasarim.md` (repoya alınm
 - **Opus'un doğru bulduğu, değişmeyen:** rol kuralı (temizlikçiyi yalnız sahip + yönetici değiştirir) zaten `withManage` ile yürürlükte;
   aynı gün iki temizlikte elle yazılan "bitti" / düğmesiz fotoğraf için kural (tek açık iş → ona; birden çoksa sor; hiç yoksa ekleme) T5'te
   yazılacak.
+
+## 10. T3 uygulaması (11-13 gece; kurucu "migration onayın var") — anahtar `TEAM_CONTACTS_ENABLED` KAPALI
+- **Kayıt (İ5):** ekip kişisi = `User` (rol `staff`, `loginDisabled = true`, yapay `team-<24 onaltılık>@team.invalid`, kimsenin bilmediği rastgele
+  parolanın özeti, `emailVerifiedAt` dolu) + ANA üyelik (köken `team`). Görev ataması, dairenin temizlikçisi / yedeği, "kim başladı" hiç
+  değişmeden çalışır. Kod `src/lib/team-contacts/` (saf `core.ts`, veritabanı `service.ts`, web kancası `inbound.ts`), migration 97.
+- **KESİN ret (pinli):** giriş (bilinmeyen hesapla AYNI yol: sahte bcrypt + aynı hata + hesap kovası), şifre sıfırlama isteği (kod
+  üretilmez, aynı 200), doğrulama e-postası yeniden gönderme, e-posta doğrulama bağlantısı. E-posta TEK BOĞAZ: `email-core` `.invalid` adrese
+  sağlayıcıyı hiç çağırmaz (`undeliverable`); görev / "görevlendirmeniz değişti" e-postası ekip kişisinde baştan atlanır (tavan da harcanmaz).
+- **Kanal bağı (İ3):** ev sahibi Ayarlar › Ekip kişileri'nde "WhatsApp kodu oluştur" → `EKIP-XXXXXX` + `wa.me/<temizlikçi numarası>?text=…`
+  (72 saat). Kişi kodu KENDİ telefonundan temizlikçi numarasına gönderir; web kancası (`phone_number_id` = `TEAM_WHATSAPP_PHONE_NUMBER_ID`)
+  bağı etkinleştirir, numara Meta'dan gelir ve şifreli saklanır, ilk mesaj izin anıdır (`optInAt`). Ev sahibi numara YAZMAZ.
+  - Önek `EKIP-` (ev sahibi bağının `LIXUS-` kodundan ayrı): iki numara karışsa da kod yanlış akışa düşmez; temizlikçi numarasının mesajı ev
+    sahibi akışına HİÇ girmez ve "yabancı numara" alarmı saymaz. Temizlikçi numarası kimliği ev sahibininkiyle aynıysa yok sayılır.
+  - Numara işletme içinde tek kişide (başka kişiye geçerse eskisi `number_moved`); işletmeler arası SERBEST — bir temizlikçi birden çok ev
+    sahibiyle çalışabilir (tekil dizin `organizationId + provider + addressHash`). Kişi başına tek etkin numara (`replaced`); yeni kod eskisini
+    geçersiz kılar.
+  - Bekleyen bağda numara yoktur; kod özetle aranır → yanlış kod satır bulmaz, deneme sayacı YOK. Bilinen sınır: tahmin alanı 32⁶ ≈ 10⁹,
+    kod 72 saat yaşar, her deneme gerçek bir WhatsApp mesajı (Meta ücretli + hız sınırlı). İşletme başına saatte 30 kod sınırı.
+- **Bu dilimde YOK (bilinçli):** temizlikçiye giden mesaj (onay cevabı dahil) ve "bitti" / fotoğraf / [Gelemem] işleme → T5; ekip kişisini
+  silme (görev geçmişi kişiye bağlı; üyelikten çıkarma ayrı tur); telefonsuz kişi için ev sahibine soru → T6.
+- **Açılış:** `TEAM_CONTACTS_ENABLED=1` yalnız adla ekleme + görev atamasını açar; WhatsApp bağı ayrıca `HOST_CHANNEL_ENABLED` + Meta'da ikinci
+  numara + `TEAM_WHATSAPP_PHONE_NUMBER_ID` + `TEAM_WHATSAPP_NUMBER` ister (`docs/RAILWAY-ACILIS-2026-10-15.md`).
+

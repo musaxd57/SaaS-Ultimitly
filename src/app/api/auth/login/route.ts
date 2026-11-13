@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
     // istek başına bir bcrypt maliyeti doğuruyor (eskiden kapıda kesiliyordu).
     // Tek-IP senaryosunu IP kovası zaten kapatıyor; IP döndüren saldırgan bu
     // maliyeti öder ama kurbanı KİLİTLEYEMEZ — doğru yön budur.
-    const user = await prisma.user.findUnique({ where: { email } });
+    // 🚨 EKİP KİŞİSİ (T3, `loginDisabled`) bilinmeyen hesapla AYNI yoldan geçer: sahte bcrypt + aynı hata + hesap kovası. Yapay e-postası
+    // tahmin edilemez ama giriş kapısı ona güvenmez (tasarım §9 İ5: "KESİN reddetmeli").
+    const found = await prisma.user.findUnique({ where: { email } });
+    const user = found && !found.loginDisabled ? found : null;
 
     // 🚨 TANINAN CİHAZ KAPISI (09-23, login ajanı F1 — ↓08-01 kararını BOZMADAN tamamlar).
     // Hesap kovası yalnız başarısız denemeleri sayıyor ve dolunca yalnız YANLIŞ parolayı

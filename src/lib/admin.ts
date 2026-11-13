@@ -39,7 +39,8 @@ export async function enterOrganization(
     select: {
       id: true,
       memberships: {
-        where: { status: "active" },
+        // Giriş yapamayan ekip kişisi (T3, `loginDisabled`) hiçbir yoldan oturum kimliği olmaz — sahibi / yöneticisi olmayan işletmede de.
+        where: { status: "active", user: { loginDisabled: false } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, role: true, epoch: true, user: { select: { id: true, email: true, name: true, sessionEpoch: true } } },
       },

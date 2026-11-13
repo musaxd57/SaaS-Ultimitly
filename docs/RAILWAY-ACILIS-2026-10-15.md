@@ -18,7 +18,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–96 içeriyor (93–94 üyelik, 95 işletme belgesi, 96 taslak ↔ gönderim bağı; 92 numarası boş — tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–97 içeriyor (93–94 üyelik, 95 işletme belgesi, 96 taslak ↔ gönderim bağı, 97 ekip kişisi + personel kanal bağı; 92 numarası boş — tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -147,6 +147,9 @@ alınmıştır; mühürlü kabul koşuları artık yalnız açılış kipinde ba
 7. `AI_GENERATION_TRACE_ENABLED` + `CHANNEL_METADATA_WRITE` (migration 60 yazıcıları) · `REPLY_DRAFT_LINK_ENABLED` (kurucu 11-13 istedi: taslak ↔
    gönderilen metin bağı, gölge kayıt, migration 96) + `REPLY_DRAFT_EMBEDDING_ENABLED` (anlam benzerliği + eklenen parça vektörleri; OpenAI embedding
    kredisi gerekir, yoksa satırlar "beklemede" kalır, gönderim etkilenmez).
+   `TEAM_CONTACTS_ENABLED` (T3, migration 97: hesabı olmayan temizlikçi "ekip kişisi" + kişinin kendi WhatsApp mesajıyla numara bağı). WhatsApp
+   bağı ayrıca `TEAM_WHATSAPP_PHONE_NUMBER_ID` (temizlikçi numarasının Meta kimliği, ev sahibi numarasından FARKLI) + `TEAM_WHATSAPP_NUMBER`
+   (görünür numara, `wa.me` bağlantısı) + açık `HOST_CHANNEL_ENABLED` ister; bunlar yoksa kart yalnız ad ekler, kod üretmez.
 8. Onay / belge bekleyenler: `TRIAL_IDENTITY_ENABLED` (önce aydınlatma metni) · `GUEST_ERASURE_ENABLED` (avukat; 🚨 önce
    `ERASURE_HMAC_SECRET` — rastgele, en az 32 karakter, `AUTH_SECRET` ve `ENCRYPTION_KEY`'den bağımsız; yoksa servis başlamaz) ·
    `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` (O1, kurucu 10-16: önce

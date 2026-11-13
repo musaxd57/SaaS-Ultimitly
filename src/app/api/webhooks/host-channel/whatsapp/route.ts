@@ -16,6 +16,8 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import { parseMetaWebhook } from "@/lib/host-channel/whatsapp/parse";
 import { verifyMetaSignature } from "@/lib/host-channel/whatsapp/signature";
+import { teamContactsEnabled, teamPhoneNumberId } from "@/lib/team-contacts/flag";
+import { handleStaffInbound } from "@/lib/team-contacts/inbound";
 import { looksLikeMetaSignature, verifyWhatsAppHandshake, whatsAppWebhookConfigFromEnv } from "@/lib/host-channel/whatsapp/webhook";
 
 // ---------------------------------------------------------------------------
@@ -104,8 +106,24 @@ export async function POST(req: NextRequest): Promise<Response> {
     return jsonOk({ ok: true });
   }
   const parsed = parseMetaWebhook(body, { onlyPhoneNumberId: cfg.phoneNumberId });
+  // TEMİZLİKÇİ NUMARASI (T3, anahtar `TEAM_CONTACTS_ENABLED`): aynı Meta uygulamasının ikinci numarası. Yalnız bağlama kodunu işler; ev sahibi
+  // akışına HİÇ girmez (ev sahibi numarasının mesajlarıyla karışmaz) ve yabancı numara sayılmaz. Hata ev sahibi teslimatını düşürmez ve
+  // GECİKTİRMEZ (Haiku T3 #4: aynı teslimattaki ev sahibi "DUR"u önce işlenir); 500 yalnız en sonda döner → Meta yeniden dener, iki akış
+  // da yinelenen teslimatı zararsız işler.
+  const teamPid = teamContactsEnabled() ? teamPhoneNumberId() : null;
+  let teamFailed = false;
+  if (teamPid && parsed.phoneNumberIds.includes(teamPid)) {
+    const team = parseMetaWebhook(body, { onlyPhoneNumberId: teamPid });
+    try {
+      const r = await handleStaffInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events: team.messages });
+      if (r.bound > 0) await logEvent("team_contact.binding_confirmed", { count: r.bound }, { organizationId: r.organizationIds.length === 1 ? r.organizationIds[0]! : null });
+    } catch (err) {
+      teamFailed = true;
+      await reportError("team-contact-webhook", new Error(redactSensitive(String(err)).slice(0, 500)));
+    }
+  }
   const foreignKey = "host-channel-webhook:foreign-number";
-  if (parsed.phoneNumberIds.some((id) => id !== cfg.phoneNumberId)) {
+  if (parsed.phoneNumberIds.some((id) => id !== cfg.phoneNumberId && id !== teamPid)) {
     if (!skipBadSignatureAlert(foreignKey)) {
       const outcome = await alertOnTransition(
         foreignKey,
@@ -141,7 +159,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
     }
   }
-  if (parsed.messages.length === 0) return jsonOk({ ok: true });
+  if (parsed.messages.length === 0) return teamFailed ? NextResponse.json({ error: "Geçici hata" }, { status: 500 }) : jsonOk({ ok: true });
 
   try {
     const r = await handleHostInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events: parsed.messages, flags, transport: hostChannelTransport() });
@@ -157,5 +175,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     await reportError("host-channel-webhook", new Error(redactSensitive(String(err)).slice(0, 500)));
     return NextResponse.json({ error: "Geçici hata" }, { status: 500 });
   }
+  if (teamFailed) return NextResponse.json({ error: "Geçici hata" }, { status: 500 });
   return jsonOk({ ok: true });
 }

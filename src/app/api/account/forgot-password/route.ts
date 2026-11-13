@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
       const reqLimit = await rateLimit(`forgot-req:${email}`, 4, 15 * 60_000);
       if (!reqLimit.ok) return tooManyRequests(reqLimit.retryAfter);
 
-      const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      const found = await prisma.user.findUnique({ where: { email }, select: { id: true, loginDisabled: true } });
+      // Ekip kişisi (T3, `loginDisabled`) bilinmeyen hesapla aynı dala düşer: sıfırlama kodu üretilmez, aynı cevap.
+      const user = found && !found.loginDisabled ? found : null;
       if (!user) {
         // Spend a comparable bcrypt cost so the not-found path isn't measurably
         // faster than the real path (removes a cheap timing oracle).

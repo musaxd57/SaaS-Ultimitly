@@ -17,6 +17,8 @@ import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
 import { WhatsAppBindingCard } from "@/components/settings/whatsapp-binding-card";
 import { LicensesCard } from "@/components/settings/licenses-card";
+import { TeamContactsCard } from "@/components/settings/team-contacts-card";
+import { teamContactsEnabled } from "@/lib/team-contacts/flag";
 import { licensesEnabled } from "@/lib/licenses/secret";
 import { TimezoneForm } from "@/components/settings/timezone-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
@@ -689,6 +691,8 @@ export default async function SettingsPage({
         {timezoneView}
         {/* İşletme belgeleri (Faz 1a): yalnız sahip; anahtar kapalıyken çizilmez (kart ayrıca 404'te kendini gizler). */}
         {isOwner && licensesEnabled() ? <LicensesCard properties={properties} /> : null}
+        {/* Ekip kişileri (T3): sahip / yönetici (sayfa zaten yönetici oturumu ister); anahtar kapalıyken çizilmez (kart 404'te kendini gizler). */}
+        {teamContactsEnabled() ? <TeamContactsCard /> : null}
         {icalPrivacyView}
       </>
     ),

@@ -45,6 +45,7 @@ export const OPERATIONAL_EVENTS = {
   // Ev sahibi soru kanalı (WhatsApp, tasarım §5.9): yalnız sayılar ve işletme — numara, metin, sağlayıcı mesaj kimliği YAZILMAZ. Bilinmeyen
   // gönderenden gelen teslimat hiç satır yazmaz (sel tabloyu şişirmesin).
   "host_channel.webhook.received": "info",
+  "team_contact.binding_confirmed": "info",
   "host_channel.binding.verified": "info",
   "host_channel.binding.opt_out": "info",
   "host_channel.answer.received": "info",

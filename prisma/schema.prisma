@@ -211,6 +211,7 @@ model Organization {
   historyLearnRuns      HistoryLearnRun[]
   propertyInstructions  PropertyInstruction[]
   hostChannelBindings   HostChannelBinding[]
+  staffChannelBindings  StaffChannelBinding[]
   hostQuestions         HostQuestion[]
   licenseHolders        LicenseHolder[]
   businessLicenses      BusinessLicense[]
@@ -223,6 +224,9 @@ model User {
   email                 String    @unique
   passwordHash          String
   role                  String    @default("owner") // owner | manager | staff
+  /// EKİP KİŞİSİ (migration 97, T3): giriş yapamayan personel — yapay `@team.invalid` e-posta + kullanılamaz parola özeti. Giriş, şifre
+  /// sıfırlama, doğrulama e-postası ve görev e-postası bu kullanıcıyı KESİN reddeder / atlar (`src/lib/team-contacts`).
+  loginDisabled         Boolean   @default(false)
   // Two-factor auth (TOTP / authenticator app). Secret stored ENCRYPTED (see
   // lib/crypto). 2FA is ACTIVE only once twoFactorEnabledAt is set (after the
   // user confirms a first code), so a half-finished setup never locks anyone out.
@@ -295,6 +299,7 @@ model User {
   resetChallenges  PasswordResetChallenge[]
 
   hostChannelBindings HostChannelBinding[]
+  staffChannelBindings StaffChannelBinding[]
 
   @@index([organizationId])
   @@index([lastActiveOrganizationId])
@@ -319,7 +324,7 @@ model Membership {
   status         String    @default("active")
   /// Rol değişimi / çıkarma kuşağı artırır → o işletmedeki oturumlar düşer (dilim 2).
   epoch          Int       @default(0)
-  /// signup | operator | demo | seed | backfill | repair | invite — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
+  /// signup | operator | demo | seed | backfill | repair | invite | team (giriş yapamayan ekip kişisi, T3) — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
   origin         String
   invitedById    String?
   revokedAt      DateTime?
@@ -2295,6 +2300,36 @@ model HostChannelBinding {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, addressHash])
+  @@index([organizationId, status])
+  @@index([userId])
+}
+
+/// PERSONEL KANAL BAĞI (migration 97, T3; tasarım `docs/TASARIM-2026-11-13-temizlikci-akisi-whatsapp-yedek.md` §9 İ3/İ5): ekip kişisinin
+/// WhatsApp numarası, kişinin KENDİ ilk mesajıyla (kod) bağlanır — ev sahibi numara yazmaz. Bekleyen satırda numara YOK (null); kod HMAC
+/// özetiyle aranır. Ev sahibi bağından (`HostChannelBinding`) AYRI: o yalnız sahip / yöneticinin soru kanalıdır.
+model StaffChannelBinding {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  provider       String // whatsapp_cloud | fake
+  addressHash    String? // HMAC(provider + E.164) — bekleyen satırda null (Postgres: NULL'lar tekil dizinde çakışmaz)
+  addressEnc     String? // şifreli E.164 (aad = id + org)
+  status         String    @default("pending") // pending | active | revoked
+  codeHash       String?
+  codeExpiresAt  DateTime?
+  verifiedAt     DateTime?
+  optInAt        DateTime? // kişinin kendi ilk mesajı = izin anı
+  revokedAt      DateTime?
+  revokedReason  String? // user | replaced | number_moved — kapanan satırda numara (addressHash / addressEnc) SİLİNİR
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Bir numara işletme içinde tek kişide; AYNI temizlikçi birden çok ev sahibiyle çalışabilir → işletmeler arası tekil DEĞİL.
+  @@unique([organizationId, provider, addressHash])
+  @@index([codeHash])
   @@index([organizationId, status])
   @@index([userId])
 }

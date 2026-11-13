@@ -21,7 +21,7 @@ export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
  * Üyeliğin kökeni — kötüye kullanım sinyalleri yalnız kurucu kökenleri sayar (Opus M9). `backfill` yalnız migration 93 / 94 ve onarım betiğinde
  * yazılır; `repair` girişte / e-posta doğrulamada kayan dağıtım artığının onarımıdır (`repairHomeMembershipIfMissing`).
  */
-export type MembershipOrigin = "signup" | "operator" | "demo" | "seed" | "repair";
+export type MembershipOrigin = "signup" | "operator" | "demo" | "seed" | "repair" | "team";
 
 /** `src/lib/demo-tenant/constants.ts` ile AYNI değerler (o modül sunucu yolunu içe aktarır; eşitlik birim testte pinli). */
 export const DEMO_ORG_ID_FOR_MEMBERSHIP = "lxdemo-org";

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
+import { isUndeliverableEmail } from "@/lib/team-contacts/core";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
@@ -44,6 +45,8 @@ export async function notifyTaskAssigned(organizationId: string, taskId: string)
     include: { property: { select: { name: true, address: true, city: true } }, assignedTo: { select: { name: true, email: true, role: true } } },
   });
   if (!task?.assignedTo) return "skipped";
+  // Giriş yapamayan ekip kişisi (T3) e-posta almaz; kanalı WhatsApp bağıdır (T5). Tavan da harcanmaz.
+  if (isUndeliverableEmail(task.assignedTo.email)) return "skipped";
   if (!(await rateLimit(`task-assign-mail:${task.id}`, ASSIGN_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
   if (!(await rateLimit(`task-auto-assign-mail-user:${task.assignedToId}`, AUTO_ASSIGN_MAILS_PER_USER_HOUR, 60 * 60_000)).ok) return "skipped";
   const assignee = task.assignedTo;
@@ -72,7 +75,7 @@ const UNASSIGN_MAIL_LIST_LIMIT = 50;
 export async function notifyAssignmentRemoved(organizationId: string, userId: string, taskIds: readonly string[]): Promise<"sent" | "skipped"> {
   if (!staffNotifyEnabled() || isDemoOrg(organizationId) || taskIds.length === 0) return "skipped";
   const user = await prisma.user.findFirst({ where: { id: userId, organizationId }, select: { name: true, email: true } });
-  if (!user) return "skipped";
+  if (!user || isUndeliverableEmail(user.email)) return "skipped";
   // 🚨 Nullable kolon: `NOT: { assignedToId }` ATANMAMIŞ (NULL) satırı da dışarıda bırakırdı (11-04 dersi) — görev "Atanmadı"ya çekilince
   // eski kişi hiç haber almazdı. Açık OR.
   const where = { id: { in: [...taskIds] }, property: { organizationId }, OR: [{ assignedToId: null }, { assignedToId: { not: userId } }] };

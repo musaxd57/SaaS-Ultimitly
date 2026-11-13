@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   const hash = hashVerifyToken(token);
   const user = await prisma.user.findFirst({
-    where: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() } },
+    where: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() }, loginDisabled: false }, // ekip kişisi (T3) asla oturum açmaz
     select: {
       id: true,
       organizationId: true,

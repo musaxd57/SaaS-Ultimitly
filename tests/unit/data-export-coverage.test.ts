@@ -88,6 +88,8 @@ const EXCLUDED: Record<string, string> = {
     "Taslak ↔ gönderilen metin bağı (migration 96) — iç kalite ölçümü: türetilmiş sınıf + sayılar, taslak / fark şifreli ve saklama süresinde boşalır; kaynakları (mesajlar ve gönderilen cevap) dökümde",
   ReplyDraftSpan:
     "Ev sahibinin eklediği parçanın şifreli + sır maskeli kopyası ve vektörü (migration 96) — türetilmiş; asıl metin gönderilen mesaj olarak dökümde",
+  StaffChannelBinding:
+    "Ekip kişisinin WhatsApp bağı (migration 97) — numara yalnız şifreli + HMAC özeti, kod özeti; kimlik bilgisi niteliğinde (bağ Ayarlar › Ekip kişileri'nden görülür / kaldırılır), dökümde düz numara olmaz",
   HostQuestion:
     "Ev sahibine giden soru kuyruğu (migration 88) — geçici iş satırı (metinler şifreli, 7 günde boşalır, 90 günde silinir; misafire giden cevabı işaretleyen satır metinsiz kalır, konuşmayla gider); misafir yazışmasının kendisi (mesajlar) dökümde",
 };

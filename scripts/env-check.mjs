@@ -752,6 +752,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "ICAL_SCHEDULED_SYNC_DISABLED",
   "REPLY_DRAFT_LINK_ENABLED",
   "REPLY_DRAFT_EMBEDDING_ENABLED",
+  "TEAM_CONTACTS_ENABLED",
 ]);
 
 /** Bunlar okurken bosluklari kirpar (`?.trim() === "1"`): " 1" ACIK sayilir, uyari verilmez. */

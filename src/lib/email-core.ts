@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { redactSensitive } from "./redact";
+import { isUndeliverableEmail } from "./team-contacts/core";
 
 export interface SendEmailOptions {
   to: string;
@@ -68,6 +69,8 @@ export interface SendOutcome {
   ok: boolean;
   error?: string;
   idempotencyConflict?: "payload_changed" | "in_progress";
+  /** Alıcı e-posta alamaz (`.invalid` — giriş yapamayan ekip kişisi, T3); sağlayıcıya HİÇ gidilmedi. Kalıcıdır, yeniden denenmez. */
+  undeliverable?: true;
 }
 
 export function safeIdempotencyKey(key: string | undefined): string | undefined {
@@ -158,6 +161,7 @@ class EmailService {
       console.warn("[EmailService] send() called with missing arguments — skipping.");
       return;
     }
+    if (isUndeliverableEmail(to)) return; // ekip kişisi (T3): sessiz atlama, günlüğe alıcı yazılmaz
     if (!this.isConfigured()) {
       // PRODUCTION must have a provider (the verify-env boot gate enforces it), so
       // this is a defense-in-depth path. NEVER echo the recipient / subject / body /
@@ -194,6 +198,8 @@ class EmailService {
     html: string,
     opts: { idempotencyKey?: string } = {},
   ): Promise<SendOutcome> {
+    // TEK BOĞAZ (T3): ekip kişisinin yapay adresine hiçbir e-posta denenmez — çağıran unutsa da sağlayıcıya geri dönen hata / itibar kaybı yok.
+    if (isUndeliverableEmail(to)) return { ok: false, error: "Alıcı adresi e-posta alamaz.", undeliverable: true };
     const oneLine = singleLineSubject(subject);
     if (process.env.RESEND_API_KEY) return this.viaResend(to, oneLine, html, safeIdempotencyKey(opts.idempotencyKey));
     if (process.env.EMAIL_HOST) return this.viaSmtp(to, oneLine, html);
