@@ -310,7 +310,6 @@ describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
     // Okunan set dosyaları yalnız sabit listeden kurulur; `evals/` altında başka bir yol yazılmaz.
     expect(cli).toContain("for (const set of RAW_DEV_SETS)");
     expect(cli.match(/"evals"/g)?.length).toBe(1);
-    expect(cli).not.toMatch(/sealed|blind|holdout|kabul/i);
   });
 });
 

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { validSkipBaseline } from "../../scripts/ci-verify-core.mjs";
-import { gateExitCode, LOCAL_ARMS, verifyLocalGate } from "../../scripts/test-gate-verify.mjs";
+import { gateExitCode, LOCAL_ARMS, runGate, verifyLocalGate } from "../../scripts/test-gate-verify.mjs";
 import { listTestFiles } from "../test-partition.mjs";
 
 // ---------------------------------------------------------------------------
@@ -103,10 +104,6 @@ describe("yerel kapı — rapor denetimi", () => {
     writeBaseline({ "tests/unit/silinen.test.ts": 1 });
     expect(run().errors).toEqual(["atlanan test tabanında olmayan dosya: tests/unit/silinen.test.ts"]);
   });
-
-  it("kollar: veritabanlı · veritabanısız · süre ölçen (rapor adları kapının yazdığı adlar)", () => {
-    expect(LOCAL_ARMS).toEqual(["db", "nodb", "timing"]);
-  });
 });
 
 describe("yerel kapı — çıkış kodu", () => {
@@ -141,12 +138,198 @@ describe("taban geçerliliği (CI ve yerel kapı aynı kuralı kullanır)", () =
   });
 });
 
-describe("kapı betiği denetimi gerçekten çağırıyor (bağlantı pini)", () => {
-  const gate = readFileSync(path.join(process.cwd(), "scripts", "test-gate.mjs"), "utf8");
-  it("her kol JSON raporu yazar (koşula bağlı değil) ve çıkış kodu denetimin sonucunu taşır", () => {
-    expect(gate).toContain('const reporters = ["--reporter=default", "--reporter=json", `--outputFile.json=${REPORT_DIR}/${label}.json`];');
-    expect(gate).toContain("const verify = verifyLocalGate({ reportDir: REPORT_DIR, root, expectedFiles: listTestFiles(root), baselinePath: join(root, \"tests/ci-skip-baseline.json\") });");
-    expect(gate).toContain("process.exit(gateExitCode(results, verify));");
-    expect(gate.match(/process\.exit\(/g)?.length).toBe(2);
+describe("kapının akışı (runGate — kollar sahte, akış gerçek)", () => {
+  const arm = (label: string, code = 0) => ({ label, code, signal: null, seconds: 1 });
+  const gate = (runArm: (label: string) => Promise<ReturnType<typeof arm>>, lines: string[] = []) =>
+    runGate({ runArm, reportDir: dir, root, expectedFiles: [A, B, C], baselinePath: path.join(root, "tests", "ci-skip-baseline.json"), log: (l: string) => lines.push(l) });
+  const files: Record<string, ReturnType<typeof file>[]> = {};
+  beforeEach(() => {
+    files.db = [file(A)];
+    files.nodb = [file(B)];
+    files.timing = [file(C)];
   });
+  const writing = (codes: Record<string, number> = {}) => async (label: string) => {
+    writeReport(label, files[label]);
+    return arm(label, codes[label] ?? 0);
+  };
+
+  it("üç kol yeşil + raporlar tam → çıkış 0; özet her kolu ve rapor satırını yazar", async () => {
+    writeBaseline({});
+    const lines: string[] = [];
+    const res = await gate(writing(), lines);
+    expect(res.code).toBe(0);
+    const text = lines.join("\n");
+    expect(text).toContain("── Test kapısı özeti ──");
+    for (const label of LOCAL_ARMS) expect(text).toMatch(new RegExp(`^${label}\\s+yeşil`, "m"));
+    expect(text).toMatch(/^rapor {3}yeşil {2}dosya 3 · test 3 · atlanan 0/m);
+  });
+
+  it("🚨 CI 1797 uçtan uca: kollar 0 ile çıktı ama raporda yeni atlanan test var → çıkış 1 ve sebep yazılır", async () => {
+    writeBaseline({});
+    files.nodb = [file(B, ["passed", "skipped"])];
+    const lines: string[] = [];
+    const res = await gate(writing(), lines);
+    expect(res.code).toBe(1);
+    expect(lines.join("\n")).toMatch(/^rapor {3}KIRMIZI/m);
+    expect(lines).toContain(`  ✗ ${B}: atlanan test 1 > taban 0`);
+  });
+
+  it("🚨 bir kol kırmızı çıktıysa (rapor temiz görünse de) çıkış 1; kalan kollar yine koşar", async () => {
+    writeBaseline({});
+    const ran: string[] = [];
+    const res = await gate(async (label) => {
+      ran.push(label);
+      return writing({ db: 1 })(label);
+    });
+    expect(res.code).toBe(1);
+    expect(ran.sort()).toEqual(["db", "nodb", "timing"]);
+  });
+
+  it("🚨 bayat rapor: önceki koşunun raporu duruyorken bir kol rapor YAZMADAN 0 ile çıkarsa kırmızı (eski rapor 'bu koşu' sayılmaz)", async () => {
+    writeBaseline({});
+    writeGood();
+    const res = await gate(async (label) => {
+      if (label !== "nodb") writeReport(label, files[label]);
+      return arm(label);
+    });
+    expect(res.code).toBe(1);
+    expect(res.verify.errors.join("\n")).toMatch(/nodb: rapor eksik ya da okunamıyor/);
+    expect(existsSync(path.join(dir, "nodb.json"))).toBe(false);
+  });
+
+  it("sıra: veritabanlı + veritabanısız kol AYNI ANDA başlar; süre ölçen kol ikisi de bitince tek başına", async () => {
+    writeBaseline({});
+    const events: string[] = [];
+    const release: Record<string, () => void> = {};
+    const res = gate(async (label) => {
+      events.push(`start:${label}`);
+      if (label !== "timing") await new Promise<void>((resolve) => (release[label] = resolve));
+      events.push(`end:${label}`);
+      writeReport(label, files[label]);
+      return arm(label);
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    // İkisi de başladı, hiçbiri bitmedi; süre ölçen kol henüz başlamadı.
+    expect(events.slice().sort()).toEqual(["start:db", "start:nodb"]);
+    release.nodb();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(events).not.toContain("start:timing");
+    release.db();
+    expect((await res).code).toBe(0);
+    expect(events.indexOf("start:timing")).toBeGreaterThan(Math.max(events.indexOf("end:db"), events.indexOf("end:nodb")));
+  });
+});
+
+// ── Betiğin kendisi: sahte `vitest` / `prisma` ikilileriyle geçici bir depoda GERÇEK süreç olarak koşar ───────────────────────────────────
+describe("kapı betiği (scripts/test-gate.mjs — gerçek süreç, sahte ikililer)", () => {
+  const SCRIPT = path.join(process.cwd(), "scripts", "test-gate.mjs");
+  const FAKE_VITEST = `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+const out = (args.find((a) => a.startsWith("--outputFile.json=")) || "").split("=")[1];
+const arm = args[args.indexOf("-c") + 1].split(".")[1];
+fs.appendFileSync("calls.log", arm + " " + args.join(" ") + "\\n");
+const plan = JSON.parse(fs.readFileSync("plan.json", "utf8"))[arm];
+if (plan.report && out) fs.writeFileSync(out, JSON.stringify(plan.report));
+console.log("sahte kol " + arm);
+process.exit(plan.code);
+`;
+  const fakePrisma = (code: number) => `#!/usr/bin/env node\nrequire("fs").appendFileSync("calls.log", "prisma " + process.argv.slice(2).join(" ") + "\\n");\nprocess.exit(${code});\n`;
+
+  function repo(opts: { prismaCode?: number; skipIn?: string; codes?: Record<string, number>; noReport?: string[] } = {}) {
+    const bin = path.join(root, "node_modules", ".bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(path.join(bin, "vitest"), FAKE_VITEST);
+    writeFileSync(path.join(bin, "prisma"), fakePrisma(opts.prismaCode ?? 0));
+    chmodSync(path.join(bin, "vitest"), 0o755);
+    chmodSync(path.join(bin, "prisma"), 0o755);
+    for (const f of [A, B, C]) {
+      mkdirSync(path.dirname(path.join(root, f)), { recursive: true });
+      writeFileSync(path.join(root, f), "// kurgusal test dosyası\n");
+    }
+    writeBaseline({});
+    const byArm: Record<string, string> = { db: A, nodb: B, timing: C };
+    const plan = Object.fromEntries(
+      Object.entries(byArm).map(([arm, f]) => [
+        arm,
+        {
+          code: opts.codes?.[arm] ?? 0,
+          report: opts.noReport?.includes(arm) ? null : { success: true, numFailedTests: 0, testResults: [file(f, opts.skipIn === arm ? ["passed", "skipped"] : ["passed"])] },
+        },
+      ]),
+    );
+    writeFileSync(path.join(root, "plan.json"), JSON.stringify(plan));
+  }
+  const runScript = (env: Record<string, string> = {}) => {
+    const base = { ...process.env };
+    delete base.TEST_REPORT_DIR;
+    return spawnSync(process.execPath, [SCRIPT], { cwd: root, encoding: "utf8", env: { ...base, ...env } });
+  };
+  /** Özetin "rapor" satırındaki dizin yolu. */
+  const reportDirOf = (stdout: string) => /^rapor .*\((.+)\)$/m.exec(stdout)?.[1] ?? "";
+  const calls = () => (existsSync(path.join(root, "calls.log")) ? readFileSync(path.join(root, "calls.log"), "utf8").trim().split("\n") : []);
+
+  it("her şey yeşil → çıkış 0; önce prisma generate, sonra üç kol kendi yapılandırmasıyla ve JSON raporuyla çağrılır", () => {
+    repo();
+    const r = runScript();
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const log = calls();
+    expect(log[0]).toBe("prisma generate");
+    expect(log.slice(1).map((l) => l.split(" ")[0]).sort()).toEqual(["db", "nodb", "timing"]);
+    expect(log[log.length - 1].startsWith("timing ")).toBe(true);
+    for (const arm of ["db", "nodb", "timing"]) {
+      const line = log.find((l) => l.startsWith(`${arm} `))!;
+      expect(line).toContain(`run -c vitest.${arm}.config.ts --reporter=default --reporter=json --outputFile.json=`);
+      expect(line.endsWith(`/${arm}.json`)).toBe(true);
+    }
+    expect(r.stdout).toContain("[nodb] sahte kol nodb");
+    expect(r.stdout).toMatch(/^rapor {3}yeşil {2}dosya 3 · test 3 · atlanan 0/m);
+    // Kapının kendi açtığı geçici rapor dizini yeşil koşuda silinir.
+    expect(existsSync(reportDirOf(r.stdout))).toBe(false);
+  }, 30_000);
+
+  it("🚨 `TEST_REPORT_DIR` VERİLMEDEN de rapor denetimi koşar: yeni atlanan test → çıkış 1 (kollar 0 ile çıksa da)", () => {
+    repo({ skipIn: "nodb" });
+    const r = runScript();
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/^nodb {4}yeşil/m);
+    expect(r.stdout).toContain(`  ✗ ${B}: atlanan test 1 > taban 0`);
+    // Kırmızıda raporlar yerinde kalır (yol özet satırında); test kendi artığını temizler.
+    const kept = reportDirOf(r.stdout);
+    expect(existsSync(path.join(kept, "nodb.json"))).toBe(true);
+    rmSync(kept, { recursive: true, force: true });
+  }, 30_000);
+
+  it("`TEST_REPORT_DIR` verilirse raporlar oraya yazılır (olmayan dizin açılır); bir kol kırmızıysa çıkış 1", () => {
+    repo({ codes: { db: 1 } });
+    const reports = path.join(dir, "raporlar", "ic");
+    const r = runScript({ TEST_REPORT_DIR: reports });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/^db {6}KIRMIZI \(çıkış 1\)/m);
+    for (const arm of ["db", "nodb", "timing"]) expect(existsSync(path.join(reports, `${arm}.json`))).toBe(true);
+    expect(reportDirOf(r.stdout)).toBe(reports);
+  }, 30_000);
+
+  it("verilen `TEST_REPORT_DIR` yeşil koşuda SİLİNMEZ (CI onu yükler)", () => {
+    repo();
+    const reports = path.join(dir, "raporlar");
+    const r = runScript({ TEST_REPORT_DIR: reports });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    for (const arm of ["db", "nodb", "timing"]) expect(existsSync(path.join(reports, `${arm}.json`))).toBe(true);
+  }, 30_000);
+
+  it("🚨 bir kol rapor yazmadıysa (0 ile çıksa bile) çıkış 1", () => {
+    repo({ noReport: ["timing"] });
+    const r = runScript();
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("timing: rapor eksik ya da okunamıyor");
+    rmSync(reportDirOf(r.stdout), { recursive: true, force: true });
+  }, 30_000);
+
+  it("prisma generate düşerse kapı onun koduyla durur; hiçbir kol başlamaz", () => {
+    repo({ prismaCode: 3 });
+    const r = runScript();
+    expect(r.status).toBe(3);
+    expect(calls()).toEqual(["prisma generate"]);
+  }, 30_000);
 });

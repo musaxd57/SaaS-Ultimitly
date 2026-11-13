@@ -10,18 +10,22 @@
 //      CI son kapısının AYNI karar fonksiyonu koşar (`scripts/test-gate-verify.mjs`): dosya başına atlanan test tabanı
 //      (`tests/ci-skip-baseline.json`), kayıp / fazladan / hiç test koşmayan dosya. Testler yeşil ama denetim kırmızıysa çıkış kodu yine 1 —
 //      yeni bir atlanan test push'tan ÖNCE görünür. Dizin: `TEST_REPORT_DIR` (CI'da eski / gruplu düzen karşılaştırması da bunu okur —
-//      `scripts/ci-compare-layouts.mjs`); verilmezse geçici dizin.
+//      `scripts/ci-compare-layouts.mjs`); verilmezse geçici dizin. Akışın kendisi (`runGate`) `test-gate-verify.mjs` içinde ve testlidir;
+//      bu dosya yalnız gerçek süreç başlatıcıyı verir.
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { listTestFiles } from "../tests/test-partition.mjs";
-import { gateExitCode, verifyLocalGate } from "./test-gate-verify.mjs";
+import { runGate } from "./test-gate-verify.mjs";
 
 const VITEST = "node_modules/.bin/vitest";
 
-const REPORT_DIR = process.env.TEST_REPORT_DIR?.trim() || mkdtempSync(join(tmpdir(), "test-gate-"));
+// Dizin verilmediyse kapı kendi geçici dizinini açar ve YEŞİL koşuda siler (raporlar megabaytlarca; her koşuda birikmesin). Kırmızıda
+// bırakır: yolu özetin "rapor" satırında yazar.
+const OWN_REPORT_DIR = !process.env.TEST_REPORT_DIR?.trim();
+const REPORT_DIR = OWN_REPORT_DIR ? mkdtempSync(join(tmpdir(), "test-gate-")) : process.env.TEST_REPORT_DIR.trim();
 mkdirSync(REPORT_DIR, { recursive: true });
 
 function run(label, args) {
@@ -40,18 +44,16 @@ function run(label, args) {
 const gen = spawnSync("node_modules/.bin/prisma", ["generate"], { stdio: "inherit", env: process.env });
 if (gen.status !== 0) process.exit(gen.status ?? 1);
 
-const t0 = Date.now();
-const parallel = await Promise.all([run("db", ["-c", "vitest.db.config.ts"]), run("nodb", ["-c", "vitest.nodb.config.ts"])]);
-const timing = await run("timing", ["-c", "vitest.timing.config.ts"]);
-const results = [...parallel, timing];
-const total = Math.round((Date.now() - t0) / 1000);
-
-console.log("\n── Test kapısı özeti ──");
-for (const r of results) console.log(`${r.label.padEnd(7)} ${r.code === 0 ? "yeşil" : `KIRMIZI (çıkış ${r.code}${r.signal ? `, ${r.signal}` : ""})`}  ${r.seconds} sn`);
-console.log(`toplam  ${total} sn  (işçi: ${process.env.TEST_NODB_WORKERS || "varsayılan"})`);
-
+const ARM_CONFIG = { db: "vitest.db.config.ts", nodb: "vitest.nodb.config.ts", timing: "vitest.timing.config.ts" };
 const root = process.cwd();
-const verify = verifyLocalGate({ reportDir: REPORT_DIR, root, expectedFiles: listTestFiles(root), baselinePath: join(root, "tests/ci-skip-baseline.json") });
-console.log(`rapor   ${verify.ok ? "yeşil" : "KIRMIZI"}  dosya ${verify.files} · test ${verify.tests} · atlanan ${verify.skipped}  (${REPORT_DIR})`);
-for (const e of verify.errors) console.log(`  ✗ ${e}`);
-process.exit(gateExitCode(results, verify));
+const { code } = await runGate({
+  runArm: (label) => run(label, ["-c", ARM_CONFIG[label]]),
+  reportDir: REPORT_DIR,
+  root,
+  expectedFiles: listTestFiles(root),
+  baselinePath: join(root, "tests/ci-skip-baseline.json"),
+  log: (line) => console.log(line),
+  workers: process.env.TEST_NODB_WORKERS,
+});
+if (OWN_REPORT_DIR && code === 0) rmSync(REPORT_DIR, { recursive: true, force: true });
+process.exit(code);
