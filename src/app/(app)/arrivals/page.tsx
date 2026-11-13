@@ -61,6 +61,7 @@ export default async function ArrivalsPage() {
         emptyNextStep={rows.length === 0 ? (propertyCount === 0 ? "add-property" : "calendar") : null}
         canConnect={canManageChannel(session)}
         members={members}
+        canAct
       />
     </>
   );

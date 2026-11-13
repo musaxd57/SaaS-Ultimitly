@@ -103,7 +103,9 @@ import { addDays } from "date-fns";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
-import { calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
+import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
+import { writeAudit } from "@/lib/audit";
+import type { CheckinNowRefusal } from "@/lib/checkin-now-text";
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -6191,94 +6193,247 @@ export async function sendDueCheckins(
     // Fence against a durable-outbox row for this booking (post-rollback, final-review).
     if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) continue;
 
-    // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
-    // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
-    const stampedAt = new Date();
-    // 🚨 Y4 (10-14 inceleme): son talep seçimin ŞARTLARINI yeniden ister — aday seçildikten sonra iptal edilen ya da ileri
-    // tarihe taşınan rezervasyona giriş bilgisi (kapı kodu taşıyabilir) GİTMEZ. Döngü aday başına sağlayıcı çağrısı beklediği
-    // için seçimle gönderim arası saniyeler-dakikalar sürebilir. Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası
-    // çift satır) ikinci adımda AYNI damgayla işaretlenir — geri alma `stampedAt` koşuluyla ikisini birlikte geri alır.
-    // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
-    const claim = await prisma.$transaction(async (tx) => {
-      // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
-      // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
-      if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
-      // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
-      if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
-      const c = await tx.reservation.updateMany({
-        where: {
-          sourceReference: r.sourceReference,
-          property: { organizationId },
-          checkinSentAt: null,
-          status: "confirmed",
-          arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
-          AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
-        },
-        data: { checkinSentAt: stampedAt },
-      });
-      if (c.count > 0) {
-        await tx.reservation.updateMany({
-          where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
-          data: { checkinSentAt: stampedAt },
-        });
-      }
-      return c;
-    }, LIFECYCLE_CLAIM_TX);
-    if (claim.count === 0) continue;
-
-    const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
-    const delivery = await sendOnChannel(
-      { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
-      body,
-      token,
-    );
-    if (!delivery.ok) {
-      // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → un-claim for retry.
-      // AMBIGUOUS (timeout/5xx/network) → the check-in message MAY have reached the
-      // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
-      // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
-      const definitive = isDefinitiveSendFailure(delivery.error);
-      // S8: "çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (yeniden deneme defteri saymaz), damga geri alınır (↓ kesin
-      // hata dalı) ve bu işletmenin gönderimi sağlayıcının istediği süre kadar durur.
-      const rateLimited = definitive && classifySendResult(delivery) === "rate_limited";
-      if (rateLimited) await discardAutomatedSend(prisma, traceId);
-      else await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
-      failures.push(rateLimited ? "rate_limited" : definitive ? "definitive" : "ambiguous");
-      if (definitive) {
-        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
-        // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
-        // ve bu mesaj bir daha ASLA denenmez — gecikme değil, kalıcı kayıp.
-        // Sessiz `catch {}` bu sınıfın kokusudur; artık toplu alarma etiket düşer
-        // (`rollback_failed`), döngü yine kırılmaz.
-        const rolled = await prisma.reservation
-          .updateMany({
-            // 🚨 `stampedAt` KOŞULU ŞART (yarış denetimi, 08-05). Claim YALNIZ
-            // hâlâ null olan satırları damgalar; koşulsuz bir geri alma ise aynı
-            // `sourceReference`'ı paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş
-            // damgasını da siler → sonraki geçiş booking'i tekrar aday görür ve
-            // misafire İKİNCİ (gerçek) giriş mesajı gider. Dup satır bu üründe
-            // gerçek bir durum (relink sonrası; prod'da 114 çift temizlenmişti) ve
-            // "hepsini damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
-            // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
-            where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: stampedAt },
-            data: { checkinSentAt: null },
-          })
-          .catch(() => null);
-        if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
-      }
-      if (rateLimited) {
-        holdLifecycleSends(organizationId, delivery.retryAfterSec, new Date());
-        break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter
-      }
-      continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
+    // Claim-then-send — Girişler'deki elle gönderimle (UX-10 D5) ORTAK yardımcı (`claimAndSendCheckin`): aynı damga, aynı şartlar, aynı geri alma.
+    const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz);
+    if (outcome.kind === "not_claimed") continue;
+    if (outcome.kind === "sent") {
+      sent++;
+      continue;
     }
-    await settleAutomatedSend(prisma, traceId, "sent", delivery.providerMessageId);
-    sent++;
+    failures.push(outcome.kind === "rate_limited" ? "rate_limited" : outcome.kind);
+    if (outcome.kind !== "ambiguous" && !outcome.rolledBack) failures.push("rollback_failed");
+    if (outcome.kind === "rate_limited") break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter (bekleme yardımcıda kuruldu)
   }
 
   await reportLifecycleSendFailures("checkin", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
+}
+
+/** Giriş mesajı talep-sonra-gönder sonucunun sınıfı (çağıran alarm etiketini ve kullanıcı cümlesini bundan kurar). */
+export type CheckinSendOutcome =
+  | { kind: "not_claimed" }
+  | { kind: "sent" }
+  | { kind: "definitive"; rolledBack: boolean }
+  | { kind: "ambiguous" }
+  | { kind: "rate_limited"; rolledBack: boolean };
+
+/**
+ * Giriş mesajının TALEP-SONRA-GÖNDER bacağı — otomatik gönderici (`sendDueCheckins`) ve Girişler'deki elle gönderim (`sendCheckinNow`,
+ * UX-10 D5) AYNI yolu kullanır, ikinci kural yok: işlem içinde şartlar yeniden okunur (silinme, metin sürümü, damga boş, onaylı, pencere),
+ * `checkinSentAt` damgalanır (kardeş satırlar aynı damgayla); kesin ret → damga geri (yalnız aynı damgalı satırlar); belirsiz → damga KALIR.
+ */
+async function claimAndSendCheckin(
+  organizationId: string,
+  r: LifecycleArrivalRow,
+  tpl: LoadedAutoMessage,
+  body: string,
+  token: string,
+  tz: string,
+): Promise<CheckinSendOutcome> {
+  // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
+  // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
+  const stampedAt = new Date();
+  // 🚨 Y4 (10-14 inceleme): son talep seçimin ŞARTLARINI yeniden ister — aday seçildikten sonra iptal edilen ya da ileri
+  // tarihe taşınan rezervasyona giriş bilgisi (kapı kodu taşıyabilir) GİTMEZ. Döngü aday başına sağlayıcı çağrısı beklediği
+  // için seçimle gönderim arası saniyeler-dakikalar sürebilir. Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası
+  // çift satır) ikinci adımda AYNI damgayla işaretlenir — geri alma `stampedAt` koşuluyla ikisini birlikte geri alır.
+  // Talep + kardeş damgası TEK işlemde (Haiku 10-14): ikinci adım düşerse ilki de geri alınır — damgalı ama gönderilmemiş satır kalmaz.
+  const claim = await prisma.$transaction(async (tx) => {
+    // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
+    // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
+    if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
+    // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+    // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
+    if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
+    const c = await tx.reservation.updateMany({
+      where: {
+        sourceReference: r.sourceReference,
+        property: { organizationId },
+        checkinSentAt: null,
+        status: "confirmed",
+        arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
+        AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
+      },
+      data: { checkinSentAt: stampedAt },
+    });
+    if (c.count > 0) {
+      await tx.reservation.updateMany({
+        where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
+        data: { checkinSentAt: stampedAt },
+      });
+    }
+    return c;
+  }, LIFECYCLE_CLAIM_TX);
+  if (claim.count === 0) return { kind: "not_claimed" };
+
+  const traceId = await traceLifecycleSend(organizationId, r, "checkin", body, stampedAt);
+  const delivery = await sendOnChannel(
+    { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
+    body,
+    token,
+  );
+  if (!delivery.ok) {
+    // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → un-claim for retry.
+    // AMBIGUOUS (timeout/5xx/network) → the check-in message MAY have reached the
+    // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
+    // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
+    const definitive = isDefinitiveSendFailure(delivery.error);
+    // S8: "çok fazla istek" (429) bu MESAJIN hatası değildir → iz silinir (yeniden deneme defteri saymaz), damga geri alınır (↓ kesin
+    // hata dalı) ve bu işletmenin gönderimi sağlayıcının istediği süre kadar durur.
+    const rateLimited = definitive && classifySendResult(delivery) === "rate_limited";
+    if (rateLimited) await discardAutomatedSend(prisma, traceId);
+    else await settleAutomatedSend(prisma, traceId, definitive ? "failed" : "unverified");
+    let rolledBack = false;
+    if (definitive) {
+      // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
+      // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
+      // ve bu mesaj bir daha ASLA denenmez — gecikme değil, kalıcı kayıp.
+      // Sessiz `catch {}` bu sınıfın kokusudur; artık toplu alarma etiket düşer
+      // (`rollback_failed`), döngü yine kırılmaz.
+      const rolled = await prisma.reservation
+        .updateMany({
+          // 🚨 `stampedAt` KOŞULU ŞART (yarış denetimi, 08-05). Claim YALNIZ
+          // hâlâ null olan satırları damgalar; koşulsuz bir geri alma ise aynı
+          // `sourceReference`'ı paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş
+          // damgasını da siler → sonraki geçiş booking'i tekrar aday görür ve
+          // misafire İKİNCİ (gerçek) giriş mesajı gider. Dup satır bu üründe
+          // gerçek bir durum (relink sonrası; prod'da 114 çift temizlenmişti) ve
+          // "hepsini damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+          // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+          where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: stampedAt },
+          data: { checkinSentAt: null },
+        })
+        .catch(() => null);
+      rolledBack = rolled !== null && rolled.count > 0;
+    }
+    if (rateLimited) {
+      holdLifecycleSends(organizationId, delivery.retryAfterSec, new Date());
+      return { kind: "rate_limited", rolledBack };
+    }
+    // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
+    return definitive ? { kind: "definitive", rolledBack } : { kind: "ambiguous" };
+  }
+  await settleAutomatedSend(prisma, traceId, "sent", delivery.providerMessageId);
+  return { kind: "sent" };
+}
+
+// ---------------------------------------------------------------------------
+// UX-10 D5 (kurucu 11-13: "ilk 2'si kesinlikle olur"): Girişler satırından "Giriş mesajını gönderin". Göndericinin talep-sonra-gönder yolunun
+// TEK rezervasyonluk çağrısı (`claimAndSendCheckin`): aynı damga, aynı kuyruk anahtarı, aynı işlem içi şartlar → otomatik gönderimle de, iki
+// sekmeyle de ÇİFT gönderim yok; gönderilince satır "gönderildi"ye döner. Misafire giden metin ev sahibinin kendi yazdığı otomatik giriş
+// mesajıdır (yapay zekâ yok). İlk gerçek gönderim kurucuyla (Railway açılınca). Tasarım: scratchpad/handoff/UX-10-girisler-tasarim.md §2.4.
+// İşletmenin otomatik giriş anahtarı ve açılış tabanı ATLANIR (ev sahibinin tek tek açık kararı otomatik toplu gönderim değildir — elle cevap
+// da atlar); genel acil durdurma (`AUTO_REPLY_ENABLED`) ise ONURLANDIRILIR (temkinli seçim; kurucu sorusu S-1b).
+// ---------------------------------------------------------------------------
+
+/** Girişler listesinin penceresi (bugün + iki gün) — elle gönderim yalnız bu günlerdeki varışa. */
+export const CHECKIN_NOW_WINDOW_DAYS = 2;
+
+export type { CheckinNowRefusal };
+
+type CheckinNowPrepared =
+  | { ok: false; kind: CheckinNowRefusal }
+  | { ok: true; r: LifecycleArrivalRow; tpl: LoadedAutoMessage; body: string; tz: string; token: string };
+
+/** Önizleme ve gönderimin ORTAK hazırlığı — her şart sunucuda yeniden okunur (istemcinin gördüğü satıra güvenilmez). */
+async function prepareCheckinNow(organizationId: string, reservationId: string, now: Date): Promise<CheckinNowPrepared> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return { ok: false, kind: "paused" };
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { aiSignature: true, timezone: true } });
+  if (!org) return { ok: false, kind: "not_found" };
+  const base = await prisma.reservation.findFirst({
+    where: { id: reservationId, property: { organizationId } },
+    select: { ...LIFECYCLE_ARRIVAL_SELECT, status: true, checkinSentAt: true },
+  });
+  if (!base) return { ok: false, kind: "not_found" };
+  if (base.checkinSentAt) return { ok: false, kind: "already_sent" };
+  if (base.status !== "confirmed") return { ok: false, kind: "not_confirmed" };
+  const tz = orgTimezone(org.timezone);
+  const today = todayKey(now, tz);
+  const day = calendarDateOf(base.arrivalDate, tz).key;
+  if (day < today || day > addNights(today, CHECKIN_NOW_WINDOW_DAYS)) return { ok: false, kind: "out_of_window" };
+  // Kanaldan mesajlaşabilir mi — göndericiyle AYNI SQL parçası (V0.5 tek kaynak).
+  const messageable = await prisma.reservation.count({ where: { id: base.id, ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE } });
+  if (messageable === 0) return { ok: false, kind: "no_channel" };
+  if (base.sourceReference && (await loadErasureGuard(organizationId)).blocksSourceReference(base.sourceReference)) return { ok: false, kind: "erased" };
+  const tpl = await loadAutoMessage(base.propertyId, "checkin");
+  if (!tpl) return { ok: false, kind: "missing" };
+  const body = buildGuestMessageBody(tpl.content, guestFirstNameOf(base.guestName), signatureForChannel(org.aiSignature?.trim(), base.channel), base.property.name);
+  if (hasUnfilledPlaceholders(body)) return { ok: false, kind: "unfilled" };
+  const token = (await resolveOrgChannelCredential(organizationId))?.token ?? null;
+  if (!token) return { ok: false, kind: "no_connection" };
+  const r: LifecycleArrivalRow = {
+    id: base.id,
+    guestName: base.guestName,
+    channel: base.channel,
+    sourceReference: base.sourceReference,
+    propertyId: base.propertyId,
+    property: base.property,
+    arrivalDate: base.arrivalDate,
+  };
+  return { ok: true, r, tpl, body, tz, token };
+}
+
+/** Onay penceresinin içeriği: misafirin göreceği metnin TAM hâli + sürüm (gönderimde şart). Liste HTML'ine gömülmez (kapı kodu taşıyabilir). */
+export async function previewCheckinNow(
+  organizationId: string,
+  reservationId: string,
+  now: Date = new Date(),
+): Promise<{ ok: false; kind: CheckinNowRefusal } | { ok: true; body: string; revision: number; propertyName: string; guestName: string | null }> {
+  const p = await prepareCheckinNow(organizationId, reservationId, now);
+  if (!p.ok) return p;
+  return { ok: true, body: p.body, revision: p.tpl.revision, propertyName: p.r.property.name, guestName: p.r.guestName };
+}
+
+export type CheckinNowResult =
+  | { ok: true; kind: "sent" | "queued" }
+  | { ok: false; kind: CheckinNowRefusal | "definitive" | "ambiguous" | "rate_limited" };
+
+/** Girişler'den elle gönderim. `revision`: onay penceresinde gösterilen metnin sürümü — değiştiyse GİTMEZ (`changed`). */
+export async function sendCheckinNow(input: {
+  organizationId: string;
+  reservationId: string;
+  revision: number;
+  actorUserId: string;
+  now?: Date;
+}): Promise<CheckinNowResult> {
+  const { organizationId, reservationId } = input;
+  const now = input.now ?? new Date();
+  const p = await prepareCheckinNow(organizationId, reservationId, now);
+  if (!p.ok) return p;
+  if (p.tpl.revision !== input.revision) return { ok: false, kind: "changed" };
+  const { r, tpl, body, tz, token } = p;
+  const audit = (outcome: string) =>
+    writeAudit({ organizationId, actorUserId: input.actorUserId, action: "checkin_message.manual_send", metadata: { reservationId: r.id, outcome } });
+
+  // Kalıcı kuyruk açıksa göndericiyle AYNI anahtar: zaten kuyruktaysa ikinci satır açılmaz.
+  if (durableOutboxEnabledFor(organizationId) && r.sourceReference) {
+    const enq = await enqueueProactive({
+      organizationId,
+      reservationId: r.id,
+      externalReservationId: r.sourceReference,
+      channel: r.channel,
+      messageType: "checkin",
+      body,
+      templateRevision: tpl.revision,
+      idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
+    });
+    if (enq.deduped) return { ok: false, kind: "queue_owns" };
+    await audit("queued");
+    return { ok: true, kind: "queued" };
+  }
+  if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) return { ok: false, kind: "queue_owns" };
+  // Sağlayıcı "çok fazla istek" dediyse bekleme bitmeden denenmez (otomatik gönderimle aynı kural).
+  if (lifecycleSendsHeld(organizationId, now)) return { ok: false, kind: "held" };
+
+  const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz);
+  if (outcome.kind === "not_claimed") {
+    // Talep işleminde bir şart tutmadı: ya bu arada gönderildi (otomatik ya da başka sekme) ya metin / rezervasyon değişti.
+    const again = await prisma.reservation.findFirst({ where: { id: r.id, property: { organizationId } }, select: { checkinSentAt: true } });
+    return { ok: false, kind: again?.checkinSentAt ? "already_sent" : "changed" };
+  }
+  await audit(outcome.kind);
+  if (outcome.kind === "sent") return { ok: true, kind: "sent" };
+  return { ok: false, kind: outcome.kind };
 }
 
 /** Önizleme satırının "gönderilmez" sebebi — gönderici kapısıyla aynı sıra (daire numarası önce, sonra doldurulmamış alan). */

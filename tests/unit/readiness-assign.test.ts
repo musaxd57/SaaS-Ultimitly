@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateStay, assignableStatus, type StayReadinessInput, type CleaningInput, type Factor } from "@/lib/readiness-list/evaluate";
+import { evaluateStay, assignableStatus, assignableTask, type StayReadinessInput, type CleaningInput, type Factor } from "@/lib/readiness-list/evaluate";
 import { assignErrorOf, ASSIGN_ERROR } from "@/components/arrivals/assign-task";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,7 @@ const task = (over: Partial<CleaningInput["tasks"][number]> = {}) => ({
   assignee: null,
   assigneeId: null,
   status: "todo",
+  touched: false,
   startedAt: null,
   startedBy: null,
   lastDoneAt: null,
@@ -73,6 +74,18 @@ describe("temizlik satırı — atama", () => {
     }
   });
 
+  it("🚨 dokunulmuş 'Yapılacak' (işaretli madde / kişinin notu / fotoğraf) → atama YOK; dokunulmuşluk bilinmiyorsa da YOK", () => {
+    expect(cleaningFactor({ tasks: [task({ assigneeId: "u-ayse", touched: true })] }).assign).toBeUndefined();
+    expect(cleaningFactor({ tasks: [task({ touched: undefined })] }).assign).toBeUndefined();
+  });
+
+  it("'Yapılamıyor' dokunulmuş olsa da başkasına atanabilir (kişi işi bıraktı)", () => {
+    const f = cleaningFactor({
+      tasks: [task({ assigneeId: "u-ayse", status: "blocked", touched: true, blocked: { at: at("2026-11-07T09:05:00Z"), by: "Ayşe", reason: null } })],
+    });
+    expect(f.assign).toEqual({ taskId: "t1", expectAssigneeId: "u-ayse", mode: "reassign" });
+  });
+
   it("durumu bilinmeyen görev (eski çağıran) → atama YOK (sunucu da kabul etmezdi)", () => {
     expect(cleaningFactor({ tasks: [task({ status: undefined })] }).assign).toBeUndefined();
     expect(cleaningFactor({ tasks: [task({ status: null })] }).assign).toBeUndefined();
@@ -94,6 +107,7 @@ describe("bakım / söz satırları — atama", () => {
     assignee: null,
     assigneeId: null,
     status: "todo",
+    touched: false,
     dueAt: at("2026-11-07T12:00:00Z"),
     relation: "turnover" as const,
     priority: "standard",
@@ -106,6 +120,16 @@ describe("bakım / söz satırları — atama", () => {
     const assigned = of(stay({ openIssue: true, issueTasks: [issue({ assignee: "Ali", assigneeId: "u-ali" })] }), "issue")[0]!;
     expect(assigned.assign).toBeUndefined();
     expect(assigned.link).toEqual({ to: "task", taskId: "i1" });
+  });
+
+  it("'Yapılamıyor' bakım / söz görevi atanmış olsa da 'Başkasına atayın' (Opus P3-9)", () => {
+    const f = of(stay({ openIssue: true, issueTasks: [issue({ assignee: "Ali", assigneeId: "u-ali", status: "blocked", touched: true })] }), "issue")[0]!;
+    expect(f.assign).toEqual({ taskId: "i1", expectAssigneeId: "u-ali", mode: "reassign" });
+    const c = of(
+      stay({ commitments: [{ id: "c1", label: "bebek yatağı", dueAt: at("2026-11-07T12:00:00Z"), assignee: "Ali", taskId: "tc", taskAssigneeId: "u-ali", taskStatus: "blocked", taskTouched: true }] }),
+      "commitment",
+    )[0]!;
+    expect(c.assign).toEqual({ taskId: "tc", expectAssigneeId: "u-ali", mode: "reassign" });
   });
 
   it("düşük öncelikli bilgi satırı (I3) atama da bağlantı da taşımaz; başlamış bakım atanmaz", () => {
@@ -140,18 +164,26 @@ describe("bakım / söz satırları — atama", () => {
 
   it("sözün görevi atanmamış (C1) → 'Birini atayın'; atanmış ya da görevsiz söz → yok", () => {
     const base = { id: "c1", label: "bebek yatağı", dueAt: at("2026-11-07T12:00:00Z"), assignee: null };
-    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: null, taskStatus: "todo" }] }), "commitment")[0]!.assign).toEqual({
+    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: null, taskStatus: "todo", taskTouched: false }] }), "commitment")[0]!.assign).toEqual({
       taskId: "tc",
       expectAssigneeId: null,
       mode: "assign",
     });
-    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: "u-a", taskStatus: "todo" }] }), "commitment")[0]!.assign).toBeUndefined();
+    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: "u-a", taskStatus: "todo", taskTouched: false }] }), "commitment")[0]!.assign).toBeUndefined();
     expect(of(stay({ commitments: [{ ...base, taskId: null }] }), "commitment")[0]!.assign).toBeUndefined();
-    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: null, taskStatus: "done" }] }), "commitment")[0]!.assign).toBeUndefined();
+    expect(of(stay({ commitments: [{ ...base, taskId: "tc", taskAssigneeId: null, taskStatus: "done", taskTouched: false }] }), "commitment")[0]!.assign).toBeUndefined();
   });
 });
 
-describe("atanabilir durum kümesi (sunucu ile ortak)", () => {
+describe("atanabilir görev kuralı (sunucu ile ortak saf fonksiyon)", () => {
+  it("Yapılamıyor her zaman; Yapılacak yalnız dokunulmamışsa; diğer durumlar asla", () => {
+    expect(assignableTask({ status: "blocked", touched: true })).toBe(true);
+    expect(assignableTask({ status: "todo", touched: false })).toBe(true);
+    expect(assignableTask({ status: "todo", touched: true })).toBe(false);
+    expect(assignableTask({ status: "todo" })).toBe(false);
+    for (const status of ["in_progress", "awaiting_review", "done", null, undefined]) expect(assignableTask({ status, touched: false })).toBe(false);
+  });
+
   it("yalnız Yapılacak ve Yapılamıyor", () => {
     expect(["todo", "blocked"].every(assignableStatus)).toBe(true);
     expect(["in_progress", "awaiting_review", "done", "", null, undefined].some((s) => assignableStatus(s as string | null | undefined))).toBe(false);
@@ -168,6 +200,7 @@ describe("sunucu cevabı → kullanıcı cümlesi", () => {
   it("yetki / bürünme → sunucunun cümlesi; bilinmeyen → genel cümle, yenileme yok", () => {
     expect(assignErrorOf(403, { error: "Destek görünümü salt okunurdur." })).toEqual({ message: "Destek görünümü salt okunurdur.", refresh: false });
     expect(assignErrorOf(500, null)).toEqual({ message: ASSIGN_ERROR.generic, refresh: false });
+    expect(assignErrorOf(404, { error: "Bu kayıt bulunamadı." })).toEqual({ message: ASSIGN_ERROR.task_gone, refresh: true });
     expect(assignErrorOf(409, { code: "checklist_changed" })).toEqual({ message: ASSIGN_ERROR.generic, refresh: false });
   });
 });

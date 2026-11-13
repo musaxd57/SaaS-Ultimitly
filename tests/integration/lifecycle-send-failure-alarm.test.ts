@@ -309,7 +309,11 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     // Hata sınıfı etiketi üç dalda da toplanıyor (damga geri alma ile aynı yerde).
     // (S8: "çok fazla istek" ayrı etiket alır — mesajın hatası değil.)
     const pushes = src.match(/failures\.push\(rateLimited \? "rate_limited" : definitive \? "definitive" : "ambiguous"\)/g) ?? [];
-    expect(pushes.length).toBe(3);
+    expect(pushes.length).toBe(2); // karşılama + çıkış
+    // Giriş göndericisi talep-sonra-gönder bacağını Girişler'deki elle gönderimle ORTAK yardımcıya taşıdı (`claimAndSendCheckin`, UX-10 D5):
+    // yardımcı sonucun sınıfını döner, gönderici etiketi ve geri alma arızasını aynı listeye iter.
+    expect(src).toMatch(/failures\.push\(outcome\.kind === "rate_limited" \? "rate_limited" : outcome\.kind\);/);
+    expect(src).toMatch(/if \(outcome\.kind !== "ambiguous" && !outcome\.rolledBack\) failures\.push\("rollback_failed"\);/);
     // Ham sağlayıcı hatası alarma GİRMEZ — kaynakta böyle bir birleştirme olmamalı.
     expect(src).not.toMatch(/reportLifecycleSendFailures\([^)]*delivery\.error/);
   });

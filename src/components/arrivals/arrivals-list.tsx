@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { OVERALL_LABEL, type Factor, type FactorLink, type Overall } from "@/lib/readiness-list/evaluate";
 import { CONNECT_CHANNEL_HREF } from "@/components/connect-channel-button";
 import { AssignTask } from "@/components/arrivals/assign-task";
+import { SendCheckin } from "@/components/arrivals/send-checkin";
 
 // ---------------------------------------------------------------------------
 // "Girişler" listesinin görünümü (salt-okuma, sunucu bileşeni — istemci durumu yok). Satır başına bir konaklama: genel durum +
@@ -78,11 +79,13 @@ function FactorLine({
   row,
   canConnect,
   members,
+  canAct,
 }: {
   f: Factor;
-  row: { propertyId: string; conversationId: string | null };
+  row: { propertyId: string; conversationId: string | null; reservationId: string };
   canConnect: boolean;
   members: { id: string; name: string }[] | null;
+  canAct: boolean;
 }) {
   const target = factorLinkTarget(f.link, row, canConnect);
   return (
@@ -107,7 +110,14 @@ function FactorLine({
         {f.assign && members ? (
           <>
             {" "}
-            <AssignTask assign={f.assign} members={members} />
+            <AssignTask assign={f.assign} members={members} context={f.label} />
+          </>
+        ) : null}
+        {/* UX-10 D5: misafire giden elle gönderim — yalnız yazma yetkili görünümde (`canAct`) ve yükleyici gönderilebilir dediyse. */}
+        {f.sendCheckin && canAct ? (
+          <>
+            {" "}
+            <SendCheckin reservationId={row.reservationId} />
           </>
         ) : null}
       </span>
@@ -147,6 +157,7 @@ export function ArrivalsList({
   emptyNextStep = null,
   canConnect = false,
   members = null,
+  canAct = false,
 }: {
   rows: ArrivalsListRow[];
   truncated: number;
@@ -157,6 +168,8 @@ export function ArrivalsList({
   canConnect?: boolean;
   /** UX-10 D3: atanabilecek kişiler (pano ile aynı liste). Verilmezse atama düğmesi çizilmez. */
   members?: { id: string; name: string }[] | null;
+  /** UX-10 D5: yazan eylemler (misafire giriş mesajı) gösterilsin mi — sayfa yalnız sahip / yöneticiye açık. */
+  canAct?: boolean;
 }) {
   if (rows.length === 0 && !dayList) {
     return (
@@ -203,7 +216,7 @@ export function ArrivalsList({
                 {/* Codex 11-05 (görsel inceleme): önce ne eksik — engeller ve bilinmeyenler hep görünür; bilgi satırları açılır "Ayrıntılar"da. */}
                 <ul className="space-y-1.5">
                   {primaryOf(r.factors).map(({ f, i }) => (
-                    <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} />
+                    <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} canAct={canAct} />
                   ))}
                 </ul>
                 {restOf(r.factors).length > 0 ? (
@@ -213,7 +226,7 @@ export function ArrivalsList({
                     </summary>
                     <ul className="mt-1.5 space-y-1.5">
                       {restOf(r.factors).map(({ f, i }) => (
-                        <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} />
+                        <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} canAct={canAct} />
                       ))}
                     </ul>
                   </details>

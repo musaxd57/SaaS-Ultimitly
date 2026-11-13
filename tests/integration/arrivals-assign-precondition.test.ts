@@ -103,6 +103,25 @@ describe("Girişler'den atama — ön şart", () => {
     expect(mail.sent).toHaveLength(0);
   });
 
+  it("🚨 dokunulmuş 'Yapılacak' (kontrol listesinde işaretli madde ya da kişinin notu) → 409 task_moved_on, atama değişmez", async () => {
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { assignedToId: mehmet.id, checklistJson: JSON.stringify([{ text: "Havlu", done: true }, { text: "Çarşaf", done: false }]) },
+    });
+    const res = await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("task_moved_on");
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(mehmet.id);
+    // Not yazılmış (kişinin kaydı) görev de aynı.
+    await prisma.task.update({ where: { id: taskId }, data: { checklistJson: null } });
+    await prisma.taskUpdate.create({ data: { taskId, userId: mehmet.id, status: null, note: "Anahtar kutusu açılmıyor", photoUrl: null } });
+    expect((await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id })).status).toBe(409);
+    expect(mail.sent).toHaveLength(0);
+    // Yükleyici de bu satıra atama sunmaz.
+    const out = await loadArrivalReadiness(orgId, new Date());
+    expect(out.rows[0]!.readiness.factors.find((f) => f.key === "cleaning")?.assign).toBeUndefined();
+  });
+
   it("'Yapılamıyor' görevi başkasına atama (ön şart tutar) → 'Yapılacak'a döner (var olan kural)", async () => {
     await prisma.task.update({ where: { id: taskId }, data: { status: "blocked", assignedToId: mehmet.id } });
     const res = await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id });

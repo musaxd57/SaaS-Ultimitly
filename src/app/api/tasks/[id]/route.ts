@@ -15,7 +15,8 @@ import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 import { notifyAssignmentRemoved, notifyTaskBlocked } from "@/lib/tasks/notify";
 import { TASK_TYPE } from "@/lib/constants";
-import { assignableStatus } from "@/lib/readiness-list/evaluate";
+import { assignableTask } from "@/lib/readiness-list/evaluate";
+import { checklistTouched, TOUCHING_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -73,6 +74,7 @@ const PHOTO_GONE_TEXT = "Fotoğraf artık kullanılamıyor. Yeniden yükleyip te
 // UX-10 D3 (kurucu 11-13): Girişler'den atama ön şartı tutmadı — yazma YOK (kilitli satıra göre). Pano bu alanı göndermez → davranışı aynı.
 class AssigneeChanged extends Error {}
 class TaskMovedOn extends Error {}
+class TaskGone extends Error {}
 
 // PATCH stays withAuth (session-only): staff MAY progress a task (status/note/
 // photo/checklist tick) — but only THEIR assigned task, and only the done flag on
@@ -145,18 +147,14 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     }
   }
 
-  let newAssignee: { id: string; name: string; email: string; role: string } | null = null;
+  let assigneeMember: { id: string; name: string; email: string; role: string } | null = null;
   if (d.assignedToId) {
     const member = await prisma.user.findFirst({
       where: { id: d.assignedToId, organizationId: session.organizationId },
       select: { id: true, name: true, email: true, role: true },
     });
     if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
-    // Only notify if the assignee actually changed. Kendine atama e-posta göndermez ve tavandan saymaz (kurucu kararı 10-11):
-    // atayan görevi zaten biliyor; kendi e-postası aynı saatte başka birine gidecek atama e-postasının hakkını yemesin.
-    if (d.assignedToId !== existing.assignedToId && member.id !== session.userId) {
-      newAssignee = member;
-    }
+    assigneeMember = member;
   }
 
   // C-17 (09-24): durum ve geçmiş kaydı TEK işlemde. Ayrı yazımda durum "bitti" olup kayıt düşerse "hazır" kanıtı
@@ -188,10 +186,15 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         if (d.status === "blocked" && (row?.assignedToId ?? null) !== session.userId) return null;
         // UX-10 D3: Girişler satırı bayat olabilir (telefonda saatlerce açık) — bu arada görev başkasına atandıysa ya da iş başladıysa /
         // bittiyse yazma YOK. Aksi hâlde dairenin temizlikçisi kuralıyla atanıp BAŞLAMIŞ kişi işin ortasında düşerdi (eski kişiye
-        // "Görevlendirmeniz değişti" e-postası da giderdi). Atanabilir durum kümesi Girişler'in düğme kuralıyla AYNI (`assignableStatus`).
+        // "Görevlendirmeniz değişti" e-postası da giderdi). Kural Girişler'in düğme kuralıyla AYNI saf fonksiyon (`assignableTask`):
+        // "Yapılamıyor" ya da DOKUNULMAMIŞ "Yapılacak" — işaretli madde / kişinin kaydı / fotoğraf varsa iş başlamış sayılır (Opus P2-8).
         if (d.expectAssignedToId !== undefined) {
-          if ((row?.assignedToId ?? "") !== d.expectAssignedToId) throw new AssigneeChanged();
-          if (!assignableStatus(row?.status)) throw new TaskMovedOn();
+          // Görev ilk okumayla kilit arasında silindiyse (Opus P3-6) "başka birine atandı / başladı" demek yanlış olurdu → 404.
+          if (!row) throw new TaskGone();
+          if ((row.assignedToId ?? "") !== d.expectAssignedToId) throw new AssigneeChanged();
+          const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`SELECT "checklistJson" FROM "Task" WHERE "id" = ${id}`;
+          const traces = await tx.taskUpdate.count({ where: { taskId: id, ...TOUCHING_TASK_UPDATE_WHERE } });
+          if (!assignableTask({ status: row.status, touched: traces > 0 || checklistTouched(locked?.checklistJson ?? null) })) throw new TaskMovedOn();
         }
       }
       const resetBlocked = reassigned && d.status === undefined && prevStatus === "blocked";
@@ -240,7 +243,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           },
         });
       }
-      return { updated, prevStatus, removedFrom: reassigned ? prevAssignee : null };
+      return { updated, prevStatus, removedFrom: reassigned ? prevAssignee : null, reassigned };
     });
   } catch (err) {
     if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
@@ -249,10 +252,15 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       return NextResponse.json({ error: "Bu görev bu arada başka birine atandı.", code: "assignee_changed" }, { status: 409 });
     }
     if (err instanceof TaskMovedOn) return NextResponse.json({ error: "Bu iş bu arada başladı ya da bitti.", code: "task_moved_on" }, { status: 409 });
+    if (err instanceof TaskGone) return notFound();
     throw err;
   }
   if (!written) return notAssigned();
-  const { updated: task, prevStatus: prevStatusAtWrite, removedFrom } = written;
+  const { updated: task, prevStatus: prevStatusAtWrite, removedFrom, reassigned: reassignedAtWrite } = written;
+  // "Yeni Görev" e-postası KİLİTLİ satıra göre (Opus 11-13 P3-7): atama gerçekten bu yazımla değiştiyse. Eskiden işlem DIŞI okumaya bakılıyordu —
+  // iki yönetici yarışınca görev X'e dönüyor ama X'e "Yeni Görev" gitmiyordu (son haberi "görev sizden alındı" olarak kalıyordu). Kendine atama
+  // e-posta göndermez ve tavandan saymaz (kurucu kararı 10-11).
+  const newAssignee = assigneeMember && reassignedAtWrite && assigneeMember.id !== session.userId ? assigneeMember : null;
 
   // Görev eski kişinin listesinden çıktı → "Görevlendirmeniz değişti" (kurucu / Codex 11-06 K-1; anahtar arkasında). Kendini çıkaran
   // yöneticiye gitmez.

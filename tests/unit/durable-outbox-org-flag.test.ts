@@ -82,7 +82,9 @@ describe("O1 liste anahtarı — gönderim kararları işletmeye göre (kaynak p
     //   eleyeceğine İŞLETMEYE göre karar verir (kuyruk açık / kapalı); o da küresel anahtara bakmaz.
     // + 3: karşılama / giriş / çıkış göndericilerinde "doğrudan yol mu" kararı (S8, 11-11) — reddedilen mesajın yeniden deneme defteri ve
     //   hız sınırı beklemesi yalnız kuyruk KAPALIYKEN uygulanır; üçü de işletmeye göre karar verir.
-    expect((src.match(/durableOutboxEnabledFor\(/g) ?? []).length).toBe(12);
+    // + 1: Girişler'den elle giriş mesajı (`sendCheckinNow`, UX-10 D5, 11-13) — göndericiyle aynı kuyruk anahtarını mı kullanacağına
+    //   İŞLETMEYE göre karar verir.
+    expect((src.match(/durableOutboxEnabledFor\(/g) ?? []).length).toBe(13);
   });
 
   it("operator-replies.ts: selam sayımı süzgeci de kuyruk varlığına bağlı (anahtar kapatılınca kapanmaz)", () => {

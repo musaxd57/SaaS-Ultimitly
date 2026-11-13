@@ -21,11 +21,14 @@ export const OPEN_AUTO_LIFECYCLE_TASK_WHERE = {
  *  görevleri, mesajdan açılanları, tamamlanmış veya personelin işlem yaptığı görevleri koru."): iptal ANINDAKİ temizlik değil, sonradan
  *  yapılan onarım (senkronun onarım taraması, "zaten iptal" satırı, dosyanın yeniden yüklenmesi) yalnız bunu siler — başlanmış ("devam
  *  ediyor" / "onay bekliyor") ya da bir kişinin güncellemesi / fotoğrafı olan görev KORUNUR ve teşhis betiğinde ayrı sayılır. */
+/** Görevde kişi izi bırakan güncelleme: bir kişinin kaydı ya da fotoğraf (Girişler'deki atama kuralı da bunu kullanır — UX-10 D3). */
+export const TOUCHING_TASK_UPDATE_WHERE = { OR: [{ userId: { not: null } }, { photoUrl: { not: null } }] } satisfies Prisma.TaskUpdateWhereInput;
+
 export const UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE = {
   status: "todo",
   type: { in: ["checkin_prep", "cleaning"] },
   origin: "system",
-  updates: { none: { OR: [{ userId: { not: null } }, { photoUrl: { not: null } }] } },
+  updates: { none: TOUCHING_TASK_UPDATE_WHERE },
   // Kontrol listesi işareti `TaskUpdate` yazmaz (Opus O1): sorgu düzeyinde kaba eleme (JSON.stringify biçimi `"done":true`) — onarım
   // taraması aynı görevleri her turda seçip 50'lik yeri yemesin. Asıl karar kilit altında `checklistTouched` ile (biçimden bağımsız).
   OR: [{ checklistJson: null }, { NOT: { checklistJson: { contains: '"done":true' } } }],

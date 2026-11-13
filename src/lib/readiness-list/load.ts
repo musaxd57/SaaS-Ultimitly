@@ -20,6 +20,11 @@ import { lifecycleBaselineWhere } from "@/lib/automation";
 import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { loadErasureGuard } from "@/lib/erasure";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
+import { checklistTouched, TOUCHING_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
+
+// UX-10 D3: görevde kişi izi (temizlikçi değişimindeki aktarımla AYNI tanım: kişinin kaydı / fotoğraf ya da işaretli kontrol listesi maddesi).
+const TOUCHING_UPDATE_WHERE = TOUCHING_TASK_UPDATE_WHERE;
+const taskTouched = (t: { checklistJson: string | null; _count: { updates: number } }): boolean => t._count.updates > 0 || checklistTouched(t.checklistJson);
 
 // ---------------------------------------------------------------------------
 // GİRİŞ HAZIRLIĞI LİSTESİ — YÜKLEYİCİ (salt-okuma; org kapsamlı; model çağrısı ve yazma YOK).
@@ -161,6 +166,8 @@ export async function loadArrivalReadiness(
             reservationId: true,
             status: true,
             assignedToId: true,
+            checklistJson: true,
+            _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
             assignedTo: { select: { name: true } },
             updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true, note: true } },
           },
@@ -191,6 +198,8 @@ export async function loadArrivalReadiness(
             reservation: { select: { arrivalDate: true, departureDate: true } },
             status: true,
             assignedToId: true,
+            checklistJson: true,
+            _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
             assignedTo: { select: { name: true } },
           },
         })
@@ -234,7 +243,15 @@ export async function loadArrivalReadiness(
             topic: true,
             dueAt: true,
             taskId: true,
-            task: { select: { status: true, assignedToId: true, assignedTo: { select: { name: true } } } },
+            task: {
+              select: {
+                status: true,
+                assignedToId: true,
+                checklistJson: true,
+                _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
+                assignedTo: { select: { name: true } },
+              },
+            },
           },
           orderBy: { dueAt: "asc" },
         })
@@ -309,6 +326,17 @@ export async function loadArrivalReadiness(
     if (t.needsReview) return { state: "review", id: t.id, at: t.updatedAt };
     return { state: "ready", id: t.id, at: t.updatedAt };
   };
+  // UX-10 D5: giriş mesajı ELLE gönderilebilir mi (yalnız düğmenin görünürlüğü; sunucu `prepareCheckinNow` her şartı yeniden okur). Acil
+  // durdurma açıkken hiç yok; bağlantı bir kez okunur (belirteç çekmez).
+  const manualConnection = process.env.AUTO_REPLY_ENABLED === "1" ? await hasMessagingConnection(organizationId).catch(() => false) : false;
+  const manualErasure = manualConnection ? (erasure ?? (await loadErasureGuard(organizationId))) : null;
+  const checkinManualSendableOf = (a: (typeof arrivals)[number]): boolean => {
+    if (!manualConnection || a.checkinSentAt || a.status !== "confirmed" || !reservationMessagingCapable(a)) return false;
+    if (manualErasure?.blocksSourceReference(a.sourceReference)) return false;
+    const t = autoCheckinOf.get(a.propertyId);
+    if (!t || t.body.trim() === "") return false;
+    return !autoMessageIssue(t.body, a.property.name, org?.aiSignature ?? undefined);
+  };
   const overlapById = new Map(overlapStays.map((r) => [r.id, r]));
 
   const rows: ArrivalRow[] = arrivals.map((a, i) => {
@@ -334,6 +362,7 @@ export async function loadArrivalReadiness(
           assignee: t.assignedTo?.name ?? null,
           assigneeId: t.assignedToId,
           status: t.status,
+          touched: taskTouched(t),
           startedAt: started?.createdAt ?? null,
           startedBy: started?.userId ? (nameOf.get(started.userId) ?? null) : null,
           lastDoneAt: done?.createdAt ?? null,
@@ -363,6 +392,7 @@ export async function loadArrivalReadiness(
         assignee: t.assignee,
         assigneeId: t.assigneeId,
         status: t.status,
+        touched: t.touched,
         startedAt: t.startedAt,
         startedBy: t.startedBy,
         lastDoneAt: t.lastDoneAt,
@@ -400,6 +430,7 @@ export async function loadArrivalReadiness(
             assignee: t.assignedTo?.name ?? null,
             assigneeId: t.assignedToId,
             status: t.status,
+            touched: taskTouched(t),
             dueAt: t.dueAt,
             relation,
             priority: t.priority,
@@ -439,6 +470,7 @@ export async function loadArrivalReadiness(
           taskId: c.taskId,
           taskAssigneeId: c.task?.assignedToId ?? null,
           taskStatus: c.task?.status ?? null,
+          taskTouched: c.task ? taskTouched(c.task) : undefined,
         })),
       needs: items
         .filter((it) => convs.includes(it.conversationId))
@@ -450,6 +482,7 @@ export async function loadArrivalReadiness(
         })),
       accessInstructions: accessOf.get(a.propertyId) ?? null,
       autoCheckin: autoCheckinStateOf(a),
+      checkinManualSendable: checkinManualSendableOf(a),
       checkInTime: earlyOf.get(a.id) ?? normalizeHhmm(a.property.checkInTime),
     });
     return {
