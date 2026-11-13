@@ -1052,6 +1052,10 @@ function assembledPrompts(): { system: Record<string, string>; samples: { id: st
 //   · bulgu özeti girdisi (her iki çağrıda) ≈ 0,5 $,
 //   · kalan ≈ 1,3 $: karar başlamadan verildiği için havuzda aynı anda koşan isteğe bağlı çağrıların taşması (istek 4 ortalaması 0,65 $ / çağrı).
 const PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD = 10;
+// İki zorunlu adımın kendi aralarındaki öncelik: kurucuya giden RAPOR yeniden tasarımdan önemlidir (istek 4'te tasarım üretildi, rapor
+// üretilmedi). Yeniden tasarım, raporun en kötü hâli için bu kadarını bırakamayacaksa başlamaz: 48 000 çıktı belirteci × 40 $/M ≈ 1,9 $ +
+// bulgu özeti girdisi ve önbellek okuması ≈ 0,3 $ + pay ≈ 0,8 $. Ana paydan (yukarıda) küçük olmak zorunda.
+const PROMPT_AUDIT_FINAL_REPORT_RESERVE_USD = 3;
 
 async function promptAudit(): Promise<void> {
   const reserveIn = resolveReserveUsd(req.taskBudgetUsd?.prompt_audit_report, PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD);
@@ -1205,6 +1209,7 @@ async function promptAudit(): Promise<void> {
   );
   const redesign = await call({
     task: "prompt_audit",
+    reserveUsd: Math.min(PROMPT_AUDIT_FINAL_REPORT_RESERVE_USD, reserveUsd),
     system,
     cacheTtl: "1h",
     user: `REDESIGN. Using the surviving findings below and the corpus, write (in TURKISH, Markdown) the target design the way Anthropic or OpenAI would build this assistant:\n1. Hedef mimari — hangi karar modelde, hangi kesin kural kodda; kaynakların modele sunumu (kimlikli belgeler, üst bağlam, güncellik, kapsam); cevap şeması (istek başına: karar = cevapla / kaynak yok / ev sahibinin kararı; sorulan varlık, kaynaktaki varlık, özellik, değer, koşul, alıntı); bağımsız yargıç (ne sorulur, neyi görür); kodun doğruladığı kesin şeyler.\n2. Bugünkü sistem isteminin YERİNE geçecek taslak — tam metin, en çok ~250 satır, ürün kurallarını (ev sahibi ağzı, bilgisizlik misafire gitmez, riskli iş ev sahibinde, platform dışı ödeme / iletişim yok …) İLKE olarak koruyan; örnekleri en aza indiren; kelime listesi içermeyen.\n3. Silinecek / birleştirilecek / şemaya taşınacak kuralların listesi (bugünkü dosya:satır → yeni yer).\n4. Geçiş sırası: hangi dilim önce, her dilim nasıl ölçülür (ham model kararı ↔ ürünün son kararı; gereksiz tutma da hata), hangi güvenlik yedeği ne zaman kaldırılır.\n5. Bu tasarımın RİSKLERİ ve senin emin olmadığın yerler.\n\nSURVIVING FINDINGS (JSON):\n${digest}`,
@@ -1212,7 +1217,11 @@ async function promptAudit(): Promise<void> {
     maxTokens: 64000,
   });
   if (redesign) write("prompt-audit/redesign.md", redesign.text);
-  else console.error("[claude-work] prompt_audit: yeniden tasarım çağrısı sonuç vermedi (bütçe / hata)");
+  else {
+    // Yeniden tasarım başlamadıysa / düştüyse rapor bunu bilir (sessiz kırpma yok).
+    skipped.push("yeniden tasarım");
+    console.error("[claude-work] prompt_audit: yeniden tasarım çağrısı sonuç vermedi (bütçe / hata) — rapor yine denenir");
+  }
 
   // 4) Kurucuya son rapor.
   const report = await call({

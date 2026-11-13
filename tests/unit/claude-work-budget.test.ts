@@ -118,11 +118,17 @@ describe("run.ts bağlantısı", () => {
     // Doğrudan (paysız) `call(` yalnız ikincil istemlerde, ve orada da pay iletiliyor.
     expect(audit.split("await call({").length - 1).toBe(1);
   });
-  it("🚨 yeniden tasarım ve kurucu raporu payla çağrılmaz (zorunlu adım)", () => {
+  it("🚨 kurucu raporu paysız çağrılır (son zorunlu adım); yeniden tasarım yalnız raporun küçük payını korur", () => {
     const tail = fn("// 3) Hedef mimari", "// ── İş: ham model kolu");
-    expect(tail).toContain("const redesign = await call({");
-    expect(tail).toContain("const report = await call({");
-    expect(tail).not.toContain("reserveUsd");
+    const redesign = tail.slice(tail.indexOf("const redesign = await call({"), tail.indexOf("// 4) Kurucuya son rapor"));
+    const report = tail.slice(tail.indexOf("const report = await call({"));
+    expect(redesign).toContain("reserveUsd: Math.min(PROMPT_AUDIT_FINAL_REPORT_RESERVE_USD, reserveUsd),");
+    expect(redesign).toContain('skipped.push("yeniden tasarım");');
+    expect(report).not.toContain("reserveUsd");
     expect(tail).not.toContain("optionalCall");
+    // Raporun payı ana paydan küçük (yoksa yeniden tasarım hiç başlamazdı).
+    const num = (name: string) => Number(new RegExp(`const ${name} = (\\d+(?:\\.\\d+)?);`).exec(src)?.[1]);
+    expect(num("PROMPT_AUDIT_FINAL_REPORT_RESERVE_USD")).toBeGreaterThan(0);
+    expect(num("PROMPT_AUDIT_FINAL_REPORT_RESERVE_USD")).toBeLessThan(num("PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD"));
   });
 });
