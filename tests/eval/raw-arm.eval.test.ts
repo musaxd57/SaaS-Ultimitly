@@ -85,6 +85,9 @@ describe("ham model kolu — mekanik denetim (çevrimdışı)", () => {
     expect(sameNumber(one("10,05"), one("1.005"))).toBe(false);
     expect(sameNumber(one("10.00"), one("1.000"))).toBe(false);
     expect(sameNumber(one("23:30"), one("23"))).toBe(false);
+    // İlk grup aynı, sonraki grup farklı (mutasyon 11-13: yalnız ilk grup kıyaslansa bunlar aynı çıkıyordu).
+    expect(sameNumber(one("23:00"), one("23:30"))).toBe(false);
+    expect(sameNumber(one("1.500"), one("1.600"))).toBe(false);
     // "1.000" bindir, "1" değil (sondaki sıfır kuralı üç rakamlı gruba uygulanmaz).
     expect(sameNumber(one("1.000"), one("1"))).toBe(false);
     // Bilinen sınır (güvenli yön): karışık yazım eşleşmez.
@@ -158,6 +161,9 @@ describe("ham model kolu — mekanik denetim (çevrimdışı)", () => {
     expect(checkRequest(req({ condition_in_source: "hafta sonu", condition_covers_question: "yes" }), NOTES, PROPERTY)).toEqual([]);
     // Notta koşul yazıyorsa "geçerli değil" yetmez — açık "kapsıyor" gerekir (Haiku incelemesi 11-13).
     expect(checkRequest(req({ condition_in_source: "hafta sonu", condition_covers_question: "n/a" }), NOTES, PROPERTY)).toEqual<RawCheckIssue[]>(["condition_not_covering"]);
+    // Koşul alanı boş olsa da model "kapsamıyor" / "bilinmiyor" dediyse gitmez (beyanın kendisi yeter).
+    expect(checkRequest(req({ condition_in_source: "", condition_covers_question: "unknown" }), NOTES, PROPERTY)).toEqual<RawCheckIssue[]>(["condition_not_covering"]);
+    expect(checkRequest(req({ condition_in_source: "", condition_covers_question: "no" }), NOTES, PROPERTY)).toEqual<RawCheckIssue[]>(["condition_not_covering"]);
     // Koşul alanı boş / biçimsel boşluk ise "geçerli değil" olağandır.
     for (const none of ["", " ", "-", "yok", "none", "N/A"]) {
       expect(checkRequest(req({ condition_in_source: none, condition_covers_question: "n/a" }), NOTES, PROPERTY), none).toEqual([]);
