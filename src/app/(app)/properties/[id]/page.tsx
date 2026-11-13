@@ -277,7 +277,8 @@ export default async function PropertyDetailPage({
             confirmText={`“${property.name}” mülkünü silmek istiyor musunuz?`}
             confirmBody="Bu mülkün rezervasyonları, misafir konuşmaları, görevleri, bilgi tabanı ve takvim bağlantıları da kalıcı olarak silinir. Bu işlem geri alınamaz."
             // Görsel inceleme 10-21 #9: sayfanın en göze çarpan düğmesi dolu kırmızı "Sil"di — çerçeveli, aynı onay penceresiyle.
-            className="border border-destructive/40 bg-transparent text-destructive shadow-none hover:bg-destructive/10"
+            // UX denetimi 11-13 (C048): "Geri"ye bitişikti → fazladan 16 px aralık (yazı ve onay penceresi aynı).
+            className="ml-4 border border-destructive/40 bg-transparent text-destructive shadow-none hover:bg-destructive/10"
           />
         ) : null}
       </PageHeader>

@@ -288,6 +288,9 @@ export default async function CalendarPage({
               içerik ≈704px, artık kaydırmasız sığar. overflow-x-auto yalnız
               emniyet kemeri olarak kalır. */}
           <div className="hidden overflow-x-auto md:block">
+            {/* UX denetimi 11-13 (D048): masaüstünde hareketsiz ay 30 boş kutuydu, hiçbir şey söylemiyordu. Telefondaki boş durumun AYNI
+                başlığı (yeni yazı yok); ızgara yine çizilir (dolu ama hareketsiz geceler görünür kalsın). */}
+            {agendaDays.length === 0 ? <p className="mb-2 text-sm text-muted-foreground">Bu ayda giriş veya çıkış yok</p> : null}
             <div className="min-w-[640px]">
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map((w) => (

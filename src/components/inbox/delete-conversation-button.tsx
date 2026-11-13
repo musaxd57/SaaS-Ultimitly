@@ -40,7 +40,9 @@ export function DeleteConversationButton({ conversationId }: { conversationId: s
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={remove} disabled={busy}>
+    // UX denetimi 11-13 (C010): "Sil" geri okunun 8 px yanındaydı (onay penceresi var, ama yanlış dokunuş yine de pencereyi açıyordu).
+    // Fazladan 16 px aralık; yazı ve davranış aynı.
+    <Button variant="outline" size="sm" onClick={remove} disabled={busy} className="ml-4">
       {busy ? (
         <Loader2 className="size-4 animate-spin" />
       ) : (

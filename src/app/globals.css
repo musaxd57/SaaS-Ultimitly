@@ -156,6 +156,17 @@
  * gelen kutusu mesaj listesi ve QR sohbet kabı.
  * ------------------------------------------------------------------------- */
 @layer utilities {
+  /* KAYDIRMA GÖLGESİ (UX denetimi 11-13, C058): telefonda menünün altı ekran dışına taşınca (Raporlar, Ayarlar) devamı olduğu görünmüyordu.
+     Saf CSS "kaydırma gölgesi": `local` katmanlar içerikle kayar ve uçlarda gölgeyi örter, `scroll` katmanlar kutuya sabit kalır → gölge
+     YALNIZ o yönde gizli içerik varken görünür. Yerleşime hiç dokunmaz (yükseklik bütçesi `app-shell.tsx` `mt-4` yorumunda); renk tema
+     belirteçlerinden (açık / koyu). Kutunun zemini `--card` olmalı (menü `bg-card` üstünde). */
+  .scroll-fade-y {
+    background:
+      linear-gradient(hsl(var(--card)) 30%, hsl(var(--card) / 0)) center top / 100% 2rem no-repeat local,
+      linear-gradient(hsl(var(--card) / 0), hsl(var(--card)) 70%) center bottom / 100% 2rem no-repeat local,
+      radial-gradient(farthest-side at 50% 0, hsl(var(--foreground) / 0.14), transparent) center top / 100% 0.75rem no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, hsl(var(--foreground) / 0.14), transparent) center bottom / 100% 0.75rem no-repeat scroll;
+  }
   /* Firefox + Chrome 121+. İKİ renk alır (başparmak, oluk).
      🚨 ALFA KULLANILMIYOR (inceleme turu düzeltmesi): ilk yazımda `/ 0.5` vardı
      ve ÖLÇÜLDÜ — `--muted` oluk üzerinde kontrast açık temada **1,90:1**,

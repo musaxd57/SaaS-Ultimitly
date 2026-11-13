@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +39,12 @@ export function StatCard({
     <Card className={cn("p-5", href && "card-lift cursor-pointer", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          {/* UX denetimi 11-13 (C002): bağlantılı kutucuk yalnız fareyle üzerine gelince ayırt ediliyordu — telefonda üzerine gelme yok.
+              Etiketin yanında küçük ok (yalnız görsel, ekran okuyucu bağlantıyı zaten okur). */}
+          <p className="flex items-center gap-0.5 text-sm font-medium text-muted-foreground">
+            {label}
+            {href ? <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+          </p>
           <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>

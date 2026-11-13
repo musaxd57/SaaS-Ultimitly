@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Plus, MapPin, Clock } from "lucide-react";
+import { Building2, ChevronRight, Plus, MapPin, Clock } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -114,7 +114,11 @@ export default async function PropertiesPage() {
                     </div>
                     <Badge tone="muted">{p._count.reservations} rez.</Badge>
                   </div>
-                  <h3 className="mt-3 font-semibold">{p.name}</h3>
+                  {/* UX denetimi 11-13 (C019): kartın tamamı bağlantı ama bunu söyleyen işaret yoktu → adın yanında küçük ok (yalnız görsel). */}
+                  <h3 className="mt-3 flex items-center gap-1 font-semibold">
+                    <span className="min-w-0 break-words">{p.name}</span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </h3>
                   {p.city || p.address ? (
                     <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="size-3.5" />

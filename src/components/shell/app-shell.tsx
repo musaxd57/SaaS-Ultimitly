@@ -295,7 +295,8 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         </Link>
         <button
           type="button"
-          className="rounded-md p-1 text-muted-foreground hover:bg-accent lg:hidden"
+          // Telefonda 40 px dokunma hedefi (eskiden 28 px); `-my-1` satırın 32 px yüksekliğini korur (logo satırı büyümez).
+          className="-my-1 inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-label="Menüyü kapat"
         >
@@ -308,7 +309,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
           sığar (5.4 px pay). `mt-6`ya (24) geri dönmek toplamı 811'e çıkarır →
           2.6 px taşma → tam da o boyutta gereksiz bir kaydırma çubuğu. Yan
           kazanç: üstte 16 / altta 16 (kullanıcı kartının `mt-4`ü) simetrisi. */}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+      <div className="scroll-fade-y mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {navLinks}
         {superAdmin ? (
           <Link

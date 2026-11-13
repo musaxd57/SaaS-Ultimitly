@@ -22,7 +22,9 @@ const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
 /** [dosya, o denetimin sınıf dizesinde BİRLİKTE bulunması gereken parçalar (dize iki yanından boşlukla sarılıp aranır), kaç denetim]. */
 const PINS: [file: string, tokens: string[], count: number, what: string][] = [
   ["src/components/shell/panel-theme.tsx", ["inline-flex size-10 ", " sm:size-8"], 1, "tema düğmesi"],
-  ["src/components/shell/app-shell.tsx", ["inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent lg:hidden"], 1, "menü düğmesi"],
+  // Menüyü aç + menüyü kapat (ikisi de yalnız lg altında); kapat düğmesi `-my-1` ile logo satırının 32 px yüksekliğini korur.
+  ["src/components/shell/app-shell.tsx", ["inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent lg:hidden"], 2, "menü aç / kapat düğmeleri"],
+  ["src/components/shell/app-shell.tsx", [" -my-1 inline-flex size-10 "], 1, "menü kapat düğmesi (satır yüksekliği korunur)"],
   ["src/app/(app)/inbox/page.tsx", ["inline-flex h-10 items-center rounded-md border px-3 text-xs font-medium transition-colors sm:h-8"], 1, "gelen kutusu süzgeçleri"],
   ["src/app/(app)/inbox/page.tsx", [" h-10 w-40 rounded-md border border-border bg-card pl-8 pr-2 text-xs", " sm:h-8 "], 1, "gelen kutusu araması"],
   ["src/components/inbox/conversation-thread.tsx", ["h-10 w-36 py-0 text-xs sm:h-8"], 1, "konuşma: Durum"],
@@ -64,6 +66,7 @@ describe("telefonda dokunma hedefi — yerel ezmeler 40 px'e çekildi", () => {
     // Aynı denetimlerin eski hâlleri (sm öneki olmadan sabit küçük ölçü).
     expect(read("src/components/shell/panel-theme.tsx")).not.toContain('"inline-flex size-8 ');
     expect(read("src/components/shell/app-shell.tsx")).not.toContain('"rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"');
+    expect(read("src/components/shell/app-shell.tsx")).not.toContain('"rounded-md p-1 text-muted-foreground hover:bg-accent lg:hidden"');
     expect(read("src/app/(app)/inbox/page.tsx")).not.toMatch(/"(?:inline-flex )?h-8 /);
     expect(read("src/components/inbox/conversation-thread.tsx")).not.toMatch(/className="h-8 w-/);
     expect(read("src/components/settings/paddle-plans.tsx")).not.toContain("inline-flex h-8 w-full");

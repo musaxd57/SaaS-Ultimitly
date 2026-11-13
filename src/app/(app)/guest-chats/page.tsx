@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, QrCode, Building2, MessageSquare, UserRound } from "lucide-react";
+import { AlertTriangle, ChevronRight, QrCode, Building2, MessageSquare, UserRound } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
@@ -189,8 +189,10 @@ export default async function GuestChatsPage({
                       <UserRound className="mr-1 size-3" /> İnsan desteğinde
                     </Badge>
                   ) : null}
-                  <span className="ml-auto text-xs text-muted-foreground">
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
                     {t.lastMessageAt ? fromNow(t.lastMessageAt, TZ) : "—"}
+                    {/* UX denetimi 11-13 (B035): kartın tamamı bağlantı; telefonda bunu söyleyen işaret yoktu (yalnız görsel). */}
+                    <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
