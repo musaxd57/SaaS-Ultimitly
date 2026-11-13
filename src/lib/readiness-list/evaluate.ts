@@ -32,7 +32,23 @@ export interface Factor {
   /** Eksik kalan şart (yoksa `null`). */
   missing: string | null;
   basis: Basis[];
+  /**
+   * UX-10 D2 (kurucu 11-13): satırı ÇÖZEN ekrana götüren tek bağlantı (yazmaz; misafire / personele hiçbir şey göndermez). SAF kuraldan
+   * çıkar (aynı girdi → aynı bağlantı); etiketi / hükmü DEĞİŞTİRMEZ. Yoksa bilinçli: bekleme (5 dk), iş sürüyor, hiçbir ürün eyleminin
+   * değiştiremediği satır, silinmiş misafir. Tasarım: scratchpad/handoff/UX-10-girisler-tasarim.md §1.1–1.2.
+   */
+  link?: FactorLink;
 }
+
+export type FactorLink =
+  | { to: "task"; taskId: string | null; note?: boolean }
+  | { to: "tasks" }
+  | { to: "auto_message"; reason: "fix" | "check" | "write" }
+  | { to: "conversation"; need?: boolean }
+  | { to: "property_times" }
+  | { to: "connection" }
+  | { to: "calendar" }
+  | { to: "refresh" };
 
 export interface CleaningInput {
   /** Hüküm OKUNAMADI (yükleyici hata verdi) — bilinmiyor; satır sayfayı düşürmez. */
@@ -181,10 +197,11 @@ function dueText(dueAt: Date, now: Date, tz: string): string {
 
 function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: string | undefined): Factor {
   if (c.unavailable) {
-    return { key: "cleaning", state: "unknown", label: "Temizlik durumu şu an okunamadı", missing: "sayfayı yenileyin", basis: [] };
+    return { key: "cleaning", state: "unknown", label: "Temizlik durumu şu an okunamadı", missing: "sayfayı yenileyin", basis: [], link: { to: "refresh" } };
   }
   const task = c.tasks[0] ?? null;
   const taskBasis: Basis[] = c.tasks.map((t) => ({ kind: "task" as const, id: t.id, at: null }));
+  const taskLink: FactorLink = { to: "task", taskId: task?.id ?? null };
   const checkout = checkoutWhen(c, arrivalDayKey);
   const after = checkout ? `çıkıştan (${checkout}) sonra` : "çıkıştan sonra";
   if (c.status === "ready" && c.readyMark) {
@@ -207,7 +224,7 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
     }
     if (c.note === "before_checkout") {
       const at = task?.lastDoneAt ? ` (${whenLabel(task.lastDoneAt, now, tz)})` : "";
-      return { key: "cleaning", state: "blocking", label: `"Bitti" işareti çıkıştan önce${at}`, missing: `${after} atılmış "bitti" kaydı`, basis: taskBasis };
+      return { key: "cleaning", state: "blocking", label: `"Bitti" işareti çıkıştan önce${at}`, missing: `${after} atılmış "bitti" kaydı`, basis: taskBasis, link: taskLink };
     }
     // "Yapamıyorum" (kurucu 11-05 gece): görev açık ve sahipsiz kaldı — ev sahibinin işi başka birine atamak.
     const blocked = c.tasks.find((t) => t.blocked)?.blocked ?? null;
@@ -219,13 +236,16 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
         label: `Temizlik yapılamıyor · ${blocked.by ?? "atanan kişi"} · ${whenLabel(blocked.at, now, tz)}${reason}`,
         missing: "başka birine atama",
         basis: taskBasis,
+        // Atama panoda yapılır (Girişler'den doğrudan atama D3 — kurucu sorusu S-2).
+        link: { to: "task", taskId: c.tasks.find((t) => t.blocked)?.id ?? task?.id ?? null },
       };
     }
     // Açık görev: atanmış olmak kanıt DEĞİL — kim, başladı mı söylenir, şart aynı kalır.
     // İsme ek GETİRİLMEZ (ünlü uyumu: "Ayşe'ye", "Hasan'a", "Mehmet'e" — kodla doğru çekilemez): "atanan: Ayşe".
     const who = task?.assignee ? `atanan: ${task.assignee}` : "kimseye atanmadı";
     const started = task?.startedAt ? `başladı ${whenLabel(task.startedAt, now, tz)}${task.startedBy ? ` (${task.startedBy})` : ""}` : "başlanmadı";
-    return { key: "cleaning", state: "blocking", label: `Temizlik açık · ${who} · ${started}`, missing: `${after} "bitti" kaydı`, basis: taskBasis };
+    // İş sürüyorsa (başladı) bağlantı yok: yapılacak bir şey yok, beklenir.
+    return { key: "cleaning", state: "blocking", label: `Temizlik açık · ${who} · ${started}`, missing: `${after} "bitti" kaydı`, basis: taskBasis, ...(task?.startedAt ? {} : { link: taskLink }) };
   }
   // Bilinmiyor.
   if (!c.previousKnown) {
@@ -233,12 +253,13 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
   }
   if (c.tasks.length > 0 && (c.note === "none" || c.note === null)) {
     // Görev VAR ama çekirdek çıkış anını kuramadı (ör. mülkün çıkış saati okunamadı) — "görev yok" demek yanlış olurdu (Opus 11-05 F8).
-    return { key: "cleaning", state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati", basis: taskBasis };
+    return { key: "cleaning", state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati", basis: taskBasis, link: { to: "property_times" } };
   }
   if (c.note === "no_time") {
-    return { key: "cleaning", state: "unknown", label: "Temizlik bitti görünüyor ama kimin ne zaman bitirdiği kayıtlı değil", missing: 'kişi adına "bitti" kaydı', basis: taskBasis };
+    return { key: "cleaning", state: "unknown", label: "Temizlik bitti görünüyor ama kimin ne zaman bitirdiği kayıtlı değil", missing: 'kişi adına "bitti" kaydı', basis: taskBasis, link: taskLink };
   }
-  return { key: "cleaning", state: "unknown", label: "Devir temizliği görevi yok", missing: "devir temizliği görevi", basis: [] };
+  // Görevi Girişler'den açmak D4 (kurucu sorusu); bugün Görevler sayfasındaki "Eksik görevleri oluştur".
+  return { key: "cleaning", state: "unknown", label: "Devir temizliği görevi yok", missing: "devir temizliği görevi", basis: [], link: { to: "tasks" } };
 }
 
 /** Otomatik giriş mesajı bu rezervasyona GİTMEYECEK — neden (ev sahibi dili; teknik ayrıntı yok). */
@@ -249,6 +270,16 @@ const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" |
   no_channel: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi)",
   before_baseline: "Rezervasyon otomatik giriş mesajı açılmadan önce yapılmış, mesaj gitmez",
   erased: "Misafirin verileri silindiği için otomatik mesaj gitmez",
+};
+
+/** Gitmeyen otomatik giriş mesajının sebebine göre bağlantı. Silinmiş misafire (erased) ve konuşması olmayana (no_channel) BİLİNÇLİ YOK. */
+const NOT_SENDING_LINK: Record<keyof typeof NOT_SENDING_TEXT, FactorLink | null> = {
+  kill_switch: { to: "conversation" },
+  no_connection: { to: "connection" },
+  no_baseline: { to: "conversation" },
+  before_baseline: { to: "conversation" },
+  no_channel: null,
+  erased: null,
 };
 
 const SKIP_REASON_TEXT: Record<string, string> = {
@@ -273,7 +304,14 @@ function accessFactor(input: StayReadinessInput): Factor {
     };
   }
   if (a?.state === "not_sending") {
-    return { key: "access", state: "info", label: `${NOT_SENDING_TEXT[a.reason]} · giriş bilgisini siz gönderin`, missing: "giriş bilgisi ve erişim kontrolü", basis: [] };
+    return {
+      key: "access",
+      state: "info",
+      label: `${NOT_SENDING_TEXT[a.reason]} · giriş bilgisini siz gönderin`,
+      missing: "giriş bilgisi ve erişim kontrolü",
+      basis: [],
+      ...(NOT_SENDING_LINK[a.reason] ? { link: NOT_SENDING_LINK[a.reason]! } : {}),
+    };
   }
   if (a?.state === "ready") {
     return {
@@ -291,6 +329,7 @@ function accessFactor(input: StayReadinessInput): Factor {
       label: `Otomatik giriş mesajı gönderilemiyor: ${SKIP_REASON_TEXT[a.reason] ?? "metin doldurulamadı"}`,
       missing: "giriş mesajının düzeltilmesi (Mülk → Otomatik mesajlar)",
       basis: [],
+      link: { to: "auto_message", reason: "fix" },
     };
   }
   if (a?.state === "review") {
@@ -300,13 +339,15 @@ function accessFactor(input: StayReadinessInput): Factor {
       label: "Otomatik giriş mesajı kontrol bekliyor (iki farklı kaynaktan geldi)",
       missing: "mesajı kontrol edip kaydetme",
       basis: [{ kind: "auto_message", id: a.id, at: a.at }],
+      link: { to: "auto_message", reason: "check" },
     };
   }
   if (a?.state === "disabled") {
-    return { key: "access", state: "info", label: "Otomatik giriş mesajı kapalı · giriş bilgisini siz gönderin", missing: "erişim kontrolü", basis: [] };
+    return { key: "access", state: "info", label: "Otomatik giriş mesajı kapalı · giriş bilgisini siz gönderin", missing: "erişim kontrolü", basis: [], link: { to: "conversation" } };
   }
   if (a?.state === "missing") {
-    return { key: "access", state: "info", label: "Otomatik giriş mesajı yazılmamış · giriş bilgisini siz gönderin", missing: "giriş mesajı ve erişim kontrolü", basis: [] };
+    // Doğru eylem metni YAZMAK (yazılınca gönderici kendisi, damgalı ve çiftsiz gönderir); elle göndermek değil (tasarım §1.3).
+    return { key: "access", state: "info", label: "Otomatik giriş mesajı yazılmamış · giriş bilgisini siz gönderin", missing: "giriş mesajı ve erişim kontrolü", basis: [], link: { to: "auto_message", reason: "write" } };
   }
   // Eski çağıran (otomatik mesaj durumu yok): bilgi tabanı satırı.
   return input.accessInstructions
@@ -336,9 +377,17 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
             label: `Temizlik görevine not yazıldı · ${n.by ? `${n.by} · ` : ""}${whenLabel(n.at, input.now, tz)} — görevde okuyun`,
             missing: null,
             basis: [{ kind: "task_update", id: n.updateId, at: n.at }],
+            link: { to: "task", taskId: input.cleaning.tasks[0]?.id ?? null, note: true },
           }
         : // Notu yazan her zaman temizlikçi değildir (ev sahibi / yönetici de yazabilir) — cümle kişiyi varsaymaz.
-          { key: "cleaning_note", state: "info", label: "Temizlik görevine bugün not yazıldı — görevde okuyun", missing: null, basis: [] },
+          {
+            key: "cleaning_note",
+            state: "info",
+            label: "Temizlik görevine bugün not yazıldı — görevde okuyun",
+            missing: null,
+            basis: [],
+            link: { to: "task", taskId: input.cleaning.tasks[0]?.id ?? null, note: true },
+          },
     );
   }
   if (input.openIssue || input.maintenanceOpen) {
@@ -353,6 +402,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
         label: input.openIssue ? "Devirde açık sorun / bakım görevi var" : "Mülkte açık bakım görevi var",
         missing: "bakım görevinin kapanması",
         basis: [],
+        link: { to: "tasks" },
       });
     }
     for (const t of shown) {
@@ -370,6 +420,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
           label: `${t.kindLabel} açık: ${t.title}${where} · ${who} — bu girişi etkiliyor mu?`,
           missing: "görevin kapanması ya da bu güne tarihlenmesi",
           basis: [{ kind: "task", id: t.id, at: t.dueAt }],
+          link: { to: "task", taskId: t.id },
         });
         continue;
       }
@@ -379,18 +430,20 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
         label: `${t.kindLabel} açık${t.priority === "low" ? " (düşük öncelik)" : ""}: ${t.title} · ${who}${due}`,
         missing: state === "blocking" ? "görevin kapanması" : null,
         basis: [{ kind: "task", id: t.id, at: t.dueAt }],
+        // Düşük öncelikli bilgi satırı "Ayrıntılar"da kalır, bağlantısız.
+        ...(state === "blocking" ? { link: { to: "task", taskId: t.id } as FactorLink } : {}),
       });
     }
     // Ölçülü (muhafazakâr) yan: gösterilmeyen bakım görevi zaten bir sorun satırıysa bu cümle fazladan söylenmiş olur — eksik söylemekten iyi.
     if (all.length > 0 && input.issueTasksMore) {
       // Görünmeyen görevlerin niteliği bilinmiyor → kesin engel değil, "bakın".
-      factors.push({ key: "issue", state: "unknown", label: "Bu mülkte başka açık bakım görevleri de var", missing: "Görevler'de kontrol", basis: [] });
+      factors.push({ key: "issue", state: "unknown", label: "Bu mülkte başka açık bakım görevleri de var", missing: "Görevler'de kontrol", basis: [], link: { to: "tasks" } });
     }
   }
   if (input.overlaps > 0) {
     const stays = input.overlapStays ?? [];
     if (stays.length === 0) {
-      factors.push({ key: "overlap", state: "blocking", label: "Aynı gece başka bir konaklama var", missing: "çakışmanın giderilmesi", basis: [] });
+      factors.push({ key: "overlap", state: "blocking", label: "Aynı gece başka bir konaklama var", missing: "çakışmanın giderilmesi", basis: [], link: { to: "calendar" } });
     }
     for (const s of stays) {
       factors.push({
@@ -400,6 +453,8 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
         label: `Çakışan konaklama: ${s.guestName?.trim() || "adı kayıtlı değil"} · ${dayKeyLabel(s.arrivalKey)} – ${dayKeyLabel(s.departureKey)}`,
         missing: "çakışmanın giderilmesi",
         basis: [{ kind: "reservation", id: s.id, at: null }],
+        // Çifte rezervasyonu ürün çözemez (iptal kanalda yapılır) — takvimde görmek.
+        link: { to: "calendar" },
       });
     }
   }
@@ -411,6 +466,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       label: `Söz açık: ${c.label}${who}`,
       missing: "sözün yerine getirilmesi",
       basis: [{ kind: "commitment", id: c.id, at: c.dueAt }],
+      link: { to: "task", taskId: c.taskId ?? null },
     });
   }
   for (const n of input.needs) {
@@ -420,6 +476,8 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       label: `Açık ihtiyaç: ${n.label}${n.status === "pending_host" ? " (sizde)" : ""}`,
       missing: null,
       basis: [{ kind: "conversation_item", id: n.id, at: n.at }],
+      // "Tamamlandı" buradan YOK (okunmadan kapatılırdı) — konuşmada görmek.
+      link: { to: "conversation", need: true },
     });
   }
   factors.push(accessFactor(input));

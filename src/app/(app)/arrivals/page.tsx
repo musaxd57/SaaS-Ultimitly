@@ -4,6 +4,8 @@ import { ArrivalsList, type ArrivalsListRow } from "@/components/arrivals/arriva
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { wallClockMoment } from "@/lib/early-checkin/readiness";
 import { addNights } from "@/modules/availability/core";
+import { prisma } from "@/lib/db";
+import { canManageChannel } from "@/components/connect-channel-button";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +37,25 @@ export default async function ArrivalsPage() {
     overall: r.readiness.overall,
     factors: r.readiness.factors,
   }));
+  // UX-10 D1: penceredeki üç gün her zaman başlığıyla (boş gün "Giriş yok."). Mülk sayısı yalnız hiç giriş yokken (tek sonraki adım için).
+  const days = [0, 1, 2].map((n) => {
+    const key = addNights(data.fromKey, n);
+    return { key, label: dayLabel(key, data.fromKey, data.timeZone) };
+  });
+  const propertyCount = rows.length === 0 ? await prisma.property.count({ where: { organizationId: session.organizationId } }) : -1;
   return (
     <>
       <PageHeader
         title="Girişler"
         description="Bugün ve sonraki iki gün. Temizlik yalnız çıkıştan sonraki “bitti” kaydıyla hazır sayılır; bilinmeyen hazır gösterilmez."
       />
-      <ArrivalsList rows={rows} truncated={data.truncated} />
+      <ArrivalsList
+        rows={rows}
+        truncated={data.truncated}
+        days={days}
+        emptyNextStep={rows.length === 0 ? (propertyCount === 0 ? "add-property" : "calendar") : null}
+        canConnect={canManageChannel(session)}
+      />
     </>
   );
 }

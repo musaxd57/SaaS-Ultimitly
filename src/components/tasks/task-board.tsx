@@ -447,7 +447,8 @@ export function TaskBoard({
     return (
       // Biten görev SOLUKLAŞTIRILMAZ (kurucu 10-22 U16 "a"): %70 opaklıkta gri yazı 2,7:1'e düşüyordu (eşik 4,5:1; temizlikçi telefonda,
       // gün ışığında okur). Bittiği başlığın üstü çizili + "Tamamlandı" rozetiyle belli; yazıların hepsi tam okunur.
-      <div key={t.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
+      // `id="task-<id>"`: Girişler satırındaki "Görevi açın" bağlantısı bu karta kayar (UX-10 D2); `target:` ile kart kısa süre vurgulanır.
+      <div key={t.id} id={`task-${t.id}`} className="scroll-mt-24 rounded-lg border border-border bg-card p-3 shadow-sm target:ring-2 target:ring-primary">
         <div className="flex items-start justify-between gap-2">
           <p className={cn("min-w-0 break-words text-sm font-medium leading-snug", t.status === "done" && "line-through decoration-1")}>
             {t.title}
