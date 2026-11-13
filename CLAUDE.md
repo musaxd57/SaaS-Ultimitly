@@ -212,6 +212,10 @@ Bu dosyaya token/anahtar/parola yazma.
   Opus 5.5 "en derin ve sert" büyük kontrol (bulgularını ilerledikçe dosyaya yazar — kesme olursa kaybolmasın). Derin araştırma / tasarım
   işleri Opus 5.5. Kesme ("Request interrupted") o turun alt ajanlarını durdurur → yeniden başlatılır. Railway açılana kadar kodla
   yapılabilecek her şey yapılır.
+- 🚨 **İNCELEME AJANI HATA ÜRETMEZ (kurucu 11-13):** ajan hata bulmak İÇİN hata bulmaz; hata bulamaması onun kusuru olmayabilir (kod doğru
+  olabilir) — HATA OLMAYANI HATA GİBİ GÖSTERMEK, bir hatayı kaçırmaktan ÇOK DAHA KÖTÜDÜR. Her inceleme / denetim ajanının istemine bu cümle
+  yazılır; bulgu dosya:satır + somut senaryo (girdi → yanlış sonuç) taşır, kanıtlanamayan "emin değilim" diye AYRI listelenir, "bulgu yok"
+  geçerli ve değerli sonuçtur. Ana oturum her bulguyu kodda doğrular; yanlış bulgu raporda "yanlıştı" diye yazılır.
 - **Kurucu cevap incelemesi (10-08):** ölçüm yan dosyalarından (`docs/olcum/*.json`) çıkan misafir mesajı → yapay zekâ cevabı çiftleri
   `scripts/review/build-review-set.py` ile toplanır, sayfa https://claude.ai/artifact/DFkiB4FkXrNagEtHnGTXXN (veri `review-set.json`,
   yorumlar sayfanın veritabanında `reviews/m<mesaj özeti>` — soru başına kararlı kimlik, eski `q…` / çift kimlikli kayıtlar da okunur: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list
