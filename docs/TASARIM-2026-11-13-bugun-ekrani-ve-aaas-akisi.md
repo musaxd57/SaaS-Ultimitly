@@ -203,3 +203,60 @@ yapılan her işin kaydı (makbuzu) vardır.
 - **Öneri 2 (sabah özeti e-postası): ŞİMDİLİK YOK** (kurucu 11-13: "zaten yeterince bildirimle mail atıyoruz"). Değer görünümü de e-posta
   değil, Panel'de.
 - **Dört hukuk / karar sorusu** (kurucu: "o 4 sorunu kaydet"): `docs/claude/acik-isler.md` "11-13 gece — kurucunun kaydettirdiği dört soru".
+
+## 7. Derin araştırma ajanının bulguları — kodda doğrulananlar ve benim değerlendirmem (11-13 gece)
+Kaynak: Opus araştırma ajanı (dış araştırma + kod okuma; dosya `scratchpad/handoff/AAAS-DERIN-ARASTIRMA-1113.md`, repoya alınmadı — dış
+bağlantılar arama özetinden, sayfaların çoğu bu ortamdan açılmadı). Aşağıdakiler ana oturumda kodda doğrulandı ya da açıkça "doğrulanmadı" diye
+işaretlendi.
+
+### 7.1 Benim önceki açıklamamı DÜZELTEN bulgu (doğrulandı)
+- **"Kontrol bekliyor" işareti sandığımdan çok daha dar.** Migration 80 işareti YALNIZ aynı daire + aynı türde, güncellenme anı SANİYESİ
+  SANİYESİNE EŞİT ve içeriği farklı ikinci bir kalem varsa koyuyor (`prisma/migrations/80_auto_message_templates/migration.sql` 53–62,
+  `k2."updatedAt" = k."updatedAt"`). Tarihleri farklı iki çelişen kalemde (olağan durum: Mart'ta "kod 1234", Eylül'de "kod 5678") en yenisi
+  **işaretsiz** seçildi. Kurucuya 11-13'te "birden çok farklı kaydı olan dairelerde en son ekleneni seçti ve işaretledi" dedim — bu eksikti:
+  çoğu çelişkide işaret yok. Sonuç: §2'nin "B" seçeneği (işarete bakıp tutmak) gerçek vakaların çoğunu GÖRMEZ; C'nin (göçte bütün kalemleri
+  yeniden okuyup olgu çelişkisini aramak) gerekçesi güçlendi.
+- Girişler'de "Otomatik giriş mesajı kontrol bekliyor (iki farklı kaynaktan geldi)" satırı zaten var (`readiness-list/evaluate.ts` 430–438,
+  `load.ts` 326) — B'nin "satır göster" yarısı yapılmış, eksik olan gönderimin durması.
+- Kart cümlesi ("Bu daire için birden fazla kayıt vardı; en son eklenen seçildi") yalnız eşit zamanlı nadir durumda çıkıyor → yanıltıcı
+  (ev sahibine giden metin; düzeltmesi metin onayıyla — soru AT-4).
+
+### 7.2 C'yi güçlendiren ekler (benimsiyorum)
+- **Veritabanı değişmezi:** "her (daire, kritik olgu) için en çok bir güncel ya da netleşmemiş değer" kısmi tekil dizinle (yeni tablo olduğu için
+  dolu tabloya kısıt ekleme yasağına takılmaz). Böylece iki eşzamanlı yazım bile ikinci "güncel" değeri doğuramaz — kurucunun "atomik"inin
+  veri düzeyindeki karşılığı.
+- **Çözüm kartında beş seçenek:** [1234 doğru] [5678 doğru] [İkisi de değil — yenisini yazın] **[Bunlar farklı kapılar]** (bina / daire /
+  anahtar kutusu ayrılır) **[İkisi de çalışıyor]**. "Farklı kapılar" seçeneği sahte çelişkiyi tek dokunuşla kapatır.
+- **Var olan yapı taşları:** etiketli değer okuyucu (`src/lib/kb-scan/same-value.ts` `labeledValues` — doğrulandı: başka hiçbir yerden
+  çağrılmıyor), saat çelişkisi gönderim kapısı (`src/lib/ai/time-conflict-gate.ts` — doğrulandı: var; yalnız saat ve yalnız yapay zekâ cevabı),
+  eski kalemin yerine yenisini koyma zinciri (migration 70). C bunları TEK okuyucu + TEK kaydedici altında birleştirir.
+- **Yazım yolları** (kaydedici işlem içinde çağrılmalı): bilgi tabanı ekle / düzenle / kopyala, geçmişten öğrenme onayı, WhatsApp'tan kaydet,
+  öneri onayı, otomatik mesaj kaydı. Ajanın tespiti: kopyalamanın bir yazımı ve otomatik mesaj kaydı bugün işlem DIŞINDA — C1'de işleme alınır
+  (doğrulaması C1 tasarımında).
+- **Ölç → gölgede kaydet → tek dokunuşla çöz → kapıyı aç** sırası (Faz 0 canlı veriden salt sayım — yalnız "kaç dairede kapı kodu için 2 değer
+  var", değer değil; Railway açılınca).
+
+### 7.3 3–6 için ajanın hükümleri — katıldıklarım
+- **(3) yetki tablosu:** 10 satırlık ayrı sayfa 10 daire için büyük şirket taklidi olur; en çok 4–5 satır (Bilgi soruları · Giriş / çıkış
+  mesajları · Temizlik / malzeme görevleri · Erken giriş / geç çıkış · kilitli satırlar), Ayarlar'ın bir bölümü; rampa ayrı ekran değil, "Bugün"de
+  tek cümle; gerçek onay verisi olmadan (Railway kapalı) eşik konamaz. **Katılıyorum.**
+- **(4) bekleme penceresi:** pazardaki desen (doğrulanmadı, belgelerden özet): bekleme sırasında misafir yeni mesaj atarsa ya da ev sahibi
+  yazarsa bekleyen cevap GİTMEZ. Bugün örtük 0–2 dakikalık bir bekleme zaten var (2 dakikalık tur). Önce bugünkü çakışma ölçülmeli. Görev
+  "geri al" düğmesi görevler kendiliğinden açılmaya başlamadan anlamsız. **Katılıyorum.**
+- **(5) kurulum sohbeti:** yeni müşteri için büyük, kurucunun kendi daireleri için küçük; en küçük ilk adım modelsiz "Bulduklarım" listesi;
+  09-11'de kaldırılan yüzeyleri geri açmak kurucu kararı. **Katılıyorum.**
+- **(6) değer satırı:** fiyat değişmez; aylık satır "sizin yerinize" sayacının toplamı, yalnız Panel'de. Ajanın iyi eki: satırda **"N konuyu
+  size bıraktım"** da yazsın — yalnız otomasyonun miktarını değil güvenlik ilkesinin çalıştığını da gösterir. (Bunun kalıcı sayım kaynağı ayrı
+  ölçülmeli; "Bugün" ilk dilimine KONMADI.)
+
+### 7.4 Kurucuya açıkça sorulması gereken gerilim (ajanın bulgusu, kodda doğrulandı)
+- **Erken giriş "otomatik" kuralı:** ilke "erken giriş gibi ev sahibi kararı her zaman insana" der; kodda ise dairenin erken giriş kuralı
+  "otomatik" seçildiyse doğrulanmış erken giriş (kural + temizlik kanıtı + takvim) misafire kendiliğinden gider (kurucu 09-24: "hassas istek =
+  engel değil, doğrulama iş akışı"). Yorum: "kuralı önceden yazan ev sahibi kararı önceden vermiştir". Bu yorum doğru mu? (AT-5)
+
+### 7.5 Yeni sorular
+- **AT-4:** daire kartındaki "birden fazla kayıt vardı; en son eklenen seçildi" cümlesi yanıltıcı (yalnız eşit zamanlı nadir durumda çıkıyor) —
+  C1'e kadar "Bilgi tabanındaki giriş kayıtlarıyla bu mesajı karşılaştırın" gibi nötr bir cümleye çevrilsin mi?
+- **AT-5:** §7.4 — önceden yazılmış erken giriş kuralı = ev sahibinin kararı mı?
+- **AT-6:** kapı kodunun şifreli bir kopyası yeni tabloda tutulsun mu (önerim — değer tek yerden çözülür), yoksa yalnız özet tutulup değer hep
+  metinden mi okunsun (daha az yeni gizli veri)? (`ENCRYPTION_KEY` döndürülmez kuralına bir bağımlılık daha ekler.)
