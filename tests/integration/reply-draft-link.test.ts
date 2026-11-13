@@ -35,6 +35,7 @@ import {
   measureReplyDraftEmbeddings,
   loadDraftAcceptance,
   loadRecurringAdditionCandidates,
+  recordReplyDraftLink,
   EMBEDDING_MAX_ATTEMPTS,
 } from "@/lib/reply-draft/service";
 import { anonymizeOldGuestData } from "@/lib/data-retention";
@@ -157,6 +158,19 @@ describe("taslak ↔ gönderilen metin bağı", () => {
     await send({ body: "Ek bilgi: otopark arkada.", draftUse: "seeded" });
     const links = await prisma.replyDraftLink.findMany({ where: { conversationId } });
     expect(links.map((l) => l.sentMessageId)).toEqual([first.id]);
+  });
+
+  it("🚨 yarış (mutasyon Q14): önceki bağın gönderimi ULAŞMIŞ ama zaman damgası yeni gönderimden sonra → önceki bağ KORUNUR (silinmez)", async () => {
+    const now = Date.now();
+    const a = await prisma.message.create({
+      data: { conversationId, direction: "outbound", body: DRAFT, senderName: "Owner", createdAt: new Date(now + 60_000) },
+    });
+    expect(await recordReplyDraftLink({ organizationId: orgId, conversationId, sentMessageId: a.id, sentBody: DRAFT, draftUse: "approved" })).toBe("recorded");
+    const b = await prisma.message.create({
+      data: { conversationId, direction: "outbound", body: "Başka cevap", senderName: "Owner", createdAt: new Date(now) },
+    });
+    expect(await recordReplyDraftLink({ organizationId: orgId, conversationId, sentMessageId: b.id, sentBody: "Başka cevap" })).toBe("duplicate");
+    expect((await prisma.replyDraftLink.findMany()).map((l) => l.sentMessageId)).toEqual([a.id]);
   });
 
   it("aynı taslağa TEK bağ: aynı istek kimliğiyle yeniden deneme ikinci satır yazmaz; turdaki ikinci mesaj bağlanmaz", async () => {
