@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { NeedSpec } from "./need-scoring";
 import { armText, checkRequest, isRawResult, normalizeForQuote, numberTokens, numbersOf, sameNumber, sourceTextOf, type RawCheckIssue, type RawNote, type RawRequest, type RawResult } from "./raw-arm";
@@ -219,8 +221,8 @@ const SET: RawDevSet = {
 };
 const one = (r: RawRequest): RawResult => ({ requests: [r], reply: r.sentence, would_send: true });
 const ROWS: RawRow[] = [
-  // s1 — doğru cevap, alıntı notta, sayı alıntıda.
-  { id: "s1", result: one(req({})) },
+  // s1 — doğru cevap, alıntı notta, sayı alıntıda; ikinci isteği model açık bıraktı (istek sayısı senaryo sayısından ayrışsın).
+  { id: "s1", result: { requests: [req({}), req({ decision: "no_source", sentence: "" })], reply: req({}).sentence, would_send: true } },
   // s2 — yanlış tutar (not 900 der, cümle 950): yalnız mekanik denetim görür.
   { id: "s2", result: one(req({ entity_asked: "transfer", entity_in_source: "transfer", evidence_note: "N3", evidence_quote: "Havalimanından tek yön transfer 900 TL’dir", sentence: "Transferimiz 950 TL." })) },
   // s3 — eczane sorusuna market notu: alıntı ve sayı yerinde (mekanik denetim GEÇER), modelin kendi beyanı "aynı varlık değil".
@@ -232,7 +234,7 @@ const ROWS: RawRow[] = [
 describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
   it("üç kol aynı ham çıktıdan ayrışır: ham 2 yanlış · mekanik 1 yanlış + 1 tutma · beyanla 0 yanlış", () => {
     const score = scoreRawSet(SET, ROWS);
-    expect(score).toMatchObject({ scenarios: 5, missing: 1, malformed: 1, requests: 3 });
+    expect(score).toMatchObject({ scenarios: 5, missing: 1, malformed: 1, requests: 4 });
     expect(scoredScenarios(score)).toBe(3);
     // ham: doğru havuz cevabı + yanlış tutar + yanlış varlık hepsi gider.
     expect(score.metrics.raw).toMatchObject({ answered: 2, answeredOk: 1, needlessHold: 0, open: 1, openOk: 0, wrong: 2 });
@@ -268,7 +270,7 @@ describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
     const report = renderRawReport("fable-5.2", { "grounding-dev": score, "turn-messages-dev": null });
     const text = report.lines.join("\n");
     expect(report.lines[0]).toBe("# Ham model kolu — fable-5.2");
-    expect(text).toContain("## grounding-dev\n\nSenaryo 5 · ham çıktısı olmayan 1 · biçimi bozuk 1 · modelin çıkardığı istek 3");
+    expect(text).toContain("## grounding-dev\n\nSenaryo 5 · ham çıktısı olmayan 1 · biçimi bozuk 1 · modelin çıkardığı istek 4");
     expect(text).toContain("| ham model (kapısız) | 1 / 2 | 0 | 0 / 1 | **2** |");
     expect(text).toContain("| ham + yalnız mekanik denetim (alıntı notta · sayı alıntıda) | 1 / 2 | 1 | 0 / 1 | **1** |");
     expect(text).toContain("| ham + mekanik + modelin varlık / koşul beyanı | 1 / 2 | 1 | 1 / 1 | **0** |");
@@ -310,4 +312,73 @@ describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
     expect(cli.match(/"evals"/g)?.length).toBe(1);
     expect(cli).not.toMatch(/sealed|blind|holdout|kabul/i);
   });
+});
+
+// ── Komut satırı kabuğu (gerçek süreç; kurgusal ham çıktı) ───────────────────────────────────────────────────────────────────────────────
+describe("ham model kolu — rapor komutu", () => {
+  const cli = (args: string[]) => spawnSync(process.execPath, ["--import", "tsx", "tests/eval/raw-arm-report.ts", ...args], { cwd: process.cwd(), encoding: "utf8" });
+  const scratch = () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "raw-arm-cli-"));
+    const raw = path.join(dir, "ham");
+    const out = path.join(dir, "rapor");
+    mkdirSync(raw);
+    return { dir, raw, out };
+  };
+
+  it("argümansız → kullanım + çıkış 2", () => {
+    const r = cli([]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("kullanım:");
+  });
+
+  it("🚨 dizinde ham çıktı yoksa çıkış 1 ve rapor YAZILMAZ; listede olmayan set dosyası okunmaz", () => {
+    const { dir, raw, out } = scratch();
+    try {
+      writeFileSync(path.join(raw, "baska-set.json"), "[]");
+      const r = cli([raw, "deneme", out]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("ham çıktı bulunamadı");
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("🚨 ham çıktı var ama tek senaryo puanlanamadı → çıkış 1 ve rapor YAZILMAZ", () => {
+    const { dir, raw, out } = scratch();
+    try {
+      writeFileSync(path.join(raw, "grounding-dev.json"), "[]");
+      const r = cli([raw, "deneme", out]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain("puanlanan senaryo yok: grounding-dev");
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("puanlanan bir senaryo varsa çıkış 0; rapor + ayrıntı dosyası etiketle yazılır, öteki set 'atlandı'", () => {
+    const { dir, raw, out } = scratch();
+    try {
+      const data = JSON.parse(readFileSync(path.join(process.cwd(), "evals", "grounding-dev.json"), "utf8")) as RawDevSet;
+      const row: RawRow = { id: data.scenarios[0].id, result: { requests: [req({ decision: "no_source", sentence: "" })], reply: "", would_send: false } };
+      writeFileSync(path.join(raw, "grounding-dev.json"), JSON.stringify([row]));
+      const r = cli([raw, "deneme etiketi", out]);
+      expect(r.status, r.stderr).toBe(0);
+      const files = readdirSync(out).sort();
+      expect(files).toHaveLength(2);
+      expect(files[0]).toMatch(/^raw-arm-\d{4}-\d{2}-\d{2}-deneme-etiketi\.json$/);
+      expect(files[1]).toMatch(/^raw-arm-\d{4}-\d{2}-\d{2}-deneme-etiketi\.md$/);
+      const md = readFileSync(path.join(out, files[1]), "utf8");
+      expect(md).toContain("# Ham model kolu — deneme-etiketi");
+      expect(md).toContain(`## grounding-dev\n\nSenaryo ${data.scenarios.length} · ham çıktısı olmayan ${data.scenarios.length - 1} · biçimi bozuk 0 · modelin çıkardığı istek 1`);
+      expect(md).toContain("## turn-messages-dev\n\nham çıktı yok — atlandı");
+      const sidecar = JSON.parse(readFileSync(path.join(out, files[0]), "utf8")) as { label: string; sets: Record<string, { detail: { id: string }[] }> };
+      expect(sidecar.label).toBe("deneme-etiketi");
+      expect(sidecar.sets["grounding-dev"].detail.map((d) => d.id)).toEqual([row.id]);
+      expect(r.stdout).toContain(md.trimEnd());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
