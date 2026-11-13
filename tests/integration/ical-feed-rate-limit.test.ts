@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
+import { stayDay } from "../helpers/stay-dates";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { GET } from "@/app/api/calendar/[token]/route";
 
@@ -71,6 +72,14 @@ describe("takvim beslemesi — gün org diliminde", () => {
     __resetRateLimit();
   });
 
+  // Konaklama BUGÜNE GÖRE kurulur (11-13): besleme 60 günden eski çıkışı dışarıda bırakır (`ICAL_FEED_PAST_DAYS`); sabit tarihli konaklama
+  // (4–7 Ekim 2026) 6 Aralık'ta pencereden düşecek ve test ürün değişmeden kırmızıya dönecekti (saat 35 gün ileri alınınca görüldü).
+  // 21:00Z = İstanbul'da (UTC+3, yaz saati yok) ertesi günün 00:00'ı · New York'ta (UTC-5 / -4) aynı günün öğleden sonrası.
+  const at21Z = (daysFromToday: number) => new Date(stayDay(daysFromToday).getTime() + 21 * 3_600_000);
+  const icsDay = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
+  const ARRIVAL_IN = 10;
+  const DEPARTURE_IN = 13;
+
   it("🚨 İstanbul org'unda saat dilimli giriş (…T21:00Z) beslemede İstanbul günüyle görünür", async () => {
     const org = await prisma.organization.create({ data: { name: "Org", timezone: "Europe/Istanbul" } });
     const p = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3", icalToken: TOKEN_A } });
@@ -78,15 +87,15 @@ describe("takvim beslemesi — gün org diliminde", () => {
       data: {
         propertyId: p.id,
         guestName: "Misafir",
-        arrivalDate: new Date("2026-10-04T21:00:00Z"),
-        departureDate: new Date("2026-10-07T21:00:00Z"),
+        arrivalDate: at21Z(ARRIVAL_IN),
+        departureDate: at21Z(DEPARTURE_IN),
         channel: "ics",
         status: "confirmed",
       },
     });
     const text = await (await fetchFeed(TOKEN_A, "203.0.113.9")).text();
-    expect(text).toContain("DTSTART;VALUE=DATE:20261005");
-    expect(text).toContain("DTEND;VALUE=DATE:20261008");
+    expect(text).toContain(`DTSTART;VALUE=DATE:${icsDay(stayDay(ARRIVAL_IN + 1))}`);
+    expect(text).toContain(`DTEND;VALUE=DATE:${icsDay(stayDay(DEPARTURE_IN + 1))}`);
   });
 
   it("New York org'unda aynı anlar New York günüdür (org dilimi gerçekten okunuyor)", async () => {
@@ -96,14 +105,14 @@ describe("takvim beslemesi — gün org diliminde", () => {
       data: {
         propertyId: p.id,
         guestName: "Misafir",
-        arrivalDate: new Date("2026-10-04T21:00:00Z"),
-        departureDate: new Date("2026-10-07T21:00:00Z"),
+        arrivalDate: at21Z(ARRIVAL_IN),
+        departureDate: at21Z(DEPARTURE_IN),
         channel: "ics",
         status: "confirmed",
       },
     });
     const text = await (await fetchFeed(TOKEN_A, "203.0.113.9")).text();
-    expect(text).toContain("DTSTART;VALUE=DATE:20261004");
-    expect(text).toContain("DTEND;VALUE=DATE:20261007");
+    expect(text).toContain(`DTSTART;VALUE=DATE:${icsDay(stayDay(ARRIVAL_IN))}`);
+    expect(text).toContain(`DTEND;VALUE=DATE:${icsDay(stayDay(DEPARTURE_IN))}`);
   });
 });

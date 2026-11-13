@@ -41,6 +41,11 @@ describe("🚨 saati kendisi okuyan yolu sınayan test konaklama tarihini sabit 
   // (bilerek "bitmiş konaklama" kuran testler). O gün ve sonrası: bağıl yardımcı.
   const FIXED_STAY_DATE = /\b(?:arrivalDate|departureDate):\s*new Date\(\s*["'`](\d{4}-\d{2}-\d{2})/g;
   const FLOOR = "2026-11-01";
+  // İKİNCİ SINIF (11-13, saat 35 gün ileri alınınca bulundu): GERİYE bakan pencere. Takvim beslemesi 60 günden eski çıkışı dışarıda bırakır
+  // (`ICAL_FEED_PAST_DAYS`); bugün pencerenin içindeki sabit GEÇMİŞ tarih de zamanla dışarı düşer (4–7 Ekim fikstürü 6 Aralık'ta düşecekti).
+  // Bu satırın yazıldığı gün pencerenin zaten dışında kalan tarihler (eylül ortasından öncesi) bir daha içeri giremez → serbest.
+  const LOOKBACK_PATHS = /@\/app\/api\/calendar\/\[token\]\/route/;
+  const LOOKBACK_FLOOR = "2026-09-01";
 
   function walk(dir: string, out: string[]): string[] {
     for (const name of readdirSync(dir)) {
@@ -76,6 +81,20 @@ describe("🚨 saati kendisi okuyan yolu sınayan test konaklama tarihini sabit 
     expect(offenders, "sabit tarih yerine tests/helpers/stay-dates.ts (upcomingStay / stayDay)").toEqual([]);
   });
 
+  it("🚨 geriye bakan pencereyi (takvim beslemesi, 60 gün) sınayan testte pencereden düşebilecek sabit konaklama tarihi yok", () => {
+    const callers = files.filter((f) => LOOKBACK_PATHS.test(readFileSync(f, "utf8")));
+    // Anti-vakum: beslemeyi çağıran dosyalar bulunuyor ve düzeltilen dosya aralarında.
+    expect(callers.length).toBeGreaterThanOrEqual(2);
+    expect(callers.some((f) => f.endsWith("ical-feed-rate-limit.test.ts"))).toBe(true);
+    const offenders: string[] = [];
+    for (const f of callers) {
+      for (const m of readFileSync(f, "utf8").matchAll(FIXED_STAY_DATE)) {
+        if (m[1]! >= LOOKBACK_FLOOR) offenders.push(`${path.relative(process.cwd(), f)}: ${m[0]}`);
+      }
+    }
+    expect(offenders, "sabit tarih yerine tests/helpers/stay-dates.ts (stayDay)").toEqual([]);
+  });
+
   it("kalıp sabit tarihi yakalar, bağıl kurulumu yakalamaz (kontrol)", () => {
     const hit = (s: string) => [...s.matchAll(FIXED_STAY_DATE)].map((m) => m[1]);
     expect(hit('arrivalDate: new Date("2026-11-12T00:00:00Z"), departureDate: new Date("2026-11-15T00:00:00.000Z")')).toEqual(["2026-11-12", "2026-11-15"]);
@@ -87,5 +106,10 @@ describe("🚨 saati kendisi okuyan yolu sınayan test konaklama tarihini sabit 
     // Eşik: patlayan fikstürün tarihi (12 Kasım 2026) yasak tarafta; bilerek bitmiş konaklama kuran eski tarihler serbest tarafta.
     expect("2026-11-12" >= FLOOR).toBe(true);
     expect("2026-06-13" >= FLOOR).toBe(false);
+    // Geriye bakan pencere: düşecek fikstür (4 Ekim 2026) yasak tarafta; pencerenin zaten dışındaki tarih serbest tarafta.
+    expect(LOOKBACK_PATHS.test('import { GET } from "@/app/api/calendar/[token]/route";')).toBe(true);
+    expect(LOOKBACK_PATHS.test('import { GET } from "@/app/api/calendar/route";')).toBe(false);
+    expect("2026-10-04" >= LOOKBACK_FLOOR).toBe(true);
+    expect("2026-06-13" >= LOOKBACK_FLOOR).toBe(false);
   });
 });
