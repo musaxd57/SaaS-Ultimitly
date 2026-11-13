@@ -45,6 +45,10 @@ describe("UX-5 — kurulum animasyonu sade dil", () => {
       expect(script).not.toContain(gone);
     }
     expect(script).toContain("setChip(5,'Bağlantı anahtarını yapıştır')");
+    // Animasyonun harf harf yazdığı örnek anahtar da geliştirici öneki taşımaz (Haiku incelemesi 11-13).
+    const typed = /var TOKEN = '([^']*)'/.exec(script)?.[1] ?? "";
+    expect(typed.length).toBeGreaterThan(10);
+    expect(typed).not.toMatch(/pat_|token|hospitable/i);
     expect(text(".tokenLabel")).toBe("Hospitable bağlantı anahtarı");
     expect(text("#tokenHint")).toBe("Bağlantı anahtarı şifreli saklanır ve bir daha görüntülenmez.");
   });

@@ -79,7 +79,7 @@ export const SECTIONS: Section[] = [
   {
     title: "11. Cayma Hakkının İstisnası (Dikkat)",
     body: [
-      "Yönetmeliğin 15. maddesi uyarınca, tüketicinin onayı ile ifasına başlanan ve elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı bulunmamaktadır. Ücretli bir plana geçip hizmeti kullanmaya başladığınızda (anında ifa) cayma hakkınız sona erebilir. Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz; deneme süresinde ücret alınmaz.",
+      "Yönetmeliğin 15. maddesi uyarınca, tüketicinin onayı ile ifasına başlanan ve elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı bulunmamaktadır. Ücretli bir plana geçip hizmeti kullanmaya başladığınızda (anında ifa) cayma hakkınız sona erebilir. Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz.",
     ],
   },
   {
