@@ -94,7 +94,9 @@ describe("UX-6 — süre / yenilenme ve cayma", () => {
     expect(section(s, "10.")).toContain("11. madde uyarınca");
     const md11 = section(s, "11.");
     expect(md11).not.toMatch(/riski ortadan kaldırmak|önerilir|Bu nedenle ücretsiz/);
-    expect(md11).toContain("15 inci maddesinin birinci fıkrasının (ğ) ve (h) bentleri");
+    // Yalnız (h) — onaya bağlı istisna; (ğ) onay aramaz ve "kutu işaretlenirse sona erer" anlatımıyla çelişirdi (Opus P3-4).
+    expect(md11).toContain("15 inci maddesinin birinci fıkrasının (h) bendi");
+    expect(md11).not.toContain("(ğ)");
     expect(md11).toContain("14 günlük ücretsiz deneme süresini kullanabilir");
   });
 
@@ -134,10 +136,21 @@ describe("UX-6 — süre / yenilenme ve cayma", () => {
     expect(kosullar).toContain("Gizlilik Politikası kişisel verilerin nasıl işlendiğini anlatan bir bilgilendirme metnidir; sözleşmenin parçası değildir.");
   });
 
-  it("mesafeli satış md. 17: sözleşme kabul kutusu + ödeme onayıyla kurulur ('sayılır' yok)", () => {
+  it("mesafeli satış md. 17: sözleşme kabul kutusu + ödeme onayıyla kurulur ('sayılır' yok); gönderilmeyen 'örnek sunulur' sözü yok", () => {
     const md17 = section(MESAFELI, "17.");
     expect(md17).toContain("ödeme ekranında sözleşmeyi kabul edip ödemeyi onaylamasıyla kurulur");
     expect(md17).not.toMatch(/kurulmuş ve yürürlüğe girmiş sayılır/);
+    // Satın alma sonrası sözleşme e-postası henüz YOK (b-5) — metin yapılmayanı vaat etmez (Opus P2-6).
+    expect(md17).not.toMatch(/örneği .*sunulur/);
+  });
+
+  it("Kullanım Koşulları: 'kullanarak kabul' yok; ön bilgilendirme ve satış sözleşmesi Koşulların 'ayrılmaz parçası' değil (Opus P2-5)", () => {
+    const all = KOSULLAR.flatMap((x) => [...(x.body ?? []), ...(x.list ?? [])]).join("\n");
+    expect(section(KOSULLAR, "1.")).toContain("kayıt formundaki kutuyu işaretleyerek");
+    expect(section(KOSULLAR, "1.")).not.toMatch(/hizmeti kullanarak/);
+    expect(section(KOSULLAR, "7.")).not.toMatch(/ayrılmaz parças/);
+    expect(all).toContain("Ön Bilgilendirme Formu sözleşmeden önce verilen bilgilendirmedir");
+    expect(section(ON_BILGI, "14.")).not.toContain("birlikte değerlendirilir");
   });
 });
 

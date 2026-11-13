@@ -175,7 +175,8 @@ describe("PaddlePlans — ödeme öncesi onaylar (kurucu 11-13: en yasal şekild
     expect(open).not.toHaveBeenCalled();
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toBe(`${CHECKOUT_CONSENT_COPY.immediateStart.missing} ${CHECKOUT_CONSENT_COPY.immediateStart.missingTrialHint}`);
-    expect(boxes[2]!.closest("label")!.contains(alert)).toBe(true);
+    expect(boxes[2]!.closest("label")!.contains(alert)).toBe(false);
+    expect(boxes[2]!.closest("label")!.parentElement!.contains(alert)).toBe(true);
     expect(boxes[2]!.getAttribute("aria-invalid")).toBe("true");
     expect(document.activeElement).toBe(boxes[2]);
   });
@@ -192,6 +193,21 @@ describe("PaddlePlans — ödeme öncesi onaylar (kurucu 11-13: en yasal şekild
       fireEvent.click(btn);
     });
     expect(screen.getByRole("alert").textContent).toBe(CHECKOUT_CONSENT_COPY.immediateStart.missing);
+  });
+
+  it("🚨 sunucu bir onay kutusunu reddederse (eski sekme) o kutu boşalır, cümlesi altında görünür, odak orada; ödeme açılmaz", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "Doğrulama hatası", fields: { immediateStartConsent: "x" } }) }),
+    );
+    renderPlans();
+    await acceptAndClickPlan();
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain(CHECKOUT_CONSENT_COPY.immediateStart.missing));
+    const boxes = within(group()).getAllByRole("checkbox") as HTMLInputElement[];
+    expect(boxes[2]!.checked).toBe(false);
+    expect(document.activeElement).toBe(boxes[2]);
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.queryByText(/kaydedilemedi/i)).toBeNull();
   });
 
   it("dönem değişince (aylık ↔ yıllık) bütün kutular boşalır: onay başka fiyat ve süreli sözleşmeye verilmişti", async () => {

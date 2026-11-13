@@ -3,9 +3,9 @@ import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
-import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
 import type { SessionPayload } from "@/lib/auth";
-import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { CHECKOUT_CONSENT_COPY, CHECKOUT_CONSENT_KEYS, checkoutConsentKeysFor } from "@/lib/billing/consent-copy";
 import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 // route-guard's withAuth reads requireSession from @/lib/api (cross-module) — mock
@@ -69,7 +69,7 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
       planCode: "pro",
       priceId: "pri_123",
       legalVersion: LEGAL_VERSION,
-      legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion
+      legalTextHash: checkoutLegalTextHash(CHECKOUT_CONSENT_KEYS), // dört metin + gösterilen ÜÇ onay cümlesi
       ip: "5.6.7.8", // rightmost XFF, spoofed leftmost discarded
       userAgent: "TestBrowser/1.0",
     });
@@ -134,6 +134,9 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
       // İSTENMEZ (istemci o kutuyu göstermez); normal fiyatta aynı eksik gövde reddedilir (karar istemcinin değil fiyatın).
       const { immediateStartConsent: _omit, ...withoutImmediate } = { planCode: "pro", ...CHECKOUT_CONSENT_FLAGS };
       expect((await POST(rawPostReq({ ...withoutImmediate, priceId: "pri_p_t" }), ctx)).status).toBe(201);
+      // Kartla deneme satırının özeti yalnız gösterilen İKİ cümleyi taşır (Opus P2-2).
+      const trialRow = await prisma.checkoutConsent.findFirstOrThrow({ where: { organizationId: orgId, priceId: "pri_p_t" }, orderBy: { createdAt: "desc" } });
+      expect(trialRow.legalTextHash).toBe(checkoutLegalTextHash(checkoutConsentKeysFor({ cardTrial: true })));
       const normal = await POST(rawPostReq({ ...withoutImmediate, priceId: "pri_pro" }), ctx);
       expect(normal.status).toBe(400);
       expect((await normal.json()).fields).toMatchObject({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });

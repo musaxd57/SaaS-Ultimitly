@@ -21,6 +21,9 @@ import {
   verifyPlanChangeToken,
 } from "@/lib/billing/plan-change";
 import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
 
 // Apply an in-app plan change. Upgrade → charged immediately (prorated); downgrade
 // → takes effect at the next billing period. Paddle owns the proration + charge;
@@ -35,12 +38,19 @@ export const POST = withOwner(async (session, req) => {
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 
   const data = (await readJsonCappedOrNull(req)) as
-    | { planCode?: unknown; previewToken?: unknown }
+    | { planCode?: unknown; previewToken?: unknown; immediateStartConsent?: unknown }
     | null;
   const planCode = typeof data?.planCode === "string" ? data.planCode : "";
 
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
+
+  // Kurucu 11-13 ("en yasal şekilde") + Opus P2-4: yükseltmede fark ANINDA tahsil edilir → ödeme ekranıyla AYNI açık onay ("hemen başlasın,
+  // cayma hakkımı kaybediyorum"; Yön. md. 15/1-h). Sözleşmeler istisnayı bu kutuya bağlıyor; kutusuz yükseltme bedeline cayma itirazı açık
+  // kalırdı. Onay yoksa hiçbir şey tüketilmez / gönderilmez. Düşürmede anlık tahsilat yok → istenmez.
+  if (r.mode === "upgrade" && data?.immediateStartConsent !== true) {
+    return badRequest({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });
+  }
 
   // PENDING guard (Codex): after an AMBIGUOUS apply we must not fire a second
   // PATCH via a fresh preview+token until the first is settled (webhook clears
@@ -84,6 +94,16 @@ export const POST = withOwner(async (session, req) => {
       { error: "Bu onay zaten kullanıldı. Planı yeniden seçip tekrar deneyin." },
       { status: 409 },
     );
+  }
+  // Yükseltme onayının kanıtı (şema değişikliği olmadan): kim, hangi değişiklik, metin sürümü + gösterilen cümlenin özeti.
+  if (r.mode === "upgrade") {
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      // Ayrı önek: plan değişikliği kayıtlarını ("billing.plan_change…") sayan ekran / sorgulara karışmaz.
+      action: "billing.immediate_start_consent",
+      metadata: { from: r.currentCode, to: planCode, legalVersion: LEGAL_VERSION, legalTextHash: checkoutLegalTextHash(["immediateStart"]), ...auditImpersonation(session) },
+    }).catch(() => {});
   }
 
   // Amount integrity: re-preview NOW and require the charge the customer confirmed to

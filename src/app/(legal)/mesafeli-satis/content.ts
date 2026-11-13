@@ -87,7 +87,7 @@ export const SECTIONS: Section[] = [
   {
     title: "11. Cayma Hakkının İstisnaları",
     body: [
-      "Mesafeli Sözleşmeler Yönetmeliği’nin 15 inci maddesinin birinci fıkrasının (ğ) ve (h) bentleri uyarınca; elektronik ortamda anında ifa edilen hizmetlere ve cayma süresi dolmadan ALICI’nın onayıyla ifasına başlanan hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz.",
+      "Mesafeli Sözleşmeler Yönetmeliği’nin 15 inci maddesinin birinci fıkrasının (h) bendi uyarınca; cayma süresi dolmadan ALICI’nın onayıyla ifasına başlanan hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz.",
       `ALICI, ödeme ekranında “${CHECKOUT_CONSENT_COPY.immediateStart.text}” kutusunu işaretleyerek ücretli planın ödemenin onaylandığı anda başlamasını onaylar ve bu nedenle cayma hakkının sona ereceğini kabul eder.`,
       "Satın almadan önce Hizmeti denemek isteyen ALICI, 14 günlük ücretsiz deneme süresini kullanabilir. Cayma hakkının sona ermesi, ALICI’nın aboneliği dilediği zaman iptal etme hakkını etkilemez; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer.",
     ],
@@ -125,7 +125,7 @@ export const SECTIONS: Section[] = [
   {
     title: "17. Yürürlük",
     body: [
-      "İşbu sözleşme (17 maddeden oluşan asıl metin ve ekleri ile birlikte), ALICI’nın ödeme ekranında sözleşmeyi kabul edip ödemeyi onaylamasıyla kurulur ve yürürlüğe girer. Sözleşmenin bir örneği ALICI’ya elektronik ortamda sunulur.",
+      "İşbu sözleşme (17 maddeden oluşan asıl metin ve ekleri ile birlikte), ALICI’nın ödeme ekranında sözleşmeyi kabul edip ödemeyi onaylamasıyla kurulur ve yürürlüğe girer. Sözleşmenin metnine her zaman bu sayfadan ulaşılabilir.",
     ],
   },
 ];

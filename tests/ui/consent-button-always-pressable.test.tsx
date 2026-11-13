@@ -111,7 +111,9 @@ describe("Abonelik — onay kutusu boşken plan düğmesi", () => {
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toBe(CHECKOUT_CONSENT_COPY.preInfo.missing);
     const box = screen.getAllByRole("checkbox")[0]!;
-    expect(box.closest("label")!.contains(alert)).toBe(true);
+    // Uyarı kutunun hemen altında ama etiketin DIŞINDA (erişilebilir ada karışmaz — Opus P3-3).
+    expect(box.closest("label")!.contains(alert)).toBe(false);
+    expect(box.closest("label")!.parentElement!.contains(alert)).toBe(true);
     expect(box.getAttribute("aria-describedby")).toBe(alert.id);
     expect(document.activeElement).toBe(box);
   });

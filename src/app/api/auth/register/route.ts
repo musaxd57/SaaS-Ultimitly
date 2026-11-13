@@ -81,9 +81,8 @@ export async function POST(req: NextRequest) {
     const parsed = registerSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    // KVKK: explicit, informed consent to the Terms + Privacy Policy is required
-    // to register (backs the "kaydolarak kabul edersiniz" claim with a real
-    // record). The client blocks submit until checked (UX-3: the button stays pressable and shows this same text under the box); enforce
+    // Kayıt yalnız Kullanım Koşulları'nın açık kabulünü ister (kurucu 11-13). Gizlilik Politikası bir aydınlatma metnidir; KVKK'ya göre
+    // onaya / kabule bağlanmaz — formda kutusuz bilgi satırıdır, burada "kabul" kaydı da YAZILMAZ (↓ privacyAcceptedAt). The client blocks submit until checked (UX-3: the button stays pressable and shows this same text under the box); enforce
     // it server-side too.
     if (data?.consent !== true) {
       return badRequest({
@@ -224,9 +223,9 @@ export async function POST(req: NextRequest) {
         const org = await tx.organization.create({
           data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
         });
-        // One checkbox covers Terms + Privacy, so both acceptances share the same
-        // instant. Version + IP + UA make the consent record defensible against a
-        // later "I never accepted" dispute (which text, when, from where).
+        // Kutu yalnız Kullanım Koşulları'nı kabul ettirir (kurucu 11-13). Sürüm + metin özeti + IP + UA, sonradan "kabul etmedim"
+        // itirazına karşı kaydı savunulabilir kılar (hangi metin, ne zaman, nereden). `privacyAcceptedAt` BİLEREK yazılmaz: aydınlatma
+        // metni "kabul" edilmez (KVKK); veri dökümünde kullanıcının Gizlilik'i kabul ettiğini söyleyen bir kayıt olmamalı (Opus 11-13 P2-1).
         const acceptedAt = new Date();
         // M-2: kullanıcı + ana işletme üyeliği AYNI işlemde (tek yazıcı).
         const user = await createUserWithMembership(
@@ -238,7 +237,6 @@ export async function POST(req: NextRequest) {
             passwordHash,
             role: "owner",
             acceptedTermsAt: acceptedAt,
-            privacyAcceptedAt: acceptedAt,
             acceptedLegalVersion: LEGAL_VERSION,
             acceptedLegalTextHash: LEGAL_TEXT_HASH,
             acceptedIp: ip,

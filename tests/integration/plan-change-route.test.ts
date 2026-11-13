@@ -27,6 +27,8 @@ vi.mock("@/lib/payments/paddle", async (orig) => ({
 
 import { POST as PREVIEW } from "@/app/api/billing/plan-preview/route";
 import { POST as CHANGE } from "@/app/api/billing/plan-change/route";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
 import { signPlanChangeToken } from "@/lib/billing/plan-change";
 
 function req(body: unknown) {
@@ -88,7 +90,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     session = { ...(session as SessionPayload), role: "manager" };
     expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(403);
     expect(
-      (await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)).status,
+      (await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)).status,
     ).toBe(403);
     expect(previewMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
@@ -160,7 +162,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
 
   it("round-trip: the token minted by preview authorizes the apply", async () => {
     const previewBody = await (await PREVIEW(req({ planCode: "business" }), ctx)).json();
-    const res = await CHANGE(req({ planCode: "business", previewToken: previewBody.previewToken }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: previewBody.previewToken }), ctx);
     expect(res.status).toBe(200);
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
   });
@@ -176,7 +178,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const pre = await PREVIEW(req({ planCode: "free" }), ctx);
     expect(pre.status).toBe(400);
     expect(JSON.stringify(await pre.json())).toContain("Hesabınızda 3 daire var; Başlangıç planı en fazla 2 daire içindir.");
-    const apply = await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
+    const apply = await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
     expect(apply.status).toBe(400);
     expect(previewMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
@@ -184,8 +186,28 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(200);
   });
 
+  // Kurucu 11-13 ("en yasal şekilde") + Opus P2-4: yükseltmede fark ANINDA tahsil edilir → ödeme ekranıyla aynı "hemen başlasın / cayma
+  // hakkımı kaybediyorum" onayı zorunlu. Yoksa hiçbir şey tüketilmez / Paddle'a gitmez; varsa kanıtı denetim kaydına yazılır.
+  it("🚨 change: onaysız YÜKSELTME → 400 alan hatası, Paddle'a gidilmez, onay belirteci tüketilmez (aynı belirteçle onaylı istek geçer)", async () => {
+    const token = tok("pri_isletme", "upgrade");
+    const res = await CHANGE(req({ planCode: "business", previewToken: token }), ctx);
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields).toMatchObject({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });
+    expect(updateMock).not.toHaveBeenCalled();
+    const ok = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: token }), ctx);
+    expect(ok.status).toBe(200);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "billing.immediate_start_consent" } });
+    expect(audit.metadataJson).toContain(checkoutLegalTextHash(["immediateStart"]));
+  });
+
+  it("change: DÜŞÜRMEDE anlık tahsilat yok → onay istenmez", async () => {
+    const res = await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
+    expect(res.status).not.toBe(400);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "billing.immediate_start_consent" } })).toBe(0);
+  });
+
   it("change: applies an upgrade with immediate proration", async () => {
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(200);
     expect((await res.json()).ok).toBe(true);
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
@@ -193,7 +215,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
 
   it("change: 502 on a DEFINITIVE (4xx) rejection — sağlayıcının ham sebebi müşteriye GİTMEZ (K3, 10-17)", async () => {
     updateMock.mockResolvedValue({ ok: false, kind: "definitive", reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(502);
     const body = await res.json();
     // ⬅️ ESKİDE `detail: "Paddle HTTP 400 (subscription_locked) env=production …"` ekranda "(…)" olarak çıkıyordu.
@@ -206,14 +228,14 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   });
 
   it("change: 400 when no preview token is supplied (no blind apply)", async () => {
-    const res = await CHANGE(req({ planCode: "business" }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business" }), ctx);
     expect(res.status).toBe(400);
     expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("change: 400 when the token is for a different price (no reuse across plans)", async () => {
     // A token minted for a downgrade to free can't authorize the business upgrade.
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
     expect(res.status).toBe(400);
     expect(updateMock).not.toHaveBeenCalled();
   });
@@ -230,18 +252,18 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   it("change: 400 when the token is tampered/forged (bad HMAC)", async () => {
     const valid = tok("pri_isletme", "upgrade");
     const forged = `${valid.split(".")[0]}.deadbeef`;
-    const res = await CHANGE(req({ planCode: "business", previewToken: forged }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: forged }), ctx);
     expect(res.status).toBe(400);
     expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("change: a valid token is SINGLE-USE — the second apply is rejected, only one Paddle mutation", async () => {
     const t = tok("pri_isletme", "upgrade");
-    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const first = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(200);
     // Same token, still inside its 10-min TTL: a replay (double-submit / stolen
     // token) must NOT drive a second PATCH/charge.
-    const second = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const second = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(second.status).toBe(409);
     expect(updateMock).toHaveBeenCalledTimes(1);
   });
@@ -249,9 +271,9 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   it("change: a DEFINITIVE (4xx) failure RELEASES the nonce so the same token can be retried", async () => {
     const t = tok("pri_isletme", "upgrade");
     updateMock.mockResolvedValueOnce({ ok: false, kind: "definitive", reason: "Paddle HTTP 400 (bad_request) env=production resource=subscriptions" });
-    expect((await CHANGE(req({ planCode: "business", previewToken: t }), ctx)).status).toBe(502);
+    expect((await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx)).status).toBe(502);
     // Paddle rejected → nothing mutated → the token isn't burned → retry proceeds.
-    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const retry = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(retry.status).toBe(200);
     expect(updateMock).toHaveBeenCalledTimes(2);
   });
@@ -262,11 +284,11 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "The operation timed out" });
     getPriceMock.mockResolvedValueOnce("pri_pro"); // pre-PATCH check: not yet on target (still the source price)
     getPriceMock.mockResolvedValue("pri_isletme"); // reconcile GET: subscription IS on the target
-    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const first = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(200);
     expect((await first.json()).reconciled).toBe(true);
     // Same token again: nonce already consumed → 409, and NO second Paddle mutation.
-    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const retry = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(retry.status).toBe(409);
     expect(updateMock).toHaveBeenCalledTimes(1);
   });
@@ -282,7 +304,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const t = tok("pri_isletme", "upgrade");
     getPriceMock.mockResolvedValue("pri_isletme"); // hızlı yol: zaten hedefte
 
-    const res = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
 
     expect(res.status).toBe(200);
     expect((await res.json()).reconciled).toBe(true);
@@ -303,7 +325,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const t = tok("pri_isletme", "upgrade");
     updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "fetch failed" });
     getPriceMock.mockResolvedValue("pri_pro"); // still the old price / unknown
-    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const first = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(202);
     expect((await first.json()).pending).toBe(true);
     // 🚨 15 ajan A10 F6: tahsilat gerçekleşmiş olabilir → "bekliyor" kaydı; "değiştirildi" kaydı YAZILMAZ.
@@ -311,7 +333,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(rows.map((r) => r.action)).toEqual(["billing.plan_change_pending"]);
     expect(JSON.parse(rows[0].metadataJson ?? "{}")).toMatchObject({ from: "pro", to: "business" });
     // We must NOT blindly re-send (could double-apply) → the same token is still spent.
-    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    const retry = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
     expect(retry.status).toBe(409);
     expect(updateMock).toHaveBeenCalledTimes(1);
   });
@@ -320,7 +342,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     // The customer confirmed "₺123,45"; by apply time Paddle now computes a
     // different immediate charge → refuse and make them re-confirm.
     previewMock.mockResolvedValue({ mode: "prorated_immediately", immediateTotal: "₺200,00", recurringTotal: "₺899,00" });
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
     expect(res.status).toBe(409);
     expect((await res.json()).amountChanged).toBe(true);
     expect(updateMock).not.toHaveBeenCalled();
@@ -328,14 +350,14 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
 
   it("change: 409 when the currency differs at apply time (formatted string changes)", async () => {
     previewMock.mockResolvedValue({ mode: "prorated_immediately", immediateTotal: "$123.45", recurringTotal: "$899.00" });
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
     expect(res.status).toBe(409);
     expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("change: 409 for an upgrade when the apply-time preview can't return an amount (fail-closed)", async () => {
     previewMock.mockResolvedValue(null); // Paddle preview failed at apply time
-    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(409);
     expect(updateMock).not.toHaveBeenCalled();
   });
@@ -343,20 +365,20 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   it("404 (dormant) when the feature flag is OFF — nothing reaches Paddle", async () => {
     vi.stubEnv("PADDLE_PLAN_CHANGE_ENABLED", "");
     expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(404);
-    expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(404);
+    expect((await CHANGE(req({ immediateStartConsent: true, planCode: "business" }), ctx)).status).toBe(404);
     expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("400 on the same plan, and on an org without a Paddle subscription", async () => {
-    expect((await CHANGE(req({ planCode: "pro" }), ctx)).status).toBe(400); // same plan
+    expect((await CHANGE(req({ immediateStartConsent: true, planCode: "pro" }), ctx)).status).toBe(400); // same plan
     await prisma.subscription.update({ where: { organizationId: orgId }, data: { provider: "manual" } });
-    expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(400); // not a Paddle sub
+    expect((await CHANGE(req({ immediateStartConsent: true, planCode: "business" }), ctx)).status).toBe(400); // not a Paddle sub
     expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("403 for a staff member (owner/manager only)", async () => {
     session = { ...(session as SessionPayload), role: "staff" };
-    expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(403);
+    expect((await CHANGE(req({ immediateStartConsent: true, planCode: "business" }), ctx)).status).toBe(403);
   });
   // ── İPTAL EDİLMİŞ ABONELİK KAPISI (08-05) ───────────────────────────────────
   // Arayüz iptal edilmiş aboneliğe plan-değişimi ZATEN açmıyor; sunucu `status`'ü
@@ -368,7 +390,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "canceled" } });
     for (const [name, res] of [
       ["preview", await PREVIEW(req({ planCode: "business" }), ctx)],
-      ["apply", await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
+      ["apply", await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
     ] as const) {
       expect(res.status, name).toBe(400);
       // ⚠️ Mesaj `fields.error`'da: `badRequest(fields)` argümanı ALAN HARİTASI
@@ -385,7 +407,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "paused" } });
     for (const [name, res] of [
       ["preview", await PREVIEW(req({ planCode: "business" }), ctx)],
-      ["apply", await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
+      ["apply", await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
     ] as const) {
       expect(res.status, name).toBe(400);
       expect((await res.json()).fields?.error, name).toContain("duraklatıldığı");
@@ -427,9 +449,9 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       entered(); // deterministic barrier: resolves the moment the PATCH is entered
       return new Promise((res) => (releaseFirst = res));
     });
-    const p1 = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const p1 = CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     await enteredFirstPatch; // first request is INSIDE the PATCH, holding the claim
-    const second = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const second = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(second.status).toBe(409);
     expect((await second.json()).pendingVerification).toBe(true);
     releaseFirst({ ok: true });
@@ -450,7 +472,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       noCharge();
       const preview = await (await PREVIEW(req({ planCode: "free" }), ctx)).json(); // pro → başlangıç (düşürme, tutar yok)
       await prisma.subscription.update({ where: { organizationId: orgId }, data: { providerRef: "sub_2" } }); // başka sekmede yeni abonelik
-      const res = await CHANGE(req({ planCode: "free", previewToken: preview.previewToken }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: preview.previewToken }), ctx);
       expect(res.status).toBe(400); // ⬅️ ESKİDE 200 (eski onay yeni aboneliğe uygulanıyordu)
       expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
       expect(updateMock).not.toHaveBeenCalled();
@@ -463,7 +485,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       await prisma.subscription.update({ where: { organizationId: orgId }, data: { planCode: "business" } });
       const preview = await (await PREVIEW(req({ planCode: "free" }), ctx)).json(); // business → başlangıç
       await prisma.subscription.update({ where: { organizationId: orgId }, data: { planCode: "pro" } }); // başka sekmede pro'ya inildi
-      const res = await CHANGE(req({ planCode: "free", previewToken: preview.previewToken }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: preview.previewToken }), ctx);
       expect(res.status).toBe(400); // ⬅️ ESKİDE 200
       expect(updateMock).not.toHaveBeenCalled();
     });
@@ -472,22 +494,22 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       noCharge();
       const t = tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" });
       getPriceMock.mockResolvedValue("pri_isletme"); // Paddle'da abonelik artık business (başka sekmenin değişikliği; webhook henüz gelmedi)
-      const res = await CHANGE(req({ planCode: "free", previewToken: t }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: t }), ctx);
       expect(res.status).toBe(400); // ⬅️ ESKİDE 200
       expect(updateMock).not.toHaveBeenCalled();
       const lock = await pendingRow();
       expect(lock === null || lock.lockedUntil <= new Date()).toBe(true); // "işleniyor" kilidi takılı kalmadı
       // Onay tüketilmedi: aynı onay, kaynak yeniden uyuşunca (ör. değişiklik geri alındı) kullanılabilir.
       getPriceMock.mockResolvedValue("pri_pro");
-      expect((await CHANGE(req({ planCode: "free", previewToken: t }), ctx)).status).toBe(200);
+      expect((await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: t }), ctx)).status).toBe(200);
       expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
     it("KONTROL: kaynak aynı (abonelik + plan + Paddle fiyatı) → uygulanır; önizlemede fiyat okunmamış olsa da (fromPrice boş) plan eşleşince uygulanır", async () => {
       noCharge();
       getPriceMock.mockResolvedValue("pri_pro");
-      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
-      expect((await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null) }), ctx)).status).toBe(200);
+      expect((await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null, { fromPrice: "pri_pro" }) }), ctx)).status).toBe(200);
+      expect((await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: tok("pri_baslangic", "downgrade", orgId, null) }), ctx)).status).toBe(200);
       expect(updateMock).toHaveBeenCalledTimes(2);
     });
 
@@ -496,7 +518,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       noCharge();
       getPriceMock.mockResolvedValue("pri_isletme");
       const t = tok("pri_baslangic", "downgrade", orgId, null);
-      const res = await CHANGE(req({ planCode: "free", previewToken: t }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "free", previewToken: t }), ctx);
       expect(res.status).toBe(400);
       expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
       expect(updateMock).not.toHaveBeenCalled();
@@ -507,14 +529,14 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     it("🚨 kör PATCH yok: aboneliğin Paddle'daki fiyatı okunamazsa değişiklik uygulanmaz (503), kilit ve onay geri bırakılır; okuma düzelince aynı onay geçer", async () => {
       const t = tok("pri_isletme", "upgrade");
       getPriceMock.mockResolvedValue(null);
-      const res = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx);
       expect(res.status).toBe(503);
       expect((await res.json()).error).toMatch(/planınız değişmedi/);
       expect(updateMock).not.toHaveBeenCalled();
       const lock = await pendingRow();
       expect(lock === null || lock.lockedUntil <= new Date()).toBe(true);
       getPriceMock.mockResolvedValue("pri_pro");
-      expect((await CHANGE(req({ planCode: "business", previewToken: t }), ctx)).status).toBe(200);
+      expect((await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: t }), ctx)).status).toBe(200);
       expect(updateMock).toHaveBeenCalledTimes(1);
     });
 
@@ -522,14 +544,14 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       const { createHmac } = await import("node:crypto");
       const body = Buffer.from(JSON.stringify({ org: orgId, priceId: "pri_isletme", mode: "upgrade", amount: "₺123,45", jti: "eski-bicim", exp: Date.now() + 60_000 })).toString("base64url");
       const legacy = `${body}.${createHmac("sha256", process.env.AUTH_SECRET ?? "").update(body).digest("base64url")}`;
-      const res = await CHANGE(req({ planCode: "business", previewToken: legacy }), ctx);
+      const res = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: legacy }), ctx);
       expect(res.status).toBe(400);
       expect((await res.json()).fields.error).toMatch(/süresi doldu/); // belirteç geçersiz sayıldı (yeniden önizleme istenir)
       expect(updateMock).not.toHaveBeenCalled();
       // Yalnız abonelik / plan alanı eksik olan belirteç de geçersiz (fiyat alanı doğru biçimde olsa bile).
       const body2 = Buffer.from(JSON.stringify({ org: orgId, priceId: "pri_isletme", mode: "upgrade", amount: "₺123,45", fromPrice: null, jti: "eski-bicim-2", exp: Date.now() + 60_000 })).toString("base64url");
       const legacy2 = `${body2}.${createHmac("sha256", process.env.AUTH_SECRET ?? "").update(body2).digest("base64url")}`;
-      const res2 = await CHANGE(req({ planCode: "business", previewToken: legacy2 }), ctx);
+      const res2 = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: legacy2 }), ctx);
       expect(res2.status).toBe(400);
       expect((await res2.json()).fields.error).toMatch(/süresi doldu/);
     });
@@ -551,12 +573,12 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     let pB: Promise<Response> | null = null;
     previewMock.mockImplementationOnce(async () => {
       getPriceMock.mockResolvedValueOnce("pri_pro"); // B'nin "zaten hedefte mi" okuması: değil (hâlâ kaynak fiyat) → PATCH
-      pB = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+      pB = CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
       await bInPatch;
       getPriceMock.mockResolvedValue("pri_isletme"); // A okursa: zaten hedefte (B'nin değişikliği Paddle'a ulaştı)
       return { mode: "prorated_immediately", immediateTotal: "₺123,45", recurringTotal: "₺899,00" };
     });
-    const a = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const a = await CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     const lock = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${orgId}` } });
     expect(lock !== null && lock.lockedUntil > new Date()).toBe(true); // ⬅️ ESKİDE silinmişti (B'nin PATCH'i sürerken)
     expect(a.status).toBe(409); // A sıradaki değişikliği bekler
@@ -577,7 +599,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       .mockImplementationOnce(async () => {
         // Birinci istek PATCH'te takıldı ve kilidinin süresi doldu → ikinci istek kilidi alıp kendi PATCH'ine girer.
         await prisma.systemLock.update({ where: { name: lockName }, data: { lockedUntil: new Date(Date.now() - 1_000) } });
-        pSecond = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+        pSecond = CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
         await secondInPatch;
         return new Promise((res) => (finishFirst = res));
       })
@@ -585,7 +607,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
         secondEntered();
         return new Promise((res) => (finishSecond = res));
       });
-    const pFirst = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    const pFirst = CHANGE(req({ immediateStartConsent: true, planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     await secondInPatch;
     await vi.waitFor(() => expect(finishFirst).toBeTypeOf("function"));
     finishFirst({ ok: true });

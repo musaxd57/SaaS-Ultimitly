@@ -10,8 +10,8 @@
 //    onay + kabul") ayrı ve açık bir onay ister — sözleşme kabulünün içine gömülürse ispatı zayıflar. Eski metin onayı "kullanmaya başlamakla
 //    verilmiş sayılır" diye ZIMNİ sayıyordu → "hemen başlamasını onaylıyorum … cayma hakkımı kaybedeceğimi kabul ediyorum".
 // Kutuların hepsi BOŞ başlar (önceden işaretli kutu yok) ve hepsi zorunludur; sunucu üçünü de ayrı alan olarak ister.
-// 🚨 Bu metinler `LEGAL_TEXT_HASH`'e girer (`lib/legal-text-hash.ts`): onay kaydı, kullanıcının HANGİ cümleleri gördüğünü kanıtlar. Bir
-// kelime değişirse özet değişir → `LEGAL_VERSION` da artırılır.
+// 🚨 Gösterilen cümleler ödeme onayı satırının özetine girer (`checkoutLegalTextHash`, `lib/legal-text-hash.ts`): satır, o ekranda HANGİ
+// cümlelerin gösterildiğini kanıtlar (kartla denemede iki, normal yolda üç). Bir kelime değişirse özet değişir → `LEGAL_VERSION` da artırılır.
 // ---------------------------------------------------------------------------
 
 export const CHECKOUT_CONSENT_COPY = {
@@ -49,8 +49,13 @@ export function checkoutConsentKeysFor(opts: { cardTrial: boolean }): readonly C
   return opts.cardTrial ? CARD_TRIAL_CONSENT_KEYS : CHECKOUT_CONSENT_KEYS;
 }
 
-/** Kullanıcının ekranda okuduğu üç cümle, tam hâliyle (özet / kanıt için). */
-export function checkoutConsentSentences(): string[] {
+/** Ödeme ekranında gösterilen kutuların cümleleri, tam hâliyle ve sırayla (özet / kanıt için). Verilmezse üçü. */
+export function checkoutConsentSentences(keys: readonly CheckoutConsentKey[] = CHECKOUT_CONSENT_KEYS): string[] {
   const c = CHECKOUT_CONSENT_COPY;
-  return [`${c.preInfo.doc}${c.preInfo.after}`, `${c.contract.doc}${c.contract.after}`, c.immediateStart.text];
+  const sentence: Record<CheckoutConsentKey, string> = {
+    preInfo: `${c.preInfo.doc}${c.preInfo.after}`,
+    contract: `${c.contract.doc}${c.contract.after}`,
+    immediateStart: c.immediateStart.text,
+  };
+  return CHECKOUT_CONSENT_KEYS.filter((k) => keys.includes(k)).map((k) => sentence[k]);
 }

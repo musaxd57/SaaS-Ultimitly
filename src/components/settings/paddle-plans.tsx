@@ -6,6 +6,13 @@ import { refreshAfterBilling } from "@/components/settings/refresh-after-billing
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor, type CheckoutConsentKey } from "@/lib/billing/consent-copy";
+
+/** Sunucunun onay alanı adı → ekrandaki kutu (`checkoutConsentSchema`). */
+const CONSENT_FIELD_KEYS: readonly [string, CheckoutConsentKey][] = [
+  ["preInfoConfirmed", "preInfo"],
+  ["contractAccepted", "contract"],
+  ["immediateStartConsent", "immediateStart"],
+];
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
 import { BILLING_TEXT, billingReason, lapsedLabel } from "@/lib/billing/billing-ui-text";
@@ -201,6 +208,10 @@ export function PaddlePlans({
   const [notice, setNotice] = useState<string | null>(null);
   // Beklenmeyen sunucu hatasının tam takip numarası (kurucu kararı 10-10): metinde kısa numara, düğmede tamamı.
   const [trackingId, setTrackingId] = useState<string | null>(null);
+  // Yükseltmede "hemen başlasın" onayı (kurucu 11-13 + Opus P2-4): fark anında tahsil edilir; ödeme ekranıyla aynı kutu, boş başlar.
+  const [upgradeConsent, setUpgradeConsent] = useState(false);
+  const [upgradeConsentMissing, setUpgradeConsentMissing] = useState(false);
+  const upgradeConsentRef = useRef<HTMLInputElement | null>(null);
   // In-app plan change: the previewed change awaiting the user's confirmation.
   const [pending, setPending] = useState<{
     planCode: string;
@@ -218,6 +229,11 @@ export function PaddlePlans({
   const [consents, setConsents] = useState<Record<CheckoutConsentKey, boolean>>({ preInfo: false, contract: false, immediateStart: false });
   // Kartla deneme yolunda ücretli hizmet deneme bitince başlar → "hemen başlasın" kutusu yok (`checkoutConsentKeysFor`).
   const consentKeys = checkoutConsentKeysFor({ cardTrial: !!cardTrialNotice });
+  // Kartla deneme durumu değişince (sayfa yenilendi) kutu kümesi ve fiyat değişir → önceki işaretler başka sözleşmeye verilmişti (Opus P3-2).
+  useEffect(() => {
+    setConsents({ preInfo: false, contract: false, immediateStart: false });
+    setConsentMissing(null);
+  }, [cardTrialNotice]);
   const accepted = consentKeys.every((k) => consents[k]);
   // UX-3 (kurucu 11-13): plan düğmesi onay boşken de basılır; basınca uyarı İLK boş kutunun altında çıkar ve sayfa ona kayar
   // (eskiden düğme soluk ve sebepsizdi; uyarı listenin en altındaki genel hata satırına düşüyordu).
@@ -288,6 +304,12 @@ export function PaddlePlans({
             eventCallback: (ev) => {
               // The server webhook records the subscription; give it a moment,
               // then refresh so the new plan shows.
+              // Ödeme penceresi kapandıysa (vazgeçildi ya da tamamlandı) onaylar boşalır: sonraki deneme kendi onayıyla gider — her ödeme
+              // onayı satırı o anki işaretlemeyi yansıtır (Opus 11-13 P3-2).
+              if (ev?.name === "checkout.closed" || ev?.name === "checkout.completed") {
+                setConsents({ preInfo: false, contract: false, immediateStart: false });
+                setConsentMissing(null);
+              }
               if (ev?.name === "checkout.completed") {
                 setProcessing(true);
                 // Sunucu kilidiyle aynı süre: webhook hiç gelmezse kart bu sayfada da kendiliğinden açılır (Haiku incelemesi).
@@ -395,6 +417,16 @@ export function PaddlePlans({
             consentId = body.consentId;
             transactionId = typeof body.transactionId === "string" ? body.transactionId : undefined;
           } else {
+            // Sunucu bir onay kutusunu reddettiyse (ör. yayın sırasında açık kalmış eski sekme) o kutu işaretlenir ve kutunun cümlesi
+            // gösterilir — genel "tekrar deneyin" sonsuz yeniden denemeye götürüyordu (Opus 11-13 P3-1).
+            const refused = CONSENT_FIELD_KEYS.find(([field]) => typeof body.fields?.[field] === "string");
+            if (refused) {
+              const [, key] = refused;
+              setConsents((prev) => ({ ...prev, [key]: false }));
+              setConsentMissing(key);
+              consentRefs[key].current?.focus();
+              return;
+            }
             serverReason = billingReason(body, BILLING_TEXT.consentFailed);
             setTrackingId(body.correlationId ?? null);
           }
@@ -515,6 +547,9 @@ export function PaddlePlans({
         setTrackingId(data.correlationId ?? null);
         return;
       }
+      // Her yeni önizleme yeni bir onay ister (başka tutar / başka plan).
+      setUpgradeConsent(false);
+      setUpgradeConsentMissing(false);
       setPending({
         planCode,
         name: data.targetName ?? planCode,
@@ -538,6 +573,12 @@ export function PaddlePlans({
   // updates the local plan, so we refresh once it returns.
   const confirmChange = useCallback(async () => {
     if (!pending || changeBusy) return;
+    if (pending.mode === "upgrade" && !upgradeConsent) {
+      // Düğme basılır ama istek GİTMEZ; uyarı kutunun altında, odak kutuda (UX-3 kalıbı).
+      setUpgradeConsentMissing(true);
+      upgradeConsentRef.current?.focus();
+      return;
+    }
     setError(null);
     setNotice(null);
     setTrackingId(null);
@@ -549,7 +590,11 @@ export function PaddlePlans({
       const res = await fetch("/api/billing/plan-change", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planCode: pending.planCode, previewToken: pending.previewToken }),
+        body: JSON.stringify({
+          planCode: pending.planCode,
+          previewToken: pending.previewToken,
+          ...(pending.mode === "upgrade" ? { immediateStartConsent: true } : {}),
+        }),
       });
       let bodyRead = true;
       const data = (await res.json().catch(() => {
@@ -606,7 +651,7 @@ export function PaddlePlans({
       setChangeBusy(false);
     }
     if (refreshPlan) void startChange(refreshPlan, BILLING_TEXT.amountChanged);
-  }, [pending, changeBusy, router, startChange]);
+  }, [pending, changeBusy, router, startChange, upgradeConsent]);
 
   // Index of the org's current plan in the (ordered) catalog, to label each card's
   // button as an upgrade or a downgrade.
@@ -670,7 +715,8 @@ export function PaddlePlans({
             const copy = CHECKOUT_CONSENT_COPY[key];
             const errorId = `billing-consent-error-${key}`;
             return (
-              <label key={key} className="flex items-start gap-2">
+              <div key={key}>
+              <label className="flex items-start gap-2">
                 <input
                   ref={consentRefs[key]}
                   type="checkbox"
@@ -696,14 +742,16 @@ export function PaddlePlans({
                   ) : (
                     copy.text
                   )}
-                  {consentMissing === key ? (
-                    <span id={errorId} role="alert" className="mt-1 block font-medium text-destructive">
-                      {copy.missing}
-                      {key === "immediateStart" && trialing ? ` ${CHECKOUT_CONSENT_COPY.immediateStart.missingTrialHint}` : null}
-                    </span>
-                  ) : null}
                 </span>
               </label>
+              {/* Uyarı ETİKETİN DIŞINDA (Opus P3-3): içerideyken kutunun erişilebilir adına karışıyor ve iki kez okunuyordu. */}
+              {consentMissing === key ? (
+                <p id={errorId} role="alert" className="ml-6 mt-1 font-medium text-destructive">
+                  {copy.missing}
+                  {key === "immediateStart" && trialing ? ` ${CHECKOUT_CONSENT_COPY.immediateStart.missingTrialHint}` : null}
+                </p>
+              ) : null}
+              </div>
             );
           })}
         </fieldset>
@@ -752,6 +800,31 @@ export function PaddlePlans({
               </>
             )}
           </p>
+          {pending.mode === "upgrade" && pending.immediateTotal ? (
+            <div data-upgrade-consent>
+              <label className="flex items-start gap-2 text-base leading-relaxed text-foreground">
+                <input
+                  ref={upgradeConsentRef}
+                  type="checkbox"
+                  name="consent-upgrade-immediateStart"
+                  checked={upgradeConsent}
+                  onChange={(e) => {
+                    setUpgradeConsent(e.target.checked);
+                    if (e.target.checked) setUpgradeConsentMissing(false);
+                  }}
+                  className="mt-1 h-4 w-4 shrink-0"
+                  aria-invalid={upgradeConsentMissing ? true : undefined}
+                  aria-describedby={upgradeConsentMissing ? "upgrade-consent-error" : undefined}
+                />
+                <span>{CHECKOUT_CONSENT_COPY.immediateStart.text}</span>
+              </label>
+              {upgradeConsentMissing ? (
+                <p id="upgrade-consent-error" role="alert" className="ml-6 mt-1 text-sm font-medium text-destructive">
+                  {CHECKOUT_CONSENT_COPY.immediateStart.missing}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <button
               type="button"

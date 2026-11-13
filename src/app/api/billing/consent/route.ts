@@ -3,7 +3,7 @@ import { badRequest, jsonOk, tooManyRequests, readJsonCappedOrNull } from "@/lib
 import { withOwner } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
-import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
 import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
@@ -126,7 +126,8 @@ export const POST = withOwner(async (session, req) => {
       planCode: derivedPlanCode ?? parsed.data.planCode, // price-derived is authoritative
       priceId: parsed.data.priceId,
       legalVersion: LEGAL_VERSION, // server-side, not client-supplied
-      legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion (see lib/legal-text-hash.ts)
+      // Dört metin + bu ekranda GÖSTERİLEN onay cümleleri (kartla denemede iki, normal yolda üç) — satır hangi kutuların gösterildiğini söyler.
+      legalTextHash: checkoutLegalTextHash(checkoutConsentKeysFor({ cardTrial: cardTrialPrice })),
       // Ödeme onayının delil kaydı. clientIp() zinciri SAĞDAN sayar (taklit
       // edilemez) ama kaç adım geri gideceğini `TRUSTED_PROXY_HOPS` söyler:
       // Railway'de doğru değer 2, varsayılan 1. Bayrak set edilene kadar buraya

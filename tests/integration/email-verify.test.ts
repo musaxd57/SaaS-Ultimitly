@@ -246,9 +246,8 @@ describe("registration → verification → login", () => {
     expect(res.status).toBe(201);
     const u = await prisma.user.findUnique({ where: { email: "ev@x.com" } });
     expect(u?.acceptedTermsAt).not.toBeNull();
-    expect(u?.privacyAcceptedAt).not.toBeNull();
-    // one checkbox → both acceptances share the same instant
-    expect(u?.privacyAcceptedAt?.getTime()).toBe(u?.acceptedTermsAt?.getTime());
+    // Kurucu 11-13 (KVKK): kutu yalnız Kullanım Koşulları'nı kabul ettirir; Gizlilik "kabul" edilmez → kabul kaydı YAZILMAZ.
+    expect(u?.privacyAcceptedAt).toBeNull();
     expect(u?.acceptedLegalVersion).toBe(LEGAL_VERSION);
     expect(u?.acceptedLegalTextHash).toBe(LEGAL_TEXT_HASH); // tamper-evident companion
     expect(u?.acceptedIp).toBe("5.6.7.8"); // rightmost hop, spoofed leftmost discarded

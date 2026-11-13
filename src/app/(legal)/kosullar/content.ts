@@ -12,7 +12,7 @@ export const SECTIONS: Section[] = [
   {
     title: "1. Taraflar ve Hizmet Sağlayıcı",
     body: [
-      `Bu Kullanım Koşulları (“Koşullar”), Lixus AI hizmetini sunan ${SELLER.unvan} (“Lixus AI”, “biz”) ile hizmeti kullanan gerçek veya tüzel kişi (“Müşteri”, “siz”) arasındaki ilişkiyi düzenler. Hizmete kaydolarak veya hizmeti kullanarak bu Koşulları okuduğunuzu ve kabul ettiğinizi beyan edersiniz.`,
+      `Bu Kullanım Koşulları (“Koşullar”), Lixus AI hizmetini sunan ${SELLER.unvan} (“Lixus AI”, “biz”) ile hizmeti kullanan gerçek veya tüzel kişi (“Müşteri”, “siz”) arasındaki ilişkiyi düzenler. Hizmete kaydolurken, kayıt formundaki kutuyu işaretleyerek bu Koşulları okuduğunuzu ve kabul ettiğinizi beyan edersiniz.`,
     ],
   },
   {
@@ -53,7 +53,7 @@ export const SECTIONS: Section[] = [
   {
     title: "7. İptal ve Cayma Hakkı",
     body: [
-      "Aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz. Tüketici sıfatıyla sahip olabileceğiniz cayma hakkı ve istisnaları, Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi’nde ayrıntılı olarak düzenlenmiştir; bu metinler işbu Koşulların ayrılmaz parçasıdır.",
+      "Aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz. Tüketici sıfatıyla sahip olabileceğiniz cayma hakkı ve istisnaları, Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi’nde ayrıntılı olarak düzenlenmiştir.",
     ],
   },
   {
@@ -126,7 +126,7 @@ export const SECTIONS: Section[] = [
   {
     title: "18. Devir, Bölünebilirlik ve Bütünlük",
     body: [
-      "Bu Koşullardan doğan hak ve yükümlülüklerinizi önceden yazılı onayımız olmaksızın devredemezsiniz. Koşulların herhangi bir hükmünün geçersiz sayılması, diğer hükümlerin geçerliliğini etkilemez. Bu Koşullar; ücretli planlarda Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi ile birlikte taraflar arasındaki sözleşmenin bütününü oluşturur. Gizlilik Politikası kişisel verilerin nasıl işlendiğini anlatan bir bilgilendirme metnidir; sözleşmenin parçası değildir.",
+      "Bu Koşullardan doğan hak ve yükümlülüklerinizi önceden yazılı onayımız olmaksızın devredemezsiniz. Koşulların herhangi bir hükmünün geçersiz sayılması, diğer hükümlerin geçerliliğini etkilemez. Bu Koşullar, ücretli planlarda Mesafeli Satış Sözleşmesi ile birlikte taraflar arasındaki sözleşmenin bütününü oluşturur; Ön Bilgilendirme Formu sözleşmeden önce verilen bilgilendirmedir. Gizlilik Politikası kişisel verilerin nasıl işlendiğini anlatan bir bilgilendirme metnidir; sözleşmenin parçası değildir.",
     ],
   },
   {
