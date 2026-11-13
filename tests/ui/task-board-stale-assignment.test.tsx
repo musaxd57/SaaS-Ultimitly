@@ -64,16 +64,6 @@ describe("pano — görev sayfa açıkken başkasına verildi (eski sekme)", () 
     expect(nav.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("🚨 personel 'Yapamıyorum' → 'Ev sahibine bildir' → aynı mesaj, form kapanır, liste yenilenir", async () => {
-    response = { status: 403, body: { error: "Bu görev size atanmamış.", code: "not_assigned" } };
-    render(<TaskBoard tasks={[base]} canManage={false} />);
-    await click("Yapamıyorum");
-    await click("Ev sahibine bildir");
-    expect(toasts).toEqual(["error: Bu görev artık sizin listenizde değil."]);
-    expect(screen.queryByRole("button", { name: "Ev sahibine bildir" })).toBeNull();
-    expect(nav.refresh).toHaveBeenCalledTimes(1);
-  });
-
   it("not kaydı → kart içinde aynı mesaj; liste YENİLENMEZ, yazılan not yerinde kalır", async () => {
     response = { status: 403, body: { error: "Bu görev size atanmamış.", code: "not_assigned" } };
     render(<TaskBoard tasks={[base]} canManage={false} />);

@@ -5,9 +5,10 @@ import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
-// Kurucu 11-05 gece — "Yapamıyorum / Sorun bildir": atanan kişi işi yapamayacağını bildirir. Görev SİLİNMEZ, BİTMİŞ SAYILMAZ; durum
-// "Yapılamıyor" (blocked) olur, ev sahibi görür; ev sahibi başka birine atayınca "Yapılacak"a döner. Ev sahibine e-posta YALNIZ
-// `STAFF_NOTIFY_ENABLED=1` iken (ilk gönderim kurucuyla). Tasarım: docs/TASARIM-2026-11-06-dogrudan-gorevlendirme-ve-whatsapp.md §2.5.
+// "Yapamıyorum" KALDIRILDI (kurucu 11-13: "gereksiz, ucuz bir düğme"; yerine yedek temizlikçi — docs/TASARIM-2026-11-13-temizlikci-akisi-
+// whatsapp-yedek.md). Yeni "Yapılamıyor" YAZILAMAZ (400; e-posta yok). ESKİ veride kalmış "Yapılamıyor" görevi okunur (Girişler'de ENGEL),
+// ev sahibi başka birine atayınca "Yapılacak"a döner. Kurucu 11-13: ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı "iş başladı"
+// sayılmaz → görev Girişler'den yine atanabilir; iptal ONARIMININ silme kümesi (geniş tanım) değişmedi.
 // ---------------------------------------------------------------------------
 
 let session: SessionPayload;
@@ -33,6 +34,7 @@ vi.mock("@/lib/email", async (orig) => {
 import { PATCH } from "@/app/api/tasks/[id]/route";
 import { POST as CREATE_TASK } from "@/app/api/tasks/route";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
+import { UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 import { todayKey, addNights } from "@/modules/availability/core";
 
 const TODAY = todayKey(new Date(), "Europe/Istanbul");
@@ -45,7 +47,7 @@ function patch(id: string, body: unknown) {
   );
 }
 
-describe("görev — 'Yapamıyorum'", () => {
+describe("görev — 'Yapamıyorum' kaldırıldı; eski 'Yapılamıyor' verisi", () => {
   let orgId: string;
   let propertyId: string;
   let ayse: { id: string; name: string };
@@ -80,32 +82,38 @@ describe("görev — 'Yapamıyorum'", () => {
     ).id;
   });
   afterEach(() => vi.unstubAllEnvs());
+  /** Eski veride kalmış "Yapılamıyor" (düğme artık yok — veritabanına doğrudan, eski kodun yazdığı biçimde). */
+  async function legacyBlocked(note: string | null = "hastayım") {
+    await prisma.task.update({ where: { id: taskId }, data: { status: "blocked" } });
+    await prisma.taskUpdate.create({ data: { taskId, userId: ayse.id, status: "blocked", note } });
+  }
 
-  it("🚨 atanan kişi 'Yapamıyorum' der → durum Yapılamıyor, görev SİLİNMEZ, neden zaman çizelgesinde; 'Girişler'de ENGEL satırı", async () => {
+  it("🚨 yeni 'Yapılamıyor' YAZILAMAZ: atanan personel de, sahip de (kendine atalı görevde bile) → 400; durum, kayıt, e-posta yok", async () => {
+    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     asStaff(ayse);
-    expect((await patch(taskId, { status: "blocked", note: "hastayım" })).status).toBe(200);
-    const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
-    expect(task.status).toBe("blocked");
-    expect(task.assignedToId).toBe(ayse.id);
-    const upd = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId, status: "blocked" } });
-    expect(upd).toMatchObject({ userId: ayse.id, note: "hastayım" });
+    expect((await patch(taskId, { status: "blocked", note: "hastayım" })).status).toBe(400);
+    asOwner();
+    await prisma.task.update({ where: { id: taskId }, data: { assignedToId: owner.id } });
+    expect((await patch(taskId, { status: "blocked" })).status).toBe(400);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("todo");
+    expect(await prisma.taskUpdate.count({ where: { taskId } })).toBe(0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mail.sent).toHaveLength(0);
+    // KONTROL: öteki durumlar yazılır (aşırı uygulama yok).
+    expect((await patch(taskId, { status: "in_progress" })).status).toBe(200);
+  });
+
+  it("eski 'Yapılamıyor' görevi Girişler'de ENGEL satırı olarak okunur (kim · ne zaman · neden)", async () => {
+    await legacyBlocked("hastayım");
     const { rows } = await loadArrivalReadiness(orgId, new Date());
     const cleaning = rows[0].readiness.factors.find((f) => f.key === "cleaning")!;
     expect(cleaning.state).toBe("blocking");
     expect(cleaning.label).toMatch(/^Temizlik yapılamıyor · Ayşe · \d{2}:\d{2} — "hastayım"$/);
-    expect(cleaning.missing).toBe("başka birine atama");
     expect(rows[0].readiness.overall).toBe("not_ready");
   });
 
-  it("KONTROL — başkasının görevini 'Yapılamıyor' yapamaz (403, durum aynı)", async () => {
-    asStaff(mehmet);
-    expect((await patch(taskId, { status: "blocked" })).status).toBe(403);
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("todo");
-  });
-
-  it("🚨 ev sahibi 'Yapılamıyor' görevi başka birine atayınca durum 'Yapılacak'a döner (kim / ne zaman kayıtlı)", async () => {
-    asStaff(ayse);
-    await patch(taskId, { status: "blocked", note: "hastayım" });
+  it("🚨 ev sahibi eski 'Yapılamıyor' görevi başka birine atayınca durum 'Yapılacak'a döner (kim / ne zaman kayıtlı)", async () => {
+    await legacyBlocked();
     asOwner();
     expect((await patch(taskId, { assignedToId: mehmet.id })).status).toBe(200);
     const task = await prisma.task.findUniqueOrThrow({ where: { id: taskId } });
@@ -114,67 +122,50 @@ describe("görev — 'Yapamıyorum'", () => {
     expect(last).toMatchObject({ status: "todo", userId: owner.id });
   });
 
-  it("Opus 11-06 N1: 'Yapılamıyor' görev 'Atanmadı'ya alınır (boş kimlik) → 200, atanmamış, durum 'Yapılacak'", async () => {
+  it("🚨 kurucu 11-13: yeniden atanan görev Girişler'den YİNE atanabilir — ev sahibinin yeniden ataması ve eski 'Yapılamıyor' kaydı iş sayılmaz", async () => {
+    await legacyBlocked();
+    asOwner();
+    expect((await patch(taskId, { assignedToId: mehmet.id })).status).toBe(200);
+    // Mehmet de gelemeyecek: ev sahibi Girişler'den (satırın gördüğü atanan = Mehmet) Ayşe'ye geri verir.
+    expect((await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id })).status).toBe(200);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
+    // Girişler satırı da atama düğmesini sunar (yükleyicinin "başladı" izi rotanın kilitli kararıyla aynı dar tanım).
+    const { rows } = await loadArrivalReadiness(orgId, new Date());
+    const cleaning = rows[0].readiness.factors.find((f) => f.key === "cleaning")!;
+    expect(cleaning.assign).toBeTruthy();
+  });
+
+  it("KONTROL — gerçek iş izi (personelin notu / Başladım / fotoğraf) varsa Girişler'den atanamaz (409 task_moved_on)", async () => {
     asStaff(ayse);
-    await patch(taskId, { status: "blocked" });
+    expect((await patch(taskId, { note: "anahtarı aldım" })).status).toBe(200);
+    asOwner();
+    const res = await patch(taskId, { assignedToId: mehmet.id, expectAssignedToId: ayse.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("task_moved_on");
+  });
+
+  it("🚨 iptal ONARIMININ silme kümesi DEĞİŞMEDİ: ev sahibinin yeniden atama kaydı olan görev onarımda korunur (geniş tanım)", async () => {
+    await legacyBlocked(null);
+    asOwner();
+    await patch(taskId, { assignedToId: mehmet.id });
+    expect(await prisma.task.count({ where: { id: taskId, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } })).toBe(0);
+  });
+
+  it("Opus 11-06 N1: eski 'Yapılamıyor' görev 'Atanmadı'ya alınır (boş kimlik) → 200, atanmamış, durum 'Yapılacak'", async () => {
+    await legacyBlocked();
     asOwner();
     expect((await patch(taskId, { assignedToId: "" })).status).toBe(200);
     expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ assignedToId: null, status: "todo" });
   });
 
-  it("KONTROL — yeniden atamada açıkça durum verilirse o durum yazılır; 'Yapılamıyor' olmayan görevin durumu atamayla değişmez", async () => {
-    asStaff(ayse);
-    await patch(taskId, { status: "blocked" });
-    asOwner();
-    await patch(taskId, { assignedToId: mehmet.id, status: "in_progress" });
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("in_progress");
-    await patch(taskId, { assignedToId: ayse.id });
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("in_progress");
-  });
-
-  it("KONTROL — aynı kişiye yeniden 'atama' (değişiklik yok) 'Yapılamıyor'u kapatmaz", async () => {
-    asStaff(ayse);
-    await patch(taskId, { status: "blocked" });
+  it("KONTROL — aynı kişiye yeniden 'atama' (değişiklik yok) eski 'Yapılamıyor'u kapatmaz", async () => {
+    await legacyBlocked();
     asOwner();
     await patch(taskId, { assignedToId: ayse.id });
     expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("blocked");
   });
 
-  it("🚨 bildirim: anahtar AÇIKKEN sahip / yöneticilere e-posta (bildirene değil; misafir adı yok); KAPALIYKEN hiçbir şey gitmez", async () => {
-    asStaff(ayse);
-    await patch(taskId, { status: "blocked", note: "hastayım" });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mail.sent).toHaveLength(0); // varsayılan KAPALI
-
-    await prisma.task.update({ where: { id: taskId }, data: { status: "todo" } });
-    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
-    await patch(taskId, { status: "blocked", note: "hastayım" });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mail.sent.map((m) => m.to)).toEqual([owner.email]);
-    expect(mail.sent[0].subject).toBe("Görev yapılamıyor: Test Property");
-    expect(mail.sent[0].html).toContain("Ayşe bu işi yapamıyor");
-    expect(mail.sent[0].html).toContain("hastayım");
-    expect(mail.sent[0].html).not.toContain("Önceki"); // misafir adı yok
-  });
-
-  it("🚨 Haiku 11-06: yönetici BAŞKASININ görevini 'Yapılamıyor' yapamaz (403, durum aynı, kayıt yok); kendisine atalı görevde diyebilir", async () => {
-    asOwner();
-    expect((await patch(taskId, { status: "blocked", note: "x" })).status).toBe(403);
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("todo");
-    expect(await prisma.taskUpdate.count({ where: { taskId } })).toBe(0);
-    // Atama değişikliğiyle birlikte de gelmez (kendine atayıp aynı anda "yapamıyorum" anlamsız).
-    expect((await patch(taskId, { status: "blocked", assignedToId: owner.id })).status).toBe(403);
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
-    // Kendisine atalı görevde bile "yapamıyorum" + BAŞKASINA atama aynı istekte gelmez (kart "Sahip yapamıyor" diye Mehmet'in işini gösterirdi).
-    await prisma.task.update({ where: { id: taskId }, data: { assignedToId: owner.id } });
-    expect((await patch(taskId, { status: "blocked", assignedToId: mehmet.id })).status).toBe(403);
-    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ status: "todo", assignedToId: owner.id });
-    // KONTROL — görev sahibin kendisine atalıysa diyebilir (aşırı uygulama yok).
-    expect((await patch(taskId, { status: "blocked" })).status).toBe(200);
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("blocked");
-  });
-
-  it("🚨 Haiku 11-06: yeni görev 'Yapılamıyor' durumunda AÇILAMAZ (400) — o durum kişinin kim / ne zaman kaydıyla gelir; KONTROL 'Yapılacak' açılır", async () => {
+  it("🚨 yeni görev 'Yapılamıyor' durumunda AÇILAMAZ (400); KONTROL 'Yapılacak' açılır", async () => {
     asOwner();
     const create = (status: string) =>
       CREATE_TASK(
@@ -190,45 +181,10 @@ describe("görev — 'Yapamıyorum'", () => {
     expect((await create("todo")).status).toBe(201);
   });
 
-  it("aynı kişi ikinci kez 'Yapamıyorum' derse (neden ekler) ikinci bildirim GİTMEZ — yalnız durum değişince bildirilir", async () => {
-    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
-    asStaff(ayse);
-    expect((await patch(taskId, { status: "blocked", note: "hastayım" })).status).toBe(200);
-    expect((await patch(taskId, { status: "blocked", note: "yarın da gelemem" })).status).toBe(200);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mail.sent).toHaveLength(1);
-    expect(await prisma.taskUpdate.count({ where: { taskId, status: "blocked" } })).toBe(2); // ikisi de zaman çizelgesinde
-  });
-
-  it("'Yapılamıyor' bağlı misafir sözünü KAPATMAZ (iş bitmedi)", async () => {
+  it("eski 'Yapılamıyor' bağlı misafir sözünü KAPATMAZ (iş bitmedi)", async () => {
     const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "G", channel: "airbnb" } });
     const c = await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: conv.id, kind: "cleaning", dueAt: dayDate(TODAY), taskId } });
-    asStaff(ayse);
-    await patch(taskId, { status: "blocked" });
+    await legacyBlocked();
     expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("open");
-  });
-});
-
-// Genel Prisma temsilcisine casus SONRAKİ testlere sızabilir → bu blok dosyanın EN SONUNDA (çalışma dersi).
-describe("görev — 'Yapamıyorum' kilitli satıra göre", () => {
-  it("🚨 Haiku 11-06: okuma ile yazma arasında görev BAŞKASINA atandıysa 'Yapamıyorum' yazılmaz (403; durum / kayıt yok)", async () => {
-    await resetDb();
-    __resetRateLimit();
-    const made = await makeOrgWithProperty();
-    const owner = await prisma.user.create({ data: { organizationId: made.orgId, name: "Sahip", email: "sahip-lk@example.test", passwordHash: "x", role: "owner" } });
-    const ayse = await prisma.user.create({ data: { organizationId: made.orgId, name: "Ayşe", email: "ayse-lk@example.test", passwordHash: "x", role: "staff" } });
-    const task = await prisma.task.create({
-      data: { propertyId: made.propertyId, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "todo", assignedToId: ayse.id },
-    });
-    session = { userId: owner.id, organizationId: made.orgId, role: "owner", email: owner.email, name: "Sahip", sessionEpoch: 0 } as SessionPayload;
-    // Rota ilk okumada görevi HÂLÂ sahibe atalı görür (bayat okuma); veritabanında görev Ayşe'de.
-    const spy = vi.spyOn(prisma.task, "findFirst").mockResolvedValueOnce({ id: task.id, assignedToId: owner.id, checklistJson: null } as never);
-    try {
-      expect((await patch(task.id, { status: "blocked" })).status).toBe(403);
-    } finally {
-      spy.mockRestore();
-    }
-    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe("todo");
-    expect(await prisma.taskUpdate.count({ where: { taskId: task.id } })).toBe(0);
   });
 });

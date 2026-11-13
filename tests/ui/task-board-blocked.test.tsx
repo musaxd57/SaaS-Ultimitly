@@ -3,8 +3,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act, within } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
-// Kurucu 11-05 gece — "Yapamıyorum": temizlikçi kartından bildirir (neden isteğe bağlı); ev sahibi kartta "Yapılamıyor" rozetini, kim /
-// ne zaman / neden satırını görür ve kartın üstünden BAŞKA BİRİNE atar. Kart "Yapılacak" sütununda durur (ev sahibinin işi).
+// "Yapamıyorum" düğmesi KALDIRILDI (kurucu 11-13; yerine yedek temizlikçi). Eski veride kalmış "Yapılamıyor" görev hâlâ okunur: ev sahibi
+// kartta rozeti, kim / ne zaman / neden satırını görür ve kartın üstünden BAŞKA BİRİNE atar; kart "Yapılacak" sütununda durur.
 // ---------------------------------------------------------------------------
 
 vi.mock("next/navigation", () => ({
@@ -52,24 +52,13 @@ async function settle() {
   });
 }
 
-describe("pano — 'Yapamıyorum'", () => {
-  it("🚨 temizlikçi: 'Yapamıyorum' → neden → 'Ev sahibine bildir' isteği {status: blocked, note}", async () => {
-    const calls = stubFetch();
+describe("pano — 'Yapamıyorum' kaldırıldı; eski 'Yapılamıyor' verisi", () => {
+  it("🚨 temizlikçinin kartında 'Yapamıyorum' düğmesi ve neden kutusu YOK; 'Başladım' duruyor (kontrol)", () => {
+    stubFetch();
     render(<TaskBoard tasks={[base]} canManage={false} />);
-    fireEvent.click(screen.getByRole("button", { name: /Yapamıyorum/ }));
-    fireEvent.change(screen.getByLabelText("Yapamama nedeni: Çıkış temizliği"), { target: { value: "hastayım" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ev sahibine bildir" }));
-    await settle();
-    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { status: "blocked", note: "hastayım" } }]);
-  });
-
-  it("neden boşsa yalnız durum gider (not satırı açılmaz)", async () => {
-    const calls = stubFetch();
-    render(<TaskBoard tasks={[base]} canManage={false} />);
-    fireEvent.click(screen.getByRole("button", { name: /Yapamıyorum/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Ev sahibine bildir" }));
-    await settle();
-    expect(calls[0].body).toEqual({ status: "blocked" });
+    expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ev sahibine bildir" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Başladım" })).toBeTruthy();
   });
 
   it("🚨 ev sahibi: 'Yapılamıyor' kartı Yapılacak sütununda, rozet + kim/ne zaman/neden satırı; kart üstünden başka birine atanır", async () => {

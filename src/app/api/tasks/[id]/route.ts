@@ -13,10 +13,9 @@ import { enqueueUnreferencedPhotoDeletions, photoStillAttachable } from "@/lib/s
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
-import { notifyAssignmentRemoved, notifyTaskBlocked } from "@/lib/tasks/notify";
-import { TASK_TYPE } from "@/lib/constants";
+import { notifyAssignmentRemoved } from "@/lib/tasks/notify";
 import { assignableTask } from "@/lib/readiness-list/evaluate";
-import { checklistTouched, TOUCHING_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { checklistTouched, WORK_TRACE_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -107,13 +106,6 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     return badRequest({ photoUrl: "Geçersiz görsel bağlantısı." });
   }
 
-  // "Yapamıyorum" yalnız görevin ATANDIĞI kişinin bildirimidir (Haiku 11-06: yönetici başkasının görevini "Yapılamıyor" yaparsa kart
-  // "<yönetici> yapamıyor" derdi). Yönetici kişiyi işten çekmek için görevi başka birine atar. Aynı istekte atama değişikliğiyle birlikte
-  // gelmez. Asıl karar işlem içinde KİLİTLİ satırdan (↓): arada görev başkasına atandıysa bildirim yazılmaz.
-  if (d.status === "blocked" && (existing.assignedToId !== session.userId || d.assignedToId !== undefined)) {
-    return forbidden("Yalnız görev atanan kişi 'Yapamıyorum' diyebilir.");
-  }
-
   // UX-10 D3: ön şart yalnız bir atamayla birlikte anlamlıdır (Girişler satırının gördüğü atanan).
   if (d.expectAssignedToId !== undefined && d.assignedToId === undefined) {
     return badRequest({ expectAssignedToId: "Atama olmadan ön şart gönderilemez." });
@@ -182,8 +174,6 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         prevStatus = row?.status ?? null;
         prevAssignee = row?.assignedToId ?? null;
         reassigned = d.assignedToId !== undefined && (d.assignedToId || null) !== (row?.assignedToId ?? null);
-        // "Yapamıyorum" kilitli satıra göre: görev artık bu kişiye atalı değilse hiçbir şey yazılmaz (yönetici de olsa).
-        if (d.status === "blocked" && (row?.assignedToId ?? null) !== session.userId) return null;
         // UX-10 D3: Girişler satırı bayat olabilir (telefonda saatlerce açık) — bu arada görev başkasına atandıysa ya da iş başladıysa /
         // bittiyse yazma YOK. Aksi hâlde dairenin temizlikçisi kuralıyla atanıp BAŞLAMIŞ kişi işin ortasında düşerdi (eski kişiye
         // "Görevlendirmeniz değişti" e-postası da giderdi). Kural Girişler'in düğme kuralıyla AYNI saf fonksiyon (`assignableTask`):
@@ -193,7 +183,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           if (!row) throw new TaskGone();
           if ((row.assignedToId ?? "") !== d.expectAssignedToId) throw new AssigneeChanged();
           const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`SELECT "checklistJson" FROM "Task" WHERE "id" = ${id}`;
-          const traces = await tx.taskUpdate.count({ where: { taskId: id, ...TOUCHING_TASK_UPDATE_WHERE } });
+          // "Başladı" izi: dar tanım (kurucu 11-13 — ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı iş sayılmaz).
+          const traces = await tx.taskUpdate.count({ where: { taskId: id, ...WORK_TRACE_TASK_UPDATE_WHERE } });
           if (!assignableTask({ status: row.status, touched: traces > 0 || checklistTouched(locked?.checklistJson ?? null) })) throw new TaskMovedOn();
         }
       }
@@ -256,7 +247,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     throw err;
   }
   if (!written) return notAssigned();
-  const { updated: task, prevStatus: prevStatusAtWrite, removedFrom, reassigned: reassignedAtWrite } = written;
+  const { updated: task, removedFrom, reassigned: reassignedAtWrite } = written;
   // "Yeni Görev" e-postası KİLİTLİ satıra göre (Opus 11-13 P3-7): atama gerçekten bu yazımla değiştiyse. Eskiden işlem DIŞI okumaya bakılıyordu —
   // iki yönetici yarışınca görev X'e dönüyor ama X'e "Yeni Görev" gitmiyordu (son haberi "görev sizden alındı" olarak kalıyordu). Kendine atama
   // e-posta göndermez ve tavandan saymaz (kurucu kararı 10-11).
@@ -266,20 +257,6 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // yöneticiye gitmez.
   if (removedFrom && removedFrom !== session.userId) {
     void notifyAssignmentRemoved(session.organizationId, removedFrom, [task.id]).catch((err) => void reportError("task-unassign-mail", err));
-  }
-
-  // "Yapamıyorum" (kurucu 11-05 gece): ev sahibine bildirim — anahtar (`STAFF_NOTIFY_ENABLED`) arkasında; en iyi çaba, yanıtı bekletmez.
-  if (d.status === "blocked" && prevStatusAtWrite !== "blocked") {
-    void notifyTaskBlocked({
-      organizationId: session.organizationId,
-      taskId: task.id,
-      reporterUserId: session.userId,
-      reporterName: session.name,
-      propertyName: task.property.name,
-      taskTypeLabel: TASK_TYPE.label(task.type),
-      dueAt: task.dueAt,
-      reason: d.note ? d.note.slice(0, 200) : null,
-    }).catch((err) => void reportError("task-blocked-mail", err));
   }
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi

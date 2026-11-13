@@ -5,7 +5,7 @@ import { emailService } from "@/lib/email";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
-import { assignmentRemovedEmail, taskAssignedEmail, taskBlockedEmail } from "@/lib/email-templates";
+import { assignmentRemovedEmail, taskAssignedEmail } from "@/lib/email-templates";
 import { TASK_TYPE } from "@/lib/constants";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { orgTimezone } from "@/lib/timezone";
@@ -23,49 +23,8 @@ export function staffNotifyEnabled(env: Record<string, string | undefined> = pro
   return env.STAFF_NOTIFY_ENABLED === "1";
 }
 
-/** Aynı görev için saatte en çok bu kadar "yapılamıyor" bildirimi (ileri-geri basma ev sahibinin kutusunu doldurmasın). */
-const BLOCKED_MAILS_PER_TASK_HOUR = 3;
-
-export interface TaskBlockedNotice {
-  organizationId: string;
-  taskId: string;
-  /** "Yapamıyorum" diyen kişi (kendisine gitmez). Denetim kaydının "eylemi yapan"ı DEĞİL — o `auditActor(session)`. */
-  reporterUserId: string;
-  reporterName: string;
-  propertyName: string;
-  taskTypeLabel: string;
-  /** Görevin vadesi (gün mülk takviminde, tek tarih kuralıyla yazılır). */
-  dueAt: Date | null;
-  /** Kişinin yazdığı neden (isteğe bağlı, kısaltılmış). */
-  reason: string | null;
-}
-
-/**
- * Atanan kişi "Yapamıyorum" dedi → işletmenin sahip / yöneticilerine e-posta (anahtar açıkken). En iyi çaba: hata görevi etkilemez, raporlanır.
- * Misafir adı / mesajı TAŞIMAZ (görev başlığı yerine tür + daire + gün).
- */
-export async function notifyTaskBlocked(n: TaskBlockedNotice): Promise<"sent" | "skipped"> {
-  if (!staffNotifyEnabled() || isDemoOrg(n.organizationId)) return "skipped";
-  if (!(await rateLimit(`task-blocked-mail:${n.taskId}`, BLOCKED_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
-  const managers = await prisma.user.findMany({
-    where: { organizationId: n.organizationId, role: { in: ["owner", "manager"] }, id: { not: n.reporterUserId } },
-    select: { email: true, name: true },
-  });
-  if (managers.length === 0) return "skipped";
-  const org = await prisma.organization.findUnique({ where: { id: n.organizationId }, select: { timezone: true } });
-  const tz = orgTimezone(org?.timezone);
-  const dueLabel = taskDueDayLabel(n.dueAt, tz);
-  const html = taskBlockedEmail({ ...n, dueLabel });
-  for (const m of managers) {
-    void emailService
-      .sendReporting(m.email, `Görev yapılamıyor: ${n.propertyName}`, html)
-      .then((res) => {
-        if (!res.ok) void reportError("task-blocked-mail", new Error(`task=${n.taskId} — 'yapılamıyor' bildirimi gönderilemedi`));
-      })
-      .catch((err) => void reportError("task-blocked-mail", err));
-  }
-  return "sent";
-}
+// "Yapamıyorum" bildirimi (eski `notifyTaskBlocked`) KALDIRILDI (kurucu 11-13: düğme kalktı; yerine yedek temizlikçi —
+// docs/TASARIM-2026-11-13-temizlikci-akisi-whatsapp-yedek.md).
 
 /** Aynı görev için saatte en çok bu kadar atama e-postası (elle atamanın tavanıyla AYNI anahtar — iki yol toplamda 3). */
 const ASSIGN_MAILS_PER_TASK_HOUR = 3;

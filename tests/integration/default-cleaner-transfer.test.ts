@@ -151,6 +151,27 @@ describe("K-1 — temizlikçi değişince SEÇEREK aktarma", () => {
     expect(await who((await cleaningFor(10)).id)).toBe(mehmet.id);
   });
 
+  it("🚨 kurucu 11-13: ev sahibinin yeniden atama kaydı 'iş başladı' sayılmaz — eski 'Yapılamıyor'dan geri alınmış görev aktarılır; personelin notu olan görev aktarılmaz (kontrol)", async () => {
+    const zeynep = await prisma.user.create({ data: { organizationId: orgId, name: "Zeynep", email: "zeynep-k1@example.test", passwordHash: "x", role: "staff" } });
+    const t1 = await cleaningFor(1);
+    const t2 = await cleaningFor(3);
+    // t1: Zeynep'teydi, eski "Yapılamıyor" (düğme kalktı — eski veri), ev sahibi Ayşe'ye verdi → "Yapılacak" + ev sahibinin kaydı.
+    await prisma.task.update({ where: { id: t1.id }, data: { assignedToId: zeynep.id, status: "blocked" } });
+    await prisma.taskUpdate.create({ data: { taskId: t1.id, userId: zeynep.id, status: "blocked", note: "hastayım" } });
+    // Ev sahibinin yeniden ataması — rotanın yazdığı biçim (görev rotası `task-blocked.test.ts`te ayrıca sınanır): "Yapılacak" + kişinin kaydı.
+    await prisma.task.update({ where: { id: t1.id }, data: { assignedToId: ayse.id, status: "todo" } });
+    await prisma.taskUpdate.create({ data: { taskId: t1.id, userId: owner.id, status: "todo", note: null, photoUrl: null } });
+    // t2: Ayşe not yazmış → gerçek iş izi.
+    await prisma.taskUpdate.create({ data: { taskId: t2.id, userId: ayse.id, status: null, note: "anahtarı aldım" } });
+    const cands = await transferCandidates(prisma, orgId, propertyId, ayse.id, new Date());
+    expect(cands.movable.map((t) => t.id)).toContain(t1.id);
+    expect(cands.movable.map((t) => t.id)).not.toContain(t2.id);
+    const res = await put(propertyId, { userId: mehmet.id, moveTaskIds: [t1.id, t2.id] });
+    expect(await res.json()).toEqual({ ok: true, userId: mehmet.id, moved: 1, skipped: 1 });
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: t1.id } })).assignedToId).toBe(mehmet.id);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: t2.id } })).assignedToId).toBe(ayse.id);
+  });
+
   it("'Yalnız kaydet' (boş seçim) → kural kaydedilir, HİÇBİR iş taşınmaz", async () => {
     const t1 = await cleaningFor(1);
     const res = await put(propertyId, { userId: mehmet.id, moveTaskIds: [] });

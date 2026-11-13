@@ -102,9 +102,6 @@ export function TaskBoard({
   members?: { id: string; name: string }[];
 }) {
   const router = useRouter();
-  // "Yapamıyorum" (kurucu 11-05 gece): atanan kişi işi yapamayacağını bildirir; görev silinmez, bitmiş sayılmaz, ev sahibi görür.
-  const [cantDoOpen, setCantDoOpen] = useState<string | null>(null);
-  const [cantDoReason, setCantDoReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
@@ -214,36 +211,6 @@ export function TaskBoard({
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev atanamadı.");
         return;
       }
-      startTransition(() => router.refresh());
-    } catch {
-      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  /** Atanan kişi: "Yapamıyorum" — neden isteğe bağlı. */
-  async function reportCantDo(id: string) {
-    setBusyId(id);
-    try {
-      const reason = cantDoReason.trim();
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reason ? { status: "blocked", note: reason } : { status: "blocked" }),
-      });
-      if (!res.ok) {
-        if (await handledStaleAssignment(res)) {
-          setCantDoOpen(null);
-          setCantDoReason("");
-          return;
-        }
-        toast.error(res.status === 403 ? "Bu görev size atanmamış." : "Bildirilemedi. Lütfen tekrar deneyin.");
-        return;
-      }
-      setCantDoOpen(null);
-      setCantDoReason("");
-      toast.success("Ev sahibine bildirildi.");
       startTransition(() => router.refresh());
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
@@ -569,54 +536,9 @@ export function TaskBoard({
           </button>
         ) : null}
 
-        {/* Atanan kişi: "Yapamıyorum" (görev silinmez, bitmiş sayılmaz; ev sahibi başka birine atar). */}
-        {!canManage && t.status !== "done" ? (
-          t.status === "blocked" ? (
-            <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız &ldquo;Başladım&rdquo;a basın.</p>
-          ) : cantDoOpen === t.id ? (
-            <div className="mt-2 space-y-1.5">
-              <textarea
-                value={cantDoReason}
-                onChange={(e) => setCantDoReason(e.target.value)}
-                maxLength={200}
-                rows={2}
-                placeholder="Neden? (isteğe bağlı)"
-                aria-label={`Yapamama nedeni: ${t.title}`}
-                className="w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => reportCantDo(t.id)}
-                  disabled={busyId === t.id}
-                  className="rounded bg-destructive px-2 py-1 text-[11px] font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50"
-                >
-                  Ev sahibine bildir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCantDoOpen(null);
-                    setCantDoReason("");
-                  }}
-                  className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
-                >
-                  Vazgeç
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setCantDoOpen(t.id);
-                setCantDoReason("");
-              }}
-              className="mt-1.5 flex items-center gap-1 py-1 text-xs font-medium text-destructive hover:underline"
-            >
-              <AlertTriangle className="size-3" /> Yapamıyorum
-            </button>
-          )
+        {/* "Yapamıyorum" KALDIRILDI (kurucu 11-13). Eski veride "Yapılamıyor" kalmış görev için personele sakin bilgi. */}
+        {!canManage && t.status === "blocked" ? (
+          <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız &ldquo;Başladım&rdquo;a basın.</p>
         ) : null}
 
         {/* Detail toggle — keeps the card compact (note input + photo hidden). Dokunma alanı 27 px (yazı 15 px'ti; temizlikçi telefonda

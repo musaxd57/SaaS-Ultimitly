@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { taskDueDayRangeWhere } from "@/lib/day-where";
 import { todayKey } from "@/modules/availability/core";
-import { checklistTouched, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { checklistTouched, UNSTARTED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 // ---------------------------------------------------------------------------
 // DAİRENİN TEMİZLİKÇİSİ (kurucu 11-05 gece: "daireye temizlikçiyi bir kez belirleyince, sonraki temizlikler ayrıca kabul beklemeden onun
@@ -107,7 +107,7 @@ export async function saveDefaultCleaner(
         if (untouched.length > 0) {
           await tx.task.updateMany({
             // Aday okuması kilitsizdi: arada kişi işe başladıysa / not yazdıysa tanım KİLİT altında yeniden uygulanır.
-            where: { id: { in: untouched }, assignedToId: from, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE },
+            where: { id: { in: untouched }, assignedToId: from, ...UNSTARTED_AUTO_LIFECYCLE_TASK_WHERE },
             data: { assignedToId: userId },
           });
         }
@@ -199,8 +199,8 @@ export async function transferCandidates(
 export const __defaultCleanerHooks: { afterCandidates?: (ids: string[]) => Promise<void> | void } = {};
 
 /**
- * Bu kişide duran, bu dairenin "Yapılamıyor" dediği ya da DOKUNULMAMIŞ (projenin tek tanımı `UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE`: durum "Yapılacak", kişinin yazdığı
- * güncelleme / fotoğraf yok, kontrol listesi işaretsiz — Haiku 11-06: not / fotoğraf / işaret almış iş başlanmış sayılır), sistemin açtığı,
+ * Bu kişide duran, eski "Yapılamıyor" ya da BAŞLANMAMIŞ (`UNSTARTED_AUTO_LIFECYCLE_TASK_WHERE`: durum "Yapılacak", iş izi yok — not / fotoğraf /
+ * Başladım / kontrol listesi işareti iş sayılır; ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı sayılmaz, kurucu 11-13), sistemin açtığı,
  * bugün ya da sonrası vadeli temizlik görevleri (gün tek tarih kuralının sorgu ikiziyle, işletme diliminde).
  */
 export async function openFutureCleaningIds(db: Db, organizationId: string, propertyId: string, userId: string, now: Date): Promise<string[]> {
@@ -214,7 +214,7 @@ export async function openFutureCleaningIds(db: Db, organizationId: string, prop
       assignedToId: userId,
       AND: [
         taskDueDayRangeWhere({ from: todayKey(now, tz), to: null }, tz),
-        { OR: [UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE, { status: "blocked", origin: "system" }] },
+        { OR: [UNSTARTED_AUTO_LIFECYCLE_TASK_WHERE, { status: "blocked", origin: "system" }] },
       ],
     },
     select: { id: true },

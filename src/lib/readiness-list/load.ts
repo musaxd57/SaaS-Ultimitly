@@ -20,10 +20,11 @@ import { lifecycleBaselineWhere } from "@/lib/automation";
 import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { loadErasureGuard } from "@/lib/erasure";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
-import { checklistTouched, TOUCHING_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { checklistTouched, WORK_TRACE_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 // UX-10 D3: görevde kişi izi (temizlikçi değişimindeki aktarımla AYNI tanım: kişinin kaydı / fotoğraf ya da işaretli kontrol listesi maddesi).
-const TOUCHING_UPDATE_WHERE = TOUCHING_TASK_UPDATE_WHERE;
+// Girişler'den atamanın "başladı" izi — rotanın kilitli kontrolüyle AYNI dar tanım (kurucu 11-13; onarımın geniş tanımı değil).
+const TOUCHING_UPDATE_WHERE = WORK_TRACE_TASK_UPDATE_WHERE;
 const taskTouched = (t: { checklistJson: string | null; _count: { updates: number } }): boolean => t._count.updates > 0 || checklistTouched(t.checklistJson);
 
 // ---------------------------------------------------------------------------

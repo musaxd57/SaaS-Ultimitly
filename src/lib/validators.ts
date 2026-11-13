@@ -243,7 +243,12 @@ export const taskSchema = z.object({
 export type TaskInput = z.infer<typeof taskSchema>;
 
 export const taskUpdateSchema = z.object({
-  status: z.enum(TASK_STATUS.values).optional(),
+  // "Yapamıyorum" KALDIRILDI (kurucu 11-13: "gereksiz bir düğme"; yerine yedek temizlikçi) — yeni "Yapılamıyor" yazılamaz. Eski veri
+  // okunur ve yeniden atanınca "Yapılacak"a döner (rota).
+  status: z
+    .enum(TASK_STATUS.values)
+    .refine((s) => s !== "blocked", "Bu durum artık seçilemez.")
+    .optional(),
   assignedToId: z.string().optional(),
   // UX-10 D3 (Girişler'den atama): satırın gördüğü atanan — boş dize = "atanmamış bekliyorum". Tutmazsa 409 (`api/tasks/[id]`).
   expectAssignedToId: z.string().max(64).optional(),
