@@ -1,34 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { needMetrics, scoreNeeds, type NeedResult, type NeedSpec } from "./need-scoring";
-import { armText, checkRequest, isRawResult, normalizeForQuote, numberTokens, numbersOf, sameNumber, sourceTextOf, type RawArm, type RawCheckIssue, type RawNote, type RawRequest, type RawResult } from "./raw-arm";
+import type { NeedSpec } from "./need-scoring";
+import { armText, checkRequest, isRawResult, normalizeForQuote, numberTokens, numbersOf, sameNumber, sourceTextOf, type RawCheckIssue, type RawNote, type RawRequest, type RawResult } from "./raw-arm";
+import { RAW_ARMS, RAW_DEV_SETS, renderRawReport, reportLabel, scoreRawSet, scoredScenarios, type RawDevSet, type RawRow } from "./raw-arm-score";
 
 // ---------------------------------------------------------------------------
-// HAM MODEL KOLU ↔ ÜRÜN (katman atfı; kurucu / Codex 11-12).
+// HAM MODEL KOLU ↔ ÜRÜN (katman atfı; kurucu / Codex 11-12) — ÇEVRİMDIŞI PİNLER (her `npm test`te koşar; model çağrısı yok).
 //
-// İki kısım:
-//  1. Mekanik denetimin çevrimdışı pinleri (her `npm test`te koşar; model çağrısı yok).
-//  2. Rapor: `RAW_ARM_DIR` verilirse o klasördeki ham çıktıları (`<set>.json` — `scripts/claude-work/run.ts` `raw_baseline` üretir) GELİŞTİRME
-//     setlerinin insan yazımı ihtiyaç listesiyle, ürün ölçerinin AYNI cetveliyle (`need-scoring.ts`) puanlar; üç kol yan yana:
-//       ham (kapısız) · ham + yalnız mekanik denetim · ham + mekanik + modelin varlık / koşul beyanı.
-//     `RAW_ARM_LABEL` rapor adına girer (ör. model adı). Model ÇAĞIRMAZ; ücretsiz.
+//  1. Mekanik denetim (`raw-arm.ts`): alıntı notta mı, sayı alıntıda mı, modelin varlık / koşul beyanı.
+//  2. Puanlama çekirdeği (`raw-arm-score.ts`): ham çıktıların ürün ölçerinin AYNI cetveliyle (`need-scoring.ts`) üç kolda puanlanması ve
+//     rapor metni — kurgusal küçük bir setle.
 //
-// 🚨 Yalnız geliştirme setleri (aşağıdaki sabit liste). Mühürlü / kör setler bu ölçere hiç girmez.
+// Raporun KENDİSİ bir test değildir (11-13, CI 1797: "ortam değişkeni yoksa atla" diye yazılmış rapor testi CI'ın atlanan test tabanını
+// aşıyordu; o denetim artık yerel kapıda da koşar): `npx tsx tests/eval/raw-arm-report.ts <ham çıktı dizini> [etiket] [çıktı dizini]`.
+//
+// 🚨 Yalnız geliştirme setleri (`RAW_DEV_SETS`). Mühürlü / kör setler bu ölçere hiç girmez.
 // ---------------------------------------------------------------------------
-
-const DEV_SETS = ["grounding-dev", "turn-messages-dev"] as const;
-
-interface DevSet {
-  property: Record<string, unknown>;
-  kbSets: Record<string, RawNote[]>;
-  scenarios: { id: string; class?: string; lang?: string; kb: string; message: string; expect: { needs?: NeedSpec[] } }[];
-}
-interface RawRow {
-  id: string;
-  result: unknown;
-  model?: string | null;
-}
 
 const NOTES: RawNote[] = [
   { category: "amenities", title: "Havuz", content: "Havuz hafta sonu 09:00–23:00 arası açıktır." },
@@ -204,9 +192,9 @@ describe("ham model kolu — mekanik denetim (çevrimdışı)", () => {
   });
 
   it("setler: geliştirme setlerinin her senaryosunda ihtiyaç listesi var; ölçer yalnız bu iki seti tanır", () => {
-    expect([...DEV_SETS]).toEqual(["grounding-dev", "turn-messages-dev"]);
-    for (const set of DEV_SETS) {
-      const data = JSON.parse(readFileSync(path.join(process.cwd(), "evals", `${set}.json`), "utf8")) as DevSet;
+    expect([...RAW_DEV_SETS]).toEqual(["grounding-dev", "turn-messages-dev"]);
+    for (const set of RAW_DEV_SETS) {
+      const data = JSON.parse(readFileSync(path.join(process.cwd(), "evals", `${set}.json`), "utf8")) as RawDevSet;
       expect(data.scenarios.length).toBeGreaterThan(10);
       for (const s of data.scenarios) {
         expect(s.expect.needs?.length, `${set} ${s.id}`).toBeGreaterThan(0);
@@ -216,89 +204,110 @@ describe("ham model kolu — mekanik denetim (çevrimdışı)", () => {
   });
 });
 
-// ── Rapor (ücretsiz; ham çıktılar hazırsa) ─────────────────────────────────────────────────────────────────────────────────────────────
-const RAW_DIR = process.env.RAW_ARM_DIR?.trim() || "";
-const ARMS: { arm: RawArm; label: string }[] = [
-  { arm: "raw", label: "ham model (kapısız)" },
-  { arm: "mechanical", label: "ham + yalnız mekanik denetim (alıntı notta · sayı alıntıda)" },
-  { arm: "declared", label: "ham + mekanik + modelin varlık / koşul beyanı" },
+// ── Puanlama çekirdeği (kurgusal set; gerçek ham çıktı gerekmez) ─────────────────────────────────────────────────────────────────────────
+const need = (over: Partial<NeedSpec> & Pick<NeedSpec, "kind" | "want">): NeedSpec => over;
+const SET: RawDevSet = {
+  property: JSON.parse(PROPERTY) as Record<string, unknown>,
+  kbSets: { A: NOTES },
+  scenarios: [
+    { id: "s1", class: "dogrudan", kb: "A", message: "Havuz kaça kadar açık?", expect: { needs: [need({ kind: "amenity", want: "answered", all: ["23[:.]00"], about: ["havuz"] })] } },
+    { id: "s2", kb: "A", message: "Transfer ne kadar?", expect: { needs: [need({ kind: "transfer", want: "answered", all: ["900"], about: ["transfer"] })] } },
+    { id: "s3", kb: "A", message: "En yakın eczane nerede?", expect: { needs: [need({ kind: "local", want: "open", forbid: ["150"] })] } },
+    { id: "s4", kb: "A", message: "Otopark var mı?", expect: { needs: [need({ kind: "parking", want: "open", forbid: ["otopark"] })] } },
+    { id: "s5", kb: "A", message: "Kahvaltı var mı?", expect: { needs: [need({ kind: "breakfast", want: "open", forbid: ["kahvalt"] })] } },
+  ],
+};
+const one = (r: RawRequest): RawResult => ({ requests: [r], reply: r.sentence, would_send: true });
+const ROWS: RawRow[] = [
+  // s1 — doğru cevap, alıntı notta, sayı alıntıda.
+  { id: "s1", result: one(req({})) },
+  // s2 — yanlış tutar (not 900 der, cümle 950): yalnız mekanik denetim görür.
+  { id: "s2", result: one(req({ entity_asked: "transfer", entity_in_source: "transfer", evidence_note: "N3", evidence_quote: "Havalimanından tek yön transfer 900 TL’dir", sentence: "Transferimiz 950 TL." })) },
+  // s3 — eczane sorusuna market notu: alıntı ve sayı yerinde (mekanik denetim GEÇER), modelin kendi beyanı "aynı varlık değil".
+  { id: "s3", result: one(req({ entity_asked: "eczane", entity_in_source: "market", same_entity: "no", evidence_note: "N2", evidence_quote: "En yakın market 150 metre uzaklıktadır.", sentence: "Eczanemiz 150 metre uzaklıkta." })) },
+  // s4 — ham çıktısı YOK. s5 — şema dışı çıktı.
+  { id: "s5", result: { requests: "yok", reply: "x", would_send: true } },
 ];
 
-describe.skipIf(RAW_DIR === "")("ham model kolu — rapor", () => {
-  it("geliştirme setlerini üç kolda puanlar ve raporu yazar", () => {
-    const label = (process.env.RAW_ARM_LABEL?.trim() || "model").replace(/[^a-z0-9.-]+/gi, "-");
-    const lines: string[] = [
-      `# Ham model kolu — ${label}`,
-      "",
-      "Aynı misafir mesajı + aynı notlarla, ürünün kapıları olmadan modelin kendi kararı; ürün ölçerinin ihtiyaç cetveliyle (`tests/eval/need-scoring.ts`) puanlandı.",
-      "Kollar: ham (hiçbir denetim) · yalnız kodun sınayabildiği denetim · ek olarak modelin varlık / koşul beyanı. Sözcük / kök sözlüğü yok.",
-      "Ürün kolundan farkı: ham kolda öğe defteri yoktur — yalnız GİDEN METİN puanlanır; ürün kolunda ek olarak \"öğe cevaplandı sayıldı ama değer gitmedi\" yanlışı da sayılır.",
-      "",
-    ];
-    let scoredSets = 0;
-    const sidecar: Record<string, unknown> = { label, sets: {} };
-    for (const set of DEV_SETS) {
-      const rawPath = path.join(RAW_DIR, `${set}.json`);
-      if (!existsSync(rawPath)) {
-        lines.push(`## ${set}`, "", "ham çıktı yok — atlandı", "");
-        continue;
-      }
-      const data = JSON.parse(readFileSync(path.join(process.cwd(), "evals", `${set}.json`), "utf8")) as DevSet;
-      const rows = JSON.parse(readFileSync(rawPath, "utf8")) as RawRow[];
-      const byId = new Map(rows.map((r) => [r.id, r]));
-      const propertyJson = JSON.stringify(data.property);
-      const perArm = new Map<RawArm, NeedResult[]>(ARMS.map((a) => [a.arm, []]));
-      const issueCounts: Record<string, number> = {};
-      const detail: Record<string, unknown>[] = [];
-      let missing = 0;
-      let malformed = 0;
-      let requests = 0;
-      for (const s of data.scenarios) {
-        const row = byId.get(s.id);
-        if (!row) {
-          missing += 1;
-          continue;
-        }
-        if (!isRawResult(row.result)) {
-          malformed += 1;
-          continue;
-        }
-        const result = row.result;
-        const notes = data.kbSets[s.kb] ?? [];
-        const needs = s.expect.needs ?? [];
-        const checks = result.requests.map((r) => ({ request: r.request_tr, decision: r.decision, issues: checkRequest(r, notes, propertyJson) }));
-        requests += result.requests.length;
-        for (const c of checks) for (const i of c.issues) if (i !== "not_answer") issueCounts[i] = (issueCounts[i] ?? 0) + 1;
-        const armOut: Record<string, unknown> = {};
-        for (const { arm } of ARMS) {
-          const text = armText(result, arm, notes, propertyJson);
-          const scored = scoreNeeds(needs, text, []);
-          perArm.get(arm)!.push(...scored);
-          armOut[arm] = { text, needs: scored.map((n) => `${n.kind}:${n.want}${n.wrongAnswered ? "✖YANLIŞ" : n.textOk ? "✔" : "✖"}`) };
-        }
-        detail.push({ id: s.id, class: s.class ?? null, message: s.message, checks, arms: armOut });
-      }
-      lines.push(`## ${set}`, "", `Senaryo ${data.scenarios.length} · ham çıktısı olmayan ${missing} · biçimi bozuk ${malformed} · modelin çıkardığı istek ${requests}`, "");
-      lines.push("| Kol | Doğru cevap | Gereksiz tutma | Açık kaldı | 🚨 Yanlış gönderim |", "|---|---|---|---|---|");
-      const metricsOut: Record<string, unknown> = {};
-      for (const { arm, label: armLabel } of ARMS) {
-        const m = needMetrics(perArm.get(arm)!);
-        metricsOut[arm] = m;
-        lines.push(`| ${armLabel} | ${m.answeredOk} / ${m.answered} | ${m.needlessHold} | ${m.openOk} / ${m.open} | **${m.wrong}** |`);
-      }
-      lines.push("", `Denetimin düşürdüğü cümleler (sebep → sayı): ${Object.entries(issueCounts).map(([k, v]) => `${k} ${v}`).join(" · ") || "yok"}`, "");
-      (sidecar.sets as Record<string, unknown>)[set] = { scenarios: data.scenarios.length, missing, malformed, requests, metrics: metricsOut, issueCounts, detail };
-      // Rapor boş çıkmasın: en az bir senaryo puanlanmış olmalı.
-      expect(data.scenarios.length - missing - malformed, `${set}: puanlanan senaryo`).toBeGreaterThan(0);
-      scoredSets += 1;
-    }
-    // Klasör adı yanlışsa (hiç ham çıktı bulunamadı) koşu yeşil kalmaz.
-    expect(scoredSets, `RAW_ARM_DIR içinde ham çıktı bulunamadı: ${RAW_DIR}`).toBeGreaterThan(0);
-    const outDir = process.env.RAW_ARM_OUT?.trim() || path.join(process.cwd(), "docs", "olcum");
-    mkdirSync(outDir, { recursive: true });
-    const base = `raw-arm-${new Date().toISOString().slice(0, 10)}-${label}`;
-    writeFileSync(path.join(outDir, `${base}.md`), `${lines.join("\n")}\n`, "utf8");
-    writeFileSync(path.join(outDir, `${base}.json`), `${JSON.stringify(sidecar, null, 2)}\n`, "utf8");
-    console.log(lines.join("\n"));
+describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
+  it("üç kol aynı ham çıktıdan ayrışır: ham 2 yanlış · mekanik 1 yanlış + 1 tutma · beyanla 0 yanlış", () => {
+    const score = scoreRawSet(SET, ROWS);
+    expect(score).toMatchObject({ scenarios: 5, missing: 1, malformed: 1, requests: 3 });
+    expect(scoredScenarios(score)).toBe(3);
+    // ham: doğru havuz cevabı + yanlış tutar + yanlış varlık hepsi gider.
+    expect(score.metrics.raw).toMatchObject({ answered: 2, answeredOk: 1, needlessHold: 0, open: 1, openOk: 0, wrong: 2 });
+    // mekanik: 950 alıntıda yok → transfer cümlesi düşer (tur gitmez = tutma); eczane cümlesi mekanik denetimi geçer → hâlâ yanlış.
+    expect(score.metrics.mechanical).toMatchObject({ answered: 2, answeredOk: 1, needlessHold: 1, open: 1, openOk: 0, wrong: 1 });
+    // beyan: "aynı varlık değil" → eczane cümlesi de düşer.
+    expect(score.metrics.declared).toMatchObject({ answered: 2, answeredOk: 1, needlessHold: 1, open: 1, openOk: 1, wrong: 0 });
+    // Düşürme sebepleri: istek başına bir kez, kol başına DEĞİL.
+    expect(score.issueCounts).toEqual({ value_not_in_quote: 1, entity_mismatch: 1 });
+  });
+
+  it("ayrıntı satırı: puanlanan her senaryo için mesaj, denetim sonucu ve kol metinleri (eksik / bozuk satır ayrıntıya girmez)", () => {
+    const score = scoreRawSet(SET, ROWS);
+    expect(score.detail.map((d) => d.id)).toEqual(["s1", "s2", "s3"]);
+    expect(score.detail[0]).toMatchObject({ id: "s1", class: "dogrudan", message: "Havuz kaça kadar açık?" });
+    expect(score.detail[1]).toMatchObject({ class: null, checks: [{ decision: "answer", issues: ["value_not_in_quote"] }] });
+    const arms = score.detail[1].arms as Record<string, { text: string | null; needs: string[] }>;
+    expect(arms.raw).toEqual({ text: "Transferimiz 950 TL.", needs: ["transfer:answered✖YANLIŞ"] });
+    expect(arms.mechanical).toEqual({ text: null, needs: ["transfer:answered✖"] });
+    expect((score.detail[0].arms as typeof arms).declared.needs).toEqual(["amenity:answered✔"]);
+  });
+
+  it("'cevap değil' kararı düşürme sayılmaz; modelin açık bıraktığı istek üç kolda da açık kalır", () => {
+    const rows: RawRow[] = [{ id: "s3", result: { requests: [req({ decision: "no_source", sentence: "" })], reply: "", would_send: false } }];
+    const score = scoreRawSet(SET, rows);
+    expect(score.issueCounts).toEqual({});
+    expect(score.missing).toBe(4);
+    for (const { arm } of RAW_ARMS) expect(score.metrics[arm]).toMatchObject({ open: 1, openOk: 1, wrong: 0 });
+  });
+
+  it("rapor: set başına tablo (üç kol) + düşürme sebepleri; ham çıktısı olmayan set 'atlandı' yazar ve puanlanmış sayılmaz", () => {
+    const score = scoreRawSet(SET, ROWS);
+    const report = renderRawReport("fable-5.2", { "grounding-dev": score, "turn-messages-dev": null });
+    const text = report.lines.join("\n");
+    expect(report.lines[0]).toBe("# Ham model kolu — fable-5.2");
+    expect(text).toContain("## grounding-dev\n\nSenaryo 5 · ham çıktısı olmayan 1 · biçimi bozuk 1 · modelin çıkardığı istek 3");
+    expect(text).toContain("| ham model (kapısız) | 1 / 2 | 0 | 0 / 1 | **2** |");
+    expect(text).toContain("| ham + yalnız mekanik denetim (alıntı notta · sayı alıntıda) | 1 / 2 | 1 | 0 / 1 | **1** |");
+    expect(text).toContain("| ham + mekanik + modelin varlık / koşul beyanı | 1 / 2 | 1 | 1 / 1 | **0** |");
+    expect(text).toContain("Denetimin düşürdüğü cümleler (sebep → sayı): value_not_in_quote 1 · entity_mismatch 1");
+    expect(text).toContain("## turn-messages-dev\n\nham çıktı yok — atlandı");
+    expect(report).toMatchObject({ scoredSets: 1, emptySets: [] });
+    expect(Object.keys(report.sidecar.sets)).toEqual(["grounding-dev"]);
+    expect(report.sidecar.label).toBe("fable-5.2");
+    // Düşürme yoksa "yok" yazar.
+    const clean = renderRawReport("m", { "grounding-dev": scoreRawSet(SET, [ROWS[0]]), "turn-messages-dev": null });
+    expect(clean.lines.join("\n")).toContain("(sebep → sayı): yok");
+  });
+
+  it("🚨 boş rapor yeşil sayılmaz: hiç ham çıktı yok → puanlanan set 0; çıktısı var ama tek senaryosu puanlanamayan set ayrı listelenir", () => {
+    expect(renderRawReport("m", { "grounding-dev": null, "turn-messages-dev": null })).toMatchObject({ scoredSets: 0, emptySets: [] });
+    const allBroken = scoreRawSet(SET, [{ id: "s1", result: null }]);
+    expect(scoredScenarios(allBroken)).toBe(0);
+    expect(renderRawReport("m", { "grounding-dev": allBroken, "turn-messages-dev": null })).toMatchObject({ scoredSets: 0, emptySets: ["grounding-dev"] });
+    // Listede olmayan set adı rapora GİRMEZ (set adı çağırandan alınmaz).
+    const stray = renderRawReport("m", { "baska-set": scoreRawSet(SET, ROWS) });
+    expect(stray.scoredSets).toBe(0);
+    expect(stray.lines.join("\n")).not.toContain("baska-set");
+  });
+
+  it("etiket dosya adına uygun karakterlere iner; boşsa 'model'", () => {
+    expect(reportLabel("fable-5.2")).toBe("fable-5.2");
+    expect(reportLabel(" gpt 5.1 / ham ")).toBe("gpt-5.1-ham");
+    expect(reportLabel("../../etc")).toBe("..-..-etc");
+    expect(reportLabel(undefined)).toBe("model");
+    expect(reportLabel("  ")).toBe("model");
+  });
+
+  it("🚨 rapor kabuğu set adını komut satırından almaz: okunan set dosyaları yalnız sabit geliştirme listesinden kurulur", () => {
+    const cliPath = path.join(process.cwd(), "tests", "eval", "raw-arm-report.ts");
+    expect(existsSync(cliPath)).toBe(true);
+    const cli = readFileSync(cliPath, "utf8");
+    // Okunan set dosyaları yalnız sabit listeden kurulur; `evals/` altında başka bir yol yazılmaz.
+    expect(cli).toContain("for (const set of RAW_DEV_SETS)");
+    expect(cli.match(/"evals"/g)?.length).toBe(1);
+    expect(cli).not.toMatch(/sealed|blind|holdout|kabul/i);
   });
 });

@@ -8,7 +8,7 @@
 // Raporlar AÇIK adlarla okunur (`db-1.json` … `nodb.json`, `timing.json` + `<ad>.meta.json`); joker yok.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { verifyReports, skippedPerFile } from "./ci-verify-core.mjs";
+import { verifyReports, skippedPerFile, validSkipBaseline } from "./ci-verify-core.mjs";
 import { listTestFiles, partitionTestFiles } from "../tests/test-partition.mjs";
 import { CI_DB_SHARDS, CI_REQUIRED_JOBS, dbShards, parseShard } from "../tests/ci-shards.mjs";
 
@@ -27,7 +27,7 @@ const report = (dir, name) => ({ label: name, json: readJson(join(dir, `${name}.
 const BASELINE_PATH = join(root, "tests/ci-skip-baseline.json");
 function baseline() {
   const b = readJson(BASELINE_PATH);
-  if (!b || typeof b !== "object" || Array.isArray(b) || Object.values(b).some((n) => !Number.isInteger(n) || n < 0)) {
+  if (!validSkipBaseline(b)) {
     console.log(`── KIRMIZI: ${BASELINE_PATH} yok ya da bozuk (dosya → atlanan test sayısı)`);
     process.exit(1);
   }

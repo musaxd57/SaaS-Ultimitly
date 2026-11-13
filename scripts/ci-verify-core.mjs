@@ -26,6 +26,14 @@ export function skippedPerFile(json, root) {
 }
 
 /**
+ * Atlanan test tabanı geçerli mi: dosya → negatif olmayan tam sayı. Yok / bozuk taban "hiç atlama yok" SAYILMAZ; çağıran kırmızıya döner
+ * (CI: `ci-verify.mjs`, yerel kapı: `test-gate-verify.mjs`).
+ */
+export function validSkipBaseline(b) {
+  return !!b && typeof b === "object" && !Array.isArray(b) && Object.values(b).every((n) => Number.isInteger(n) && n >= 0);
+}
+
+/**
  * @param {{ expectedFiles: string[], reports: { label: string, json: any, meta: any }[], skipBaseline: Record<string, number>,
  *           sha: string, root: string, needs?: Record<string, { result: string }> | null, requiredJobs?: string[],
  *           checkBaselineFiles?: boolean }} input
