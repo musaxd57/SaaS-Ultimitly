@@ -129,6 +129,7 @@ export function PaddlePlans({
   grandfathered,
   active = true,
   trialDaysLeft = null,
+  trialEndsLabel = null,
   manageable = false,
   planChangeEnabled = false,
   annualAvailable = false,
@@ -153,6 +154,8 @@ export function PaddlePlans({
    *  is "owned" so every card stays payable — the user can re-subscribe. */
   active?: boolean;
   trialDaysLeft?: number | null;
+  /** Deneme bitiş tarihi ("18 Kasım"), işletmenin saat diliminde (UX-8: kalan günün yanında tarih). */
+  trialEndsLabel?: string | null;
   /** True when the org has a live Paddle subscription that can be managed via the
    *  hosted customer portal. Locks NEW checkout (so an active subscriber can't
    *  start a second subscription) and surfaces the "manage subscription" button. */
@@ -605,7 +608,7 @@ export function PaddlePlans({
             —{" "}
             <strong className="text-foreground">
               {trialDaysLeft > 0
-                ? `ücretsiz deneme, ${trialDaysLeft} gün kaldı`
+                ? `ücretsiz deneme, ${trialDaysLeft} gün kaldı${trialEndsLabel ? ` (bitiş: ${trialEndsLabel})` : ""}`
                 : "ücretsiz deneme süreniz doldu"}
             </strong>
           </>

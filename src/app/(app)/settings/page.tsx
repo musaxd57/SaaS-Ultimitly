@@ -50,6 +50,7 @@ import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { hostCommitmentAutoEnabled } from "@/lib/guest-commitments-core";
 import { orgTimezone } from "@/lib/timezone";
+import { trialEndLabel } from "@/lib/billing/trial-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -541,6 +542,7 @@ export default async function SettingsPage({
               grandfathered={entitlement.grandfathered}
               active={entitlement.active}
               trialDaysLeft={entitlement.trialDaysLeft}
+              trialEndsLabel={entitlement.trialEndsAt ? trialEndLabel(new Date(entitlement.trialEndsAt), orgTimezone(org?.timezone)) : null}
               manageable={canManagePaddleSub}
               planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
               locale={appLocale()}

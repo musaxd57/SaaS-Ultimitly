@@ -8,7 +8,8 @@ import { isSuperAdmin } from "@/lib/admin";
 import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
 import { TrialBanner } from "@/components/billing/trial-banner";
-import { showTrialBanner, TRIAL_BANNER_COOKIE } from "@/lib/billing/trial-banner";
+import { showTrialBanner, TRIAL_BANNER_COOKIE, trialBannerStage, trialEndDayWord, trialEndLabel } from "@/lib/billing/trial-banner";
+import { orgTimezone } from "@/lib/timezone";
 import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
 import { resumeEnabled } from "@/lib/billing/resume";
 import { TRIAL_CARD_REQUIRED_MESSAGE } from "@/lib/billing/trial-card-gate";
@@ -38,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       sessionEpoch: true,
       memberships: {
         ...sessionMembershipInclude(session.organizationId),
-        select: { id: true, role: true, status: true, epoch: true, organization: { select: { name: true } } },
+        select: { id: true, role: true, status: true, epoch: true, organization: { select: { name: true, timezone: true } } },
       },
     },
   });
@@ -67,19 +68,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // (impersonating / super-admin) and grandfathered/active orgs stay active.
   const entitlement = await getEntitlement(session.organizationId);
   const isOperator = Boolean(session.actorUserId) || isSuperAdmin(session);
-  const limited = billingEnforced() && !entitlement.active && !isOperator;
-  // Deneme bandı 4 saat kapatılabilir (çerez sunucuda okunur → kapatılmış bant yenilemede hiç çizilmez).
+  const enforced = billingEnforced();
+  const limited = enforced && !entitlement.active && !isOperator;
+  // Deneme bandı (UX-8): son 7 günde kademeli; kapatma aşamaya göre 24 / 12 / 4 saat (çerez sunucuda okunur → kapatılmış bant yenilemede
+  // hiç çizilmez; çerezin değeri kapatıldığı aşama, aşama değişince bant yeniden görünür). Süre dolunca yalnız faturalandırma zorunluysa.
   const trialBanner = showTrialBanner({
     trialing: entitlement.trialing,
     daysLeft: entitlement.trialDaysLeft,
-    snoozed: (await cookies()).get(TRIAL_BANNER_COOKIE)?.value === "1",
+    snoozedStage: (await cookies()).get(TRIAL_BANNER_COOKIE)?.value,
+    enforced,
   });
+  const tz = orgTimezone(org.timezone);
+  const trialEnds = entitlement.trialEndsAt ? new Date(entitlement.trialEndsAt) : null;
 
   // Sidebar plan summary — OWNER only (billing is an account-owner concern; the
   // Faturalandırma settings section is owner-only too). A trial shows the days left.
   const planLabel =
     entitlement.trialing && entitlement.trialDaysLeft != null
-      ? `${entitlement.planName} · deneme ${entitlement.trialDaysLeft}g`
+      ? entitlement.trialDaysLeft > 0 && trialBannerStage(entitlement.trialDaysLeft) === "last"
+        ? `${entitlement.planName} · son gün`
+        : entitlement.trialDaysLeft > 0
+          ? `${entitlement.planName} · deneme ${entitlement.trialDaysLeft}g`
+          : entitlement.planName
       : entitlement.planName;
 
   return (
@@ -108,7 +118,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           cardRequiredMessage={entitlement.cardRequired ? TRIAL_CARD_REQUIRED_MESSAGE : null}
         />
       ) : trialBanner && entitlement.trialDaysLeft != null ? (
-        <TrialBanner daysLeft={entitlement.trialDaysLeft} />
+        <TrialBanner
+          daysLeft={entitlement.trialDaysLeft}
+          endsLabel={trialEnds ? trialEndLabel(trialEnds, tz) : null}
+          endsDayWord={trialEnds ? trialEndDayWord(trialEnds, new Date(), tz) : null}
+          automationStops={enforced}
+        />
       ) : null}
       {children}
     </AppShell>

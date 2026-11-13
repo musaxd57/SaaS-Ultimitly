@@ -553,7 +553,7 @@ export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string, tria
     </p>
     ${ctaButton(settingsUrl, "Planları görün")}
     <p style="margin:0;color:#94a3b8;font-size:13px;">
-      Kartınızdan deneme boyunca hiçbir ücret alınmadı. İstediğiniz zaman seçebilirsiniz.
+      Şu ana kadar sizden ücret alınmadı. İstediğiniz zaman seçebilirsiniz.
     </p>
   `;
   return wrapEmail(body);
