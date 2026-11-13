@@ -1,11 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Loader2, ShieldCheck, ShieldOff, Check, KeyRound, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/form-field";
 import { useFlash } from "@/lib/use-flash";
+
+/**
+ * Sunucunun kurulum yanıtındaki anahtar adresi gerçekten bir TOTP kurulum adresi mi? (QR'a yalnız bu biçim girer: başka bir şey —
+ * örn. bir web adresi — QR'a dönüşüp kullanıcıya "tarayın" diye gösterilmez.) Sır taşıyan tek alan `secret` parametresidir.
+ */
+export function isTotpSetupUri(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 512 && /^otpauth:\/\/totp\/[^?#\s]+\?(?:[^#\s]*&)?secret=[A-Z2-7]+(?:&[^#\s]*)?$/.test(v);
+}
 
 /**
  * Two-factor auth (authenticator app) setup. Three states:
@@ -24,6 +33,9 @@ export function TwoFactorCard({
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [secret, setSecret] = useState<string | null>(null); // shown during setup
+  // UX-16 (kurucu 11-13 "kesinlikle evet QR'ı ekle"): sunucu kurulumda anahtar adresini (otpauth://) zaten döndürüyordu, ekran
+  // kullanmıyordu — kullanıcı 32 karakteri elle yazmak zorundaydı. QR TARAYICIDA çizilir (dış servis yok; sır sayfadan çıkmaz).
+  const [setupUri, setSetupUri] = useState<string | null>(null);
   // Ekranda gösterilen kurulumun kimliği (sır değil): "etkinleştir" isteğiyle gider; başka sekmede kurulum yenilendiyse sunucu bunu bilir.
   const [setupId, setSetupId] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -61,6 +73,7 @@ export function TwoFactorCard({
     setBusy(false);
     if (ok && data.secret) {
       setSecret(data.secret);
+      setSetupUri(isTotpSetupUri(data.otpauthUri) ? data.otpauthUri : null);
       setSetupId(typeof data.setupId === "string" ? data.setupId : null);
       // Şifreyi bellekte tutma — kurulum başladı, bir daha gerekmiyor.
       setSetupPassword("");
@@ -85,6 +98,7 @@ export function TwoFactorCard({
     if (ok) {
       setEnabled(true);
       setSecret(null);
+      setSetupUri(null);
       setSetupId(null);
       setCode("");
       setDone("İki adımlı doğrulama açıldı. Artık girişte telefonunuzdaki kod istenecek.");
@@ -236,11 +250,28 @@ export function TwoFactorCard({
   if (secret) {
     return (
       <form onSubmit={confirmEnable} className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Telefonunuzda <strong>Google Authenticator</strong> ya da <strong>Authy</strong> uygulamasını açın →
-          &quot;Hesap ekle&quot; → <strong>&quot;Kurulum anahtarı gir&quot;</strong> seçin ve aşağıdaki
-          anahtarı yazın (hesap adı: Lixus AI):
-        </p>
+        {setupUri ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Telefonunuzda <strong>Google Authenticator</strong> ya da <strong>Authy</strong> uygulamasını açın →
+              &quot;Hesap ekle&quot; → <strong>&quot;QR kodu tara&quot;</strong> seçin ve bu kodu okutun:
+            </p>
+            {/* Koyu temada da okunsun: QR her zaman beyaz zemin + kenar boşluğuyla (tarayıcılar ters renkli kodu okumayabilir). */}
+            <div data-totp-qr className="inline-block rounded-md border bg-white p-3">
+              <QRCodeSVG value={setupUri} size={176} level="M" title="İki adımlı giriş kurulum kodu" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Kodu okutamıyorsanız (ör. bu sayfa aynı telefonda açıksa) <strong>&quot;Kurulum anahtarı gir&quot;</strong> seçin
+              ve bu anahtarı yazın (hesap adı: Lixus AI):
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Telefonunuzda <strong>Google Authenticator</strong> ya da <strong>Authy</strong> uygulamasını açın →
+            &quot;Hesap ekle&quot; → <strong>&quot;Kurulum anahtarı gir&quot;</strong> seçin ve aşağıdaki
+            anahtarı yazın (hesap adı: Lixus AI):
+          </p>
+        )}
         <div className="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm tracking-wider break-all">
           {secret.match(/.{1,4}/g)?.join(" ")}
         </div>
@@ -275,11 +306,12 @@ export function TwoFactorCard({
           </li>
           <li>
             Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;İki adımlı girişi (2FA) kur&quot;</strong>
-            düğmesine basın; ekranda bir anahtar çıkar.
+            düğmesine basın; ekranda bir QR kod ve bir anahtar çıkar.
           </li>
           <li>
-            Uygulamada <strong>&quot;Hesap ekle → Kurulum anahtarı gir&quot;</strong> seçin; anahtarı yazın
-            (anahtar türü: <strong>Zaman bazlı / Time based</strong>).
+            Uygulamada <strong>&quot;Hesap ekle&quot;</strong> ile QR kodu okutun (okutamazsanız{" "}
+            <strong>&quot;Kurulum anahtarı gir&quot;</strong> seçip anahtarı yazın; anahtar türü:{" "}
+            <strong>Zaman bazlı / Time based</strong>).
           </li>
           <li>Uygulamanın ürettiği 6 haneli kodu buraya girin; iki adımlı doğrulama açılır.</li>
         </ol>

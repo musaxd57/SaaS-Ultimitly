@@ -106,12 +106,9 @@ export function generateSecret(): string {
 /** otpauth:// URI an authenticator app imports (via QR or manual key entry). */
 export function otpauthUri(secretB32: string, account: string, issuer = "Lixus AI"): string {
   const label = encodeURIComponent(`${issuer}:${account}`);
-  const params = new URLSearchParams({
-    secret: secretB32,
-    issuer,
-    algorithm: "SHA1",
-    digits: String(DIGITS),
-    period: String(PERIOD),
-  });
-  return `otpauth://totp/${label}?${params.toString()}`;
+  // UX-16 (kurucu 11-13): bu adres artık QR koduyla uygulamaya GERÇEKTEN aktarılıyor. `URLSearchParams` boşluğu "+" yazar (form
+  // kodlaması); anahtar adresi biçimi RFC 3986 ister ("%20") ve bazı doğrulayıcı uygulamalar "+"yı çözmeden "Lixus+AI" diye gösterir.
+  const q = (v: string) => encodeURIComponent(v);
+  const query = `secret=${q(secretB32)}&issuer=${q(issuer)}&algorithm=SHA1&digits=${DIGITS}&period=${PERIOD}`;
+  return `otpauth://totp/${label}?${query}`;
 }
