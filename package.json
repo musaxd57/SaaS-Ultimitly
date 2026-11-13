@@ -22,7 +22,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:reset": "node scripts/guard-local-db.mjs && prisma db push --force-reset && tsx prisma/seed.ts",
-    "env:recover": "node scripts/env-recover.mjs"
+    "env:recover": "node scripts/env-recover.mjs",
+    "secret-scan": "node scripts/secret-scan.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

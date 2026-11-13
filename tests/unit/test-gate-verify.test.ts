@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { validSkipBaseline } from "../../scripts/ci-verify-core.mjs";
-import { gateExitCode, LOCAL_ARMS, runGate, verifyLocalGate } from "../../scripts/test-gate-verify.mjs";
+import { gateExitCode, LOCAL_ARMS, runGate, secretScanLine, secretScanSkipReason, verifyLocalGate } from "../../scripts/test-gate-verify.mjs";
 import { listTestFiles } from "../test-partition.mjs";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +120,35 @@ describe("yerel kapı — çıkış kodu", () => {
   it("hiç kol koşmadıysa → 1", () => {
     expect(gateExitCode([], { ok: true })).toBe(1);
   });
+
+  it("🚨 sır taraması (CI 1801): sızıntı (1) ya da taranamama (2) → 1; temiz ya da gerekçeli atlama → 0", () => {
+    const green = [{ code: 0 }];
+    expect(gateExitCode(green, { ok: true }, { code: 0 })).toBe(0);
+    expect(gateExitCode(green, { ok: true }, { code: 1 })).toBe(1);
+    expect(gateExitCode(green, { ok: true }, { code: 2 })).toBe(1);
+    expect(gateExitCode(green, { ok: true }, { code: 0, skipped: "CI'da ayrı iş (secret-scan)" })).toBe(0);
+    expect(gateExitCode(green, { ok: true }, null)).toBe(0);
+  });
+});
+
+describe("sır taraması — ne zaman atlanır (saf karar)", () => {
+  it("CI'da atlanır (ayrı iş var); CI boş / 0 / false ise koşar", () => {
+    expect(secretScanSkipReason({ ci: "true", platform: "linux", arch: "x64" })).toMatch(/CI'da ayrı iş/);
+    for (const ci of [undefined, "", "0", "false", "FALSE"]) expect(secretScanSkipReason({ ci, platform: "linux", arch: "x64" }), String(ci)).toBeNull();
+  });
+
+  it("linux x64 dışında atlanır ve sebebi söylenir (ikili o platform için indirilir)", () => {
+    expect(secretScanSkipReason({ platform: "darwin", arch: "arm64" })).toMatch(/^darwin\/arm64: .*linux x64/);
+    expect(secretScanSkipReason({ platform: "win32", arch: "x64" })).toMatch(/^win32\/x64/);
+    expect(secretScanSkipReason({ platform: "linux", arch: "arm64" })).toMatch(/^linux\/arm64/);
+  });
+
+  it("özet satırı: yeşil · sızıntı · taranamadı · atlandı ayrı yazılır", () => {
+    expect(secretScanLine({ code: 0, seconds: 12 })).toBe("sır     yeşil  12 sn");
+    expect(secretScanLine({ code: 1, seconds: 12 })).toMatch(/^sır {5}KIRMIZI \(sızıntı bulundu; çıkış 1\)/);
+    expect(secretScanLine({ code: 2, seconds: 0 })).toMatch(/^sır {5}KIRMIZI \(tarama YAPILAMADI — temiz sayılmaz; çıkış 2\)/);
+    expect(secretScanLine({ code: 0, seconds: 0, skipped: "x" })).toBe("sır     atlandı (x)");
+  });
 });
 
 describe("taban geçerliliği (CI ve yerel kapı aynı kuralı kullanır)", () => {
@@ -197,6 +226,36 @@ describe("kapının akışı (runGate — kollar sahte, akış gerçek)", () => 
     expect(existsSync(path.join(dir, "nodb.json"))).toBe(false);
   });
 
+  it("🚨 sır taraması kırmızıysa (testler ve rapor yeşil olsa da) çıkış 1 ve özet satırı yazılır; süre ölçen kol taramayı bekler", async () => {
+    writeBaseline({});
+    const lines: string[] = [];
+    const events: string[] = [];
+    let finishScan: (v: { code: number; seconds: number }) => void = () => {};
+    const res = runGate({
+      runArm: async (label: string) => {
+        events.push(`start:${label}`);
+        return writing()(label);
+      },
+      reportDir: dir,
+      root,
+      expectedFiles: [A, B, C],
+      baselinePath: path.join(root, "tests", "ci-skip-baseline.json"),
+      log: (l: string) => lines.push(l),
+      secretScan: () => {
+        events.push("start:scan");
+        return new Promise((resolve) => (finishScan = resolve));
+      },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(events.slice().sort()).toEqual(["start:db", "start:nodb", "start:scan"]);
+    finishScan({ code: 1, seconds: 3 });
+    const out = await res;
+    expect(out.code).toBe(1);
+    expect(events.indexOf("start:timing")).toBeGreaterThan(events.indexOf("start:scan"));
+    expect(lines.join("\n")).toMatch(/^sır {5}KIRMIZI \(sızıntı bulundu; çıkış 1\)/m);
+    expect(lines.join("\n")).toMatch(/^rapor {3}yeşil/m);
+  });
+
   it("sıra: veritabanlı + veritabanısız kol AYNI ANDA başlar; süre ölçen kol ikisi de bitince tek başına", async () => {
     writeBaseline({});
     const events: string[] = [];
@@ -236,7 +295,13 @@ process.exit(plan.code);
 `;
   const fakePrisma = (code: number) => `#!/usr/bin/env node\nrequire("fs").appendFileSync("calls.log", "prisma " + process.argv.slice(2).join(" ") + "\\n");\nprocess.exit(${code});\n`;
 
-  function repo(opts: { prismaCode?: number; skipIn?: string; codes?: Record<string, number>; noReport?: string[] } = {}) {
+  function repo(opts: { prismaCode?: number; skipIn?: string; codes?: Record<string, number>; noReport?: string[]; scanCode?: number } = {}) {
+    // Sahte sır taraması: çağrıldığını yazar, verilen kodla çıkar (gerçeği ağdan gitleaks indirir).
+    mkdirSync(path.join(root, "scripts"), { recursive: true });
+    writeFileSync(
+      path.join(root, "scripts", "secret-scan.mjs"),
+      `import { appendFileSync } from "node:fs";\nappendFileSync("calls.log", "secret-scan\\n");\nconsole.log("sahte tarama");\nprocess.exit(${opts.scanCode ?? 0});\n`,
+    );
     const bin = path.join(root, "node_modules", ".bin");
     mkdirSync(bin, { recursive: true });
     writeFileSync(path.join(bin, "vitest"), FAKE_VITEST);
@@ -263,6 +328,7 @@ process.exit(plan.code);
   const runScript = (env: Record<string, string> = {}) => {
     const base = { ...process.env };
     delete base.TEST_REPORT_DIR;
+    delete base.CI; // CI'da sır taraması atlanır; bu testler iki durumu da açıkça verir.
     return spawnSync(process.execPath, [SCRIPT], { cwd: root, encoding: "utf8", env: { ...base, ...env } });
   };
   /** Özetin "rapor" satırındaki dizin yolu. */
@@ -275,8 +341,13 @@ process.exit(plan.code);
     expect(r.status, r.stdout + r.stderr).toBe(0);
     const log = calls();
     expect(log[0]).toBe("prisma generate");
-    expect(log.slice(1).map((l) => l.split(" ")[0]).sort()).toEqual(["db", "nodb", "timing"]);
-    expect(log[log.length - 1].startsWith("timing ")).toBe(true);
+    expect(log.filter((l) => l === "secret-scan")).toHaveLength(1);
+    const arms = log.slice(1).filter((l) => l !== "secret-scan");
+    expect(arms.map((l) => l.split(" ")[0]).sort()).toEqual(["db", "nodb", "timing"]);
+    expect(arms[arms.length - 1].startsWith("timing ")).toBe(true);
+    expect(log.indexOf("secret-scan")).toBeLessThan(log.findIndex((l) => l.startsWith("timing ")));
+    expect(r.stdout).toContain("[sır] sahte tarama");
+    expect(r.stdout).toMatch(/^sır {5}yeşil/m);
     for (const arm of ["db", "nodb", "timing"]) {
       const line = log.find((l) => l.startsWith(`${arm} `))!;
       expect(line).toContain(`run -c vitest.${arm}.config.ts --reporter=default --reporter=json --outputFile.json=`);
@@ -324,6 +395,23 @@ process.exit(plan.code);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain("timing: rapor eksik ya da okunamıyor");
     rmSync(reportDirOf(r.stdout), { recursive: true, force: true });
+  }, 30_000);
+
+  it("🚨 sır taraması sızıntı bulursa (bütün kollar yeşil) çıkış 1", () => {
+    repo({ scanCode: 1 });
+    const r = runScript();
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(/^sır {5}KIRMIZI \(sızıntı bulundu; çıkış 1\)/m);
+    expect(r.stdout).toMatch(/^rapor {3}yeşil/m);
+    rmSync(reportDirOf(r.stdout), { recursive: true, force: true });
+  }, 30_000);
+
+  it("CI'da sır taraması koşmaz (ayrı iş var) ve özette 'atlandı' yazar", () => {
+    repo({ scanCode: 1 });
+    const r = runScript({ CI: "true" });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(calls()).not.toContain("secret-scan");
+    expect(r.stdout).toMatch(/^sır {5}atlandı \(CI'da ayrı iş/m);
   }, 30_000);
 
   it("prisma generate düşerse kapı onun koduyla durur; hiçbir kol başlamaz", () => {
