@@ -212,8 +212,11 @@ Bu dosyaya token/anahtar/parola yazma.
   Opus 5.5 "en derin ve sert" büyük kontrol (bulgularını ilerledikçe dosyaya yazar — kesme olursa kaybolmasın). Derin araştırma / tasarım
   işleri Opus 5.5. Kesme ("Request interrupted") o turun alt ajanlarını durdurur → yeniden başlatılır. Railway açılana kadar kodla
   yapılabilecek her şey yapılır.
-- 🚨 **ÇALIŞIRKEN GELEN YENİ MESAJ (kurucu 11-13):** kurucu çalışırken yazdı diye eldeki iş yarıda bırakılıp unutulmaz. İşin bitmediği
-  ve nerede kaldığı bilinir (görev listesine yazılır), yeni mesajla ilgilenilir, sonra kalınan yerden devam edilir.
+- 🚨 **ÇALIŞIRKEN GELEN YENİ MESAJ (kurucu 11-13):** eldeki iş yarıda KESİLMEZ. Kurucu "hemen / acil" demedikçe yeni mesaja hemen geçmek
+  zorunlu değildir; aciliyetine göre değerlendirilir. Eldeki iş bırakılabileceği sağlam bir noktaya getirilir (yarım dosya, kırmızı test,
+  karışık commit edilmemiş değişiklik bırakılmaz), sonra yeni mesaja geçilir. İki iş de unutulmaz: bekleyen iş ve nerede kaldığı görev
+  listesine yazılır, sonra oradan sürdürülür. Yeni mesaj eldeki işi değiştiriyor ya da durduruyorsa iş boşuna sürdürülmez, en yakın sağlam
+  noktada durulur.
 - 🚨 **HATA AYIKLAMA / İNCELEME AJANI HATA ÜRETMEZ (kurucu 11-13):** hata bulmak İÇİN hata bulmaz; hata bulamaması onun hatası olmayabilir;
   HATA OLMAYANI HATA GİBİ GÖSTERMESİ ÇOK DAHA KÖTÜDÜR. Bu cümle hata ayıklama / inceleme ajanının istemine yazılır; bulgu dosya:satır + somut
   senaryo taşır, kanıtlanamayan "emin değilim" diye ayrı yazılır, "bulgu yok" geçerli sonuçtur; ana oturum her bulguyu kodda doğrular.
