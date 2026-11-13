@@ -76,6 +76,13 @@ describe("kesik çıktıdan kurtarma", () => {
     expect(salvageArrayItems('{"findings":[{"a":1},"metin",{"a":2}', "findings")).toEqual([{ a: 1 }]);
   });
 
+  it("parantezleri dengeli ama geçersiz JSON olan öğe: tarama orada durur, fırlatmaz (öncekiler kalır)", () => {
+    expect(salvageArrayItems('{"findings":[{"a":1},{b:2},{"c":3}]}', "findings")).toEqual([{ a: 1 }]);
+    expect(salvageArrayItems('{"findings":[{"a":1},{"b":tru},{"c":3}', "findings")).toEqual([{ a: 1 }]);
+    // Anahtarı geçersiz kaçış taşıyan üst düzey alan: gezme durur, fırlatmaz.
+    expect(salvageArrayItems('{"a\\x":1,"findings":[{"a":1}]}', "findings")).toEqual([]);
+  });
+
   it("uzun girdide doğrusal: 2 MB'lık kesik çıktı kısa sürede taranır", () => {
     const items = Array.from({ length: 4000 }, (_, i) => finding(i, { mechanism_tr: "x".repeat(400) }));
     const text = full(items);
