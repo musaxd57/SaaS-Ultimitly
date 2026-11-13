@@ -68,7 +68,70 @@ describe("Girişler — giriş mesajını elle gönderme", () => {
     const post = fetchFn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST")!;
     expect(JSON.parse(String((post[1] as RequestInit).body))).toEqual({ revision: 3 });
     expect(screen.getByRole("status").textContent).toBe(CHECKIN_NOW_TEXT.sent);
-    expect(refresh).toHaveBeenCalled();
+    // 🚨 Haiku D5 #2: liste sonuç penceresi KAPANINCA yenilenir — önce yenilenseydi satırdaki düğme kalkar, bileşen sökülür ve sonuç cümlesi
+    // görünmeden kaybolurdu.
+    expect(refresh).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Kapat" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 belirsiz teslim uyarısı, liste yenilenmeden önce okunur: Escape ile kapanınca yenilenir (bir kez)", async () => {
+    stubFetch({ status: 200, body: { ok: false, code: "ambiguous", error: CHECKIN_NOW_TEXT.ambiguous } });
+    render(<ArrivalsList rows={[row]} truncated={0} canAct />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: SEND_CHECKIN_LABEL }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Gönderin" }));
+    });
+    expect(screen.getByRole("alert").textContent).toBe(CHECKIN_NOW_TEXT.ambiguous);
+    expect(refresh).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 gönderim sürerken Escape pencereyi kapatmaz ve listeyi yenilemez", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) =>
+        init?.method === "POST" ? new Promise<Response>((resolve) => (answer = resolve)) : Promise.resolve(new Response(JSON.stringify(preview), { status: 200 })),
+      ),
+    );
+    render(<ArrivalsList rows={[row]} truncated={0} canAct />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: SEND_CHECKIN_LABEL }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Gönderin" }));
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => {
+      answer(new Response(JSON.stringify({ ok: true, kind: "sent", message: CHECKIN_NOW_TEXT.sent }), { status: 200 }));
+    });
+    expect(screen.getByRole("status").textContent).toBe(CHECKIN_NOW_TEXT.sent);
+  });
+
+  it("🚨 yükleme sürerken kapatılan pencere, önizleme cevabı gelince YENİDEN AÇILMAZ; gönderim olmadığı için liste yenilenmez", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    render(<ArrivalsList rows={[row]} truncated={0} canAct />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: SEND_CHECKIN_LABEL }));
+    });
+    expect(screen.getByRole("dialog").textContent).toContain("Mesaj hazırlanıyor");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await act(async () => {
+      answer(new Response(JSON.stringify(preview), { status: 200 }));
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("Merhaba Ayşe, kapı kodumuz 4821.")).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("'Vazgeçin' hiçbir şey göndermez", async () => {
@@ -80,6 +143,7 @@ describe("Girişler — giriş mesajını elle gönderme", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vazgeçin" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(fetchFn.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === "POST")).toBe(false);
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("belirsiz teslim → 'ulaşmış olabilir' uyarısı, yeniden gönder düğmesi YOK", async () => {

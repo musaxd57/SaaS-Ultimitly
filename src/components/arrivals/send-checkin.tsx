@@ -7,8 +7,10 @@ import { CHECKIN_NOW_TEXT } from "@/lib/checkin-now-text";
 // ---------------------------------------------------------------------------
 // UX-10 D5 (kurucu 11-13: "ilk 2'si kesinlikle olur"): Girişler satırından "Giriş mesajını gönderin". Dokununca onay penceresi açılır ve
 // misafirin göreceği metnin TAM hâli o anda sunucudan istenir (liste HTML'inde yok; kapı kodu taşıyabilir). "Gönderin" önizlenen sürümle
-// gider — metin bu arada değiştiyse sunucu reddeder. Gönderildikten sonra liste yenilenir (satır "gönderildi" olur). Belirsiz teslimde
-// "ulaşmış olabilir" denir ve yeniden gönder SUNULMAZ. Pencere sözleşmesi: Escape, odak içeride, kapanınca düğmeye döner.
+// gider — metin bu arada değiştiyse sunucu reddeder. Liste, sonuç penceresi KAPANINCA yenilenir (satır "gönderildi" olur): yenileme önce
+// gelseydi düğme satırdan kalkar, bu bileşen sökülür ve sonuç cümlesi — belirsiz teslimin "ulaşmış olabilir" uyarısı dahil — görünmeden
+// kaybolurdu (Haiku D5 #2). Belirsiz teslimde yeniden gönder SUNULMAZ. Yükleme sürerken kapatılan pencere, cevap gelince yeniden AÇILMAZ
+// (Haiku D5 #6). Pencere sözleşmesi: Escape, odak içeride, kapanınca düğmeye döner.
 // ---------------------------------------------------------------------------
 
 type Preview = { body: string; revision: number; propertyName: string; guestName: string | null };
@@ -28,9 +30,28 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
   const [, startTransition] = useTransition();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Her açılış bir istek numarası alır; kapanış numarayı ilerletir → eski önizleme cevabı pencereyi yeniden açamaz.
+  const requestRef = useRef(0);
+  // Gönderim denendiyse liste, sonuç penceresi kapanınca yenilenir.
+  const refreshOnCloseRef = useRef(false);
   const titleId = useId();
   const open = phase.at !== "closed";
   const url = `/api/reservations/${encodeURIComponent(reservationId)}/checkin-message`;
+
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  // Gönderim sürerken kapanmaz (Escape dahil) — sonuç beklenir.
+  function close() {
+    if (phaseRef.current.at === "sending") return;
+    requestRef.current += 1;
+    setPhase({ at: "closed" });
+    if (refreshOnCloseRef.current) {
+      refreshOnCloseRef.current = false;
+      startTransition(() => router.refresh());
+    }
+  }
+  const closeRef = useRef(close);
+  closeRef.current = close;
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +59,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
     dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setPhase((p) => (p.at === "sending" ? p : { at: "closed" }));
+        closeRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -64,22 +85,27 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
   }, [open]);
 
   async function openDialog() {
+    const request = ++requestRef.current;
     setPhase({ at: "loading" });
+    const settle = (next: Phase) => {
+      if (requestRef.current === request) setPhase(next);
+    };
     try {
       const res = await fetch(url, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as (Preview & { error?: string }) | null;
       if (!res.ok || !body || typeof body.body !== "string") {
-        setPhase({ at: "done", message: body?.error ?? CHECKIN_NOW_TEXT.changed, tone: "error" });
+        settle({ at: "done", message: body?.error ?? CHECKIN_NOW_TEXT.changed, tone: "error" });
         return;
       }
-      setPhase({ at: "ready", preview: body });
+      settle({ at: "ready", preview: body });
     } catch {
-      setPhase({ at: "done", message: "Bağlantı hatası. Lütfen tekrar deneyin.", tone: "error" });
+      settle({ at: "done", message: "Bağlantı hatası. Lütfen tekrar deneyin.", tone: "error" });
     }
   }
 
   async function send(preview: Preview) {
     setPhase({ at: "sending", preview });
+    refreshOnCloseRef.current = true;
     try {
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: preview.revision }) });
       const body = (await res.json().catch(() => null)) as { ok?: boolean; code?: string; message?: string; error?: string } | null;
@@ -89,10 +115,8 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
         // Belirsiz teslim: uyarı tonu, YENİDEN GÖNDER YOK.
         setPhase({ at: "done", message: body?.error ?? CHECKIN_NOW_TEXT.definitive, tone: body?.code === "ambiguous" ? "warn" : "error" });
       }
-      startTransition(() => router.refresh());
     } catch {
       setPhase({ at: "done", message: CHECKIN_NOW_TEXT.ambiguous, tone: "warn" });
-      startTransition(() => router.refresh());
     }
   }
 
@@ -108,7 +132,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
         {SEND_CHECKIN_LABEL}
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:p-8 dark:bg-black/60" onClick={() => phase.at !== "sending" && setPhase({ at: "closed" })}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:p-8 dark:bg-black/60" onClick={() => phase.at !== "sending" && close()}>
           <div
             ref={dialogRef}
             role="dialog"
@@ -135,7 +159,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setPhase({ at: "closed" })}
+                    onClick={close}
                     disabled={phase.at === "sending"}
                     className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50"
                   >
@@ -161,7 +185,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
                   {phase.message}
                 </p>
                 <div className="mt-4 flex justify-end">
-                  <button type="button" onClick={() => setPhase({ at: "closed" })} className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent">
+                  <button type="button" onClick={close} className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent">
                     Kapat
                   </button>
                 </div>
