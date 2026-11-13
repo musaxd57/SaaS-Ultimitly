@@ -35,6 +35,7 @@ import { truncate } from "@/lib/utils";
 import { taskDueTimeLabel } from "@/lib/tasks/card-data";
 import { guestCheckoutNote } from "@/lib/guest-checkout-time";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { CONNECT_CHANNEL_HREF, canManageChannel } from "@/components/connect-channel-button";
 
 export const dynamic = "force-dynamic";
 
@@ -117,8 +118,17 @@ export default async function DashboardPage() {
       // bu biri "bağlantınızı kurun"u iki kez söylüyordu: ilk açılışta en çok
       // okunan yüzeyde ölü metin, mobilde de üç satır boşa yer.
       // UX incelemesi 10-21 B: düğme Mülkler'e gidiyordu, orada hesap bağlantısına yol yoktu → doğrudan Ayarlar › Bağlantılar.
-      desc: "Airbnb / Booking hesabınızı bağlayın ya da dairenin sayfasından ilanınızın takvim bağlantısını ekleyin; rezervasyonlarınız kendiliğinden gelir.",
-      href: "/settings?tab=baglantilar",
+      // UX-14 (kurucu 11-13): hesap bağlantısını yalnız hesap sahibi (ve operatör) kurar (`connect-channel-button.tsx` tek kural) —
+      // yöneticiye Ayarlar'da "hesap sahibinden isteyin" çıkıyordu; ona kendi yapabileceği yol (dairenin takvim bağlantısı) verilir.
+      ...(canManageChannel(session)
+        ? {
+            desc: "Airbnb / Booking hesabınızı bağlayın ya da dairenin sayfasından ilanınızın takvim bağlantısını ekleyin; rezervasyonlarınız kendiliğinden gelir.",
+            href: CONNECT_CHANNEL_HREF,
+          }
+        : {
+            desc: "Dairenin sayfasından ilanınızın takvim bağlantısını ekleyin; Airbnb / Booking hesap bağlantısını hesap sahibi kurar.",
+            href: "/properties",
+          }),
       cta: "Bağla",
     },
     {

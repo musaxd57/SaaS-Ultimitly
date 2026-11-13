@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,16 +86,27 @@ export function AlertEmailVerifyForm() {
     return (
       <p className="flex items-start gap-2 text-sm">
         <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-        Adres onaylandı. Misafir uyarıları artık bu adrese gönderilecek.
+        {/* UX-14: alıcının çoğu zaman hesabı yok — "girin" demek yanlış yönlendirme olur; yapılacak iş kalmadığını söyler. */}
+        Adres onaylandı. Misafir uyarıları artık bu adrese gönderilecek. Bu sayfayı kapatabilirsiniz.
       </p>
     );
   }
   if (state === "failed") {
     return (
-      <p role="alert" className="flex items-start gap-2 text-sm text-destructive">
-        <AlertCircle className="mt-0.5 size-4 shrink-0" />
-        {message}
-      </p>
+      <div className="space-y-2">
+        <p role="alert" className="flex items-start gap-2 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          {message}
+        </p>
+        {/* UX-14 (kurucu 11-13): hata ekranı çıkmazdı. Ayrı "yeniden gönder" yolu YOK; adresi ekleyen kişi adresi Ayarlar › Genel'de
+            yeniden kaydedince yeni bağlantı gider. Alıcının hesabı olmayabilir → asıl yol cümle, düğme ikincil. */}
+        <p className="text-sm text-muted-foreground">
+          Adresi ekleyen kişi Ayarlar › Genel&apos;de adresi yeniden kaydederek yeni bir onay bağlantısı gönderebilir.
+        </p>
+        <Link href="/settings?tab=genel" className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-accent sm:h-8">
+          Ayarlara gidin
+        </Link>
+      </div>
     );
   }
   return (

@@ -6,6 +6,9 @@ import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf } from "@/modules/availability/core";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { LinkButton } from "@/components/ui/link-button";
+import { ConnectChannelButton, showConnectChannel } from "@/components/connect-channel-button";
+import { hasMessagingConnection } from "@/lib/channels";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { dedupeBookings } from "@/lib/reports";
@@ -23,6 +26,29 @@ const WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 /** "YYYY-MM-DD" of a stored timestamp as seen in the org's timezone. */
 function dayKey(d: Date, tz: string): string {
   return d.toLocaleDateString("en-CA", { timeZone: tz });
+}
+
+type EmptyStep = "add-property" | "connect" | "calendar-source" | null;
+
+/** Boş ayın TEK sonraki adımı (UX-14). Telefon ajandası ile masaüstü ızgarası aynı bileşeni kullanır. */
+function CalendarEmptyStep({ step, firstPropertyId }: { step: EmptyStep; firstPropertyId: string | null }) {
+  if (step === "add-property") {
+    return (
+      <LinkButton href="/properties/new" size="sm">
+        İlk mülkü ekleyin
+      </LinkButton>
+    );
+  }
+  if (step === "connect") return <ConnectChannelButton />;
+  if (step === "calendar-source" && firstPropertyId) {
+    // Hospitable'sız yol: mülk sayfasındaki "Kanal Takvimleri" kartından takvim adresi ya da dosya (yönetici de ekleyebilir).
+    return (
+      <LinkButton href={`/properties/${firstPropertyId}#kanal-takvimleri`} size="sm">
+        Takvim bağlantısı ekleyin
+      </LinkButton>
+    );
+  }
+  return null;
 }
 
 export default async function CalendarPage({
@@ -172,6 +198,18 @@ export default async function CalendarPage({
   const agendaDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
     .map((dayNum) => ({ dayNum, key: keyOf(dayNum), info: days.get(keyOf(dayNum))! }))
     .filter(({ info }) => info.arrivals.length > 0 || info.departures.length > 0);
+  // UX-14 (kurucu 11-13): boş ayda iki farklı neden aynı metni basıyordu — (a) hiç mülk / hiç rezervasyon yok, (b) yalnız bu ay boş.
+  // (a)'da TEK sonraki adım verilir; (b)'de düğme yok (ay okları zaten başlıkta). Sorgu yalnız boş ayda koşar.
+  const emptyStep: EmptyStep =
+    agendaDays.length > 0
+      ? null
+      : properties.length === 0
+        ? "add-property"
+        : (await prisma.reservation.findFirst({ where: { property: { organizationId: orgId } }, select: { id: true } }))
+          ? null
+          : showConnectChannel(session, await hasMessagingConnection(orgId))
+            ? "connect"
+            : "calendar-source";
 
   return (
     <>
@@ -239,7 +277,9 @@ export default async function CalendarPage({
                 title="Bu ayda giriş veya çıkış yok"
                 description="Rezervasyon geldikçe bu listede görünecek."
                 className="py-6"
-              />
+              >
+                <CalendarEmptyStep step={emptyStep} firstPropertyId={propertyFilter ?? properties[0]?.id ?? null} />
+              </EmptyState>
             ) : (
               <ul className="divide-y divide-border">
                 {agendaDays.map(({ dayNum, key, info }) => {
@@ -290,7 +330,12 @@ export default async function CalendarPage({
           <div className="hidden overflow-x-auto md:block">
             {/* UX denetimi 11-13 (D048): masaüstünde hareketsiz ay 30 boş kutuydu, hiçbir şey söylemiyordu. Telefondaki boş durumun AYNI
                 başlığı (yeni yazı yok); ızgara yine çizilir (dolu ama hareketsiz geceler görünür kalsın). */}
-            {agendaDays.length === 0 ? <p className="mb-2 text-sm text-muted-foreground">Bu ayda giriş veya çıkış yok</p> : null}
+            {agendaDays.length === 0 ? (
+              <div className="mb-2 flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground">Bu ayda giriş veya çıkış yok</p>
+                <CalendarEmptyStep step={emptyStep} firstPropertyId={propertyFilter ?? properties[0]?.id ?? null} />
+              </div>
+            ) : null}
             <div className="min-w-[640px]">
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map((w) => (

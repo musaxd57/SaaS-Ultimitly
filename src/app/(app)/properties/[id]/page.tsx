@@ -417,7 +417,8 @@ export default async function PropertyDetailPage({
             </Card>
           ) : null}
 
-          <Card>
+          {/* `#malzeme-profili`: Hazırlık sayfasındaki "malzeme adetlerini girin" bağlantısı doğrudan buraya kayar (UX-14). */}
+          <Card id="malzeme-profili" className="scroll-mt-24">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <PackageOpen className="size-4 text-muted-foreground" /> Malzeme Profili
@@ -435,7 +436,8 @@ export default async function PropertyDetailPage({
         </div>
 
         <div className="min-w-0 space-y-4">
-          <Card>
+          {/* `#kanal-takvimleri`: Takvim sayfasının "hiç rezervasyon yok" durumundaki düğme doğrudan buraya kayar (UX-14). */}
+          <Card id="kanal-takvimleri" className="scroll-mt-24">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ArrowDownToLine className="size-4 text-muted-foreground" /> Kanal Takvimleri (içe aktar)

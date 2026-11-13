@@ -9,6 +9,10 @@ import { PageHeader } from "@/components/page-header";
 import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { LinkButton } from "@/components/ui/link-button";
+import { ConnectChannelButton, showConnectChannel } from "@/components/connect-channel-button";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { anyAutoSendEnabled } from "@/lib/automation";
 import { hasMessagingConnection } from "@/lib/channels";
 import { fillGuestPlaceholders, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { fromNow, truncate, cn } from "@/lib/utils";
@@ -231,6 +235,12 @@ export default async function SentPage({
     checkout: checkoutCount,
   };
   const totalAll = replyCount + welcomeCount + checkinCount + checkoutCount;
+  // UX-14 (kurucu 11-13): hiç gönderim yokken TEK sonraki adım. Bağlantı var ama dört otomatik gönderimin HİÇBİRİ açık değilse mesaj
+  // hiç gitmez — boş sayfa bunu söylüyor ama anahtarın yerini göstermiyordu. Sorgu yalnız bu durumda koşar.
+  const automationAllOff =
+    totalAll === 0 && channelConnected && canManage(session) && !isDemoOrg(orgId)
+      ? !(await anyAutoSendEnabled(orgId))
+      : false;
   const activeTotal = activeType ? totals[activeType] : totalAll;
 
   const toItem = (
@@ -376,7 +386,15 @@ export default async function SentPage({
               ? "Oto-yanıt veya otomatik karşılama açıldığında, gönderilen her mesaj burada listelenir."
               : "Airbnb / Booking bağlantısını kurup oto-yanıt veya otomatik karşılamayı açtığınızda, gönderilen her mesaj burada listelenir."
           }
-        />
+        >
+          {showConnectChannel(session, channelConnected) ? (
+            <ConnectChannelButton />
+          ) : automationAllOff ? (
+            <LinkButton href="/settings?tab=ai-otomasyon" size="sm">
+              Otomatik gönderimi açın
+            </LinkButton>
+          ) : null}
+        </EmptyState>
       ) : merged.length === 0 ? (
         <EmptyState
           icon={Send}

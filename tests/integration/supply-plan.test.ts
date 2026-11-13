@@ -74,7 +74,7 @@ describe("getPrepPlan", () => {
 
     const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
     expect(plan.totalArrivals).toBe(2); // both arrivals counted in the headline
-    expect(plan.missingProfile).toContain("profilsiz daire");
+    expect(plan.missingProfile).toEqual([{ id: b.id, name: "profilsiz daire" }]); // UX-14: kimlik de gelir (profil kartına doğrudan bağlantı)
     expect(plan.perProperty.map((p) => p.propertyName)).toEqual(["lale 1"]); // only the profiled one
   });
 

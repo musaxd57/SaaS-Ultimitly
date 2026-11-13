@@ -44,7 +44,9 @@ describe("takvim: masaüstünde hareketsiz ay boş kalmaz (D048)", () => {
   const src = read("src/app/(app)/calendar/page.tsx");
   it("telefondaki boş durumun AYNI başlığı masaüstü ızgarasının üstünde de var (yeni yazı yok)", () => {
     expect(src.split("Bu ayda giriş veya çıkış yok").length - 1).toBe(2);
-    expect(src).toContain('{agendaDays.length === 0 ? <p className="mb-2 text-sm text-muted-foreground">Bu ayda giriş veya çıkış yok</p> : null}');
+    // UX-14 (11-13): başlığın yanına boşluğun nedenine göre TEK sonraki adım geldi (`CalendarEmptyStep`); başlık metni aynı.
+    expect(src).toContain('<p className="text-sm text-muted-foreground">Bu ayda giriş veya çıkış yok</p>');
+    expect(src.split("<CalendarEmptyStep ").length - 1).toBe(2); // telefon ajandası + masaüstü ızgarası aynı adım
   });
 });
 
@@ -65,7 +67,9 @@ describe("tıklanabilir kartlarda görsel ok (C002, C019, B035) — yalnız gör
   });
   it("ok eklenince ad yine sarılır (önceden de sarılıyordu); boşluksuz uzun ad da kırılır, ok ilk satırda durur", () => {
     const src = read("src/app/(app)/properties/page.tsx");
-    expect(src).toContain('<h3 className="mt-3 flex items-start gap-1 font-semibold">');
+    // UX-14 (11-13): kart artık "esnetilmiş bağlantı" — sarma düzeni başlıktaki bağlantının kendisinde.
+    expect(src).toContain('<h3 className="mt-3 font-semibold">');
+    expect(src).toMatch(/<Link\s+href=\{`\/properties\/\$\{p\.id\}`\}\s+className="flex items-start gap-1 /);
     expect(src).toContain('<span className="min-w-0 break-words">{p.name}</span>');
   });
 });

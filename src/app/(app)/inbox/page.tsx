@@ -10,6 +10,7 @@ import { ProblemTriagePanel } from "@/components/inbox/problem-triage-panel";
 import { parseMissingInfo, isTriageStale } from "@/lib/ai/triage";
 import { Pager } from "@/components/pager";
 import { LinkButton } from "@/components/ui/link-button";
+import { ConnectChannelButton, showConnectChannel } from "@/components/connect-channel-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
@@ -419,9 +420,9 @@ export default async function InboxPage({
                 : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
             }
           >
-            <LinkButton href="/inbox/new" size="sm">
-              <Plus className="size-4" /> Yeni konuşma
-            </LinkButton>
+            {/* UX-14 (kurucu 11-13): boş durum başlıktaki "Yeni konuşma"nın KOPYASINI vermez (ekranda iki koyu düğme vardı); boşluğun
+                NEDENİNİ çözen tek eylemi verir — bağlantı yoksa ve kurabilecek kişiyse bağlantı. */}
+            {showConnectChannel(session, channelConnected) ? <ConnectChannelButton /> : null}
           </EmptyState>
         )
       ) : (

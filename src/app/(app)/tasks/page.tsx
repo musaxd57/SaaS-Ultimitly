@@ -264,15 +264,18 @@ export default async function TasksPage({
           title="Görev yok"
           description={
             canManage
-              ? "Yeni rezervasyonlarda görevler otomatik açılır. Eksik kalan varsa aşağıdan elle de görev ekleyebilirsiniz."
+              ? properties.length === 0
+                ? "Görevler mülklerinizin rezervasyonlarından açılır. Önce bir mülk ekleyin."
+                : "Rezervasyon geldikçe görevler burada listelenir."
               : "Yeni rezervasyonlarda görevler otomatik açılır. Size atanmış bir görev olduğunda burada listelenir."
           }
         >
-          {/* Staff can't create tasks (/tasks/new redirects them back) — only show
-              the button to managers/owners so it never dead-ends. */}
-          {canManage ? (
-            <LinkButton href="/tasks/new" size="sm">
-              <Plus className="size-4" /> Görev ekle
+          {/* UX-14 (kurucu 11-13): başlıktaki "Yeni görev"in kopyası ("Görev ekle") kalktı — ekranda iki koyu düğme vardı ve açıklama
+              "aşağıdan" diyordu. Boş durum yalnız boşluğun NEDENİNİ çözen eylemi verir: hiç mülk yoksa görev de açılamaz → mülk ekleme.
+              Personel düğme görmez (bugünkü gibi). */}
+          {canManage && properties.length === 0 ? (
+            <LinkButton href="/properties/new" size="sm">
+              <Plus className="size-4" /> İlk mülkü ekleyin
             </LinkButton>
           ) : null}
         </EmptyState>

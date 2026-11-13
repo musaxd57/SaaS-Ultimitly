@@ -96,8 +96,8 @@ export interface PrepPlan {
   consumables: PrepPlanAggItem[];
   /** Per-property breakdown (gross per-flat need incl. guest requests). */
   perProperty: PrepPlanProperty[];
-  /** Names of properties that have arrivals but NO profile yet (nudge the host). */
-  missingProfile: string[];
+  /** Properties that have arrivals but NO profile yet (nudge the host). `id` → the page links straight to the profile card (UX-14). */
+  missingProfile: { id: string; name: string }[];
   /** True when any on-hand stock is set → the UI shows "net alınacak". */
   hasStock: boolean;
 }
@@ -174,7 +174,7 @@ export async function getPrepPlan(
 
   const totals = new Map<SupplyItemKey, number>();
   const perProperty: PrepPlanProperty[] = [];
-  const missingProfile: string[] = [];
+  const missingProfile: { id: string; name: string }[] = [];
   let totalArrivals = 0;
 
   for (const p of properties) {
@@ -202,7 +202,7 @@ export async function getPrepPlan(
 
     if (itemQty.size === 0) {
       // Arrivals but no profile (and no request) → nudge the host to set a profile.
-      if (count > 0 && Object.keys(profile).length === 0) missingProfile.push(p.name);
+      if (count > 0 && Object.keys(profile).length === 0) missingProfile.push({ id: p.id, name: p.name });
       continue;
     }
     const items = SUPPLY_ITEMS.filter((d) => itemQty.has(d.key)).map((d) => ({ ...d, qty: itemQty.get(d.key) as number }));

@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { ConnectChannelButton, showConnectChannel } from "@/components/connect-channel-button";
+import { hasMessagingConnection } from "@/lib/channels";
 import { OutboxRetryButton } from "@/components/outbox/retry-button";
 import { listOutboxDeliveries } from "@/lib/outbox/ops";
 import { OUTBOX_STATUSES, type OutboxStatus } from "@/lib/outbox/state";
@@ -93,6 +95,9 @@ export default async function OutboxQueuePage({
   });
 
   const totalAll = OUTBOX_STATUSES.reduce((sum, s) => sum + list.counts[s], 0);
+  // UX-14 (kurucu 11-13): kayıt yokken boşluğun nedeni çoğu zaman bağlantının hiç kurulmamış olması — o durumda (ve kurabilecek kişiyse)
+  // bağlantı düğmesi. Sorgu yalnız boş ekranda koşar.
+  const connectCta = totalAll === 0 && showConnectChannel(session, await hasMessagingConnection(session.organizationId));
   const pills: { value: string | null; label: string; count: number }[] = [
     { value: null, label: "Tümü", count: totalAll },
     ...OUTBOX_STATUSES.filter((s) => list.counts[s] > 0 || s === activeStatus).map((s) => ({
@@ -153,7 +158,9 @@ export default async function OutboxQueuePage({
           icon={ListOrdered}
           title="Henüz gönderim kaydı yok"
           description="Bu ekran, bir mesajın gönderilip gönderilmediğini takip etmek için. Mesaj göndermeye başladığınızda her deneme burada durumuyla listelenir — gönderildi, bekliyor ya da gönderilemedi."
-        />
+        >
+          {connectCta ? <ConnectChannelButton /> : null}
+        </EmptyState>
       ) : list.rows.length === 0 ? (
         <EmptyState
           icon={ListOrdered}

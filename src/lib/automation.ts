@@ -971,6 +971,19 @@ export function semanticClosingHolds(
 }
 
 /**
+ * İşletmede misafire kendiliğinden giden dört gönderimden (otomatik yanıt, karşılama, giriş bilgisi, çıkış mesajı) en az biri açık mı.
+ * UX-14 (kurucu 11-13): Gönderilenler boşken "Otomatik gönderimi açın" düğmesinin koşulu. Bayrak okuması burada (değişmez 20: sağlayıcı
+ * adlı `autoReplyHospitable` kolonunun bilinen okuyucusu bu modül; sayfa kolonu doğrudan okumaz).
+ */
+export async function anyAutoSendEnabled(organizationId: string): Promise<boolean> {
+  const o = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoReplyHospitable: true, autoWelcome: true, autoCheckin: true, autoCheckout: true },
+  });
+  return !!o && (o.autoReplyHospitable || o.autoWelcome || o.autoCheckin || o.autoCheckout);
+}
+
+/**
  * Ev sahibinin teklif metni, istemin gösterdiği AYNI temizlenmiş biçimde (tek kaynak): kapının "host'un
  * kendi sözü iddia sayılmaz" muafiyeti ve bekçi bunu kullanır. Rotalar `prompts.ts`'i doğrudan import
  * etmez (istemci paketi pini) — buradan alır.

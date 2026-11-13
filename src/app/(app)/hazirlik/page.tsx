@@ -1,5 +1,7 @@
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/link-button";
 import { getPrepPlan, parseSupplyProfile, type PrepPlanAggItem } from "@/lib/supply";
@@ -36,6 +38,23 @@ function ItemList({ items }: { items: PrepPlanAggItem[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Profili eksik daireler — her ad o dairenin "Malzeme Profili" kartına bağlantı (UX-14: eskiden düz ad + oklu yol tarifi). */
+function MissingProfileLinks({ items, prefix }: { items: { id: string; name: string }[]; prefix: string }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {prefix}
+      {items.map((p, i) => (
+        <span key={p.id}>
+          {i > 0 ? ", " : null}
+          <Link href={`/properties/${p.id}#malzeme-profili`} className="text-foreground underline underline-offset-2 hover:text-primary">
+            {p.name}
+          </Link>
+        </span>
+      ))}
+    </p>
   );
 }
 
@@ -94,24 +113,39 @@ export default async function HazirlikPage({
 
       {canManage ? <SupplyStockForm initial={stock} /> : null}
 
+      {/* UX-14 (kurucu 11-13): boş durumlar çıkmazdı (düz metin + "Mülkler → daire → …" yol tarifi). Şimdi TEK sonraki adım:
+          giriş yoksa daha geniş aralık / takvim; profil eksikse o dairenin profil kartına doğrudan bağlantı. */}
       {!hasNeeds ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {plan.totalArrivals === 0 ? (
-              <>Bu aralıkta giriş yok — hazırlık gerekmiyor.</>
-            ) : plan.missingProfile.length > 0 ? (
-              <>
-                Bu aralıkta {plan.totalArrivals} giriş var ama malzeme profili tanımlı değil.
-                <br />
-                <span className="text-foreground">
-                  Mülkler → daire → “Malzeme Profili”nden giriş başına adetleri girin, liste burada oluşsun.
-                </span>
-              </>
+        plan.totalArrivals === 0 ? (
+          <EmptyState icon={PackageOpen} title="Bu aralıkta giriş yok" description="Hazırlık gerekmiyor.">
+            {days < 14 ? (
+              <LinkButton href="/hazirlik?gun=14" size="sm" variant="outline">
+                14 güne bakın
+              </LinkButton>
             ) : (
-              <>Hesaplanacak bir ihtiyaç bulunamadı.</>
+              <LinkButton href="/calendar" size="sm" variant="outline">
+                Takvimi açın
+              </LinkButton>
             )}
-          </CardContent>
-        </Card>
+          </EmptyState>
+        ) : plan.missingProfile.length > 0 ? (
+          <EmptyState
+            icon={PackageOpen}
+            title={`Bu aralıkta ${plan.totalArrivals} giriş var ama malzeme profili tanımlı değil`}
+            description="Giriş başına adetleri girin, liste burada oluşsun."
+          >
+            {canManage ? (
+              <LinkButton href={`/properties/${plan.missingProfile[0]!.id}#malzeme-profili`} size="sm">
+                {plan.missingProfile.length === 1
+                  ? "Malzeme adetlerini girin"
+                  : `${plan.missingProfile[0]!.name} için adetleri girin`}
+              </LinkButton>
+            ) : null}
+            {plan.missingProfile.length > 1 ? <MissingProfileLinks items={plan.missingProfile.slice(1)} prefix="Diğer daireler: " /> : null}
+          </EmptyState>
+        ) : (
+          <EmptyState icon={PackageOpen} title="Hesaplanacak bir ihtiyaç bulunamadı" />
+        )
       ) : (
         <div className="space-y-4">
           {aiEnabled && !nothingToBuy ? <SupplyAiSummary days={days} enabled={aiEnabled} /> : null}
@@ -191,10 +225,7 @@ export default async function HazirlikPage({
           </Card>
 
           {plan.missingProfile.length > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Profili tanımlı olmayan (bu yüzden sayılmayan) daireler: {plan.missingProfile.join(", ")}. Mülkler →
-              daire → “Malzeme Profili”nden ekleyin.
-            </p>
+            <MissingProfileLinks items={plan.missingProfile} prefix="Profili tanımlı olmayan (bu yüzden sayılmayan) daireler: " />
           ) : null}
         </div>
       )}

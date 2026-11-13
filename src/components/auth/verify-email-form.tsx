@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
+import { Loader2, CheckCircle2, ShieldCheck } from "lucide-react";
 import { FormError } from "@/components/form-error";
 import { Field } from "@/components/form-field";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -45,6 +45,26 @@ const FATAL: Record<string, string> = {
     "Şu an başka bir hesapla giriş yapmış durumdasınız. Önce çıkış yapın, sonra bağlantıya tekrar tıklayın.",
   error: "Doğrulama şu an tamamlanamadı. Lütfen birazdan tekrar deneyin.",
 };
+
+const PRIMARY_LINK =
+  "inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90";
+
+/**
+ * UX-14 (kurucu 11-13 "akışı düşünerek yap"): kurtarılamaz durumda TEK sonraki adım.
+ *  · Anahtar yok / süresi dolmuş: giriş ekranı "tekrar gönder" kutusu AÇIK gelir (`?verify=…`, login-form) — eskiden "Girişe dön"
+ *    kutuyu kapalı açıyordu, kullanıcı "tekrar gönder"i aramak zorundaydı.
+ *  · Başka hesapla oturum açık: "Girişe dön" girişe gidip oturum açık olduğu için panoya atıyordu (döngü) — önce çıkış.
+ *  · Bilinmeyen sebep: eski davranış (girişe dön).
+ */
+export function failedNextStep(reason: string): { href: string; label: string; hint: string | null; apiRoute: boolean } {
+  if (reason === "missing" || reason === "expired") {
+    return { href: `/login?verify=${reason}`, label: "Yeni bağlantı isteyin", hint: "E-posta adresinizi girip yeni bir doğrulama bağlantısı isteyin.", apiRoute: false };
+  }
+  if (reason === "session_mismatch") {
+    return { href: "/api/auth/logout", label: "Çıkış yapın", hint: null, apiRoute: true };
+  }
+  return { href: "/login", label: "Girişe dön", hint: "Giriş ekranından yeni bir doğrulama bağlantısı isteyebilirsiniz.", apiRoute: false };
+}
 
 // Formda kalınan durum — kullanıcı düzeltip tekrar deneyebilir.
 const RETRY: Record<string, string> = {
@@ -159,23 +179,22 @@ export function VerifyEmailForm() {
   }
 
   if (state === "failed") {
+    const next = failedNextStep(reason);
     return (
       <div className="space-y-4">
-        <FormError>
-          <span className="inline-flex items-start gap-1.5">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            {FATAL[reason] ?? FATAL.error}
-          </span>
-        </FormError>
-        <p className="text-sm text-muted-foreground">
-          Giriş ekranından yeni bir doğrulama bağlantısı isteyebilirsiniz.
-        </p>
-        <Link
-          href="/login"
-          className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Girişe dön
-        </Link>
+        {/* `FormError` kendi uyarı simgesini basar — içeride ikinci simge yok (UX-14: çift simge). */}
+        <FormError>{FATAL[reason] ?? FATAL.error}</FormError>
+        {next.hint ? <p className="text-sm text-muted-foreground">{next.hint}</p> : null}
+        {next.apiRoute ? (
+          // Çıkış bir API rotasıdır (çerezi siler, girişe yönlendirir) — istemci yönlendiricisi değil, tam sayfa geçişi.
+          <a href={next.href} className={PRIMARY_LINK}>
+            {next.label}
+          </a>
+        ) : (
+          <Link href={next.href} className={PRIMARY_LINK}>
+            {next.label}
+          </Link>
+        )}
       </div>
     );
   }

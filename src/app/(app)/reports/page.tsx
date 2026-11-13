@@ -25,9 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import type { BadgeTone } from "@/lib/constants";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { ConnectChannelButton, canManageChannel } from "@/components/connect-channel-button";
 
-/** Bundan az konuşmada skor "kesin değil" notuyla gösterilir (3 konuşmadan "%33 şikâyet" yanıltıcı). */
-const PERF_FEW_CONVERSATIONS = 20;
 
 /**
  * 🚨 PERFORMANS ROZETİ HEP YEŞİLDİ (ölçüldü, 09-11): `tone="success"` SABİT
@@ -64,7 +63,8 @@ const INTENT_LABEL: Record<string, string> = {
 };
 
 export default async function ReportsPage() {
-  const { organizationId } = await requireManagerSession();
+  const session = await requireManagerSession();
+  const { organizationId } = session;
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   // Risk view reads the append-only RiskEvent HISTORY (Codex #32) — the old
   // Conversation snapshot kept only the LAST decision per thread, so earlier
@@ -154,6 +154,8 @@ export default async function ReportsPage() {
   // minutes until it crosses an hour so small numbers don't round down to
   // "~0 saat" (which reads like nothing happened).
   const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
+  // Raporda gösterilecek herhangi bir veri var mı (gönderim, konu ya da mülk / doluluk satırı).
+  const hasReportData = autoMessages > 0 || topics.length > 0 || occupancy.length > 0;
   // ⚠️ 4 DAKİKA BİR VARSAYIMDIR, ÖLÇÜM DEĞİL (09-11). Mesaj uzunluğu, dil,
   // tekrar ve QR/kanal ayrımı hesaba girmiyor. Sabit burada ADLANDIRILDI ki
   // satır içinde kaybolmasın ve ekrandaki cümle onu VARSAYIM diye söylesin.
@@ -174,11 +176,16 @@ export default async function ReportsPage() {
         description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri. Her kart kendi dönemini belirtir (AI etkinliği son 30 gün, doluluk bu ay)."
       />
 
-      {!channelConnected && !isDemoOrg(organizationId) ? (
-        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          Airbnb / Booking bağlantısı kurulunca bu raporlar misafir mesajları ve rezervasyonlarla
-          otomatik dolar.
-        </p>
+      {/* UX-14 (kurucu 11-13): kutu yalnız HİÇ veri yokken. Takvim / dosya / QR ile çalışan hesapta veri vardı ama kutu "bağlantı
+          kurulunca dolar" diyordu (altında 3 konuşma, skor görünürken). Bağlantıyı kurabilecek kişiye düğme de çıkar. */}
+      {!channelConnected && !isDemoOrg(organizationId) && !hasReportData ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p>
+            Airbnb / Booking bağlantısı kurulunca bu raporlar misafir mesajları ve rezervasyonlarla
+            otomatik dolar.
+          </p>
+          {canManageChannel(session) ? <ConnectChannelButton variant="outline" /> : null}
+        </div>
       ) : null}
 
       {/* AI & automation activity */}
@@ -221,11 +228,8 @@ export default async function ReportsPage() {
               <>
                 <p className="text-2xl font-semibold tabular-nums tracking-tight">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
-                {score.sampleConversations < PERF_FEW_CONVERSATIONS ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Az veri: son 30 günde {score.sampleConversations} konuşma — skor henüz kesin değil.
-                  </p>
-                ) : null}
+                {/* UX-12 (kurucu 11-13: "skor henüz kesin değili sil; müşteri böyle belirsiz bir yazı görmemeli"): az veri uyarısı kalktı.
+                    Az veride skoru hiç göstermeme seçeneği kurucuya ayrıca soruldu (docs/INCELEME-2026-11-13-ux-denetimi.md, UX-12). */}
                 <div className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
                   {score.breakdown.responseRate !== null ? (
                     <div className="flex items-center justify-between">
