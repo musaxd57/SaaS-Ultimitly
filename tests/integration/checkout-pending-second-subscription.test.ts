@@ -46,6 +46,7 @@ import { POST as consentPost } from "@/app/api/billing/consent/route";
 import { POST as pendingPost } from "@/app/api/billing/checkout-pending/route";
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 const ALARM = "paddle-webhook-second-subscription";
@@ -232,16 +233,16 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect(lock.lockedUntil.getTime()).toBeLessThanOrEqual(Date.now() + CHECKOUT_PENDING_MS + 5_000);
 
       const before = await prisma.checkoutConsent.count();
-      const res = await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro" }), ctx);
+      const res = await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }), ctx);
       expect(res.status).toBe(400);
       expect((await res.json()).fields._).toBe(CHECKOUT_PENDING_MESSAGE);
       expect(await prisma.checkoutConsent.count()).toBe(before);
     });
 
     it("KONTROL: kilit yokken ya da süresi dolmuşken ödeme ekranı açılır", async () => {
-      expect((await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro" }), ctx)).status).toBe(201);
+      expect((await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }), ctx)).status).toBe(201);
       await prisma.systemLock.create({ data: { name: checkoutPendingLockName(orgId), lockedUntil: new Date(Date.now() - 1_000), holder: consentId } });
-      expect((await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro" }), ctx)).status).toBe(201);
+      expect((await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }), ctx)).status).toBe(201);
     });
 
     it("🚨 başka işletmenin onayı 404, eski onay (3 saatten eski) reddedilir — kilit YAZILMAZ", async () => {
@@ -346,7 +347,7 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       });
       const lockCount = () => prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } });
       const consentBlocked = async () => {
-        const res = await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro" }), ctx);
+        const res = await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }), ctx);
         return res.status === 400 && (await res.json()).fields._ === CHECKOUT_PENDING_MESSAGE;
       };
 

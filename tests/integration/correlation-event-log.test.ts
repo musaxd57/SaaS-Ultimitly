@@ -27,6 +27,7 @@ import { POST as consentPost } from "@/app/api/billing/consent/route";
 import { POST as pendingPost } from "@/app/api/billing/checkout-pending/route";
 import { POST as webhookPost } from "@/app/api/webhooks/paddle/route";
 import { GET as eventsGet } from "@/app/api/admin/events/route";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
@@ -182,7 +183,7 @@ describe("ödeme zinciri — onay → webhook → abonelik aynı numara", () => 
       new NextRequest("http://localhost/api/billing/consent", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planCode: "pro", priceId: "pri_pro" }),
+        body: JSON.stringify({ planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }),
       }),
       ctx,
     );

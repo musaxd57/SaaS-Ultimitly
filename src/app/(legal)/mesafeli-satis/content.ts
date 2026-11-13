@@ -1,4 +1,6 @@
 import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
+// Ödeme ekranındaki cayma onayı cümlesi tek kaynaktan: sözleşmede alıntılanan cümle kutudakiyle harfi harfine aynı kalır (kurucu 11-13).
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 
 export interface Section {
   title: string;
@@ -63,7 +65,7 @@ export const SECTIONS: Section[] = [
       "AI tarafından oluşturulan yanıtların taslak/destek niteliğinde olduğunu; misafir ilişkileri, iade, iptal, hasar, güvenlik, yasal yükümlülükler ve platform kuralları bakımından nihai sorumluluğun kendisine ait olduğunu kabul eder.",
       "Otomatik yanıt özelliğini kullanmadan önce bilgi tabanındaki bilgilerin doğru, güncel ve yeterli olduğunu kontrol etmekle yükümlüdür; eksik veya hatalı bilgi tabanı nedeniyle oluşabilecek yanlış yönlendirmelerden sorumludur.",
       "Airbnb, Booking.com ve benzeri bağlı platformların kullanım şartlarına, mesajlaşma kurallarına, spam politikalarına, ödeme/rezervasyon kurallarına ve ayrımcılık karşıtı politikalarına uygun davranmakla yükümlüdür.",
-      "İşbu sözleşmeyi, Ön Bilgilendirme Formu’nu, Kullanım Koşulları’nı ve Gizlilik Politikası’nı okuyup kabul ettiğini beyan eder.",
+      "Ön Bilgilendirme Formu’nu okuyup bu bilgileri aldığını onayladığını, işbu sözleşmeyi ve Kullanım Koşulları’nı kabul ettiğini beyan eder.",
     ],
   },
   {
@@ -79,19 +81,21 @@ export const SECTIONS: Section[] = [
   {
     title: "10. Cayma Hakkı",
     body: [
-      "ALICI, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir; ücretli planın kullanılmaya başlanmasıyla ilgili istisna 11. maddededir. Cayma bildirimi, yukarıdaki e-posta adresine açık bir beyanla yapılabilir.",
+      "ALICI, sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin ve cezai şart ödemeksizin cayma hakkına sahiptir. ALICI, ödeme ekranında ücretli planın bu süre dolmadan hemen başlamasını ayrıca onaylarsa, 11. madde uyarınca cayma hakkı sona erer. Cayma bildirimi, yukarıdaki e-posta adresine açık bir beyanla yapılabilir.",
     ],
   },
   {
     title: "11. Cayma Hakkının İstisnaları",
     body: [
-      "Yönetmeliğin 15. maddesi uyarınca; ALICI’nın onayı ile ifasına başlanan, elektronik ortamda anında ifa edilen hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz. ALICI, ücretli planı satın alıp Hizmeti kullanmaya başlamakla bu hizmetin anında ifasına onay vermiş sayılır ve bu hâlde cayma hakkının sona erebileceğini kabul eder. Satın almadan önce Hizmeti denemek isteyen ALICI, 14 günlük ücretsiz deneme süresini kullanabilir.",
+      "Mesafeli Sözleşmeler Yönetmeliği’nin 15 inci maddesinin birinci fıkrasının (ğ) ve (h) bentleri uyarınca; elektronik ortamda anında ifa edilen hizmetlere ve cayma süresi dolmadan ALICI’nın onayıyla ifasına başlanan hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz.",
+      `ALICI, ödeme ekranında “${CHECKOUT_CONSENT_COPY.immediateStart.text}” kutusunu işaretleyerek ücretli planın ödemenin onaylandığı anda başlamasını onaylar ve bu nedenle cayma hakkının sona ereceğini kabul eder.`,
+      "Satın almadan önce Hizmeti denemek isteyen ALICI, 14 günlük ücretsiz deneme süresini kullanabilir. Cayma hakkının sona ermesi, ALICI’nın aboneliği dilediği zaman iptal etme hakkını etkilemez; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer.",
     ],
   },
   {
     title: "12. Kişisel Verilerin Korunması",
     body: [
-      "Tarafların kişisel verilere ilişkin hak ve yükümlülükleri, Gizlilik Politikası ve KVKK Aydınlatma Metni’nde düzenlenmiştir ve işbu sözleşmenin ayrılmaz parçasıdır.",
+      "Kişisel verilerin nasıl işlendiği Gizlilik Politikası ve KVKK Aydınlatma Metni’nde anlatılmıştır. Bu metinler bilgilendirme amaçlıdır ve işbu sözleşmenin parçası değildir; işbu sözleşmenin kabulü, kişisel verilerin işlenmesine açık rıza anlamına gelmez.",
     ],
   },
   {
@@ -121,7 +125,7 @@ export const SECTIONS: Section[] = [
   {
     title: "17. Yürürlük",
     body: [
-      "ALICI’nın elektronik ortamda ödemeyi onaylaması ile işbu sözleşme (17 maddeden oluşan asıl metin ve ekleri ile birlikte) kurulmuş ve yürürlüğe girmiş sayılır. Sözleşmenin bir örneği ALICI’ya elektronik ortamda sunulur.",
+      "İşbu sözleşme (17 maddeden oluşan asıl metin ve ekleri ile birlikte), ALICI’nın ödeme ekranında sözleşmeyi kabul edip ödemeyi onaylamasıyla kurulur ve yürürlüğe girer. Sözleşmenin bir örneği ALICI’ya elektronik ortamda sunulur.",
     ],
   },
 ];

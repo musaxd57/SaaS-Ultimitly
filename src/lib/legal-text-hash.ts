@@ -3,6 +3,7 @@ import { SECTIONS as GIZLILIK_SECTIONS } from "@/app/(legal)/gizlilik/content";
 import { SECTIONS as MESAFELI_SATIS_SECTIONS } from "@/app/(legal)/mesafeli-satis/content";
 import { SECTIONS as ON_BILGILENDIRME_SECTIONS } from "@/app/(legal)/on-bilgilendirme/content";
 import { SECTIONS as KOSULLAR_SECTIONS } from "@/app/(legal)/kosullar/content";
+import { checkoutConsentSentences } from "@/lib/billing/consent-copy";
 
 // Tamper-evident companion to LEGAL_VERSION (which is a hand-bumped label — a
 // forgotten bump on a real text edit would silently understate what was shown).
@@ -13,11 +14,14 @@ import { SECTIONS as KOSULLAR_SECTIONS } from "@/app/(legal)/kosullar/content";
 // stays the human-readable, deliberately-bumped release label) — a second,
 // independent proof alongside it.
 function computeLegalTextHash(): string {
+  // Kurucu 11-13: ödeme ekranındaki üç onay cümlesi de özete girer — kayıt, kullanıcının HANGİ cümleleri işaretlediğini de kanıtlar
+  // (şema değişikliği olmadan; satıra yazılan bu özet). Sıra sabit; sona eklendi (önceki dört metnin sırası değişmedi).
   const canonical = JSON.stringify([
     KOSULLAR_SECTIONS,
     GIZLILIK_SECTIONS,
     MESAFELI_SATIS_SECTIONS,
     ON_BILGILENDIRME_SECTIONS,
+    checkoutConsentSentences(),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }

@@ -20,6 +20,7 @@ import { __cardGateHooks, evaluateTrialCardGates, TRIAL_CARD_REQUIRED_MESSAGE } 
 import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
 import { POST as trialEndPost } from "@/app/api/admin/trial-end/route";
 import { POST as consentPost } from "@/app/api/billing/consent/route";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 const DAY = 86_400_000;
 const ctx = { params: Promise.resolve({} as Record<string, never>) } as never;
@@ -132,7 +133,7 @@ describe("sızma: kiracılar arası", () => {
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     const clean = await trialOrg("temiz@example.com");
     session = { userId: clean.userId, organizationId: clean.orgId, role: "owner", email: "temiz@example.com", name: "Sahip", sessionEpoch: 0 } as SessionPayload;
-    const r = await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t" }), ctx);
+    const r = await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t", ...CHECKOUT_CONSENT_FLAGS }), ctx);
     expect(r.status).toBe(400);
     const body = await r.json();
     expect(body).toMatchObject({ fields: { planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." } });
@@ -142,10 +143,10 @@ describe("sızma: kiracılar arası", () => {
     const risky = await trialOrg("riskli@example.com", { identityReused: true });
     await evaluateTrialCardGates();
     session = { userId: risky.userId, organizationId: risky.orgId, role: "owner", email: "riskli@example.com", name: "Sahip", sessionEpoch: 0 } as SessionPayload;
-    expect((await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t" }), ctx)).status).toBe(201);
+    expect((await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t", ...CHECKOUT_CONSENT_FLAGS }), ctx)).status).toBe(201);
     // Başka işletmenin damgası temiz hesaba deneme fiyatını AÇMAZ.
     session = { userId: clean.userId, organizationId: clean.orgId, role: "owner", email: "temiz@example.com", name: "Sahip", sessionEpoch: 0 } as SessionPayload;
-    expect((await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t" }), ctx)).status).toBe(400);
+    expect((await consentPost(post("/api/billing/consent", { planCode: "pro", priceId: "pri_p_t", ...CHECKOUT_CONSENT_FLAGS }), ctx)).status).toBe(400);
   });
 });
 

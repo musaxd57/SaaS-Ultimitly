@@ -126,7 +126,7 @@ export const SECTIONS: Section[] = [
   {
     title: "18. Devir, Bölünebilirlik ve Bütünlük",
     body: [
-      "Bu Koşullardan doğan hak ve yükümlülüklerinizi önceden yazılı onayımız olmaksızın devredemezsiniz. Koşulların herhangi bir hükmünün geçersiz sayılması, diğer hükümlerin geçerliliğini etkilemez. Bu Koşullar; Gizlilik Politikası, Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi ile birlikte taraflar arasındaki sözleşmenin bütününü oluşturur.",
+      "Bu Koşullardan doğan hak ve yükümlülüklerinizi önceden yazılı onayımız olmaksızın devredemezsiniz. Koşulların herhangi bir hükmünün geçersiz sayılması, diğer hükümlerin geçerliliğini etkilemez. Bu Koşullar; ücretli planlarda Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi ile birlikte taraflar arasındaki sözleşmenin bütününü oluşturur. Gizlilik Politikası kişisel verilerin nasıl işlendiğini anlatan bir bilgilendirme metnidir; sözleşmenin parçası değildir.",
     ],
   },
   {

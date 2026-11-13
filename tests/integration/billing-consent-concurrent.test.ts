@@ -30,13 +30,14 @@ vi.mock("@/lib/api", async (orig) => {
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST } from "@/app/api/billing/consent/route";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
 const postReq = () =>
   new NextRequest("http://localhost/api/billing/consent", {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": "TestBrowser/1.0" },
-    body: JSON.stringify({ planCode: "pro", priceId: "pri_pro" }),
+    body: JSON.stringify({ planCode: "pro", priceId: "pri_pro", ...CHECKOUT_CONSENT_FLAGS }),
   });
 
 /** İki isteği aynı noktada buluşturur (biri gelmezse `timeoutMs` sonra açılır; `arrivals()` iddiası kırmızı olur). */

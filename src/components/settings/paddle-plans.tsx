@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { refreshAfterBilling } from "@/components/settings/refresh-after-billing";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor, type CheckoutConsentKey } from "@/lib/billing/consent-copy";
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
 import { BILLING_TEXT, billingReason, lapsedLabel } from "@/lib/billing/billing-ui-text";
@@ -213,11 +214,19 @@ export function PaddlePlans({
   const [changeBusy, setChangeBusy] = useState(false);
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
-  const [accepted, setAccepted] = useState(false);
-  // UX-3 (kurucu 11-13): plan düğmesi onay boşken de basılır; basınca uyarı onay kutusunun ALTINDA çıkar ve sayfa kutuya kayar
+  // Kurucu 11-13 ("en yasal şekilde"): ÜÇ ayrı, boş başlayan, zorunlu onay (metinler ve gerekçe `lib/billing/consent-copy.ts`).
+  const [consents, setConsents] = useState<Record<CheckoutConsentKey, boolean>>({ preInfo: false, contract: false, immediateStart: false });
+  // Kartla deneme yolunda ücretli hizmet deneme bitince başlar → "hemen başlasın" kutusu yok (`checkoutConsentKeysFor`).
+  const consentKeys = checkoutConsentKeysFor({ cardTrial: !!cardTrialNotice });
+  const accepted = consentKeys.every((k) => consents[k]);
+  // UX-3 (kurucu 11-13): plan düğmesi onay boşken de basılır; basınca uyarı İLK boş kutunun altında çıkar ve sayfa ona kayar
   // (eskiden düğme soluk ve sebepsizdi; uyarı listenin en altındaki genel hata satırına düşüyordu).
-  const [consentMissing, setConsentMissing] = useState(false);
-  const consentRef = useRef<HTMLInputElement>(null);
+  const [consentMissing, setConsentMissing] = useState<CheckoutConsentKey | null>(null);
+  const consentRefs = {
+    preInfo: useRef<HTMLInputElement>(null),
+    contract: useRef<HTMLInputElement>(null),
+    immediateStart: useRef<HTMLInputElement>(null),
+  };
   const [period, setPeriod] = useState<BillingPeriod>("month");
   // Kartla denemede yalnız aylık deneme süreli fiyat (yıllık deneme fiyatı yok).
   const annual = annualAvailable && period === "year" && !cardTrialNotice;
@@ -329,9 +338,10 @@ export function PaddlePlans({
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
       if (!accepted) {
-        setConsentMissing(true);
-        consentRef.current?.focus();
-        consentRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        const first = consentKeys.find((k) => !consents[k]) ?? "preInfo";
+        setConsentMissing(first);
+        consentRefs[first].current?.focus();
+        consentRefs[first].current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
         return;
       }
       setError(null);
@@ -360,7 +370,14 @@ export function PaddlePlans({
           res = await fetch("/api/billing/consent", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ planCode, priceId }),
+            // Üç onay ayrı alan olarak gider; sunucu üçü de `true` değilse kaydı yazmaz (`checkoutConsentSchema`).
+            body: JSON.stringify({
+              planCode,
+              priceId,
+              preInfoConfirmed: true,
+              contractAccepted: true,
+              ...(consentKeys.includes("immediateStart") ? { immediateStartConsent: true } : {}),
+            }),
           });
         } catch {
           /* network error → consentId stays undefined */
@@ -415,7 +432,7 @@ export function PaddlePlans({
         setBusy(false);
       }
     },
-    [email, organizationId, accepted, busy, processing],
+    [email, organizationId, accepted, consents, consentKeys, busy, processing],
   );
 
   // Open Paddle's hosted customer portal (change plan / cancel / update card).
@@ -647,35 +664,49 @@ export function PaddlePlans({
           </button>
         </div>
       ) : (
-        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
-          <input
-            ref={consentRef}
-            type="checkbox"
-            checked={accepted}
-            onChange={(e) => {
-              setAccepted(e.target.checked);
-              if (e.target.checked) setConsentMissing(false);
-            }}
-            className="mt-0.5 h-4 w-4 shrink-0"
-            aria-invalid={consentMissing ? true : undefined}
-            aria-describedby={consentMissing ? "billing-consent-error" : undefined}
-          />
-          <span>
-            <Link href="/on-bilgilendirme" target="_blank" className="text-primary hover:underline">
-              Ön Bilgilendirme Formu
-            </Link>
-            {" ve "}
-            <Link href="/mesafeli-satis" target="_blank" className="text-primary hover:underline">
-              Mesafeli Satış Sözleşmesi
-            </Link>
-            ’ni okudum, kabul ediyorum. Ücretli plana geçmeden önce bu onay gereklidir.
-            {consentMissing ? (
-              <span id="billing-consent-error" role="alert" className="mt-1 block font-medium text-destructive">
-                {BILLING_TEXT.consentRequired}
-              </span>
-            ) : null}
-          </span>
-        </label>
+        <fieldset data-checkout-consent className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-base leading-relaxed text-foreground">
+          <legend className="sr-only">Ödeme öncesi onaylar</legend>
+          {consentKeys.map((key) => {
+            const copy = CHECKOUT_CONSENT_COPY[key];
+            const errorId = `billing-consent-error-${key}`;
+            return (
+              <label key={key} className="flex items-start gap-2">
+                <input
+                  ref={consentRefs[key]}
+                  type="checkbox"
+                  name={`consent-${key}`}
+                  checked={consents[key]}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setConsents((prev) => ({ ...prev, [key]: checked }));
+                    if (checked && consentMissing === key) setConsentMissing(null);
+                  }}
+                  className="mt-1 h-4 w-4 shrink-0"
+                  aria-invalid={consentMissing === key ? true : undefined}
+                  aria-describedby={consentMissing === key ? errorId : undefined}
+                />
+                <span>
+                  {"doc" in copy ? (
+                    <>
+                      <Link href={copy.href} target="_blank" className="text-primary hover:underline">
+                        {copy.doc}
+                      </Link>
+                      {copy.after}
+                    </>
+                  ) : (
+                    copy.text
+                  )}
+                  {consentMissing === key ? (
+                    <span id={errorId} role="alert" className="mt-1 block font-medium text-destructive">
+                      {copy.missing}
+                      {key === "immediateStart" && trialing ? ` ${CHECKOUT_CONSENT_COPY.immediateStart.missingTrialHint}` : null}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
       )}
 
       {resumeEnabled && manageable && subscriptionStatus === "paused" ? (
@@ -767,7 +798,7 @@ export function PaddlePlans({
                fiyatı ve süresi farklı BAŞKA bir sözleşmeye verilmişti. */
             onChange={(next) => {
               setPeriod(next);
-              setAccepted(false);
+              setConsents({ preInfo: false, contract: false, immediateStart: false });
             }}
             size="sm"
           />

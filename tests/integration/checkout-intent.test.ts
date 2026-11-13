@@ -108,13 +108,14 @@ import {
 } from "@/lib/billing/checkout-intent";
 import { checkoutPendingActive, clearCheckoutPending } from "@/lib/billing/checkout-pending";
 import { reportError } from "@/lib/report-error";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
 const postReq = (priceId = "pri_pro", planCode = "pro") =>
   new NextRequest("http://localhost/api/billing/consent", {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": "TestBrowser/1.0" },
-    body: JSON.stringify({ planCode, priceId }),
+    body: JSON.stringify({ planCode, priceId, ...CHECKOUT_CONSENT_FLAGS }),
   });
 type Body = { consentId?: string; transactionId?: string; error?: string; fields?: Record<string, string> };
 

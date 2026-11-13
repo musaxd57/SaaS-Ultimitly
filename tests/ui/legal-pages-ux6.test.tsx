@@ -7,6 +7,7 @@ import { SECTIONS as MESAFELI } from "@/app/(legal)/mesafeli-satis/content";
 import { SECTIONS as ON_BILGI } from "@/app/(legal)/on-bilgilendirme/content";
 import { SECTIONS as KOSULLAR } from "@/app/(legal)/kosullar/content";
 import { SECTIONS as GUVENLIK } from "@/app/(legal)/guvenlik/content";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 import KosullarPage from "@/app/(legal)/kosullar/page";
 import OnBilgilendirmePage from "@/app/(legal)/on-bilgilendirme/page";
 
@@ -24,10 +25,10 @@ import OnBilgilendirmePage from "@/app/(legal)/on-bilgilendirme/page";
 afterEach(() => cleanup());
 
 const all = (sections: { body?: string[]; list?: string[] }[]) => sections.flatMap((s) => [...(s.body ?? []), ...(s.list ?? [])]).join("\n");
-const section = (sections: { title: string; body?: string[] }[], prefix: string) => {
+const section = (sections: { title: string; body?: string[]; list?: string[] }[], prefix: string) => {
   const s = sections.find((x) => x.title.startsWith(prefix));
   expect(s, prefix).toBeDefined();
-  return (s!.body ?? []).join("\n");
+  return [...(s!.body ?? []), ...(s!.list ?? [])].join("\n");
 };
 
 describe("UX-6 — tarih", () => {
@@ -89,12 +90,54 @@ describe("UX-6 — süre / yenilenme ve cayma", () => {
   it.each([
     ["ön bilgilendirme", ON_BILGI],
     ["mesafeli satış", MESAFELI],
-  ])("%s: md. 10 istisnaya (md. 11) yollar; md. 11'de belirsiz 'önerilir / bu nedenle' yok, istisnanın özü aynı", (_n, s) => {
-    expect(section(s, "10.")).toContain("11. maddededir");
+  ])("%s: md. 10 istisnaya (md. 11) yollar; md. 11'de belirsiz 'önerilir / bu nedenle' yok", (_n, s) => {
+    expect(section(s, "10.")).toContain("11. madde uyarınca");
     const md11 = section(s, "11.");
     expect(md11).not.toMatch(/riski ortadan kaldırmak|önerilir|Bu nedenle ücretsiz/);
-    expect(md11).toContain("15. maddesi");
+    expect(md11).toContain("15 inci maddesinin birinci fıkrasının (ğ) ve (h) bentleri");
     expect(md11).toContain("14 günlük ücretsiz deneme süresini kullanabilir");
+  });
+
+  // Kurucu 11-13 ("ödeme ekranını en yasal şekilde yap … onaylandığı mı kabul edildiği mi, kelime seçimleri önemli"): istisna artık ZIMNİ
+  // değil — ödeme ekranındaki AYRI kutuya bağlı; sayfada alıntılanan cümle kutudakiyle aynı; "sona erebilir" belirsizliği kalktı; cayma
+  // hakkının bitmesi iptal hakkını etkilemez.
+  it.each([
+    ["ön bilgilendirme", ON_BILGI],
+    ["mesafeli satış", MESAFELI],
+  ])("%s: cayma istisnası ödeme ekranındaki açık onaya bağlı; zımni onay ve 'erebilir' yok", (_n, s) => {
+    const md10 = section(s, "10.");
+    const md11 = section(s, "11.");
+    expect(md10).toContain("ayrıca onaylar");
+    expect(md10).toContain("cezai şart ödeme");
+    expect(md11).toContain(`“${CHECKOUT_CONSENT_COPY.immediateStart.text}”`);
+    expect(md11).not.toMatch(/onay vermiş sayılır|kullanmaya başlamakla|sona erebilir/);
+    expect(md11).toMatch(/iptal etme hakkın(ızı|ı) etkilemez/);
+  });
+
+  it("mesafeli satış md. 8: ön bilgi ONAYLANIR, sözleşme ve koşullar KABUL edilir, gizlilik yalnız OKUNUR (KVKK: aydınlatma kabul ettirilmez)", () => {
+    const md8 = section(MESAFELI, "8.");
+    expect(md8).toContain(
+      "Ön Bilgilendirme Formu’nu okuyup bu bilgileri aldığını onayladığını, işbu sözleşmeyi ve Kullanım Koşulları’nı kabul ettiğini beyan eder.",
+    );
+    expect(md8).not.toMatch(/Gizlilik/);
+  });
+
+  // KVKK: aydınlatma metni sözleşmenin parçası yapılmaz ve sözleşme kabulü açık rıza sayılmaz (Haiku incelemesi 11-13: sözleşme, ödeme
+  // ekranında hiç gösterilmeyen Gizlilik metni için beyan alıyor ve onu "ayrılmaz parça" sayıyordu).
+  it("Gizlilik Politikası hiçbir sözleşmenin 'ayrılmaz parçası' değil; sözleşme kabulü açık rıza sayılmaz", () => {
+    const md12 = section(MESAFELI, "12.");
+    expect(md12).not.toMatch(/ayrılmaz parças/);
+    expect(md12).toContain("sözleşmenin parçası değildir");
+    expect(md12).toContain("açık rıza anlamına gelmez");
+    const kosullar = KOSULLAR.flatMap((x) => [...(x.body ?? []), ...(x.list ?? [])]).join("\n");
+    expect(kosullar).not.toMatch(/Bu Koşullar; Gizlilik Politikası/);
+    expect(kosullar).toContain("Gizlilik Politikası kişisel verilerin nasıl işlendiğini anlatan bir bilgilendirme metnidir; sözleşmenin parçası değildir.");
+  });
+
+  it("mesafeli satış md. 17: sözleşme kabul kutusu + ödeme onayıyla kurulur ('sayılır' yok)", () => {
+    const md17 = section(MESAFELI, "17.");
+    expect(md17).toContain("ödeme ekranında sözleşmeyi kabul edip ödemeyi onaylamasıyla kurulur");
+    expect(md17).not.toMatch(/kurulmuş ve yürürlüğe girmiş sayılır/);
   });
 });
 

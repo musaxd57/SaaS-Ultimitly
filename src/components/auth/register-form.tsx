@@ -310,15 +310,13 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             aria-invalid={fields.consent ? true : undefined}
             aria-describedby={fields.consent ? "register-consent-error" : undefined}
           />
+          {/* Kurucu 11-13 ("kelime seçimleri önemli, ceza yemeyelim"): kutu yalnız sözleşmeyi (Kullanım Koşulları) KABUL ettirir. Gizlilik
+              Politikası bir aydınlatma metnidir; KVKK'ya göre aydınlatma onaya / kabule bağlanmaz → kutusuz bilgi satırı (↓). */}
           <span>
             <Link href="/kosullar" target="_blank" className="text-primary hover:underline">
               Kullanım Koşulları
-            </Link>{" "}
-            ve{" "}
-            <Link href="/gizlilik" target="_blank" className="text-primary hover:underline">
-              Gizlilik Politikası
             </Link>
-            &apos;nı okudum, kabul ediyorum.
+            &apos;nı okudum ve kabul ediyorum.
           </span>
         </label>
         {fields.consent ? (
@@ -326,6 +324,13 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             {fields.consent}
           </p>
         ) : null}
+        <p data-privacy-notice className="pl-6 text-xs text-muted-foreground">
+          Kişisel verilerinizi nasıl işlediğimizi{" "}
+          <Link href="/gizlilik" target="_blank" className="text-primary hover:underline">
+            Gizlilik Politikası
+          </Link>
+          &apos;nda anlattık.
+        </p>
       </div>
       {turnstileSiteKey ? (
         <div className="space-y-1">

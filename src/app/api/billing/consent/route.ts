@@ -9,6 +9,7 @@ import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
 import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
+import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor } from "@/lib/billing/consent-copy";
 import { getEntitlement, planFitsPropertyCount } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { currentCorrelationId } from "@/lib/correlation";
@@ -40,6 +41,12 @@ export const POST = withOwner(async (session, req) => {
   const data = await readJsonCappedOrNull(req);
   const parsed = checkoutConsentSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+  // Cayma hakkı istisnası onayı (md. 15/1-h): ücretli hizmet cayma süresi içinde başlıyorsa ZORUNLU. Kartla deneme fiyatında hizmet deneme
+  // bitince başlar → istenmez (`checkoutConsentKeysFor`). Karar istemcinin değil fiyatın: onaysız normal fiyat kayıt yazdırmaz.
+  const cardTrialPrice = Object.values(cardTrialPriceIds()).includes(parsed.data.priceId);
+  if (checkoutConsentKeysFor({ cardTrial: cardTrialPrice }).includes("immediateStart") && parsed.data.immediateStartConsent !== true) {
+    return badRequest({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });
+  }
 
   // Cross-check the plan LABEL against the price id server-side: the priceId is
   // what actually drives the Paddle charge, so it is authoritative. When the
@@ -69,7 +76,7 @@ export const POST = withOwner(async (session, req) => {
 
   // KARTLA DENEME FİYATI yalnız kart istenen (kartla deneme kapısındaki) hesaba açılır (Haiku 10-17): yoksa herhangi bir deneme hesabı doğrudan
   // istekle deneme süreli fiyattan ödeme ekranı açıp ücretsiz denemesini Paddle'da UZATABİLİRDİ. Kapıdaki hesap normal fiyatla hemen ödeyebilir.
-  if (Object.values(cardTrialPriceIds()).includes(parsed.data.priceId) && !(await getEntitlement(session.organizationId)).cardRequired) {
+  if (cardTrialPrice && !(await getEntitlement(session.organizationId)).cardRequired) {
     return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
   }
 

@@ -9,7 +9,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 import { RegisterForm } from "@/components/auth/register-form";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { REGISTER_CONSENT_REQUIRED } from "@/lib/auth/register-messages";
-import { BILLING_TEXT } from "@/lib/billing/billing-ui-text";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { checkAllCheckoutConsents } from "../helpers/checkout-consent-ui";
 
 // ---------------------------------------------------------------------------
 // UX-3 (kurucu 11-13: "düğme hep basılabilir; soluk olması garip — büyük siteler nasıl yapıyorsa öyle"). Eskiden onay kutusu boşken
@@ -106,9 +107,10 @@ describe("Abonelik — onay kutusu boşken plan düğmesi", () => {
     });
     expect(open).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
+    // Kurucu 11-13: üç ayrı kutu — uyarı İLK boş kutunun (Ön Bilgilendirme) altında.
     const alert = screen.getByRole("alert");
-    expect(alert.textContent).toBe(BILLING_TEXT.consentRequired);
-    const box = screen.getByRole("checkbox");
+    expect(alert.textContent).toBe(CHECKOUT_CONSENT_COPY.preInfo.missing);
+    const box = screen.getAllByRole("checkbox")[0]!;
     expect(box.closest("label")!.contains(alert)).toBe(true);
     expect(box.getAttribute("aria-describedby")).toBe(alert.id);
     expect(document.activeElement).toBe(box);
@@ -121,8 +123,8 @@ describe("Abonelik — onay kutusu boşken plan düğmesi", () => {
     await act(async () => {
       fireEvent.click(btn);
     });
-    fireEvent.click(screen.getByRole("checkbox"));
-    expect(screen.queryByText(BILLING_TEXT.consentRequired)).toBeNull();
+    await checkAllCheckoutConsents();
+    expect(screen.queryByRole("alert")).toBeNull();
     await act(async () => {
       fireEvent.click(btn);
     });

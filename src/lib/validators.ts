@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 import { installTurkishZodErrors } from "@/lib/zod-tr";
 import { newPasswordProblem } from "@/lib/auth/password-policy";
 import { GUEST_DISPLAY_NAME_MAX, guestDisplayNameTooLong } from "@/lib/guest-display-name";
@@ -48,6 +49,11 @@ export type LeadInput = z.infer<typeof leadSchema>;
 export const checkoutConsentSchema = z.object({
   planCode: z.string().min(1, "Plan gerekli").max(64),
   priceId: z.string().min(1, "Fiyat gerekli").max(128),
+  // Kurucu 11-13 ("en yasal şekilde"): ayrı açık onaylar — eksikse kayıt YAZILMAZ, ödeme başlamaz (metinler `billing/consent-copy.ts`).
+  preInfoConfirmed: z.literal(true, { error: CHECKOUT_CONSENT_COPY.preInfo.missing }),
+  contractAccepted: z.literal(true, { error: CHECKOUT_CONSENT_COPY.contract.missing }),
+  // Kartla deneme fiyatında istenmez (`checkoutConsentKeysFor`); gerekip gerekmediğine rota FİYATTAN karar verir — burada yalnız biçim.
+  immediateStartConsent: z.literal(true, { error: CHECKOUT_CONSENT_COPY.immediateStart.missing }).optional(),
 });
 export type CheckoutConsentInput = z.infer<typeof checkoutConsentSchema>;
 

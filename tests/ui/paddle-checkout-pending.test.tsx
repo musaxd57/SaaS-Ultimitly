@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 import { PaddlePlans, PROCESSING_RECHECK_MS } from "@/components/settings/paddle-plans";
 import { CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { checkAllCheckoutConsents } from "../helpers/checkout-consent-ui";
 
 const plans = [
   {
@@ -83,7 +84,7 @@ describe("PaddlePlans — ödemeniz işleniyor", () => {
       ),
     );
     renderPlans();
-    fireEvent.click(await screen.findByRole("checkbox"));
+    await checkAllCheckoutConsents();
     const btn = await screen.findByRole("button", { name: /bu planı seç/i });
     await waitFor(() => expect((btn as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(btn);
@@ -112,7 +113,7 @@ describe("PaddlePlans — ödemeniz işleniyor", () => {
   it("sunucu kilidi (prop) geçerliyken düğme kilitli ve mesaj görünür", async () => {
     vi.stubGlobal("fetch", vi.fn());
     renderPlans(true);
-    fireEvent.click(await screen.findByRole("checkbox"));
+    await checkAllCheckoutConsents();
     const btn = await screen.findByRole("button", { name: /bu planı seç/i });
     expect((btn as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(CHECKOUT_PENDING_MESSAGE)).toBeTruthy();
@@ -125,7 +126,7 @@ describe("PaddlePlans — ödemeniz işleniyor", () => {
   it("🚨 P7: sunucu kilidi SONRADAN gelirse (sayfa yenilendi, prop değişti) düğme kilitlenir ve mesaj görünür; kilit kalkınca açılır", async () => {
     vi.stubGlobal("fetch", vi.fn());
     const view = renderPlans(false);
-    fireEvent.click(await screen.findByRole("checkbox"));
+    await checkAllCheckoutConsents();
     const btn = (await screen.findByRole("button", { name: /bu planı seç/i })) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     view.rerender(plansEl(true));

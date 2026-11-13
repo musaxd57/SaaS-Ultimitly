@@ -5,6 +5,8 @@ import { __resetRateLimit } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import type { SessionPayload } from "@/lib/auth";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
 // route-guard's withAuth reads requireSession from @/lib/api (cross-module) — mock
 // it so we can drive the session. null = unauthenticated.
@@ -16,12 +18,16 @@ vi.mock("@/lib/api", async (orig) => {
 
 import { POST } from "@/app/api/billing/consent/route";
 
-function postReq(body: unknown, extraHeaders?: Record<string, string>) {
+// Gövdeye üç açık onay eklenir (rota üçünü de ister); eksik onay testi ham gövdeyi `rawPostReq` ile yollar.
+function rawPostReq(body: unknown, extraHeaders?: Record<string, string>) {
   return new NextRequest("http://localhost/api/billing/consent", {
     method: "POST",
     headers: { "content-type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
   });
+}
+function postReq(body: Record<string, unknown>, extraHeaders?: Record<string, string>) {
+  return rawPostReq({ ...body, ...CHECKOUT_CONSENT_FLAGS }, extraHeaders);
 }
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
 
@@ -147,6 +153,31 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     session = null;
     const res = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
     expect(res.status).toBe(401);
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
+  // Kurucu 11-13 ("en yasal şekilde"): üç açık onay ayrı ayrı zorunlu — biri eksik ya da `true` dışında bir değerse kayıt YAZILMAZ ve
+  // müşteri o kutunun cümlesini görür (ödeme ekranı kayıt olmadan açılmaz).
+  it.each([
+    ["preInfoConfirmed", CHECKOUT_CONSENT_COPY.preInfo.missing],
+    ["contractAccepted", CHECKOUT_CONSENT_COPY.contract.missing],
+    ["immediateStartConsent", CHECKOUT_CONSENT_COPY.immediateStart.missing],
+  ] as const)("eksik onay %s → 400, alan hatası, kayıt yok", async (key, message) => {
+    const missing: Record<string, unknown> = { planCode: "pro", priceId: "pri_123", ...CHECKOUT_CONSENT_FLAGS };
+    delete missing[key];
+    const res = await POST(rawPostReq(missing), ctx);
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields).toMatchObject({ [key]: message });
+    for (const wrong of [false, "true", 1]) {
+      const r = await POST(rawPostReq({ ...missing, [key]: wrong }), ctx);
+      expect(r.status).toBe(400);
+    }
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
+  it("onaysız eski gövde (yalnız plan + fiyat) artık kayıt yazmaz", async () => {
+    const res = await POST(rawPostReq({ planCode: "pro", priceId: "pri_123" }), ctx);
+    expect(res.status).toBe(400);
     expect(await prisma.checkoutConsent.count()).toBe(0);
   });
 

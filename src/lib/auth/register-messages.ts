@@ -6,7 +6,8 @@
 // ---------------------------------------------------------------------------
 
 /** Onay kutusu işaretlenmeden "Hesap oluştur"a basıldı. */
-export const REGISTER_CONSENT_REQUIRED = "Devam etmek için lütfen Kullanım Koşulları ve Gizlilik Politikası'nı kabul edin.";
+// Kurucu 11-13: Gizlilik Politikası "kabul" ettirilmez (KVKK: aydınlatma onaya bağlanmaz) — kutu yalnız Kullanım Koşulları içindir.
+export const REGISTER_CONSENT_REQUIRED = "Devam etmek için Kullanım Koşulları'nı kabul edin.";
 
 /** İnsan doğrulaması (Turnstile) henüz tamamlanmadı ya da reddedildi. */
 export const REGISTER_CAPTCHA_REQUIRED = "Doğrulamayı tamamlayın.";

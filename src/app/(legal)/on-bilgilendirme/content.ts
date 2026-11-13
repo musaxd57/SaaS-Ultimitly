@@ -1,4 +1,6 @@
 import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
+// Ödeme ekranındaki cayma onayı cümlesi tek kaynaktan: sayfada alıntılanan cümle kutudakiyle harfi harfine aynı kalır (kurucu 11-13).
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 
 export interface Section {
   title: string;
@@ -73,13 +75,15 @@ export const SECTIONS: Section[] = [
   {
     title: "10. Cayma Hakkı ve Kullanımı",
     body: [
-      "Mesafeli Sözleşmeler Yönetmeliği uyarınca tüketici, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir; ücretli planı kullanmaya başlamanızla ilgili istisna 11. maddededir. Cayma bildiriminizi, yukarıda belirtilen e-posta adresine açık bir beyanla iletebilirsiniz.",
+      "Sözleşmenin kurulduğu günden itibaren 14 gün içinde gerekçe göstermeden ve cezai şart ödemeden cayma hakkınız vardır. Ancak ödeme ekranında ücretli planın bu süre dolmadan hemen başlamasını ayrıca onaylarsanız, 11. madde uyarınca cayma hakkınız sona erer. Cayma bildiriminizi yukarıda belirtilen e-posta adresine açık bir beyanla iletebilirsiniz.",
     ],
   },
   {
     title: "11. Cayma Hakkının İstisnası (Dikkat)",
     body: [
-      "Yönetmeliğin 15. maddesi uyarınca, tüketicinin onayı ile ifasına başlanan ve elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı bulunmamaktadır. Ücretli bir plana geçip hizmeti kullanmaya başladığınızda (anında ifa) cayma hakkınız sona erebilir. Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz.",
+      "Mesafeli Sözleşmeler Yönetmeliği’nin 15 inci maddesinin birinci fıkrasının (ğ) ve (h) bentleri uyarınca, elektronik ortamda anında ifa edilen hizmetlerde ve cayma süresi dolmadan tüketicinin onayıyla ifasına başlanan hizmetlerde cayma hakkı kullanılamaz.",
+      `Ödeme ekranında “${CHECKOUT_CONSENT_COPY.immediateStart.text}” kutusunu işaretlerseniz ücretli plan ödemenin onaylandığı anda başlar ve cayma hakkınız sona erer.`,
+      "Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz. Cayma hakkının sona ermesi, aboneliğinizi istediğiniz zaman iptal etme hakkınızı etkilemez; iptal, içinde bulunulan ödeme döneminin sonunda geçerli olur.",
     ],
   },
   {

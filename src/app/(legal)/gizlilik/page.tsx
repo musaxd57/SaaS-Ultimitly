@@ -19,10 +19,10 @@ export default function PrivacyPage() {
         <section key={s.title} className="space-y-2">
           <h2 className="text-lg font-semibold">{s.title}</h2>
           {s.body?.map((p, i) => (
-            <p key={i} className="text-sm leading-relaxed text-muted-foreground">{p}</p>
+            <p key={i} className="text-base leading-relaxed text-muted-foreground">{p}</p>
           ))}
           {s.list ? (
-            <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
+            <ul className="list-disc space-y-1 pl-5 text-base leading-relaxed text-muted-foreground">
               {s.list.map((li, i) => (
                 <li key={i}>{li}</li>
               ))}

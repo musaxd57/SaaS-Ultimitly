@@ -14,7 +14,6 @@ export const BILLING_TEXT = {
   checkoutOpenFailed: "Ödeme ekranı açılamadı. Sayfayı yenileyip tekrar deneyin; sorun sürerse bize yazın.",
   /** Ön bilgilendirme onayı kaydı (ödeme öncesi yasal kanıt) sunucuda yazılamadı. */
   consentFailed: "Onayınız kaydedilemedi, ödeme başlatılmadı. Lütfen tekrar deneyin.",
-  consentRequired: "Devam etmek için Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi’ni onaylayın.",
   portalFailed: "Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin.",
   previewFailed: "Plan bilgisi alınamadı. Lütfen tekrar deneyin.",
   changeFailed: "Plan değişikliği yapılamadı; planınız değişmedi. Lütfen tekrar deneyin.",
