@@ -181,7 +181,7 @@ export default async function GuestChatsPage({
                   <span className="text-sm font-medium">{t.title}</span>
                   {t.urgent ? (
                     <Badge tone="warning">
-                      <AlertTriangle className="mr-1 size-3" /> Ev sahibine iletildi
+                      <AlertTriangle className="mr-1 size-3" /> Yanıtınızı bekliyor
                     </Badge>
                   ) : null}
                   {t.aiPaused ? (

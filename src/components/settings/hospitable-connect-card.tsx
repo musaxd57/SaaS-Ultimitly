@@ -119,6 +119,13 @@ export function HospitableConnectCard({
 
   return (
     <div className="space-y-4">
+      {/* UX-7 (kurucu 11-13): Hospitable'ın ne olduğu hiçbir yerde yazmıyordu. Küçük, tek cümle (kurucu: "yazı fazla büyük olmasın";
+          Hospitable ileride kalkınca bu kart da gider). Her yerde tek ad: "bağlantı anahtarı" (Hospitable'ın kendi menü adları —
+          API access, Access tokens — kullanıcı onları o ekranda arayacağı için aynen kalır). */}
+      {/* Cümle her durumda doğru kalır: bağlıyken de, "Hospitable ile Bağlan" düğmesi varken de (anahtar almak o yolda gerekmez). */}
+      <p data-hospitable-intro className="text-xs text-muted-foreground">
+        Airbnb ve Booking mesajlarınızı Hospitable adlı hizmet üzerinden alıyoruz.
+      </p>
       {/* Status line — SAKLI durumdan (V0.7): "bağlı" = kimlik bilgisi var, sağlayıcı sağlığı değil. */}
       {info.state === "revoked" ? (
         <div className="rounded-md border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-300">
@@ -149,7 +156,7 @@ export function HospitableConnectCard({
       ) : (
         <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           <strong>Bağlı değil.</strong> Bu hesabın misafir mesajları çekilemez/gönderilemez.
-          Aşağıdan Airbnb / Booking bağlantınızı (Hospitable üzerinden) kurun.
+          Aşağıdan bağlantınızı kurun.
         </div>
       )}
 
@@ -158,7 +165,7 @@ export function HospitableConnectCard({
           loaded into the browser. "Değiştir" unlocks it to enter a new one. */}
       {info.connected && !editing ? (
         <div className="space-y-3">
-          <Field label="Hospitable bağlantı anahtarı (Access Token)" htmlFor="hosp-locked">
+          <Field label="Hospitable bağlantı anahtarı" htmlFor="hosp-locked">
             <div className="relative">
               <Input
                 id="hosp-locked"
@@ -247,7 +254,8 @@ export function HospitableConnectCard({
               1 yıl geçerlidir.
             </p>
             <p className="mt-1.5 text-xs">
-              🔒 Token <strong>uçtan uca şifreli</strong> saklanır ve yalnızca bu işletmenin
+              {/* "uçtan uca şifreli" iddiası doğru değildi (anahtar sunucuda şifreli saklanır; uçtan uca değil) — dürüst ifade. */}
+              🔒 Bağlantı anahtarı <strong>şifreli</strong> saklanır ve yalnızca bu işletmenin
               Hospitable mülklerine erişmek için kullanılır; kaydedildikten sonra arayüzde tekrar
               görüntülenmez.
             </p>
@@ -259,13 +267,13 @@ export function HospitableConnectCard({
             }}
             className="flex flex-wrap items-end gap-2"
           >
-            <Field label="Hospitable Personal Access Token" htmlFor="hosp-token" className="min-w-[260px] flex-1">
+            <Field label="Hospitable bağlantı anahtarı" htmlFor="hosp-token" className="min-w-[260px] flex-1">
               <Input
                 id="hosp-token"
                 type="password"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Hospitable access token"
+                placeholder="Bağlantı anahtarını buraya yapıştırın"
                 autoComplete="off"
               />
             </Field>

@@ -169,7 +169,7 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // K10 (kurucu kararı 09-30): devir metni misafire GİTMEZ — ev sahibi devraldığında yanıt yalnız `handoff: true` taşır (metin yok).
 
 // ESKALASYON CEVABI: devirde misafire HİÇBİR metin gitmez (K10 09-30 + kurucu kararı 10-11 — fiziksel acildeki 112 satırı da
-// kalktı). Ev sahibi QR sohbetleri panelinde "Ev sahibine iletildi" işaretini ve uyarıyı görür.
+// kalktı). Ev sahibi QR sohbetleri panelinde "Yanıtınızı bekliyor" işaretini (UX-13, kurucu 11-13; eskiden "Ev sahibine iletildi" — okuyan zaten ev sahibiydi) ve uyarıyı görür.
 
 const notFound = () => new Response("Not found", { status: 404 });
 

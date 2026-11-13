@@ -151,7 +151,7 @@ export default async function GuestChatDetailPage({
             ) : null}
             {convo.priority === "urgent" ? (
               <Badge tone="warning">
-                <AlertTriangle className="mr-1 size-3" /> Ev sahibine iletildi
+                <AlertTriangle className="mr-1 size-3" /> Yanıtınızı bekliyor
               </Badge>
             ) : null}
             {aiPaused ? (
