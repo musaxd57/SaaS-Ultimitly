@@ -115,9 +115,9 @@ export default async function PropertiesPage() {
                     <Badge tone="muted">{p._count.reservations} rez.</Badge>
                   </div>
                   {/* UX denetimi 11-13 (C019): kartın tamamı bağlantı ama bunu söyleyen işaret yoktu → adın yanında küçük ok (yalnız görsel). */}
-                  <h3 className="mt-3 flex items-center gap-1 font-semibold">
+                  <h3 className="mt-3 flex items-start gap-1 font-semibold">
                     <span className="min-w-0 break-words">{p.name}</span>
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   </h3>
                   {p.city || p.address ? (
                     <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">

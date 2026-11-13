@@ -63,9 +63,9 @@ describe("tıklanabilir kartlarda görsel ok (C002, C019, B035) — yalnız gör
   it("kutucukta ok yalnız bağlantı varken", () => {
     expect(read("src/components/stat-card.tsx")).toContain('{href ? <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" /> : null}');
   });
-  it("uzun daire adı kesilmez, alt satıra geçer", () => {
+  it("ok eklenince ad yine sarılır (önceden de sarılıyordu); boşluksuz uzun ad da kırılır, ok ilk satırda durur", () => {
     const src = read("src/app/(app)/properties/page.tsx");
+    expect(src).toContain('<h3 className="mt-3 flex items-start gap-1 font-semibold">');
     expect(src).toContain('<span className="min-w-0 break-words">{p.name}</span>');
-    expect(src).not.toContain("truncate\">{p.name}");
   });
 });
