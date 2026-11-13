@@ -161,4 +161,14 @@ describe("Daire sayfası — yedek temizlikçi", () => {
     expect((screen.getByLabelText("Yedek temizlikçi") as HTMLSelectElement).value).toBe("");
     expect(screen.queryByRole("button", { name: "Kaydet" })).toBeNull();
   });
+
+  it("🚨 Haiku 11-13: kaydedilmemiş seçim bu arada dairenin temizlikçisi yapılırsa kutu kayıtlı değere döner, 'Kaydet' görünmez", () => {
+    const { rerender } = render(<BackupCleanerForm propertyId="p1" primaryUserId="u-ayse" currentBackupId={null} members={members} />);
+    pick("u-ali");
+    expect(screen.getByRole("button", { name: "Kaydet" })).toBeTruthy();
+    rerender(<BackupCleanerForm propertyId="p1" primaryUserId="u-ali" currentBackupId={null} members={members} />);
+    expect((screen.getByLabelText("Yedek temizlikçi") as HTMLSelectElement).value).toBe("");
+    expect(screen.queryByRole("button", { name: "Kaydet" })).toBeNull();
+    expect(bodies).toEqual([]);
+  });
 });

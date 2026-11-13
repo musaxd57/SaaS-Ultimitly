@@ -27,10 +27,13 @@ Temizlikçi sistem için **bir telefon numarasıdır** (adı isteğe bağlı —
 WhatsApp'ta, **düğmeli** mesajlarla; yazı yazması gerekmez.
 
 **Örnek gün (Lale 5: misafir 11:00 çıkıyor, yeni misafir 15:00 geliyor; dairenin temizlikçisi Ayşe, yedeği Fatma):**
-1. **Akşam önce (ör. 19:00) — onay:** Ayşe'ye: "Yarın Lale 5 temizliği · misafir 11:00'de çıkıyor, yeni misafir 15:00'te geliyor. Gelebilir
-   misiniz?" **[Gelirim] [Gelemem]**.
-2. **Ayşe "Gelirim" →** görev Ayşe'de kalır. Ev sahibine hiçbir şey gelmez.
-3. **Ayşe "Gelemem" ya da 21:00'e kadar cevap yok →** sistem KENDİLİĞİNDEN aynı teklifi yedek Fatma'ya yollar. Fatma "Gelirim" → görev
+> ⚠️ §9 İ1 ile DEĞİŞTİ: dairenin kalıcı temizlikçisinde **sessizlik = geliyor**. Akşam mesajı bir HATIRLATMADIR (tek düğme [Gelemem]); yedeğe
+> yalnız açık [Gelemem] ya da "başlama son saati" geçince gidilir. Aşağıdaki 1–3 bu düzeltmeyle okunur.
+1. **Akşam önce (ör. 19:00) — hatırlatma:** Ayşe'ye: "Yarın Lale 5 temizliği · misafir 11:00'de çıkıyor, yeni misafir 15:00'te geliyor.
+   Gelemeyecekseniz dokunun." **[Gelemem]**.
+2. **Ayşe dokunmazsa →** görev Ayşe'de kalır (her gün gelen temizlikçi her akşam "Gelirim"e basmak zorunda kalmaz). Ev sahibine hiçbir şey gelmez.
+3. **Ayşe "Gelemem" ya da sabah "başlama son saati"ne kadar "Başladım" yok →** sistem KENDİLİĞİNDEN teklifi yedek Fatma'ya yollar
+   **[Gelirim] [Gelemem]**. Fatma "Gelirim" → görev
    Fatma'ya geçer, Ayşe'ye "Tamam, yarınki Lale 5 temizliği başka arkadaşımızda." Ev sahibi Panel'de yalnız bir bilgi satırı görür: "Ayşe
    gelemiyor; Lale 5 temizliğini Fatma aldı." **Ev sahibi hiçbir şey yapmaz.**
 4. **Kimse kabul etmezse (yalnız o zaman) →** ev sahibine istisna: "Lale 5 temizliği için kimse onay vermedi (giriş 15:00). [Ayşe'yi ara]
@@ -51,10 +54,16 @@ Yerine: (a) WhatsApp'taki **[Gelemem]** (iş başlamadan, akşam önce sorulan s
 kendiliğinden devir. Bugünkü verideki eski "Yapılamıyor" görevleri okunmaya devam eder (Girişler'de görünür, yeniden atanınca "Yapılacak"a
 döner); yeni "Yapılamıyor" yazılamaz.
 
-## 5. "İş başladı" ne demek (kurucu: hesap yeterli; fotoğraf şart değil)
-- **Başladı** = atanan kişinin "Başladım"ı (WhatsApp düğmesi, ileride) ya da kimlikli "Bitti". Kimin bastığı numarasından / hesabından belli.
-- Kontrol listesi işareti, not, ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı **başladı sayılmaz** (kurucu 11-13: "sayılmasın").
+## 5. "İş başladı" ne demek (kurucu: hesap yeterli; fotoğraf şart değil) — §9 E7 ile DARALTILDI, T1'de bu hâliyle uygulandı
+- **İş izi** = kişinin "Başladım" / "Onay bekliyor" / "Bitti" kaydı, kişinin notu, fotoğraf ya da kontrol listesinde işaretli madde. Kimin
+  yaptığı hesabından (ileride numarasından) belli.
+- **İş izi SAYILMAZ:** ev sahibinin (ya da sistemin) yeniden ataması — "Yapılacak'a döndü" kaydı — ve eski "Yapılamıyor" kaydı (kurucu 11-13
+  S-E1: "sayılmasın"). Kurucunun sözü bu kayıt içindi; kişinin işareti / notu iz sayılmaya DEVAM eder (Opus 11-13 P2-8 ve K-1 kararları:
+  maddelerin yarısını işaretlemiş kişi işin ortasında başkasına verilmez).
+- Bu dar tanım YALNIZ Girişler ataması ve temizlikçi değişince aktarım içindir (`WORK_TRACE_TASK_UPDATE_WHERE`). İptal ONARIMININ silme kümesi
+  GENİŞ kalır (`TOUCHING_TASK_UPDATE_WHERE` — şüphede silme yok, kurucu D5 10-15).
 - Başlamış görev sistem tarafından yedeğe DEVREDİLMEZ; sahip / yönetici yine değiştirebilir (bilinçli seçim, onaylı soru ile).
+- Bilinen sınır: ev sahibinin (kişinin değil) yazdığı not da iz sayılır — güvenli yönde (başkasına verilmez); kişi ayrımı kanıt modeliyle (T3).
 
 ## 6. Mimari (kısa)
 - **Kişi kaydı:** "ekip kişisi" = ad (isteğe bağlı) + telefon (E.164) + WhatsApp izni (zaman damgası) + hangi işletme. Kullanıcı hesabı
@@ -67,19 +76,48 @@ döner); yeni "Yapılamıyor" yazılamaz.
 - **WhatsApp kanalı:** var olan ev sahibi WhatsApp altyapısı (bağlama, şablon gönderimi, gelen düğme yönlendirmesi) + 11-06'da hazırlanan
   temizlikçi şablon başvurusu (`docs/WHATSAPP-SABLON-BASVURUSU-2026-11-06-temizlikci.md`; Meta onayı gerekir). Gelen düğme, numaranın
   kişisine ve teklif kimliğine bağlanır (başkasının teklifine basılamaz). İzin: kişinin ilk mesaja "Evet" demesi (WhatsApp kuralı: alıcının
-  açık onayı; ev sahibinin numara yazması onay sayılmaz).
+  açık onayı; ev sahibinin numara yazması onay sayılmaz). ⚠️ §9 İ3 ile DEĞİŞTİ: ilk mesajı kişinin KENDİSİ atar (QR / `wa.me` kodu); kişi
+  kaydı = giriş yapamayan personel kullanıcısı + kanal bağı (§9 İ5).
 - **Anahtarlar:** hepsi KAPALI doğar; ilk gerçek gönderim kurucuyla.
 
-## 7. Dilimler
-| Dilim | İçerik | Meta onayı gerekir mi | Migration |
-|---|---|---|---|
-| T1 | "Yapamıyorum" kaldırılır (UI + yeni yazım yolu); "başladı" tanımı §5 (Girişler'den atama + temizlikçi değişince aktarım) | hayır | hayır |
-| T2 | Daire sayfasında **yedek temizlikçi** (dairenin temizlikçisinin yanında, aynı kural kaydında); Girişler / Panel'de "temizlikçi başlamadı" satırında tek dokunuşla yedeğe ata (WhatsApp gelene kadar ara çözüm) | hayır | hayır |
-| T3 | Teklif motoru (kanaldan bağımsız) + ev sahibi için "kimse onay vermedi" istisnası; kanal olarak bugün e-posta (hesabı olanlar) | hayır | evet (teklif tablosu) |
-| T4 | Ekip kişisi (telefonla, hesapsız) + WhatsApp düğmeleri (Gelirim / Gelemem / Başladım / Bitti) + fotoğraf eki | **evet** | evet |
-| T5 | Telefonsuz temizlikçi için ev sahibine tek "bitti mi?" sorusu | hayır | hayır |
+## 7. Dilimler (§9 İ2 ile yeniden sıralandı)
+| Dilim | İçerik | Meta onayı | Migration | Durum |
+|---|---|---|---|---|
+| T1 | "Yapamıyorum" kaldırılır (UI + yeni yazım yolu); "iş izi" dar tanımı §5 (Girişler'den atama + temizlikçi değişince aktarım) | hayır | hayır | ✅ `65f79bb1` (mutasyon 7/7) |
+| T2 | Daire sayfasında **yedek temizlikçi** (aynı kural kaydında `backupUserId`; temizlikçi değişince / "Kimse"de kaybolmaz; temizlikçiyle aynı kişi olamaz); Girişler'de kişi değişecekken yedek ön seçili "(yedek)", atama yine "Atayın" ile | hayır | hayır | ✅ `dad2c203` |
+| T3 | **Ekip kişisi + kanıt modeli:** giriş yapamayan personel kullanıcısı (İ5) + "personel kanal bağı" tablosu; kişinin kendi ilk WhatsApp mesajıyla bağlanma (İ3, QR / `wa.me` kodu) | hayır | **evet** (kurucu onayı) | tasarım |
+| T4 | **Teklif motoru** (kanaldan bağımsız; yalnız [Gelemem] / son saat geçince yedeğe — İ1) + Panel'de "kimse onay vermedi" istisnası; sahte taşıyıcıyla test | hayır | **evet** (teklif tablosu) | tasarım |
+| T5 | WhatsApp düğmeleri ([Gelemem] · [Gelirim] · [Başladım] · [Bitti]) + fotoğraf eki; şablon başvurusu YENİDEN yazılır (İ4) | **evet** | hayır | tasarım |
+| T6 | Telefonsuz temizlikçi için ev sahibine tek "bitti mi?" sorusu (kişi kaydı T3'te) | hayır | hayır | tasarım |
+Eski T3'ün "kanal olarak bugün e-posta" bacağı DÜŞTÜ (§9 D7: üretimde personel hesabı yok, e-postadaki onay bağlantısı siteye girmeyi gerektirir).
 
 ## 8. Açık noktalar (kurucuya değil, kod tasarımında çözülecek; kurucu kararı gerekirse ayrıca)
 - Onay mesajının saati (19:00) ve son cevap saati (21:00) işletme saat dilimine göre; aynı gün açılan rezervasyonda süreler kısalır.
 - Yedek de kabul etmezse ikinci yedek? (İlk sürüm: bir yedek; liste ileride.)
 - WhatsApp ücreti (Meta, konuşma başına) ve numara (temizlikçiler için ayrı numara — K-3).
+
+## 9. Opus tasarım incelemesi (11-13 gece) — benimsenen kararlar
+Ajan raporu `scratchpad/handoff/OPUS-1113K-temizlikci-tasarim.md` (repoya alınmadı); her madde kodda doğrulandı.
+- **İ1 — Kalıcı atama + istisnada teklif (tasarımda benimsendi; T4 kodlanmadan önce kurucuya örnekli tek soru — temizlikçiye ve ev sahibine
+  dokunan davranış):** görev bugün de dairenin temizlikçisine doğrudan atanıyor (`automation.ts`
+  `createReservationTasks`). Akşam yalnız hatırlatma + [Gelemem]; sessizlik = geliyor; sabah [Başladım]. Teklif kaydı YALNIZ [Gelemem] ya da
+  başlama son saati geçince yedeğe açılır (tek aday, tek kabul). Gerekçe: "sessizlik = ret" hedef kişiyle (50 yaşında, mesaja her akşam
+  bakmayan) sık yanlış yedek ve aynı kapıda iki kişi doğururdu; durum makinesi küçülür, geç kabul yarışı büyük ölçüde kalkar.
+- **İ2 — Sıra:** kişi kaydı (T3) teklif motorundan ve WhatsApp'tan ÖNCE — üretimde personel hesabı açılamıyor (D7); hesap tabanlı teklifin
+  kullanıcısı yok.
+- **İ3 — İzin ve numara kişinin KENDİ ilk mesajıyla:** ev sahibinin ekranında kişiye özel QR / `wa.me/<temizlikçi numarası>?text=LIXUS-…`
+  kodu (ev sahibi kanalının bugünkü doğrulama kodu kalıbı, `src/lib/host-channel/binding-code.ts`). Kazanç: izin Meta kuralına uygun (kullanıcı
+  başlatır), numara Meta'dan gelir (yazım hatası / yanlış kişi / yeniden tahsis edilmiş numara riski kalkar), ilk ücretsiz pencere açılır.
+  Ev sahibinin numara yazması gerekmez; numara değişince aynı adım tekrarlanır.
+- **İ4 — Şablon başvurusu bu hâliyle Meta'ya GİTMEZ:** `docs/WHATSAPP-SABLON-BASVURUSU-2026-11-06-temizlikci.md` "Yapamıyorum" düğmelerini
+  taşıyor, teklif şablonu ([Gelirim] [Gelemem]) ve iptal / tarih değişti şablonu yok, izin akışı hesaba / davete dayanıyor. Onaylı şablonu
+  değiştirmek yeniden inceleme ister → doğru metinler T5'te bir kerede.
+- **İ5 — Ekip kişisi = giriş yapamayan personel kullanıcısı (önerilen):** ayrı "atanan türü" yerine rezerve alan adlı yapay e-posta +
+  kullanılamaz parola özeti (demo personeli bu kalıbı zaten kullanıyor) + ayrı "personel kanal bağı" tablosu. Kazanç: görev ataması, iş izi
+  kuralı (`userId` dolu), "kim başladı" adı, fotoğraf erişimi, üyelik — hiçbiri iki türlü atanan için yeniden yazılmaz. Bedel: giriş / şifre
+  sıfırlama / e-posta doğrulama bu kullanıcıları KESİN reddetmeli (pinli). Migration kurucu onayıyla.
+- **E7 — §5'in kapsamı:** kurucunun "sayılmasın"ı S-E1 içindi (yeniden atama kaydı) → T1 DAR uygulandı; kişinin işareti / notu iz kalır.
+- **Liste 13:** iptal onarımının silme kümesi gevşetilmedi (§5).
+- **Opus'un doğru bulduğu, değişmeyen:** rol kuralı (temizlikçiyi yalnız sahip + yönetici değiştirir) zaten `withManage` ile yürürlükte;
+  aynı gün iki temizlikte elle yazılan "bitti" / düğmesiz fotoğraf için kural (tek açık iş → ona; birden çoksa sor; hiç yoksa ekleme) T5'te
+  yazılacak.

@@ -253,6 +253,10 @@ export function BackupCleanerForm({
     setValue(currentBackupId ?? "");
   }
   const options = members.filter((m) => m.id !== primaryUserId);
+  // Kaydedilmemiş seçim listeden düştüyse (ör. aynı kişi bu arada dairenin temizlikçisi yapıldı — Haiku 11-13) kutu "hayalet" değer taşımaz:
+  // kayıtlı değere (o da geçersizse "Yok"a) döner; yoksa ekranda "Yok" görünürken "Kaydet" 400 alırdı.
+  const valid = (id: string) => id === "" || options.some((m) => m.id === id);
+  if (!valid(value)) setValue(valid(saved) ? saved : "");
   const dirty = value !== saved;
 
   async function submit() {
