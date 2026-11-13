@@ -138,6 +138,10 @@ describe("ham model kolu — mekanik denetim (çevrimdışı)", () => {
     expect(checkRequest(req({ evidence_quote: "3. kat", sentence: "Dairemiz 3. katta." }), short, PROPERTY)).toEqual([]);
     expect(checkRequest(req({ evidence_quote: "Kat: 3. kat", sentence: "Dairemiz 3. katta." }), short, PROPERTY)).toEqual([]);
     expect(checkRequest(req({ evidence_quote: "kat", sentence: "Dairemiz katta." }), short, PROPERTY)).toEqual<RawCheckIssue[]>(["quote_too_short"]);
+    // Uzun ama sözcüksüz alıntı (yalnız saatler) da bağlam taşımaz: hangi şeyin saati olduğu alıntıda yok.
+    const hours: RawNote[] = [{ category: "amenities", title: "Spor salonu", content: "Spor salonu 09:00–12:00 / 14:00–18:00 arası açıktır." }];
+    expect(checkRequest(req({ evidence_quote: "09:00–12:00 / 14:00–18:00", sentence: "Havuzumuz 18:00'e kadar açık." }), hours, PROPERTY)).toEqual<RawCheckIssue[]>(["quote_too_short"]);
+    expect(checkRequest(req({ evidence_quote: "Spor salonu 09:00–12:00 / 14:00–18:00 arası açıktır.", sentence: "Spor salonumuz 18:00'e kadar açık." }), hours, PROPERTY)).toEqual([]);
   });
 
   it("🚨 taşınmış değer: cümledeki sayı alıntıda yoksa gitmez (market 150 m → eczane, 900 TL → otogar)", () => {
