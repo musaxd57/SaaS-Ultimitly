@@ -17,14 +17,14 @@ export const OPEN_AUTO_LIFECYCLE_TASK_WHERE = {
   origin: "system",
 } satisfies Prisma.TaskWhereInput;
 
-/** ONARIM kümesi (kurucu D5, 10-15: "Yalnız … sistemin oluşturduğu, başlanmamış temizlik/giriş hazırlığı görevleri aday olsun. Manuel
- *  görevleri, mesajdan açılanları, tamamlanmış veya personelin işlem yaptığı görevleri koru."): iptal ANINDAKİ temizlik değil, sonradan
- *  yapılan onarım (senkronun onarım taraması, "zaten iptal" satırı, dosyanın yeniden yüklenmesi) yalnız bunu siler — başlanmış ("devam
- *  ediyor" / "onay bekliyor") ya da bir kişinin güncellemesi / fotoğrafı olan görev KORUNUR ve teşhis betiğinde ayrı sayılır. */
 /** Görevde kişi izi bırakan güncelleme: bir kişinin HERHANGİ bir kaydı ya da fotoğraf — onarımın silme kararı için (geniş, şüphede silme yok).
  *  Girişler ataması ve aktarım artık daha dar `WORK_TRACE_TASK_UPDATE_WHERE`i kullanır (kurucu 11-13). */
 export const TOUCHING_TASK_UPDATE_WHERE = { OR: [{ userId: { not: null } }, { photoUrl: { not: null } }] } satisfies Prisma.TaskUpdateWhereInput;
 
+/** ONARIM kümesi (kurucu D5, 10-15: "Yalnız … sistemin oluşturduğu, başlanmamış temizlik/giriş hazırlığı görevleri aday olsun. Manuel
+ *  görevleri, mesajdan açılanları, tamamlanmış veya personelin işlem yaptığı görevleri koru."): iptal ANINDAKİ temizlik değil, sonradan
+ *  yapılan onarım (senkronun onarım taraması, "zaten iptal" satırı, dosyanın yeniden yüklenmesi) yalnız bunu siler — başlanmış ("devam
+ *  ediyor" / "onay bekliyor") ya da bir kişinin güncellemesi / fotoğrafı olan görev KORUNUR ve teşhis betiğinde ayrı sayılır. */
 export const UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE = {
   status: "todo",
   type: { in: ["checkin_prep", "cleaning"] },

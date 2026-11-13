@@ -77,9 +77,9 @@ describe("pano — 'Yapamıyorum' kaldırıldı; eski 'Yapılamıyor' verisi", (
     expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "u-mehmet" } }]);
   });
 
-  it("mutasyon Q28: temizlikçi 'Yapılamıyor' kartında düğme yerine 'Ev sahibine bildirildi' + yine yaparsa ne yapacağı yazar", () => {
+  it("mutasyon Q28: temizlikçi eski 'Yapılamıyor' kartında düğme yerine 'Ev sahibi bu görevi görüyor' + yine yaparsa ne yapacağı yazar", () => {
     render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage={false} />);
-    expect(screen.getByText(/Ev sahibine bildirildi\. Yine de yaparsanız “Başladım”a basın\./)).toBeTruthy();
+    expect(screen.getByText(/Ev sahibi bu görevi görüyor\. Yine de yaparsanız “Başladım”a basın\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
   });
 

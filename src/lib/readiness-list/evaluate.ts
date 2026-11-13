@@ -59,6 +59,11 @@ export interface FactorAssign {
   expectAssigneeId: string | null;
   /** assign = "Birini atayın" · reassign = "Başkasına atayın" (Yapılamıyor) · change = "Değiştirin" (atanmış, başlanmamış). */
   mode: "assign" | "reassign" | "change";
+  /**
+   * Önerilen kişi = dairenin YEDEK temizlikçisi (kurucu 11-13: "Yapamıyorum kalksın, sistem yedeği önersin"). YALNIZ temizlik satırında, kişi
+   * DEĞİŞECEKKEN (reassign / change) ve yedek şu anki atanandan farklıysa. Yalnız ön seçimdir: atama yine "Atayın" ile, sunucu aynı ön şartla.
+   */
+  suggestUserId?: string;
 }
 
 /** Girişler'den atanabilecek görev durumları — sunucu da AYNI kümeyi ister (`api/tasks/[id]` `expectAssignedToId`). */
@@ -68,9 +73,10 @@ export function assignableStatus(status: string | null | undefined): boolean {
 }
 
 /**
- * Girişler'den atanabilir mi — TEK saf kural (ekran ve sunucu kilitli satırda aynısını uygular). "Yapılamıyor" her zaman başkasına atanabilir
- * (kişi işi bıraktı). "Yapılacak" YALNIZ dokunulmamışsa: kontrol listesinde işaretli madde, kişinin notu / durum kaydı ya da fotoğrafı yoksa
- * (temizlikçi değişimindeki aktarımın tanımıyla aynı — `UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE` + `checklistTouched`; Opus 11-13 P2-8: işaret
+ * Girişler'den atanabilir mi — TEK saf kural (ekran ve sunucu kilitli satırda aynısını uygular). Eski veride kalmış "Yapılamıyor" her zaman
+ * başkasına atanabilir (yeni "Yapılamıyor" yazılamaz — kurucu 11-13). "Yapılacak" YALNIZ iş başlamamışsa: kontrol listesinde işaretli madde,
+ * kişinin notu / "Başladım"ı ya da fotoğrafı yoksa — ev sahibinin yeniden ataması iz DEĞİLDİR (temizlikçi değişimindeki aktarımın tanımıyla
+ * aynı — `WORK_TRACE_TASK_UPDATE_WHERE` + `checklistTouched`; Opus 11-13 P2-8: işaret
  * `TaskUpdate` yazmaz ve durumu "Yapılacak"ta bırakır, eski kural maddelerin yarısını işaretlemiş kişiyi işin ortasında düşürüyordu).
  * Dokunulmuşluk bilinmiyorsa (`touched` verilmedi) atanmaz — şüphede başkasına verilmez.
  */
@@ -115,9 +121,11 @@ export interface CleaningInput {
     startedAt: Date | null;
     startedBy: string | null;
     lastDoneAt: Date | null;
-    /** Atanan kişi "Yapamıyorum" dedi (en son durum kaydı) — kim · ne zaman · neden. */
+    /** Eski veride kalmış "Yapılamıyor" (en son durum kaydı) — kim · ne zaman · neden. */
     blocked?: { at: Date; by: string | null; reason: string | null } | null;
   }[];
+  /** Dairenin yedek temizlikçisi (kişi bu işletmede doğrulanmış) — atama kutusunun ön seçimi; hükme ETKİSİ YOK. */
+  backupUserId?: string | null;
 }
 
 export interface StayReadinessInput {
@@ -262,9 +270,13 @@ function dueText(dueAt: Date, now: Date, tz: string): string {
 function assignFor(
   task: { id: string; assigneeId?: string | null; status?: string | null; touched?: boolean } | null,
   mode: FactorAssign["mode"],
+  backupUserId?: string | null,
 ): { assign?: FactorAssign } {
   if (!task || !assignableTask(task)) return {};
-  return { assign: { taskId: task.id, expectAssigneeId: task.assigneeId ?? null, mode } };
+  const expectAssigneeId = task.assigneeId ?? null;
+  // Yedek yalnız kişi DEĞİŞİRKEN önerilir; "Birini atayın"da (kimse yok) öneri yok — orada doğru aday dairenin temizlikçisidir, yedek değil.
+  const suggest = mode !== "assign" && backupUserId && backupUserId !== expectAssigneeId ? { suggestUserId: backupUserId } : {};
+  return { assign: { taskId: task.id, expectAssigneeId, mode, ...suggest } };
 }
 
 /**
@@ -318,7 +330,7 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
         missing: "başka birine atama",
         basis: taskBasis,
         link: { to: "task", taskId: c.tasks.find((t) => t.blocked)?.id ?? task?.id ?? null },
-        ...assignFor(c.tasks.find((t) => t.blocked) ?? null, "reassign"),
+        ...assignFor(c.tasks.find((t) => t.blocked) ?? null, "reassign", c.backupUserId),
       };
     }
     // Açık görev: atanmış olmak kanıt DEĞİL — kim, başladı mı söylenir, şart aynı kalır.
@@ -332,7 +344,7 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
       label: `Temizlik açık · ${who} · ${started}`,
       missing: `${after} "bitti" kaydı`,
       basis: taskBasis,
-      ...(task?.startedAt ? {} : { link: taskLink, ...assignFor(task, task?.assigneeId ? "change" : "assign") }),
+      ...(task?.startedAt ? {} : { link: taskLink, ...assignFor(task, task?.assigneeId ? "change" : "assign", c.backupUserId) }),
     };
   }
   // Bilinmiyor.

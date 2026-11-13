@@ -55,12 +55,17 @@ export function AssignTask({
   context?: string;
 }) {
   const router = useRouter();
-  const [choice, setChoice] = useState("");
+  /** `null` = ev sahibi henüz seçmedi → önerilen kişi (yedek) ön seçili gelir; seçim / sıfırlama sonrası öneri yine geçerlidir. */
+  const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const id = useId();
   const options = members.filter((m) => m.id !== assign.expectAssigneeId);
+  // Yedek temizlikçi (kurucu 11-13 "sistem yedeği önersin"): YALNIZ listede (ekipte ve şu anki atanandan farklı) ise ön seçili gelir; atama yine
+  // "Atayın" ile (seçim ile eylem ayrı — Opus P2-7).
+  const suggested = assign.suggestUserId && options.some((m) => m.id === assign.suggestUserId) ? assign.suggestUserId : null;
+  const choice = picked ?? suggested ?? "";
 
   async function choose(assignedToId: string) {
     setBusy(true);
@@ -73,7 +78,7 @@ export function AssignTask({
         body: JSON.stringify({ assignedToId, expectAssignedToId: assign.expectAssigneeId ?? "" }),
       });
       if (res.ok) {
-        setChoice("");
+        setPicked(null);
         startTransition(() => router.refresh());
         return;
       }
@@ -83,7 +88,7 @@ export function AssignTask({
         // Yenilenen satırda bu kutu kalmayabilir (iş başladı / görev silindi) → uyarı satıra değil bildirime gider (Opus P3-5: satırın
         // altındaki cümle yenilemeyle ya kayboluyor ya başka satırın altına kayıyordu).
         toast.error(out.message);
-        setChoice("");
+        setPicked(null);
         startTransition(() => router.refresh());
       } else {
         setError(out.message);
@@ -110,7 +115,7 @@ export function AssignTask({
         aria-describedby={error ? `${id}-error` : undefined}
         // Seçim yalnız durumu değiştirir; atama "Atayın" düğmesinde (klavyede ok tuşu kimseyi atamaz).
         onChange={(e) => {
-          setChoice(e.target.value);
+          setPicked(e.target.value);
           setError(null);
         }}
         className="inline-flex min-h-10 cursor-pointer appearance-none rounded-md border border-input bg-card px-2 text-sm font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 sm:min-h-8"
@@ -120,7 +125,7 @@ export function AssignTask({
         </option>
         {options.map((m) => (
           <option key={m.id} value={m.id}>
-            {m.name}
+            {m.id === suggested ? `${m.name} (yedek)` : m.name}
           </option>
         ))}
         {assign.mode === "change" ? <option value="__none">Atanmadı</option> : null}

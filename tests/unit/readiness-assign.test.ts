@@ -204,3 +204,31 @@ describe("sunucu cevabı → kullanıcı cümlesi", () => {
     expect(assignErrorOf(409, { code: "checklist_changed" })).toEqual({ message: ASSIGN_ERROR.generic, refresh: false });
   });
 });
+
+describe("temizlik satırı — yedek temizlikçi önerisi (kurucu 11-13: 'sistem yedeği önersin')", () => {
+  const withBackup = (t: Partial<CleaningInput["tasks"][number]>, backupUserId: string | null = "u-fatma") =>
+    cleaningFactor({ tasks: [task(t)], backupUserId });
+
+  it("'Değiştirin' (atanmış, başlanmamış) → yedek önerilir", () => {
+    expect(withBackup({ assignee: "Ayşe", assigneeId: "u-ayse" }).assign).toEqual({ taskId: "t1", expectAssigneeId: "u-ayse", mode: "change", suggestUserId: "u-fatma" });
+  });
+
+  it("eski 'Yapılamıyor' → 'Başkasına atayın'da yedek önerilir", () => {
+    const f = withBackup({ assignee: "Ayşe", assigneeId: "u-ayse", status: "blocked", blocked: { at: at("2026-11-07T09:05:00Z"), by: "Ayşe", reason: null } });
+    expect(f.assign).toEqual({ taskId: "t1", expectAssigneeId: "u-ayse", mode: "reassign", suggestUserId: "u-fatma" });
+  });
+
+  it("KONTROL — iş zaten yedekteyse, atanmamışsa ('Birini atayın') ya da yedek yoksa öneri YOK", () => {
+    expect(withBackup({ assignee: "Fatma", assigneeId: "u-fatma" }).assign).toEqual({ taskId: "t1", expectAssigneeId: "u-fatma", mode: "change" });
+    expect(withBackup({}).assign).toEqual({ taskId: "t1", expectAssigneeId: null, mode: "assign" });
+    expect(withBackup({ assignee: "Ayşe", assigneeId: "u-ayse" }, null).assign).toEqual({ taskId: "t1", expectAssigneeId: "u-ayse", mode: "change" });
+  });
+
+  it("🚨 öneri iş başladıysa / dokunulmuşsa kutuyu GERİ GETİRMEZ; hüküm ve etiket yedekten etkilenmez", () => {
+    expect(withBackup({ assigneeId: "u-ayse", startedAt: at("2026-11-07T08:20:00Z") }).assign).toBeUndefined();
+    expect(withBackup({ assigneeId: "u-ayse", touched: true }).assign).toBeUndefined();
+    const a = withBackup({ assignee: "Ayşe", assigneeId: "u-ayse" });
+    const b = withBackup({ assignee: "Ayşe", assigneeId: "u-ayse" }, null);
+    expect({ state: a.state, label: a.label, missing: a.missing }).toEqual({ state: b.state, label: b.label, missing: b.missing });
+  });
+});

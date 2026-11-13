@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
-import { saveDefaultCleaner } from "@/lib/tasks/default-cleaner";
+import { saveBackupCleaner, saveDefaultCleaner } from "@/lib/tasks/default-cleaner";
 import { notifyAssignmentRemoved, notifyTaskAssigned } from "@/lib/tasks/notify";
 import { reportError } from "@/lib/report-error";
 
@@ -12,21 +12,43 @@ import { reportError } from "@/lib/report-error";
 // listeden SEÇTİĞİ, eski temizlikçide duran başlanmamış gelecekteki sistem temizlikleri yeni kişiye geçer; aday olmayan kimlik (başlanmış,
 // başka daire, arada değişmiş) taşınmaz ve `skipped` sayılır. `moveOpen: true` (eski istemci: hepsi) geriye uyum için durur. Denetim kaydı
 // alan adlarıyla, değer olmadan (ayar değişikliği sözleşmesi).
+// YEDEK TEMİZLİKÇİ (kurucu 11-13): `{ backupUserId }` AYRI istekle yazılır (dairenin temizlikçisi ve aktarma alanlarıyla karışmaz — karışık
+// gövde 400); dairenin temizlikçisiyle aynı kişi olamaz; kimseye iş atamaz, bildirim göndermez (Girişler'de öneri olarak görünür).
 // ---------------------------------------------------------------------------
+
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const PUT = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
   const property = await prisma.property.findFirst({ where: { id, organizationId: session.organizationId }, select: { id: true } });
   if (!property) return notFound();
-  const input = (await readJsonCappedOrNull(req)) as { userId?: unknown; moveOpen?: unknown; moveTaskIds?: unknown } | null;
+  const input = (await readJsonCappedOrNull(req)) as { userId?: unknown; moveOpen?: unknown; moveTaskIds?: unknown; backupUserId?: unknown } | null;
+  if (input && Object.prototype.hasOwnProperty.call(input, "backupUserId")) {
+    if ("userId" in input || "moveOpen" in input || "moveTaskIds" in input) return badRequest({ backupUserId: "Yedek temizlikçi ayrı kaydedilir." });
+    const backupUserId = input.backupUserId;
+    if (!(backupUserId === null || (typeof backupUserId === "string" && ID_RE.test(backupUserId)))) {
+      return badRequest({ backupUserId: "Geçersiz kişi." });
+    }
+    const result = await saveBackupCleaner(session.organizationId, property.id, backupUserId);
+    if (result === "property_not_found") return notFound();
+    if (result === "user_not_found") return badRequest({ backupUserId: "Bu kişi işletmenizde değil." });
+    if (result === "same_as_primary") return badRequest({ backupUserId: "Yedek, dairenin temizlikçisinden farklı biri olmalı." });
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: backupUserId ? "property.backup_cleaner_set" : "property.backup_cleaner_cleared",
+      metadata: { propertyId: property.id, fields: ["backupCleaner"] },
+    });
+    return jsonOk({ ok: true, backupUserId });
+  }
   const userId = input?.userId;
-  if (!input || !(userId === null || (typeof userId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(userId)))) {
+  if (!input || !(userId === null || (typeof userId === "string" && ID_RE.test(userId)))) {
     return badRequest({ userId: "Geçersiz kişi." });
   }
   const moveOpen = input.moveOpen === true;
   // Ev sahibinin SEÇTİĞİ görevler (kurucu / Codex 11-06 K-1). Kimlik biçimi + üst sınır; kümeye uyan ama aday olmayan kimlik sunucuda elenir.
   const rawIds = input.moveTaskIds;
-  if (rawIds !== undefined && !(Array.isArray(rawIds) && rawIds.length <= 200 && rawIds.every((v) => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v)))) {
+  if (rawIds !== undefined && !(Array.isArray(rawIds) && rawIds.length <= 200 && rawIds.every((v) => typeof v === "string" && ID_RE.test(v)))) {
     return badRequest({ moveTaskIds: "Geçersiz görev listesi." });
   }
   const moveTaskIds = rawIds === undefined ? undefined : [...new Set(rawIds as string[])];

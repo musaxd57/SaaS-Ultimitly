@@ -25,17 +25,104 @@ export function defaultCleanerWhere(organizationId: string, propertyId: string) 
   return { organizationId, triggerType: DEFAULT_CLEANER_TRIGGER, conditionJson: conditionFor(propertyId) };
 }
 
-/** Saklı eylem → kişi kimliği; bozuk / beklenmedik satır = kural yok. */
+/** Saklı eylem → dairenin temizlikçisinin kimliği; bozuk / beklenmedik satır ya da yalnız yedek seçilmiş kayıt = yok. */
 export function parseDefaultCleanerAction(json: string | null | undefined): string | null {
-  if (!json) return null;
+  return parseDefaultCleanerRule(json).userId;
+}
+
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Kural kaydının iki alanı (kurucu 11-13: yedek temizlikçi aynı kayıtta, migration'sız): `userId` = dairenin temizlikçisi (boş olabilir —
+ * yalnız yedek seçilmiş daire), `backupUserId` = yedek. Bozuk / beklenmedik alan = yok.
+ */
+export function parseDefaultCleanerRule(json: string | null | undefined): { userId: string | null; backupUserId: string | null } {
+  if (!json) return { userId: null, backupUserId: null };
   try {
     const v = JSON.parse(json) as unknown;
-    if (!v || typeof v !== "object") return null;
-    const userId = (v as { userId?: unknown }).userId;
-    return typeof userId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(userId) ? userId : null;
+    if (!v || typeof v !== "object") return { userId: null, backupUserId: null };
+    const o = v as { userId?: unknown; backupUserId?: unknown };
+    const userId = typeof o.userId === "string" && ID_RE.test(o.userId) ? o.userId : null;
+    const backup = typeof o.backupUserId === "string" && ID_RE.test(o.backupUserId) ? o.backupUserId : null;
+    // Yedek dairenin temizlikçisiyle aynı kişi olamaz (anlamsız) — okunurken de elenir.
+    return { userId, backupUserId: backup && backup !== userId ? backup : null };
   } catch {
-    return null;
+    return { userId: null, backupUserId: null };
   }
+}
+
+/** Yedek temizlikçi (kural + kişi bu işletmede, dairenin temizlikçisinden farklı). Yoksa null. */
+export async function loadBackupCleanerUserId(db: Db, organizationId: string, propertyId: string): Promise<string | null> {
+  const row = await db.automationRule.findFirst({
+    where: { ...defaultCleanerWhere(organizationId, propertyId), isEnabled: true },
+    orderBy: { updatedAt: "desc" },
+    select: { actionJson: true },
+  });
+  const { backupUserId } = parseDefaultCleanerRule(row?.actionJson);
+  if (!backupUserId) return null;
+  const user = await db.user.findFirst({ where: { id: backupUserId, organizationId }, select: { id: true } });
+  return user?.id ?? null;
+}
+
+/**
+ * Birden çok dairenin yedeği tek sorguda (Girişler). Kayıt `defaultCleanerWhere` ile AYNI biçimde eşleşir (koşul metni birebir); daire başına
+ * en son güncellenen etkin kayıt (`loadBackupCleanerUserId` ile aynı seçim). Kişinin bu işletmede olduğu ayrıca doğrulanır.
+ */
+export async function loadBackupCleaners(db: Db, organizationId: string, propertyIds: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (propertyIds.length === 0) return out;
+  const propertyOf = new Map([...new Set(propertyIds)].map((id) => [conditionFor(id), id] as const));
+  const rows = await db.automationRule.findMany({
+    where: { organizationId, triggerType: DEFAULT_CLEANER_TRIGGER, isEnabled: true, conditionJson: { in: [...propertyOf.keys()] } },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    select: { conditionJson: true, actionJson: true },
+  });
+  const pending = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const pid = r.conditionJson ? propertyOf.get(r.conditionJson) : undefined;
+    if (!pid || seen.has(pid)) continue;
+    seen.add(pid);
+    const { backupUserId } = parseDefaultCleanerRule(r.actionJson);
+    if (backupUserId) pending.set(pid, backupUserId);
+  }
+  if (pending.size === 0) return out;
+  const users = await db.user.findMany({ where: { organizationId, id: { in: [...new Set(pending.values())] } }, select: { id: true } });
+  const ok = new Set(users.map((u) => u.id));
+  for (const [pid, uid] of pending) if (ok.has(uid)) out.set(pid, uid);
+  return out;
+}
+
+export type SaveBackupCleanerResult = "saved" | "property_not_found" | "user_not_found" | "same_as_primary";
+
+/**
+ * Yedek temizlikçiyi yaz (`null` = kaldır). Dairenin temizlikçisi DEĞİŞMEZ; mülk satırı kilitlenir (temizlikçi kaydıyla aynı sıra). Yedek,
+ * dairenin temizlikçisiyle aynı kişi olamaz. Yetki: rota (sahip + yönetici).
+ */
+export async function saveBackupCleaner(organizationId: string, propertyId: string, backupUserId: string | null): Promise<SaveBackupCleanerResult> {
+  const where = defaultCleanerWhere(organizationId, propertyId);
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<unknown[]>`SELECT 1 FROM "Property" WHERE "id" = ${propertyId} AND "organizationId" = ${organizationId} FOR UPDATE`;
+    if (locked.length === 0) return "property_not_found" as const;
+    if (backupUserId) {
+      const user = await tx.user.findFirst({ where: { id: backupUserId, organizationId }, select: { id: true } });
+      if (!user) return "user_not_found" as const;
+    }
+    const rows = await tx.automationRule.findMany({ where, orderBy: { updatedAt: "desc" }, select: { id: true, actionJson: true, isEnabled: true } });
+    const primary = parseDefaultCleanerRule(rows.find((r) => r.isEnabled)?.actionJson).userId;
+    if (backupUserId && backupUserId === primary) return "same_as_primary" as const;
+    if (!primary && !backupUserId) {
+      await tx.automationRule.deleteMany({ where });
+      return "saved" as const;
+    }
+    const data = { actionJson: JSON.stringify({ userId: primary, ...(backupUserId ? { backupUserId } : {}) }), isEnabled: true, name: "Dairenin temizlikçisi" };
+    if (rows.length === 0) await tx.automationRule.create({ data: { ...where, ...data } });
+    else {
+      await tx.automationRule.update({ where: { id: rows[0].id }, data });
+      if (rows.length > 1) await tx.automationRule.deleteMany({ where: { id: { in: rows.slice(1).map((r) => r.id) } } });
+    }
+    return "saved" as const;
+  });
 }
 
 /** Dairenin temizlikçisi (kural + kişi bu işletmede). Yoksa null. */
@@ -80,11 +167,15 @@ export async function saveDefaultCleaner(
     // Eski temizlikçi: kuralın kilit altındaki ETKİN değeri (kişi hâlâ bu işletmede olmalı — `loadDefaultCleanerUserId` ile aynı kural).
     const previousId = parseDefaultCleanerAction(rows.find((r) => r.isEnabled)?.actionJson);
     const previous = previousId ? ((await tx.user.findFirst({ where: { id: previousId, organizationId }, select: { id: true } }))?.id ?? null) : null;
-    if (!userId) {
+    // Yedek temizlikçi KORUNUR (Opus 11-13: eski yazıcı kaydı her seferinde eziyor, "Kimse"de siliyordu). Yeni temizlikçi yedekle aynı kişiyse
+    // yedek düşer (bir kişi iki rolde olamaz).
+    const keptBackup = parseDefaultCleanerRule(rows.find((r) => r.isEnabled)?.actionJson).backupUserId;
+    const backupUserId = keptBackup && keptBackup !== userId ? keptBackup : null;
+    if (!userId && !backupUserId) {
       await tx.automationRule.deleteMany({ where });
       return { result: "saved" as const, ...none, previousUserId: previous };
     }
-    const data = { actionJson: JSON.stringify({ userId }), isEnabled: true, name: "Dairenin temizlikçisi" };
+    const data = { actionJson: JSON.stringify({ userId, ...(backupUserId ? { backupUserId } : {}) }), isEnabled: true, name: "Dairenin temizlikçisi" };
     if (rows.length === 0) await tx.automationRule.create({ data: { ...where, ...data } });
     else {
       await tx.automationRule.update({ where: { id: rows[0].id }, data });

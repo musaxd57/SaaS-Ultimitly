@@ -224,3 +224,90 @@ export function DefaultCleanerForm({
     </div>
   );
 }
+
+/**
+ * YEDEK TEMİZLİKÇİ (kurucu 11-13: "Yapamıyorum kalksın, sistem yedeği önersin"). Dairenin temizlikçisi değişecekken Girişler'de bu kişi ön seçili
+ * gelir. Kimseye iş atamaz, bildirim göndermez; AYRI "Kaydet" ile yazılır. Liste dairenin (kayıtlı) temizlikçisini içermez — bir kişi iki rolde
+ * olamaz; temizlikçi yedek kişiye çevrilirse sunucu yedeği düşürür ve sayfa yenilenince burası "Yok" gösterir.
+ */
+export function BackupCleanerForm({
+  propertyId,
+  primaryUserId,
+  currentBackupId,
+  members,
+}: {
+  propertyId: string;
+  primaryUserId: string | null;
+  currentBackupId: string | null;
+  members: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [saved, setSaved] = useState(currentBackupId ?? "");
+  const [value, setValue] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  // Sunucunun kaydı esastır (dairenin temizlikçisi formuyla aynı kalıp): yenilenen sayfa başka bir değer getirdiyse form ona döner.
+  const [seenProp, setSeenProp] = useState(currentBackupId ?? "");
+  if ((currentBackupId ?? "") !== seenProp) {
+    setSeenProp(currentBackupId ?? "");
+    setSaved(currentBackupId ?? "");
+    setValue(currentBackupId ?? "");
+  }
+  const options = members.filter((m) => m.id !== primaryUserId);
+  const dirty = value !== saved;
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/default-cleaner`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backupUserId: value || null }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; fields?: { backupUserId?: string } } | null;
+      if (!res.ok) {
+        toast.error(data?.fields?.backupUserId ?? data?.error ?? "Kaydedilemedi. Lütfen tekrar deneyin.");
+        return;
+      }
+      setSaved(value);
+      toast.success(value ? "Kaydedildi. Temizlikçi değişecekse önce bu kişi önerilecek." : "Kaydedildi. Yedek temizlikçi yok.");
+      router.refresh();
+    } catch {
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <label htmlFor={`backup-cleaner-${propertyId}`} className="text-sm font-medium">
+        Yedek temizlikçi
+      </label>
+      <Select
+        id={`backup-cleaner-${propertyId}`}
+        value={value}
+        disabled={busy}
+        onChange={(e) => setValue(e.target.value)}
+        className="h-9 text-sm"
+      >
+        <option value="">Yok</option>
+        {options.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name}
+          </option>
+        ))}
+      </Select>
+      {dirty ? (
+        <div className="flex gap-2">
+          <Button type="button" size="sm" disabled={busy} onClick={() => void submit()}>
+            Kaydet
+          </Button>
+          <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => setValue(saved)}>
+            Vazgeç
+          </Button>
+        </div>
+      ) : null}
+      <p className="text-xs text-muted-foreground">Temizlikçi gelemezse Girişler&apos;de önce bu kişi önerilir.</p>
+    </div>
+  );
+}

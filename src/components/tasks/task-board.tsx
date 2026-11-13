@@ -58,7 +58,7 @@ const SELECT_STATUSES = TASK_STATUS.options.filter(
   (o) => o.value === "todo" || o.value === "in_progress" || o.value === "done",
 );
 // "Yapılamıyor" kartında kutu GERÇEK durumu gösterir (gerçek uygulama ekranı 11-06: sütun eşlemesiyle "Yapılacak" yazıyordu — rozetle
-// çelişiyor, "Yapılacak" da seçilemiyordu). Seçenek yalnız gösterim içindir (seçilemez): bildirim atanan kişinin "Yapamıyorum"uyla gelir.
+// çelişiyor, "Yapılacak" da seçilemiyordu). Seçenek yalnız gösterim içindir (seçilemez); yalnız ESKİ veride görünür — "Yapamıyorum" kalktı (11-13).
 const BLOCKED_STATUS = TASK_STATUS.options.find((o) => o.value === "blocked")!;
 
 /**
@@ -467,7 +467,7 @@ export function TaskBoard({
           ) : null}
         </div>
 
-        {/* "Yapamıyorum" bildirimi: kim · ne zaman · neden */}
+        {/* Eski veride kalmış "Yapılamıyor" kaydı: kim · ne zaman · neden ("Yapamıyorum" düğmesi 11-13'te kalktı) */}
         {t.blocked ? (
           <p className="mt-2 flex items-start gap-1 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 size-3 shrink-0" />
@@ -538,7 +538,7 @@ export function TaskBoard({
 
         {/* "Yapamıyorum" KALDIRILDI (kurucu 11-13). Eski veride "Yapılamıyor" kalmış görev için personele sakin bilgi. */}
         {!canManage && t.status === "blocked" ? (
-          <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız &ldquo;Başladım&rdquo;a basın.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Ev sahibi bu görevi görüyor. Yine de yaparsanız &ldquo;Başladım&rdquo;a basın.</p>
         ) : null}
 
         {/* Detail toggle — keeps the card compact (note input + photo hidden). Dokunma alanı 27 px (yazı 15 px'ti; temizlikçi telefonda

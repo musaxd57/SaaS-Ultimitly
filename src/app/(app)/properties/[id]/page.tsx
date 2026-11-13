@@ -16,8 +16,8 @@ import { PropertyForm } from "@/components/properties/property-form";
 import { SupplyProfileForm } from "@/components/properties/supply-profile-form";
 import { parseSupplyProfile } from "@/lib/supply";
 import { Brush, PackageOpen } from "lucide-react";
-import { DefaultCleanerForm, type TransferItem } from "@/components/properties/default-cleaner-form";
-import { loadDefaultCleanerUserId, transferCandidates, type TransferTask } from "@/lib/tasks/default-cleaner";
+import { BackupCleanerForm, DefaultCleanerForm, type TransferItem } from "@/components/properties/default-cleaner-form";
+import { loadBackupCleanerUserId, loadDefaultCleanerUserId, transferCandidates, type TransferTask } from "@/lib/tasks/default-cleaner";
 import { taskDueDayLabel } from "@/lib/tasks/card-data";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
@@ -108,6 +108,7 @@ export default async function PropertyDetailPage({
     ? await (async () => {
         const tz = orgTimezone(property.organization?.timezone);
         const userId = await loadDefaultCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
+        const backupUserId = await loadBackupCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
         const members = await prisma.user.findMany({
           where: { organizationId: session.organizationId },
           select: { id: true, name: true },
@@ -123,7 +124,7 @@ export default async function PropertyDetailPage({
           dueLabel: taskDueDayLabel(t.dueAt, tz),
           statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
         });
-        return { userId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };
+        return { userId, backupUserId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };
       })()
     : null;
   // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
@@ -404,7 +405,7 @@ export default async function PropertyDetailPage({
                   <Brush className="size-4 text-muted-foreground" /> Temizlik
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <DefaultCleanerForm
                   propertyId={property.id}
                   currentUserId={defaultCleaner.userId}
@@ -412,6 +413,12 @@ export default async function PropertyDetailPage({
                   movable={defaultCleaner.movable}
                   started={defaultCleaner.started}
                   listTruncated={defaultCleaner.truncated}
+                />
+                <BackupCleanerForm
+                  propertyId={property.id}
+                  primaryUserId={defaultCleaner.userId}
+                  currentBackupId={defaultCleaner.backupUserId}
+                  members={defaultCleaner.members}
                 />
               </CardContent>
             </Card>

@@ -21,6 +21,7 @@ import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { loadErasureGuard } from "@/lib/erasure";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
 import { checklistTouched, WORK_TRACE_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { loadBackupCleaners } from "@/lib/tasks/default-cleaner";
 
 // UX-10 D3: görevde kişi izi (temizlikçi değişimindeki aktarımla AYNI tanım: kişinin kaydı / fotoğraf ya da işaretli kontrol listesi maddesi).
 // Girişler'den atamanın "başladı" izi — rotanın kilitli kontrolüyle AYNI dar tanım (kurucu 11-13; onarımın geniş tanımı değil).
@@ -153,7 +154,7 @@ export async function loadArrivalReadiness(
   const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds?.noteTaskIds ?? []))];
   const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds?.overlapReservationIds ?? []))];
 
-  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays, autoCheckins] = await Promise.all([
+  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays, autoCheckins, backups] = await Promise.all([
     prisma.conversation.findMany({
       where: { reservationId: { in: arrivalIds }, property: { organizationId } },
       select: { id: true, reservationId: true },
@@ -223,6 +224,11 @@ export async function loadArrivalReadiness(
     prisma.autoMessageTemplate.findMany({
       where: { organizationId, propertyId: { in: propertyIds }, kind: "checkin" },
       select: { id: true, propertyId: true, body: true, needsReview: true, lastSkipReason: true, updatedAt: true },
+    }),
+    // Dairenin YEDEK temizlikçisi (kurucu 11-13): yalnız atama kutusunun ön seçimi — okunamazsa öneri yok, sayfa düşmez, hüküm değişmez.
+    loadBackupCleaners(prisma, organizationId, propertyIds).catch((err) => {
+      void reportError("readiness-list.backup-cleaner", err);
+      return new Map<string, string>();
     }),
   ]);
 
@@ -414,6 +420,7 @@ export async function loadArrivalReadiness(
         lastDoneAt: t.lastDoneAt,
         blocked: t.blocked,
       })),
+      backupUserId: backups.get(a.propertyId) ?? null,
     };
     const basisIds = loaded?.basisIds;
     const noteTasks = new Set(basisIds?.noteTaskIds ?? []);
