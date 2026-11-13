@@ -20,7 +20,7 @@ import {
   resolvePlanChange,
   verifyPlanChangeToken,
 } from "@/lib/billing/plan-change";
-import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
+import { writeAudit, writeAuditInTx, auditActor, auditImpersonation } from "@/lib/audit";
 import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
@@ -79,6 +79,23 @@ export const POST = withOwner(async (session, req) => {
     return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
 
+  // Yükseltme onayının kanıtı (şema değişikliği olmadan): kim, hangi değişiklik, metin sürümü + gösterilen cümlenin özeti. 🚨 ZORUNLU (Opus
+  // 11-13): cayma istisnası ancak onay KANITLANABİLİRSE tutar — kayıt yazılamazsa tahsilat YAPILMAZ. Tek kullanımlık onay TÜKETİLMEDEN önce
+  // yazılır: yazım düşerse ev sahibi aynı önizlemeyle hemen yeniden deneyebilir; çift tıklamada iki onay kaydı zararsızdır (tahsilat yine tek).
+  if (r.mode === "upgrade") {
+    try {
+      await writeAuditInTx(prisma, {
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        // Ayrı önek: plan değişikliği kayıtlarını ("billing.plan_change…") sayan ekran / sorgulara karışmaz.
+        action: "billing.immediate_start_consent",
+        metadata: { from: r.currentCode, to: planCode, legalVersion: LEGAL_VERSION, legalTextHash: checkoutLegalTextHash(["immediateStart"]), ...auditImpersonation(session) },
+      });
+    } catch {
+      return NextResponse.json({ error: "Onayınız kaydedilemedi; planınız değişmedi ve ücret alınmadı. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+    }
+  }
+
   // Single-use: claim the token's jti BEFORE touching Paddle. A replay / concurrent
   // double-submit within the 10-min TTL finds it already consumed → 409, so it can't
   // drive a second PATCH/charge. (Expiry alone is NOT single-use.) Fail closed if the
@@ -94,16 +111,6 @@ export const POST = withOwner(async (session, req) => {
       { error: "Bu onay zaten kullanıldı. Planı yeniden seçip tekrar deneyin." },
       { status: 409 },
     );
-  }
-  // Yükseltme onayının kanıtı (şema değişikliği olmadan): kim, hangi değişiklik, metin sürümü + gösterilen cümlenin özeti.
-  if (r.mode === "upgrade") {
-    await writeAudit({
-      organizationId: session.organizationId,
-      actorUserId: auditActor(session),
-      // Ayrı önek: plan değişikliği kayıtlarını ("billing.plan_change…") sayan ekran / sorgulara karışmaz.
-      action: "billing.immediate_start_consent",
-      metadata: { from: r.currentCode, to: planCode, legalVersion: LEGAL_VERSION, legalTextHash: checkoutLegalTextHash(["immediateStart"]), ...auditImpersonation(session) },
-    }).catch(() => {});
   }
 
   // Amount integrity: re-preview NOW and require the charge the customer confirmed to
