@@ -6,6 +6,7 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { revokeStaffBindings, startStaffBinding } from "@/lib/team-contacts/service";
 import { staffWhatsAppAvailable } from "@/lib/team-contacts/availability";
 import { teamContactsEnabled } from "@/lib/team-contacts/flag";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 // ---------------------------------------------------------------------------
 // Ekip kişisinin WhatsApp bağı (T3, §9 İ3). POST → kişiye özel kod + `wa.me` bağlantısı (kod yalnız bu yanıtta; saklanan özeti). Kişi kodu
@@ -21,7 +22,7 @@ const START_PER_ORG_PER_HOUR = 30;
 const NOT_AVAILABLE = "WhatsApp bağlantısı bu hesapta henüz açık değil.";
 
 export const POST = withManage<{ id: string }>(async (session, _req, { params }) => {
-  if (!teamContactsEnabled()) return notFound();
+  if (!teamContactsEnabled() || isDemoOrg(session.organizationId)) return notFound();
   const { id } = await params;
   if (!ID_RE.test(id)) return notFound();
   if (!staffWhatsAppAvailable()) return badRequest({ _: NOT_AVAILABLE });
@@ -39,7 +40,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
-  if (!teamContactsEnabled()) return notFound();
+  if (!teamContactsEnabled() || isDemoOrg(session.organizationId)) return notFound();
   const { id } = await params;
   if (!ID_RE.test(id)) return notFound();
   const revoked = await revokeStaffBindings({ organizationId: session.organizationId, userId: id });

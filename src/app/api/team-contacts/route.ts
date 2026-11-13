@@ -6,6 +6,7 @@ import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
 import { createTeamContact, listTeamContacts } from "@/lib/team-contacts/service";
 import { staffWhatsAppAvailable } from "@/lib/team-contacts/availability";
 import { teamContactsEnabled } from "@/lib/team-contacts/flag";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 // ---------------------------------------------------------------------------
 // Ayarlar › Ekip kişileri (T3; tasarım docs/TASARIM-2026-11-13-temizlikci-akisi-whatsapp-yedek.md §9 İ5). Yalnız sahip / yönetici
@@ -20,13 +21,15 @@ const MAX_CONTACTS_PER_ORG = 50;
 const CREATE_PER_ORG_PER_HOUR = 20;
 
 export const GET = withManage(async (session) => {
-  if (!teamContactsEnabled()) return notFound();
+  // Demo işletmesinde yüzey YOK: üyelik değişmezi demo dışı kökenli kişiyi reddeder (yazılsaydı 500 olurdu).
+  if (!teamContactsEnabled() || isDemoOrg(session.organizationId)) return notFound();
   const contacts = await listTeamContacts(session.organizationId);
   return noStore(jsonOk({ whatsapp: staffWhatsAppAvailable(), contacts }));
 });
 
 export const POST = withManage(async (session, req) => {
-  if (!teamContactsEnabled()) return notFound();
+  // Demo işletmesinde yüzey YOK: üyelik değişmezi demo dışı kökenli kişiyi reddeder (yazılsaydı 500 olurdu).
+  if (!teamContactsEnabled() || isDemoOrg(session.organizationId)) return notFound();
   const data = await readJsonCappedOrNull<{ name?: unknown }>(req);
   const limit = await rateLimit(`team-contact-create:${session.organizationId}`, CREATE_PER_ORG_PER_HOUR, 60 * 60_000);
   if (!limit.ok) return tooManyRequests(limit.retryAfter);

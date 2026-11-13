@@ -214,6 +214,16 @@ describe("ekip kişisi (T3)", () => {
       expect(await prisma.user.count({ where: { loginDisabled: true } })).toBe(0);
     });
 
+    it("demo işletmesinde yüzey yok (404, kişi yazılmaz)", async () => {
+      envOn();
+      const { DEMO_ORG_ID } = await import("@/lib/demo-tenant/constants");
+      await prisma.organization.create({ data: { id: DEMO_ORG_ID, name: "Demo" } });
+      await owner(DEMO_ORG_ID);
+      expect((await CREATE(jsonReq("http://localhost/api/team-contacts", "POST", { name: "A" }), { params: Promise.resolve({}) } as never)).status).toBe(404);
+      expect((await LIST(jsonReq("http://localhost/api/team-contacts", "GET"), { params: Promise.resolve({}) } as never)).status).toBe(404);
+      expect(await prisma.user.count({ where: { loginDisabled: true } })).toBe(0);
+    });
+
     it("ekle + listele; WhatsApp ayarı yoksa kod üretilmez (400), kişi yine eklenir", async () => {
       envOn({ whatsapp: false });
       const { orgId } = await makeOrgWithProperty();
