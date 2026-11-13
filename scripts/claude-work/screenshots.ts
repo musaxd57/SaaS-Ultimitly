@@ -47,6 +47,8 @@ interface PageRecord {
   error?: string;
 }
 const records: PageRecord[] = [];
+/** Gezinin atladığı bölümler (giriş yapılamadı, boş işletme kurulamadı…) — döküme yazılır, denetim raporu bunları adıyla söyler. */
+const problems: string[] = [];
 
 /** Parça sayısı tavanı: [masaüstü, telefon]. Uzun sayfalar (ayarlar, daire ayrıntısı) daha çok parça alır; tanıtım sayfası baştan sona. */
 const SEGMENTS: Record<"default" | "long" | "full", [number, number]> = { default: [3, 4], long: [8, 12], full: [14, 26] };
@@ -186,6 +188,7 @@ async function login(ctx: BrowserContext, email: string): Promise<boolean> {
     return true;
   } catch (err) {
     console.error(`[shots] giriş başarısız (${email}): ${err instanceof Error ? err.message.slice(0, 200) : err}`);
+    problems.push(`giriş yapılamadı (${email}) — bu hesabın sayfaları çekilmedi`);
     return false;
   } finally {
     await page.close();
@@ -250,8 +253,12 @@ async function main(): Promise<void> {
   } catch (err) {
     // Aynı veritabanında ikinci koşu: işletme önceki koşudan duruyor.
     if (err instanceof Error && err.message === "zaten var") emptyReady = true;
-    else console.error(`[shots] boş işletme kurulamadı: ${err instanceof Error ? err.message.slice(0, 200) : err}`);
+    else {
+      console.error(`[shots] boş işletme kurulamadı: ${err instanceof Error ? err.message.slice(0, 200) : err}`);
+      problems.push("boş işletme kurulamadı — ilk kez giren ev sahibinin boş durumları çekilmedi");
+    }
   }
+  if (!chatToken) problems.push("tohumda daire yok — misafir QR sohbeti çekilmedi");
 
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined });
 
@@ -433,12 +440,12 @@ async function main(): Promise<void> {
 
   await browser.close();
   await prisma.$disconnect();
-  writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ base: BASE, shotsDir: "ux-shots", pages: records }, null, 2), "utf8");
-  console.log(`[shots] ${records.length} kayıt, ${records.reduce((n, r) => n + r.shots.length, 0)} görüntü`);
+  writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ base: BASE, shotsDir: "ux-shots", pages: records, problems }, null, 2), "utf8");
+  console.log(`[shots] ${records.length} kayıt, ${records.reduce((n, r) => n + r.shots.length, 0)} görüntü${problems.length ? ` · atlanan: ${problems.join(" · ")}` : ""}`);
 }
 
 main().catch((err) => {
   console.error(`[shots] düştü: ${err instanceof Error ? err.stack : err}`);
-  writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ base: BASE, shotsDir: "ux-shots", pages: records, crashed: String(err) }, null, 2), "utf8");
+  writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify({ base: BASE, shotsDir: "ux-shots", pages: records, problems, crashed: String(err).slice(0, 500) }, null, 2), "utf8");
   process.exitCode = 1;
 });

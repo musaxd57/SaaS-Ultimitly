@@ -1302,6 +1302,9 @@ const UX_IMAGES_PER_CALL = 8;
 
 interface UxManifest {
   shotsDir: string;
+  /** Gezinin atladığı bölümler ve — gezi yarıda düştüyse — hata metni (`screenshots.ts`). */
+  problems?: string[];
+  crashed?: string;
   pages: { id: string; label: string; group: string; url: string; viewport: string; status: number | null; title: string; text: string; shots: string[]; metrics: Record<string, number> | null; consoleErrors: string[]; error?: string }[];
 }
 
@@ -1328,7 +1331,9 @@ async function uxAudit(): Promise<void> {
   const byPage = new Map<string, UxManifest["pages"]>();
   for (const p of manifest.pages) byPage.set(p.id, [...(byPage.get(p.id) ?? []), p]);
   const jobs = [...byPage.entries()].sort((a, b) => uxPriority(a[1][0].group, a[0]) - uxPriority(b[1][0].group, b[0]));
-  console.log(`[claude-work] ux_audit: ${jobs.length} sayfa`);
+  // Gezi yarıda kaldıysa / bölüm atladıysa denetim "her sayfaya bakıldı" DEMEZ (Haiku incelemesi 11-13): eksikler rapora adıyla girer.
+  const captureGaps = [...(manifest.problems ?? []), ...(manifest.crashed ? [`gezi yarıda düştü: ${manifest.crashed}`] : [])];
+  console.log(`[claude-work] ux_audit: ${jobs.length} sayfa${captureGaps.length ? ` · gezi eksikleri: ${captureGaps.join(" · ")}` : ""}`);
   const skipped: string[] = [];
   const all: Record<string, unknown>[] = [];
   const summaries: Record<string, string> = {};
@@ -1342,7 +1347,10 @@ async function uxAudit(): Promise<void> {
         if (existsSync(path.join(shotsDir, file))) slices.push({ file, caption: `${v.viewport === "mobile" ? "PHONE" : "DESKTOP"} slice ${i + 1} of ${v.shots.length}` });
       });
     }
-    if (slices.length === 0) return;
+    if (slices.length === 0) {
+      skipped.push(`${id} (${ordered[0].label}) — görüntü yok`);
+      return;
+    }
     const groups: (typeof slices)[] = [];
     if (slices.length <= UX_IMAGES_PER_CALL) groups.push(slices);
     else {
@@ -1388,17 +1396,34 @@ async function uxAudit(): Promise<void> {
   });
   // Sessiz kırpma yok: bütçe / hata yüzünden bakılamayan sayfalar adıyla yazılır.
   if (skipped.length > 0) console.log(`[claude-work] ux_audit: ${skipped.length} sayfaya bakılamadı: ${skipped.join(" · ")}`);
-  write("ux/all-findings.json", JSON.stringify({ reviewed: Object.keys(summaries).length, skipped, summaries, findings: all }, null, 2));
+  write("ux/all-findings.json", JSON.stringify({ reviewed: Object.keys(summaries).length, skipped, captureGaps, summaries, findings: all }, null, 2));
 
   // Rapor ayrı bütçe kaleminde (`ux_report`): sayfa incelemeleri tavanı doldursa da rapor yazılır.
   const report = await call({
     task: "ux_report",
     system: UX_SYSTEM,
-    user: `FINAL REPORT for the founder (non-engineer; Turkish; plain language). You reviewed every page; below are all per-page findings and summaries as JSON. Write Turkish Markdown, at most ~450 lines:\n- "İlk izlenim": landing + giriş + kayıt — bir ev sahibi telefonda ilk beş saniyede ne görüyor, neye güvenmiyor.\n- "Telefonda bozulanlar": taşma, küçük hedef, okunmayan yazı — sayfa sayfa, en kötüden.\n- "Yazılar": tutarsız terimler (aynı şeye farklı ad), teknik / çeviri kokan ifadeler, ne yapılacağını söylemeyen hata mesajları — mevcut metin → önerilen metin tablosu.\n- "Akış": boş durumlar, hata durumları, birincil eylemin belirsiz olduğu yerler.\n- "Misafirin gördüğü ekran" (QR sohbeti) ayrı başlıkta.\n- "Önce bunlar": etkisi en yüksek 15 düzeltme, sırayla, her biri tek cümle + hangi sayfa.\n- "İyi olanlar": dokunulmaması gerekenler (kısa).\nDo not invent findings that are not in the JSON. If the list below names pages that could not be reviewed, say so in one line at the top.\n\nPAGES NOT REVIEWED: ${skipped.length ? skipped.join(" · ") : "none"}\n\nFINDINGS (JSON):\n${JSON.stringify(all)}\n\nPAGE SUMMARIES:\n${JSON.stringify(summaries)}`,
+    user: `FINAL REPORT for the founder (non-engineer; Turkish; plain language). Below are the per-page findings and summaries of the pages that WERE reviewed (${Object.keys(summaries).length} pages), as JSON. Write Turkish Markdown, at most ~450 lines:\n- "İlk izlenim": landing + giriş + kayıt — bir ev sahibi telefonda ilk beş saniyede ne görüyor, neye güvenmiyor.\n- "Telefonda bozulanlar": taşma, küçük hedef, okunmayan yazı — sayfa sayfa, en kötüden.\n- "Yazılar": tutarsız terimler (aynı şeye farklı ad), teknik / çeviri kokan ifadeler, ne yapılacağını söylemeyen hata mesajları — mevcut metin → önerilen metin tablosu.\n- "Akış": boş durumlar, hata durumları, birincil eylemin belirsiz olduğu yerler.\n- "Misafirin gördüğü ekran" (QR sohbeti) ayrı başlıkta.\n- "Önce bunlar": etkisi en yüksek 15 düzeltme, sırayla, her biri tek cümle + hangi sayfa.\n- "İyi olanlar": dokunulmaması gerekenler (kısa).\nDo not invent findings that are not in the JSON. If the lists below name pages or sections that could not be captured or reviewed, say so plainly at the top (what is missing), and do not describe the product as fully reviewed.\n\nPAGES NOT REVIEWED: ${skipped.length ? skipped.join(" · ") : "none"}\nSECTIONS NOT CAPTURED: ${captureGaps.length ? captureGaps.join(" · ") : "none"}\n\nFINDINGS (JSON):\n${JSON.stringify(all)}\n\nPAGE SUMMARIES:\n${JSON.stringify(summaries)}`,
     effort: "high",
     maxTokens: 48000,
   });
   if (report) write("ux/REPORT.md", report.text);
+  else {
+    // Rapor çağrısı düştüyse (bütçe / hata) çıktı boş kalmaz: bulgular önem sırasıyla, model yorumu olmadan.
+    console.error("[claude-work] ux_audit: rapor çağrısı sonuç vermedi — bulgu listesi doğrudan yazıldı");
+    const order: Record<string, number> = { P0: 0, P1: 1, P2: 2 };
+    const sorted = [...all].sort((a, b) => (order[String(a.severity)] ?? 9) - (order[String(b.severity)] ?? 9));
+    write(
+      "ux/REPORT.md",
+      [
+        "# UX / UI denetimi — bulgu listesi (özet raporu yazılamadı)",
+        "",
+        `İncelenen sayfa: ${Object.keys(summaries).length} · bakılamayan: ${skipped.length ? skipped.join(" · ") : "yok"} · gezi eksikleri: ${captureGaps.length ? captureGaps.join(" · ") : "yok"}`,
+        "",
+        ...sorted.map((f) => `- **${String(f.severity)}** [${String(f.label)} · ${String(f.viewport)}] ${String(f.title_tr)} — ${String(f.what_tr)} → ${String(f.fix_tr)}`),
+        "",
+      ].join("\n"),
+    );
+  }
 }
 
 // ── Ana akış ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────

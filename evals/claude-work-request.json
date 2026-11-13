@@ -1,16 +1,15 @@
 {
-  "note": "Bu dosya değişip itilince .github/workflows/claude-work.yml Claude çalışma paketini koşar (anahtar Actions sırrında). budgetUsd paket tavanı (en çok 95), taskBudgetUsd iş tavanları. request her koşuda +1. İstek 4 (kurucu 11-12 gece): Fable 5.2 ile AI istemlerinin sert denetimi + ham model kolu; toplam üst sınır 80 $ (bu istek en çok 55; kalan UX / UI isteğine).",
-  "request": 4,
+  "note": "Bu dosya değişip itilince .github/workflows/claude-work.yml Claude çalışma paketini koşar (anahtar Actions sırrında). budgetUsd paket tavanı (en çok 95), taskBudgetUsd iş tavanları. request her koşuda +1. İstek 5 (kurucu 11-12 gece): Fable 5.2 ile bütün sayfaların UX / UI denetimi (masaüstü + telefon ekran görüntüleri; görüntüleri iş akışı ücretsiz üretir). Toplam üst sınır 80 $: istek 4 (istem denetimi + ham model kolu) en çok 55, bu istek en çok 25 (sayfa incelemeleri 21, kurucu raporu 3, biçim denemesi 1).",
+  "request": 5,
   "model": "claude-fable-5-2",
   "tasks": [
-    "prompt_audit",
-    "raw_baseline"
+    "ux_audit"
   ],
-  "budgetUsd": 55,
+  "budgetUsd": 25,
   "taskBudgetUsd": {
     "ping": 1,
-    "prompt_audit": 44,
-    "raw_baseline": 10
+    "ux_audit": 21,
+    "ux_report": 3
   },
   "concurrency": 3,
   "scenarioBatches": 24,
