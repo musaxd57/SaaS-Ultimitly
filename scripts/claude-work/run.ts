@@ -23,6 +23,7 @@ import { scenarioKb, validateUxDataset, type UxDataset, type UxScenario } from "
 import { AUDIT_SCHEMA, AUDIT_SYSTEM, buildAuditUser, parseAudit, MEANING_ERRORS } from "../../tests/eval/claim-audit-core";
 import { hazardEvidenceOf } from "../../src/lib/ai/hazard-evidence";
 import { classifyFallback, isSafetyEmergencyText } from "../../src/lib/ai/fallback";
+import { parseOrSalvage } from "./salvage";
 
 const ROOT = path.resolve(process.cwd());
 const OUT = path.join(ROOT, "claude-work-out");
@@ -1060,6 +1061,8 @@ async function promptAudit(): Promise<void> {
 
   const all: AuditFinding[] = [];
   const overall: Record<string, string> = {};
+  /** Çıktısı kesilen mercekler (sessiz kırpma yok: rapora ve günlüğe adıyla yazılır). */
+  const truncated: string[] = [];
   const runLens = async (lens: { id: string; text: string }, extraUser = ""): Promise<void> => {
     const r = await call({
       task: "prompt_audit",
@@ -1071,12 +1074,17 @@ async function promptAudit(): Promise<void> {
       schema: AUDIT_SCHEMA_OUT,
     });
     if (!r) return;
-    const parsed = parseJson<{ findings: AuditFinding[]; overall_tr: string }>(r.text);
-    const findings = (parsed?.findings ?? []).map((f, i) => ({ ...f, lens: lens.id, key: `${lens.id}-${String(i + 1).padStart(2, "0")}` }));
+    // Çıktı sınırında kesilen mercek (istek 4'te dört tanesi): tamamlanmış bulgular kurtarılır, ham metin ayrıca saklanır.
+    const parsed = parseOrSalvage(r.text, "findings", ["overall_tr"]);
+    const findings = (parsed.items as unknown as AuditFinding[]).map((f, i) => ({ ...f, lens: lens.id, key: `${lens.id}-${String(i + 1).padStart(2, "0")}` }));
     all.push(...findings);
-    overall[lens.id] = parsed?.overall_tr ?? "";
-    write(`prompt-audit/lens-${lens.id}.json`, JSON.stringify({ model: r.model, stop: r.stop, overall_tr: parsed?.overall_tr ?? r.text.slice(0, 4000), findings }, null, 2));
-    console.log(`[claude-work] prompt_audit: mercek ${lens.id} → ${findings.length} bulgu, $${(ledger.byTask.prompt_audit ?? 0).toFixed(2)}`);
+    overall[lens.id] = parsed.strings.overall_tr ?? "";
+    if (!parsed.complete) {
+      truncated.push(lens.id);
+      write(`prompt-audit/lens-${lens.id}.raw.txt`, r.text);
+    }
+    write(`prompt-audit/lens-${lens.id}.json`, JSON.stringify({ model: r.model, stop: r.stop, truncated: !parsed.complete, overall_tr: parsed.strings.overall_tr ?? "", findings }, null, 2));
+    console.log(`[claude-work] prompt_audit: mercek ${lens.id} → ${findings.length} bulgu${parsed.complete ? "" : " (ÇIKTI KESİK — tamamlananlar kurtarıldı)"}, $${(ledger.byTask.prompt_audit ?? 0).toFixed(2)}`);
   };
 
   // 1) İlk mercek TEK başına (önbelleği yazar); kalanlar paralel (hepsi önbellekten okur).
@@ -1112,20 +1120,27 @@ async function promptAudit(): Promise<void> {
       maxTokens: 32000,
       schema: AUDIT_SCHEMA_OUT,
     });
-    const parsed = r ? parseJson<{ findings: AuditFinding[]; overall_tr: string }>(r.text) : null;
-    const findings = (parsed?.findings ?? []).map((f, i) => ({ ...f, lens: "ikincil", key: `ikincil-${String(i + 1).padStart(2, "0")}` }));
+    const parsed = r ? parseOrSalvage(r.text, "findings", ["overall_tr"]) : null;
+    const findings = ((parsed?.items ?? []) as unknown as AuditFinding[]).map((f, i) => ({ ...f, lens: "ikincil", key: `ikincil-${String(i + 1).padStart(2, "0")}` }));
     all.push(...findings);
-    overall.ikincil = parsed?.overall_tr ?? "";
-    write("prompt-audit/lens-ikincil.json", JSON.stringify({ overall_tr: parsed?.overall_tr ?? "", findings }, null, 2));
+    overall.ikincil = parsed?.strings.overall_tr ?? "";
+    if (r && parsed && !parsed.complete) {
+      truncated.push("ikincil");
+      write("prompt-audit/lens-ikincil.raw.txt", r.text);
+    }
+    write("prompt-audit/lens-ikincil.json", JSON.stringify({ stop: r?.stop ?? null, truncated: parsed ? !parsed.complete : null, overall_tr: parsed?.strings.overall_tr ?? "", findings }, null, 2));
   }
-  write("prompt-audit/all-findings.json", JSON.stringify({ overall, findings: all }, null, 2));
+  write("prompt-audit/all-findings.json", JSON.stringify({ overall, truncatedLenses: truncated, findings: all }, null, 2));
+  if (truncated.length > 0) console.log(`[claude-work] prompt_audit: çıktısı kesilen mercek ${truncated.length}: ${truncated.join(" · ")}`);
 
   // 2) Çürütme turu: P0 / P1 bulguları, onar onar, aynı önbellekli bağlamla.
   const heavy = all.filter((f) => f.severity === "P0" || f.severity === "P1");
   const verdicts: Record<string, { verdict: string; reason_tr: string; quote: string }> = {};
   const chunks: AuditFinding[][] = [];
   for (let i = 0; i < heavy.length; i += 12) chunks.push(heavy.slice(i, i + 12));
-  await pool(chunks.slice(0, 8), async (chunk) => {
+  // Şema değişince önbellek yeniden yazılır ve aynı anda başlayan çağrıların HEPSİ yazma öder (istek 4: üç paralel parça = üç yazma).
+  // İlk parça tek başına koşar (yazar), kalanlar paralel (okur) — merceklerdeki düzenin aynısı.
+  const verifyChunk = async (chunk: AuditFinding[]): Promise<void> => {
     const r = await call({
       task: "prompt_audit",
       system,
@@ -1137,9 +1152,17 @@ async function promptAudit(): Promise<void> {
       maxTokens: 24000,
       schema: VERIFY_SCHEMA,
     });
-    const parsed = r ? parseJson<{ verdicts: { key: string; verdict: string; reason_tr: string; quote: string }[] }>(r.text) : null;
-    for (const v of parsed?.verdicts ?? []) verdicts[v.key] = { verdict: v.verdict, reason_tr: v.reason_tr, quote: v.quote };
-  });
+    const parsed = r ? parseOrSalvage(r.text, "verdicts") : null;
+    for (const v of (parsed?.items ?? []) as unknown as { key: string; verdict: string; reason_tr: string; quote: string }[]) {
+      if (typeof v.key === "string") verdicts[v.key] = { verdict: v.verdict, reason_tr: v.reason_tr, quote: v.quote };
+    }
+  };
+  const verifyChunks = chunks.slice(0, 8);
+  if (chunks.length > verifyChunks.length) console.log(`[claude-work] prompt_audit: çürütme turuna girmeyen bulgu ${heavy.length - verifyChunks.length * 12} (parça sınırı)`);
+  if (verifyChunks.length > 0) {
+    await verifyChunk(verifyChunks[0]);
+    await pool(verifyChunks.slice(1), verifyChunk);
+  }
   write("prompt-audit/verify.json", JSON.stringify(verdicts, null, 2));
   const surviving = all.filter((f) => !f.key || verdicts[f.key]?.verdict !== "refuted");
 
@@ -1382,11 +1405,14 @@ async function uxAudit(): Promise<void> {
         maxTokens: 16000,
         schema: UX_SCHEMA,
       });
-      const parsed = r ? parseJson<{ page_summary_tr: string; findings: Record<string, unknown>[] }>(r.text) : null;
-      if (!parsed) continue;
+      if (!r) continue;
+      // Çıktı sınırında kesilen sayfa: tamamlanmış bulgular kurtarılır; hiçbir şey kurtarılamadıysa sayfa "bakılamadı" sayılır.
+      const parsed = parseOrSalvage(r.text, "findings", ["page_summary_tr"]);
+      if (!parsed.complete && parsed.items.length === 0 && parsed.strings.page_summary_tr === null) continue;
+      if (!parsed.complete) console.log(`[claude-work] ux_audit: ${id} kısım ${g + 1} çıktısı kesik — ${parsed.items.length} bulgu kurtarıldı`);
       reviewedParts += 1;
-      partSummaries.push(parsed.page_summary_tr ?? "");
-      findings.push(...(parsed.findings ?? []).map((f) => ({ ...f, page: id, label: head.label, group: head.group, url: head.url, ...(groups.length > 1 ? { part: `${g + 1}/${groups.length}` } : {}) })));
+      partSummaries.push(parsed.strings.page_summary_tr ?? "");
+      findings.push(...parsed.items.map((f) => ({ ...f, page: id, label: head.label, group: head.group, url: head.url, ...(groups.length > 1 ? { part: `${g + 1}/${groups.length}` } : {}) })));
     }
     if (reviewedParts < groups.length) skipped.push(`${id} (${head.label})${reviewedParts > 0 ? ` — ${groups.length - reviewedParts}/${groups.length} kısmına bakılamadı` : ""}`);
     if (reviewedParts === 0) return;
