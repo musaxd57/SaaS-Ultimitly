@@ -24,6 +24,7 @@ import { AUDIT_SCHEMA, AUDIT_SYSTEM, buildAuditUser, parseAudit, MEANING_ERRORS 
 import { hazardEvidenceOf } from "../../src/lib/ai/hazard-evidence";
 import { classifyFallback, isSafetyEmergencyText } from "../../src/lib/ai/fallback";
 import { parseOrSalvage } from "./salvage";
+import { resolveReserveUsd, stepBlockedByBudget } from "./budget";
 
 const ROOT = path.resolve(process.cwd());
 const OUT = path.join(ROOT, "claude-work-out");
@@ -86,9 +87,10 @@ function charge(task: string, model: string, u: Usage | undefined): number {
   ledger.cacheWrite += write5m + write1h;
   return usd;
 }
-function overBudget(task: string): boolean {
+/** `reserveUsd`: bu adımdan SONRA gelecek zorunlu adımlar için korunacak pay (yoksa 0 = eski kural). Karar `budget.ts`te (saf, pinli). */
+function overBudget(task: string, reserveUsd = 0): boolean {
   const cap = req.taskBudgetUsd?.[task] ?? BUDGET;
-  return ledger.total >= BUDGET || (ledger.byTask[task] ?? 0) >= cap;
+  return stepBlockedByBudget({ spentTotal: ledger.total, totalCap: BUDGET, spentTask: ledger.byTask[task] ?? 0, taskCap: cap, reserveUsd });
 }
 
 // ── Çağrı ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -106,6 +108,8 @@ interface CallOpts {
   cacheTtl?: "1h";
   /** Kullanıcı mesajına eklenecek görüntüler (PNG / JPEG, base64). */
   images?: { mediaType: "image/png" | "image/jpeg"; data: string }[];
+  /** İsteğe bağlı adım: kalan bütçe bu payı aşmıyorsa çağrı başlamaz (sonraki zorunlu adımlar için ayrılan pay). Yoksa 0. */
+  reserveUsd?: number;
 }
 
 /**
@@ -113,7 +117,7 @@ interface CallOpts {
  * yedek modele düşer (`fallbacks: "default"`). Web araması `pause_turn` ile durursa aynı istekle sürdürülür (en çok 6 kez).
  */
 async function call(o: CallOpts): Promise<{ text: string; model: string; stop: string } | null> {
-  if (overBudget(o.task)) return null;
+  if (overBudget(o.task, o.reserveUsd ?? 0)) return null;
   const userContent =
     o.images && o.images.length > 0
       ? [
@@ -1039,7 +1043,32 @@ function assembledPrompts(): { system: Record<string, string>; samples: { id: st
   }
 }
 
+// Son iki zorunlu adım (yeniden tasarım + kurucu raporu) için ayrılan pay. İstekte `taskBudgetUsd.prompt_audit_report` ile ezilir; bu bir
+// TAVAN değil PAYDIR: iki adım yine `prompt_audit` görevine yazılır, isteğe bağlı adımlar (mercekler, ikincil istemler, çürütme parçaları)
+// kalan bütçe bu payı aşmıyorsa başlamaz. Varsayılan 10 $ — istek 4 ölçümü (`docs/olcum/fable-denetim-2026-11-13/kullanim.json`, Fable
+// 5.2: 77 çağrı, prompt_audit 49,38 $; önbellek yazması 1,6 M belirteç, yaklaşık 7 yazma → bağlam ≈ 230 bin belirteç):
+//   · iki adımın çıktı tavanı 64 000 + 48 000 belirteç × 40 $/M = 4,48 $ (en kötü hâl),
+//   · bir saatlik önbellek o ana kadar düşmüşse bağlamın bir kez yeniden yazılması ≈ 230 bin × 16 $/M ≈ 3,7 $,
+//   · bulgu özeti girdisi (her iki çağrıda) ≈ 0,5 $,
+//   · kalan ≈ 1,3 $: karar başlamadan verildiği için havuzda aynı anda koşan isteğe bağlı çağrıların taşması (istek 4 ortalaması 0,65 $ / çağrı).
+const PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD = 10;
+
 async function promptAudit(): Promise<void> {
+  const reserveIn = resolveReserveUsd(req.taskBudgetUsd?.prompt_audit_report, PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD);
+  if (reserveIn.invalid) console.error(`[claude-work] prompt_audit: taskBudgetUsd.prompt_audit_report geçersiz — varsayılan pay ${PROMPT_AUDIT_REPORT_RESERVE_DEFAULT_USD} $ kullanılıyor`);
+  const reserveUsd = reserveIn.usd;
+  /** Bütçe payı yüzünden BAŞLAMAYAN isteğe bağlı adımlar (sessiz kırpma yok: günlüğe ve `all-findings.json`a adıyla yazılır). */
+  const skipped: string[] = [];
+  /** İsteğe bağlı adım pay yüzünden başlamamalı mı? Başlamayacaksa adıyla kaydeder. */
+  const skipOptional = (step: string): boolean => {
+    if (!overBudget("prompt_audit", reserveUsd)) return false;
+    skipped.push(step);
+    console.log(`[claude-work] prompt_audit: ${step} atlandı — kalan bütçe rapor payını (${reserveUsd} $) korumuyor, $${(ledger.byTask.prompt_audit ?? 0).toFixed(2)}`);
+    return true;
+  };
+  /** İsteğe bağlı çağrı. `skipOptional` ile `call` içindeki denetim arada `await` olmadan, aynı eşzamanlı adımda verilir (aynı sonuç). */
+  const optionalCall = async (step: string, o: Omit<CallOpts, "task" | "reserveUsd">): ReturnType<typeof call> =>
+    skipOptional(step) ? null : call({ ...o, task: "prompt_audit", reserveUsd });
   const files = PROMPT_FILES.filter((f) => existsSync(path.join(ROOT, f)));
   const corpus = bundles(files, Number.MAX_SAFE_INTEGER)
     .map((b) => b.text)
@@ -1064,8 +1093,7 @@ async function promptAudit(): Promise<void> {
   /** Çıktısı kesilen mercekler (sessiz kırpma yok: rapora ve günlüğe adıyla yazılır). */
   const truncated: string[] = [];
   const runLens = async (lens: { id: string; text: string }, extraUser = ""): Promise<void> => {
-    const r = await call({
-      task: "prompt_audit",
+    const r = await optionalCall(`mercek ${lens.id}`, {
       system,
       cacheTtl: "1h",
       user: `${lens.text}\n\nReturn the JSON object only.${extraUser}`,
@@ -1111,9 +1139,10 @@ async function promptAudit(): Promise<void> {
   const secondary = bundles(SECONDARY_PROMPT_FILES.filter((f) => existsSync(path.join(ROOT, f))), Number.MAX_SAFE_INTEGER)
     .map((b) => b.text)
     .join("");
-  if (secondary && !overBudget("prompt_audit")) {
+  if (secondary && !skipOptional("ikincil istemler")) {
     const r = await call({
       task: "prompt_audit",
+      reserveUsd,
       system: `${AUDIT_BRIEF}\n\n════════ SECONDARY PROMPT SOURCES (line-numbered) ════════\n${secondary}`,
       user: "LENS 9 — SECONDARY PROMPTS (quality auditor, shadow run, learning from past host replies, host-channel composer, supplies). Same severity. Focus on: prompts that ask a model to grade with keyword-like criteria; extraction prompts that will hallucinate structure; anything that feeds back into what guests receive (learned knowledge-base suggestions, style profile). Up to 15 findings. Return the JSON object only.",
       effort: "high",
@@ -1130,7 +1159,9 @@ async function promptAudit(): Promise<void> {
     }
     write("prompt-audit/lens-ikincil.json", JSON.stringify({ stop: r?.stop ?? null, truncated: parsed ? !parsed.complete : null, overall_tr: parsed?.strings.overall_tr ?? "", findings }, null, 2));
   }
-  write("prompt-audit/all-findings.json", JSON.stringify({ overall, truncatedLenses: truncated, findings: all }, null, 2));
+  const writeAllFindings = (): void =>
+    write("prompt-audit/all-findings.json", JSON.stringify({ overall, truncatedLenses: truncated, skipped, findings: all }, null, 2));
+  writeAllFindings();
   if (truncated.length > 0) console.log(`[claude-work] prompt_audit: çıktısı kesilen mercek ${truncated.length}: ${truncated.join(" · ")}`);
 
   // 2) Çürütme turu: P0 / P1 bulguları, onar onar, aynı önbellekli bağlamla.
@@ -1140,9 +1171,8 @@ async function promptAudit(): Promise<void> {
   for (let i = 0; i < heavy.length; i += 12) chunks.push(heavy.slice(i, i + 12));
   // Şema değişince önbellek yeniden yazılır ve aynı anda başlayan çağrıların HEPSİ yazma öder (istek 4: üç paralel parça = üç yazma).
   // İlk parça tek başına koşar (yazar), kalanlar paralel (okur) — merceklerdeki düzenin aynısı.
-  const verifyChunk = async (chunk: AuditFinding[]): Promise<void> => {
-    const r = await call({
-      task: "prompt_audit",
+  const verifyChunk = async (chunk: AuditFinding[], i: number): Promise<void> => {
+    const r = await optionalCall(`çürütme parçası ${i + 1}/${verifyChunks.length}`, {
       system,
       cacheTtl: "1h",
       user: `SKEPTICAL RE-CHECK. Below are findings another reviewer reported about the prompt corpus. For EACH one, go to the cited file and line and try to REFUTE it: is the quote really there; does surrounding text (an exception, a later rule, a layer) already resolve the alleged problem; would a capable model really be misled; is the claimed conflict real in the launch configuration. Verdict 'confirmed' only if it survives; 'partly' if the core is right but overstated; 'refuted' with the text that refutes it. Quote the decisive line. Return the JSON object only.\n\nFINDINGS:\n${JSON.stringify(
@@ -1160,10 +1190,13 @@ async function promptAudit(): Promise<void> {
   const verifyChunks = chunks.slice(0, 8);
   if (chunks.length > verifyChunks.length) console.log(`[claude-work] prompt_audit: çürütme turuna girmeyen bulgu ${heavy.length - verifyChunks.length * 12} (parça sınırı)`);
   if (verifyChunks.length > 0) {
-    await verifyChunk(verifyChunks[0]);
-    await pool(verifyChunks.slice(1), verifyChunk);
+    await verifyChunk(verifyChunks[0], 0);
+    await pool(verifyChunks.slice(1), (c, i) => verifyChunk(c, i + 1));
   }
   write("prompt-audit/verify.json", JSON.stringify(verdicts, null, 2));
+  // Atlanan çürütme parçaları da listeye girsin diye yeniden yazılır; atlanan adımlar özet olarak günlüğe.
+  writeAllFindings();
+  if (skipped.length > 0) console.log(`[claude-work] prompt_audit: rapor payı için atlanan adım ${skipped.length}: ${skipped.join(" · ")}`);
   const surviving = all.filter((f) => !f.key || verdicts[f.key]?.verdict !== "refuted");
 
   // 3) Hedef mimari + yeniden yazım taslağı (çürütülmeyen bulgularla).
@@ -1179,17 +1212,19 @@ async function promptAudit(): Promise<void> {
     maxTokens: 64000,
   });
   if (redesign) write("prompt-audit/redesign.md", redesign.text);
+  else console.error("[claude-work] prompt_audit: yeniden tasarım çağrısı sonuç vermedi (bütçe / hata)");
 
   // 4) Kurucuya son rapor.
   const report = await call({
     task: "prompt_audit",
     system,
     cacheTtl: "1h",
-    user: `FINAL REPORT for the founder (non-engineer; reads Turkish; wants plain language and concrete examples; no jargon, no flattery). In TURKISH Markdown, at most ~500 lines:\n- "En kötü 20": the twenty findings that hurt real guest answers most. For each: what the prompt says (short quote), what goes wrong (one guest message → what the assistant writes today → what it should write), what to change. Use ONLY findings that were not refuted.\n- "Saçma bulduklarım": the absurd / unnatural instructions, bluntly.\n- "Çelişki haritası": the instruction traps, as a short table.\n- "Kelimeye bağlanan yerler": where the prompt forces pattern matching.\n- "Bilgi kullanımı": what is wrong in how sources are given and used.\n- "Ne yapmalı": the first five changes in order, each with expected effect and how to measure it.\n- "Emin olmadıklarım": honest list.\nEvery example reply must be written in the HOST'S voice (first person; never "ev sahibiniz" / "your host").\n\nFINDINGS WITH VERDICTS (JSON):\n${digest}\n\nLENS SUMMARIES:\n${JSON.stringify(overall)}`,
+    user: `FINAL REPORT for the founder (non-engineer; reads Turkish; wants plain language and concrete examples; no jargon, no flattery). In TURKISH Markdown, at most ~500 lines:\n- "En kötü 20": the twenty findings that hurt real guest answers most. For each: what the prompt says (short quote), what goes wrong (one guest message → what the assistant writes today → what it should write), what to change. Use ONLY findings that were not refuted.\n- "Saçma bulduklarım": the absurd / unnatural instructions, bluntly.\n- "Çelişki haritası": the instruction traps, as a short table.\n- "Kelimeye bağlanan yerler": where the prompt forces pattern matching.\n- "Bilgi kullanımı": what is wrong in how sources are given and used.\n- "Ne yapmalı": the first five changes in order, each with expected effect and how to measure it.\n- "Emin olmadıklarım": honest list.\nEvery example reply must be written in the HOST'S voice (first person; never "ev sahibiniz" / "your host").\n\nFINDINGS WITH VERDICTS (JSON):\n${digest}\n\nLENS SUMMARIES:\n${JSON.stringify(overall)}\n\nSTEPS SKIPPED TO KEEP BUDGET FOR THIS REPORT (if any, say so plainly at the top and do not describe the audit as complete): ${skipped.length ? skipped.join(" · ") : "none"}`,
     effort: "high",
     maxTokens: 48000,
   });
   if (report) write("prompt-audit/REPORT.md", report.text);
+  else console.error("[claude-work] prompt_audit: kurucu raporu çağrısı sonuç vermedi (bütçe / hata)");
 }
 
 // ── İş: ham model kolu (kurucu 11-12 gece / Codex: "aynı girdide ham model kararıyla ürünün son kararını karşılaştır") ───────────────────
