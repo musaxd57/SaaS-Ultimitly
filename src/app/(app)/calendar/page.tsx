@@ -197,7 +197,7 @@ export default async function CalendarPage({
               key={p.id}
               href={propertyHref(p.id)}
               className={cn(
-                "max-w-[12rem] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "max-w-[12rem] truncate rounded-full border px-3 py-3 text-xs font-medium transition-colors sm:py-1",
                 propertyFilter === p.id
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border hover:bg-accent",
@@ -215,7 +215,7 @@ export default async function CalendarPage({
           <div className="mb-3 flex items-center justify-between">
             <Link
               href={monthHref(prevMonth)}
-              className="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent"
+              className="inline-flex size-10 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent sm:size-8"
               aria-label="Önceki ay"
             >
               <ChevronLeft className="size-4" />
@@ -223,7 +223,7 @@ export default async function CalendarPage({
             <h2 className="text-base font-semibold capitalize">{monthTitle}</h2>
             <Link
               href={monthHref(nextMonth)}
-              className="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent"
+              className="inline-flex size-10 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent sm:size-8"
               aria-label="Sonraki ay"
             >
               <ChevronRight className="size-4" />

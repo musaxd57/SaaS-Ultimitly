@@ -49,7 +49,8 @@ export function PanelTheme() {
       // Durum bilinmeden ikon çizilmez (yanlış ikon bir an görünmesin).
       aria-label={dark ? "Açık temaya geç" : "Koyu temaya geç"}
       title={dark ? "Açık tema" : "Koyu tema"}
-      className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      // Telefonda 40 px dokunma hedefi (ürünün kendi ölçüsü — `ui/button.tsx`); sm ve üstünde eski 32 px (UX denetimi 11-13).
+      className="inline-flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:size-8"
     >
       {dark === null ? (
         <span className="size-4" aria-hidden="true" />

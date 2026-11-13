@@ -1,5 +1,22 @@
 import type { Metadata } from "next";
-import { SECTIONS, SECURITY_TXT_EXPIRES } from "./content";
+import type { ReactNode } from "react";
+import { SECTIONS, SECURITY_CONTACT, SECURITY_TXT_EXPIRES } from "./content";
+
+/** Metindeki bildirim adresini tıklanabilir yapar (yazı aynı kalır; adres yalnız `content.ts` içindeki sabittir). */
+function withMailLink(text: string): ReactNode {
+  const parts = text.split(SECURITY_CONTACT);
+  if (parts.length === 1) return text;
+  return parts.flatMap((part, i) =>
+    i === 0
+      ? [part]
+      : [
+          <a key={i} href={`mailto:${SECURITY_CONTACT}`} className="font-medium text-foreground underline underline-offset-2">
+            {SECURITY_CONTACT}
+          </a>,
+          part,
+        ],
+  );
+}
 
 // ⚠️ `LEGAL_LAST_UPDATED` BİLİNÇLİ KULLANILMIYOR. O sabit, onaylanan sözleşme
 // metinlerinin sürümüne bağlı; VDP onlardan bağımsız yaşar ve kendi geçerlilik
@@ -24,13 +41,13 @@ export default function SecurityPolicyPage() {
           <h2 className="text-lg font-semibold">{s.title}</h2>
           {s.body?.map((p, i) => (
             <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-              {p}
+              {withMailLink(p)}
             </p>
           ))}
           {s.list ? (
             <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
               {s.list.map((li, i) => (
-                <li key={i}>{li}</li>
+                <li key={i}>{withMailLink(li)}</li>
               ))}
             </ul>
           ) : null}

@@ -464,7 +464,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             <button
               ref={menuButtonRef}
               type="button"
-              className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
+              className="inline-flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent lg:hidden"
               onClick={() => setMobileOpen(true)}
               aria-label="Menüyü aç"
               aria-expanded={mobileOpen}

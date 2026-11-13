@@ -394,7 +394,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                       <button
                         type="button"
                         onClick={() => openAdapt(t)}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-0"
                       >
                         <Copy className="size-3.5" />
                         Kendime uyarla

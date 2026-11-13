@@ -392,7 +392,7 @@ export function GuestChat({
           </form>
           {pinError ? <p className="text-sm text-destructive">{pinError}</p> : null}
           {/* U3 (kurucu 10-22): "giriş kodu / access code" kapı koduyla karışıyordu — adı "sohbet kodu", kapı kodu olmadığı yazılı. */}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {t.pinNotDoorCode} {t.pinUnknown}
           </p>
         </div>
@@ -494,7 +494,7 @@ export function GuestChat({
         </form>
       ) : null}
 
-      <footer className="bg-card px-4 pb-4 text-center text-[11px] text-muted-foreground">
+      <footer className="bg-card px-4 pb-4 text-center text-xs text-muted-foreground">
         {t.footer}{" "}
         <a href="/gizlilik" className="underline">
           {t.privacy}

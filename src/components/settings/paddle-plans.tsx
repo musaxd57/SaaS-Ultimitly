@@ -808,7 +808,7 @@ export function PaddlePlans({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50 sm:h-8"
                 >
                   Mevcut plan
                 </button>
@@ -818,7 +818,7 @@ export function PaddlePlans({
                   // Duraklatılmış abonelikte paket değişmez (önce devam ettirilir — sunucu da reddeder; Haiku 10-17).
                   disabled={changeBusy || !p.priceId || pending !== null || annual || subscriptionStatus === "paused"}
                   onClick={() => void startChange(p.code)}
-                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:h-8"
                 >
                   {isUpgrade ? "Yükselt" : "Düşür"}
                 </button>
@@ -827,7 +827,7 @@ export function PaddlePlans({
                   type="button"
                   disabled={!ready || !activePriceId || !accepted || busy || manageable || processing}
                   onClick={() => openCheckout(p.code, activePriceId)}
-                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:h-8"
                 >
                   {manageable
                     ? "Yönetimden değiştirin"

@@ -98,12 +98,12 @@ export function GuestChatReply({
           maxLength={2000}
           aria-label="Misafire yanıtınız"
           placeholder="Misafire yanıtınızı yazın (Enter gönderir, Shift+Enter yeni satır)…"
-          className="max-h-28 min-h-[38px] flex-1 resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="max-h-28 min-h-10 flex-1 resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 sm:min-h-[38px]"
         />
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="inline-flex h-9 shrink-0 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex h-10 shrink-0 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:h-9"
         >
           {busy ? "…" : "Yanıtla"}
         </button>

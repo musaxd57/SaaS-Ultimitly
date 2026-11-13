@@ -520,7 +520,7 @@ export function TaskBoard({
           value={t.status === "blocked" ? "blocked" : columnOf(t.status)}
           disabled={busyId === t.id}
           onChange={(e) => setStatus(t.id, e.target.value)}
-          className="mt-2 h-9 text-xs"
+          className="mt-2 h-10 text-xs sm:h-9"
           // Görsel bir etiketi yok (kart zaten dar) — ekran okuyucu için HANGİ
           // görevin durumu olduğu da söylenir, yoksa 20 kartta 20 tane
           // ayırt edilemez "seçim kutusu" duyulur.
@@ -544,7 +544,7 @@ export function TaskBoard({
             value={t.assigneeId ?? ""}
             disabled={busyId === t.id}
             onChange={(e) => assign(t.id, e.target.value)}
-            className="mt-2 h-9 text-xs"
+            className="mt-2 h-10 text-xs sm:h-9"
             aria-label={`Atanan kişi: ${t.title}`}
           >
             <option value="">Atanmadı</option>

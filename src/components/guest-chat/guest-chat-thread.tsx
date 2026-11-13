@@ -71,7 +71,7 @@ export function GuestChatThread({ messages, locale = "tr" }: { messages: readonl
         const host = m.role === "host";
         if (m.role === "resume") {
           return (
-            <div key={m.id} className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <div key={m.id} className="my-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="h-px flex-1 bg-border" />
               {t.separatorResume}
               <span className="h-px flex-1 bg-border" />
@@ -82,7 +82,7 @@ export function GuestChatThread({ messages, locale = "tr" }: { messages: readonl
           return (
             <Fragment key={m.id}>
               <div className="flex flex-col items-end">
-                {m.time ? <p className="mb-0.5 mr-1 text-[11px] tabular-nums text-muted-foreground">{m.time}</p> : null}
+                {m.time ? <p className="mb-0.5 mr-1 text-xs tabular-nums text-muted-foreground">{m.time}</p> : null}
                 <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
                 </div>
@@ -94,7 +94,7 @@ export function GuestChatThread({ messages, locale = "tr" }: { messages: readonl
           <div key={m.id} className="flex items-end justify-start gap-2">
             <GuestChatAvatar kind={host ? "host" : "ai"} />
             <div className="min-w-0 max-w-[85%]">
-              <p className="mb-0.5 ml-1 flex items-baseline gap-1.5 text-[11px] text-muted-foreground">
+              <p className="mb-0.5 ml-1 flex items-baseline gap-1.5 text-xs text-muted-foreground">
                 <span className={host ? "font-semibold text-emerald-700" : "font-semibold text-foreground/80"}>{host ? t.senderHost : t.senderAi}</span>
                 {m.time ? <span className="tabular-nums">{m.time}</span> : null}
               </p>

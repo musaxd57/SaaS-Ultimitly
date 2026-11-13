@@ -165,7 +165,7 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
           onClick={() => setStored(true)}
           aria-label="Kurulum rehberini küçült"
           title="Küçült"
-          className="absolute right-2.5 top-2.5 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="absolute right-1.5 top-1.5 inline-flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:right-2.5 sm:top-2.5 sm:size-8"
         >
           <ChevronUp className="size-4" />
         </button>

@@ -219,7 +219,15 @@ export function HospitableConnectCard({
             <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
             <ol className="list-decimal space-y-1 pl-4">
               <li>
-                <strong>my.hospitable.com</strong>&apos;da giriş yapın; kenar menüden{" "}
+                <a
+                  href="https://my.hospitable.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-foreground underline underline-offset-2 hover:text-primary"
+                >
+                  my.hospitable.com
+                </a>
+                &apos;da giriş yapın; kenar menüden{" "}
                 <strong>Apps</strong> (veya <strong>Settings → Integrations</strong>) →{" "}
                 <strong>API access</strong> → <strong>Access tokens</strong> sekmesine gidin.
               </li>
