@@ -343,8 +343,19 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: stale.id, kind: "towels", dueAt: new Date(Date.now() + 3_600_000) } });
     // Konuşma kontrolü engeli (11-04, migration 90): açık tehlike kaydı kopyayla silinmemeli.
     await prisma.conversationBlock.create({ data: { organizationId: orgId, conversationId: stale.id, kind: "safety_incident", sourceMessageId: "msg-x", evidence: "model:safety_emergency" } });
+    // Taslak ↔ gönderilen metin bağı (11-13, migration 96): bağ ve eklenen parçası kopyayla silinmemeli.
+    const link = await prisma.replyDraftLink.create({
+      data: {
+        organizationId: orgId, conversationId: stale.id, anchorMessageId: "cleanup-anchor", sentMessageId: "cleanup-sent", linkKind: "seeded",
+        lexicalSim: 0.9, tokensAdded: 3, tokensRemoved: 0, valueChanged: false, removedSentence: false, maxAddedRun: 3, editKindsJson: "[]",
+        outcome: "major_edit", classifierVersion: 1, sentAt: new Date(),
+      },
+    });
+    await prisma.replyDraftSpan.create({ data: { linkId: link.id, organizationId: orgId, conversationId: stale.id, textEnc: "x", contentTokens: 3 } });
 
     expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.replyDraftLink.count({ where: { conversationId: keeper.id } })).toBe(1);
+    expect(await prisma.replyDraftSpan.count({ where: { conversationId: keeper.id } })).toBe(1);
     expect(await prisma.conversationBlock.count({ where: { conversationId: keeper.id, status: "active" } })).toBe(1);
     expect(await prisma.conversationItem.count({ where: { conversationId: keeper.id, status: "pending_host" } })).toBe(1);
     expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id } })).toBe(1);

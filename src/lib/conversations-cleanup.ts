@@ -176,6 +176,8 @@ export const CLEANUP_REPOINTED_MODELS = [
   "GuestCommitment",
   "HostQuestion",
   "MessageOutbox",
+  "ReplyDraftLink",
+  "ReplyDraftSpan",
   "RiskEvent",
   "ShadowVerdict",
   "Signal",
@@ -192,6 +194,9 @@ async function repointConversationChildren(tx: Prisma.TransactionClient, fromId:
   // Ev sahibine giden soru (migration 88, FK Cascade): silinirse ev sahibinin WhatsApp cevabı bağlanacak soru bulamazdı.
   await tx.hostQuestion.updateMany(move);
   await tx.messageOutbox.updateMany(move);
+  // Taslak ↔ gönderilen metin bağı (migration 96, FK Cascade) + eklenen parçaların düz konuşma kimliği: silinirse özerklik ölçüsü kaybolurdu.
+  await tx.replyDraftLink.updateMany(move);
+  await tx.replyDraftSpan.updateMany(move);
   await tx.riskEvent.updateMany(move);
   await tx.shadowVerdict.updateMany(move);
   await tx.signal.updateMany(move);

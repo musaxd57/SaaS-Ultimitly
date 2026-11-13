@@ -274,6 +274,8 @@ describe("apply — referans envanteri", () => {
       "HostQuestion", // 10-30 (migration 88): FK Cascade — repoint listesinde (silinirse ev sahibine sorulmuş, cevap bekleyen soru kaybolurdu)
       "Message",
       "MessageOutbox",
+      "ReplyDraftLink", // 11-13 (migration 96): FK Cascade — repoint listesinde (silinirse taslak ↔ gönderim bağı kaybolurdu)
+      "ReplyDraftSpan", // 11-13 (migration 96): düz konuşma kimliği — repoint listesinde (kümeleme kaybedenin kimliğini saymasın)
       "RiskEvent",
       "ShadowVerdict",
       "Signal", // V1 (migration 52): FK SetNull — repoint listesinde
@@ -453,6 +455,30 @@ describe("apply — başarı yolu", () => {
       data: { organizationId: org.organizationId, conversationId: b.id, kind: "safety_incident", sourceMessageId: "apply-test-msg", evidence: "model:safety_emergency" },
     });
 
+    // Taslak ↔ gönderilen metin bağı (11-13, migration 96): FK Cascade — repoint edilmezse bağ ve eklenen parçası kaybedenle SİLİNİR.
+    const draftLink = await prisma.replyDraftLink.create({
+      data: {
+        organizationId: org.organizationId,
+        conversationId: b.id,
+        anchorMessageId: "apply-test-anchor",
+        sentMessageId: "apply-test-sent",
+        linkKind: "seeded",
+        lexicalSim: 0.9,
+        tokensAdded: 3,
+        tokensRemoved: 0,
+        valueChanged: false,
+        removedSentence: false,
+        maxAddedRun: 3,
+        editKindsJson: '["added_info"]',
+        outcome: "major_edit",
+        classifierVersion: 1,
+        sentAt: T1,
+      },
+    });
+    await prisma.replyDraftSpan.create({
+      data: { linkId: draftLink.id, organizationId: org.organizationId, conversationId: b.id, textEnc: "x", contentTokens: 3 },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -474,7 +500,11 @@ describe("apply — başarı yolu", () => {
       guestCommitment: 1,
       hostQuestion: 0,
       conversationBlock: 1,
+      replyDraftLink: 1,
+      replyDraftSpan: 1,
     });
+    expect(await prisma.replyDraftLink.count({ where: { conversationId: a.id } })).toBe(1);
+    expect(await prisma.replyDraftSpan.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.conversationBlock.count({ where: { conversationId: a.id, status: "active", kind: "safety_incident" } })).toBe(1);
     expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: a.id, status: "open" } })).toBe(1);

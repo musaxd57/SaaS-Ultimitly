@@ -11,6 +11,8 @@ import { sendHostMessage } from "@/lib/host-send";
 import { suggestionOperationKey } from "@/lib/outbox/operation-key";
 import { createHash } from "crypto";
 import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { recordReplyDraftLink } from "@/lib/reply-draft/service";
+import { reportError } from "@/lib/report-error";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
 // task updates; the inbound-message and status routes stay open for their triage.
@@ -117,6 +119,22 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     strictIdempotency: Boolean(operationKey ?? parsed.data.requestId),
     ...(operation ? { operation } : {}),
   });
+  // Taslak ↔ gönderilen metin bağı (kurucu 11-13, GÖLGE): gönderim BAŞARILI olduktan sonra, kendi try/catch'iyle — hatası gönderimin
+  // sonucunu asla değiştirmez. Misafire giden metinle (çeviri varsa çevrilmiş hâli) kıyaslanır; kodun kurduğu cevap ("code") kıyaslanmaz.
+  const linkDraft = async (messageId: string | undefined) => {
+    if (!messageId || parsed.data.draftUse === "code") return;
+    try {
+      await recordReplyDraftLink({
+        organizationId: session.organizationId,
+        conversationId: id,
+        sentMessageId: messageId,
+        sentBody: replyBody,
+        draftUse: parsed.data.draftUse === "seeded" ? "seeded" : parsed.data.draftUse === "approved" || aiAssisted ? "approved" : null,
+      });
+    } catch (err) {
+      void reportError("reply-draft.link", err);
+    }
+  };
   switch (sent.status) {
     case "not_connected":
       return NextResponse.json(
@@ -130,6 +148,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         { status: 409 },
       );
     case "queued":
+      await linkDraft(sent.message?.id);
       // 202 = accepted/queued (NOT yet delivered — the UI shows "sıraya alındı"); a dedupe-hit is a 200 no-op (the identical
       // message is already queued/sent). `delivery` = kuyruk satırının ŞU ANKİ durumu (Codex 11-05): tekilleşen 200 "gönderildi"
       // demek DEĞİLDİR — arayüz duyuruyu HTTP kodundan değil bundan seçer.
@@ -165,6 +184,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         { status: 502 },
       );
     case "sent":
+      await linkDraft(sent.message?.id);
       return jsonOk(sent.message, 201);
   }
 });

@@ -40,3 +40,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Duraklatmada duranlar:** QR misafir sohbeti (dairedeki sticker ölü sayfaya düşer) · oto-yanıt/senkron
   (540 günlük geri pencere toparlar) · e-posta kuyruğu · **Paddle webhook'ları (durum KAYABİLİR → geri
   dönüşte reconcile)** · Hospitable OAuth refresh (süresi dolabilir, KONTROL ET).
+- 🚨 **Çalışma ağaçları (`wt-dev`, `wt-next`, ana klon) AYNI `node_modules`'u paylaşır (sembolik bağ) → tam kapı koşarken `npx prisma generate`
+  ÇALIŞTIRILMAZ** (11-13: şema değişikliğinden sonra geliştirme ağacında koşuldu, koşan kapının Prisma istemcisi yeni şemaya döndü). Test yardımcısı
+  tabloları açık listeyle sildiği için davranış testleri etkilenmez; DMMF okuyan pinler yanlış KIRMIZI verir (yanlış yeşil değil). Şema değişince
+  istemci, kapı bittikten sonra ya da yeni şemayı taşıyan kapının başında üretilir.

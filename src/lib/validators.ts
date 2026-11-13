@@ -192,6 +192,11 @@ export const conversationReplySchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_-]{8,64}$/, "Geçersiz mesaj kimliği")
     .optional(),
+  // Kurucu 11-13 (taslak ↔ gönderilen metin bağı): ev sahibinin yapay zekâ taslağını nasıl kullandığına dair İPUCU — approved ("Onayla ve
+  // gönder") · seeded ("Taslağı kullan" → düzenle → gönder) · code (kodun kurduğu doğrulanmış cevap; taslakla kıyaslanmaz → o gönderimde bağ
+  // YAZILMAZ). Metin farkı sunucuda ölçülür; ipucu gönderimi değiştirmez, yalnız bağın türünü etiketler (istemci beyanıdır — işletme kendi
+  // ölçüsünü etkiler, başkasınınkini değil).
+  draftUse: z.enum(["approved", "seeded", "code"]).optional(),
   // Reserved sender names: "GuestOps AI" is the AI-message classification magic
   // string (reports count on it) and "Lixus AI" is its rendered brand alias — a
   // manual reply claiming either would self-inflate the org's AI metrics or

@@ -195,6 +195,12 @@ export function ConversationThread({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
+  /**
+   * Yazma alanının KAYNAĞI (kurucu 11-13, taslak ↔ gönderilen metin bağı): "Taslağı kullan" → `seeded` (yapay zekâ taslağından başlandı),
+   * doğrulanmış erken giriş cevabı → `code` (kodun kurduğu cevap; yapay zekâ taslağıyla kıyaslanmaz). Sunucuya yalnız İPUCU olarak gider; metin
+   * farkı sunucuda ölçülür. Alan boşaltılınca / şablon uygulanınca / gönderilince sıfırlanır.
+   */
+  const [composerSource, setComposerSource] = useState<"seeded" | "code" | null>(null);
   const [tone, setTone] = useState<ReplyTone>(defaultTone);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(() => (initialDraft ? preparedSuggestion(initialDraft) : null));
   // Hangi mesajın taslağı panele zaten geldi: sayfa 30 sn'de bir yenilenir — kapatılan taslak geri gelmesin, "AI öner"in
@@ -367,7 +373,13 @@ export function ConversationThread({
     }
   }
 
-  async function sendReply(body: string, aiAssisted = false, source: "composer" | "suggestion" = "composer", anchorMessageId?: string) {
+  async function sendReply(
+    body: string,
+    aiAssisted = false,
+    source: "composer" | "suggestion" = "composer",
+    anchorMessageId?: string,
+    draftUse?: "approved" | "seeded" | "code",
+  ) {
     if (!body.trim()) return;
     setSending(true);
     setSendError(null);
@@ -387,7 +399,7 @@ export function ConversationThread({
         headers: { "Content-Type": "application/json" },
         // Öneri onayında konuşma sonu da gider (S1): sunucu gönderim işlemini ona bağlar. Elle yazılan cevap bu değeri hiç vermez
         // (yalnız "Onayla ve gönder" verir); sunucu da yapay zekâ destekli olmayan gönderimde yok sayar.
-        body: JSON.stringify({ body, aiAssisted, requestId, ...(anchorMessageId ? { anchorMessageId } : {}) }),
+        body: JSON.stringify({ body, aiAssisted, requestId, ...(anchorMessageId ? { anchorMessageId } : {}), ...(draftUse ? { draftUse } : {}) }),
       });
       if (res.ok) {
         requestIdRef.current = null;
@@ -407,6 +419,7 @@ export function ConversationThread({
         // Y10 (Codex 10-07): yalnız GÖNDERİLEN metin hâlâ yazma alanındaysa temizlenir — gönderim sürerken yazılan yeni taslak
         // ve "Onayla ve gönder" ile öneri giderken alanda ayrıca duran taslak silinmez.
         setComposer((cur) => (cur.trim() === body.trim() ? "" : cur));
+        if (source === "composer") setComposerSource(null);
         setSuggestion(null);
         if (delivery !== null) {
           if (delivery === "sent") announce("Mesaj gönderildi.");
@@ -623,6 +636,7 @@ export function ConversationThread({
     // Kural + gerekçeler `@/lib/template-apply` içinde (saf ve test edilebilir;
     // bu bileşenin içindeyken tek geçiş/belirteç sözleşmesi pinlenemiyordu).
     setComposer(applyTemplateBody(t.body, templateVars));
+    setComposerSource(null);
     setShowTemplates(false);
   }
 
@@ -1259,7 +1273,14 @@ export function ConversationThread({
                     </p>
                     <p className="whitespace-pre-wrap break-words rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
                     {canReply ? (
-                      <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.earlyCheckin?.draft ?? "")}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setComposer(suggestion.earlyCheckin?.draft ?? "");
+                          setComposerSource("code");
+                        }}
+                      >
                         <Wand2 className="size-4" /> Bu cevabı kullan
                       </Button>
                     ) : null}
@@ -1272,10 +1293,17 @@ export function ConversationThread({
 
             {canReply ? (
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setComposer(suggestion.reply);
+                    setComposerSource("seeded");
+                  }}
+                >
                   <Wand2 className="size-4" /> Taslağı kullan
                 </Button>
-                <Button size="sm" onClick={() => sendReply(suggestion.reply, true, "suggestion", suggestion.anchorMessageId)} disabled={sending}>
+                <Button size="sm" onClick={() => sendReply(suggestion.reply, true, "suggestion", suggestion.anchorMessageId, "approved")} disabled={sending}>
                   {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
                   Onayla ve gönder
                 </Button>
@@ -1315,7 +1343,10 @@ export function ConversationThread({
             ref={composerRef}
             id={`conv-composer-${conversationId}`}
             value={composer}
-            onChange={(e) => setComposer(e.target.value)}
+            onChange={(e) => {
+              setComposer(e.target.value);
+              if (!e.target.value.trim()) setComposerSource(null);
+            }}
             placeholder="Cevabınızı yazın veya AI önerisini kullanın…"
             // 80 → 160 → 104px. 160 FAZLAYDI: kart artık görünür alana sabit
             // olduğu için yazma kutusunun her fazladan pikseli MESAJ LİSTESİNDEN
@@ -1353,7 +1384,7 @@ export function ConversationThread({
           ) : null}
           {/* Telefonda ızgaranın 1. satırı, 2. sütunu (kutunun yanı); masaüstünde blok akışta en altta sağda (eskisi gibi). */}
           <div className="col-start-2 row-start-1 flex justify-end">
-            <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
+            <Button onClick={() => sendReply(composer, false, "composer", undefined, composerSource ?? undefined)} disabled={sending || !composer.trim()}>
               {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               Gönder
             </Button>

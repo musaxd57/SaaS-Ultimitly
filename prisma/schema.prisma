@@ -191,6 +191,7 @@ model Organization {
   checkoutIntents       CheckoutIntent[]
   channelListings       ChannelListing[]
   aiGenerations         AiGeneration[]
+  replyDraftLinks       ReplyDraftLink[]
   ingestEvents          IngestEvent[]
   signals               Signal[]
   propertyMemories      PropertyMemory[]
@@ -721,6 +722,7 @@ model Conversation {
   decisions     DecisionRequest[]
   // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
   aiGenerations AiGeneration[]
+  replyDraftLinks ReplyDraftLink[]
   // Migration 62: misafire verilen sözler (metin YOK) — konuşmayla birlikte gider.
   commitments   GuestCommitment[]
 
@@ -1906,6 +1908,84 @@ model AiGeneration {
 
   @@index([organizationId, createdAt])
   @@index([conversationId])
+}
+
+/// TASLAK ↔ EV SAHİBİNİN GÖNDERDİĞİ METİN BAĞI (kurucu 11-13: "embedding + gerçek metin farkı + ML"; migration onaylı; tasarım
+/// docs/TASARIM-2026-11-13-taslak-gonderim-bagi.md). GÖLGE kayıt: ekranda yok, misafire gitmez, gönderimi engellemez. Metinler AAD'li
+/// şifreli; saklama / misafir silmesi `draftEnc` + `diffEnc`'i boşaltır, parçaları siler. NULL ölçüm = ÖLÇÜLMEDİ (0 değil).
+model ReplyDraftLink {
+  id                String    @id @default(cuid())
+  organizationId    String
+  conversationId    String
+  /// Taslağın durduğu misafir mesajı (düz kimlik) — taslak başına TEK bağ.
+  anchorMessageId   String    @unique
+  /// Ev sahibinin gönderdiği mesaj (düz kimlik) — mesaj başına TEK bağ (aynı istek kimliğiyle yeniden deneme ikinci satır yazmaz).
+  sentMessageId     String    @unique
+  /// approved ("Onayla ve gönder") · seeded ("Taslağı kullan" → gönder) · implicit (taslak vardı, kullanılmadan yazıldı)
+  linkKind          String
+  /// Taslağın konu etiketi (`Message.aiIntent`), yoksa NULL.
+  intent            String?
+  /// Ev sahibinin gördüğü taslak (AAD'li şifreli). Gönderilen metin zaten `Message.body`'de.
+  draftEnc          String?
+  /// Normalleştirilmiş taslağın SHA-256 özeti (base64url); saklama / silmede taslakla birlikte boşalır.
+  draftHash         String?
+  lexicalSim        Float
+  tokensAdded       Int
+  tokensRemoved     Int
+  valueChanged      Boolean
+  removedSentence   Boolean
+  maxAddedRun       Int
+  diffTruncated     Boolean   @default(false)
+  /// ["tone"|"added_info"|"corrected_value"|"removed_sentence"|"rewrite"]
+  editKindsJson     String
+  /// Eklenen / çıkarılan parçalar (AAD'li şifreli JSON, sırlar maskeli).
+  diffEnc           String?
+  /// unchanged · minor_edit · major_edit · rewritten (ham sayılardan, `classifierVersion` sürümüyle)
+  outcome           String
+  classifierVersion Int
+  /// Anlam benzerliği (embedding kosinüsü); NULL = ölçülmedi.
+  semanticSim       Float?
+  embeddingModel    String?
+  /// pending · done · skipped (metin silinmiş) · failed (5 deneme)
+  embeddingState    String    @default("pending")
+  embeddingAttempts Int       @default(0)
+  sentAt            DateTime
+  measuredAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  spans        ReplyDraftSpan[]
+
+  @@index([organizationId, sentAt])
+  @@index([conversationId])
+  @@index([embeddingState, createdAt])
+}
+
+/// Ev sahibinin taslağa EKLEDİĞİ parça (tekrar eden ekleme madenciliği — düzeltmeden öğrenme). Metin şifreli + sır maskeli; vektör metinden
+/// türediği için kişisel veri sayılır ve metinle birlikte silinir.
+model ReplyDraftSpan {
+  id             String   @id @default(cuid())
+  linkId         String
+  organizationId String
+  propertyId     String?
+  conversationId String
+  /// AAD'li şifreli, sırları maskeli parça metni (normalleştirilmiş).
+  textEnc        String
+  contentTokens  Int
+  /// Maskeleme sır buldu — asla bilgi tabanı adayı olmaz.
+  hasSecret      Boolean  @default(false)
+  /// Float32 küçük-sonlu birim vektör; NULL = henüz ölçülmedi.
+  vector         Bytes?
+  dims           Int?
+  embeddingModel String?
+  createdAt      DateTime @default(now())
+
+  link ReplyDraftLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, propertyId, createdAt])
+  @@index([linkId])
 }
 
 /// Kurucu kalite konsolu ETİKETİ — operasyon verisinden AYRI; müşteriye görünen hiçbir şeyi değiştirmez.

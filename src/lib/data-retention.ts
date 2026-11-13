@@ -146,6 +146,22 @@ function aiTraceTextLeft(cutoff: Date) {
 }
 
 /**
+ * Taslak ↔ gönderilen metin bağı (migration 96, kurucu 11-13): metin taşıyan bağ — şifreli taslak / fark ya da eklenen parça. Yaş kuralı
+ * üretim iziyle aynı biçimde (bayrak açıkken yalnız cutoff'tan eski); yaş BAĞIN YAZILDIĞI andan (ev sahibinin gönderimi) sayılır — taslağın
+ * durduğu misafir mesajından en çok cevap gecikmesi kadar sonra (Haiku 11-13; metin o kadar fazla kalabilir). Süpürge metinleri boşaltır,
+ * parçaları siler → seçim bacağı sonlanır.
+ */
+function replyDraftAge(cutoff: Date): { createdAt?: { lt: Date } } {
+  return messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {};
+}
+function replyDraftTextLeft(cutoff: Date) {
+  return {
+    ...replyDraftAge(cutoff),
+    OR: [{ draftEnc: { not: null } }, { diffEnc: { not: null } }, { draftHash: { not: null } }, { spans: { some: {} } }],
+  };
+}
+
+/**
  * Anonymize guest personal data for stays that ended before the retention window.
  * No-op unless DATA_RETENTION_MONTHS is a positive number. Returns how many
  * reservations were scrubbed (0 when disabled or nothing is due).
@@ -216,6 +232,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               },
               // Yapay zekâ üretim izi (migration 60): süpürge eski izin metnini null'lar → sonlanır. Yaş sınırı Message ile AYNI.
               { conversations: { some: { aiGenerations: { some: aiTraceTextLeft(cutoff) } } } },
+              // Taslak ↔ gönderilen metin bağı (migration 96): şifreli taslak / fark / özet + eklenen parçalar → süpürge boşaltır / siler → sonlanır.
+              { conversations: { some: { replyDraftLinks: { some: replyDraftTextLeft(cutoff) } } } },
               // Öğe konu etiketi (migration 84, misafir kaynaklı): süpürge eski etiketi null'lar → sonlanır (Opus 10-23 — ilk süpürgeden
               // SONRA yazılan etiket hiçbir bacağa düşmüyordu).
               { conversations: { some: { items: { some: { topic: { not: null }, ...aiTraceAge(cutoff) } } } } },
@@ -443,6 +461,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               where: { generation: { conversationId: { in: convIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
               data: { note: null },
             }),
+            // Taslak ↔ gönderilen metin bağı (migration 96): metinler boşalır, ölçüler (sayı / etiket) kalır; eklenen parçalar SİLİNİR.
+            prisma.replyDraftLink.updateMany({
+              where: { conversationId: { in: convIds }, ...replyDraftAge(cutoff), OR: [{ draftEnc: { not: null } }, { diffEnc: { not: null } }, { draftHash: { not: null } }] },
+              data: { draftEnc: null, diffEnc: null, draftHash: null },
+            }),
+            prisma.replyDraftSpan.deleteMany({ where: { link: { conversationId: { in: convIds }, ...replyDraftAge(cutoff) } } }),
             // Konuşma öğesinin kısa konu etiketi (migration 84, kurucu 10-23 C) misafirin sorusundan türer → mesaj gövdesiyle AYNI süpürgede,
             // AYNI yaş kuralıyla boşaltılır; öğenin kendisi (tür / durum) ev sahibinin iş kaydı olarak kalır.
             prisma.conversationItem.updateMany({
@@ -516,6 +540,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               { aiActionSuggestion: { not: null } },
               { aiMissingInfoJson: { not: null } },
               { aiGenerations: { some: aiTraceTextLeft(cutoff) } },
+              { replyDraftLinks: { some: replyDraftTextLeft(cutoff) } },
               { items: { some: { topic: { not: null }, ...aiTraceAge(cutoff) } } },
             ]
           : []),
@@ -656,6 +681,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         where: { generation: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
         data: { note: null },
       }),
+      // Taslak ↔ gönderilen metin bağı (migration 96) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
+      prisma.replyDraftLink.updateMany({
+        where: { conversationId: { in: orphanIds }, ...replyDraftAge(cutoff), OR: [{ draftEnc: { not: null } }, { diffEnc: { not: null } }, { draftHash: { not: null } }] },
+        data: { draftEnc: null, diffEnc: null, draftHash: null },
+      }),
+      prisma.replyDraftSpan.deleteMany({ where: { link: { conversationId: { in: orphanIds }, ...replyDraftAge(cutoff) } } }),
       // Konuşma öğesinin konu etiketi (migration 84) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
       prisma.conversationItem.updateMany({
         where: { conversationId: { in: orphanIds }, topic: { not: null }, ...aiTraceAge(cutoff) },

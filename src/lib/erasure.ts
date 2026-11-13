@@ -605,6 +605,13 @@ async function maskReservationRows(
       where: { generation: { organizationId, conversationId: { in: convIds } }, note: { not: null } },
       data: { note: null },
     });
+    // Taslak ↔ gönderilen metin bağı (migration 96, kurucu 11-13): şifreli taslak / fark / özet boşalır, eklenen parçalar (metin + vektör)
+    // SİLİNİR — vektör metinden türediği için kişisel veri sayılır. Ölçüler (sayı / kapalı küme etiket) kimseyi tanımlamaz, kalır.
+    await db.replyDraftSpan.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });
+    await db.replyDraftLink.updateMany({
+      where: { organizationId, conversationId: { in: convIds } },
+      data: { draftEnc: null, diffEnc: null, draftHash: null },
+    });
     // Misafire verilen sözler (migration 62): metin taşımaz ama konaklamaya bağlı davranış kaydıdır → misafir silmesinde silinir (veri
     // en aza indirme; Haiku KVKK denetimi B3, 10-10). Bağlı görev (başlığı yalnız tür + kapalı kümeden konu: "Misafire söz: Arıza / bakım · klima") ev sahibinin işi olarak kalır.
     await db.guestCommitment.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });

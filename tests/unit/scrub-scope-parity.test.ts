@@ -35,6 +35,8 @@ const GUEST_MODELS = [
   // migration 60 (10-09): yapay zekâ üretim izi taslak / gönderilen metni + kurucu etiket notu taşır.
   "AiGeneration",
   "AiReviewLabel",
+  // migration 96 (kurucu 11-13): taslak ↔ gönderilen metin bağı — şifreli taslak / fark / taslak özeti.
+  "ReplyDraftLink",
 ] as const;
 type GuestModel = (typeof GUEST_MODELS)[number];
 
@@ -144,6 +146,10 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
         "Message.body",
         "Message.senderName",
         "MessageOutbox.body",
+        // migration 96: şifreli taslak, şifreli fark (eklenen / çıkarılan parçalar) ve taslağın özeti.
+        "ReplyDraftLink.diffEnc",
+        "ReplyDraftLink.draftEnc",
+        "ReplyDraftLink.draftHash",
         "MessageOutbox.status",
         "Reservation.guestCheckoutTime",
         "Reservation.guestEmail",
@@ -232,6 +238,10 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       MessageOutbox: 25,
       AiGeneration: 23,
       AiReviewLabel: 5,
+      // migration 96 → yalnız draftEnc / diffEnc / draftHash KAPSAM İÇİ (↑liste). Diğerleri opak kimlik (konuşma / mesaj), kapalı küme etiket
+      // (bağ türü · konu · sonuç · ölçüm durumu), sayılar (benzerlik, belirteç sayıları, sınıf sürümü) ve damgalar — ne misafirin metnini ne
+      // kimliğini taşır. Satır konuşma silinince cascade ile gider.
+      ReplyDraftLink: 27,
     };
     expect(
       COLS[model]?.size,
@@ -286,3 +296,19 @@ describe("WhatsApp soru metinleri (HostQuestion)", () => {
     expect(COLS.HostQuestion?.size).toBe(29);
   });
 });
+
+// ---------------------------------------------------------------------------
+// TASLAK ↔ GÖNDERİLEN METİN BAĞININ EKLENEN PARÇALARI (migration 96, kurucu 11-13): `ReplyDraftSpan` ev sahibinin taslağa eklediği metni (şifreli,
+// sır maskeli) ve o metinden türeyen vektörü taşır → anonimleştirilmez, SİLİNİR: misafir silmesinde ve süre-bazlı süpürgenin İKİ dalında.
+// ---------------------------------------------------------------------------
+describe("taslak bağının eklenen parçaları (ReplyDraftSpan)", () => {
+  it("misafir silmesi ve saklama süpürgesi (iki dal) parçaları SİLER", () => {
+    expect(read("src/lib/erasure.ts")).toMatch(/db\.replyDraftSpan\.deleteMany\(/);
+    expect(read("src/lib/data-retention.ts").match(/prisma\.replyDraftSpan\.deleteMany\(/g)?.length).toBe(2);
+  });
+
+  it("ReplyDraftSpan kolon sayısı değişmedi (yeni kolon → misafir metni mi, karar ver)", () => {
+    expect(COLS.ReplyDraftSpan?.size).toBe(11);
+  });
+});
+

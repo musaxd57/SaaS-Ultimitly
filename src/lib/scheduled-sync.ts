@@ -24,6 +24,7 @@ import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
 import { purgeOldHistoryLearnDrafts, sweepHistoryLearnRuns } from "@/lib/history-learn/service";
+import { measureReplyDraftEmbeddings } from "@/lib/reply-draft/service";
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
@@ -959,6 +960,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Doğrulanmış cevap tekrarının gölge kaydı (migration 85): anahtardan BAĞIMSIZ — 90 gün dokunulmayan + kaynağı silinmiş / sonradan
         // değişmiş kalemin eski kopyası (Wi-Fi şifresi gibi değer kalmasın; Opus 10-23 85 incelemesi).
         await hourly("answer-reuse-sweep", "scheduled-sync answer-reuse-sweep", () => sweepVerifiedAnswers(prisma));
+        // Taslak ↔ gönderilen metin bağının ERTELENMİŞ anlam ölçümü (migration 96, kurucu 11-13): saatte bir, bütçeli (`EMBEDDING_PASS_LIMIT`).
+        // Anahtar (`REPLY_DRAFT_EMBEDDING_ENABLED`) ya da embedding anahtarı yoksa hiçbir satıra dokunmaz — satırlar beklemede kalır.
+        await hourly("reply-draft-embedding", "scheduled-sync reply-draft-embedding", () => measureReplyDraftEmbeddings());
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).
