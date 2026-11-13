@@ -271,5 +271,12 @@ describe("taslak ↔ gönderilen metin bağı", () => {
     expect({ d: link.draftEnc, f: link.diffEnc, h: link.draftHash }).toEqual({ d: null, f: null, h: null });
     expect(await prisma.replyDraftSpan.count()).toBe(0);
     expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+    // Mutasyon Q25 (kalıcı karar F07 — yeniden seçim yalnız mesaj yaşı çapası AÇIKKEN): konaklama ZATEN süpürülmüşken saklama sınırından
+    // ESKİ ve hâlâ metin taşıyan bağ yine seçilir ve boşaltılır.
+    vi.stubEnv("RETENTION_MESSAGE_AGE_ANCHOR", "1");
+    const late = await prisma.replyDraftLink.findFirstOrThrow();
+    await prisma.replyDraftLink.update({ where: { id: late.id }, data: { draftHash: "gec-yazilan", createdAt: subMonths(new Date(), 25) } });
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+    expect((await prisma.replyDraftLink.findFirstOrThrow()).draftHash).toBeNull();
   });
 });
