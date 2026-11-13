@@ -402,6 +402,7 @@ describe("konuşma sayfası — yükseklik zinciri", () => {
     // Aksi hâlde flex, artan alanı bulmak için önce onları sıkıştırır.
     const src = read(THREAD);
     expect(hasClassSet(src, ["shrink-0", "border-b", "border-border", "p-4"]), "başlık satırı shrink-0 değil").toBe(true);
-    expect(hasClassSet(src, ["shrink-0", "space-y-2", "p-4"]), "yazma alanı shrink-0 değil").toBe(true);
+    // UX-4 (11-13): yazma alanı telefonda yapışkan ızgara (Gönder kutunun yanında); masaüstünde eski dikey düzen (`lg:space-y-2`).
+    expect(hasClassSet(src, ["sticky", "bottom-0", "shrink-0", "p-4"]), "yazma alanı shrink-0 değil").toBe(true);
   });
 });

@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
-// U15 (kurucu 10-22): site anahtarı verilince kayıt formu Turnstile widget'ını çizer; doğrulama gelene kadar "Hesap Oluştur" kapalıdır,
-// belirteç istekle gider, başarısız cevaptan sonra widget sıfırlanır (belirteç tek kullanımlık). Anahtar yoksa widget yok, istek eskisi.
+// U15 (kurucu 10-22): site anahtarı verilince kayıt formu Turnstile widget'ını çizer; belirteç istekle gider, başarısız cevaptan sonra
+// widget sıfırlanır (belirteç tek kullanımlık). Anahtar yoksa widget yok, istek eskisi.
+// UX-3 (kurucu 11-13: "düğme hep basılabilir olabilir, soluk olması garip olur"): doğrulama gelmeden de "Hesap Oluştur" BASILIR — istek
+// gitmez, doğrulamanın yanında "Doğrulamayı tamamlayın." yazar (eskiden düğme soluk ve basılmazdı, neden basılmadığı söylenmiyordu).
 // ---------------------------------------------------------------------------
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
@@ -48,22 +50,24 @@ function fill() {
 }
 
 describe("U15 — kayıt formunda Turnstile", () => {
-  it("site anahtarı varsa widget çizilir; doğrulama gelmeden düğme kapalı; belirteç istekle gider", async () => {
+  it("site anahtarı varsa widget çizilir; doğrulama gelmeden basmak istek göndermez ve ne yapılacağını söyler; belirteç istekle gider", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ verifyEmail: true }), { status: 201 }));
     render(<RegisterForm turnstileSiteKey="site-key" />);
     await waitFor(() => expect(turnstileApi.render).toHaveBeenCalledTimes(1));
     expect(widgetOpts).toMatchObject({ sitekey: "site-key", action: "register" });
     fill();
     const submit = screen.getByRole("button", { name: /Hesap Oluştur/ }) as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
-    act(() => (widgetOpts!.callback as (t: string) => void)("tok-1"));
     expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    expect(await screen.findByText("Doğrulamayı tamamlayın.")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    act(() => (widgetOpts!.callback as (t: string) => void)("tok-1"));
     fireEvent.click(submit);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).turnstileToken).toBe("tok-1");
   });
 
-  it("başarısız cevaptan sonra widget sıfırlanır ve düğme yeni doğrulamaya kadar kapanır", async () => {
+  it("başarısız cevaptan sonra widget sıfırlanır; yeni doğrulama gelmeden ikinci basış istek göndermez", async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: "Güvenlik doğrulaması tamamlanamadı.", fields: { captcha: "Doğrulamayı tamamlayın." } }), {
         status: 400,
@@ -76,7 +80,11 @@ describe("U15 — kayıt formunda Turnstile", () => {
     fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
     await waitFor(() => expect(turnstileApi.reset).toHaveBeenCalledWith("w1"));
     expect(await screen.findByText("Doğrulamayı tamamlayın.")).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Hesap Oluştur/ }) as HTMLButtonElement).disabled).toBe(true);
+    const submit = screen.getByRole("button", { name: /Hesap Oluştur/ }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(1); // belirteç tek kullanımlıktı → yenisi gelmeden ikinci istek yok
   });
 
   it("site anahtarı yoksa widget yok, istekte belirteç alanı yok", async () => {
