@@ -229,12 +229,13 @@ function dueText(dueAt: Date, now: Date, tz: string): string {
   return `${whenLabel(dueAt, now, tz)}${dueAt.getTime() < now.getTime() ? " (gecikti)" : ""}`;
 }
 
-/** UX-10 D3: görev atanabilir durumdaysa satıra atama eylemi (yoksa boş nesne — alan hiç yazılmaz). */
-function assignFor(
-  task: { id: string; assigneeId?: string | null; status?: string | null; startedAt?: Date | null } | null,
-  mode: FactorAssign["mode"],
-): { assign?: FactorAssign } {
-  if (!task || !assignableStatus(task.status) || task.startedAt) return {};
+/**
+ * UX-10 D3: görev atanabilir durumdaysa satıra atama eylemi (yoksa boş nesne — alan hiç yazılmaz). "Başladı mı" burada SORULMAZ: başlamış
+ * açık temizliği çağıran taraf zaten eler (iş sürüyor → eylem yok), "Yapılamıyor" görevde başlama kaydı olamaz (son durum kaydı "Yapılamıyor"),
+ * bakım / söz satırları başlama bilgisi taşımaz (mutasyon 11-13: içerideki kontrol ölü koddu, kaldırıldı).
+ */
+function assignFor(task: { id: string; assigneeId?: string | null; status?: string | null } | null, mode: FactorAssign["mode"]): { assign?: FactorAssign } {
+  if (!task || !assignableStatus(task.status)) return {};
   return { assign: { taskId: task.id, expectAssigneeId: task.assigneeId ?? null, mode } };
 }
 
