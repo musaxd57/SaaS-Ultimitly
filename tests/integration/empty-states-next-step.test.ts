@@ -286,3 +286,30 @@ describe("Mülk kartı — eksik maddeler tıklanır (esnetilmiş bağlantı)", 
     expect(hrefs).not.toContain(CONNECT);
   });
 });
+
+describe("Raporlar — performans skoru eşiği (UX-12, kurucu 11-13)", () => {
+  async function withConversations(n: number) {
+    const org = await orgWith("owner");
+    const p = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
+    for (let i = 0; i < n; i++) {
+      await prisma.conversation.create({
+        data: { propertyId: p.id, channel: "airbnb", guestIdentifier: `M-${i}`, status: "answered", priority: "standard", lastMessageAt: new Date(Date.now() - i * 60_000) },
+      });
+    }
+  }
+
+  it("20 konuşmadan az: skor, harf ve etiket YOK; tek cümle sayıyla", async () => {
+    await withConversations(3);
+    const text = treeText(await ReportsPage());
+    expect(text).toContain("Skor, 20 konuşmadan sonra görünür. Şu an 3 konuşma var.");
+    expect(text).not.toContain("/100");
+    expect(text).not.toContain("kesin değil");
+  });
+
+  it("20 konuşma ve üstü: skor görünür, eşik cümlesi yok", async () => {
+    await withConversations(20);
+    const text = treeText(await ReportsPage());
+    expect(text).toContain("/100");
+    expect(text).not.toContain("konuşmadan sonra görünür");
+  });
+});

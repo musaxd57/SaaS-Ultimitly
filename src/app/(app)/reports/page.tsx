@@ -16,6 +16,7 @@ import {
   getHostPerformanceScore,
   getOccupancyByProperty,
   TOP_TOPICS_WINDOW_DAYS,
+  PERF_MIN_CONVERSATIONS,
 } from "@/lib/reports";
 import { hasMessagingConnection } from "@/lib/channels";
 import { PageHeader } from "@/components/page-header";
@@ -154,6 +155,7 @@ export default async function ReportsPage() {
   // minutes until it crosses an hour so small numbers don't round down to
   // "~0 saat" (which reads like nothing happened).
   const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
+  const scoreShown = score.hasData && score.sampleConversations >= PERF_MIN_CONVERSATIONS;
   // Raporda gösterilecek herhangi bir veri var mı (gönderim, konu ya da mülk / doluluk satırı).
   const hasReportData = autoMessages > 0 || topics.length > 0 || occupancy.length > 0;
   // ⚠️ 4 DAKİKA BİR VARSAYIMDIR, ÖLÇÜM DEĞİL (09-11). Mesaj uzunluğu, dil,
@@ -221,15 +223,13 @@ export default async function ReportsPage() {
             {/* 🚨 ROZET HEP YEŞİLDİ (ölçüldü): `tone` SABİT literal'dı, yani
                 skor 45'in altına düşüp harf "F / Kritik" olduğunda bile YEŞİL
                 basılıyordu. Not artık kendi rengini alır. */}
-            {score.hasData ? <Badge tone={GRADE_TONE[score.grade] ?? "secondary"}>{score.grade}</Badge> : null}
+            {scoreShown ? <Badge tone={GRADE_TONE[score.grade] ?? "secondary"}>{score.grade}</Badge> : null}
           </CardHeader>
           <CardContent className="space-y-2">
-            {score.hasData ? (
+            {scoreShown ? (
               <>
                 <p className="text-2xl font-semibold tabular-nums tracking-tight">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
-                {/* UX-12 (kurucu 11-13: "skor henüz kesin değili sil; müşteri böyle belirsiz bir yazı görmemeli"): az veri uyarısı kalktı.
-                    Az veride skoru hiç göstermeme seçeneği kurucuya ayrıca soruldu (docs/INCELEME-2026-11-13-ux-denetimi.md, UX-12). */}
                 <div className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
                   {score.breakdown.responseRate !== null ? (
                     <div className="flex items-center justify-between">
@@ -261,11 +261,10 @@ export default async function ReportsPage() {
                 </div>
               </>
             ) : (
-              <EmptyState
-                title="Skor için yeterli veri yok"
-                description="Misafir mesajlarına yanıt verip görevleri tamamladıkça otomatik hesaplanır."
-                className="py-6"
-              />
+              // UX-12 (kurucu 11-13): eşik altında skor, harf, etiket ve ayrıntı satırları YOK — belirsiz bir uyarıyla yaşatılmaz.
+              <p data-score-threshold className="py-6 text-center text-sm text-muted-foreground">
+                Skor, {PERF_MIN_CONVERSATIONS} konuşmadan sonra görünür. Şu an {score.sampleConversations} konuşma var.
+              </p>
             )}
           </CardContent>
         </Card>

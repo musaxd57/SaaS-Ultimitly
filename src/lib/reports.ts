@@ -632,7 +632,7 @@ export interface HostPerformanceScore {
   grade: PerformanceGrade;
   label: string;
   hasData: boolean; // false when there is nothing meaningful to score yet
-  /** Skorun dayandığı son 30 günlük konuşma sayısı — az veride ekranda "kesin değil" notu için (görsel inceleme 10-21 #20). */
+  /** Skorun dayandığı son 30 günlük konuşma sayısı — `PERF_MIN_CONVERSATIONS` altında skor gösterilmez (UX-12, 11-13). */
   sampleConversations: number;
 }
 
@@ -649,6 +649,13 @@ export function ratePct(part: number, whole: number): number | null {
   if (whole <= 0) return null;
   return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
 }
+
+/**
+ * UX-12 (kurucu 11-13 "öyle yazsın"): skor bu kadar konuşmadan önce GÖSTERİLMEZ. 3 konuşmayla "Mükemmel 91/100" anlamsızdı (3 mesajın üçü
+ * de cevaplanınca kolayca 90+); Airbnb de puanı ancak 3 değerlendirmeden sonra gösterir, Uber ilk 50–100 yolculukta ortalamanın oynadığını
+ * söyler. 10 daireli bir işletmede 30 günde 20 konuşma kolay erişilir. Hesap DEĞİŞMEZ, yalnız gösterim (sayfa ile test aynı sayıyı okur).
+ */
+export const PERF_MIN_CONVERSATIONS = 20;
 
 export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
   const now = new Date();

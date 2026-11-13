@@ -9,6 +9,8 @@ describe("Raporlar — performans skoru altında 'kesin değil' notu yok", () =>
     expect(src).not.toContain("kesin değil");
     expect(src).not.toContain("Az veri");
     expect(src).not.toContain("PERF_FEW_CONVERSATIONS");
+    // Eşik altında skor hiç gösterilmez (kurucu "öyle yazsın"): tek kaynak sabit, sayfa onu okur.
+    expect(src).toContain("score.sampleConversations >= PERF_MIN_CONVERSATIONS");
     // Skor, etiket ve ayrıntı satırları yerinde.
     expect(src).toContain("{score.score}/100");
     expect(src).toContain("{score.label}");
