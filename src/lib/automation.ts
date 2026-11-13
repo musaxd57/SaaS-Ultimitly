@@ -6417,7 +6417,14 @@ export async function sendCheckinNow(input: {
       templateRevision: tpl.revision,
       idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
     });
-    if (enq.deduped) return { ok: false, kind: "queue_owns" };
+    if (enq.deduped) {
+      const verdict = await existingCheckinOutboxVerdict(organizationId, enq.outboxId);
+      if (verdict === "queued") {
+        await audit("queued");
+        return { ok: true, kind: "queued" };
+      }
+      return { ok: false, kind: verdict };
+    }
     await audit("queued");
     return { ok: true, kind: "queued" };
   }
@@ -6433,7 +6440,32 @@ export async function sendCheckinNow(input: {
   }
   await audit(outcome.kind);
   if (outcome.kind === "sent") return { ok: true, kind: "sent" };
+  // Kesin ret ya da "çok fazla istek" sonrası damga GERİ ALINAMADIYSA rezervasyon "gönderildi" sayılır, mesaj bir daha denenmez ve ev
+  // sahibinin ikinci denemesi "zaten gönderildi" görür — kalıcı kayıp. Otomatik gönderimle AYNI alarm (Haiku D5 #1). Belirsiz teslim
+  // ev sahibine zaten söyleniyor (damga bilinçli kalır).
+  if (outcome.kind !== "ambiguous" && !outcome.rolledBack) await reportLifecycleSendFailures("checkin", organizationId, [outcome.kind, "rollback_failed"], 1);
   return { ok: false, kind: outcome.kind };
+}
+
+/**
+ * Kalıcı kuyrukta bu rezervasyonun giriş mesajı satırı ZATEN varken ev sahibinin "gönderin"i ne der (Haiku D5 #3–#4). Satırın durumu okunur:
+ *  · ertelenmiş (varış ileri taşınıp geri geldi; hata bilgisi BOŞ) → vadesi şimdiye çekilir, "sıraya alındı" (otomatik gönderimle aynı kural —
+ *    sağlayıcı beklemesindeki / geri çekilen satırın vadesi öne ÇEKİLMEZ);
+ *  · gönderildi → "zaten gönderildi"; doğrulanamadı (insan incelemesi) → belirsiz teslim cümlesi;
+ *  · kesin başarısız / iptal → buradan yeniden gönderilemez (anahtar tükendi — `queue_failed`);
+ *  · uçuşta / engelli (abonelik dönünce kendiliğinden gider) → "zaten gönderim sırasında".
+ */
+async function existingCheckinOutboxVerdict(organizationId: string, outboxId: string): Promise<"queued" | "already_sent" | "ambiguous" | "queue_failed" | "queue_owns"> {
+  const pulled = await prisma.messageOutbox.updateMany({
+    where: { id: outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null },
+    data: { availableAt: new Date() },
+  });
+  if (pulled.count > 0) return "queued";
+  const row = await prisma.messageOutbox.findFirst({ where: { id: outboxId, organizationId }, select: { status: true } });
+  if (row?.status === "sent") return "already_sent";
+  if (row?.status === "review") return "ambiguous";
+  if (row?.status === "failed" || row?.status === "canceled") return "queue_failed";
+  return "queue_owns";
 }
 
 /** Önizleme satırının "gönderilmez" sebebi — gönderici kapısıyla aynı sıra (daire numarası önce, sonra doldurulmamış alan). */

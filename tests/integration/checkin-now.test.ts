@@ -26,7 +26,9 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { sendOnChannel } from "@/lib/messaging";
+import { reportError } from "@/lib/report-error";
 import { previewCheckinNow, sendCheckinNow, sendDueCheckins } from "@/lib/automation";
+import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { GET, POST } from "@/app/api/reservations/[id]/checkin-message/route";
 import { createKbWithAutoMessage } from "../helpers/auto-message";
 
@@ -145,6 +147,97 @@ describe("Girişler — giriş mesajını elle gönderme (çekirdek)", () => {
     mockSend.mockResolvedValueOnce({ ok: false, kind: "ambiguous", error: "timeout", providerMessageId: null } as never);
     expect((await sendCheckinNow({ organizationId: s.orgId, reservationId: s.reservationId, revision: s.revision, actorUserId: s.ownerId })).kind).toBe("ambiguous");
     expect(await stamp(s.reservationId)).toBeInstanceOf(Date);
+  });
+});
+
+// Haiku D5 incelemesi (11-13): geri alma hatası sessiz kalmasın · kalıcı kuyrukta var olan satırın durumu doğru cümleye dönsün · kuyruktaki
+// mesaj için düğme sunulmasın.
+describe("Girişler — elle gönderim: geri alma alarmı ve kalıcı kuyruk", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true, providerMessageId: "p1" } as never);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const args = (s: Awaited<ReturnType<typeof seed>>) => ({ organizationId: s.orgId, reservationId: s.reservationId, revision: s.revision, actorUserId: s.ownerId });
+  const rejected = { ok: false, kind: "definitive_failure", error: "HTTP 400 bad request", providerMessageId: null } as never;
+
+  it("🚨 kesin ret sonrası damga GERİ ALINAMADIYSA (mesaj bir daha denenmez) otomatik gönderimle aynı alarm kurulur; geri alındıysa alarm yok", async () => {
+    const s = await seed();
+    mockSend.mockResolvedValueOnce(rejected);
+    expect((await sendCheckinNow(args(s))).kind).toBe("definitive");
+    expect(await stamp(s.reservationId)).toBeNull();
+    expect(vi.mocked(reportError)).not.toHaveBeenCalled();
+
+    // Gönderim sürerken damga başka bir yazımla değişti → geri alma koşulu (`checkinSentAt = stampedAt`) tutmaz, 0 satır.
+    mockSend.mockImplementationOnce(async () => {
+      await prisma.reservation.update({ where: { id: s.reservationId }, data: { checkinSentAt: new Date(Date.now() - 60_000) } });
+      return rejected;
+    });
+    expect((await sendCheckinNow(args(s))).kind).toBe("definitive");
+    expect(vi.mocked(reportError)).toHaveBeenCalledTimes(1);
+    const [key, err] = vi.mocked(reportError).mock.calls[0]!;
+    expect(`${String(key)} ${(err as Error).message}`).toContain("rollback_failed");
+  });
+
+  it("🚨 kalıcı kuyrukta satır zaten varken: ertelenmiş satır öne çekilir; gönderildi / doğrulanamadı / başarısız / uçuşta ayrı cevap", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    const s = await seed();
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", s.orgId);
+    expect(await sendCheckinNow(args(s))).toEqual({ ok: true, kind: "queued" });
+    expect(mockSend).not.toHaveBeenCalled(); // işçi gönderir
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: s.orgId, messageType: "checkin" } });
+    const setRow = (data: Record<string, unknown>) => prisma.messageOutbox.update({ where: { id: row.id }, data });
+    const later = new Date(Date.now() + 3 * DAY);
+
+    // Varış ileri taşınıp geri geldi: işçi satırı ertelemişti (hata bilgisi boş) → vadesi şimdiye çekilir, "sıraya alındı".
+    await setRow({ status: "pending", availableAt: later, lastErrorKind: null });
+    expect(await sendCheckinNow(args(s))).toEqual({ ok: true, kind: "queued" });
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+
+    // Sağlayıcı beklemesi / geri çekilme (hata bilgisi DOLU) → vadesi ÇEKİLMEZ.
+    await setRow({ status: "pending", availableAt: later, lastErrorKind: "definitive_failure" });
+    expect(await sendCheckinNow(args(s))).toEqual({ ok: false, kind: "queue_owns" });
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).availableAt.getTime()).toBe(later.getTime());
+
+    const verdicts: Array<[string, string]> = [
+      ["sent", "already_sent"],
+      ["review", "ambiguous"],
+      ["failed", "queue_failed"],
+      ["canceled", "queue_failed"],
+      ["sending", "queue_owns"],
+      ["blocked", "queue_owns"],
+    ];
+    for (const [status, kind] of verdicts) {
+      await setRow({ status, availableAt: new Date(), lastErrorKind: null });
+      expect(await sendCheckinNow(args(s)), status).toEqual({ ok: false, kind });
+    }
+    expect(await prisma.messageOutbox.count({ where: { organizationId: s.orgId } })).toBe(1);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Girişler: kuyrukta giriş mesajı satırı varsa düğme SUNULMAZ; yalnız kesin başarısız satır engellemez", async () => {
+    const s = await seed();
+    const offered = async () => JSON.stringify((await loadArrivalReadiness(s.orgId, new Date())).rows).includes('"sendCheckin":true');
+    expect(await offered()).toBe(true); // vakum değil: satır yokken düğme var
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
+    const row = await prisma.messageOutbox.create({
+      data: {
+        organizationId: s.orgId,
+        reservationId: s.reservationId,
+        channel: "airbnb",
+        externalReservationId: res.sourceReference,
+        messageType: "checkin",
+        body: "x",
+        idempotencyKey: `checkin:${s.orgId}:${res.sourceReference}`,
+        status: "pending",
+      },
+    });
+    expect(await offered()).toBe(false);
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "failed" } });
+    expect(await offered()).toBe(true);
   });
 });
 

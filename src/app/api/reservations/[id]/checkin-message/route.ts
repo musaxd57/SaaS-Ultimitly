@@ -16,7 +16,7 @@ import { auditActor } from "@/lib/audit";
 // ---------------------------------------------------------------------------
 
 const NO_STORE = { "Cache-Control": "no-store" };
-const REFUSAL_STATUS: Record<string, number> = { not_found: 404, already_sent: 409, changed: 409, queue_owns: 409, held: 429, rate_limited: 429 };
+const REFUSAL_STATUS: Record<string, number> = { not_found: 404, already_sent: 409, changed: 409, queue_owns: 409, queue_failed: 409, held: 429, rate_limited: 429 };
 
 export const GET = withManage<{ id: string }>(async (session, _req, ctx) => {
   const { id } = await ctx.params;
