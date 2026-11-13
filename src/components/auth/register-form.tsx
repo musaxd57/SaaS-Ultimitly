@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TurnstileWidget, type TurnstileHandle } from "@/components/auth/turnstile-widget";
 import { VERIFY_RESEND_QUIET_MS, VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
+import { REGISTER_CAPTCHA_REQUIRED, REGISTER_CONSENT_REQUIRED } from "@/lib/auth/register-messages";
 
 type Fields = Record<string, string>;
 
@@ -58,6 +59,7 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
   // ve "yeniden gönder" yeni yazılan adresi değil bağlantının gittiği adresi kullanır.
   const [sentTo, setSentTo] = useState("");
   const [consent, setConsent] = useState(false);
+  const consentRef = useRef<HTMLInputElement>(null);
   // Doğrulama bağlantısını YENİDEN GÖNDERME, başarı ekranının kendisinde durur.
   // Eskiden bu seçenek yalnız giriş sayfasında ve ancak BAŞARISIZ bir giriş
   // denemesinden sonra beliriyordu — yani kullanıcı, maili gelmediğinde önce
@@ -130,6 +132,22 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
+    // UX-3 (kurucu 11-13: "düğme hep basılabilir; soluk olması garip — büyük siteler nasıl yapıyorsa"): düğme artık onay kutusu boşken
+    // de basılır. Metin alanlarını tarayıcı kendisi denetler (boş / geçersiz e-posta → tarayıcının uyarısı, bu fonksiyon hiç çağrılmaz);
+    // onay kutusu tarayıcıya bırakılmaz (`required` yok) ki uyarı kutunun ALTINDA, bizim metnimizle çıksın. İstek GİTMEZ — kayıt ucu
+    // IP başına saatte 5 denemeyle sınırlı, unutulmuş bir kutu hakkı yemesin.
+    if (!consent) {
+      setFields((f) => ({ ...f, consent: REGISTER_CONSENT_REQUIRED }));
+      consentRef.current?.focus();
+      consentRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      return;
+    }
+    // İnsan doğrulaması (anahtar açıksa) henüz bitmediyse: sunucunun reddettiği durumla aynı alan uyarısı; istek gitmez.
+    if (needsHuman) {
+      setFields((f) => ({ ...f, captcha: REGISTER_CAPTCHA_REQUIRED }));
+      return;
+    }
     setLoading(true);
     setError(null);
     setFields({});
@@ -281,6 +299,7 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
       <div className="space-y-1">
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input
+            ref={consentRef}
             type="checkbox"
             checked={consent}
             onChange={(e) => {
@@ -288,7 +307,8 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
               clearFieldError("consent");
             }}
             className="mt-0.5 size-4 shrink-0 rounded border-input"
-            required
+            aria-invalid={fields.consent ? true : undefined}
+            aria-describedby={fields.consent ? "register-consent-error" : undefined}
           />
           <span>
             <Link href="/kosullar" target="_blank" className="text-primary hover:underline">
@@ -301,7 +321,11 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             &apos;nı okudum, kabul ediyorum.
           </span>
         </label>
-        {fields.consent ? <p className="text-xs text-destructive">{fields.consent}</p> : null}
+        {fields.consent ? (
+          <p id="register-consent-error" role="alert" className="text-xs text-destructive">
+            {fields.consent}
+          </p>
+        ) : null}
       </div>
       {turnstileSiteKey ? (
         <div className="space-y-1">
@@ -323,7 +347,8 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
           {fields.captcha ? <p className="text-center text-xs text-destructive">{fields.captcha}</p> : null}
         </div>
       ) : null}
-      <Button type="submit" className="w-full" disabled={loading || !consent || needsHuman}>
+      {/* UX-3: yalnız istek sürerken pasif (çift gönderim). Onay / doğrulama eksiği basınca söylenir (yukarıdaki `onSubmit`). */}
+      <Button type="submit" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="size-4 animate-spin" /> : null}
         Hesap Oluştur
       </Button>

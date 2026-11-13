@@ -5,6 +5,7 @@ import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { CURRENT_COST_HASH, hashPassword, matchesCurrentCostHash } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
+import { REGISTER_CAPTCHA_REQUIRED, REGISTER_CONSENT_REQUIRED } from "@/lib/auth/register-messages";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
@@ -82,10 +83,11 @@ export async function POST(req: NextRequest) {
 
     // KVKK: explicit, informed consent to the Terms + Privacy Policy is required
     // to register (backs the "kaydolarak kabul edersiniz" claim with a real
-    // record). The client disables submit until checked; enforce it server-side.
+    // record). The client blocks submit until checked (UX-3: the button stays pressable and shows this same text under the box); enforce
+    // it server-side too.
     if (data?.consent !== true) {
       return badRequest({
-        consent: "Devam etmek için lütfen Kullanım Koşulları ve Gizlilik Politikası'nı kabul edin.",
+        consent: REGISTER_CONSENT_REQUIRED,
       });
     }
 
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
     const human = await verifyTurnstileToken((data as { turnstileToken?: unknown } | null)?.turnstileToken, ip);
     if (human === "rejected") {
       return NextResponse.json(
-        { error: "Güvenlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.", fields: { captcha: "Doğrulamayı tamamlayın." } },
+        { error: "Güvenlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.", fields: { captcha: REGISTER_CAPTCHA_REQUIRED } },
         { status: 400 },
       );
     }

@@ -211,6 +211,10 @@ export function PaddlePlans({
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
   const [accepted, setAccepted] = useState(false);
+  // UX-3 (kurucu 11-13): plan düğmesi onay boşken de basılır; basınca uyarı onay kutusunun ALTINDA çıkar ve sayfa kutuya kayar
+  // (eskiden düğme soluk ve sebepsizdi; uyarı listenin en altındaki genel hata satırına düşüyordu).
+  const [consentMissing, setConsentMissing] = useState(false);
+  const consentRef = useRef<HTMLInputElement>(null);
   const [period, setPeriod] = useState<BillingPeriod>("month");
   // Kartla denemede yalnız aylık deneme süreli fiyat (yıllık deneme fiyatı yok).
   const annual = annualAvailable && period === "year" && !cardTrialNotice;
@@ -322,7 +326,9 @@ export function PaddlePlans({
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
       if (!accepted) {
-        setError(BILLING_TEXT.consentRequired);
+        setConsentMissing(true);
+        consentRef.current?.focus();
+        consentRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" });
         return;
       }
       setError(null);
@@ -640,10 +646,16 @@ export function PaddlePlans({
       ) : (
         <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
           <input
+            ref={consentRef}
             type="checkbox"
             checked={accepted}
-            onChange={(e) => setAccepted(e.target.checked)}
+            onChange={(e) => {
+              setAccepted(e.target.checked);
+              if (e.target.checked) setConsentMissing(false);
+            }}
             className="mt-0.5 h-4 w-4 shrink-0"
+            aria-invalid={consentMissing ? true : undefined}
+            aria-describedby={consentMissing ? "billing-consent-error" : undefined}
           />
           <span>
             <Link href="/on-bilgilendirme" target="_blank" className="text-primary hover:underline">
@@ -654,6 +666,11 @@ export function PaddlePlans({
               Mesafeli Satış Sözleşmesi
             </Link>
             ’ni okudum, kabul ediyorum. Ücretli plana geçmeden önce bu onay gereklidir.
+            {consentMissing ? (
+              <span id="billing-consent-error" role="alert" className="mt-1 block font-medium text-destructive">
+                {BILLING_TEXT.consentRequired}
+              </span>
+            ) : null}
           </span>
         </label>
       )}
@@ -825,7 +842,9 @@ export function PaddlePlans({
               ) : (
                 <button
                   type="button"
-                  disabled={!ready || !activePriceId || !accepted || busy || manageable || processing}
+                  // UX-3: onay eksiği düğmeyi SOLDURMAZ — basınca kutunun altında söylenir (`openCheckout`). Kalan koşullar gerçek
+                  // "basılamaz" durumlar (ödeme bileşeni yükleniyor, fiyat yok, işlem sürüyor, abonelik yönetimden değişir).
+                  disabled={!ready || !activePriceId || busy || manageable || processing}
                   onClick={() => openCheckout(p.code, activePriceId)}
                   className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 sm:h-8"
                 >
