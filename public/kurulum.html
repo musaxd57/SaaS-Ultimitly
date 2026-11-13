@@ -599,7 +599,9 @@
   var settApp=$('settApp'), tokenInput=$('tokenInput'), tokenText=$('tokenText'),
       tokenLock=$('tokenLock'), tokenHint=$('tokenHint'), okbox=$('okbox');
 
-  var TOKEN = 'k3Xp9Qa7Lm2Rt5Wz8Nc4Vb6Hd1Fy';
+  // Örnek anahtar gizli noktalarla yazılır (gerçek giriş alanı da öyle gösterir). Harf / rakam dizisi sır taramasına (gitleaks) gerçek
+  // anahtar gibi takılıyordu (CI 1801) — üretim kodunda sahte değere izin listesi açılmaz (.gitleaks.toml kuralı).
+  var TOKEN = '••••••••••••••••••••••';
 
   function showScene(id){ for(var k in scenes){ scenes[k].classList.toggle('show', k===id); } }
   function setChip(n, txt, isDone){ chipN.textContent = isDone?'✓':n; chipT.textContent = txt; chip.classList.toggle('done', !!isDone); }

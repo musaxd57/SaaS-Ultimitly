@@ -49,6 +49,8 @@ describe("UX-5 — kurulum animasyonu sade dil", () => {
     const typed = /var TOKEN = '([^']*)'/.exec(script)?.[1] ?? "";
     expect(typed.length).toBeGreaterThan(10);
     expect(typed).not.toMatch(/pat_|token|hospitable/i);
+    // Gizli noktalar: harf / rakam dizisi sır taramasında gerçek anahtar sayılıyordu (CI 1801, gitleaks generic-api-key).
+    expect(typed).toMatch(/^•+$/);
     expect(text(".tokenLabel")).toBe("Hospitable bağlantı anahtarı");
     expect(text("#tokenHint")).toBe("Bağlantı anahtarı şifreli saklanır ve bir daha görüntülenmez.");
   });
