@@ -7,7 +7,8 @@
 // bir taahhüt — buraya eklemek her düzenlemede `LEGAL_VERSION` bump'ı ve
 // consent damgası kayması demek olurdu. Kayıt akışı bu metni onaylatmıyor.
 //
-// 🚩 AVUKAT ONAYI BEKLEYEN BÖLÜM: "Yasal güvence". `disclose.io`'nun hazır
+// 🚩 AVUKAT ONAYI BEKLEYEN BÖLÜM: "Yasal güvence". (UX-6, kurucu 11-13: yayındaki "avukat incelemesindedir" notu sayfadan
+// kalktı — taslak izlenimi veriyordu; inceleme kurucuyla birlikte yapılacak, bu not KOD içinde kalır.) `disclose.io`'nun hazır
 // safe-harbour metinlerinin TÜRKÇE VARYANTI YOK (ABD/Kanada/Belçika/Hollanda/
 // İsviçre var). Aşağıdaki ifadeler bilerek DAR tutuldu: yalnız BİZİM
 // yapacağımız/yapmayacağımız şeyi söylüyor, hukuki bağışıklık VAAT ETMİYOR.
@@ -97,7 +98,7 @@ export const SECTIONS: Section[] = [
     body: [
       "Bu politikaya uygun, iyi niyetli bir araştırma yaptığınız sürece: hakkınızda şikâyette bulunmaz, hukuki takip başlatmaz ve üçüncü kişilerin başlattığı bir takipte araştırmanın bizim iznimizle yapıldığını yazılı olarak teyit ederiz. Kullanım koşullarımızın bu araştırmayı engelleyen hükümlerini, bu politika kapsamında ve bu kapsamla sınırlı olarak uygulamayız.",
       "Bu güvencenin sınırını açıkça belirtmek isteriz: yalnızca BİZİM kontrolümüzdeki talepleri kapsar. Üçüncü kişiler adına (sağlayıcılarımız, kanal platformları, diğer kullanıcılar) taahhüt veremeyiz ve kamu makamlarının resen yürüttüğü işlemleri durduramayız. Kapsam dışı bir sistemde yapılan test bu güvencenin dışındadır.",
-      "🚩 Bu bölümün Türk hukuku açısından nihai metni avukat incelemesindedir. Belirsizlik hâlinde lehinize yorumlanmasını isteriz; tereddüde düşerseniz test etmeden önce bize yazın, kapsamı birlikte netleştirelim.",
+      "Bu bölümde belirsiz kalan bir nokta olursa lehinize yorumlanmasını isteriz; tereddüde düşerseniz test etmeden önce bize yazın, kapsamı birlikte netleştirelim.",
     ],
   },
   {

@@ -13,7 +13,7 @@ const BASE = appCanonicalOrigin();
 // actually changes; legal pages derive from the single-source LEGAL_VERSION.
 // /login is intentionally NOT listed: an auth form is not search content.
 const LANDING_UPDATED = new Date("2026-07-30"); // yeni SSS girdisi (deneme sonrası)
-const LEGAL_UPDATED = new Date(`${LEGAL_VERSION}-01`);
+const LEGAL_UPDATED = new Date(LEGAL_VERSION); // gün düzeyinde ("2026-11-13", UX-6)
 const SECURITY_UPDATED = new Date("2026-08-05"); // VDP yayımlandı
 
 export default function sitemap(): MetadataRoute.Sitemap {

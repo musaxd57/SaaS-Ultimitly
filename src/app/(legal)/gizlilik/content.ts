@@ -1,6 +1,7 @@
-import { SELLER } from "@/lib/legal-entity";
+import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
 
-const CONTACT = "iletisimlixusai@gmail.com";
+// Tek kaynak: satıcı iletişim adresi (alan adlı adres gelince yalnız `SELLER.eposta` değişir — kurucu 11-13).
+const CONTACT = SELLER.eposta;
 
 export interface Section {
   title: string;
@@ -19,7 +20,7 @@ export const SECTIONS: Section[] = [
   {
     title: "2. Veri Sorumlusu ve İletişim",
     body: [
-      `Hizmeti sunan ve bu metinde açıklanan işleme faaliyetlerinin veri sorumlusu: Lixus AI — Ünvan: ${SELLER.unvan}; Adres: ${SELLER.adres}; MERSİS/Vergi No: ${SELLER.mersisVergi}; Telefon: ${SELLER.telefon}.`,
+      `Hizmeti sunan ve bu metinde açıklanan işleme faaliyetlerinin veri sorumlusu: Lixus AI — Ünvan: ${SELLER.unvan}; Adres: ${SELLER.adres}; ${SELLER_TAX_LABEL}: ${SELLER.vergiNo}; Telefon: ${SELLER.telefon}.`,
       `Gizlilikle ilgili her türlü talep ve sorunuz için: ${CONTACT}`,
     ],
   },

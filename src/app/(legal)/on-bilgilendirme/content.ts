@@ -1,4 +1,4 @@
-import { SELLER } from "@/lib/legal-entity";
+import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
 
 export interface Section {
   title: string;
@@ -10,9 +10,10 @@ export const SECTIONS: Section[] = [
   {
     title: "1. Satıcı / Hizmet Sağlayıcı Bilgileri",
     body: [
+      "Satıcı, İtalya'da kayıtlı bir şahıs işletmesidir.",
       `Ünvan: ${SELLER.unvan}`,
       `Adres: ${SELLER.adres}`,
-      `MERSİS / Vergi No: ${SELLER.mersisVergi}`,
+      `${SELLER_TAX_LABEL}: ${SELLER.vergiNo}`,
       `Telefon: ${SELLER.telefon}`,
       `E-posta: ${SELLER.eposta}`,
     ],
@@ -60,7 +61,7 @@ export const SECTIONS: Section[] = [
   {
     title: "8. Sözleşme Süresi ve Yenilenme",
     body: [
-      "Abonelik, seçilen aylık dönem boyunca geçerlidir ve iptal edilmediği sürece dönem sonunda aynı koşullarla otomatik olarak yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz.",
+      "Abonelik, seçtiğiniz faturalandırma dönemi (aylık veya yıllık) boyunca geçerlidir ve iptal edilmediği sürece dönem sonunda aynı süre için ve aynı koşullarla otomatik olarak yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan ödeme döneminin (yıllık planda yıllık dönemin) sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz.",
     ],
   },
   {
@@ -72,13 +73,13 @@ export const SECTIONS: Section[] = [
   {
     title: "10. Cayma Hakkı ve Kullanımı",
     body: [
-      "Mesafeli Sözleşmeler Yönetmeliği uyarınca tüketici, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir. Cayma bildiriminizi, yukarıda belirtilen e-posta adresine açık bir beyanla iletebilirsiniz.",
+      "Mesafeli Sözleşmeler Yönetmeliği uyarınca tüketici, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir; ücretli planı kullanmaya başlamanızla ilgili istisna 11. maddededir. Cayma bildiriminizi, yukarıda belirtilen e-posta adresine açık bir beyanla iletebilirsiniz.",
     ],
   },
   {
     title: "11. Cayma Hakkının İstisnası (Dikkat)",
     body: [
-      "Yönetmeliğin 15. maddesi uyarınca, tüketicinin onayı ile ifasına başlanan ve elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı bulunmamaktadır. Ücretli bir plana geçip hizmeti kullanmaya başladığınızda (anında ifa) cayma hakkınız sona erebilir. Bu riski ortadan kaldırmak için, satın almadan önce 14 günlük ücretsiz deneme süresinden yararlanmanız önerilir.",
+      "Yönetmeliğin 15. maddesi uyarınca, tüketicinin onayı ile ifasına başlanan ve elektronik ortamda anında ifa edilen hizmetlerde cayma hakkı bulunmamaktadır. Ücretli bir plana geçip hizmeti kullanmaya başladığınızda (anında ifa) cayma hakkınız sona erebilir. Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz; deneme süresinde ücret alınmaz.",
     ],
   },
   {

@@ -1,4 +1,4 @@
-import { SELLER } from "@/lib/legal-entity";
+import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
 
 export interface Section {
   title: string;
@@ -10,7 +10,7 @@ export const SECTIONS: Section[] = [
   {
     title: "1. Taraflar",
     body: [
-      `SATICI — Ünvan: ${SELLER.unvan}; Adres: ${SELLER.adres}; MERSİS/Vergi: ${SELLER.mersisVergi}; Telefon: ${SELLER.telefon}; E-posta: ${SELLER.eposta}.`,
+      `SATICI — İtalya'da kayıtlı bir şahıs işletmesidir. Ünvan: ${SELLER.unvan}; Adres: ${SELLER.adres}; ${SELLER_TAX_LABEL}: ${SELLER.vergiNo}; Telefon: ${SELLER.telefon}; E-posta: ${SELLER.eposta}.`,
       "ALICI — Hizmeti ücretli bir plan satın alarak kullanan; hesap kaydında belirttiği ad, adres ve iletişim bilgileri esas alınan gerçek veya tüzel kişi.",
     ],
   },
@@ -79,13 +79,13 @@ export const SECTIONS: Section[] = [
   {
     title: "10. Cayma Hakkı",
     body: [
-      "ALICI, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir. Cayma bildirimi, yukarıdaki e-posta adresine açık bir beyanla yapılabilir.",
+      "ALICI, kural olarak sözleşmenin kurulduğu tarihten itibaren 14 gün içinde gerekçe göstermeksizin cayma hakkına sahiptir; ücretli planın kullanılmaya başlanmasıyla ilgili istisna 11. maddededir. Cayma bildirimi, yukarıdaki e-posta adresine açık bir beyanla yapılabilir.",
     ],
   },
   {
     title: "11. Cayma Hakkının İstisnaları",
     body: [
-      "Yönetmeliğin 15. maddesi uyarınca; ALICI’nın onayı ile ifasına başlanan, elektronik ortamda anında ifa edilen hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz. ALICI, ücretli planı satın alıp Hizmeti kullanmaya başlamakla bu hizmetin anında ifasına onay vermiş sayılır ve bu hâlde cayma hakkının sona erebileceğini kabul eder. Bu nedenle ücretsiz deneme süresi sunulmaktadır.",
+      "Yönetmeliğin 15. maddesi uyarınca; ALICI’nın onayı ile ifasına başlanan, elektronik ortamda anında ifa edilen hizmetlere ilişkin sözleşmelerde cayma hakkı kullanılamaz. ALICI, ücretli planı satın alıp Hizmeti kullanmaya başlamakla bu hizmetin anında ifasına onay vermiş sayılır ve bu hâlde cayma hakkının sona erebileceğini kabul eder. Satın almadan önce Hizmeti denemek isteyen ALICI, 14 günlük ücretsiz deneme süresini kullanabilir; deneme süresinde ücret alınmaz.",
     ],
   },
   {
