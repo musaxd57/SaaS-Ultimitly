@@ -295,7 +295,7 @@ Her satır kırmızı-önce testli; misafire / müşteriye giden metin değişik
 | UX-8 | "milyarlık siteler gibi" | deneme bandı kademeli (ilk yarıda yok · son 7 gün nötr · son 3 gün amber · son gün kalın; kapatma 24 / 12 / 4 saat) | `0a6f911c` |
 | UX-10 b | "uzun uzun düşünerek" | Girişler: üç gün hep başlığıyla; eksik satırın yanında onu çözen ekrana bağlantı (D1 + D2) | `269ce1eb` |
 | UX-10 a (D3) | "ilk 2'si kesinlikle olur" | Girişler satırından doğrudan atama (yalnız başlanmamış görev); sunucuda bayat satır ön şartı (409); atanan kişiye panoyla aynı e-posta | `1b6871fa` |
-| "Giriş mesajını gönderin" (D5) | "ilk 2'si kesinlikle olur" | SIRADA — misafire mesaj gönderir; ilk gerçek gönderim kurucuyla (Railway açılınca) | — |
+| "Giriş mesajını gönderin" (D5) | "ilk 2'si kesinlikle olur" | KOD HAZIR — onay penceresinde misafirin göreceği TAM metin + "geri alınamaz" uyarısı; otomatik gönderimle aynı talep damgası (çift gönderim yok); acil durdurma onurlandırılır; Haiku incelemesinin 6 bulgusu düzeltildi. Misafire giden ilk gerçek gönderim kurucuyla (Railway açılınca) | `1a48cc1d` · `d5c73b3c` · `c7090deb` · `5cad75e1` |
 | UX-12 | "Skor, 20 konuşmadan sonra görünür. Şu an N konuşma var." | eşik altında skor yerine bu cümle (`PERF_MIN_CONVERSATIONS = 20`) | `534d1e4a` |
 | UX-14 | onay | çıkmaz ekranlara tek sonraki adım; bağlantı düğmesi tek kuraldan | `325cffb9` |
 | UX-15 | "Mülk" → "Daire" | arayüz metinleri (45 dosya); modele giden metinler ve Hospitable'ın kendi terimi bilerek dışarıda | `211cbbe3` |

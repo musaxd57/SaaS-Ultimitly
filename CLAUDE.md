@@ -471,6 +471,8 @@ Bu dosyaya token/anahtar/parola yazma.
   dışında gerekçe yok). Rapor / ölçüm üreticisi `npx tsx` betiği olur, kararı saf çekirdekte pinlenir (`tests/eval/raw-arm-report.ts` +
   `raw-arm-score.ts`). Yerel kapı artık CI'ın AYNI rapor denetimini koşar (`scripts/test-gate-verify.mjs`; özetin son satırı "rapor yeşil /
   KIRMIZI") — testler yeşil, denetim kırmızıysa `npm test` kırmızıdır. CI'da olup yerelde olmayan her denetim aynı sınıftır: kapıya eklenir.
+  (11-13, CI 1801) Sır taraması da kapıda: `scripts/secret-scan.mjs` CI'ın gitleaks'ini aynı sürüm + sha256 ile (ci.yml'den) commit edilmiş
+  ağaçta koşar, özette `sır` satırı; örnek anahtar `src/` / `public/` içinde gerçek biçimde yazılmaz (izin listesine eklenmez, gizlenir).
 - **Dizi biçimli `$transaction([...])` sonucu KONUMLA okunmaz** (09-24): mülk silmeye kural silme adımı eklenince
   `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
   Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.

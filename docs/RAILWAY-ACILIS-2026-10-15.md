@@ -87,10 +87,12 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 
-> 🚨 **11-13 ödeme onayı ön şartı (Opus P2-4):** ödeme ekranı artık "hemen başlasın / cayma hakkımı kaybediyorum" onayını ayrı kutuyla alıyor
-> ve sözleşmeler istisnayı bu kutuya bağlıyor. `PADDLE_PLAN_CHANGE_ENABLED` (yükseltmede fark ANINDA tahsil) ve `PADDLE_RESUME_ENABLED`
-> (yeni dönem hemen tahsil) yollarında bu kutu YOK → bu iki anahtar, o ekranlara aynı kutu (ve sunucuda alanı + kaydı) eklenmeden ya da
-> avukatın b-6 cevabı gelmeden AÇILMAZ (`docs/claude/acik-isler.md` "11-13 akşam").
+> 🚨 **11-13 ödeme onayı ön şartı (Opus P2-4):** ödeme ekranı "hemen başlasın / cayma hakkımı kaybediyorum" onayını ayrı kutuyla alıyor ve
+> sözleşmeler istisnayı bu kutuya bağlıyor. Uygulama içi YÜKSELTMEDE (`PADDLE_PLAN_CHANGE_ENABLED`, fark anında tahsil) aynı kutu VAR
+> (`f2b9283f`: kutu işaretlenmeden istek gitmez; sunucu `immediateStartConsent` alanı olmadan 400 döner, tek kullanımlık önizleme tüketilmez;
+> onay denetim kaydına `billing.immediate_start_consent` + metin özetiyle yazılır). DEVAM ETTİRME yolunda (`PADDLE_RESUME_ENABLED`, yeni dönem
+> hemen tahsil) kutu YOK → o anahtar (zaten kapalı kalanlar listesinde, kurucu SG3) bu kutu eklenmeden ya da avukatın b-6 cevabı gelmeden
+> AÇILMAZ (`docs/claude/acik-isler.md` "11-13 akşam").
 
 `AUTO_REPLY_ENABLED` · `GUEST_CHAT_ENABLED` · `REGISTRATION_OPEN` · `LANDING_DEMO_ENABLED` · `TRIAL_EMAILS_ENABLED` · `BILLING_ENFORCED` ·
 `PADDLE_PLAN_CHANGE_ENABLED` · `SHADOW_AI_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
