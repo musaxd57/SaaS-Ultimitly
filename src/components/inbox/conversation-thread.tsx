@@ -1288,8 +1288,22 @@ export function ConversationThread({
       <Separator />
 
       {/* Composer — owner/manager only; staff see a read-only thread. */}
+      {/* UX-4 (kurucu 11-13: "Gönder tabii ki gözüksün, en iyisini yap"): telefonda (lg altı) sayfa pencereyle kayıyor ve yazma alanı
+          kartın en altındaydı — Gönder ilk ekranda yarımdı. İki parça:
+          (1) telefonda yazma alanı YAPIŞKAN (`sticky bottom-0`): sayfa nereye kaysa ekranın altında kalır; zemin + üst gölge altından geçen
+              içeriği örter, köşe kartın yuvarlamasını izler;
+          (2) telefonda Gönder yazma kutusunun YANINDA (iki sütunlu ızgara): klavye açıkken tarayıcı odaktaki kutuyu görünür tutar, aynı
+              satırdaki düğme de görünür kalır (alt satırdaki düğme klavyenin altında kalabilirdi).
+          lg ve üstünde (masaüstü) yerleşim AYNI: blok akış, düğme altta sağda, kutu 104 px. Hata / kuyruk notu iki sütunu da kaplar. */}
       {canReply ? (
-        <div className={cn("shrink-0 space-y-2 p-4", readingColumnCn)}>
+        <div
+          data-composer
+          className={cn(
+            "sticky bottom-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 rounded-b-xl bg-card p-4 shadow-[0_-6px_12px_-8px_rgb(0_0_0/0.25)]",
+            "lg:static lg:z-auto lg:block lg:space-y-2 lg:rounded-none lg:shadow-none",
+            readingColumnCn,
+          )}
+        >
           {/* Placeholder bir AD DEĞİLDİR (yazmaya başlayınca kaybolur ve bazı
               ekran okuyucular hiç okumaz) → görünmez ama gerçek bir etiket.
               Gönderim hatası hem alana BAĞLI (aria-describedby + aria-invalid)
@@ -1308,7 +1322,8 @@ export function ConversationThread({
             // çalınıyordu (kurucu ölçtü: "mesajlar yeri büyümemiş"). 104px üç
             // satır gösterir; `resize-y` KALIR, uzun cevapta host kendisi büyütür
             // ve büyüttüğünde liste küçülür — tercih host'un.
-            className="min-h-[104px] resize-y"
+            // Telefonda 72 px (yapışkan alan ekranın altını az kaplasın); masaüstünde 104 px (aşağıdaki gerekçe).
+            className="min-h-[72px] resize-y lg:min-h-[104px]"
             aria-describedby={
               [sendError ? `conv-send-error-${conversationId}` : null,
                queuedNote ? `conv-send-note-${conversationId}` : null]
@@ -1321,7 +1336,7 @@ export function ConversationThread({
             <p
               id={`conv-send-error-${conversationId}`}
               role="alert"
-              className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
+              className="col-span-2 flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
             >
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               {sendError}
@@ -1331,12 +1346,13 @@ export function ConversationThread({
             <p
               id={`conv-send-note-${conversationId}`}
               role="status"
-              className="rounded-md bg-primary/10 px-2.5 py-2 text-xs text-primary"
+              className="col-span-2 rounded-md bg-primary/10 px-2.5 py-2 text-xs text-primary"
             >
               {queuedNote}
             </p>
           ) : null}
-          <div className="flex justify-end">
+          {/* Telefonda ızgaranın 1. satırı, 2. sütunu (kutunun yanı); masaüstünde blok akışta en altta sağda (eskisi gibi). */}
+          <div className="col-start-2 row-start-1 flex justify-end">
             <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
               {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               Gönder
