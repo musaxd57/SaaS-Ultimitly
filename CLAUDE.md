@@ -443,6 +443,12 @@ Bu dosyaya token/anahtar/parola yazma.
   verilen karar kartı) konaklamayı SABİT tarihle kurmaz — yazıldığı gün gelecekte olan tarih takvim oraya gelince ürünü değiştirmeden kırmızıya
   döner (dört dosya: biri 13 Kasım gecesi patladı, üçü 16 Kasım 00:00'da patlayacaktı). Tarih `tests/helpers/stay-dates.ts`ten alınır; pin
   `tests/unit/stay-fixture-dates.test.ts`. Kapı gündüz yeşilse gece de yeşil sayılmaz: gece yarısını geçen koşu ayrı bilgi verir.
+  Önceden görmek için `node scripts/time-travel.mjs <gün> [test dosyaları]` (testleri saat N gün ileride koşar; elle, yalnız Linux; bu da bir
+  vitest koşusudur). 🚨 Üç saat BİRLİKTE kaymalı — uygulama, test veritabanı, Prisma motoru; biri kaymazsa ilgisiz testler kırmızıya döner
+  (ölçüldü: kitaplık veritabanı kullanıcısına okunmazsa SESSİZCE yüklenmez; Prisma motoru önyüklemeyi görmez, kopyasına bağlanır). Ağa çıkan
+  test (`npm audit`) kaymış saatte sertifika yüzünden düşer — bomba değildir. İkinci sınıf (+35 gün taramasında bulundu): GERİYE bakan
+  pencere — takvim beslemesi 60 günden eski çıkışı dışarıda bırakır; bugün pencerenin içindeki sabit GEÇMİŞ tarih de zamanla düşer (4–7 Ekim
+  fikstürü 6 Aralık'ta patlayacaktı). Pencereli bir yolu sınayan test konaklamayı `stayDay(n)` ile kurar; pin aynı dosyada.
 - 🚨 **PUSH SONRASI CI SONUCU HER SEFER KONTROL EDİLİR** (kurucu 09-24): 739d83c'nin CI'si kırmızı kaldı ve 4 saat fark
   edilmedi → Railway "Wait for CI" yayını atladı, canlı eski sürümde kaldı. Kontrol `actions_list` (dal filtresi) →
   `list_workflow_jobs`. İşler 2–7 sn'de düşüp `runner_id: 0` ve log 404 ise KOD DEĞİL: Actions dakika/harcama limiti
@@ -460,6 +466,11 @@ Bu dosyaya token/anahtar/parola yazma.
   girdi bir AİLE (boyut → girdi; hazır tabloda `scaled`) olarak yazılır; birkaç girdi TEK ölçümde toplanmaz (toplam, tek girdideki karesel
   payı seyreltir). Oran ölçerken aynı girdi art arda koşturulmaz (ürün kodundaki içerik önbelleği ikinci koşuyu ucuzlatır → ölçüm kör).
   Yeni pin yük altında denenir: `node scripts/timing-under-load.mjs 8` (işlemciyi dolduran 8 boş döngü + süre kolu ≈ 2,5 kat yavaş makine).
+- 🚨 **ATLANAN TEST TABANI — ölçüm aracı test dosyasına "ortam değişkeni yoksa atla" diye yazılmaz (11-13, CI 1797):** CI son kapısı dosya
+  başına atlanan test sayısını `tests/ci-skip-baseline.json` ile kıyaslar; yeni atlama kırmızıdır (taban büyütülmez — ücretli ölçüm dosyaları
+  dışında gerekçe yok). Rapor / ölçüm üreticisi `npx tsx` betiği olur, kararı saf çekirdekte pinlenir (`tests/eval/raw-arm-report.ts` +
+  `raw-arm-score.ts`). Yerel kapı artık CI'ın AYNI rapor denetimini koşar (`scripts/test-gate-verify.mjs`; özetin son satırı "rapor yeşil /
+  KIRMIZI") — testler yeşil, denetim kırmızıysa `npm test` kırmızıdır. CI'da olup yerelde olmayan her denetim aynı sınıftır: kapıya eklenir.
 - **Dizi biçimli `$transaction([...])` sonucu KONUMLA okunmaz** (09-24): mülk silmeye kural silme adımı eklenince
   `const [, result]` kural sayısını okudu, kuralı olmayan her mülk silinip 404 döndü (yayın öncesi tam kapıda yakalandı).
   Sonucu kullanılan adım etkileşimli işlemde ADIYLA döner.
@@ -528,3 +539,5 @@ Bu dosyaya token/anahtar/parola yazma.
 
 **11-12 akşam:** istem denetimi + dayanak tasarımı + Opus dilim sonu (4 P1) — bugünkü hat bilgi tabanında olmayan soruya uyduruyor (geliştirme setinde 9 yanlış); istem katmanı `AI_NO_SOURCE_RULE_ENABLED` 9 → 5, cevap parçaları kipi 0; çok mesajlı tur `AI_TURN_MESSAGES_ENABLED` yalnız parça kipinde; üçü de KAPALI. 🚨 Kör (kabul) koşuları OpenAI kredisi bittiği için YAPILAMADI (mühürler sağlam, komutlar belgede) — sonuç görülmeden hiçbiri açılmaz. Özet `docs/claude/durum.md`, kurallar `docs/claude/ai-guvenlik.md` sonu, sorular (D-1…D-7) `docs/claude/acik-isler.md` "11-12 akşam". Kural: yapısal karar okuyucuya bırakılmaz; bir düzeltmenin değiştirdiği fonksiyonun ÖTEKİ çağıranı da ölçülür; ölçer yanlış değeri "gereksiz tutma"ya yazmaz.
 **11-12 gece:** CI 1793 kırmızısı = yavaş CI makinesinde süre pini (kod değil) → `tests/helpers/linear-cost.ts` ("sınırın altında — ya da doğrusal ve 4 katının altında"), dokuz dosya, mutasyon 27 / 28, yük altında yeşil — `docs/INCELEME-2026-11-12-ci-1793-sure-pini.md`. Kurucu gece mesajı: ölçümler açılış kipinin dört anahtarı olmadan koşmuş (düzeltilecek) · Fable 5.2 denetimi (istem + ham model kolu, tavan 80 $) `scripts/claude-work/run.ts` istek 4 · kelime tabanlı anlam kararları envanteri (açılışta etkin 17) → anlamsal mimari tasarımı sırada · zaman bombası: dört testte sabit konaklama tarihi (biri 13 Kasım gecesi tam kapıda patladı) → `tests/helpers/stay-dates.ts` + pin. Özet `docs/claude/durum.md` "11-12 gece".
+
+**11-13 gece:** Fable 5.2 istem denetimi (94 bulgu; 40'ı kodda izlendi: 15 aynen · 18 kısmen · 3 kurucu kararı · 4 denetçi yanıldı; istemler DEĞİŞMEDİ) `docs/INCELEME-2026-11-13-fable-istem-denetimi.md` · ham model kolu: kapısız Fable aynı sette 62 / 62 doğru, ürün 24 doğru · 10 gereksiz tutma · 9 yanlış (model farkı ayrılmadı — gpt-5.1 ham kolu kredi bekliyor) · anlamsal karar mimarisi + geçiş planı `docs/TASARIM-2026-11-12-anlamsal-karar-mimarisi.md` (yama değil GÖLGEDE yeni cevap hattı; sorular AM-1…AM-7) · zaman yolculuğu aracı `scripts/time-travel.mjs` (+35 gün taraması bilinmeyen bir bombayı buldu: takvim beslemesi testi 6 Aralık'ta patlayacaktı) · UX / UI denetimi (istek 5; 531 bulgu, kodda doğrulama + kayıt sıradaki yayında) · CI 1797 (atlanan test tabanı; yerel kapı artık CI'ın rapor denetimini de koşuyor). Özet `docs/claude/durum.md` "11-13 gece", sorular `docs/claude/acik-isler.md` "11-13 gece". Kural: denetçi modelin bulgusu kodda ve AÇILIŞ bayraklarıyla izlenmeden doğru sayılmaz (40 bulgunun 4'ü bayrağı ters varsaymıştı); kurucu kararının bedelini yazan bulgu kusur değil ölçüm önerisidir.

@@ -1,0 +1,18 @@
+{
+  "model": "claude-fable-5-2",
+  "budget": 55,
+  "total": 50.775018200000005,
+  "byTask": {
+    "ping": 0.07929939999999999,
+    "raw_baseline": 1.3181516,
+    "prompt_audit": 49.3775672
+  },
+  "calls": 77,
+  "searches": 1,
+  "refusals": 0,
+  "errors": 0,
+  "inTok": 135677,
+  "outTok": 593536,
+  "cacheRead": 3162591,
+  "cacheWrite": 1605050
+}
