@@ -18,12 +18,14 @@ import { prisma } from "@/lib/db";
 import { notClosingHandledWhere } from "@/lib/conversation-attention";
 // ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
 // `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
-import { dedupeBookings, getOpsStats } from "@/lib/reports";
+import { dedupeBookings, getAutomationDigest, getOpsStats } from "@/lib/reports";
+import { loadArrivalReadiness } from "@/lib/readiness-list/load";
+import { notReadyArrivals } from "@/lib/today/core";
 import { hasMessagingConnection } from "@/lib/channels";
 import { reservationsConnectedStepDone } from "@/lib/onboarding-steps";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
-import { AttentionPanel } from "@/components/attention-panel";
+import { AttentionPanel, AutomationDigestLine } from "@/components/attention-panel";
 import { OnboardingGuide, type OnboardingStep } from "@/components/onboarding-guide";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -99,7 +101,7 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [channelConnected, calendarSourceCount, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
+  const [channelConnected, calendarSourceCount, conversationCount, kbCount, premiumOk, attention, todayReadiness, digest] = await Promise.all([
     hasMessagingConnection(orgId),
     prisma.calendarSource.count({ where: { property: { organizationId: orgId } } }),
     prisma.conversation.count({ where: scope }),
@@ -108,7 +110,13 @@ export default async function DashboardPage() {
     // 🚨 INTELLIGENCE BOZULSA PMS ÇALIŞIR (bounded context kuralı): bu okuma
     // panelin GİRİŞ SAYFASINI 500'e düşüremez. Hata → satır yok, kart basılmaz.
     findAttentionItems(orgId).catch(() => []),
+    // AaaS "Bugün" ekranı (kurucu 11-13: "olabilir, kontrol ederek görerek yap"; tasarım `docs/TASARIM-2026-11-13-bugun-ekrani-ve-aaas-akisi.md`
+    // §1): bugünkü girişlerin hazırlığı Girişler'in KENDİ değerlendirmesinden (yalnız "HAZIR DEĞİL" satırlar) ve son 24 saatte sistemin ev
+    // sahibi yerine yaptıkları (kalıcı kayıtlar). İkisi de salt okuma; arızası Panel'i düşürmez.
+    loadArrivalReadiness(orgId, now, { days: 1 }).catch(() => null),
+    getAutomationDigest(orgId, now).catch(() => null),
   ]);
+  const notReadyToday = notReadyArrivals(todayReadiness?.rows ?? []);
   const onboardingSteps: OnboardingStep[] = [
     {
       // Kanal bağlantısı YA DA takvim (iCal) bağlantısı (kurucu kararı 10-09, `lib/onboarding-steps.ts`).
@@ -224,10 +232,12 @@ export default async function DashboardPage() {
           mevcut kolonlardan hesaplanıyor, migration yok, hiçbir şey yazılmıyor. */}
       <AttentionPanel
         items={attention}
+        arrivals={notReadyToday}
         canManageChannel={session.role === "owner" || isSuperAdmin(session)}
         // Bürünmede (destek görünümü, salt-okunur) düğme gösterilmez — rota zaten reddeder (Haiku incelemesi).
         canManageReservations={canManage(session) && !session.actorUserId}
       />
+      <AutomationDigestLine digest={digest} />
 
       {/* 🚨 "AI GÜNLÜK ÖZET" KARTI KALDIRILDI (kullanıcı kararı 08-08) — GERİ EKLEME.
           İKİ ayrı kusuru vardı ve ikisi de ölçüldü:

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Unplug } from "lucide-react";
+import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, DoorOpen, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Sparkles, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -9,6 +9,14 @@ import { itemKindLabel } from "@/lib/conversation-items/view";
 import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
+import {
+  AUTOMATION_DIGEST_LABEL,
+  automationDigestParts,
+  notReadyDetail,
+  notReadyHeadline,
+  type AutomationDigestCounts,
+  type NotReadyArrival,
+} from "@/lib/today/core";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "Dikkat Gerektirenler" kartı.
@@ -189,17 +197,23 @@ export function moneyLine(m: MoneyImpact | undefined): { text: string; hint?: st
 
 export function AttentionPanel({
   items,
+  arrivals = [],
   canManageChannel = false,
   canManageReservations = false,
 }: {
   items: AttentionItem[];
+  /**
+   * AaaS "Bugün" ekranı (kurucu 11-13): bugünkü HAZIR OLMAYAN girişler — Girişler'in kendi değerlendirmesinden (`notReadyArrivals`), ikinci
+   * kural yok. En üstte durur (günün tek saatli işi); dokununca Girişler (çözen eylemler orada).
+   */
+  arrivals?: NotReadyArrival[];
   /** Kanal bağlantısını onarabilir mi (sahip / operatör) — değilse bağlantı satırı nötr çağrı yapar. */
   canManageChannel?: boolean;
   /** Rezervasyonu yeniden açabilir mi (sahip / yönetici; H2 düğmesi) — personel düğmeyi görmez (rota da 403 döner). */
   canManageReservations?: boolean;
 }) {
   // 🚨 Sessiz gün = hiç render yok.
-  if (items.length === 0) return null;
+  if (items.length === 0 && arrivals.length === 0) return null;
 
   return (
     <Card className="border-amber-300 dark:border-amber-700/60">
@@ -208,9 +222,24 @@ export function AttentionPanel({
           <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500" />
           Dikkat Gerektirenler
         </CardTitle>
-        <Badge tone="warning">{items.length}</Badge>
+        <Badge tone="warning">{items.length + arrivals.length}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
+        {arrivals.map((a) => (
+          <Link
+            key={`arrival:${a.reservationId}`}
+            href="/arrivals"
+            data-attention-arrival
+            className="flex min-w-0 flex-1 items-start gap-3 rounded-lg border border-border px-3 py-2 hover:bg-accent"
+          >
+            <DoorOpen className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{notReadyHeadline(a)}</p>
+              {/* İki satıra kadar: ilk engelin adı uzun olabilir ve "· N eksik daha" telefonda kırpılırdı (ekran görüntüsünde görüldü). */}
+              <p className="line-clamp-2 break-words text-xs text-muted-foreground">{notReadyDetail(a)}</p>
+            </div>
+          </Link>
+        ))}
         {items.map((item) => {
           const Icon = ICONS[item.kind];
           const reopen =
@@ -259,5 +288,23 @@ export function AttentionPanel({
         })}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * "Son 24 saatte sizin yerinize: …" (AaaS "Bugün" ekranı, kurucu 11-13). Yalnız kalıcı kayıtlardan sayılan işler
+ * (`getAutomationDigest`); 0 olan parça yazılmaz, hepsi 0 ise HİÇ basılmaz (sakin gün kuralı). Salt bilgi — eylem yok.
+ */
+export function AutomationDigestLine({ digest }: { digest: AutomationDigestCounts | null }) {
+  if (!digest) return null;
+  const parts = automationDigestParts(digest);
+  if (parts.length === 0) return null;
+  return (
+    <p data-automation-digest className="flex items-start gap-2 text-sm text-muted-foreground">
+      <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+      <span>
+        <span className="font-medium text-foreground">{AUTOMATION_DIGEST_LABEL}:</span> {parts.join(" · ")}
+      </span>
+    </p>
   );
 }

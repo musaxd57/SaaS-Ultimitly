@@ -872,48 +872,53 @@ export interface AiOpsReport {
  * backlog by apartment. Surfaces how much work the system handled and where the
  * problems concentrate. All read-only counts; safe on an empty account (zeros).
  */
+/**
+ * Kuyruktan TESLİM EDİLMEMİŞ cevap satırlarının kimlikleri (Durable-outbox correction, FAZ 0): an AI reply routed through the outbox has its
+ * Message row written at ENQUEUE, but if it never reached the guest — still queued, CANCELED by the send-time veto, terminally failed, or
+ * parked for manual review — it must NOT count as an AI reply. A message with NO outbox row (the direct-send / legacy path) is untouched.
+ * Tenant- and window-scoped so the exclusion list stays small (empty whenever the flag is off).
+ */
+async function undeliveredReplyIds(orgId: string, since: Date): Promise<string[]> {
+  const undelivered = await prisma.messageOutbox.findMany({
+    where: { organizationId: orgId, status: { not: "sent" }, messageId: { not: null }, createdAt: { gte: since } },
+    select: { messageId: true },
+  });
+  return undelivered.map((r) => r.messageId).filter((id): id is string => Boolean(id));
+}
+
+/**
+ * YAPAY ZEKÂ CEVABI SAYIMININ TEK KURALI — Raporlar (`getAiOpsReport`, 30 gün) ve Panel'in "son 24 saatte sizin yerinize" satırı
+ * (`getAutomationDigest`) AYNI yardımcıdan sayar; ikinci bir sayım kuralı yazılmaz (AaaS tasarımı §8.3).
+ * AI credit, DECIDED by the reliable authorType (not the senderName string): fully-automatic AI sends (authorType "ai") PLUS — unless
+ * `autoOnly` — host-approved AI-assisted replies. senderName appears ONLY as the transitional fallback for legacy / rolling-deploy rows whose
+ * authorType is still NULL. Scoped to booking channels — the QR "chat" surface keeps its own metrics (preserves the historic
+ * "GuestOps AI"-only semantics: QR "Lixus AI" was never counted). `autoOnly`: ev sahibinin onayladığı taslak (`aiAssisted`) "sizin yerinize"
+ * sayılmaz — onu ev sahibi gönderdi.
+ */
+export function aiReplyWhere(
+  orgId: string,
+  since: Date,
+  undeliveredIds: string[],
+  opts: { autoOnly?: boolean } = {},
+): Prisma.MessageWhereInput {
+  const automatic: Prisma.MessageWhereInput[] = [{ authorType: "ai" }, { authorType: null, senderName: "GuestOps AI" }];
+  return {
+    direction: "outbound",
+    OR: opts.autoOnly ? automatic : [...automatic, { aiAssisted: true }],
+    createdAt: { gte: since },
+    conversation: { ...propertyScope(orgId), channel: { not: "chat" } },
+    // Drop undelivered outbox drafts (queued/canceled/failed/review) — never delivered.
+    ...(undeliveredIds.length ? { id: { notIn: undeliveredIds } } : {}),
+  };
+}
+
 export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const scope = propertyScope(orgId);
-
-  // Durable-outbox correction (FAZ 0): an AI reply routed through the outbox has its Message
-  // row written at ENQUEUE, but if it never reached the guest — still queued, CANCELED by the
-  // send-time veto, terminally failed, or parked for manual review — it must NOT count as an
-  // AI reply. A message with NO outbox row (the direct-send / legacy path) is untouched, so the
-  // authorType/senderName/aiAssisted fallback semantics are preserved exactly. Tenant- and
-  // window-scoped so the exclusion list stays small (empty whenever the flag is off).
-  const undelivered = await prisma.messageOutbox.findMany({
-    where: {
-      organizationId: orgId,
-      status: { not: "sent" },
-      messageId: { not: null },
-      createdAt: { gte: since },
-    },
-    select: { messageId: true },
-  });
-  const undeliveredIds = undelivered.map((r) => r.messageId).filter((id): id is string => Boolean(id));
+  const undeliveredIds = await undeliveredReplyIds(orgId, since);
 
   const [aiReplies, welcomes, checkins, checkouts, openProblems, problems] = await Promise.all([
-    prisma.message.count({
-      where: {
-        direction: "outbound",
-        // AI credit, DECIDED by the reliable authorType (not the senderName string):
-        // fully-automatic AI sends (authorType "ai") PLUS host-approved AI-assisted
-        // replies. senderName appears ONLY as the transitional fallback for legacy /
-        // rolling-deploy rows whose authorType is still NULL. Scoped to booking
-        // channels — the QR "chat" surface keeps its own metrics (preserves the
-        // historic "GuestOps AI"-only semantics: QR "Lixus AI" was never counted).
-        OR: [
-          { authorType: "ai" },
-          { authorType: null, senderName: "GuestOps AI" },
-          { aiAssisted: true },
-        ],
-        createdAt: { gte: since },
-        conversation: { ...scope, channel: { not: "chat" } },
-        // Drop undelivered outbox drafts (queued/canceled/failed/review) — never delivered.
-        ...(undeliveredIds.length ? { id: { notIn: undeliveredIds } } : {}),
-      },
-    }),
+    prisma.message.count({ where: aiReplyWhere(orgId, since, undeliveredIds) }),
     prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),
     prisma.reservation.count({ where: { ...scope, checkinSentAt: { gte: since } } }),
     prisma.reservation.count({ where: { ...scope, checkoutSentAt: { gte: since } } }),
@@ -945,6 +950,62 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
     openProblems, // exact count() — not problems.length (capped at 500)
     problemsByProperty,
   };
+}
+
+/** Panel'in "son 24 saatte sizin yerinize" satırının penceresi. Gece yarısı değil: sabah açıldığında dün geceyi bütünüyle kapsar. */
+export const AUTOMATION_DIGEST_HOURS = 24;
+
+export interface AutomationDigest {
+  /** Kendiliğinden giden yapay zekâ cevabı (ev sahibinin onayladığı taslak HARİÇ). */
+  aiReplies: number;
+  welcomes: number;
+  /** Otomatik giriş mesajı — ev sahibinin Girişler'den ELLE gönderdiği HARİÇ. */
+  checkins: number;
+  checkouts: number;
+  /** Sistemin açtığı görev (`origin: "system"`). */
+  systemTasks: number;
+}
+
+/** Elle gönderimin damga koyan sonuçları (`sendCheckinNow` denetim kaydı) — bunlar "sizin yerinize" sayılmaz. */
+const MANUAL_CHECKIN_STAMPING_OUTCOMES = new Set(["sent", "ambiguous", "queued"]);
+const DIGEST_ROW_CAP = 2000;
+
+/**
+ * AaaS "Bugün" ekranı (kurucu 11-13: "olabilir, kontrol ederek görerek yap") — sistemin son 24 saatte ev sahibi YERİNE yaptığı işler. Yalnız
+ * KALICI kayıtlardan sayılır (tahmin yok): yapay zekâ cevabı Raporlar'la aynı kural (`aiReplyWhere`, yalnız kendiliğinden giden), yaşam
+ * döngüsü mesajı rezervasyon damgası (Raporlar ile aynı kaynak) eksi Girişler'den elle gönderilen giriş mesajı, görev sistem kaynaklı.
+ * Salt okuma. Temizlikçi ataması SAYILMAZ: atamanın sistem mi ev sahibi mi tarafından yapıldığı kayıtta ayrılmıyor (makbuzsuz iddia olurdu).
+ */
+export async function getAutomationDigest(orgId: string, now: Date = new Date()): Promise<AutomationDigest> {
+  const since = new Date(now.getTime() - AUTOMATION_DIGEST_HOURS * 60 * 60 * 1000);
+  const scope = propertyScope(orgId);
+  const undeliveredIds = await undeliveredReplyIds(orgId, since);
+  const [aiReplies, welcomes, checkinRows, manualAudits, checkouts, systemTasks] = await Promise.all([
+    prisma.message.count({ where: aiReplyWhere(orgId, since, undeliveredIds, { autoOnly: true }) }),
+    prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),
+    prisma.reservation.findMany({ where: { ...scope, checkinSentAt: { gte: since } }, select: { id: true }, take: DIGEST_ROW_CAP }),
+    // Elle gönderim penceresi daha geniş okunur: denetim kaydı damgadan bir an önce/sonra düşebilir.
+    prisma.auditLog.findMany({
+      where: { organizationId: orgId, action: "checkin_message.manual_send", createdAt: { gte: new Date(since.getTime() - 60 * 60 * 1000) } },
+      select: { metadataJson: true },
+      take: DIGEST_ROW_CAP,
+    }),
+    prisma.reservation.count({ where: { ...scope, checkoutSentAt: { gte: since } } }),
+    prisma.task.count({ where: { ...scope, origin: "system", createdAt: { gte: since } } }),
+  ]);
+  const manual = new Set<string>();
+  for (const a of manualAudits) {
+    try {
+      const m = JSON.parse(a.metadataJson ?? "null") as { reservationId?: unknown; outcome?: unknown } | null;
+      if (m && typeof m.reservationId === "string" && typeof m.outcome === "string" && MANUAL_CHECKIN_STAMPING_OUTCOMES.has(m.outcome)) {
+        manual.add(m.reservationId);
+      }
+    } catch {
+      // bozuk kayıt sayımı etkilemez
+    }
+  }
+  const checkins = checkinRows.filter((r) => !manual.has(r.id)).length;
+  return { aiReplies, welcomes, checkins, checkouts, systemTasks };
 }
 
 /** Deterministic Turkish daily operations summary (no external AI needed). */
