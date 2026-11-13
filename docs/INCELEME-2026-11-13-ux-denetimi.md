@@ -280,3 +280,33 @@ sonra yerel ezmeler 40 px. Denetçinin "tek kural" önerisi 44 px. Önerim: şim
 3. **Soru listesine eklenmesi önerilen (bu kayıtta bulundu, §3'te yok):** QR panel rozeti "Ev sahibine iletildi" okuyana (ev sahibine)
    üçüncü şahısla hitap ediyor (B034 B040; denetçi önerisi "Yanıtınızı bekliyor") · çıkmaz ekranlara tek düğme (§4 #11) · ürün içi tek
    sözlük (§4 #17) · 2FA'da QR (D029).
+
+## 10. Kurucu kararları (11-13) ve uygulama
+Her satır kırmızı-önce testli; misafire / müşteriye giden metin değişiklikleri kurucunun o maddeye verdiği cevaba dayanır.
+
+| Madde | Kurucu kararı | Uygulama | Commit |
+|---|---|---|---|
+| UX-1 / UX-2 / UX-9 | onay | QR'da "Gönderildi" işareti · ev sahibi uyarısında Wi-Fi · konaklama dışı tek metin | `2651b9ad` |
+| UX-3 | "düğme hep basılabilir" | kayıt ve plan düğmeleri soluk değil; onay boşsa istek gitmez, uyarı kutunun altında, odak kutuda | `2a40e62c` · `f7d4b5f3` |
+| UX-4 | onay | telefonda konuşma ekranında Gönder hep görünür (yapışkan yazma alanı) | `bdefb896` · `f7d4b5f3` |
+| UX-5 | sade dil | kurulum animasyonu: sade adımlar, tek anlamlı örnek, sahte düğmeler gerçek bağlantı | `e4d2e202` · `50a606ae` |
+| UX-6 | onay | yasal sayfalar: gün-ay-yıl tarih (sürümden), Partita IVA etiketi, yıllık yenileme, cayma maddeleri | `11e9b3c1` · `50a606ae` |
+| UX-7 / UX-13 | onay | bağlantı kartında tek ad + Hospitable açıklaması · QR acil işareti "Yanıtınızı bekliyor" | `a001a747` |
+| UX-8 | "milyarlık siteler gibi" | deneme bandı kademeli (ilk yarıda yok · son 7 gün nötr · son 3 gün amber · son gün kalın; kapatma 24 / 12 / 4 saat) | `0a6f911c` |
+| UX-10 b | "uzun uzun düşünerek" | Girişler: üç gün hep başlığıyla; eksik satırın yanında onu çözen ekrana bağlantı (D1 + D2) | `269ce1eb` |
+| UX-10 a (D3) | "ilk 2'si kesinlikle olur" | Girişler satırından doğrudan atama (yalnız başlanmamış görev); sunucuda bayat satır ön şartı (409); atanan kişiye panoyla aynı e-posta | `1b6871fa` |
+| "Giriş mesajını gönderin" (D5) | "ilk 2'si kesinlikle olur" | SIRADA — misafire mesaj gönderir; ilk gerçek gönderim kurucuyla (Railway açılınca) | — |
+| UX-12 | "Skor, 20 konuşmadan sonra görünür. Şu an N konuşma var." | eşik altında skor yerine bu cümle (`PERF_MIN_CONVERSATIONS = 20`) | `534d1e4a` |
+| UX-14 | onay | çıkmaz ekranlara tek sonraki adım; bağlantı düğmesi tek kuraldan | `325cffb9` |
+| UX-15 | "Mülk" → "Daire" | arayüz metinleri (45 dosya); modele giden metinler ve Hospitable'ın kendi terimi bilerek dışarıda | `211cbbe3` |
+| UX-16 | onay | iki adımlı giriş kurulumunda QR kod | `5abad5a4` |
+| UX-11 | ölçüm | küçük yazı 88 → 62; dokunma hedefi ölçüsü satır içi bağlantıları da saydığı için değişmedi → gerçek uygulamada yalnız düğmeler telefonda ölçülecek | SIRADA |
+
+**Ödeme ekranı (kurucu 11-13: "en yasal şekilde; onaylandığı mı kabul edildiği mi — kelime seçimleri önemli"):** üç ayrı, boş başlayan,
+zorunlu kutu — "Ön Bilgilendirme Formu'nu okudum ve bu bilgileri aldığımı onaylıyorum." · "Mesafeli Satış Sözleşmesi'ni okudum ve kabul
+ediyorum." · "Ücretli planın 14 günlük cayma süresi dolmadan hemen başlamasını onaylıyorum. Bu nedenle cayma hakkımı kaybedeceğimi kabul
+ediyorum." Sunucu üçünü ayrı alan olarak ister; kartla deneme fiyatında hizmet deneme bitince başladığı için üçüncü kutu YOK (istemci ve
+sunucu aynı kural). Metinler tek kaynakta (`src/lib/billing/consent-copy.ts`) ve onay kaydındaki `legalTextHash`'e girer. Sözleşmelerde
+zımni onay ("kullanmaya başlamakla onay vermiş sayılır") kalktı; Gizlilik Politikası hiçbir yerde "kabul" ettirilmez ve sözleşmenin parçası
+sayılmaz (KVKK); kayıt kutusu yalnız Kullanım Koşulları'nı kabul ettirir; yasal sayfa gövdesi 16 piksel (≈ 12 punto). Araştırma ve
+avukata sorular: `scratchpad/handoff/ODEME-ONAY-HUKUK.md` (d-1 Paddle'ın asıl satıcı olması, d-5 kartla deneme). Commit `f72065dd`.
