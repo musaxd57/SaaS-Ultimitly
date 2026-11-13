@@ -15,7 +15,6 @@ export type CheckinNowRefusal =
   | "no_connection"
   | "changed"
   | "queue_owns"
-  | "queue_failed"
   | "held";
 
 export const CHECKIN_NOW_TEXT: Record<CheckinNowRefusal | "definitive" | "ambiguous" | "rate_limited" | "sent" | "queued", string> = {
@@ -33,7 +32,6 @@ export const CHECKIN_NOW_TEXT: Record<CheckinNowRefusal | "definitive" | "ambigu
   no_connection: "Kanal bağlantısı yok. Önce bağlantıyı kurun.",
   changed: "Mesaj ya da rezervasyon bu arada değişti. Yeniden bakın.",
   queue_owns: "Bu misafirin giriş mesajı zaten gönderim sırasında.",
-  queue_failed: "Bu giriş mesajı daha önce gönderilemedi; buradan yeniden gönderilemez. Mesajı konuşmadan kendiniz gönderin.",
   held: "Kanal şu an çok fazla istek aldı. Birkaç dakika sonra tekrar deneyin.",
   definitive: "Gönderilemedi; mesaj misafirinize gitmedi. Birazdan tekrar deneyin.",
   ambiguous: "Gönderim doğrulanamadı — mesaj ulaşmış olabilir. Tekrar göndermeden önce konuşmayı kontrol edin.",

@@ -16,7 +16,7 @@ import { auditActor } from "@/lib/audit";
 // ---------------------------------------------------------------------------
 
 const NO_STORE = { "Cache-Control": "no-store" };
-const REFUSAL_STATUS: Record<string, number> = { not_found: 404, already_sent: 409, changed: 409, queue_owns: 409, queue_failed: 409, held: 429, rate_limited: 429 };
+const REFUSAL_STATUS: Record<string, number> = { not_found: 404, already_sent: 409, changed: 409, queue_owns: 409, held: 429, rate_limited: 429 };
 
 export const GET = withManage<{ id: string }>(async (session, _req, ctx) => {
   const { id } = await ctx.params;
@@ -27,7 +27,8 @@ export const GET = withManage<{ id: string }>(async (session, _req, ctx) => {
   return NextResponse.json(preview, { headers: NO_STORE });
 });
 
-const bodySchema = z.object({ revision: z.number().int().nonnegative() });
+// `digest`: onay penceresinde gösterilen metnin özeti (Opus B2) — gönderim anında kurulan metin farklıysa gitmez.
+const bodySchema = z.object({ revision: z.number().int().nonnegative(), digest: z.string().regex(/^[0-9a-f]{64}$/) });
 
 export const POST = withManage<{ id: string }>(async (session, req, ctx) => {
   const { id } = await ctx.params;
@@ -36,7 +37,7 @@ export const POST = withManage<{ id: string }>(async (session, req, ctx) => {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   const parsed = bodySchema.safeParse(await readJsonCappedOrNull(req));
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
-  const result = await sendCheckinNow({ organizationId: session.organizationId, reservationId: id, revision: parsed.data.revision, actorUserId: auditActor(session) });
+  const result = await sendCheckinNow({ organizationId: session.organizationId, reservationId: id, revision: parsed.data.revision, digest: parsed.data.digest, actorUserId: auditActor(session) });
   if (result.ok) return NextResponse.json({ ok: true, kind: result.kind, message: CHECKIN_NOW_TEXT[result.kind] }, { headers: NO_STORE });
   // Belirsiz teslim 202 değil 200 + açık uyarı: istemci "gönderildi" DEMEZ, "ulaşmış olabilir" der ve yeniden gönder sunmaz.
   const status = result.kind === "ambiguous" ? 200 : (REFUSAL_STATUS[result.kind] ?? (result.kind === "definitive" ? 502 : 400));

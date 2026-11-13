@@ -331,14 +331,14 @@ export async function loadArrivalReadiness(
   const manualConnection = process.env.AUTO_REPLY_ENABLED === "1" ? await hasMessagingConnection(organizationId).catch(() => false) : false;
   const manualErasure = manualConnection ? (erasure ?? (await loadErasureGuard(organizationId))) : null;
   // Kuyrukta bu rezervasyonun giriş mesajı satırı varsa (uçuşta / gönderildi / doğrulanamadı) düğme SUNULMAZ — dokunuş "zaten gönderim
-  // sırasında" derdi (Haiku D5 #5). Kesin başarısız satır kuyruk dışı yolu engellemez (gönderici `lifecycleOutboxOwns` ile aynı kural);
-  // kalıcı kuyruk açıkken o satırın cevabı açık bir cümledir (`queue_failed`).
+  // sırasında" derdi (Haiku D5 #5). Kesin başarısız ya da iptal satır misafire ulaşmadı: elle gönderim doğrudan yoldan gider (Opus B1) →
+  // düğme kalır (`sendCheckinNow` ile aynı küme).
   const queuedCheckinRefs = new Set<string>();
   if (manualConnection) {
     const refs = [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))];
     if (refs.length > 0) {
       const owned = await prisma.messageOutbox.findMany({
-        where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { not: "failed" } },
+        where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { notIn: ["failed", "canceled"] } },
         select: { externalReservationId: true },
       });
       for (const o of owned) if (o.externalReservationId) queuedCheckinRefs.add(o.externalReservationId);

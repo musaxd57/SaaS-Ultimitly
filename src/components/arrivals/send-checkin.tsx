@@ -13,7 +13,7 @@ import { CHECKIN_NOW_TEXT } from "@/lib/checkin-now-text";
 // (Haiku D5 #6). Pencere sözleşmesi: Escape, odak içeride, kapanınca düğmeye döner.
 // ---------------------------------------------------------------------------
 
-type Preview = { body: string; revision: number; propertyName: string; guestName: string | null };
+type Preview = { body: string; revision: number; digest: string; propertyName: string; guestName: string | null };
 type Phase =
   | { at: "closed" }
   | { at: "loading" }
@@ -93,7 +93,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
     try {
       const res = await fetch(url, { cache: "no-store" });
       const body = (await res.json().catch(() => null)) as (Preview & { error?: string }) | null;
-      if (!res.ok || !body || typeof body.body !== "string") {
+      if (!res.ok || !body || typeof body.body !== "string" || typeof body.digest !== "string") {
         settle({ at: "done", message: body?.error ?? CHECKIN_NOW_TEXT.changed, tone: "error" });
         return;
       }
@@ -107,7 +107,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
     setPhase({ at: "sending", preview });
     refreshOnCloseRef.current = true;
     try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: preview.revision }) });
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: preview.revision, digest: preview.digest }) });
       const body = (await res.json().catch(() => null)) as { ok?: boolean; code?: string; message?: string; error?: string } | null;
       if (res.ok && body?.ok) {
         setPhase({ at: "done", message: body.message ?? CHECKIN_NOW_TEXT.sent, tone: "ok" });

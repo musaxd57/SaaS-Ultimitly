@@ -151,7 +151,9 @@ describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLD
       .join("\n");
     expect(code.match(/channel: \{ notIn: \["ics", "manual"\] \}/g) ?? []).toHaveLength(0);
     const spreads = code.match(/\.\.\.PROVIDER_MESSAGEABLE_RESERVATION_WHERE/g) ?? [];
-    expect(spreads.length).toBe(6);
+    // 6 yaşam döngüsü sorgusu + 1 (UX-10 D5, 11-13): Girişler'den elle giriş mesajı gönderimi (`prepareCheckinNow`) mesajlaşabilirliği AYNI
+    // fragment'le okur. Sayı değişirse yeni kullanıcı bilinçli gözden geçirilir (literal kopya hâlâ yasak — üstteki satır).
+    expect(spreads.length).toBe(7);
     expect(PROVIDER_MESSAGEABLE_RESERVATION_WHERE).toMatchObject({
       calendarSourceId: null,
       channel: { notIn: ["ics", "manual"] },

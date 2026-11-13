@@ -40,7 +40,8 @@ const row: ArrivalsListRow = {
   overall: "unknown",
   factors: [factor],
 };
-const preview = { ok: true, body: "Merhaba Ayşe, kapı kodumuz 4821.", revision: 3, propertyName: "Lale 5", guestName: "Ayşe" };
+const DIGEST = "a".repeat(64);
+const preview = { ok: true, body: "Merhaba Ayşe, kapı kodumuz 4821.", revision: 3, digest: DIGEST, propertyName: "Lale 5", guestName: "Ayşe" };
 
 function stubFetch(post: { status: number; body: unknown }) {
   const fn = vi.fn(async (_url: string, init?: RequestInit) =>
@@ -51,6 +52,18 @@ function stubFetch(post: { status: number; body: unknown }) {
 }
 
 describe("Girişler — giriş mesajını elle gönderme", () => {
+  it("🚨 özetsiz önizleme (eski / bozuk cevap) gönderime açılmaz — hata gösterilir, Gönderin düğmesi yok", async () => {
+    const { digest: _omit, ...noDigest } = preview;
+    void _omit;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(noDigest), { status: 200 })));
+    render(<ArrivalsList rows={[row]} truncated={0} canAct />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: SEND_CHECKIN_LABEL }));
+    });
+    expect(screen.queryByRole("button", { name: "Gönderin" })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe(CHECKIN_NOW_TEXT.changed);
+  });
+
   it("metin listede YOK; düğmeye basınca istenir ve tam hâli + uyarı gösterilir; 'Gönderin' önizlenen sürümü yollar", async () => {
     const fetchFn = stubFetch({ status: 200, body: { ok: true, kind: "sent", message: CHECKIN_NOW_TEXT.sent } });
     const { container } = render(<ArrivalsList rows={[row]} truncated={0} canAct />);
@@ -66,7 +79,8 @@ describe("Girişler — giriş mesajını elle gönderme", () => {
       fireEvent.click(screen.getByRole("button", { name: "Gönderin" }));
     });
     const post = fetchFn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST")!;
-    expect(JSON.parse(String((post[1] as RequestInit).body))).toEqual({ revision: 3 });
+    // Opus B2: önizlenen metnin sürümü + özeti gider (sunucu gönderim anında yeniden kurduğu metnin özetini karşılaştırır).
+    expect(JSON.parse(String((post[1] as RequestInit).body))).toEqual({ revision: 3, digest: DIGEST });
     expect(screen.getByRole("status").textContent).toBe(CHECKIN_NOW_TEXT.sent);
     // 🚨 Haiku D5 #2: liste sonuç penceresi KAPANINCA yenilenir — önce yenilenseydi satırdaki düğme kalkar, bileşen sökülür ve sonuç cümlesi
     // görünmeden kaybolurdu.

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { RESERVATION_TASKS_LOCK_NS } from "@/lib/tasks/reservation-lock";
 import { loadDefaultCleanerUserId } from "@/lib/tasks/default-cleaner";
 import { notifyTaskAssigned } from "@/lib/tasks/notify";
@@ -217,7 +218,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { errorWithContext, redactSensitive, reportError } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { durableOutboxEnabledFor, outboxDeliveryPaused } from "@/lib/outbox/flag";
 import { openBlockBestEffort } from "@/lib/conversation-control/blocks";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { BILLING_NOTE_OVERWRITABLE, BILLING_PAUSED_REASON, billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
@@ -6373,26 +6374,42 @@ async function prepareCheckinNow(organizationId: string, reservationId: string, 
   return { ok: true, r, tpl, body, tz, token };
 }
 
-/** Onay penceresinin içeriği: misafirin göreceği metnin TAM hâli + sürüm (gönderimde şart). Liste HTML'ine gömülmez (kapı kodu taşıyabilir). */
+/**
+ * Onay penceresinde gösterilen metnin özeti (Opus 11-13 B2): gönderimde metin YENİDEN kurulur ve özeti karşılaştırılır — yalnız şablon
+ * sürümü yetmezdi (arada imza, daire adı ya da misafir adı değişirse misafire penceredekinden FARKLI metin giderdi). Kriptografik değil,
+ * eşitlik kanıtı; metnin kendisi istemciye zaten gösteriliyor.
+ */
+export function checkinPreviewDigest(body: string): string {
+  return createHash("sha256").update(body, "utf8").digest("hex");
+}
+
+/** Onay penceresinin içeriği: misafirin göreceği metnin TAM hâli + sürüm + özet (gönderimde şart). Liste HTML'ine gömülmez (kapı kodu taşıyabilir). */
 export async function previewCheckinNow(
   organizationId: string,
   reservationId: string,
   now: Date = new Date(),
-): Promise<{ ok: false; kind: CheckinNowRefusal } | { ok: true; body: string; revision: number; propertyName: string; guestName: string | null }> {
+): Promise<
+  | { ok: false; kind: CheckinNowRefusal }
+  | { ok: true; body: string; revision: number; digest: string; propertyName: string; guestName: string | null }
+> {
   const p = await prepareCheckinNow(organizationId, reservationId, now);
   if (!p.ok) return p;
-  return { ok: true, body: p.body, revision: p.tpl.revision, propertyName: p.r.property.name, guestName: p.r.guestName };
+  return { ok: true, body: p.body, revision: p.tpl.revision, digest: checkinPreviewDigest(p.body), propertyName: p.r.property.name, guestName: p.r.guestName };
 }
 
 export type CheckinNowResult =
   | { ok: true; kind: "sent" | "queued" }
   | { ok: false; kind: CheckinNowRefusal | "definitive" | "ambiguous" | "rate_limited" };
 
-/** Girişler'den elle gönderim. `revision`: onay penceresinde gösterilen metnin sürümü — değiştiyse GİTMEZ (`changed`). */
+/**
+ * Girişler'den elle gönderim. `revision` + `digest`: onay penceresinde gösterilen metnin sürümü ve özeti — gönderim anında kurulan metin
+ * penceredekinden farklıysa (şablon, imza, daire adı, misafir adı) GİTMEZ (`changed`).
+ */
 export async function sendCheckinNow(input: {
   organizationId: string;
   reservationId: string;
   revision: number;
+  digest: string;
   actorUserId: string;
   now?: Date;
 }): Promise<CheckinNowResult> {
@@ -6400,35 +6417,33 @@ export async function sendCheckinNow(input: {
   const now = input.now ?? new Date();
   const p = await prepareCheckinNow(organizationId, reservationId, now);
   if (!p.ok) return p;
-  if (p.tpl.revision !== input.revision) return { ok: false, kind: "changed" };
+  if (p.tpl.revision !== input.revision || checkinPreviewDigest(p.body) !== input.digest) return { ok: false, kind: "changed" };
   const { r, tpl, body, tz, token } = p;
   const audit = (outcome: string) =>
     writeAudit({ organizationId, actorUserId: input.actorUserId, action: "checkin_message.manual_send", metadata: { reservationId: r.id, outcome } });
 
-  // Kalıcı kuyruk açıksa göndericiyle AYNI anahtar: zaten kuyruktaysa ikinci satır açılmaz.
-  if (durableOutboxEnabledFor(organizationId) && r.sourceReference) {
-    const enq = await enqueueProactive({
-      organizationId,
-      reservationId: r.id,
-      externalReservationId: r.sourceReference,
-      channel: r.channel,
-      messageType: "checkin",
-      body,
-      templateRevision: tpl.revision,
-      idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
+  // 🚨 Opus 11-13 B1: elle gönderim kalıcı kuyruk açıkken de kuyruğa YENİ satır yazmaz, doğrudan yoldan gider. Kuyruk işçisi giriş mesajı
+  // satırını işletmenin OTOMATİK giriş anahtarına göre iptal eder (`orgSwitchCancelReason`) — elle gönderim tam da o anahtar kapalıyken
+  // sunulduğu için satır iptal olur, misafir kapı kodunu almaz, ev sahibine ise "birkaç dakika içinde gider" denmiş olurdu. Ev sahibinin
+  // onay penceresindeki açık kararı otomatik anahtara bağlı değildir (elle cevap gibi). Çift gönderimi doğrudan yolun talep damgası
+  // (`checkinSentAt`) ve kuyrukta ZATEN olan satırın durumu (`existingCheckinOutboxVerdict`) kapatır. Operatörün "bekleyen gönderimleri
+  // duraklat" anahtarı bu işletmenin kuyruklu gönderimlerini durdurduysa elle gönderim de durur.
+  if (durableOutboxEnabledFor(organizationId) && outboxDeliveryPaused()) return { ok: false, kind: "paused" };
+  if (r.sourceReference) {
+    const existing = await prisma.messageOutbox.findFirst({
+      where: { organizationId, externalReservationId: r.sourceReference, messageType: "checkin", status: { notIn: ["failed", "canceled"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
     });
-    if (enq.deduped) {
-      const verdict = await existingCheckinOutboxVerdict(organizationId, enq.outboxId);
+    if (existing) {
+      const verdict = await existingCheckinOutboxVerdict(organizationId, existing.id);
       if (verdict === "queued") {
         await audit("queued");
         return { ok: true, kind: "queued" };
       }
       return { ok: false, kind: verdict };
     }
-    await audit("queued");
-    return { ok: true, kind: "queued" };
   }
-  if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) return { ok: false, kind: "queue_owns" };
   // Sağlayıcı "çok fazla istek" dediyse bekleme bitmeden denenmez (otomatik gönderimle aynı kural).
   if (lifecycleSendsHeld(organizationId, now)) return { ok: false, kind: "held" };
 
@@ -6448,14 +6463,14 @@ export async function sendCheckinNow(input: {
 }
 
 /**
- * Kalıcı kuyrukta bu rezervasyonun giriş mesajı satırı ZATEN varken ev sahibinin "gönderin"i ne der (Haiku D5 #3–#4). Satırın durumu okunur:
+ * Kuyrukta bu rezervasyonun (otomatik göndericinin açtığı) giriş mesajı satırı ZATEN varken ev sahibinin "gönderin"i ne der (Haiku D5 #3–#4).
+ * Kesin başarısız / iptal satırlar buraya gelmez — misafire ulaşmadılar, elle gönderim doğrudan yoldan gider (Opus B1). Satırın durumu:
  *  · ertelenmiş (varış ileri taşınıp geri geldi; hata bilgisi BOŞ) → vadesi şimdiye çekilir, "sıraya alındı" (otomatik gönderimle aynı kural —
- *    sağlayıcı beklemesindeki / geri çekilen satırın vadesi öne ÇEKİLMEZ);
+ *    sağlayıcı beklemesindeki / geri çekilen satırın vadesi öne ÇEKİLMEZ); satırı otomatik gönderici açtı → işletme anahtarı açıktı;
  *  · gönderildi → "zaten gönderildi"; doğrulanamadı (insan incelemesi) → belirsiz teslim cümlesi;
- *  · kesin başarısız / iptal → buradan yeniden gönderilemez (anahtar tükendi — `queue_failed`);
  *  · uçuşta / engelli (abonelik dönünce kendiliğinden gider) → "zaten gönderim sırasında".
  */
-async function existingCheckinOutboxVerdict(organizationId: string, outboxId: string): Promise<"queued" | "already_sent" | "ambiguous" | "queue_failed" | "queue_owns"> {
+async function existingCheckinOutboxVerdict(organizationId: string, outboxId: string): Promise<"queued" | "already_sent" | "ambiguous" | "queue_owns"> {
   const pulled = await prisma.messageOutbox.updateMany({
     where: { id: outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null },
     data: { availableAt: new Date() },
@@ -6464,7 +6479,6 @@ async function existingCheckinOutboxVerdict(organizationId: string, outboxId: st
   const row = await prisma.messageOutbox.findFirst({ where: { id: outboxId, organizationId }, select: { status: true } });
   if (row?.status === "sent") return "already_sent";
   if (row?.status === "review") return "ambiguous";
-  if (row?.status === "failed" || row?.status === "canceled") return "queue_failed";
   return "queue_owns";
 }
 
