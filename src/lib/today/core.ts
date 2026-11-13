@@ -1,8 +1,10 @@
 // ---------------------------------------------------------------------------
 // AaaS "Bugün" ekranı — ilk dilim (kurucu 11-13: "olabilir, kontrol ederek görerek yap"; tasarım
 // `docs/TASARIM-2026-11-13-bugun-ekrani-ve-aaas-akisi.md` §1). SAF yaprak (istemci + sunucu güvenli; veritabanı yok).
-//  · `notReadyArrivals`: Girişler'in KENDİ değerlendirmesinden (`evaluateStay`) yalnız "HAZIR DEĞİL" (engelleyen) satırlar — ikinci bir
-//    hazırlık kuralı yazılmaz; "bilinmiyor" ve bilgi satırları Panel'e girmez (her sabah dolup duvar kâğıdına dönerdi, 08-08 kararı).
+//  · `notReadyArrivals`: Girişler'in KENDİ değerlendirmesinden (`evaluateStay`) yalnız "HAZIR DEĞİL" satırlar — ikinci bir hazırlık kuralı
+//    yazılmaz; "bilinmiyor" ve bilgi satırları Panel'e girmez (her sabah dolup duvar kâğıdına dönerdi, 08-08 kararı). "HAZIR DEĞİL" ⇔ en
+//    az bir ENGELLEYEN etken (`evaluateStay`in kendi tanımı) → yalnız etkenler okunur; `overall` ayrıca karşılaştırılmaz (mutasyon 11-13
+//    J13: aynı şeyi ikinci kez söyleyen ölü kontroldü).
 //  · `automationDigestParts`: "son 24 saatte sizin yerinize" satırının parçaları; 0 olan parça yazılmaz, hepsi 0 ise boş (satır basılmaz).
 // ---------------------------------------------------------------------------
 
@@ -11,7 +13,7 @@ export interface TodayArrivalInput {
   reservationId: string;
   propertyName: string;
   checkInTime: string | null;
-  readiness: { overall: string; factors: ReadonlyArray<{ state: string; label: string }> };
+  readiness: { factors: ReadonlyArray<{ state: string; label: string }> };
 }
 
 export interface NotReadyArrival {
@@ -27,9 +29,7 @@ export interface NotReadyArrival {
 export function notReadyArrivals(rows: readonly TodayArrivalInput[]): NotReadyArrival[] {
   const out: NotReadyArrival[] = [];
   for (const r of rows) {
-    if (r.readiness.overall !== "not_ready") continue;
     const blocking = r.readiness.factors.filter((f) => f.state === "blocking");
-    // "HAZIR DEĞİL" en az bir engel demektir; yine de engelsiz satır sessizce boş başlık üretmesin.
     if (blocking.length === 0) continue;
     out.push({
       reservationId: r.reservationId,

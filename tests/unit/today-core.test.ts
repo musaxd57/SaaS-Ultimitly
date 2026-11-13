@@ -4,11 +4,12 @@ import { automationDigestParts, notReadyArrivals, notReadyDetail, notReadyHeadli
 // AaaS "Bugün" ekranı (kurucu 11-13: "olabilir, kontrol ederek görerek yap") — saf çekirdek. Panel'e yalnız Girişler'in "HAZIR DEĞİL" dediği
 // satırlar girer (ikinci kural yok; "bilinmiyor" ve bilgi satırı her sabah dolup duvar kâğıdına dönerdi). Sayaç satırında 0 olan parça yok.
 
-const row = (overall: string, factors: Array<{ state: string; label: string }>, extra: Partial<TodayArrivalInput> = {}): TodayArrivalInput => ({
+// `overall` ürün tarafında okunmaz ("HAZIR DEĞİL" ⇔ engelleyen etken); fikstürde okunabilirlik için durur.
+const row = (_overall: string, factors: Array<{ state: string; label: string }>, extra: Partial<TodayArrivalInput> = {}): TodayArrivalInput => ({
   reservationId: "r1",
   propertyName: "Deniz Daire",
   checkInTime: "15:00",
-  readiness: { overall, factors },
+  readiness: { factors },
   ...extra,
 });
 
@@ -29,8 +30,9 @@ describe("Bugün — hazır olmayan girişler", () => {
     ]);
   });
 
-  it("engelsiz bir 'HAZIR DEĞİL' satırı boş başlık üretmez (atlanır)", () => {
-    expect(notReadyArrivals([row("not_ready", [{ state: "unknown", label: "x" }])])).toEqual([]);
+  it("engel yoksa satır yok (bilinmiyor / bilgi Panel'e girmez); engel varsa girer", () => {
+    expect(notReadyArrivals([row("unknown", [{ state: "unknown", label: "x" }, { state: "info", label: "y" }])])).toEqual([]);
+    expect(notReadyArrivals([row("not_ready", [{ state: "blocking", label: "Aynı gece başka bir konaklama var" }])])).toHaveLength(1);
   });
 
   it("başlık saatle ya da saatsiz; alt satır daire · ilk engel · kalan sayı", () => {
