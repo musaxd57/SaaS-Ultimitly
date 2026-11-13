@@ -212,7 +212,7 @@ export function CalendarFileImport({ propertyId }: { propertyId: string }) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 text-xs">
               <p>
-                Aktarılacak mülk: <strong className="font-medium">{preview.property.name}</strong>
+                Aktarılacak daire: <strong className="font-medium">{preview.property.name}</strong>
               </p>
               <p className="mt-0.5 text-muted-foreground">
                 {preview.counts.create} eklenecek · {preview.counts.update} güncellenecek ·{" "}

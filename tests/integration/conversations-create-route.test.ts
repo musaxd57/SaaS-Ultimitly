@@ -51,7 +51,7 @@ describe("POST /api/conversations — kiracı sınırı (S10-01)", () => {
     session = a.session;
     const res = await post({ ...base, propertyId: b.propertyId });
     expect(res.status).toBe(400);
-    expect((await res.json()).fields).toMatchObject({ propertyId: "Geçersiz mülk" });
+    expect((await res.json()).fields).toMatchObject({ propertyId: "Geçersiz daire" });
     expect(await prisma.conversation.count()).toBe(0);
   });
 

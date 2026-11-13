@@ -32,7 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/hazirlik", label: "Hazırlık", icon: PackageOpen },
   { href: "/calendar", label: "Takvim", icon: CalendarDays },
   { href: "/cancellations", label: "İptaller", icon: CalendarX2 },
-  { href: "/properties", label: "Mülkler", icon: Building2 },
+  { href: "/properties", label: "Daireler", icon: Building2 },
   { href: "/knowledge", label: "Bilgi Tabanı", icon: BookOpen },
   { href: "/templates", label: "Şablonlar", icon: FileText },
   { href: "/reports", label: "Raporlar", icon: BarChart3 },

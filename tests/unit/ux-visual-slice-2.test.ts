@@ -18,7 +18,7 @@ describe("yıkıcı düğme komşusundan ayrıldı (C010, C048) — onay pencere
   it("daire: Mülkü sil, Geri'den fazladan 16 px uzakta; onay metni aynı", () => {
     const src = read("src/app/(app)/properties/[id]/page.tsx");
     expect(src).toContain('className="ml-4 border border-destructive/40 bg-transparent text-destructive shadow-none hover:bg-destructive/10"');
-    expect(src).toContain('label="Mülkü sil"');
+    expect(src).toContain('label="Daireyi sil"');
   });
 });
 

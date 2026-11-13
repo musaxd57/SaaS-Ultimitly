@@ -104,7 +104,7 @@ type WithoutDefaults<S extends z.ZodRawShape> = { [K in keyof S]: S[K] extends z
 // --- Property ---------------------------------------------------------------
 export const propertySchema = z.object({
   // Gece-4 S6-06: yalnız boşluktan oluşan ad ("  ") kabul edilip "" olarak kaydediliyordu — doğrulamadan ÖNCE kırpılır.
-  name: z.string().trim().min(2, "Mülk adı gerekli").max(200),
+  name: z.string().trim().min(2, "Daire adı gerekli").max(200),
   address: z.string().max(300).optional().or(z.literal("")),
   city: z.string().max(120).optional().or(z.literal("")),
   country: z.string().max(120).optional().or(z.literal("")),
@@ -143,7 +143,7 @@ export type PropertyInput = z.infer<typeof propertySchema>;
 // --- Reservation ------------------------------------------------------------
 export const reservationSchema = z
   .object({
-    propertyId: z.string().min(1, "Mülk seçin"),
+    propertyId: z.string().min(1, "Daire seçin"),
     guestName: z.string().trim().min(2, "Misafir adı gerekli").max(200),
     guestPhone: z.string().max(40).optional().or(z.literal("")),
     guestEmail: z.string().email("Geçerli e-posta girin").max(254).optional().or(z.literal("")),
@@ -201,7 +201,7 @@ export const conversationReplySchema = z.object({
 });
 
 export const conversationCreateSchema = z.object({
-  propertyId: z.string().min(1, "Mülk seçin"),
+  propertyId: z.string().min(1, "Daire seçin"),
   reservationId: z.string().optional().or(z.literal("")),
   guestIdentifier: z.string().trim().min(1, "Misafir bilgisi gerekli").max(200),
   channel: z.string().max(40).default("manual"),
@@ -220,7 +220,7 @@ export const aiSuggestSchema = z.object({
 
 // --- Tasks ------------------------------------------------------------------
 export const taskSchema = z.object({
-  propertyId: z.string().min(1, "Mülk seçin"),
+  propertyId: z.string().min(1, "Daire seçin"),
   reservationId: z.string().optional().or(z.literal("")),
   type: z.enum(TASK_TYPE.values).default("cleaning"),
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
@@ -293,7 +293,7 @@ export const taskUpdateSchema = z.object({
 export const KB_REQUEST_ID_RE = /^[A-Za-z0-9_-]{16,64}$/u;
 
 export const kbSchema = z.object({
-  propertyId: z.string().min(1, "Mülk seçin"),
+  propertyId: z.string().min(1, "Daire seçin"),
   category: z.enum(KB_CATEGORY.values).default("general"),
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
   content: z.string().min(2, "İçerik gerekli").max(20000),

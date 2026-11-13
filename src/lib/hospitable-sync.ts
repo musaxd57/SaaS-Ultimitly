@@ -800,7 +800,7 @@ async function linkProperty(
   });
   if (linked) return linked.id;
 
-  const name = hp.name ?? "Hospitable mülkü";
+  const name = hp.name ?? "Hospitable dairesi"; // UX-15: yalnız YENİ kayıtlar; eski satırların adı değişmez
 
   // Re-adopt a same-named property that LOST its link (hospitableId null) — the
   // unambiguous orphan/reconnect case.

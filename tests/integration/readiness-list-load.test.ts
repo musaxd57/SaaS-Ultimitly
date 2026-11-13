@@ -364,7 +364,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     const rows = await rowOf();
     const labels = rows[0].readiness.factors.filter((f) => f.key === "issue").map((f) => f.label);
     expect(labels).toHaveLength(6);
-    expect(labels.at(-1)).toBe("Bu mülkte başka açık bakım görevleri de var");
+    expect(labels.at(-1)).toBe("Bu dairede başka açık bakım görevleri de var");
   });
 
   it("KONTROL — tam 5 açık bakım görevi: hepsi yazılır, 'başkaları da var' YAZILMAZ", async () => {
@@ -375,7 +375,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     const rows = await rowOf();
     const labels = rows[0].readiness.factors.filter((f) => f.key === "issue").map((f) => f.label);
     expect(labels).toHaveLength(5);
-    expect(labels).not.toContain("Bu mülkte başka açık bakım görevleri de var");
+    expect(labels).not.toContain("Bu dairede başka açık bakım görevleri de var");
   });
 
   it("🚨 dayanak: varış gecesini işgal eden konaklamanın adı + tarihleri; aynı gün İKİ ayrılış da çakışmadır (ikisi de yazılır)", async () => {

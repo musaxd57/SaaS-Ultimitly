@@ -6,14 +6,14 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 
 import { DeleteButton } from "@/components/delete-button";
 
-// Görsel inceleme 10-21 #9: mülk sayfasında "Mülkü sil" dolu kırmızı en göze çarpan düğmeydi → çağıran görünümü yumuşatabilir;
+// Görsel inceleme 10-21 #9: mülk sayfasında "Daireyi sil" dolu kırmızı en göze çarpan düğmeydi → çağıran görünümü yumuşatabilir;
 // verilmezse eski görünüm (dolu kırmızı) aynen kalır.
 afterEach(() => cleanup());
 
 describe("DeleteButton görünümü", () => {
   it("className verilirse düğmeye eklenir", () => {
-    render(<DeleteButton endpoint="/api/x" label="Mülkü sil" className="bg-transparent text-destructive" />);
-    const btn = screen.getByRole("button", { name: /Mülkü sil/ });
+    render(<DeleteButton endpoint="/api/x" label="Daireyi sil" className="bg-transparent text-destructive" />);
+    const btn = screen.getByRole("button", { name: /Daireyi sil/ });
     expect(btn.className).toContain("bg-transparent");
     expect(btn.className).not.toContain("bg-destructive ");
   });

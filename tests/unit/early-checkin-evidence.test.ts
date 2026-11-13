@@ -481,7 +481,7 @@ describe("panel — kanıt modelinin yeni satırları (sade dil)", () => {
   it("yeni kodların satırları; misafir beyanı yalnız BİLGİ (onay işareti değil)", () => {
     const texts = (code: string) => lines({ status: "approvable", failed: [code] }).filter((l) => !l.ok).map((l) => l.text);
     expect(texts("clock_unknown")).toContain("Şu anki saat okunamadı; istenen saatin geçip geçmediğini kontrol edin.");
-    expect(texts("open_maintenance")).toContain("Mülkte açık bir bakım görevi var; göndermeden önce kontrol edin.");
+    expect(texts("open_maintenance")).toContain("Dairede açık bir bakım görevi var; göndermeden önce kontrol edin.");
     expect(texts("cleaning_note")).toContain("Temizlikçi bugün bir not bıraktı; göndermeden önce okuyun.");
     const declared = lines({ failed: ["previous_still_in"] }, { previousDeclaredCheckout: "10:00" }).find((l) => l.text.startsWith("Önceki misafirin yazdığı"));
     expect(declared?.info).toBe(true);

@@ -59,7 +59,7 @@ export function IcalPrivacyForm({ showGuestName }: { showGuestName: boolean }) {
         <span className="text-sm">
           <span className="font-medium">Takvim akışında misafir adını göster</span>
           <span className="block text-xs text-muted-foreground">
-            Mülklerinizin iCal takvim bağlantısı Airbnb, Booking ve Google Takvim gibi dış
+            Dairelerinizin iCal takvim bağlantısı Airbnb, Booking ve Google Takvim gibi dış
             servislere abone edilir. Varsayılan olarak (KAPALI) misafirin adı bu akışta
             görünmez — yalnızca “Rezervasyon” ve dolu tarihler paylaşılır (KVKK veri
             minimizasyonu; blok-tarih için ad gerekmez). Açarsanız misafirin adı takvim

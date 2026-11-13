@@ -32,7 +32,7 @@ export const POST = withManage(async (session, req) => {
   const d = parsed.data;
 
   if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
-    return badRequest({ propertyId: "Geçersiz mülk" });
+    return badRequest({ propertyId: "Geçersiz daire" });
   }
 
   // TEKRAR GÜVENLİĞİ (migration 67, kurucu 10-14 "İstek kimliği"): içe aktarımda bağlantı tam cevap anında koparsa istemci AYNI kimlikle

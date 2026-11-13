@@ -35,7 +35,7 @@ function CalendarEmptyStep({ step, firstPropertyId }: { step: EmptyStep; firstPr
   if (step === "add-property") {
     return (
       <LinkButton href="/properties/new" size="sm">
-        İlk mülkü ekleyin
+        İlk daireyi ekleyin
       </LinkButton>
     );
   }

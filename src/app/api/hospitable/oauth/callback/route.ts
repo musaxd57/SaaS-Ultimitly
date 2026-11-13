@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     const tokens = await exchangeCodeForToken(config, code);
     const info = await verifyToken(tokens.accessToken);
     // Yetki kodu anahtara çevrilirken bağlantı değiştiyse (kaldırıldı / başka anahtar bağlandı) geç gelen sonuç yazılmaz (O2).
-    const saved = await setOrgHospitableOAuthTokens(session.organizationId, tokens, `${info.properties} mülk`, intent);
+    const saved = await setOrgHospitableOAuthTokens(session.organizationId, tokens, `${info.properties} daire`, intent);
     if (!saved) {
       return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=context_changed`));
     }

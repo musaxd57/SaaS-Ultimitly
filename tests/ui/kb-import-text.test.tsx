@@ -88,7 +88,7 @@ describe("A5 — metinden bilgi çıkarma akışı", () => {
   it("🚨 ÇIKIŞ SAATİ bilgi kaydı olarak EKLENMEZ; ayrı kutuda gösterilir", () => {
     openPanel();
     paste(SAMPLE);
-    expect(document.body.textContent).toMatch(/mülk ayarlarında tutulur/);
+    expect(document.body.textContent).toMatch(/daire ayarlarında tutulur/);
     expect(document.body.textContent).toContain("Çıkış saati");
     // Onay kutuları yalnız KB kalemleri için — saat için kutu YOK.
     const boxes = screen.getAllByRole("checkbox");
@@ -113,7 +113,7 @@ describe("A5 — metinden bilgi çıkarma akışı", () => {
   it("seçilen mülke yazılır (varsayılan ilk mülk değil)", async () => {
     const fetchMock = stubFetch(true);
     openPanel();
-    fireEvent.change(screen.getByLabelText("Mülk"), { target: { value: "p2" } });
+    fireEvent.change(screen.getByLabelText("Daire"), { target: { value: "p2" } });
     paste("Otopark bina altındadır.");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Seçilenleri ekle/ }));

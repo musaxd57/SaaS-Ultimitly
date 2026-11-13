@@ -32,8 +32,8 @@ export function HospitableSyncButton() {
         setResult({
           ok: true,
           text:
-            `${data.properties ?? 0} mülk · ${data.reservations ?? 0} rezervasyon · ${data.conversations} konuşma · ${data.messages} yeni mesaj` +
-            (capped > 0 ? ` · ${capped} mülk plan limiti nedeniyle eklenmedi (planınızı yükseltin)` : ""),
+            `${data.properties ?? 0} daire · ${data.reservations ?? 0} rezervasyon · ${data.conversations} konuşma · ${data.messages} yeni mesaj` +
+            (capped > 0 ? ` · ${capped} daire plan limiti nedeniyle eklenmedi (planınızı yükseltin)` : ""),
         });
         router.refresh();
       } else {

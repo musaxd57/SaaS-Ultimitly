@@ -108,7 +108,7 @@ describe("mülk sayfası — daire numarası uyarısı", () => {
     const text = treeText(await render(propertyId));
     expect(text).toContain("Daire numarası okunamadı");
     expect(text).toContain("Karşılama mesajı");
-    expect(text).toContain("mülk adına daire numarasını ekleyin");
+    expect(text).toContain("daire adına numarayı ekleyin");
   });
 
   it("KONTROL — numara okunabiliyorsa, kalem '{daire}' kullanmıyorsa ya da personelse uyarı YOK", async () => {

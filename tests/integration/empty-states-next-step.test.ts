@@ -188,11 +188,11 @@ describe("Raporlar — 'bağlantı kurulunca dolar' kutusu", () => {
 });
 
 describe("Takvim — boş ay", () => {
-  it("hiç mülk yok: 'İlk mülkü ekleyin'", async () => {
+  it("hiç mülk yok: 'İlk daireyi ekleyin'", async () => {
     await orgWith("owner");
     const tree = await CalendarPage({ searchParams: sp({}) });
     expect(countHref(tree, "/properties/new")).toBeGreaterThanOrEqual(1);
-    expect(treeText(tree)).toContain("İlk mülkü ekleyin");
+    expect(treeText(tree)).toContain("İlk daireyi ekleyin");
   });
 
   it("mülk var, hiç rezervasyon yok: hesap sahibine bağlantı; yöneticiye mülkün takvim kartı", async () => {

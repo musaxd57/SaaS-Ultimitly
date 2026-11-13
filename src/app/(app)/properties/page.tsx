@@ -80,10 +80,10 @@ export default async function PropertiesPage() {
 
   return (
     <>
-      <PageHeader title="Mülkler" description="Yönettiğiniz tüm mülkler ve ayarları.">
+      <PageHeader title="Daireler" description="Yönettiğiniz tüm daireler ve ayarları.">
         {canManage ? (
           <LinkButton href="/properties/new">
-            <Plus className="size-4" /> Yeni mülk
+            <Plus className="size-4" /> Yeni daire
           </LinkButton>
         ) : null}
       </PageHeader>
@@ -91,7 +91,7 @@ export default async function PropertiesPage() {
       {properties.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="Henüz mülk eklenmemiş"
+          title="Henüz daire eklenmemiş"
           description={
             channelConnected
               ? "Airbnb / Booking bağlı — daireleriniz ilk eşitlemede otomatik eklenir. Dilerseniz elle de ekleyebilirsiniz."
@@ -162,7 +162,7 @@ export default async function PropertiesPage() {
                       }
                       title={
                         ready.broken > 0
-                          ? "Takvim beslemesi hata veriyor — rezervasyonlar güncellenmiyor olabilir. Mülk sayfasından bağlantıyı kontrol edin."
+                          ? "Takvim beslemesi hata veriyor — rezervasyonlar güncellenmiyor olabilir. Daire sayfasından bağlantıyı kontrol edin."
                           : missing.length > 0
                             ? `Eksik: ${missing.join(", ")}`
                             : "Wi-Fi, giriş, kurallar, çıkış mesajı ve kanal bağlantısı tamam"

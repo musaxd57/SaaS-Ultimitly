@@ -43,11 +43,11 @@ export default async function NewConversationPage() {
       {properties.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="Önce bir mülk ekleyin"
-          description="Konuşma başlatmak için en az bir mülke ihtiyacınız var."
+          title="Önce bir daire ekleyin"
+          description="Konuşma başlatmak için en az bir daireye ihtiyacınız var."
         >
           <LinkButton href="/properties/new" size="sm">
-            Mülk ekle
+            Daire ekle
           </LinkButton>
         </EmptyState>
       ) : (

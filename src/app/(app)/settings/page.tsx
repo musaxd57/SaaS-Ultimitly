@@ -305,7 +305,7 @@ export default async function SettingsPage({
         <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
           Karşılama, giriş ve çıkış mesajları AI&apos;dan geçmez ve AI anahtarından bağımsızdır: her dairenin{" "}
           <Link href="/properties" className="underline underline-offset-2">
-            mülk sayfasındaki
+            daire sayfasındaki
           </Link>{" "}
           &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin gider. Metinde {"{isim}"} yoksa başına selam (&quot;Merhaba Ayşe,&quot;)
           ve sonuna imzanız eklenir.
@@ -345,7 +345,7 @@ export default async function SettingsPage({
             <strong>Aşağıdaki üç mesaj bu anahtardan bağımsızdır.</strong> Karşılama, giriş ve
             çıkış mesajları AI&apos;dan geçmez — her dairenin{" "}
             <Link href="/properties" className="underline underline-offset-2">
-              mülk sayfasındaki
+              daire sayfasındaki
             </Link>{" "}
             &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin gider (metinde {"{isim}"} yoksa başına selam, sonuna imzanız eklenir). AI anahtarı kapalıyken de, kendi anahtarları
             açıksa gönderilirler. Dört anahtar da sayfanın üstündeki &quot;Otomasyon durumu&quot; kartındadır.
@@ -360,7 +360,7 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, <strong>rezervasyon yapılır yapılmaz</strong> (birkaç dakika içinde) o dairenin{" "}
-            <strong>karşılama metni</strong> (mülk sayfası → Otomatik mesajlar) <strong>tek sefer</strong> gönderilir
+            <strong>karşılama metni</strong> (daire sayfası → Otomatik mesajlar) <strong>tek sefer</strong> gönderilir
             — sıcak bir &quot;hoş geldiniz / teşekkürler&quot; mesajı (adres/kod/Wi-Fi içermez, onlar
             Giriş Bilgileri&apos;nde). Metne{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazarsanız
@@ -377,7 +377,7 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, girişe <strong>4 gün kala</strong> o dairenin{" "}
-            <strong>giriş metni</strong> (mülk sayfası → Otomatik mesajlar) misafirin adıyla{" "}
+            <strong>giriş metni</strong> (daire sayfası → Otomatik mesajlar) misafirin adıyla{" "}
             <strong>tek sefer</strong> gönderilir — adres, kapı/kasa kodu, Wi-Fi gibi pratik
             bilgiler. Metne{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> /{" "}
@@ -395,7 +395,7 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, <strong>çıkış günü sabah 08:00&apos;de</strong> o dairenin{" "}
-            <strong>çıkış metni</strong> (mülk sayfası → Otomatik mesajlar), misafirin adıyla{" "}
+            <strong>çıkış metni</strong> (daire sayfası → Otomatik mesajlar), misafirin adıyla{" "}
             <strong>tek sefer</strong> aynı-gün hatırlatması olarak gönderilir. Metnin içine{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.
             &quot;Merhaba {"{isim}"}, bugün çıkış günü...&quot;). Çıkış metni olmayan daireler
@@ -435,7 +435,7 @@ export default async function SettingsPage({
         <CardContent>
           {isDemoOrg(session.organizationId) ? (
             <p className="text-sm text-muted-foreground">
-              Bu bir <strong>örnek hesaptır</strong>: mülkler, rezervasyonlar ve mesajlar kurgusaldır ve
+              Bu bir <strong>örnek hesaptır</strong>: daireler, rezervasyonlar ve mesajlar kurgusaldır ve
               hiçbir kanala bağlı değildir. Gerçek bir hesapta Airbnb / Booking bağlantısı buradan kurulur;
               kurulduğunda misafir mesajları ve rezervasyonlar otomatik olarak akar.
             </p>

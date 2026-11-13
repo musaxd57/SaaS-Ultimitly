@@ -204,7 +204,7 @@ export function ArrivalsList({
                     </Link>
                   ) : null}
                   <Link href={`/properties/${r.propertyId}`} className="text-primary hover:underline">
-                    Mülk
+                    Daire
                   </Link>
                   {/* Bu dairenin görevleri (satırdaki görev dayanakları orada açılır). */}
                   <Link href={`/tasks?propertyId=${encodeURIComponent(r.propertyId)}`} className="text-primary hover:underline">
@@ -221,9 +221,9 @@ export function ArrivalsList({
       ) : null}
       {rows.length === 0 && emptyNextStep === "add-property" ? (
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-muted-foreground">Girişleriniz burada görünür. Önce mülkünüzü ekleyin.</p>
+          <p className="text-sm text-muted-foreground">Girişleriniz burada görünür. Önce dairenizi ekleyin.</p>
           <LinkButton href="/properties/new" size="sm">
-            Mülk ekleyin
+            Daire ekleyin
           </LinkButton>
         </div>
       ) : rows.length === 0 && emptyNextStep === "calendar" ? (

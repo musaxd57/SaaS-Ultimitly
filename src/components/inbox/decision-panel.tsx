@@ -670,7 +670,7 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
             </p>
           ) : null}
           {approving && d.kind === "early_checkin" && d.fee && includeFee ? (
-            <p className="text-xs text-muted-foreground">Ücret, mülk sayfasındaki erken giriş kuralınızdan alındı.</p>
+            <p className="text-xs text-muted-foreground">Ücret, daire sayfasındaki erken giriş kuralınızdan alındı.</p>
           ) : null}
           {approving && d.kind === "early_checkin" && d.note && includeNote ? (
             <p className="text-xs text-muted-foreground">Erken giriş kuralınızdaki not olduğu gibi eklenir (çevrilmez).</p>

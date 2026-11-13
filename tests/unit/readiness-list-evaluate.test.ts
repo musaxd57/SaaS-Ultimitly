@@ -160,7 +160,7 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(issue.overall).toBe("not_ready");
     expect(issue.factors.find((f) => f.key === "issue")!.label).toBe("Devirde açık sorun / bakım görevi var");
     const maint = evaluateStay(stay({ maintenanceOpen: true }));
-    expect(maint.factors.find((f) => f.key === "issue")!.label).toBe("Mülkte açık bakım görevi var");
+    expect(maint.factors.find((f) => f.key === "issue")!.label).toBe("Dairede açık bakım görevi var");
     const overlap = evaluateStay(stay({ overlaps: 1 }));
     expect(overlap.overall).toBe("not_ready");
     expect(overlap.factors.some((f) => f.key === "overlap" && f.state === "blocking")).toBe(true);
@@ -175,7 +175,7 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
 
   it("F8: görev VARKEN çekirdek çıkış anını kuramadıysa 'görev yok' değil 'çıkış saati okunamadı' denir", () => {
     const r = evaluateStay(stay({ cleaning: cleaning({ status: "unknown", note: "none", tasks: [{ id: "t1", assignee: null, startedAt: null, startedBy: null, lastDoneAt: null }] }) }));
-    expect(cleaningFactor(r)).toMatchObject({ state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati" });
+    expect(cleaningFactor(r)).toMatchObject({ state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "dairenin çıkış saati" });
   });
 
   it("F8: başka güne ait 'başladı' kaydı tarihiyle yazılır (bugünün saati gibi okunmaz)", () => {
@@ -233,7 +233,7 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(r.factors.filter((f) => f.key === "issue").map((f) => f.label)).toEqual([
       "Check-out Kontrol açık: Çıkış kontrolü · kimseye atanmadı · vade 11:00 (gecikti)",
       "Bakım açık: Musluk damlatıyor · kimseye atanmadı",
-      "Bu mülkte başka açık bakım görevleri de var",
+      "Bu dairede başka açık bakım görevleri de var",
     ]);
     expect(r.factors.some((f) => f.label === "Devirde açık sorun / bakım görevi var")).toBe(false);
   });
@@ -269,7 +269,7 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
   });
 
   it("KONTROL — dayanak verilmezse genel cümle yazılır (hüküm aynı); dayanak engel YOKSA satır doğurmaz", () => {
-    expect(evaluateStay(stay({ maintenanceOpen: true, issueTasks: [] })).factors.find((f) => f.key === "issue")!.label).toBe("Mülkte açık bakım görevi var");
+    expect(evaluateStay(stay({ maintenanceOpen: true, issueTasks: [] })).factors.find((f) => f.key === "issue")!.label).toBe("Dairede açık bakım görevi var");
     expect(evaluateStay(stay({ overlaps: 1 })).factors.find((f) => f.key === "overlap")!.label).toBe("Aynı gece başka bir konaklama var");
     expect(evaluateStay(stay({ cleaningNote: true })).factors.find((f) => f.key === "cleaning_note")!.label).toBe(
       "Temizlik görevine bugün not yazıldı — görevde okuyun",

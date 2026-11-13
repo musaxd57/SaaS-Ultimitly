@@ -834,7 +834,7 @@ export default async function AdminPage() {
                 Yani düşük bir sayı "suistimal yok" demek DEĞİLDİR. */}
             <p className="rounded-md border border-border bg-muted/40 p-2.5 text-xs text-muted-foreground">
               <strong>Bu sayı bir suistimal ölçüsü değildir.</strong> Art arda deneme açan biri, aynı
-              mülkleri yeniden bağlayabilmek için eski hesabını silmek zorunda kalır — o an bu sayı
+              daireleri yeniden bağlayabilmek için eski hesabını silmek zorunda kalır — o an bu sayı
               sıfıra döner. Farklı posta kutuları da hiç görünmez. Düşük değer &quot;suistimal
               yok&quot; anlamına gelmez; yalnızca &quot;aynı anda duran kopya hesap yok&quot; demektir.
             </p>

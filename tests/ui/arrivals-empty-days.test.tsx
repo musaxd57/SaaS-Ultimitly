@@ -55,17 +55,17 @@ describe("Girişler — boş günler", () => {
     expect(within(region(DAYS[2]!.label)).getByText("Giriş yok.")).toBeTruthy();
   });
 
-  it("hiç giriş yok + mülk yok: üç başlık, 'Giriş yok.' ve tek adım 'Mülk ekleyin'", () => {
+  it("hiç giriş yok + mülk yok: üç başlık, 'Giriş yok.' ve tek adım 'Daire ekleyin'", () => {
     render(<ArrivalsList rows={[]} truncated={0} days={DAYS} emptyNextStep="add-property" />);
     expect(screen.getAllByText("Giriş yok.")).toHaveLength(3);
-    expect(screen.getByRole("link", { name: "Mülk ekleyin" }).getAttribute("href")).toBe("/properties/new");
+    expect(screen.getByRole("link", { name: "Daire ekleyin" }).getAttribute("href")).toBe("/properties/new");
     expect(screen.queryByRole("link", { name: "Takvimi açın" })).toBeNull();
   });
 
   it("hiç giriş yok + mülk var: tek adım 'Takvimi açın'", () => {
     render(<ArrivalsList rows={[]} truncated={0} days={DAYS} emptyNextStep="calendar" />);
     expect(screen.getByRole("link", { name: "Takvimi açın" }).getAttribute("href")).toBe("/calendar");
-    expect(screen.queryByRole("link", { name: "Mülk ekleyin" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Daire ekleyin" })).toBeNull();
   });
 
   it("giriş varken boş durum adımı çizilmez", () => {

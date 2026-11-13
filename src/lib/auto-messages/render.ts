@@ -122,7 +122,7 @@ export function autoMessageIssue(body: string, propertyName: string, signature?:
 /** Ev sahibine gösterilen sebep cümleleri (müşteriye giden metin sade — kurucu 09-23). */
 export const AUTO_MESSAGE_ISSUE_TEXT: Record<AutoMessageIssue, string> = {
   empty: "Bu mesaj boş — gönderilmez.",
-  apartment_unresolved: "Mesajda {daire} var ama daire numarası mülk adından okunamıyor — mülk adını düzeltin ya da {daire}'yi kaldırın. Düzeltilene kadar gönderilmez.",
+  apartment_unresolved: "Mesajda {daire} var ama numara daire adından okunamıyor — daire adını düzeltin ya da {daire}'yi kaldırın. Düzeltilene kadar gönderilmez.",
   unfilled: "Mesajda doldurulmamış alan var — düzeltilene kadar gönderilmez.",
 };
 

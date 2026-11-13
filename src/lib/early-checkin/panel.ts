@@ -148,10 +148,10 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: Panel
   if (f.has("time_mismatch_text")) lines.push({ ok: false, text: "Mesajdaki saat(ler) istenen saatle birebir eşleşmiyor; saati kontrol edin." });
   if (f.has("queued_delivery") && !decision) lines.push({ ok: false, text: "Bu onay şu an otomatik gönderilemiyor; hazır cevabı siz gönderin." });
   if (f.has("clock_unknown")) lines.push({ ok: false, text: "Şu anki saat okunamadı; istenen saatin geçip geçmediğini kontrol edin." });
-  if (f.has("open_maintenance")) lines.push({ ok: false, text: "Mülkte açık bir bakım görevi var; göndermeden önce kontrol edin." });
+  if (f.has("open_maintenance")) lines.push({ ok: false, text: "Dairede açık bir bakım görevi var; göndermeden önce kontrol edin." });
   if (f.has("cleaning_note")) lines.push({ ok: false, text: "Temizlikçi bugün bir not bıraktı; göndermeden önce okuyun." });
   if (d.fee) lines.push({ ok: true, text: `Erken giriş ücreti: ${formatEarlyCheckinFee({ amount: d.fee.amount, currency: d.fee.currency as EarlyCheckinCurrency }, "tr")}` });
-  if ((d.mode === "off" || f.has("rule_off")) && !decision) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; mülk sayfasından açabilirsiniz." });
+  if ((d.mode === "off" || f.has("rule_off")) && !decision) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; daire sayfasından açabilirsiniz." });
   // Bekleyen istek: yalnız otomatik kurallı mülkte, varış günü ve devrin temizlik görevi VARKEN temizlik işaretiyle
   // yeniden kontrol edilir (`recheck.ts`). Görev yoksa söz verilmez ("görev bulunamadı" satırı zaten söyler).
   if (d.status === "pending" && d.facts.arrivalToday && d.mode === "auto" && d.facts.readiness === "not_ready") {

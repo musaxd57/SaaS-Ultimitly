@@ -253,7 +253,7 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
   }
   if (c.tasks.length > 0 && (c.note === "none" || c.note === null)) {
     // Görev VAR ama çekirdek çıkış anını kuramadı (ör. mülkün çıkış saati okunamadı) — "görev yok" demek yanlış olurdu (Opus 11-05 F8).
-    return { key: "cleaning", state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati", basis: taskBasis, link: { to: "property_times" } };
+    return { key: "cleaning", state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "dairenin çıkış saati", basis: taskBasis, link: { to: "property_times" } };
   }
   if (c.note === "no_time") {
     return { key: "cleaning", state: "unknown", label: "Temizlik bitti görünüyor ama kimin ne zaman bitirdiği kayıtlı değil", missing: 'kişi adına "bitti" kaydı', basis: taskBasis, link: taskLink };
@@ -327,7 +327,7 @@ function accessFactor(input: StayReadinessInput): Factor {
       key: "access",
       state: "blocking",
       label: `Otomatik giriş mesajı gönderilemiyor: ${SKIP_REASON_TEXT[a.reason] ?? "metin doldurulamadı"}`,
-      missing: "giriş mesajının düzeltilmesi (Mülk → Otomatik mesajlar)",
+      missing: "giriş mesajının düzeltilmesi (Daire → Otomatik mesajlar)",
       basis: [],
       link: { to: "auto_message", reason: "fix" },
     };
@@ -399,7 +399,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       factors.push({
         key: "issue",
         state: "blocking",
-        label: input.openIssue ? "Devirde açık sorun / bakım görevi var" : "Mülkte açık bakım görevi var",
+        label: input.openIssue ? "Devirde açık sorun / bakım görevi var" : "Dairede açık bakım görevi var",
         missing: "bakım görevinin kapanması",
         basis: [],
         link: { to: "tasks" },
@@ -437,7 +437,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
     // Ölçülü (muhafazakâr) yan: gösterilmeyen bakım görevi zaten bir sorun satırıysa bu cümle fazladan söylenmiş olur — eksik söylemekten iyi.
     if (all.length > 0 && input.issueTasksMore) {
       // Görünmeyen görevlerin niteliği bilinmiyor → kesin engel değil, "bakın".
-      factors.push({ key: "issue", state: "unknown", label: "Bu mülkte başka açık bakım görevleri de var", missing: "Görevler'de kontrol", basis: [], link: { to: "tasks" } });
+      factors.push({ key: "issue", state: "unknown", label: "Bu dairede başka açık bakım görevleri de var", missing: "Görevler'de kontrol", basis: [], link: { to: "tasks" } });
     }
   }
   if (input.overlaps > 0) {

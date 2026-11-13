@@ -265,7 +265,7 @@ export default async function PropertyDetailPage({
 
   return (
     <>
-      <PageHeader title={property.name} description="Mülk ayarları ve bilgileri.">
+      <PageHeader title={property.name} description="Daire ayarları ve bilgileri.">
         <LinkButton href="/properties" variant="outline" size="sm">
           <ArrowLeft className="size-4" /> Geri
         </LinkButton>
@@ -273,9 +273,9 @@ export default async function PropertyDetailPage({
           <DeleteButton
             endpoint={`/api/properties/${property.id}`}
             redirectTo="/properties"
-            label="Mülkü sil"
-            confirmText={`“${property.name}” mülkünü silmek istiyor musunuz?`}
-            confirmBody="Bu mülkün rezervasyonları, misafir konuşmaları, görevleri, bilgi tabanı ve takvim bağlantıları da kalıcı olarak silinir. Bu işlem geri alınamaz."
+            label="Daireyi sil"
+            confirmText={`“${property.name}” dairesini silmek istiyor musunuz?`}
+            confirmBody="Bu dairenin rezervasyonları, misafir konuşmaları, görevleri, bilgi tabanı ve takvim bağlantıları da kalıcı olarak silinir. Bu işlem geri alınamaz."
             // Görsel inceleme 10-21 #9: sayfanın en göze çarpan düğmesi dolu kırmızı "Sil"di — çerçeveli, aynı onay penceresiyle.
             // UX denetimi 11-13 (C048): "Geri"ye bitişikti → fazladan 16 px aralık (yazı ve onay penceresi aynı).
             className="ml-4 border border-destructive/40 bg-transparent text-destructive shadow-none hover:bg-destructive/10"
@@ -307,7 +307,7 @@ export default async function PropertyDetailPage({
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>
-                  Mülk adında daire numarası bulunamadı. Bu yüzden &#123;daire&#125; yazan şu metinler bu mülk için doldurulamıyor:
+                  Daire adında numara bulunamadı. Bu yüzden &#123;daire&#125; yazan şu metinler bu daire için doldurulamıyor:
                 </p>
                 <ul className="list-disc pl-5">
                   {apartmentBlocked.slice(0, 8).map((k) => (
@@ -315,15 +315,15 @@ export default async function PropertyDetailPage({
                   ))}
                 </ul>
                 <p>
-                  Bunlardan otomatik mesajlar (karşılama, giriş, çıkış) bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez.
-                  Düzeltmek için mülk adına daire numarasını ekleyin (örnek: &quot;Lale Daire 5&quot;).
+                  Bunlardan otomatik mesajlar (karşılama, giriş, çıkış) bu daireye gönderilmez; yapay zekâ da daire numarasını söylemez.
+                  Düzeltmek için daire adına numarayı ekleyin (örnek: &quot;Lale Daire 5&quot;).
                 </p>
               </CardContent>
             </Card>
           ) : null}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Mülk Ayarları</CardTitle>
+              <CardTitle className="text-base">Daire Ayarları</CardTitle>
             </CardHeader>
             <CardContent>
               <PropertyForm
@@ -580,7 +580,7 @@ export default async function PropertyDetailPage({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Brain className="size-4 text-muted-foreground" /> Mülk Hafızası
+                <Brain className="size-4 text-muted-foreground" /> Daire Hafızası
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">

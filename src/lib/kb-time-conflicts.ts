@@ -131,7 +131,7 @@ export function kbTimeConflicts(
       kind: "property",
       propertyValue: pv,
       sides,
-      text: `${heading(field)}: mülk ayarlarında ${pv}, ${where} yazıyor. Doğru olan hangisiyse diğerini düzeltin.`,
+      text: `${heading(field)}: daire ayarlarında ${pv}, ${where} yazıyor. Doğru olan hangisiyse diğerini düzeltin.`,
     });
   }
 

@@ -265,7 +265,7 @@ export default async function TasksPage({
           description={
             canManage
               ? properties.length === 0
-                ? "Görevler mülklerinizin rezervasyonlarından açılır. Önce bir mülk ekleyin."
+                ? "Görevler dairelerinizin rezervasyonlarından açılır. Önce bir daire ekleyin."
                 : "Rezervasyon geldikçe görevler burada listelenir."
               : "Yeni rezervasyonlarda görevler otomatik açılır. Size atanmış bir görev olduğunda burada listelenir."
           }
@@ -275,7 +275,7 @@ export default async function TasksPage({
               Personel düğme görmez (bugünkü gibi). */}
           {canManage && properties.length === 0 ? (
             <LinkButton href="/properties/new" size="sm">
-              <Plus className="size-4" /> İlk mülkü ekleyin
+              <Plus className="size-4" /> İlk daireyi ekleyin
             </LinkButton>
           ) : null}
         </EmptyState>

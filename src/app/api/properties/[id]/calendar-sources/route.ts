@@ -20,7 +20,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     where: { id: propertyId, organizationId: session.organizationId },
     select: { id: true },
   });
-  if (!property) return badRequest({ propertyId: "Geçersiz mülk" });
+  if (!property) return badRequest({ propertyId: "Geçersiz daire" });
 
   const data = await readJsonCappedOrNull(req);
   const label = String(data?.label ?? "").trim();
@@ -84,7 +84,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       select: { id: true, propertyId: true, label: true, createdAt: true },
     });
   });
-  if (source === "gone") return badRequest({ propertyId: "Geçersiz mülk" });
+  if (source === "gone") return badRequest({ propertyId: "Geçersiz daire" });
   if (source === "full") {
     return badRequest({
       url: "Bu daire için en fazla 10 takvim bağlantısı ekleyebilirsiniz. Kullanmadığınız bağlantıları silin.",

@@ -163,14 +163,14 @@ export const POST = withManage(async (session, req) => {
   // Second line (for a missing/lying Content-Length): the per-file size cap, still
   // BEFORE file.text() buffers a second copy into a string.
   if (file.size > IMPORT_MAX_BYTES) return badRequest({ file: "Dosya çok büyük (en fazla 5 MB)." });
-  if (!propertyId) return badRequest({ propertyId: "Mülk seçin" });
+  if (!propertyId) return badRequest({ propertyId: "Daire seçin" });
 
   // Verify the property belongs to this organization.
   const property = await prisma.property.findFirst({
     where: { id: propertyId, organizationId: session.organizationId },
     select: { id: true, name: true, organization: { select: { timezone: true } } },
   });
-  if (!property) return badRequest({ propertyId: "Geçersiz mülk" });
+  if (!property) return badRequest({ propertyId: "Geçersiz daire" });
 
   const fileName = file.name.toLowerCase();
   const isIcs = fileName.endsWith(".ics");

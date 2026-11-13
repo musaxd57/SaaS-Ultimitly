@@ -65,7 +65,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
         },
         select: { id: true },
       });
-      if (dupe) return badRequest({ name: "Bu isimde bir mülk zaten var" });
+      if (dupe) return badRequest({ name: "Bu isimde bir daire zaten var" });
     }
   }
 

@@ -46,7 +46,7 @@ export const POST = withManage(async (session, req) => {
     where: { organizationId: session.organizationId, name: { equals: name, mode: "insensitive" } },
     select: { id: true },
   });
-  if (dupe) return badRequest({ name: "Bu isimde bir mülk zaten var" });
+  if (dupe) return badRequest({ name: "Bu isimde bir daire zaten var" });
 
   // Plan limit (Faz 2). NON-BLOCKING while billing is dormant: canAddProperty
   // returns { allowed: true } unless BILLING_ENFORCED=true, so this changes
@@ -94,7 +94,7 @@ export const POST = withManage(async (session, req) => {
     if (limit != null && (await tx.property.count({ where: { organizationId: session.organizationId } })) >= limit) return "limit" as const;
     return tx.property.create({ data: createData });
   });
-  if (result === "duplicate") return badRequest({ name: "Bu isimde bir mülk zaten var" });
+  if (result === "duplicate") return badRequest({ name: "Bu isimde bir daire zaten var" });
   if (result === "limit") {
     return forbidden(`Planınız en fazla ${limit} daireye izin veriyor. Daha fazla daire için planınızı yükseltin.`);
   }

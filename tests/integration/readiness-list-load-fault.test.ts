@@ -71,7 +71,7 @@ describe("giriş hazırlığı listesi — bir konaklamanın arızası", () => {
     const { rows } = await loadArrivalReadiness(orgId, new Date());
     expect(rows.map((r) => r.guestName)).toEqual(["Dayanaksız"]);
     expect(rows[0].readiness.overall).toBe("not_ready");
-    expect(rows[0].readiness.factors.find((f) => f.key === "issue")!.label).toBe("Mülkte açık bakım görevi var");
+    expect(rows[0].readiness.factors.find((f) => f.key === "issue")!.label).toBe("Dairede açık bakım görevi var");
   });
 
   it("🚨 dayanak okuması da kendi org süzgecinden geçer: başka işletmenin görevi / notu / konaklaması kimliği sızsa bile GÖSTERİLMEZ", async () => {

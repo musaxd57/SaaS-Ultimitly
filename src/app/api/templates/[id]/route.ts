@@ -46,7 +46,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     // 🚨 KİRACI KAPISI: kimlik doğru biçimli ama BAŞKA org'un mülkü olabilir.
     const target = propertyId || null;
     if (target && !(await propertyInOrg(target, session.organizationId))) {
-      return badRequest({ propertyId: "Geçersiz mülk" });
+      return badRequest({ propertyId: "Geçersiz daire" });
     }
     patch.propertyId = target;
   }

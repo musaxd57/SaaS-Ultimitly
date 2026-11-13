@@ -78,7 +78,7 @@ export function TaskForm({
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Mülk" htmlFor="propertyId" error={fields.propertyId}>
+        <Field label="Daire" htmlFor="propertyId" error={fields.propertyId}>
           <Select id="propertyId" value={form.propertyId} onChange={(e) => set("propertyId", e.target.value)} required>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>

@@ -47,7 +47,7 @@ export const POST = withManage(async (session, req) => {
 
   if (d.propertyId) {
     if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
-      return badRequest({ propertyId: "Geçersiz mülk" });
+      return badRequest({ propertyId: "Geçersiz daire" });
     }
   }
 

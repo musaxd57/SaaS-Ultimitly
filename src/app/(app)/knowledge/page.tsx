@@ -76,7 +76,7 @@ export default async function KnowledgePage({
     <>
       <PageHeader
         title="Bilgi Tabanı"
-        description="Buraya girdiğiniz mülke özel bilgiler (Wi-Fi, giriş yöntemi, ev kuralları, çevre önerileri…) yapay zekânın misafir sorularına verdiği cevapları besler. Karşılama, giriş ve çıkış mesajlarını her dairenin sayfasındaki “Otomatik mesajlar” bölümünden düzenleyin; elle kullandığınız hazır metinler için Şablonlar bölümünü kullanın."
+        description="Buraya girdiğiniz daireye özel bilgiler (Wi-Fi, giriş yöntemi, ev kuralları, çevre önerileri…) yapay zekânın misafir sorularına verdiği cevapları besler. Karşılama, giriş ve çıkış mesajlarını her dairenin sayfasındaki “Otomatik mesajlar” bölümünden düzenleyin; elle kullandığınız hazır metinler için Şablonlar bölümünü kullanın."
       >
         {canExport ? (
           // Dosya indirmesi: düz bağlantı (istemci yönlendirmesi değil). Sunucu ek dosyası döner.
@@ -89,11 +89,11 @@ export default async function KnowledgePage({
       {properties.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="Önce bir mülk ekleyin"
-          description="Bilgi tabanı her mülke bağlıdır. En az bir mülk gerekli."
+          title="Önce bir daire ekleyin"
+          description="Bilgi tabanı her daireye bağlıdır. En az bir daire gerekli."
         >
           <LinkButton href="/properties/new" size="sm">
-            Mülk ekle
+            Daire ekle
           </LinkButton>
         </EmptyState>
       ) : (

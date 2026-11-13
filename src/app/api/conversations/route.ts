@@ -37,7 +37,7 @@ export const POST = withManage(async (session, req) => {
   const d = parsed.data;
 
   if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
-    return badRequest({ propertyId: "Geçersiz mülk" });
+    return badRequest({ propertyId: "Geçersiz daire" });
   }
 
   // The reservation (if linked) must belong to the SAME org AND property — never

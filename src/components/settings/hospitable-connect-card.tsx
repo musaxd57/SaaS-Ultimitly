@@ -62,7 +62,7 @@ export function HospitableConnectCard({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
-        setDone(`Bağlandı — ${data.properties ?? 0} mülk bulundu.`);
+        setDone(`Bağlandı — ${data.properties ?? 0} daire bulundu.`);
         setToken("");
         setEditing(false);
         router.refresh();
@@ -256,7 +256,7 @@ export function HospitableConnectCard({
             <p className="mt-1.5 text-xs">
               {/* "uçtan uca şifreli" iddiası doğru değildi (anahtar sunucuda şifreli saklanır; uçtan uca değil) — dürüst ifade. */}
               🔒 Bağlantı anahtarı <strong>şifreli</strong> saklanır ve yalnızca bu işletmenin
-              Hospitable mülklerine erişmek için kullanılır; kaydedildikten sonra arayüzde tekrar
+              Hospitable dairelerine erişmek için kullanılır; kaydedildikten sonra arayüzde tekrar
               görüntülenmez.
             </p>
           </div>

@@ -101,7 +101,7 @@ export function PropertyForm({
         <FormError>{error}</FormError>
       ) : null}
 
-      <Field label="Mülk adı" htmlFor="name" error={fields.name}>
+      <Field label="Daire adı" htmlFor="name" error={fields.name}>
         <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
       </Field>
 
@@ -109,7 +109,7 @@ export function PropertyForm({
         label="Misafire görünen ad (isteğe bağlı)"
         htmlFor="guestDisplayName"
         error={fields.guestDisplayName}
-        hint="Misafir sohbet ekranının başlığında görünür. Yukarıdaki mülk adı misafire hiç gösterilmez."
+        hint="Misafir sohbet ekranının başlığında görünür. Yukarıdaki daire adı misafire hiç gösterilmez."
       >
         <Input
           id="guestDisplayName"
@@ -178,12 +178,12 @@ export function PropertyForm({
         <div className="flex justify-end gap-2">
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-            {mode === "create" ? "Mülk Ekle" : "Değişiklikleri Kaydet"}
+            {mode === "create" ? "Daire Ekle" : "Değişiklikleri Kaydet"}
           </Button>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Mülk ayarları yalnızca sahip/yönetici tarafından düzenlenebilir.
+          Daire ayarları yalnızca sahip/yönetici tarafından düzenlenebilir.
         </p>
       )}
     </form>

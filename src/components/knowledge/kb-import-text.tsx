@@ -173,7 +173,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
       {open ? (
         <CardContent className="space-y-3">
           {error ? <FormError>{error}</FormError> : null}
-          <Field label="Mülk" htmlFor="kb-import-property">
+          <Field label="Daire" htmlFor="kb-import-property">
             <Select
               id="kb-import-property"
               value={propertyId}
@@ -257,14 +257,14 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
               {preview.fields.length > 0 ? (
                 <div className="space-y-1 rounded border border-dashed border-border p-2">
                   <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <Settings2 className="size-3.5" /> Bunlar mülk ayarlarında tutulur — bilgi kaydı olarak
+                    <Settings2 className="size-3.5" /> Bunlar daire ayarlarında tutulur — bilgi kaydı olarak
                     eklenmez:
                   </p>
                   {preview.fields.map((f) => (
                     <p key={f.target} className="text-xs">
                       <strong>{FIELD_TEXT[f.target] ?? f.target}:</strong> {f.value}{" "}
                       <span className="text-muted-foreground">
-                        (satır {f.line}) — mülk sayfasından güncelleyebilirsiniz.
+                        (satır {f.line}) — daire sayfasından güncelleyebilirsiniz.
                       </span>
                     </p>
                   ))}

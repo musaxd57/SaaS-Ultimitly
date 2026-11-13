@@ -130,7 +130,7 @@ export default async function GuestChatsPage({
                   1
                 </span>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  <strong className="text-foreground">Mülkler</strong>&apos;den bir daireyi açıp{" "}
+                  <strong className="text-foreground">Daireler</strong>&apos;den bir daireyi açıp{" "}
                   <strong className="text-foreground">&quot;Misafir sohbetini aç&quot;</strong>a basın.
                 </p>
               </div>
@@ -154,7 +154,7 @@ export default async function GuestChatsPage({
 
             <div className="flex justify-center">
               <LinkButton href="/properties">
-                <Building2 className="size-4" /> Mülklere git
+                <Building2 className="size-4" /> Dairelere git
               </LinkButton>
             </div>
           </CardContent>

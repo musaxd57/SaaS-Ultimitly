@@ -123,7 +123,7 @@ export function KbTemplateSuggestions() {
         <span className="min-w-0">
           Şablonlarınızda eklenebilecek yeni metin yok.{" "}
           <span className="hidden sm:inline">
-            (Giriş/çıkış saati gibi mülk alanları ve içinde <code>{"{{...}}"}</code> gibi doldurulmamış alan
+            (Giriş/çıkış saati gibi daire alanları ve içinde <code>{"{{...}}"}</code> gibi doldurulmamış alan
             bulunan şablonlar bilerek dışarıda kalır.)
           </span>
         </span>

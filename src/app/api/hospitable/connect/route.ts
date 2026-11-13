@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "Ortak kanal bağlantısı yapılandırılmamış." }, { status: 400 });
       }
       const info = await verifyToken(envToken);
-      await setOrgHospitableToken(session.organizationId, envToken, `${info.properties} mülk`);
+      await setOrgHospitableToken(session.organizationId, envToken, `${info.properties} daire`);
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
 
-    await setOrgHospitableToken(session.organizationId, token, `${info.properties} mülk`);
+    await setOrgHospitableToken(session.organizationId, token, `${info.properties} daire`);
     await writeAudit({
       organizationId: session.organizationId,
       actorUserId: session.actorUserId ?? session.userId,

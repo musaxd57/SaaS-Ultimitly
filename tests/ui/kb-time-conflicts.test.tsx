@@ -4,7 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // Bilgi Tabanı "Uyuşmayan saatler" bloğu: çelişki DÜZELTMENİN yapılacağı yerde görünür (satır,
-// ilgili cümle, "Mülk ayarlarını aç" bağlantısı, kalemin yanında rozet); çelişki yoksa blok YOK.
+// ilgili cümle, "Daire ayarlarını aç" bağlantısı, kalemin yanında rozet); çelişki yoksa blok YOK.
 // ---------------------------------------------------------------------------
 
 const router = { push: vi.fn(), refresh: vi.fn() };
@@ -37,11 +37,11 @@ describe("KbManager — uyuşmayan saatler", () => {
     render(<KbManager properties={PROPS} items={[ITEM]} timeConflicts={{ p1: rows }} />);
     const block = screen.getByTestId("kb-time-conflicts");
     expect(block.textContent).toContain("Uyuşmayan saatler");
-    expect(block.textContent).toContain("Çıkış saati: mülk ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor.");
+    expect(block.textContent).toContain("Çıkış saati: daire ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor.");
     expect(block.textContent).toContain("“Çıkış”: Çıkış saati 12:00'dir");
     // Kurucu T4 (10-21): bilgi tabanı kalemi otomatik mesaj DEĞİL → otomatik mesaj notu yok.
     expect(block.textContent).not.toContain("Otomatik mesajdaki saat");
-    expect(screen.getByRole("link", { name: "Mülk ayarlarını aç" }).getAttribute("href")).toBe("/properties/p1");
+    expect(screen.getByRole("link", { name: "Daire ayarlarını aç" }).getAttribute("href")).toBe("/properties/p1");
     expect(screen.getByText("Saat uyuşmuyor")).toBeTruthy();
   });
 

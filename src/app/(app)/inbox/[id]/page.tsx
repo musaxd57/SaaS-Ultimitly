@@ -635,7 +635,7 @@ export default async function ConversationPage({
             </CardHeader>
             <CardContent className="space-y-2">
               {kb.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Bu mülk için bilgi yok.</p>
+                <p className="text-sm text-muted-foreground">Bu daire için bilgi yok.</p>
               ) : (
                 kb.map((k) => (
                   <div key={k.id} className="flex items-center justify-between gap-2">

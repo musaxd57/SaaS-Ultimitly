@@ -412,7 +412,7 @@ export default async function SentPage({
           {showsTemplatePreview ? (
             <p className="text-xs text-muted-foreground">
               Karşılama / giriş / çıkış satırlarında gönderilen metnin kendisi saklanmıyor; aşağıda o
-              mülkün <strong>bugünkü şablonunun</strong> önizlemesi gösterilir. Şablonu sonradan
+              dairenin <strong>bugünkü şablonunun</strong> önizlemesi gösterilir. Şablonu sonradan
               değiştirdiyseniz gönderilen mesaj bundan farklı olabilir.
             </p>
           ) : null}

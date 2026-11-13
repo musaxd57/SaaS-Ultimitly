@@ -237,13 +237,13 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Mülk (opsiyonel)" htmlFor="tmpl-property">
+                  <Field label="Daire (opsiyonel)" htmlFor="tmpl-property">
                     <Select
                       id="tmpl-property"
                       value={form.propertyId}
                       onChange={(e) => setF("propertyId", e.target.value)}
                     >
-                      <option value="">Tüm mülkler</option>
+                      <option value="">Tüm daireler</option>
                       {properties.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
@@ -317,7 +317,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Globe className="size-3" /> Tüm mülkler
+                          <Globe className="size-3" /> Tüm daireler
                         </span>
                       )}
                     </div>

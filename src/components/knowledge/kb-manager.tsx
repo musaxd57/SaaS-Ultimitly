@@ -531,7 +531,7 @@ export function KbManager({
                 ))}
               </div>
             </div>
-            <Field label="Mülk" htmlFor="kb-property">
+            <Field label="Daire" htmlFor="kb-property">
               <Select id="kb-property" value={form.propertyId} onChange={(e) => set("propertyId", e.target.value)} required>
                 {properties.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -591,7 +591,7 @@ export function KbManager({
               ) : null}
               {form.category === "checkin" || form.category === "checkout" ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Not: Giriş/çıkış <strong>saatini</strong> buraya sabitlemenize gerek yok — saat, mülk
+                  Not: Giriş/çıkış <strong>saatini</strong> buraya sabitlemenize gerek yok — saat, daire
                   sayfasındaki “Check-in / Check-out saati” alanından gelir ve yapay zekâ soru gelince
                   <strong> oradaki saati</strong> esas alır. Burada adres, kapı kodu, anahtar ve
                   prosedürlere odaklanın.
@@ -672,7 +672,7 @@ export function KbManager({
                           </ul>
                           {row.kind === "property" ? (
                             <Link href={`/properties/${property.id}`} className="text-xs font-medium underline underline-offset-2">
-                              Mülk ayarlarını aç
+                              Daire ayarlarını aç
                             </Link>
                           ) : null}
                         </li>
@@ -709,7 +709,7 @@ export function KbManager({
                             DÜZELTMENİN YAPILACAĞI YERDE duruyor ki eleme sessiz
                             bir arızaya dönüşmesin. */}
                         {(timeConflicts[property.id] ?? []).some((r) => r.sides.some((s) => s.itemId === item.id)) ? (
-                          <Badge tone="warning" title="Bu bilgideki saat mülk ayarlarıyla ya da başka bir bilgiyle uyuşmuyor.">
+                          <Badge tone="warning" title="Bu bilgideki saat daire ayarlarıyla ya da başka bir bilgiyle uyuşmuyor.">
                             Saat uyuşmuyor
                           </Badge>
                         ) : null}

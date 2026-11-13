@@ -14,7 +14,7 @@ export default async function NewPropertyPage() {
   if (session.role !== "owner" && session.role !== "manager") redirect("/properties");
   return (
     <>
-      <PageHeader title="Yeni Mülk" description="Yeni bir mülk ekleyin.">
+      <PageHeader title="Yeni Daire" description="Yeni bir daire ekleyin.">
         <LinkButton href="/properties" variant="outline" size="sm">
           <ArrowLeft className="size-4" /> Geri
         </LinkButton>

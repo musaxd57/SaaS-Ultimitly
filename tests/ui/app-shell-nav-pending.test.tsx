@@ -264,7 +264,7 @@ describe("AppShell — menü geçişi bekleme şeridi", () => {
       fireEvent.click(screen.getByRole("button", { name: "Menüyü aç" }));
     });
     const dialog = screen.getByRole("dialog", { name: "Ana menü" });
-    const drawerLink = Array.from(dialog.querySelectorAll("a")).find((a) => a.textContent?.includes("Mülkler"))!;
+    const drawerLink = Array.from(dialog.querySelectorAll("a")).find((a) => a.textContent?.includes("Daireler"))!;
     await act(async () => {
       fireEvent.click(drawerLink);
     });

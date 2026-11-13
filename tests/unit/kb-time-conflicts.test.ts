@@ -18,7 +18,7 @@ describe("kbTimeConflicts — KB ↔ mülk ayarı", () => {
     const rows = kbTimeConflicts(PROP, [kb("checkout", "Çıkış", "Çıkış saati 12:00'dir; anahtarı masaya bırakın.")]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ field: "checkout", kind: "property", propertyValue: "11:00" });
-    expect(rows[0].text).toBe("Çıkış saati: mülk ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor. Doğru olan hangisiyse diğerini düzeltin.");
+    expect(rows[0].text).toBe("Çıkış saati: daire ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor. Doğru olan hangisiyse diğerini düzeltin.");
     expect(rows[0].sides[0]).toMatchObject({ values: ["12:00"], sentAutomatically: false, sentence: "Çıkış saati 12:00'dir" });
   });
 
