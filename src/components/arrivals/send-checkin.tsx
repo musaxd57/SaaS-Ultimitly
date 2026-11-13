@@ -128,7 +128,7 @@ export function SendCheckin({ reservationId }: { reservationId: string }) {
                   {phase.preview.propertyName}
                   {phase.preview.guestName ? ` · ${phase.preview.guestName}` : ""}
                 </p>
-                <div data-checkin-preview className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 text-sm">
+                <div data-checkin-preview className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/40 p-3 text-sm">
                   {phase.preview.body}
                 </div>
                 <p className="mt-3 text-sm font-medium text-foreground">{SEND_CHECKIN_WARNING}</p>
