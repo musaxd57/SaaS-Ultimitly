@@ -67,7 +67,8 @@ export function gateExitCode(results, verify, scan = null) {
 /** Özetteki sır taraması satırı. */
 export function secretScanLine(scan) {
   if (scan.skipped) return `sır     atlandı (${scan.skipped})`;
-  if (scan.code === 0) return `sır     yeşil  ${scan.seconds} sn`;
+  // "HEAD": tarama CI gibi COMMIT EDİLMİŞ ağaca bakar (Opus 11-13 K3) — commit edilmemiş değişiklik bu satırın kapsamında değildir.
+  if (scan.code === 0) return `sır     yeşil (HEAD)  ${scan.seconds} sn`;
   return `sır     KIRMIZI (${scan.code === 1 ? "sızıntı bulundu" : "tarama YAPILAMADI — temiz sayılmaz"}; çıkış ${scan.code})  ${scan.seconds} sn`;
 }
 

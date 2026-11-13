@@ -144,7 +144,7 @@ describe("sır taraması — ne zaman atlanır (saf karar)", () => {
   });
 
   it("özet satırı: yeşil · sızıntı · taranamadı · atlandı ayrı yazılır", () => {
-    expect(secretScanLine({ code: 0, seconds: 12 })).toBe("sır     yeşil  12 sn");
+    expect(secretScanLine({ code: 0, seconds: 12 })).toBe("sır     yeşil (HEAD)  12 sn");
     expect(secretScanLine({ code: 1, seconds: 12 })).toMatch(/^sır {5}KIRMIZI \(sızıntı bulundu; çıkış 1\)/);
     expect(secretScanLine({ code: 2, seconds: 0 })).toMatch(/^sır {5}KIRMIZI \(tarama YAPILAMADI — temiz sayılmaz; çıkış 2\)/);
     expect(secretScanLine({ code: 0, seconds: 0, skipped: "x" })).toBe("sır     atlandı (x)");
