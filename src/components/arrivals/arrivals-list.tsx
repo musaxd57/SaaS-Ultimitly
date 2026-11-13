@@ -5,6 +5,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { cn } from "@/lib/utils";
 import { OVERALL_LABEL, type Factor, type FactorLink, type Overall } from "@/lib/readiness-list/evaluate";
 import { CONNECT_CHANNEL_HREF } from "@/components/connect-channel-button";
+import { AssignTask } from "@/components/arrivals/assign-task";
 
 // ---------------------------------------------------------------------------
 // "Girişler" listesinin görünümü (salt-okuma, sunucu bileşeni — istemci durumu yok). Satır başına bir konaklama: genel durum +
@@ -72,7 +73,17 @@ export function factorLinkTarget(
   }
 }
 
-function FactorLine({ f, row, canConnect }: { f: Factor; row: { propertyId: string; conversationId: string | null }; canConnect: boolean }) {
+function FactorLine({
+  f,
+  row,
+  canConnect,
+  members,
+}: {
+  f: Factor;
+  row: { propertyId: string; conversationId: string | null };
+  canConnect: boolean;
+  members: { id: string; name: string }[] | null;
+}) {
   const target = factorLinkTarget(f.link, row, canConnect);
   return (
     <li className="flex gap-2 text-sm" data-state={f.state}>
@@ -90,6 +101,13 @@ function FactorLine({ f, row, canConnect }: { f: Factor; row: { propertyId: stri
             >
               {target.label}
             </Link>
+          </>
+        ) : null}
+        {/* UX-10 D3: satırdan doğrudan atama (yalnız başlanmamış görev; kişi listesi yalnız yöneticiye verilir). */}
+        {f.assign && members ? (
+          <>
+            {" "}
+            <AssignTask assign={f.assign} members={members} />
           </>
         ) : null}
       </span>
@@ -128,6 +146,7 @@ export function ArrivalsList({
   days: dayList,
   emptyNextStep = null,
   canConnect = false,
+  members = null,
 }: {
   rows: ArrivalsListRow[];
   truncated: number;
@@ -136,6 +155,8 @@ export function ArrivalsList({
   emptyNextStep?: ArrivalsEmptyNextStep;
   /** Bağlantıyı kurabilecek kişi mi (hesap sahibi / operatör) — "Bağlantıyı kurun" yalnız ona. */
   canConnect?: boolean;
+  /** UX-10 D3: atanabilecek kişiler (pano ile aynı liste). Verilmezse atama düğmesi çizilmez. */
+  members?: { id: string; name: string }[] | null;
 }) {
   if (rows.length === 0 && !dayList) {
     return (
@@ -182,7 +203,7 @@ export function ArrivalsList({
                 {/* Codex 11-05 (görsel inceleme): önce ne eksik — engeller ve bilinmeyenler hep görünür; bilgi satırları açılır "Ayrıntılar"da. */}
                 <ul className="space-y-1.5">
                   {primaryOf(r.factors).map(({ f, i }) => (
-                    <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} />
+                    <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} />
                   ))}
                 </ul>
                 {restOf(r.factors).length > 0 ? (
@@ -192,7 +213,7 @@ export function ArrivalsList({
                     </summary>
                     <ul className="mt-1.5 space-y-1.5">
                       {restOf(r.factors).map(({ f, i }) => (
-                        <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} />
+                        <FactorLine key={`${f.key}-${i}`} f={f} row={r} canConnect={canConnect} members={members} />
                       ))}
                     </ul>
                   </details>

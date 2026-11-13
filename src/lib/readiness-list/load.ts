@@ -160,6 +160,7 @@ export async function loadArrivalReadiness(
             id: true,
             reservationId: true,
             status: true,
+            assignedToId: true,
             assignedTo: { select: { name: true } },
             updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true, note: true } },
           },
@@ -188,6 +189,8 @@ export async function loadArrivalReadiness(
             priority: true,
             reservationId: true,
             reservation: { select: { arrivalDate: true, departureDate: true } },
+            status: true,
+            assignedToId: true,
             assignedTo: { select: { name: true } },
           },
         })
@@ -224,7 +227,15 @@ export async function loadArrivalReadiness(
     convIds.length
       ? prisma.guestCommitment.findMany({
           where: { organizationId, conversationId: { in: convIds }, status: "open" },
-          select: { id: true, conversationId: true, kind: true, topic: true, dueAt: true, taskId: true, task: { select: { assignedTo: { select: { name: true } } } } },
+          select: {
+            id: true,
+            conversationId: true,
+            kind: true,
+            topic: true,
+            dueAt: true,
+            taskId: true,
+            task: { select: { status: true, assignedToId: true, assignedTo: { select: { name: true } } } },
+          },
           orderBy: { dueAt: "asc" },
         })
       : Promise.resolve([]),
@@ -321,6 +332,8 @@ export async function loadArrivalReadiness(
           id: t.id,
           open: t.status !== "done",
           assignee: t.assignedTo?.name ?? null,
+          assigneeId: t.assignedToId,
+          status: t.status,
           startedAt: started?.createdAt ?? null,
           startedBy: started?.userId ? (nameOf.get(started.userId) ?? null) : null,
           lastDoneAt: done?.createdAt ?? null,
@@ -345,7 +358,16 @@ export async function loadArrivalReadiness(
             ...(loaded.readyMark.beforeCheckout ? { beforeCheckout: true } : {}),
           }
         : null,
-      tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt, blocked: t.blocked })),
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        assignee: t.assignee,
+        assigneeId: t.assigneeId,
+        status: t.status,
+        startedAt: t.startedAt,
+        startedBy: t.startedBy,
+        lastDoneAt: t.lastDoneAt,
+        blocked: t.blocked,
+      })),
     };
     const basisIds = loaded?.basisIds;
     const noteTasks = new Set(basisIds?.noteTaskIds ?? []);
@@ -376,6 +398,8 @@ export async function loadArrivalReadiness(
             title: t.title,
             kindLabel: TASK_TYPE.label(t.type),
             assignee: t.assignedTo?.name ?? null,
+            assigneeId: t.assignedToId,
+            status: t.status,
             dueAt: t.dueAt,
             relation,
             priority: t.priority,
@@ -413,6 +437,8 @@ export async function loadArrivalReadiness(
           dueAt: c.dueAt,
           assignee: c.task?.assignedTo?.name ?? null,
           taskId: c.taskId,
+          taskAssigneeId: c.task?.assignedToId ?? null,
+          taskStatus: c.task?.status ?? null,
         })),
       needs: items
         .filter((it) => convs.includes(it.conversationId))

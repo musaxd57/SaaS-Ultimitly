@@ -38,6 +38,26 @@ export interface Factor {
    * değiştiremediği satır, silinmiş misafir. Tasarım: scratchpad/handoff/UX-10-girisler-tasarim.md §1.1–1.2.
    */
   link?: FactorLink;
+  /**
+   * UX-10 D3 (kurucu 11-13 "ilk 2'si kesinlikle olur"): satırdaki görevi Girişler'den atama. YALNIZ başlanmamış görevde (Yapılacak /
+   * Yapılamıyor — `assignableStatus`); başlamış / bitmiş işte yok (temizlikçiyi işin ortasında düşürürdü). `expectAssigneeId` sunucuya ön şart
+   * olarak gider: bu arada görev başka birine atandıysa yazma olmaz (409). Atamak HAZIRLIK KANITI DEĞİLDİR — satırın hükmü değişmez.
+   */
+  assign?: FactorAssign;
+}
+
+export interface FactorAssign {
+  taskId: string;
+  /** Satırın gördüğü atanan (yoksa `null` = "atanmamış bekliyorum"). */
+  expectAssigneeId: string | null;
+  /** assign = "Birini atayın" · reassign = "Başkasına atayın" (Yapılamıyor) · change = "Değiştirin" (atanmış, başlanmamış). */
+  mode: "assign" | "reassign" | "change";
+}
+
+/** Girişler'den atanabilecek görev durumları — sunucu da AYNI kümeyi ister (`api/tasks/[id]` `expectAssignedToId`). */
+export const ASSIGNABLE_TASK_STATUSES: readonly string[] = ["todo", "blocked"];
+export function assignableStatus(status: string | null | undefined): boolean {
+  return status != null && ASSIGNABLE_TASK_STATUSES.includes(status);
 }
 
 export type FactorLink =
@@ -68,6 +88,9 @@ export interface CleaningInput {
   tasks: {
     id: string;
     assignee: string | null;
+    /** Atanan kişinin kimliği ve görevin durumu (UX-10 D3 atama düğmesi için; yoksa — eski çağıran — düğme çizilmez). */
+    assigneeId?: string | null;
+    status?: string | null;
     startedAt: Date | null;
     startedBy: string | null;
     lastDoneAt: Date | null;
@@ -96,6 +119,8 @@ export interface StayReadinessInput {
     title: string;
     kindLabel: string;
     assignee: string | null;
+    assigneeId?: string | null;
+    status?: string | null;
     dueAt: Date | null;
     /**
      * Görevin bu girişle ilişkisi (kurucu / Codex 11-05 gece: eski konaklamadan kalan bakım bütün girişleri kırmızı yapmasın; açıklamasız
@@ -115,7 +140,16 @@ export interface StayReadinessInput {
   /** Çakışmanın tarafı olan konaklamalar (yalnız GÖSTERİM; gün anahtarları işletme diliminde). */
   overlapStays?: { id: string; guestName: string | null; arrivalKey: string; departureKey: string }[];
   /** Açık söz (vadesi varış gününün sonuna kadar). */
-  commitments: { id: string; label: string; dueAt: Date; assignee: string | null; taskId?: string | null }[];
+  commitments: {
+    id: string;
+    label: string;
+    dueAt: Date;
+    assignee: string | null;
+    taskId?: string | null;
+    /** Sözün görevinin atananı ve durumu (UX-10 D3). */
+    taskAssigneeId?: string | null;
+    taskStatus?: string | null;
+  }[];
   /** Açık ihtiyaçlar (konuşma öğesi açık / ev sahibinde). */
   needs: { id: string; label: string; status: "open" | "pending_host"; at: Date }[];
   /** Mülkte etkin "giriş talimatı" bilgi tabanı kalemi var mı (değeri OKUNMAZ). `autoCheckin` verilmişse yalnız "bilgi tabanı daha yeni" notu için. */
@@ -195,6 +229,15 @@ function dueText(dueAt: Date, now: Date, tz: string): string {
   return `${whenLabel(dueAt, now, tz)}${dueAt.getTime() < now.getTime() ? " (gecikti)" : ""}`;
 }
 
+/** UX-10 D3: görev atanabilir durumdaysa satıra atama eylemi (yoksa boş nesne — alan hiç yazılmaz). */
+function assignFor(
+  task: { id: string; assigneeId?: string | null; status?: string | null; startedAt?: Date | null } | null,
+  mode: FactorAssign["mode"],
+): { assign?: FactorAssign } {
+  if (!task || !assignableStatus(task.status) || task.startedAt) return {};
+  return { assign: { taskId: task.id, expectAssigneeId: task.assigneeId ?? null, mode } };
+}
+
 function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: string | undefined): Factor {
   if (c.unavailable) {
     return { key: "cleaning", state: "unknown", label: "Temizlik durumu şu an okunamadı", missing: "sayfayı yenileyin", basis: [], link: { to: "refresh" } };
@@ -236,8 +279,8 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
         label: `Temizlik yapılamıyor · ${blocked.by ?? "atanan kişi"} · ${whenLabel(blocked.at, now, tz)}${reason}`,
         missing: "başka birine atama",
         basis: taskBasis,
-        // Atama panoda yapılır (Girişler'den doğrudan atama D3 — kurucu sorusu S-2).
         link: { to: "task", taskId: c.tasks.find((t) => t.blocked)?.id ?? task?.id ?? null },
+        ...assignFor(c.tasks.find((t) => t.blocked) ?? null, "reassign"),
       };
     }
     // Açık görev: atanmış olmak kanıt DEĞİL — kim, başladı mı söylenir, şart aynı kalır.
@@ -245,7 +288,14 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
     const who = task?.assignee ? `atanan: ${task.assignee}` : "kimseye atanmadı";
     const started = task?.startedAt ? `başladı ${whenLabel(task.startedAt, now, tz)}${task.startedBy ? ` (${task.startedBy})` : ""}` : "başlanmadı";
     // İş sürüyorsa (başladı) bağlantı yok: yapılacak bir şey yok, beklenir.
-    return { key: "cleaning", state: "blocking", label: `Temizlik açık · ${who} · ${started}`, missing: `${after} "bitti" kaydı`, basis: taskBasis, ...(task?.startedAt ? {} : { link: taskLink }) };
+    return {
+      key: "cleaning",
+      state: "blocking",
+      label: `Temizlik açık · ${who} · ${started}`,
+      missing: `${after} "bitti" kaydı`,
+      basis: taskBasis,
+      ...(task?.startedAt ? {} : { link: taskLink, ...assignFor(task, task?.assigneeId ? "change" : "assign") }),
+    };
   }
   // Bilinmiyor.
   if (!c.previousKnown) {
@@ -421,6 +471,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
           missing: "görevin kapanması ya da bu güne tarihlenmesi",
           basis: [{ kind: "task", id: t.id, at: t.dueAt }],
           link: { to: "task", taskId: t.id },
+          ...(t.assigneeId ? {} : assignFor(t, "assign")),
         });
         continue;
       }
@@ -431,7 +482,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
         missing: state === "blocking" ? "görevin kapanması" : null,
         basis: [{ kind: "task", id: t.id, at: t.dueAt }],
         // Düşük öncelikli bilgi satırı "Ayrıntılar"da kalır, bağlantısız.
-        ...(state === "blocking" ? { link: { to: "task", taskId: t.id } as FactorLink } : {}),
+        ...(state === "blocking" ? { link: { to: "task", taskId: t.id } as FactorLink, ...(t.assigneeId ? {} : assignFor(t, "assign")) } : {}),
       });
     }
     // Ölçülü (muhafazakâr) yan: gösterilmeyen bakım görevi zaten bir sorun satırıysa bu cümle fazladan söylenmiş olur — eksik söylemekten iyi.
@@ -467,6 +518,8 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       missing: "sözün yerine getirilmesi",
       basis: [{ kind: "commitment", id: c.id, at: c.dueAt }],
       link: { to: "task", taskId: c.taskId ?? null },
+      // Sözün görevi atanmamışsa "Birini atayın" (atanmışsa yalnız görev bağlantısı).
+      ...(c.taskId && !c.taskAssigneeId ? assignFor({ id: c.taskId, assigneeId: null, status: c.taskStatus }, "assign") : {}),
     });
   }
   for (const n of input.needs) {

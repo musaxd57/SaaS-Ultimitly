@@ -245,6 +245,8 @@ export type TaskInput = z.infer<typeof taskSchema>;
 export const taskUpdateSchema = z.object({
   status: z.enum(TASK_STATUS.values).optional(),
   assignedToId: z.string().optional(),
+  // UX-10 D3 (Girişler'den atama): satırın gördüğü atanan — boş dize = "atanmamış bekliyorum". Tutmazsa 409 (`api/tasks/[id]`).
+  expectAssignedToId: z.string().max(64).optional(),
   note: z.string().max(5000).optional(),
   // Only a same-origin relative path (what /api/upload returns: "/uploads/…") or
   // an explicit https URL (future object storage). This value is rendered as an

@@ -15,6 +15,7 @@ import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 import { notifyAssignmentRemoved, notifyTaskBlocked } from "@/lib/tasks/notify";
 import { TASK_TYPE } from "@/lib/constants";
+import { assignableStatus } from "@/lib/readiness-list/evaluate";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -69,6 +70,10 @@ function nextChecklist(
 class PhotoGone extends Error {}
 const PHOTO_GONE_TEXT = "Fotoğraf artık kullanılamıyor. Yeniden yükleyip tekrar deneyin.";
 
+// UX-10 D3 (kurucu 11-13): Girişler'den atama ön şartı tutmadı — yazma YOK (kilitli satıra göre). Pano bu alanı göndermez → davranışı aynı.
+class AssigneeChanged extends Error {}
+class TaskMovedOn extends Error {}
+
 // PATCH stays withAuth (session-only): staff MAY progress a task (status/note/
 // photo/checklist tick) — but only THEIR assigned task, and only the done flag on
 // existing checklist items. Manager-only fields are gated in-body. DELETE = withManage.
@@ -105,6 +110,11 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // gelmez. Asıl karar işlem içinde KİLİTLİ satırdan (↓): arada görev başkasına atandıysa bildirim yazılmaz.
   if (d.status === "blocked" && (existing.assignedToId !== session.userId || d.assignedToId !== undefined)) {
     return forbidden("Yalnız görev atanan kişi 'Yapamıyorum' diyebilir.");
+  }
+
+  // UX-10 D3: ön şart yalnız bir atamayla birlikte anlamlıdır (Girişler satırının gördüğü atanan).
+  if (d.expectAssignedToId !== undefined && d.assignedToId === undefined) {
+    return badRequest({ expectAssignedToId: "Atama olmadan ön şart gönderilemez." });
   }
 
   // Staff may only progress a task (status / note / photo). Re-assigning,
@@ -176,6 +186,13 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         reassigned = d.assignedToId !== undefined && (d.assignedToId || null) !== (row?.assignedToId ?? null);
         // "Yapamıyorum" kilitli satıra göre: görev artık bu kişiye atalı değilse hiçbir şey yazılmaz (yönetici de olsa).
         if (d.status === "blocked" && (row?.assignedToId ?? null) !== session.userId) return null;
+        // UX-10 D3: Girişler satırı bayat olabilir (telefonda saatlerce açık) — bu arada görev başkasına atandıysa ya da iş başladıysa /
+        // bittiyse yazma YOK. Aksi hâlde dairenin temizlikçisi kuralıyla atanıp BAŞLAMIŞ kişi işin ortasında düşerdi (eski kişiye
+        // "Görevlendirmeniz değişti" e-postası da giderdi). Atanabilir durum kümesi Girişler'in düğme kuralıyla AYNI (`assignableStatus`).
+        if (d.expectAssignedToId !== undefined) {
+          if ((row?.assignedToId ?? "") !== d.expectAssignedToId) throw new AssigneeChanged();
+          if (!assignableStatus(row?.status)) throw new TaskMovedOn();
+        }
       }
       const resetBlocked = reassigned && d.status === undefined && prevStatus === "blocked";
       let checklistWrite: string | undefined;
@@ -228,6 +245,10 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   } catch (err) {
     if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
     if (err instanceof PhotoGone) return badRequest({ photoUrl: PHOTO_GONE_TEXT });
+    if (err instanceof AssigneeChanged) {
+      return NextResponse.json({ error: "Bu görev bu arada başka birine atandı.", code: "assignee_changed" }, { status: 409 });
+    }
+    if (err instanceof TaskMovedOn) return NextResponse.json({ error: "Bu iş bu arada başladı ya da bitti.", code: "task_moved_on" }, { status: 409 });
     throw err;
   }
   if (!written) return notAssigned();

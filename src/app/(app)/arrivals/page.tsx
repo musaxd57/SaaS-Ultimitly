@@ -43,6 +43,11 @@ export default async function ArrivalsPage() {
     return { key, label: dayLabel(key, data.fromKey, data.timeZone) };
   });
   const propertyCount = rows.length === 0 ? await prisma.property.count({ where: { organizationId: session.organizationId } }) : -1;
+  // UX-10 D3: satırdan atama — kişi listesi panoyla AYNI sorgu (`tasks/page.tsx`); yalnız atanabilir satır varsa okunur.
+  const needsMembers = rows.some((r) => r.factors.some((f) => f.assign));
+  const members = needsMembers
+    ? await prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    : null;
   return (
     <>
       <PageHeader
@@ -55,6 +60,7 @@ export default async function ArrivalsPage() {
         days={days}
         emptyNextStep={rows.length === 0 ? (propertyCount === 0 ? "add-property" : "calendar") : null}
         canConnect={canManageChannel(session)}
+        members={members}
       />
     </>
   );
