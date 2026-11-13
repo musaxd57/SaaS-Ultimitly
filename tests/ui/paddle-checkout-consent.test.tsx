@@ -22,7 +22,7 @@ const plans = [
   },
 ];
 
-function renderPlans(extra: { cardTrialNotice?: string | null; trialDaysLeft?: number | null } = {}) {
+function renderPlans(extra: { cardTrialNotice?: string | null; trialDaysLeft?: number | null; annualAvailable?: boolean } = {}) {
   return render(
     <PaddlePlans
       clientToken="ctok"
@@ -38,6 +38,7 @@ function renderPlans(extra: { cardTrialNotice?: string | null; trialDaysLeft?: n
       locale="tr-TR"
       currency="TRY"
       cardTrialNotice={extra.cardTrialNotice ?? null}
+      annualAvailable={extra.annualAvailable ?? false}
     />,
   );
 }
@@ -191,6 +192,15 @@ describe("PaddlePlans — ödeme öncesi onaylar (kurucu 11-13: en yasal şekild
       fireEvent.click(btn);
     });
     expect(screen.getByRole("alert").textContent).toBe(CHECKOUT_CONSENT_COPY.immediateStart.missing);
+  });
+
+  it("dönem değişince (aylık ↔ yıllık) bütün kutular boşalır: onay başka fiyat ve süreli sözleşmeye verilmişti", async () => {
+    renderPlans({ annualAvailable: true });
+    const boxes = await checkAllCheckoutConsents();
+    expect(boxes.every((b) => b.checked)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Yıllık" }));
+    const after = within(group()).getAllByRole("checkbox") as HTMLInputElement[];
+    expect(after.every((b) => !b.checked)).toBe(true);
   });
 
   it("🚨 kartla deneme yolu: 'hemen başlasın / cayma hakkımı kaybediyorum' kutusu YOK, istekte o alan GİTMEZ (hizmet deneme bitince başlar)", async () => {

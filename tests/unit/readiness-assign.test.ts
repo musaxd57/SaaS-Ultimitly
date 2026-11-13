@@ -126,6 +126,16 @@ describe("bakım / söz satırları — atama", () => {
     )[0]!;
     expect(f.state).toBe("unknown");
     expect(f.assign).toEqual({ taskId: "i1", expectAssigneeId: null, mode: "assign" });
+    // Atanmış eski bakım: yalnız görev bağlantısı (atama düğmesi yalnız sahipsiz görevde).
+    const assigned = of(
+      stay({
+        maintenanceOpen: true,
+        issueTasks: [issue({ assignee: "Ali", assigneeId: "u-ali", relation: "other_stay", stay: { arrivalKey: "2026-10-03", departureKey: "2026-10-06", when: "past" } })],
+      }),
+      "issue",
+    )[0]!;
+    expect(assigned.assign).toBeUndefined();
+    expect(assigned.link).toEqual({ to: "task", taskId: "i1" });
   });
 
   it("sözün görevi atanmamış (C1) → 'Birini atayın'; atanmış ya da görevsiz söz → yok", () => {

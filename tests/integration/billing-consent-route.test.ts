@@ -130,6 +130,13 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
       // Kart istenen hesap: deneme fiyatı kabul.
       await prisma.organization.update({ where: { id: orgId }, data: { trialCardRequiredAt: new Date() } });
       expect((await POST(postReq({ planCode: "pro", priceId: "pri_p_t" }), ctx)).status).toBe(201);
+      // Kurucu 11-13: kartla deneme fiyatında ücretli hizmet deneme BİTİNCE başlar → "hemen başlasın / cayma hakkımı kaybediyorum" onayı
+      // İSTENMEZ (istemci o kutuyu göstermez); normal fiyatta aynı eksik gövde reddedilir (karar istemcinin değil fiyatın).
+      const { immediateStartConsent: _omit, ...withoutImmediate } = { planCode: "pro", ...CHECKOUT_CONSENT_FLAGS };
+      expect((await POST(rawPostReq({ ...withoutImmediate, priceId: "pri_p_t" }), ctx)).status).toBe(201);
+      const normal = await POST(rawPostReq({ ...withoutImmediate, priceId: "pri_pro" }), ctx);
+      expect(normal.status).toBe(400);
+      expect((await normal.json()).fields).toMatchObject({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });
     } finally {
       vi.unstubAllEnvs();
     }
