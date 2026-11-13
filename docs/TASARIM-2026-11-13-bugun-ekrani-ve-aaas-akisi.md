@@ -260,3 +260,11 @@ işaretlendi.
 - **AT-5:** §7.4 — önceden yazılmış erken giriş kuralı = ev sahibinin kararı mı?
 - **AT-6:** kapı kodunun şifreli bir kopyası yeni tabloda tutulsun mu (önerim — değer tek yerden çözülür), yoksa yalnız özet tutulup değer hep
   metinden mi okunsun (daha az yeni gizli veri)? (`ENCRYPTION_KEY` döndürülmez kuralına bir bağımlılık daha ekler.)
+
+## 8. Kurucu cevapları (11-13 gece)
+- **Daire gerçekleri:** "ev sahibi değiştirirse hemen anlaşılmalı, yenilenmesi sorun olmamalı" — bilgi tek yerde değişir, mesaj / yapay zekâ / QR aynı
+  anda yeni değeri kullanır; değiştirmek tek adım. Kurucu Codex görüşünü iletecek; kodlama o notla birlikte.
+- **AT-4 ✅** (uygulandı) · **AT-6 ✅** şifreli kopya tutulur, güvenlik şartıyla; migration onaylı · **S-E6 ✅** kalır · **S-E1** cevap bekliyor.
+- **(3)** küçük tablo olabilir ama daha iyi fikir aranacak: en mantıklı akış, görsel olarak güzel, ev sahibini sürekli siteye sokan elle ayar
+  sistemine benzemeyecek; platform düzeyinde öğrenen (ML) bir sistem olabilir → ayrı tasarım + görsel taslak (sıradaki iş).
+- **(4)** önce ölç, sonra karar · **(5)** Fable 5.2 gelince mimariyi ona çizdirerek ileride · **(6)** Claude önerisini yazar, kurucu Codex'e soracak.

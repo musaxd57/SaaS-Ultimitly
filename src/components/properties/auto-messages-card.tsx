@@ -35,6 +35,9 @@ export interface AutoMessageCardItem {
   preview: Preview;
 }
 
+/** Göçten kalan "kontrol bekliyor" işaretinin cümlesi (AT-4, kurucu 11-13). */
+export const AUTO_MESSAGE_REVIEW_NOTE = "Bu mesaj bilgi tabanınızdaki eski kayıtlardan buraya aktarıldı. Bilgilerin güncel olduğuna bir göz atıp kaydedin.";
+
 const HINT: Record<AutoMessageKind, string> = {
   welcome: "Rezervasyon yapılınca gider.",
   checkin: `Girişe ${CHECKIN_LEAD_DAYS} gün kala gider (adres, kapı kodu, Wi-Fi gibi bilgiler için).`,
@@ -124,9 +127,10 @@ function AutoMessageEditor({ propertyId, item, canEdit }: { propertyId: string; 
         <p className="text-xs text-muted-foreground">{HINT[item.kind]}</p>
       </div>
       {item.needsReview ? (
-        <p className="text-xs text-amber-700 dark:text-amber-500">
-          Bu daire için birden fazla kayıt vardı; en son eklenen seçildi. Metni kontrol edip kaydedin.
-        </p>
+        // AT-4 (kurucu 11-13: "evet çevir, hosta kızıyor gibi kötü dönüşlerden kaçın"): eski cümle ("birden fazla kayıt vardı; en son eklenen
+        // seçildi") yanlıştı — işaret yalnız aynı anda kaydedilmiş iki farklı kayıtta konmuştu ve seçim "en son eklenen" değildi. Nötr, doğru,
+        // azarlamayan cümle.
+        <p className="text-xs text-amber-700 dark:text-amber-500">{AUTO_MESSAGE_REVIEW_NOTE}</p>
       ) : null}
       {item.lastSkipReason && !dirty && current?.issue ? (
         <p className="text-xs text-amber-700 dark:text-amber-500">Bu mesaj son denemede gönderilmedi.</p>

@@ -52,7 +52,15 @@ Otomatik gönderici ortak yardımcıya taşınırken davranışı değişmedi (s
 pencere dışı / metni değişmiş rezervasyona gitmez · atamanın ön şartı satır kilidinden sonra · ödeme onayında istemci ve sunucu aynı kaynaktan
 karar verir, yükseltme onayı tek kullanımlık önizleme tüketilmeden önce · yasal metinler kutularla çelişmiyor.
 
-## 3. Ders
+## 3. Mutasyon (commit `f7866578`, M0 yeşil): 19 / 20 → 20 / 20
+Elle gönderimin duraklatma kontrolü, iptal satırının engellememesi, özet karşılaştırması, ertelenmiş satırın öne çekilmesi, geri alma alarmı,
+Girişler'in kuyruk süzgeci (iki mutant), zorunlu onay kaydı, "sizin yerinize" sayımının dört kuralı (yalnız kendiliğinden cevap · elle gönderim
+düşer · yalnız damga koyan sonuçlar · yalnız sistem görevi), sayaç parçası süzgeci, kartın sakin gün kuralı, pencerenin üç davranışı (gönderirken
+kapanmaz · eski önizleme açamaz · kapanınca yenilenir), sır taramasının sonuç kodu ve kapının sonuç kararı — hepsi öldürüldü. **Yaşayan J13**
+("HAZIR DEĞİL" satırında `overall` karşılaştırması): ölü koddu — `evaluateStay` "HAZIR DEĞİL"i "en az bir engelleyen etken" diye tanımlıyor,
+altındaki etken süzgeci aynı şeyi söylüyordu → kaldırıldı (`d92e3926`), ilgili testler yeniden koşuldu.
+
+## 4. Ders
 - **İşçiyi koşturmayan kuyruk testi yarım testtir.** "Sıraya alındı" cevabını sınamak, mesajın gerçekten gideceğini sınamaz; kuyruğa giren
   yeni bir mesaj türü / yolu için işçinin veto kuralları (işletme anahtarı, abonelik, pencere) ayrıca okunur.
 - **Ev sahibinin onay penceresinde gördüğü = gidecek olan** eşitliği sürümle değil metnin kendisiyle (özet) kurulur.

@@ -12,7 +12,7 @@ const router = { push: vi.fn(), refresh: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/" }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { AutoMessagesCard, type AutoMessageCardItem } from "@/components/properties/auto-messages-card";
+import { AutoMessagesCard, type AutoMessageCardItem, AUTO_MESSAGE_REVIEW_NOTE } from "@/components/properties/auto-messages-card";
 
 const item = (over: Partial<AutoMessageCardItem> = {}): AutoMessageCardItem => ({
   kind: "checkin",
@@ -90,7 +90,9 @@ describe("Otomatik mesajlar kartı", () => {
     );
     const box = screen.getByTestId("auto-message-checkin");
     expect(box.textContent).toContain("Bu mesaj boş — gönderilmez.");
-    expect(box.textContent).toContain("Metni kontrol edip kaydedin");
+    // AT-4 (kurucu 11-13): nötr, doğru, azarlamayan cümle; eski yanlış cümle ("en son eklenen seçildi") yok.
+    expect(box.textContent).toContain(AUTO_MESSAGE_REVIEW_NOTE);
+    expect(box.textContent).not.toContain("en son eklenen seçildi");
     expect(box.textContent).toContain("Otomatik mesaj kendiliğinden değişmez");
   });
 
