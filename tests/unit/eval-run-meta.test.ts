@@ -349,11 +349,18 @@ describe("bağlantı pinleri (kaynak taraması, tek yönlü — davranış ↑yu
         return s.includes("docs/olcum") && s.includes("writeFileSync(");
       });
     expect(writers.length).toBeGreaterThanOrEqual(12);
+    // Ürünün katmanlarını ÇALIŞTIRMAYAN rapor (11-13): ham model kolu yalnız başka bir modelin kayıtlı çıktısını puanlar; ürünün koşu kimliği
+    // (cevap modeli, bayraklar) orada YANLIŞ kimlik olurdu. Onun kimliği ham çıktıyı üreten modeldir ve çekirdeği rapora yazar (aşağıda pinli).
+    const NOT_PRODUCT_RUNS = ["raw-arm-report.ts"];
     const missing = writers.filter((f) => {
       const s = read(f);
-      return !s.includes("writeSidecar(") && !s.includes("evalRuntimeMarkdown(");
+      return !NOT_PRODUCT_RUNS.includes(f) && !s.includes("writeSidecar(") && !s.includes("evalRuntimeMarkdown(");
     });
     expect(missing).toEqual([]);
+    for (const f of NOT_PRODUCT_RUNS) expect(writers, f).toContain(f);
+    const rawCore = read("raw-arm-score.ts");
+    expect(rawCore).toContain("Koşu kimliği — ham çıktıyı üreten model:");
+    expect(rawCore).toContain('models.add(row.model?.trim() || "bilinmiyor");');
   });
 });
 

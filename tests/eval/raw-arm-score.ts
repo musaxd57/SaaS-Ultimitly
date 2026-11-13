@@ -47,6 +47,8 @@ export interface RawSetScore {
   /** Denetimin düşürdüğü cümleler: sebep → sayı ("cevap değil" kararı sayılmaz — o bir düşürme değildir). */
   issueCounts: Partial<Record<RawCheckIssue, number>>;
   detail: Record<string, unknown>[];
+  /** KOŞU KİMLİĞİ: puanlanan satırları üreten model(ler) (ham çıktı satırındaki `model`; yoksa "bilinmiyor"). */
+  models: string[];
 }
 
 /** Bir geliştirme setini üç kolda puanlar. */
@@ -59,6 +61,7 @@ export function scoreRawSet(data: RawDevSet, rows: readonly RawRow[]): RawSetSco
   let missing = 0;
   let malformed = 0;
   let requests = 0;
+  const models = new Set<string>();
   for (const s of data.scenarios) {
     const row = byId.get(s.id);
     if (!row) {
@@ -69,6 +72,7 @@ export function scoreRawSet(data: RawDevSet, rows: readonly RawRow[]): RawSetSco
       malformed += 1;
       continue;
     }
+    models.add(row.model?.trim() || "bilinmiyor");
     const result = row.result;
     const notes = data.kbSets[s.kb] ?? [];
     const needs = s.expect.needs ?? [];
@@ -85,7 +89,7 @@ export function scoreRawSet(data: RawDevSet, rows: readonly RawRow[]): RawSetSco
     detail.push({ id: s.id, class: s.class ?? null, message: s.message, checks, arms: armOut });
   }
   const metrics = Object.fromEntries(RAW_ARMS.map(({ arm }) => [arm, needMetrics(perArm.get(arm)!)])) as RawSetScore["metrics"];
-  return { scenarios: data.scenarios.length, missing, malformed, requests, metrics, issueCounts, detail };
+  return { scenarios: data.scenarios.length, missing, malformed, requests, metrics, issueCounts, detail, models: [...models].sort() };
 }
 
 /** Puanlanan senaryo sayısı (rapor boş çıkmasın denetimi için). */
@@ -135,6 +139,8 @@ export function renderRawReport(label: string, scores: Readonly<Record<string, R
       lines.push(`| ${armLabel} | ${m.answeredOk} / ${m.answered} | ${m.needlessHold} | ${m.openOk} / ${m.open} | **${m.wrong}** |`);
     }
     lines.push("", `Denetimin düşürdüğü cümleler (sebep → sayı): ${Object.entries(score.issueCounts).map(([k, v]) => `${k} ${v}`).join(" · ") || "yok"}`, "");
+    // Koşu kimliği: bu rapor ürünün katmanlarını ÇALIŞTIRMAZ; kimliği ham çıktıyı üreten modeldir.
+    lines.push(`Koşu kimliği — ham çıktıyı üreten model: ${score.models.map((m) => `\`${m}\``).join(" · ") || "bilinmiyor"}`, "");
     sidecar.sets[set] = score;
     if (scoredScenarios(score) > 0) scoredSets += 1;
     else emptySets.push(set);

@@ -276,6 +276,10 @@ describe("ham model kolu — puanlama çekirdeği (çevrimdışı)", () => {
     expect(text).toContain("| ham + mekanik + modelin varlık / koşul beyanı | 1 / 2 | 1 | 1 / 1 | **0** |");
     expect(text).toContain("Denetimin düşürdüğü cümleler (sebep → sayı): value_not_in_quote 1 · entity_mismatch 1");
     expect(text).toContain("## turn-messages-dev\n\nham çıktı yok — atlandı");
+    // Koşu kimliği: satırlardaki model adı (yoksa "bilinmiyor"), tekrarsız.
+    expect(text).toContain("Koşu kimliği — ham çıktıyı üreten model: `bilinmiyor`");
+    const named = scoreRawSet(SET, ROWS.map((r, i) => ({ ...r, model: i === 0 ? "model-b" : "model-a" })));
+    expect(named.models).toEqual(["model-a", "model-b"]);
     expect(report).toMatchObject({ scoredSets: 1, emptySets: [] });
     expect(Object.keys(report.sidecar.sets)).toEqual(["grounding-dev"]);
     expect(report.sidecar.label).toBe("fable-5.2");

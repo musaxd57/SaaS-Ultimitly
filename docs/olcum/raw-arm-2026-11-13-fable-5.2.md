@@ -16,6 +16,8 @@ Senaryo 43 · ham çıktısı olmayan 0 · biçimi bozuk 0 · modelin çıkardı
 
 Denetimin düşürdüğü cümleler (sebep → sayı): yok
 
+Koşu kimliği — ham çıktıyı üreten model: `claude-fable-5-2`
+
 ## turn-messages-dev
 
 Senaryo 16 · ham çıktısı olmayan 0 · biçimi bozuk 0 · modelin çıkardığı istek 29
@@ -27,4 +29,6 @@ Senaryo 16 · ham çıktısı olmayan 0 · biçimi bozuk 0 · modelin çıkardı
 | ham + mekanik + modelin varlık / koşul beyanı | 23 / 24 | 1 | 4 / 4 | **0** |
 
 Denetimin düşürdüğü cümleler (sebep → sayı): quote_too_short 1
+
+Koşu kimliği — ham çıktıyı üreten model: `claude-fable-5-2`
 

@@ -1626,6 +1626,9 @@
             }
           }
         }
+      ],
+      "models": [
+        "claude-fable-5-2"
       ]
     },
     "turn-messages-dev": {
@@ -2289,6 +2292,9 @@
             }
           }
         }
+      ],
+      "models": [
+        "claude-fable-5-2"
       ]
     }
   }
