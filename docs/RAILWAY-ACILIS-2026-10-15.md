@@ -87,6 +87,11 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 
+> 🚨 **11-13 ödeme onayı ön şartı (Opus P2-4):** ödeme ekranı artık "hemen başlasın / cayma hakkımı kaybediyorum" onayını ayrı kutuyla alıyor
+> ve sözleşmeler istisnayı bu kutuya bağlıyor. `PADDLE_PLAN_CHANGE_ENABLED` (yükseltmede fark ANINDA tahsil) ve `PADDLE_RESUME_ENABLED`
+> (yeni dönem hemen tahsil) yollarında bu kutu YOK → bu iki anahtar, o ekranlara aynı kutu (ve sunucuda alanı + kaydı) eklenmeden ya da
+> avukatın b-6 cevabı gelmeden AÇILMAZ (`docs/claude/acik-isler.md` "11-13 akşam").
+
 `AUTO_REPLY_ENABLED` · `GUEST_CHAT_ENABLED` · `REGISTRATION_OPEN` · `LANDING_DEMO_ENABLED` · `TRIAL_EMAILS_ENABLED` · `BILLING_ENFORCED` ·
 `PADDLE_PLAN_CHANGE_ENABLED` · `SHADOW_AI_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
 `HOUSE_RULES_CARD_ENABLED` · `AI_HOUSE_RULES_SHADOW` · `KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `EMAIL_OUTBOX_ENABLED` ·
@@ -164,7 +169,9 @@ alınmıştır; mühürlü kabul koşuları artık yalnız açılış kipinde ba
 11. Kayıt / ödeme (kurucu 10-17): `SIGNUP_NETWORK_TRACE_ENABLED` (K1 "B + IP": kayıt ağı izi, HMAC özet, ham IP yok, 90 gün; migration 72;
    önce aydınlatma metni cümlesi Q3) · `TRIAL_CARD_GATE_ENABLED` (yüksek riskli denemede kart; migration 74) — 🚨 açmadan önce Paddle'da
    deneme süreli üç fiyat oluşturulup `PADDLE_PRICE_BASLANGIC_DENEME` / `PADDLE_PRICE_PRO_DENEME` / `PADDLE_PRICE_ISLETME_DENEME`
-   eklenir (boşsa kapı kendiliğinden kapalı kalır).
+   eklenir (boşsa kapı kendiliğinden kapalı kalır). 🚨 (11-13, Opus P2-3) Kartla deneme yolunda ödeme ekranı "hemen başlasın / cayma hakkımı
+   kaybediyorum" kutusunu GÖSTERMEZ — gerekçe: ücretli hizmet deneme bitince başlar ve deneme ≥ 14 gün (cayma süresi). Paddle'daki deneme
+   fiyatlarının deneme süresi 14 günden KISA kurulursa bu gerekçe çöker → açmadan önce süre ≥ 14 gün doğrulanır ve avukatın d-5 cevabı alınır.
 12. Kayıt saldırısına karşı (kurucu U15 10-22: "Ya gerçekten 300 kişi kayıt olursa onu doğru şekilde çözelim claudeflare kesin olsun") —
    sert kayıt tavanı YOK. ① **Cloudflare** alan adının önüne (açılışta, kesin): DNS Cloudflare'e, proxy açık, "Bot Fight Mode" + kayıt
    (`/api/auth/register`) ve giriş için hız kuralı. Proxy arkasında gerçek istemci IP'si değişir → `TRUSTED_PROXY_HOPS` yeniden ölçülür
