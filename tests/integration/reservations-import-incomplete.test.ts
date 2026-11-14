@@ -34,6 +34,36 @@ function req(propertyId: string, ics: string, mode?: "preview") {
 }
 const call = (r: NextRequest) => POST(r, { params: Promise.resolve({}) });
 
+function rawReq(fields: Record<string, string | File>) {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.set(k, v);
+  return new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form });
+}
+
+describe("dosyadan içe aktarma — alan türü (sızma testi 11-14, M-2)", () => {
+  let propertyId: string;
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const made = await makeOrgWithProperty();
+    propertyId = made.propertyId;
+    session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+  it("🚨 `file` alanı düz metin → 400 (eskiden file.name çöküp 500 + hata raporu)", async () => {
+    const res = await call(rawReq({ file: "abc", propertyId }));
+    expect(res.status).toBe(400);
+  });
+  it("🚨 `propertyId` dosya olarak gelirse → 400, yazma yok", async () => {
+    const res = await call(rawReq({ file: new File([full(vevent("a@x"))], "t.ics", { type: "text/calendar" }), propertyId: new File(["x"], "p.txt") }));
+    expect(res.status).toBe(400);
+    expect(await prisma.reservation.count()).toBe(0);
+  });
+  it("KONTROL: geçerli dosya + daire kabul edilir", async () => {
+    const res = await call(req(propertyId, full(vevent("ok@x")), "preview"));
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("dosyadan içe aktarma — eksik okuma notu", () => {
   let propertyId: string;
 

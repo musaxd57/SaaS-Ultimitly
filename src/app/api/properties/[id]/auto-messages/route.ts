@@ -60,7 +60,10 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
   // NUL karakteri PostgreSQL metninde saklanamaz (500 yerine anlaşılır ret — Haiku T4 #7).
   if (data.body.includes("\u0000")) return badRequest({ body: "Mesajda geçersiz karakter var." });
   const expected = data.expectedRevision;
-  if (typeof expected !== "number" || !Number.isInteger(expected) || expected < 0) return badRequest({ expectedRevision: STALE });
+  // 32 bitlik sütun sınırı (sızma testi 11-14, M-1): daha büyük değer veritabanında 500 + hata raporu doğuruyordu.
+  if (typeof expected !== "number" || !Number.isInteger(expected) || expected < 0 || expected > 2_147_483_647) {
+    return badRequest({ expectedRevision: STALE });
+  }
   const property = await propertyOf(session.organizationId, id);
   if (!property) return notFound();
   const kind = data.kind;

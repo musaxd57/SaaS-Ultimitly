@@ -154,8 +154,12 @@ export const POST = withManage(async (session, req) => {
     if (e instanceof BodyTooLargeError) return payloadTooLarge();
     return badRequest({ file: "Dosya okunamadı." });
   }
-  const file = formData.get("file") as File | null;
-  const propertyId = formData.get("propertyId") as string | null;
+  // Tür denetimi (sızma testi 11-14, M-2): `file` alanı düz metin, `propertyId` dosya olarak gelebilir — eskiden `file.name` çöküp 500
+  // + hata raporu üretiyordu (içe aktarmanın kendi hız sınırından ÖNCE).
+  const rawFile = formData.get("file");
+  const rawPropertyId = formData.get("propertyId");
+  const file = rawFile !== null && typeof rawFile !== "string" ? rawFile : null;
+  const propertyId = typeof rawPropertyId === "string" ? rawPropertyId : null;
   // `mode=preview` → HİÇBİR ŞEY YAZILMAZ; yalnız sınıflandırma + sayımlar döner.
   const preview = formData.get("mode") === "preview";
 

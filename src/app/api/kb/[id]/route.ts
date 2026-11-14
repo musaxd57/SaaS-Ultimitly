@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { kbUpdateSchema, zodFieldErrors } from "@/lib/validators";
+import { kbUpdateSchema, zodFieldErrors, isStorableDate } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
@@ -43,7 +43,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   // Codex 11-04 P2: düzenleyici açıldığı andaki sürümü gönderir; arada başka sekme / kişi kaydettiyse eski form yeni bilgiyi (ör. yeni Wi-Fi
   // şifresi) sessizce GERİ YAZMASIN → 409, taslak düzenleyicide kalır. Gönderilmezse (eski istemci, pasife alma düğmesi) bugünkü davranış.
   const expected = expectedUpdatedAt ? new Date(expectedUpdatedAt) : null;
-  if (expectedUpdatedAt && (!expected || Number.isNaN(expected.getTime()))) return badRequest({ _: "Geçersiz istek." });
+  if (expectedUpdatedAt && (!expected || !isStorableDate(expected))) return badRequest({ _: "Geçersiz istek." });
 
   const limits = await limitsForOrg(session.organizationId);
 

@@ -345,6 +345,8 @@ describe("kurucu T4 — 'Otomatik mesajlar' rotası", () => {
     expect((await PUT(json("PUT", { kind: "x", body: "a", expectedRevision: 0 }), p(propertyId))).status).toBe(400);
     expect((await PUT(json("PUT", { kind: "welcome", body: "a".repeat(20_001), expectedRevision: 0 }), p(propertyId))).status).toBe(400);
     expect((await PUT(json("PUT", { kind: "welcome", body: "a" }), p(propertyId))).status).toBe(400);
+    // Sızma testi 11-14 (M-1): 32 bitlik sütunu taşan sürüm 500 değil 400 (hata raporu / ortak uyarı kovası doldurulamaz).
+    expect((await PUT(json("PUT", { kind: "welcome", body: "a", expectedRevision: 2_147_483_648 }), p(propertyId))).status).toBe(400);
     expect(await prisma.autoMessageTemplate.count()).toBe(0);
   });
 

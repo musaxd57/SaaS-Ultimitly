@@ -147,14 +147,27 @@ export const propertyPatchSchema = patchSchemaOf(propertySchema);
 export type PropertyInput = z.infer<typeof propertySchema>;
 
 // --- Reservation ------------------------------------------------------------
+/**
+ * SAKLANABİLİR TARİH (sızma testi 11-14, M-1). `z.coerce.date()` biçime bakar, aralığa bakmaz: 10000 yılı (`253402300800000`) geçerli bir
+ * JS tarihidir ama veritabanı sürücüsü onu yazamaz → 500 + hata raporu (yetkili kullanıcı kendi işletmesinden ortak uyarı kovasını
+ * doldurabilirdi — A-1 sınıfı). 1900–9999 dışı → 400. Meşru hiçbir tarih bu aralığın dışında değildir.
+ */
+export function isStorableDate(d: Date): boolean {
+  const t = d.getTime();
+  if (Number.isNaN(t)) return false;
+  const y = d.getUTCFullYear();
+  return y >= 1900 && y <= 9999;
+}
+const STORABLE_DATE_MESSAGE = "Geçersiz tarih";
+
 export const reservationSchema = z
   .object({
     propertyId: z.string().min(1, "Daire seçin"),
     guestName: z.string().trim().min(2, "Misafir adı gerekli").max(200),
     guestPhone: z.string().max(40).optional().or(z.literal("")),
     guestEmail: z.string().email("Geçerli e-posta girin").max(254).optional().or(z.literal("")),
-    arrivalDate: z.coerce.date({ message: "Giriş tarihi gerekli" }),
-    departureDate: z.coerce.date({ message: "Çıkış tarihi gerekli" }),
+    arrivalDate: z.coerce.date({ message: "Giriş tarihi gerekli" }).refine(isStorableDate, STORABLE_DATE_MESSAGE),
+    departureDate: z.coerce.date({ message: "Çıkış tarihi gerekli" }).refine(isStorableDate, STORABLE_DATE_MESSAGE),
     channel: z.enum(RESERVATION_CHANNEL.values).default("manual"),
     status: z.enum(RESERVATION_STATUS.values).default("confirmed"),
     totalAmount: z.coerce.number().min(0).max(100_000_000).optional().or(z.nan().transform(() => undefined)),
@@ -237,7 +250,7 @@ export const taskSchema = z.object({
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
   description: z.string().max(5000).optional().or(z.literal("")),
   assignedToId: z.string().optional().or(z.literal("")),
-  dueAt: z.coerce.date().optional().or(z.literal("").transform(() => undefined)),
+  dueAt: z.coerce.date().refine(isStorableDate, STORABLE_DATE_MESSAGE).optional().or(z.literal("").transform(() => undefined)),
   priority: z.enum(PRIORITY.values).default("standard"),
   // "Yapılamıyor" atanan kişinin bildirimidir (kim / ne zaman / neden kaydıyla, `api/tasks/[id]`) — görev o durumda AÇILMAZ (Haiku 11-06).
   status: z
@@ -293,7 +306,7 @@ export const taskUpdateSchema = z.object({
   title: z.string().max(300).optional(),
   description: z.string().max(5000).optional(),
   priority: z.enum(PRIORITY.values).optional(),
-  dueAt: z.coerce.date().optional(),
+  dueAt: z.coerce.date().refine(isStorableDate, STORABLE_DATE_MESSAGE).optional(),
   // Checklist items ({label, done}) so the cleaner can tick off "Çarşaf takımı × 2".
   checklist: z
     .array(z.object({ label: z.string().max(300), done: z.boolean() }))
