@@ -35,6 +35,15 @@ describe("iCal dışa aktarımı — satır enjeksiyonu", () => {
     expect(out).not.toMatch(/^SUMMARY:SAHTE$/m);
   });
 
+  it("NEL ve Unicode satır / paragraf ayırıcıları da kaçışlanır (sızma testi 11-14, K sertleştirme)", () => {
+    const seps = [0x85, 0x2028, 0x2029].map((c) => String.fromCharCode(c));
+    const out = buildIcsCalendar(`Daire${seps[0]}X-EVIL:1`, [
+      { uid: "u1", start: new Date("2026-09-01"), end: new Date("2026-09-05"), allDay: true, summary: `Ali${seps[1]}END:VEVENT${seps[2]}BEGIN:VEVENT` },
+    ]);
+    for (const sep of seps) expect(out.includes(sep)).toBe(false);
+    expect(out).toContain("Ali\\nEND:VEVENT\\nBEGIN:VEVENT");
+  });
+
   it("diğer C0 kontrol karakterleri düşürülür (RFC 5545 metin değerlerinde yasak)", () => {
     const out = buildIcsCalendar("Daire\u0000\u0007\u001B", []);
     expect(out).not.toMatch(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/);

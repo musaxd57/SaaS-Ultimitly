@@ -28,6 +28,9 @@ export interface IcsEvent {
  * (`.trim()` yalnız UÇLARI temizler, ortadaki CR kalır) ve değer misafir
  * kaynaklı da olabilir (Hospitable sync / CSV içe aktarma).
  *
+ * Sızma testi 11-14 (K, sertleştirme): NEL (U+0085) ve Unicode satır / paragraf ayırıcıları (U+2028 / U+2029) da satır sonu
+ * sayılıp kaçışlanır — RFC 5545 satırı yalnız CRLF ile ayırır, ama OTA'nın ayrıştırıcısını göremiyoruz (e-posta konusundaki kuralla aynı).
+ *
  * ⚠️ Ayrıca RFC 5545 metin değerlerinde HTAB dışındaki C0 kontrol
  * karakterlerini yasaklıyor — onlar da düşürülür.
  */
@@ -36,7 +39,7 @@ function escapeIcsText(value: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, "\\n")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
 
