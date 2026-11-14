@@ -48,6 +48,7 @@ import {
 } from "@/lib/payments/paddle-replay";
 import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
 import { alertStateActive, alertOnTransition } from "@/lib/alert-state";
+import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 const KEY_ALARM = "paddle-api-read-unavailable";
@@ -327,6 +328,31 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       });
       expect(seen).toEqual(["a", "b"]);
       expect(out).toMatchObject({ replayed: 2, settled: 1 });
+    });
+
+    it("🚨 her olay KENDİ takip bağlamında işlenir: bir olayın benimsediği numara ne dış işe ne sonraki olaya taşınır (sızma testi F-1)", async () => {
+      await stored("a", { occurredAt: new Date(Date.now() - 2 * MIN) });
+      await stored("b", { occurredAt: new Date(Date.now() - 1 * MIN) });
+      const OUTER = newCorrelationId();
+      const ADOPTED = newCorrelationId();
+      const seenIds: (string | undefined)[] = [];
+      await runWithCorrelation({ id: OUTER, organizationId: null }, async () => {
+        await replayPendingPaddleEvents({
+          deliver: async (req) => {
+            const id = (JSON.parse(await req.text()) as { event_id: string }).event_id;
+            seenIds.push(currentCorrelation()?.id);
+            // İşleyici onay zincirine bağlanınca numarayı yerinde değiştirir (adoptConsentChain → adoptCorrelation).
+            if (id === "a") adoptCorrelation(ADOPTED, "org_A");
+            return new Response("{}", { status: 200 });
+          },
+        });
+        expect(currentCorrelation()?.id).toBe(OUTER);
+        expect(currentCorrelation()?.organizationId).toBeNull();
+      });
+      expect(seenIds).toHaveLength(2);
+      expect(seenIds[1]).not.toBe(ADOPTED);
+      expect(seenIds[0]).not.toBe(OUTER);
+      expect(seenIds[1]).not.toBe(OUTER);
     });
 
     it("webhook sırrı yoksa (ödeme kurulmamış) hiçbir şey yapmaz", async () => {

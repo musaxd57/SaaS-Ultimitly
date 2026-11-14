@@ -6,6 +6,7 @@ import { alertOnTransition, alertStateActive, clearAlertState } from "@/lib/aler
 import { isRedactedPaddlePayload, NEEDS_REVIEW_PREFIX } from "@/lib/data-retention";
 import { getPaddleWebhookSecret, probePaddleRead, signPaddleWebhook } from "@/lib/payments/paddle";
 import { runAsPaddleReplay } from "@/lib/payments/paddle-replay-context";
+import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 
 // ---------------------------------------------------------------------------
 // İŞLENEMEYEN PADDLE OLAYI YALNIZ PADDLE'IN TEKRARINA BIRAKILMAZ (S7, kurucu kararı 11-11).
@@ -160,7 +161,10 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
         body: row.payloadJson,
       });
       // Süreç içi işaret: işleyici bu teslimi "Paddle'dan geldi, sır doğru" kanıtı saymaz (`paddle-replay-context.ts`).
-      const res = await runAsPaddleReplay(() => deliver(request));
+      // Her olay KENDİ takip bağlamında (sızma testi 11-14, F-1): işleyici açık bir bağlam bulursa yenisini açmaz ve onay zincirine
+      // bağlanınca numarayı YERİNDE değiştirir (`adoptCorrelation`) — eskiden A işletmesinin onay numarası senkron geçişinin kalanına ve
+      // B işletmesinin ödeme olaylarına yazılıyordu (destek ekranında yanlış zincir).
+      const res = await runWithCorrelation({ id: newCorrelationId(), organizationId: null }, () => runAsPaddleReplay(() => deliver(request)));
       if (res.status >= 200 && res.status < 300) result.settled++;
     } catch {
       // İşleyici fırlatmaz (kendi hatasını kayda yazar); yine de tek olay turu düşürmesin.
