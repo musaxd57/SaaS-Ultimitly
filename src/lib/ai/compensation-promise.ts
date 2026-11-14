@@ -6,8 +6,10 @@
 // para sözü ev sahibini bağlar — kurucunun kuralı: riskli mesaj insana kalır, ev sahibini haksız duruma düşürecek söz misafire gitmez.
 //
 // Kural: AYNI yan cümlede (a) para anlamında bir telafi nesnesi VE (b) bir söz / taahhüt biçimi. Söz biçimi gelecek zaman, geniş zaman
-// birinci çoğul, şimdiki zaman, "yapılacak / edilecek" edilgen gelecek ve İngilizce "we'll / I will / you'll get / will be refunded".
-// Olumsuzu da ("iade edemeyeceğiz") tutar: iade REDDİ de ev sahibinin kararıdır.
+// birinci çoğul, şimdiki zaman, "yapılacak / edilecek" edilgen gelecek ve İngilizce "we'll / I will / we're going to / you'll get /
+// will be refunded / processed". Olumsuzu da ("iade edemeyeceğiz", "we cannot refund") tutar: iade REDDİ de ev sahibinin kararıdır.
+// Bilinen sınır (Haiku incelemesi 11-14): deyimsel hediye ("Bir gece bizden") ve geniş zaman edilgen ("iadeniz hesabınıza yapılır") kaçar;
+// iadeyi İLETEN cümle ("İade talebinizi ileteceğiz") tutulur — güvenli yön, üstelik devir cümlesi zaten misafire gitmez (K10).
 // Dışarıda kalanlar (aşırı engelleme olmasın — bu turun güvenli cevabını gereksiz yere tutmayalım):
 //  · eşya iadesi: aynı yan cümlede anahtar / kart / kumanda / eşya ("Anahtarı kutuya iade edebilirsiniz" — bu senaryonun güvenli cevabı);
 //  · depozito / politika cümleleri ("Depozitonuz çıkışta iade edilecek" bilgi tabanı olgusudur, söz değil);
@@ -16,7 +18,7 @@
 // Çağıran yalnız tutulan öğe şikâyet / iade / ödeme iken sorar (`automation.ts` öğe kapısı) — yanlış pozitif yalnız zaten hassas turu tutar.
 
 const COMPENSATION =
-  /(?:^|[^\p{L}])(?:iade|geri\s+öde|geri\s+ödeme|para(?:nız|sını|yı|nızı)?\s+geri|indirim|tazminat|telafi|refund|reimburs|compensat|discount|credit(?!\s*card)|money\s+back)/u;
+  /(?:^|[^\p{L}])(?:iade|geri\s+öde|geri\s+ödeme|geri\s+yatır|para(?:nız|sını|yı|nızı)?\s+geri|ücret\p{L}{0,8}\s+geri|indirim|tazminat|telafi|refund|reimburs|compensat|discount|credit(?!\s*card)|money\s+back)/u;
 /** "Ücretsiz / bedava / free" yalnız bir konaklama birimiyle telafidir ("bir gece ücretsiz") — "ücretsiz otopark" bilgi tabanı olgusudur. */
 const FREE_WORD = /(?:^|[^\p{L}])(?:ücretsiz|bedava|free)(?![\p{L}])/u;
 const STAY_UNIT = /(?:^|[^\p{L}])(?:gece|konaklama|kalış|night|stay)/u;
@@ -29,7 +31,7 @@ const TR_PROMISE =
   /(?:[eaıiuü]?y?ece[gğ]iz|[eaıiuü]?y?aca[gğ]ız|[eaıiuü]?y?ece[gğ]im|[eaıiuü]?y?aca[gğ]ım|(?:il|ıl|ul|ül|n)?ecek(?:tir)?|(?:il|ıl|ul|ül|n)?acak(?:tır)?|[ea]r[iı]z|[ıiuü]r[ıiuü]z|[ıiuü]yoruz|[ea]bilir[ıi]z|[ea]bilir[ıi]m)(?![\p{L}])/u;
 
 const EN_PROMISE =
-  /(?:^|[^\p{L}])(?:we(?:'ll|\s+will|\s+shall|\s+can|\s+are\s+going\s+to|\s+would\s+be\s+happy\s+to)|i(?:'ll|\s+will|\s+can)|you(?:'ll|\s+will)\s+(?:get|receive|be)|will\s+be\s+(?:refunded|reimbursed|credited|compensated|issued|applied))(?![\p{L}])/u;
+  /(?:^|[^\p{L}])(?:we(?:'ll|\s+will|\s+shall|\s+can|\s+cannot|\s+won't|\s+would\s+be\s+happy\s+to|(?:'re|\s+are)\s+(?:going\s+to|issuing|processing|sending|giving|offering|refunding))|i(?:'ll|\s+will|\s+can|\s+cannot|\s+won't)|you(?:'ll|\s+will)\s+(?:get|receive|be)|will\s+be\s+(?:refunded|reimbursed|credited|compensated|issued|applied|processed|sent))(?![\p{L}])/u;
 
 const PHYSICAL_ITEM = /(?:^|[^\p{L}])(?:anahtar|kart|kumanda|eşya|esya|key|card|remote|fob)/u;
 const POLICY_OR_DEPOSIT = /(?:^|[^\p{L}])(?:depozito|politika|deposit|policy)/u;

@@ -29,6 +29,13 @@ describe("promisesCompensation — söz", () => {
     "The night will be refunded.",
     "We can offer a free night.",
     "I will compensate you for the inconvenience.",
+    "Ücretinizin yarısını geri yatıracağız.",
+    "Ücretinizi geri vereceğiz.",
+    "A refund will be processed.",
+    "We're going to refund you.",
+    "We are issuing a refund for one night.",
+    "We cannot refund the night.",
+    "We won't refund the cleaning fee.",
   ])("söz → true: %s", (reply) => {
     expect(promisesCompensation(reply)).toBe(true);
   });
@@ -57,6 +64,9 @@ describe("promisesCompensation — aşırı uygulama yok", () => {
     "Ücretsiz otopark binanın önünde.",
     "We can accept credit cards at the property.",
     "Kahvaltı ücretsiz değildir; yakındaki fırını öneririz.",
+    "Ücret bilgisi rezervasyon sayfanızda yazıyor.",
+    "We're going to clean the apartment before you arrive.",
+    "We cannot accept pets.",
     "",
   ])("söz değil → false: %s", (reply) => {
     expect(promisesCompensation(reply)).toBe(false);

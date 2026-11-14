@@ -14,7 +14,14 @@ export const INBOUND_TEXT_CAP = 4_000;
 
 export type MetaStatusEvent = HostDeliveryStatus;
 
-const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+/** NUL silinir (sağlayıcı dizesi kuralı, `channels/ingest.ts canonicalStr` ile aynı — 09-28): PostgreSQL metin kolonu NUL'u reddeder;
+ *  imzalı ama NUL taşıyan bir teslimat (ör. yabancı numaradan) her denemede 500 → Meta günlerce yeniden dener, hata kaydı dolar. */
+const NUL = String.fromCharCode(0);
+const str = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const clean = v.includes(NUL) ? v.replaceAll(NUL, "") : v;
+  return clean.length > 0 ? clean : null;
+};
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const when = (ts: unknown): Date => {

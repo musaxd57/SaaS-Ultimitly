@@ -119,6 +119,21 @@ describe("Meta web kancası ayrıştırma — güvenilmez gövde", () => {
     ]);
     expect(r.statuses).toEqual([{ providerMessageId: "wamid.Q1", status: "failed", recipient: "905321112233", at: expect.any(Date), errorCode: 131047 }]);
   });
+  it("NUL karakteri metinden ve kimliklerden silinir (PostgreSQL metin kolonu reddeder → her teslimat 500 olurdu); yalnız NUL olan metin yok sayılır", () => {
+    const NUL = String.fromCharCode(0);
+    const r = parseMetaWebhook(
+      payload([
+        { from: `9053${NUL}21112233`, id: `w${NUL}1`, type: "text", text: { body: `var${NUL}, dolapta` } },
+        { from: "905321112233", id: "w2", type: "text", text: { body: NUL } },
+      ]),
+    );
+    expect(r.messages).toHaveLength(1);
+    const m = r.messages[0]!;
+    expect(m.kind === "text" && m.text).toBe("var, dolapta");
+    expect(m.providerMessageId).toBe("w1");
+    expect(m.from).toBe("905321112233");
+    expect(JSON.stringify(r).includes(NUL)).toBe(false);
+  });
   it("karışık teslimat: yalnız kendi numaramıza gelen mesaj / durum döner, bütün numara kimlikleri yine raporlanır", () => {
     const body = {
       object: "whatsapp_business_account",

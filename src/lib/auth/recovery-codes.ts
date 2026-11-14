@@ -19,6 +19,10 @@ import { prisma } from "@/lib/db";
 //    → `userId + codeHash` ile aranır. Bilerek ANAHTARSIZ (sunucu sırrı yok): sır
 //    değişince kilitli bir kullanıcının son kapısı kapanmasın. v1 satırları OKUMADA
 //    kabul edilir (kilitlenme yok), yeni üretilen her kod v2 yazılır.
+//    ⚠️ KALAN RİSK: eski v1 satırları kullanıcı kodlarını YENİDEN ÜRETENE kadar
+//    durur (düz metin elde olmadığı için okumada v2'ye çevrilemez; tüketilen kod
+//    zaten yanar). Yerinde sarma (v1 özetini kullanıcı tuzuyla scrypt'e sarmak)
+//    kimlik akışına dokunduğu için kurucu onayında — docs/INCELEME-2026-11-14-sizma-testi-tur1.md.
 //  * Single-use burn is ATOMIC: conditional updateMany on usedAt (the same
 //    pattern as the TOTP step burn / e-mail-verify consume) — two concurrent
 //    logins with one code can't both pass.
