@@ -98,6 +98,20 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       "items_payment_held",
     ],
     ["öğe kipi: şikâyete bağlı istek cevaplanabilir sayılmış", declared, WIFI_Q, ITEMS_COMPLAINT, "items_complaint_dependent"],
+    [
+      // Sızma testi 11-14 (E-3): iade öğesi tutulurken cevap tazminat SÖZÜ veriyor.
+      "öğe kipi: iade tutulurken cevapta tazminat sözü",
+      { ...declared, reply: "The Wi-Fi password is Lale2025. We will refund one night." },
+      WIFI_Q,
+      {
+        items: {
+          held: buildItemsForMessage({ requests: [{ intent: "cancellation_refund" }], lexicalLabels: [] }),
+          paymentHeld: false,
+          answerableKinds: ["wifi" as const],
+        },
+      },
+      "items_compensation_promise",
+    ],
     ["öğe kipi: arıza çözümü bilgi tabanına dayanmıyor", { ...declared, usedSources: [] }, WIFI_Q, ITEMS_FIX, "items_fix_unverified"],
     [
       // S3 (`AI_HELD_PET_SPLIT_ENABLED`): evcil hayvan isteği tutulurken cevaplanan isteğin konusu gösterilen hiçbir kaynakta geçmiyor.

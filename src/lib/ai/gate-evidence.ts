@@ -31,6 +31,7 @@ export const GATE_BLOCK_DETAILS = [
   "items_touch_held", // bırakılan ya da bilinmeyen istek beyan edildi
   "items_nothing_answered", // hiçbir güvenli istek cevaplanmadı (gönderecek bir şey yok)
   "items_payment_held", // ödeme öğesi tutuluyken cevapta ödeme yöntemi / yeri
+  "items_compensation_promise", // iade / şikâyet / ödeme öğesi tutuluyken cevapta tazminat / iade / indirim SÖZÜ (sızma testi 11-14, E-3)
   "items_complaint_dependent", // bu turun tutulan şikâyetine / iadesine / ev sahibi talebine bağlı istek cevaplanmış (kurucu kararı 10-01)
   // Arıza çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"; `conversation-items/relation.ts`):
   "items_fix_unverified", // cevaplanan arıza çözümü bilgi tabanına dayanmıyor (`kb:` kaynağı yok)

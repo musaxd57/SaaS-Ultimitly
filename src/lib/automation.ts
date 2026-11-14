@@ -212,6 +212,7 @@ import {
 import { sentRefs, type AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
 import { reopenItemsAnsweredBy, reopenItemsOfOvertakenDraft } from "@/lib/conversation-items/store";
 import { stripTopicAbsence, topicAbsenceEnabled } from "@/lib/conversation-items/topic-absence";
+import { promisesCompensation } from "@/lib/ai/compensation-promise";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -426,6 +427,9 @@ export function autoReplyGateFailure(
 ): AutoReplyGateFailure | null {
   return autoReplyGateVerdict(result, guestMessage, context)?.reason ?? null;
 }
+
+/** Tazminat sözü kemerinin sorulduğu tutulan öğe türleri (E-3): iade / iptal, şikâyet, ödeme. */
+const COMPENSATION_HELD_KINDS: ReadonlySet<string> = new Set(["cancellation_refund", "complaint_issue", "payment_invoice"]);
 
 export function autoReplyGateVerdict(
   result: {
@@ -781,6 +785,12 @@ export function autoReplyGateVerdict(
     // T-d (kurucu 10-22): okuyucu okuduysa yalnız ev sahibine platform dışı ödeme tutar ("otopark gişede nakit" gider); yoksa kelime kuralı.
     if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior)) {
       return hold("items_payment_held");
+    }
+    // Sızma testi 11-14 (E-3): iade / şikâyet / ödeme öğesi ev sahibinde tutulurken cevap bir TAZMİNAT SÖZÜ veriyorsa ("Bir gecelik ücreti
+    // iade edeceğiz", "We'll give you a discount") GİTMEZ — çıktı vetosu iade için yalnız geçmiş zamanı tutuyor, telafi yasağının kod yedeği
+    // yalnız kıdemli okuyucuda (açılışta kapalı). Söz ev sahibini bağlar; karar onun (`compensation-promise.ts`).
+    if (items.held.some((h) => COMPENSATION_HELD_KINDS.has(h.kind)) && promisesCompensation(result.reply ?? "")) {
+      return hold("items_compensation_promise");
     }
     // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)
     // cevap gitmez — planın ikinci kemeri. İlişki kipinde (10-01 sabah, Sabah Kararları 17 + 18 "a") karar `relation.relationGateHold`:
