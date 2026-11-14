@@ -48,6 +48,13 @@ describe("promisesCompensation — söz", () => {
     expect(promisesCompensation("We\u2019ll refund the night.")).toBe(true);
   });
 
+  it("🚨 sözcüğün İÇİNE gömülü görünmez karakter de yakalanır (mutasyon 11-14: sözcük ARASINDAKİ karakter temizliği sınamıyordu)", () => {
+    const ZW = String.fromCharCode(0x200b);
+    const SHY = String.fromCharCode(0x00ad);
+    expect(promisesCompensation(`Bir gecelik ücreti i${ZW}ade ede${ZW}ceğiz.`)).toBe(true);
+    expect(promisesCompensation(`We will re${SHY}fund the night.`)).toBe(true);
+  });
+
   it("uzun cevabın ortasındaki söz da yakalanır (yan cümle başına)", () => {
     expect(promisesCompensation("Çıkış saatimiz 11:00. Anahtarı kutuya bırakabilirsiniz. Bir gecelik ücreti iade edeceğiz. İyi yolculuklar!")).toBe(true);
   });
