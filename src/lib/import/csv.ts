@@ -41,6 +41,12 @@ export interface CsvReservation {
 // Hard limits (DoS guards; the route also caps the upload at 5 MB).
 const MAX_ROWS = 10_000; // header + data records
 const MAX_FIELD_LEN = 20_000; // one cell
+/**
+ * Bir satırdaki en çok alan (sızma testi 11-14, C-E1, ölçüldü): tavan yokken 5 MB'lık yalnız virgülden oluşan iki satır (2,5 milyon
+ * sütun) başlık eşleştirmesinde olay döngüsünü 15 sn kilitliyordu — deneme hesabı açan bir sahip / yönetici bütün kiracıları aksatabilirdi.
+ * Gerçek dışa aktarımlar 20–30 sütunlu.
+ */
+const MAX_COLUMNS = 200;
 
 // ---------------------------------------------------------------------------
 // Column name aliases (case-insensitive)
@@ -82,8 +88,11 @@ function normalizeHeader(h: string): string {
 }
 
 function findCol(headers: string[], aliases: string[]): number {
+  // Ayraçsız biçimler bir kez kurulur (eskiden her takma ad × her başlık için iki düzenli ifade koşuyordu — C-E1).
+  const compact = headers.map((h) => h.replace(/[\s_-]/g, ""));
   for (const alias of aliases) {
-    const idx = headers.findIndex((h) => h === alias || h.replace(/[\s_-]/g, "") === alias.replace(/[\s_-]/g, ""));
+    const plain = alias.replace(/[\s_-]/g, "");
+    const idx = headers.findIndex((h, i) => h === alias || compact[i] === plain);
     if (idx >= 0) return idx;
   }
   return -1;
@@ -257,6 +266,7 @@ function tokenizeCsv(text: string, delimiter: string): string[][] {
 
   const endField = () => {
     if (field.length > MAX_FIELD_LEN) throw new CsvParseError("Bir hücre çok uzun — dosya bozuk olabilir.");
+    if (record.length >= MAX_COLUMNS) throw new CsvParseError(`Çok fazla sütun (en fazla ${MAX_COLUMNS}).`);
     record.push(field);
     field = "";
   };

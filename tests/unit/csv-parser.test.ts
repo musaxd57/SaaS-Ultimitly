@@ -117,3 +117,20 @@ describe("parseCsv — FAIL-CLOSED on structural corruption", () => {
     expect(parseCsv(HEAD)).toEqual([]);
   });
 });
+
+// Sızma testi 11-14 (C-E1, ölçüldü): sütun sayısına tavan yoktu — 5 MB'lık, yalnız virgülden oluşan iki satırlık dosya (2,5 milyon sütun)
+// başlık eşleştirmesinde olay döngüsünü 15 sn kilitliyordu (1 MB'da 2,7 sn); deneme hesabı açan bir sahip / yönetici bütün kiracıları
+// aksatabilirdi. Gerçek dışa aktarımlar 20–30 sütunlu; tavan 200.
+describe("parseCsv — sütun tavanı", () => {
+  it("🚨 200'den fazla sütun → CsvParseError (sessiz geçiş yok)", () => {
+    const header = Array.from({ length: 201 }, (_, i) => `c${i}`).join(",");
+    const row = Array.from({ length: 201 }, () => "x").join(",");
+    expect(() => parseCsv(`${header}\n${row}\n`)).toThrow(CsvParseError);
+  });
+  it("aşırı uygulama yok: 200 sütunluk geçerli dosya okunur", () => {
+    const extra = Array.from({ length: 197 }, (_, i) => `x${i}`);
+    const header = ["guest_name", "check_in", "check_out", ...extra].join(",");
+    const row = ["Ayşe", "2026-12-01", "2026-12-03", ...extra.map(() => "")].join(",");
+    expect(parseCsv(`${header}\n${row}\n`)).toHaveLength(1);
+  });
+});
