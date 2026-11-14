@@ -13,8 +13,9 @@
 // Dışarıda kalanlar (aşırı engelleme olmasın — bu turun güvenli cevabını gereksiz yere tutmayalım):
 //  · eşya iadesi: aynı yan cümlede anahtar / kart / kumanda / eşya ("Anahtarı kutuya iade edebilirsiniz" — bu senaryonun güvenli cevabı);
 //  · depozito / politika cümleleri ("Depozitonuz çıkışta iade edilecek" bilgi tabanı olgusudur, söz değil);
-//  · üçüncü taraf öznesi (Airbnb / Booking / platform) — platformun kendi süreci;
-//  · soru biçimi (yan cümle "?" ile biter).
+//  · üçüncü taraf öznesi (Airbnb / Booking / platform) — platformun kendi süreci.
+// Soru biçimi DIŞARIDA DEĞİLDİR (Haiku incelemesi 11-14): "Bir gecelik indirim yapabiliriz, ister misiniz?" bir TEKLİFTİR ve aynı zararı
+// verir; söz biçimi taşımayan soru ("İade talep etmek ister misiniz?") zaten tutulmaz.
 // Çağıran yalnız tutulan öğe şikâyet / iade / ödeme iken sorar (`automation.ts` öğe kapısı) — yanlış pozitif yalnız zaten hassas turu tutar.
 
 const COMPENSATION =
@@ -32,6 +33,12 @@ const TR_PROMISE =
 
 const EN_PROMISE =
   /(?:^|[^\p{L}])(?:we(?:'ll|\s+will|\s+shall|\s+can|\s+cannot|\s+won't|\s+would\s+be\s+happy\s+to|(?:'re|\s+are)\s+(?:going\s+to|issuing|processing|sending|giving|offering|refunding))|i(?:'ll|\s+will|\s+can|\s+cannot|\s+won't)|you(?:'ll|\s+will)\s+(?:get|receive|be)|will\s+be\s+(?:refunded|reimbursed|credited|compensated|issued|applied|processed|sent))(?![\p{L}])/u;
+
+/** Söz biçimine benzeyen ama söz olmayan kalıplar — söz denetiminden ÖNCE silinir (ücretsiz tekrar oynatma 11-14, 6.568 kayıtlı cevap):
+ *  nezaket fiilleri ("özür dileriz", "teşekkür ederiz" geniş zaman birinci çoğuldur) ve "gelecek ay / hafta / konaklamanızda" sıfatı. Kalan
+ *  söz yine yakalanır ("Gelecek konaklamanızda indirim yapacağız" → "yapacağız"). */
+const NOT_A_PROMISE =
+  /(?:^|[^\p{L}])(?:(?:özür\s+)?diler(?:iz|im)|(?:teşekkür|rica)\s+eder(?:iz|im)|gelecek\s+(?:ay|hafta|yıl|sene|sefer|gün|dönem|konaklama\p{L}{0,8}|kalış\p{L}{0,8}|rezervasyon\p{L}{0,8}))(?![\p{L}])/gu;
 
 const PHYSICAL_ITEM = /(?:^|[^\p{L}])(?:anahtar|kart|kumanda|eşya|esya|key|card|remote|fob)/u;
 const POLICY_OR_DEPOSIT = /(?:^|[^\p{L}])(?:depozito|politika|deposit|policy)/u;
@@ -53,12 +60,12 @@ export function promisesCompensation(reply: string | null | undefined): boolean 
   for (const text of matchForms(reply.slice(0, 8_000))) {
     for (const m of text.matchAll(/[^.!?\n;]+[.!?\n;]?/g)) {
       const clause = m[0];
-      if (clause.trimEnd().endsWith("?")) continue;
       if (!hasCompensation(clause)) continue;
       if (POLICY_OR_DEPOSIT.test(clause) || THIRD_PARTY.test(clause)) continue;
       // Eşya iadesi: yan cümledeki TEK telafi sözcüğü "iade" ise ve eşya adı geçiyorsa söz değildir.
       if (PHYSICAL_ITEM.test(clause) && !hasCompensation(clause.replace(/iade/g, ""))) continue;
-      if (TR_PROMISE.test(clause) || EN_PROMISE.test(clause)) return true;
+      const promiseText = clause.replace(NOT_A_PROMISE, " ");
+      if (TR_PROMISE.test(promiseText) || EN_PROMISE.test(promiseText)) return true;
     }
   }
   return false;
