@@ -36,6 +36,12 @@ describe("bilgi tabanı — eski düzenleyici koruması", () => {
     openedAt = item.updatedAt.toISOString(); // iki sekme de bu sürümle açıldı
   });
 
+  it("🚨 saklanamayacak sürüm tarihi (10000 yılı) 500 değil 400; içerik değişmez (sızma testi 11-14, M-1)", async () => {
+    const res = await patch(itemId, { content: "Ağ: Ev_5G, şifre: yeni5678", expectedUpdatedAt: new Date(253402300800000).toISOString() });
+    expect(res.status).toBe(400);
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: itemId } })).content).toBe("Ağ: Ev_5G, şifre: eski1234");
+  });
+
   it("🚨 A yeni şifreyi kaydetti → B eski formla (yalnız başlık değişik) kaydedince 409, A'nın içeriği KORUNUR", async () => {
     const a = await patch(itemId, { category: "wifi", title: "Wi-Fi", content: "Ağ: Ev_5G, şifre: yeni5678", expectedUpdatedAt: openedAt });
     expect(a.status).toBe(200);

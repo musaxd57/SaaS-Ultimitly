@@ -29,6 +29,8 @@ describe("şemalar 10000 yılını reddeder, olağan tarihi kabul eder", () => {
     const base = { propertyId: "p1", guestName: "Ayşe Lale", arrivalDate: "2026-12-01", departureDate: "2026-12-04" };
     expect(reservationSchema.safeParse(base).success).toBe(true);
     expect(reservationSchema.safeParse({ ...base, departureDate: Y10K }).success).toBe(false);
-    expect(reservationSchema.safeParse({ ...base, arrivalDate: Y10K }).success).toBe(false);
+    // Giriş de 10000 yılında ve çıkıştan ÖNCE — yalnız saklanabilir tarih kuralı reddetsin ("çıkış girişten sonra" kuralı değil; mutasyon D6).
+    expect(reservationSchema.safeParse({ ...base, arrivalDate: Y10K, departureDate: Y10K + 3 * 86_400_000 }).success).toBe(false);
+    expect(reservationSchema.safeParse({ ...base, arrivalDate: "9999-12-01", departureDate: "9999-12-04" }).success).toBe(true);
   });
 });

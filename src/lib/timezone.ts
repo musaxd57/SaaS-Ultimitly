@@ -207,6 +207,10 @@ export function addZonedDays(date: Date, n: number, tz: string): Date {
 /** `date`'in `tz`'deki DUVAR SAATİNİ (saat:dakika) koruyarak takvim gününü n kaydırır ("bugün 23:59" → "yarın 23:59"); `addZonedDays` ise
  *  yerel GECE YARISINI döner (gece-4 S1-03: söz onayında gün değişince pencere sonu 00:00'a düşüyordu). Saniye atılır. */
 const WALL_CLOCK_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+/** YALNIZ test: duvar saati önbelleğindeki biçimlendirici sayısı. */
+export function __wallClockCacheSize(): number {
+  return WALL_CLOCK_FORMATTERS.size;
+}
 export function shiftZonedDaysKeepingWallClock(date: Date, n: number, tz: string): Date {
   const [y, m, d] = dateKeyInTimeZone(date, tz).split("-").map(Number);
   let fmt = WALL_CLOCK_FORMATTERS.get(tz);
