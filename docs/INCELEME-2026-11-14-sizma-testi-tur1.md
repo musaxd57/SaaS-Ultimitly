@@ -136,3 +136,30 @@ mutant YAŞADI ve dördü de eksik pin çıktı (ölü kod değil):
 - Q8 — tek erişim adı "combination": var olan İngilizce örnekte "key" / "box" da geçiyordu → yalnız "combination" geçen örnek eklendi.
 - Q9 — kod sözcüğü OLMADAN aralıklı / yazıyla kod: var olan testler etiketliydi ("Kapı kodu …") → etiketsiz örnek eklendi.
 Pinlerden sonra dördü de öldürüldü → 46 / 46.
+
+## 7. Tur 2 (aynı gece) — enjeksiyon · kalan kaynak tüketimi · toplu alan atama
+Üç ajan daha (K başka bağlama enjeksiyon · L kalan DoS yüzeyleri · M toplu alan atama / prototip kirletme), aynı kurallarla.
+
+**Bulgu yok (kodda okundu):** K — OTA'nın okuduğu takvim beslemesine satır / etkinlik enjeksiyonu yok (tek yazıcı, RFC 5545 kaçışı doğru),
+CSV dışa aktarımı yok (formül enjeksiyonu yüzeyi yok), e-posta konusu tek satıra iniyor, gövde kaçışlı, `dangerouslySetInnerHTML` yalnız
+sabit içerikte. M — hiçbir şema bilinmeyen alanı geçirmiyor, derin birleştirme yok, personel yalnız kendi görevinin işaretini değiştirebiliyor.
+
+**Düzeltilenler (kırmızı-önce 13, mutasyon 16 / 16 — dört eksik pin eklendi):**
+- K sertleştirme: takvim metin kaçışında NEL / U+2028 / U+2029 de satır sonu.
+- M-1 / M-2: kullanıcının tetikleyebildiği 500'ler artık 400 — 10000 yılı tarih (görev, rezervasyon, KB sürüm tarihi), 32 biti taşan otomatik
+  mesaj sürümü, içe aktarmada dosya yerine metin. Sahte 500'ler ortak uyarı kovasını doldurup gerçek alarmları bastırabiliyordu (A-1 sınıfı).
+- L-7 (doğrulandı): Ayarlar saat dilimini yazıldığı harf biçimiyle saklıyordu ("eUrOpE/iStAnBuL" geçerli); görünüm katmanının biçimlendirici
+  önbelleği bu dizeyle anahtarlanıyor ve tavansızdı (kodun yorumu "anahtar asla kullanıcı girdisi değil" diyordu) → her varyant kalıcı bellek.
+  Dilim artık kanonik adla saklanır; önbellekler 1.000 tavanlı.
+- L-8 (doğrulandı): pasif bilgi tabanı kalemi plan sınırına sayılmıyor (sayısı sınırsız) ve hafıza önyüklemesi her yazımda / zamanlanmış
+  geçişte hepsinin METNİNİ okuyordu → metin yalnız etkin + okunabilir kalemler için okunur.
+
+**Doğrulanan ama ürün kararı gerektirenler (kod yok — kurucu sorusu):**
+- L-1 (doğrulandı): konuşma sayfası bütün mesajları sınırsız yükler ve 30 sn'de bir yenilenir. Öneri: son 300 mesaj + "Daha eski N mesaj
+  gösterilmiyor — tamamını göster" bağlantısı (ev sahibinin ekranı değişir).
+- L-8 devamı: pasif kalem sayısına da üst sınır (öneri: daire başına 1.000 kayıt toplam; bugün kimse yakın değil). Ev sahibine görünen yeni sınır.
+- L-4: işletme başına depolama / mesaj hacmi kotası yok (deneme hesabı günde GB'larca metin yazabilir). Plan kotası tasarımı ister.
+**Doğrulanmadı / ölçülmedi (sonraki tur):** L-2 hesap dökümü eşzamanlı üç istek · L-3 raporlar sayfası mesaj okuması · L-5 elle takvim
+senkronunun bağlantı havuzunu tutması · L-6 konuşma tekilleştirme · L-9 tavansız listeler · L-10 vektör ısıtma bütçesi · L-11 elle Hospitable
+senkronu ile zamanlanmış geçişin atlanması. M-3 (not): yönetici elle "GuestOps AI" adıyla misafir mesajı yazarsa ekranda "Lixus AI" görünür
+(yalnız kendi verisi; giden cevapta zaten reddediliyor).
