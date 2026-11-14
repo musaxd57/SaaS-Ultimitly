@@ -27,8 +27,10 @@ function mappedIpv4(h: string): string | null {
   // `ffff:` artık OPSİYONEL ve sıkıştırılmamış "0:0:0:0:0[:ffff]" öneki de
   // kabul ediliyor. Yalnızca EŞLEŞME EKLER: gerçek bir public IPv6 adresi bu
   // kalıplara uymaz (ilk 80 bitin sıfır olması şartı korunuyor).
+  // Sızma testi 11-14 (I): IPv4-ÇEVRİLMİŞ biçim (RFC 2765 SIIT, "::ffff:0:a.b.c.d" → WHATWG "::ffff:0:7f00:1") da gömülü IPv4'ü taşır
+  // (arada bir SIIT çevirici varsa iç adrese ulaşır) — "ffff:" ardından isteğe bağlı "0:" grubu. Yine yalnız EŞLEŞME EKLER.
   const hex = h.match(
-    /^(?:::|0{1,4}(?::0{1,4}){4}:)(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/,
+    /^(?:::|0{1,4}(?::0{1,4}){4}:)(?:ffff:(?:0{1,4}:)?)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/,
   );
   if (hex) {
     const hi = parseInt(hex[1], 16);

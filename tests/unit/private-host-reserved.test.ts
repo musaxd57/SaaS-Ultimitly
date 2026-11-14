@@ -63,3 +63,21 @@ describe("isPrivateHost — ayrılmış aralıklar ve FQDN sondaki nokta", () =>
     expect(isPrivateAddress("203.0.113.9")).toBe(false);
   });
 });
+
+// Sızma testi 11-14 (I, "emin değilim" → sertleştirme): IPv4-ÇEVRİLMİŞ IPv6 (RFC 2765 SIIT, ::ffff:0:a.b.c.d) gömülü IPv4'ü taşır; arada
+// bir SIIT çevirici varsa iç adrese ulaşır. Yalnız eşleşme ekler — bu önek kamuya açık değildir.
+describe("IPv4-çevrilmiş IPv6 (::ffff:0:a.b.c.d)", () => {
+  it.each([
+    ["::ffff:0:127.0.0.1", "loopback (noktalı)"],
+    ["::ffff:0:7f00:1", "loopback (onaltılık, WHATWG biçimi)"],
+    ["0:0:0:0:ffff:0:7f00:1", "loopback (sıkıştırılmamış)"],
+    ["::ffff:0:a9fe:a9fe", "bulut meta verisi 169.254.169.254"],
+    ["[::ffff:0:a00:1]", "10.0.0.1 (köşeli parantezli)"],
+  ])("ENGELLER: %s (%s)", (addr) => {
+    expect(isPrivateAddress(addr)).toBe(true);
+  });
+  it("aşırı uygulama yok: çevrilmiş biçimde gömülü KAMUYA AÇIK IPv4 (8.8.8.8) ve olağan IPv6 engellenmez", () => {
+    expect(isPrivateAddress("::ffff:0:808:808")).toBe(false); // 8.8.8.8
+    expect(isPrivateAddress("2001:4860:4860::8888")).toBe(false);
+  });
+});
