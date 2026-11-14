@@ -73,6 +73,22 @@ export function osaDistanceWithin(a: string, b: string, max: number): number {
 
 /** `fuzzy` sonucunun dizin başına önbelleği (aynı kök alt sorgular / bekleyen mesajlar arasında tekrar eder); taşarsa boşalır. */
 const FUZZY_MEMO_MAX = 4_096;
+/**
+ * SORGU BAŞINA YAZIM TOLERANSI BÜTÇESİ (sızma testi 11-14, J-1 — ÖLÇÜLDÜ). 10-01 düzeltmesi TEK karşılaştırmayı sınırladı; karşılaştırma
+ * SAYISI (bilinmeyen kök × sözlük kökü) sınırsızdı: ev sahibi bilgi tabanını rastgele sözcüklerle doldurup uzun anlamsız bir mesaj
+ * gönderince tek istek olay döngüsünü kilitliyordu (30 kalem / 13,5 bin kök × 800 kök 1,6 sn; 300 kalem / 134 bin kök × 800 kök 17,6 sn —
+ * paylaşılan süreçte bütün işletmeler bekler). Dürüst kullanım ÖLÇÜLDÜ (`evals/rag-scale/dev.json`, 276 kalem, 1.066 soru, 2.488 çağrı):
+ * çağrı başına en çok 10.203 karşılaştırma (p99 6.960); 2.000 karakterlik doğal mesaj 2.682. Tavan bunun ~25 katı → dürüst seçim
+ * DEĞİŞMEZ; aşılınca kalan bilinmeyen kökler yazım toleranssız geçer (yalnız "eşleşme yok" yönü).
+ * Maliyet, kökün UZUNLUK BANDINDAKİ sözlük kökü sayısıdır ve önbellekten bağımsız ÖNCEDEN düşülür → aynı sorgu + aynı dizin her zaman
+ * aynı sonucu verir (önbellek sıcak / soğuk fark etmez).
+ */
+export const FUZZY_BUDGET_PER_QUERY = 250_000;
+let fuzzyBudgetSkips = 0;
+/** Bütçe yüzünden toleranssız geçen kök sayacı — YALNIZ test. */
+export function __fuzzyBudgetSkipCount(): number {
+  return fuzzyBudgetSkips;
+}
 /** Sözlük taraması sayacı — YALNIZ test (önbelleğin tekrar taramayı gerçekten önlediğini pinler). */
 let fuzzyScans = 0;
 export function __fuzzyScanCount(): number {
@@ -109,6 +125,8 @@ export class Bm25Index {
   readonly N: number;
   private readonly vocab: string[];
   private readonly fuzzyMemo = new Map<string, string | null>();
+  /** Uzunluk → o uzunluktaki (≥ `FUZZY_MIN_LEN`) sözlük kökü sayısı — yazım toleransı bütçesinin maliyet ölçüsü. */
+  private readonly vocabByLength = new Map<number, number>();
 
   constructor(inputs: readonly Bm25DocInput[]) {
     this.docs = inputs.map((d) => {
@@ -134,6 +152,16 @@ export class Bm25Index {
     }
     this.avgdl = this.N > 0 ? total / this.N : 0;
     this.vocab = [...this.df.keys()];
+    for (const v of this.vocab) if (v.length >= FUZZY_MIN_LEN) this.vocabByLength.set(v.length, (this.vocabByLength.get(v.length) ?? 0) + 1);
+  }
+
+  /** Kökün yazım toleransı taramasının maliyeti: uzunluk bandındaki sözlük kökü sayısı (tarama yoksa 0). Önbellekten bağımsız. */
+  fuzzyCost(term: string): number {
+    const allow = fuzzyAllowance(term.length);
+    if (allow === 0 || /\d/.test(term)) return 0;
+    let cost = 0;
+    for (let len = term.length - allow; len <= term.length + allow; len++) cost += this.vocabByLength.get(len) ?? 0;
+    return cost;
   }
 
   idf(term: string): number {
@@ -171,15 +199,26 @@ export class Bm25Index {
    * (ağırlık × FUZZY_WEIGHT). `resolved` çağırana hangi kökün neye bağlandığını
    * söyler (kanıt/teşhis; misafir metni değil, kök).
    */
-  scores(query: ReadonlyMap<string, number>): { scores: Float64Array; resolved: Map<string, string> } {
+  scores(
+    query: ReadonlyMap<string, number>,
+    fuzzyBudget: number = FUZZY_BUDGET_PER_QUERY,
+  ): { scores: Float64Array; resolved: Map<string, string> } {
     const scores = new Float64Array(this.N);
     const resolved = new Map<string, string>();
     const effective = new Map<string, number>();
+    let budget = fuzzyBudget;
     for (const [term, w] of query) {
       if (this.df.has(term)) {
         effective.set(term, Math.max(effective.get(term) ?? 0, w));
         continue;
       }
+      const cost = this.fuzzyCost(term);
+      if (cost === 0) continue;
+      if (cost > budget) {
+        fuzzyBudgetSkips++;
+        continue;
+      }
+      budget -= cost;
       const near = this.fuzzy(term);
       if (near) {
         resolved.set(term, near);
