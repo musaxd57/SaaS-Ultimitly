@@ -10,7 +10,7 @@ export const GUEST_DISPLAY_NAME_MAX = 60;
 
 /**
  * Temizlenmiş biçim (TAVANSIZ): NFC, satır sonu / denetim karakteri → boşluk, görünmez karakter silinir (emoji birleştiricisi ZWJ ve
- * emoji biçim seçicisi korunur — "👨‍👩‍👧" bölünmesin), ardışık boşluk teke iner, kırpılır.
+ * emoji biçim seçicisi korunur — "👨[U+200D]👩[U+200D]👧" bölünmesin), ardışık boşluk teke iner, kırpılır.
  */
 function cleanGuestDisplayName(input: string): string {
   return input

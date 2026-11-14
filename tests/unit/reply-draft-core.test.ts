@@ -29,8 +29,8 @@ const classify = (draft: string, sent: string, semantic: number | null = null) =
 
 describe("normalleştirme ve belirteçler", () => {
   it("görünmez karakter, büyük harf (Türkçe İ / I) ve boşluk farkı metni DEĞİŞTİRMEZ", () => {
-    expect(normalizeForDiff("  Wİ-Fİ​ şifremiz   LALE2024 ")).toBe(normalizeForDiff("wi-fi şifremiz lale2024"));
-    expect(classify("Wi-Fi şifremiz: Lale2024", "wi-fi  şifremiz: LALE2024​").outcome).toBe("unchanged");
+    expect(normalizeForDiff("  Wİ-Fİ\u200b şifremiz   LALE2024 ")).toBe(normalizeForDiff("wi-fi şifremiz lale2024"));
+    expect(classify("Wi-Fi şifremiz: Lale2024", "wi-fi  şifremiz: LALE2024\u200b").outcome).toBe("unchanged");
   });
 
   it("değer belirteçleri: saat, sayı, tutar, bağlantı, e-posta, gün / ay adı", () => {

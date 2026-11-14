@@ -35,7 +35,7 @@ interface Token {
   value: boolean;
 }
 
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu;
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu;
 // Değer belirteçleri ÖNCE: bağlantı · e-posta · saat (14:00 / 14.00) · sayı (1.250,50 dahil) · harf/rakam dizisi. Her seçenek ya sabit bir başla
 // (http, rakam) ya da tek sınıfla başlar; iç içe niceleyici yalnız ayraç ZORUNLU olan grupta → doğrusal.
 const TOKEN_RE = /https?:\/\/[^\s]{1,300}|[\p{L}\p{N}._%+-]{1,64}@[\p{L}\p{N}.-]{1,253}\.[\p{L}]{2,24}|\d{1,2}[:.]\d{2}(?!\d)|\d+(?:[.,]\d+)*|[\p{L}\p{N}]+/gu;

@@ -150,7 +150,7 @@ describe("ekip kişisi (T3)", () => {
       expect(u.emailVerifiedAt).not.toBeNull();
       const m = await prisma.membership.findFirstOrThrow({ where: { userId: id } });
       expect(m).toMatchObject({ organizationId: orgId, role: "staff", origin: "team", status: "active" });
-      expect(await createTeamContact({ organizationId: orgId, name: " ​ " })).toEqual({ ok: false, reason: "bad_name" });
+      expect(await createTeamContact({ organizationId: orgId, name: " \u200b " })).toEqual({ ok: false, reason: "bad_name" });
     });
   });
 

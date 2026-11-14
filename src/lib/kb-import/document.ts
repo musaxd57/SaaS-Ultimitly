@@ -83,7 +83,7 @@ export interface SplitDocument {
 }
 
 /** Görünmez biçim karakterleri + kontrol karakterleri (sekme ve satır sonu hariç; R28 10-28: C1 denetim karakterleri 0x80–0x9F de). */
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu;
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu;
 
 /** Satır sonları tek biçime iner, görünmez / kontrol karakterleri silinir, satırların iki ucu kırpılır. Metin başka DEĞİŞMEZ. */
 export function normalizeDocText(raw: string): string {

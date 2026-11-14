@@ -15,7 +15,7 @@ const MONTHS_TR = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Ey
 /** Görünmez karakterler (sıfır genişlik, yön işaretleri, Braille boşluğu) silinir; satır sonu / sekme / boşluk dizisi tek boşluk olur. */
 export function templateSafe(text: string): string {
   return text
-    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu, "")
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")
     .replace(/\s+/gu, " ")
     .trim();
 }

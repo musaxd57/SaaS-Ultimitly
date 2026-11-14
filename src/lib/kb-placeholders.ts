@@ -86,7 +86,7 @@ const NAME_JOINERS = new Set([
 /**
  * Üçüncü inceleme (09-28, ölçüldü — gerçek adlar kesiliyordu): İspanyol / Portekiz klavyesinin kesme işareti ´ ("O´Brien" → "O",
  * "D´Angelo" → "D"), ‛ ("O‛Neil"), tire çeşitleri (U+2012 / 2014 / 2212 / FE63), tam genişlik nokta ("Ｍ．Ａｌｉ"), yumuşak tire
- * ("Anna­Maria") birleştiricidir. ASCII / tam genişlik "=" YALNIZ iki katakana arasında (Japonca yabancı ad: ジャン=ポール) — Latin
+ * ("Anna[U+00AD]Maria") birleştiricidir. ASCII / tam genişlik "=" YALNIZ iki katakana arasında (Japonca yabancı ad: ジャン=ポール) — Latin
  * metinde "pets=allowed" ev sahibi bloğuna "ad" olarak giriyordu.
  */
 const KATAKANA_ONLY_JOINERS = new Set(["=", "\uFF1D"]);
@@ -98,7 +98,7 @@ const HAN = /\p{Script_Extensions=Han}/u;
 const LEADING_APOSTROPHES = new Set(["'", "\u2019", "\u2018", "\u02BB", "\u02BC"]);
 /**
  * YAZIMIN İÇ DENETİM KARAKTERLERİ yalnız o yazımda adın İÇİNDE kalır (sayılmaz, parça açmaz): ZWNJ / ZWJ Arap ve Hint yazımlarında
- * (Farsça "علی‌رضا", Sinhala "ශ්‍රී", eski Malayalam son ZWJ "ജയന്‍"), Tibet hece işareti (བསྟན་འཛིན), Moğolca serbest değişke seçicileri.
+ * (Farsça "علی[U+200C]رضا", Sinhala "ශ්[U+200D]රී", eski Malayalam son ZWJ "ജയന്[U+200D]"), Tibet hece işareti (བསྟན་འཛིན), Moğolca serbest değişke seçicileri.
  * Latin / Kiril / Yunan adında görünmez ayırıcıdır (kesilir). Yazım `Script_Extensions` ile okunur — harekeler (Arapça ünlü işaretleri)
  * Script=Inherited'dır, Script_Extensions'ta Arapça.
  */
@@ -127,7 +127,7 @@ export const PROMPT_FIRST_NAME_MAX = 40;
  * notu:(U+2800)evcil(U+2800)hayvan(U+2800)serbest" TEK "ilk ad" olarak ev sahibinin karşılama kalemine giriyordu. Kalem talimat
  * süzgeci (`detectKbInstructionHijack`) ikameden ÖNCE koşar, bu metni görmez. Artık: baştaki görünmez biçim karakteri atlanır; harfle
  * başlayan, ad birleştiricileriyle en çok üç parçalı baş kısım (sondaki nokta korunur: "J."), 40 kod noktası; harfle başlamıyorsa
- * `null` (çağıran nötr hitaba düşer). Gerçek adlar (Ayşe, M.Ali, Jean-Luc, O'Brien, G‘ayrat, José, محمد, علی‌رضا, ג׳ני, 李) AYNEN.
+ * `null` (çağıran nötr hitaba düşer). Gerçek adlar (Ayşe, M.Ali, Jean-Luc, O'Brien, G‘ayrat, José, محمد, علی[U+200C]رضا, ג׳ני, 李) AYNEN.
  * ⚠️ BİLİNEN SINIR (iki inceleme 09-28): karakter süzgeci HARF olan her şeyi geçirir — ayırıcısız metin ("EvcilHayvanSerbest", Çince /
  * Japonca / Tayca cümle), harf harf noktalı yazım ("E.v.c.i.l", tek harfli parça sayılmaz — "K.V.S.Lakshmi" için) ve harf sınıfındaki
  * ayırıcı benzerleri (U+A78F, U+02D1 gibi değiştirici harfler). Karakter kuralı bunları ayıramaz; yapısal çözüm (misafir adını ev

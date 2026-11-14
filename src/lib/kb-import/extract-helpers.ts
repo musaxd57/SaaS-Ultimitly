@@ -229,7 +229,7 @@ function incompleteUtf8Tail(bytes: Uint8Array): number {
  * okunup "ÅiÅŸli" oluyordu). Ortada bozuk bayt varsa eskisi gibi 1254.
  */
 export function decodeTextFile(bytes: Uint8Array): { text: string; encoding: "utf-8" | "windows-1254" } {
-  const utf8 = (b: Uint8Array) => new TextDecoder("utf-8", { fatal: true }).decode(b).replace(/^﻿/, "");
+  const utf8 = (b: Uint8Array) => new TextDecoder("utf-8", { fatal: true }).decode(b).replace(/^\uFEFF/, "");
   try {
     return { text: utf8(bytes), encoding: "utf-8" };
   } catch {

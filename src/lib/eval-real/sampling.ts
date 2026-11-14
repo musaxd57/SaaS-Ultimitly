@@ -66,7 +66,7 @@ export function isStayCandidate(text: string): boolean {
 
 /** Kaba dil tahmini — yalnız rapordaki dil kırılımı için (karar DEĞİL). */
 export function guessLanguage(text: string): string {
-  if (/[؀-ۿ]/u.test(text)) return "ar";
+  if (/[\u0600-\u06FF]/u.test(text)) return "ar";
   if (/[Ѐ-ӿ]/u.test(text)) return "ru";
   const f = ` ${text.toLocaleLowerCase("tr")} `;
   const has = (words: string[]) => words.some((w) => f.includes(` ${w} `) || f.includes(` ${w}?`) || f.includes(` ${w},`));

@@ -73,7 +73,7 @@ const PLACEHOLDER_RESERVATION = /^(?:rezervasyon|reservation)\s+(\S+)$/iu;
 const TR_SUFFIX =
   "(?:ler|lar)?(?:ın|in|un|ün|nın|nin|nun|nün|ı|i|u|ü|yı|yi|yu|yü|a|e|ya|ye|da|de|ta|te|dan|den|tan|ten|la|le|yla|yle|ca|ce|ça|çe)?";
 
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}⠀]/gu;
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\u2800]/gu;
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"')\]]+/giu;
 const EMAIL_RE = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/gu;

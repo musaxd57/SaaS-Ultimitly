@@ -2133,7 +2133,7 @@ export function detectGuestLanguage(message: string): string {
     return "de";
   }
   if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) return "fr";
-  if (/[؀-ۿ]/.test(message)) return "ar"; // Arabic script
+  if (/[\u0600-\u06FF]/.test(message)) return "ar"; // Arabic script
   if (/[Ѐ-ӿ]/.test(message)) return "ru"; // Cyrillic script
   return "en";
 }

@@ -16,7 +16,7 @@ export function foldUnicodeDigits(s: string): string {
 
 /**
  * SIR TARAMASI KATLAMASI (Haiku 10-14 ikinci tur): `foldUnicodeDigits` + rakam görünümlü diğer sayılar (üst / alt simge ⁶₆, daire içi ⑥
- * — `\p{No}`, NFKC karşılığı ASCII rakamsa) + GÖRÜNMEZ karakterler silinir ("61​42", yumuşak tire). Yalnız TARAMA ve modele giden
+ * — `\p{No}`, NFKC karşılığı ASCII rakamsa) + GÖRÜNMEZ karakterler silinir ("61[U+200B]42", yumuşak tire). Yalnız TARAMA ve modele giden
  * kopyada kullanılır; misafirin / ev sahibinin gördüğü metin değişmez.
  */
 export function foldForSecretScan(s: string): string {
@@ -26,5 +26,5 @@ export function foldForSecretScan(s: string): string {
       const n = ch.normalize("NFKC");
       return /^[0-9]+$/.test(n) ? n : ch;
     })
-    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu, "");
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "");
 }

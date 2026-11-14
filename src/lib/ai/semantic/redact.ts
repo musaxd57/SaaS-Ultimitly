@@ -27,7 +27,7 @@ export { isDateOrTimeToken, isProtectedNumericRun };
 // ---------------------------------------------------------------------------
 
 /** Yer tutucu işareti (görünmez ayırıcı). Girdideki aynı karakter önce silinir: taklit edilemez. */
-const MARK = "⁣";
+const MARK = "\u2063"; // U+2063 görünmez ayraç
 const MARK_RE = new RegExp(MARK, "g");
 const PLACEHOLDER_RE = new RegExp(`${MARK}KEEP(\\d+)${MARK}`, "g");
 

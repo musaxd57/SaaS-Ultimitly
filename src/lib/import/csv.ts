@@ -313,7 +313,7 @@ function tokenizeCsv(text: string, delimiter: string): string[][] {
  * or a valid arrival/departure date (partial-import contract preserved).
  */
 export function parseCsv(text: string): CsvReservation[] {
-  const clean = text.replace(/^﻿/, ""); // strip UTF-8 BOM
+  const clean = text.replace(/^\uFEFF/, ""); // strip UTF-8 BOM
   if (!clean.trim()) return [];
 
   const delimiter = detectDelimiter(clean);

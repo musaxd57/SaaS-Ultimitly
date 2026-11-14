@@ -5,7 +5,7 @@
 // Veri bloğunun sınırını taklit eden dizi veriden silinir. İki+ ayraç karakterinden oluşan ÇALIŞMA bütünüyle silinir: tek geçişte
 // "<<<" silmek ">><<<>" girdisinden YENİ bir ">>>" üretiyordu (inceleme 09-24). #211 (A6 bulgu 3, 09-27): yalnız bitişik ASCII
 // "<" / ">" siliniyordu; tam genişlikli "＞＞＞", açılı tırnak "»»»", boşluklu "> > >" ve görünmez karakterle ayrılmış
-// ">​>​>" (U+200B / U+2060) geçiyordu. Artık ayraç BENZERİ karakterler ve aralarındaki yalnız boşluk / görünmez karakter
+// ">[U+200B]>[U+200B]>" (U+200B / U+2060) geçiyordu. Artık ayraç BENZERİ karakterler ve aralarındaki yalnız boşluk / görünmez karakter
 // tek çalışma sayılır. Bu karakterleri taşımayan metin BAYT BAYT aynı (ölçer önbelleği ve modele giden istem değişmez); tek
 // ayraç ("100 > 50", "«ёлка»", "<3") korunur.
 // ---------------------------------------------------------------------------

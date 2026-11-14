@@ -146,14 +146,14 @@ function apologyHeld(reply: string, hostAnswer: string): boolean {
 
 /**
  * Platform dışına (başka uygulamaya) çağrı — Airbnb / Booking kuralı; telefon / bağlantı ayrıca `contact_value`. Görünmez karakter silinir,
- * harf arası ayraç birleştirilmiş biçim de denenir ("What​sApp", "Whats-App"). Belirsiz kısa adlar (signal, line, wa, dm) BİLEREK yok —
+ * harf arası ayraç birleştirilmiş biçim de denenir ("What[U+200B]sApp", "Whats-App"). Belirsiz kısa adlar (signal, line, wa, dm) BİLEREK yok —
  * "Wi-Fi signal" sıradan cevap; ev sahibi önizlemeyi görür.
  */
 const OFF_PLATFORM_CHANNEL =
   /whats\s?app|wa\.me|watsapp?|vatsap|telegram|viber|wechat|weixin|instagram|(?<![a-z])insta(?![a-z])|facebook|messenger|imessage|snapchat|skype|discord|kakao ?talk|(?<![a-z])wp'?(?:den|dan|ten|tan)(?![a-z])|ватсап|вотсап|вацап|вайбер|телеграм|инстаграм|фейсбук|واتس|تيليجرام|تليجرام|تلجرام|تلغرام|انستغرام|انستجرام|انستا|فيسبوك|سناب/u;
 const NOT_CHANNEL = /messenger ?bags?|instagram(?:-| )?worthy|instagrammable/gu;
 export const mentionsOffPlatformChannel = (text: string): boolean => {
-  const f = fold(text.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu, "")).replace(NOT_CHANNEL, " ");
+  const f = fold(text.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")).replace(NOT_CHANNEL, " ");
   return OFF_PLATFORM_CHANNEL.test(f) || OFF_PLATFORM_CHANNEL.test(f.replace(/(?<=\p{L})[-_.](?=\p{L})/gu, ""));
 };
 

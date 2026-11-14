@@ -39,10 +39,10 @@ describe("ekip kişisi — yapay e-posta", () => {
 describe("ekip kişisi — ad", () => {
   it("boşluk sadeleşir, görünmez / denetim karakteri düşer, 80 karakter tavanı; boş → null", () => {
     expect(normalizeTeamContactName("  Ayşe   Yılmaz ")).toBe("Ayşe Yılmaz");
-    expect(normalizeTeamContactName("A​y\u0007şe")).toBe("Ayşe");
+    expect(normalizeTeamContactName("A\u200by\u0007şe")).toBe("Ayşe");
     expect(normalizeTeamContactName("x".repeat(200))).toHaveLength(80);
     expect(normalizeTeamContactName("   ")).toBeNull();
-    expect(normalizeTeamContactName("​")).toBeNull();
+    expect(normalizeTeamContactName("\u200b")).toBeNull();
     expect(normalizeTeamContactName(42)).toBeNull();
   });
 });

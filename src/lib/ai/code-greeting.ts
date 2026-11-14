@@ -105,8 +105,8 @@ const GREETING_WORD = String.raw`(?:merhabalar|merhaba|selamlar|selam|iyi[ \t]+(
 const HONORIFIC = String.raw`(?:(?:sayin|değerli|degerli|sevgili)[ \t]+misafir(?:lerimiz|imiz|im)?|dear[ \t]+(?:guests?|friends?)|(?:liebe[rs]?|sehr[ \t]+geehrte[rs]?)[ \t]+(?:gast|gäste)|chère?s?[ \t]+(?:client(?:e|s|es)?|invité(?:e|s|es)?|voyageurs?|voyageuses?)|(?:estimad[oa]s?|querid[oa]s?)[ \t]+(?:huésped(?:es)?|clientes?)|(?:уважаем(?:ый|ая|ые)|дорог(?:ой|ая|ие))[ \t]+гост(?:ь|ья|и))`;
 /** Selam sözcüğünden sonra gelebilecek KAPALI hitap listesi (model adı görmez; "[Misafir]" bizim gizleme işaretimiz). */
 const ADDRESS = String.raw`(?:\[misafir\]|${HONORIFIC}|misafir(?:lerimiz|imiz|im)?|hanimefendi|beyefendi|there|guests?|everyone|all|friends?|بك|بكم)`;
-const PICTO = String.raw`[\p{Extended_Pictographic}‍️]`;
-const GREETING_PREFIX = String.raw`^[\s‎‏﻿]*[*_]{0,3}(?:${PICTO}{1,8}[ \t]*)?¡?`;
+const PICTO = String.raw`[\p{Extended_Pictographic}\u200D\uFE0F]`;
+const GREETING_PREFIX = String.raw`^[\s\u200E\u200F\uFEFF]*[*_]{0,3}(?:${PICTO}{1,8}[ \t]*)?¡?`;
 const GREETING_TAIL = String.raw`[*_]{0,3}(?:[ \t]*${PICTO}){0,8}[ \t]*(?:\r?\n[ \t]*)*`;
 const KNOWN_GREETING = new RegExp(
   String.raw`${GREETING_PREFIX}(?:${GREETING_WORD}(?:[ \t]*(?:,[ \t]*)?${ADDRESS})?|${HONORIFIC})[ \t]*(?:[,!.،؛:]{1,3}|(?=\r?\n))${GREETING_TAIL}`,

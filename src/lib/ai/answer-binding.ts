@@ -1815,7 +1815,7 @@ const EXCEPTION_TOKENS = new Set(
   "haric haricinde disinda except excluding but however ama fakat ausser außer aber sauf mais excepto salvo pero кроме но".split(" "),
 );
 
-const scriptOf = (text: string) => (/[Ѐ-ӿ]/u.test(text) ? "cyrillic" : /[Ͱ-Ͽ]/u.test(text) ? "greek" : /[؀-ۿ]/u.test(text) ? "arabic" : "latin");
+const scriptOf = (text: string) => (/[Ѐ-ӿ]/u.test(text) ? "cyrillic" : /[Ͱ-Ͽ]/u.test(text) ? "greek" : /[\u0600-\u06FF]/u.test(text) ? "arabic" : "latin");
 
 // ─── ana kural ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
