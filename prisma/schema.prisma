@@ -396,7 +396,7 @@ model PasswordResetChallenge {
 model TwoFactorRecoveryCode {
   id        String    @id @default(cuid())
   userId    String
-  codeHash  String // sha256(hex) of the normalized code — NEVER the plaintext
+  codeHash  String // v2: "v2:" + scrypt(kod, tuz=kullanıcı kimliği) hex; eski v1: tuzsuz sha256 hex (yalnız okumada) — ASLA düz kod
   createdAt DateTime  @default(now())
   usedAt    DateTime? // single-use: set atomically on consume; non-null = dead
 

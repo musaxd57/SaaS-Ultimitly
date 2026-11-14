@@ -4,6 +4,7 @@ import {
   requireSession,
   unauthorized,
   forbidden,
+  notFound,
   serverError,
   canManage,
   impersonationReadOnly,
@@ -44,6 +45,10 @@ type AuthedHandler<P> = (
  *  a collection route). */
 export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
   return async (req: NextRequest, ctx: RouteCtx<P>): Promise<Response> => {
+    // Adreste NUL (sızma testi 11-14, A-1 sınıfı): yol / sorgu parçası sorguya girer, PostgreSQL NUL'lu dizede hata verir → 500 + ortak
+    // uyarı kovası. Deneme hesabı açan biri `/api/properties/%00` ile GERÇEK alarmları bastırabiliyordu. Oturumdan ÖNCE: veritabanına
+    // hiç dokunulmaz, rota çağrılmaz.
+    if (urlCarriesNul(req)) return notFound();
     const session = await requireSession();
     if (!session) return unauthorized();
     // Başka siteden yazma (güvenlik 2. tur 10-22): çerez `SameSite=Lax` başka siteden POST'u zaten oturumsuz bırakır; bu kapı kardeş alt
@@ -72,6 +77,12 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
       return withCorrelationHeader(res, currentCorrelationId() ?? correlationId);
     });
   };
+}
+
+/** Adres (yol ya da sorgu) NUL taşıyor mu — kodlanmış (%00) ya da çözülmüş hâliyle. `%2500` (yüzde işaretinin kendisi) NUL değildir. */
+export function urlCarriesNul(req: Request): boolean {
+  const raw = req.url;
+  return /%00/.test(raw) || raw.includes("\0");
 }
 
 /** Tarayıcının `Sec-Fetch-Site` başlığına göre başka siteden gelen yazma isteği. Başlık yoksa (sunucu istemcisi, test, eski tarayıcı)

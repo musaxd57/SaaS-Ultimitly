@@ -509,7 +509,20 @@ export async function readJsonCapped<T = unknown>(
   if (req.body !== null && mediaTypeEssence(req.headers.get("content-type")) !== "application/json") {
     throw new UnsupportedMediaTypeError();
   }
-  return JSON.parse(await readTextCapped(req, maxBytes)) as T; // "" → SyntaxError → caller 400
+  return parseJsonRejectingNul<T>(await readTextCapped(req, maxBytes)); // "" → SyntaxError → caller 400
+}
+
+/**
+ * JSON.parse + NUL reddi (sızma testi 11-14, A-1 sınıfı). PostgreSQL `text` NUL saklayamaz: gövdedeki NUL'lu dize her yazmada sorgu
+ * hatası (500 + uyarı e-postası) doğuruyordu; kimliksiz uçlardan (leads, kayıt) tek ortak uyarı kovası doldurularak GERÇEK alarmlar
+ * bastırılabiliyordu. JSON'da NUL yalnız kaçışla gelebilir (ham denetim karakteri zaten geçersiz JSON) → her dize değeri ve anahtar
+ * ayrıştırırken doğrusal denetlenir; bulunursa SyntaxError (çağıranların mevcut "bozuk gövde" dalı). Meşru metinde NUL yoktur.
+ */
+export function parseJsonRejectingNul<T>(text: string): T {
+  return JSON.parse(text, (key, value) => {
+    if ((typeof value === "string" && value.includes("\0")) || key.includes("\0")) throw new SyntaxError("JSON gövdesinde NUL karakteri");
+    return value;
+  }) as T;
 }
 
 /**

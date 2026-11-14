@@ -96,6 +96,31 @@ describe("withAuth başka siteden yazmayı keser", () => {
   });
 });
 
+// Sızma testi 11-14 (A-1 sınıfı): oturumlu her dinamik rota yol / sorgu parçasını sorguya koyar; NUL taşıyan değer PostgreSQL'de hata →
+// 500 + ortak uyarı kovası. Deneme hesabı açan herhangi biri `/api/properties/%00` ile GERÇEK alarmları bastırabiliyordu. Ortak kapı adres
+// NUL taşıyorsa rotayı HİÇ çağırmaz.
+describe("withAuth adreste NUL", () => {
+  beforeEach(() => {
+    session = owner;
+  });
+  it("yol ya da sorgu %00 taşıyorsa 404, rota çağrılmaz", async () => {
+    for (const url of ["http://localhost/api/properties/%00abc", "http://localhost/api/conversations?search=a%00b", "http://localhost/api/x/%00"]) {
+      const handler = vi.fn(async () => new Response("ok"));
+      const res = await withAuth(handler)(req("GET", undefined, url), { params: Promise.resolve({}) });
+      expect(res.status).toBe(404);
+      expect(handler).not.toHaveBeenCalled();
+    }
+  });
+  it("aşırı uygulama yok: normal adres, %2500 (yüzde işareti metni) ve Türkçe karakter geçer", async () => {
+    for (const url of ["http://localhost/api/properties/abc", "http://localhost/api/conversations?search=%2500", "http://localhost/api/kb?q=%C3%A7ay"]) {
+      const handler = vi.fn(async () => new Response("ok"));
+      const res = await withAuth(handler)(req("GET", undefined, url), { params: Promise.resolve({}) });
+      expect(res.status).toBe(200);
+      expect(handler).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
 describe("ortak kapı dışındaki gövdesiz yazma rotaları", () => {
   beforeEach(() => {
     session = owner;

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash, randomInt } from "crypto";
+import { createHash, randomInt, scrypt as scryptCallback, type ScryptOptions } from "crypto";
 import { prisma } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -9,11 +9,16 @@ import { prisma } from "@/lib/db";
 //  * 10 codes per generation, format XXXX-XXXX-XXXX from a 30-char alphabet
 //    with the confusable glyphs removed (no I/L/O/U/0/1) → ~59 bits each.
 //    crypto.randomInt = CSPRNG.
-//  * Stored as domain-separated sha256 HASHES of the normalized code — the
-//    plaintext exists only in the generation response (shown once). sha256 is
-//    appropriate here (a ~59-bit RANDOM credential, not a human password);
-//    deliberately NOT keyed with AUTH_SECRET so a secret rotation can't brick
-//    a locked-out user's last way in.
+//  * Stored as HASHES of the normalized code — the plaintext exists only in the
+//    generation response (shown once). 🚨 v2 (sızma testi 11-14, B-1): scrypt,
+//    tuz = alan öneki + KULLANICI KİMLİĞİ. Eski v1 tuzsuz + anahtarsız TEK sha256'ydı:
+//    veritabanı dökümü ele geçirilirse ~59 bitlik kod alanı GPU ile bütün
+//    kullanıcılar için aynı anda taranabiliyordu (tek kullanıcı ~60 GPU-günü, 100
+//    kullanıcıdan herhangi biri ~15 saat). v2'de kullanıcılar arası toplu tarama
+//    yok ve her deneme scrypt maliyeti öder. Hâlâ deterministik (kullanıcı başına)
+//    → `userId + codeHash` ile aranır. Bilerek ANAHTARSIZ (sunucu sırrı yok): sır
+//    değişince kilitli bir kullanıcının son kapısı kapanmasın. v1 satırları OKUMADA
+//    kabul edilir (kilitlenme yok), yeni üretilen her kod v2 yazılır.
 //  * Single-use burn is ATOMIC: conditional updateMany on usedAt (the same
 //    pattern as the TOTP step burn / e-mail-verify consume) — two concurrent
 //    logins with one code can't both pass.
@@ -32,9 +37,33 @@ export function normalizeRecoveryCode(input: string): string {
   return (input ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-/** Domain-separated hash of a NORMALIZED code (deterministic → indexable). */
-export function hashRecoveryCode(normalized: string): string {
+/** ESKİ (v1) özet: tuzsuz tek sha256. YALNIZ okumada kabul edilir — yeni satıra ASLA yazılmaz. */
+export function legacyRecoveryCodeHash(normalized: string): string {
   return createHash("sha256").update(`lixus-2fa-recovery:v1:${normalized}`).digest("hex");
+}
+
+/** scrypt maliyeti: N=2^14, r=8 (~16 MB, tek çekirdekte onlarca ms). Doğrulama yalnız 2FA girişinde, kod üretimi seyrek. */
+const SCRYPT_OPTIONS: ScryptOptions = { N: 2 ** 14, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
+const V2_PREFIX = "v2:";
+
+function scryptHex(password: string, salt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    scryptCallback(password, salt, 32, SCRYPT_OPTIONS, (err, key) => (err ? reject(err) : resolve(key.toString("hex"))));
+  });
+}
+
+/** v2 özet: kullanıcı kimliğiyle tuzlanmış scrypt (deterministik → `userId + codeHash` ile aranır). Biçim `v2:<64 hex>`. */
+export async function hashRecoveryCode(userId: string, normalized: string): Promise<string> {
+  return V2_PREFIX + (await scryptHex(normalized, `lixus-2fa-recovery:v2:${userId}`));
+}
+
+/** Bu kodun saklanmış olabileceği BÜTÜN özetler (v2 + eski v1) — doğrulama ikisinde de arar. */
+async function candidateHashes(userId: string, normalized: string): Promise<string[]> {
+  return [await hashRecoveryCode(userId, normalized), legacyRecoveryCodeHash(normalized)];
+}
+
+async function hashedRows(userId: string, codes: string[]): Promise<{ userId: string; codeHash: string }[]> {
+  return Promise.all(codes.map(async (c) => ({ userId, codeHash: await hashRecoveryCode(userId, normalizeRecoveryCode(c)) })));
 }
 
 /** One plaintext code, e.g. "K7QW-P2MH-9DTR". */
@@ -55,11 +84,11 @@ export function generateRecoveryCode(): string {
  */
 export async function regenerateRecoveryCodes(userId: string): Promise<string[]> {
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+  // Özetler işlemden ÖNCE (scrypt işlem içinde kilit tutmasın).
+  const data = await hashedRows(userId, codes);
   await prisma.$transaction([
     prisma.twoFactorRecoveryCode.deleteMany({ where: { userId } }),
-    prisma.twoFactorRecoveryCode.createMany({
-      data: codes.map((c) => ({ userId, codeHash: hashRecoveryCode(normalizeRecoveryCode(c)) })),
-    }),
+    prisma.twoFactorRecoveryCode.createMany({ data }),
   ]);
   return codes;
 }
@@ -75,6 +104,7 @@ export async function regenerateRecoveryCodesIfUnchanged(
   guard: { twoFactorSecret: string | null; twoFactorEnabledAt: Date | null; sessionEpoch?: number },
 ): Promise<string[] | null> {
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+  const data = await hashedRows(userId, codes);
   return prisma.$transaction(async (tx) => {
     const still = await tx.user.updateMany({
       // U40 kardeşi (Codex 10-07): verilmişse başlangıçta denetlenen oturum sürümü de koşulda (arada iptal edilen oturum kod üretemez).
@@ -88,9 +118,7 @@ export async function regenerateRecoveryCodesIfUnchanged(
     });
     if (still.count === 0) return null;
     await tx.twoFactorRecoveryCode.deleteMany({ where: { userId } });
-    await tx.twoFactorRecoveryCode.createMany({
-      data: codes.map((c) => ({ userId, codeHash: hashRecoveryCode(normalizeRecoveryCode(c)) })),
-    });
+    await tx.twoFactorRecoveryCode.createMany({ data });
     return codes;
   });
 }
@@ -114,7 +142,7 @@ export async function recoveryCodeIsUsable(userId: string, input: string): Promi
   const normalized = normalizeRecoveryCode(input);
   if (normalized.length !== RECOVERY_CODE_LEN) return false;
   const row = await prisma.twoFactorRecoveryCode.findFirst({
-    where: { userId, codeHash: hashRecoveryCode(normalized), usedAt: null },
+    where: { userId, codeHash: { in: await candidateHashes(userId, normalized) }, usedAt: null },
     select: { id: true },
   });
   return row !== null;
@@ -128,8 +156,9 @@ export async function recoveryCodeIsUsable(userId: string, input: string): Promi
 export async function consumeRecoveryCode(userId: string, input: string): Promise<boolean> {
   const normalized = normalizeRecoveryCode(input);
   if (normalized.length !== RECOVERY_CODE_LEN) return false;
+  // v1 ve v2 aynı kodun iki satırı olamaz (v2 yalnız yeni üretimde yazılır, üretim eski satırları siler) → en çok bir satır tutar.
   const res = await prisma.twoFactorRecoveryCode.updateMany({
-    where: { userId, codeHash: hashRecoveryCode(normalized), usedAt: null },
+    where: { userId, codeHash: { in: await candidateHashes(userId, normalized) }, usedAt: null },
     data: { usedAt: new Date() },
   });
   return res.count === 1;

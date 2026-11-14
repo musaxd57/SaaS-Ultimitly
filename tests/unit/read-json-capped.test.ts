@@ -168,3 +168,28 @@ describe("readFormDataCapped (multipart OOM streaming cap)", () => {
     await expect(readFormDataCapped(req, 5 * 1024 * 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
   });
 });
+
+// Sızma testi 11-14 (A-1 sınıfı): PostgreSQL `text` NUL saklayamaz — gövdede NUL taşıyan dize her yazmada sorgu hatası (500 + uyarı
+// e-postası) doğuruyordu; kimliksiz uçlardan (leads, kayıt) tek ortak uyarı kovası doldurularak gerçek alarmlar bastırılabiliyordu.
+// JSON'da NUL yalnız ters eğik çizgi + "u0000" kaçışıyla gelebilir → ayrıştırma hatası (çağıranın mevcut 400 dalı).
+describe("readJsonCapped NUL karakteri", () => {
+  it("dize DEĞERİNDE NUL → SyntaxError (iç içe nesne / dizi dahil)", async () => {
+    for (const raw of ['{"a":"x\\u0000y"}', '{"a":{"b":["ok","\\u0000"]}}', '["\\u0000"]', '"\\u0000"']) {
+      await expect(readJsonCapped(jsonReq(raw))).rejects.toBeInstanceOf(SyntaxError);
+    }
+  });
+  it("ANAHTARDA NUL → SyntaxError", async () => {
+    await expect(readJsonCapped(jsonReq('{"a\\u0000":1}'))).rejects.toBeInstanceOf(SyntaxError);
+  });
+  it("readJsonCappedOrNull NUL'lu gövdede null döner", async () => {
+    expect(await readJsonCappedOrNull(jsonReq('{"name":"\\u0000"}'))).toBeNull();
+  });
+  it("aşırı uygulama yok: düz ters eğik çizgi + u0000 METNİ, Türkçe / emoji / diğer kaçışlar geçer", async () => {
+    const data = await readJsonCapped<{ a: string; b: string; c: string }>(
+      jsonReq('{"a":"\\\\u0000","b":"Çağrı ş ğ 🙂","c":"satır\\nsekme\\t\\u0001"}'),
+    );
+    expect(data.a).toBe("\\u0000");
+    expect(data.b).toBe("Çağrı ş ğ 🙂");
+    expect(data.c).toBe("satır\nsekme\t\u0001");
+  });
+});

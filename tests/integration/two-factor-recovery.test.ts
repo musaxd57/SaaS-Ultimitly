@@ -12,6 +12,8 @@ import {
   remainingRecoveryCodes,
   normalizeRecoveryCode,
   hashRecoveryCode,
+  legacyRecoveryCodeHash,
+  recoveryCodeIsUsable,
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
 import type { SessionPayload } from "@/lib/auth";
@@ -93,11 +95,48 @@ describe("recovery-codes lib", () => {
     }
   });
 
-  it("normalize accepts case/separator noise; hash is domain-separated sha256 (64 hex)", () => {
+  it("normalize accepts case/separator noise; hash is versioned, user-salted scrypt (v2:64 hex)", async () => {
     expect(normalizeRecoveryCode(" k7qw-p2mh 9dtr ")).toBe("K7QWP2MH9DTR");
-    const h = hashRecoveryCode("K7QWP2MH9DTR");
-    expect(h).toMatch(/^[0-9a-f]{64}$/);
+    const h = await hashRecoveryCode("user-a", "K7QWP2MH9DTR");
+    expect(h).toMatch(/^v2:[0-9a-f]{64}$/);
     expect(h).not.toContain("K7QW");
+  });
+
+  // Sızma testi 11-14 (B-1): eski özet tuzsuz + anahtarsız TEK sha256'ydı — veritabanı dökümü ele geçirilirse ~59 bitlik kod alanı
+  // GPU ile bütün kullanıcılar için aynı anda taranabiliyordu. Yeni özet kullanıcı kimliğiyle tuzlanmış scrypt (çevrimdışı deneme pahalı,
+  // kullanıcılar arası toplu tarama yok). Eski biçimde saklanmış kodlar KİLİTLENMEZ: okumada kabul edilir, tek seferlik kalır.
+  it("aynı kod iki kullanıcıda FARKLI özet; özet eski tek sha256 değil", async () => {
+    const a = await hashRecoveryCode("user-a", "K7QWP2MH9DTR");
+    const b = await hashRecoveryCode("user-b", "K7QWP2MH9DTR");
+    expect(a).not.toBe(b);
+    expect(a).not.toBe(legacyRecoveryCodeHash("K7QWP2MH9DTR"));
+    expect(await hashRecoveryCode("user-a", "K7QWP2MH9DTR")).toBe(a); // deterministik → indekslenebilir
+  });
+
+  it("yeni üretilen kodlar v2 biçiminde saklanır (dökümde tek sha256 yok)", async () => {
+    const { userId } = await makeTfaUser();
+    const codes = await regenerateRecoveryCodes(userId);
+    const rows = await prisma.twoFactorRecoveryCode.findMany({ where: { userId } });
+    const legacy = new Set(codes.map((c) => legacyRecoveryCodeHash(normalizeRecoveryCode(c))));
+    for (const r of rows) {
+      expect(r.codeHash).toMatch(/^v2:[0-9a-f]{64}$/);
+      expect(legacy.has(r.codeHash)).toBe(false);
+    }
+  });
+
+  it("ESKİ biçimde (v1) saklanmış kod kilitlenmez: doğrulanır ve TEK SEFER tüketilir", async () => {
+    const { userId } = await makeTfaUser();
+    await prisma.twoFactorRecoveryCode.create({ data: { userId, codeHash: legacyRecoveryCodeHash("K7QWP2MH9DTR") } });
+    expect(await recoveryCodeIsUsable(userId, "k7qw-p2mh-9dtr")).toBe(true);
+    expect(await consumeRecoveryCode(userId, "k7qw-p2mh-9dtr")).toBe(true);
+    expect(await consumeRecoveryCode(userId, "k7qw-p2mh-9dtr")).toBe(false);
+  });
+
+  it("başka kullanıcının v2 özeti bu kullanıcıda geçmez (tuz kullanıcı kimliği)", async () => {
+    const { userId } = await makeTfaUser();
+    const other = await makeTfaUser("tf2@example.com");
+    await prisma.twoFactorRecoveryCode.create({ data: { userId, codeHash: await hashRecoveryCode(other.userId, "K7QWP2MH9DTR") } });
+    expect(await consumeRecoveryCode(userId, "K7QWP2MH9DTR")).toBe(false);
   });
 
   it("generates 10 unique codes; DB holds ONLY hashes (plaintext never stored)", async () => {
@@ -112,7 +151,7 @@ describe("recovery-codes lib", () => {
       expect(rowJson).not.toContain(code); // plaintext absent
       expect(rowJson).not.toContain(normalizeRecoveryCode(code));
     }
-    for (const r of rows) expect(r.codeHash).toMatch(/^[0-9a-f]{64}$/);
+    for (const r of rows) expect(r.codeHash).toMatch(/^v2:[0-9a-f]{64}$/);
   });
 
   it("SINGLE-USE: a code consumes exactly once (second attempt fails)", async () => {

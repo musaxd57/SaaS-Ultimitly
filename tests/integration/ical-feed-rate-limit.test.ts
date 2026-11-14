@@ -61,6 +61,16 @@ describe("takvim beslemesi hız sınırı", () => {
     // Başka ağ etkilenmez.
     expect((await fetchFeed(TOKEN_A, "2001:db8:beef:3::1")).status).toBe(200);
   }, 60_000);
+  // Sızma testi 11-14 (A-1): belirteç biçimi sorgudan ÖNCE. NUL (ya da başka denetim karakteri) taşıyan belirteç PostgreSQL'de sorgu
+  // hatasına dönüşüp yakalanmayan istek hatası raporluyordu → kimliksiz biri tek ortak uyarı kovasını doldurarak GERÇEK hata alarmlarını
+  // bastırabiliyordu. QR yolu aynı sınıfı 10-01'de (A04) kapatmıştı.
+  it("🚨 NUL / denetim karakterli belirteç 404 — sorguya hiç gitmez (hata yok)", async () => {
+    for (const bad of ["\u0000".repeat(20), `feed-token-aaaa\u0000aaaaaaaaaaaa`, "feed token aaaaaaaaaaaaaaaa", "a".repeat(201)]) {
+      const res = await fetchFeed(bad, "198.51.100.7");
+      expect(res.status).toBe(404);
+    }
+    expect((await fetchFeed(TOKEN_A, "198.51.100.7")).status).toBe(200); // aşırı uygulama yok
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -115,4 +125,5 @@ describe("takvim beslemesi — gün org diliminde", () => {
     expect(text).toContain(`DTSTART;VALUE=DATE:${icsDay(stayDay(ARRIVAL_IN))}`);
     expect(text).toContain(`DTEND;VALUE=DATE:${icsDay(stayDay(DEPARTURE_IN))}`);
   });
+
 });

@@ -6,6 +6,9 @@ import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
+/** Belirteç biçimi (16–200, URL-güvenli). Eski satırların belirteci de bu alfabededir; daha dar kalıp eski aboneliği kırabilirdi. */
+const CALENDAR_TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,200}$/;
+
 /** Takvim aktarımına giren geçmiş pencere (U14, kurucu 10-22): son bu kadar günde çıkış yapanlar + gelecek. */
 const ICAL_FEED_PAST_DAYS = 60;
 
@@ -31,7 +34,10 @@ export async function GET(
 
   const { token } = await params;
 
-  if (!token || token.length < 16) {
+  // Biçim sorgudan ÖNCE (sızma testi 11-14, A-1): `generateCalendarToken` yalnız [0-9a-f] üretir. NUL ya da başka denetim karakteri
+  // taşıyan belirteç PostgreSQL'de sorgu hatasına (yakalanmayan istek hatası + ortak uyarı kovası) dönüşüyordu — kimliksiz biri gerçek
+  // alarmları bastırabiliyordu. QR yoluyla AYNI kalıp (`GUEST_CHAT_TOKEN_SHAPE`, 10-01 A04).
+  if (!token || !CALENDAR_TOKEN_SHAPE.test(token)) {
     return new Response("Not found", { status: 404 });
   }
 
