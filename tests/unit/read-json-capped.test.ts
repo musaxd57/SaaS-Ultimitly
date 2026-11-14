@@ -171,25 +171,31 @@ describe("readFormDataCapped (multipart OOM streaming cap)", () => {
 
 // Sızma testi 11-14 (A-1 sınıfı): PostgreSQL `text` NUL saklayamaz — gövdede NUL taşıyan dize her yazmada sorgu hatası (500 + uyarı
 // e-postası) doğuruyordu; kimliksiz uçlardan (leads, kayıt) tek ortak uyarı kovası doldurularak gerçek alarmlar bastırılabiliyordu.
-// JSON'da NUL yalnız ters eğik çizgi + "u0000" kaçışıyla gelebilir → ayrıştırma hatası (çağıranın mevcut 400 dalı).
+// JSON'da NUL yalnız ters eğik çizgi + "u0000" kaçışıyla gelebilir. Değerden SİLİNİR (QR mesajının pinli sözleşmesiyle aynı:
+// `guest-chat-endpoint.test.ts` "denetim karakteri … sessizce silinir"); anahtarda NUL bozuk gövdedir.
 describe("readJsonCapped NUL karakteri", () => {
-  it("dize DEĞERİNDE NUL → SyntaxError (iç içe nesne / dizi dahil)", async () => {
-    for (const raw of ['{"a":"x\\u0000y"}', '{"a":{"b":["ok","\\u0000"]}}', '["\\u0000"]', '"\\u0000"']) {
-      await expect(readJsonCapped(jsonReq(raw))).rejects.toBeInstanceOf(SyntaxError);
-    }
+  it("🚨 dize DEĞERİNDEN NUL silinir (iç içe nesne / dizi dahil) — DB'ye NUL ulaşmaz, istek reddedilmez", async () => {
+    expect(await readJsonCapped(jsonReq('{"a":"x\\u0000y"}'))).toEqual({ a: "xy" });
+    expect(await readJsonCapped(jsonReq('{"a":{"b":["ok","\\u0000"]}}'))).toEqual({ a: { b: ["ok", ""] } });
+    expect(await readJsonCapped(jsonReq('["\\u0000a"]'))).toEqual(["a"]);
+    expect(await readJsonCapped(jsonReq('"\\u0000"'))).toBe("");
+    const out = JSON.stringify(await readJsonCapped(jsonReq('{"name":"La\\u0000le","list":["\\u0000\\u0000x"]}')));
+    expect(out.includes(String.fromCharCode(0))).toBe(false);
   });
-  it("ANAHTARDA NUL → SyntaxError", async () => {
+  it("ANAHTARDA NUL → SyntaxError (silmek iki anahtarı birleştirebilirdi)", async () => {
     await expect(readJsonCapped(jsonReq('{"a\\u0000":1}'))).rejects.toBeInstanceOf(SyntaxError);
+    await expect(readJsonCapped(jsonReq('{"role":"staff","ro\\u0000le":"owner"}'))).rejects.toBeInstanceOf(SyntaxError);
   });
-  it("readJsonCappedOrNull NUL'lu gövdede null döner", async () => {
-    expect(await readJsonCappedOrNull(jsonReq('{"name":"\\u0000"}'))).toBeNull();
+  it("readJsonCappedOrNull: anahtarında NUL olan gövde null; değerdeki NUL silinir", async () => {
+    expect(await readJsonCappedOrNull(jsonReq('{"na\\u0000me":"x"}'))).toBeNull();
+    expect(await readJsonCappedOrNull(jsonReq('{"name":"a\\u0000"}'))).toEqual({ name: "a" });
   });
-  it("aşırı uygulama yok: düz ters eğik çizgi + u0000 METNİ, Türkçe / emoji / diğer kaçışlar geçer", async () => {
+  it("aşırı uygulama yok: düz ters eğik çizgi + u0000 METNİ, Türkçe / emoji / diğer kaçışlar aynen geçer", async () => {
     const data = await readJsonCapped<{ a: string; b: string; c: string }>(
       jsonReq('{"a":"\\\\u0000","b":"Çağrı ş ğ 🙂","c":"satır\\nsekme\\t\\u0001"}'),
     );
     expect(data.a).toBe("\\u0000");
     expect(data.b).toBe("Çağrı ş ğ 🙂");
-    expect(data.c).toBe("satır\nsekme\t\u0001");
+    expect(data.c).toBe(`satır\nsekme\t${String.fromCharCode(1)}`);
   });
 });

@@ -509,19 +509,21 @@ export async function readJsonCapped<T = unknown>(
   if (req.body !== null && mediaTypeEssence(req.headers.get("content-type")) !== "application/json") {
     throw new UnsupportedMediaTypeError();
   }
-  return parseJsonRejectingNul<T>(await readTextCapped(req, maxBytes)); // "" → SyntaxError → caller 400
+  return parseJsonWithoutNul<T>(await readTextCapped(req, maxBytes)); // "" → SyntaxError → caller 400
 }
 
 /**
- * JSON.parse + NUL reddi (sızma testi 11-14, A-1 sınıfı). PostgreSQL `text` NUL saklayamaz: gövdedeki NUL'lu dize her yazmada sorgu
+ * JSON.parse + NUL temizliği (sızma testi 11-14, A-1 sınıfı). PostgreSQL `text` NUL saklayamaz: gövdedeki NUL'lu dize her yazmada sorgu
  * hatası (500 + uyarı e-postası) doğuruyordu; kimliksiz uçlardan (leads, kayıt) tek ortak uyarı kovası doldurularak GERÇEK alarmlar
- * bastırılabiliyordu. JSON'da NUL yalnız kaçışla gelebilir (ham denetim karakteri zaten geçersiz JSON) → her dize değeri ve anahtar
- * ayrıştırırken doğrusal denetlenir; bulunursa SyntaxError (çağıranların mevcut "bozuk gövde" dalı). Meşru metinde NUL yoktur.
+ * bastırılabiliyordu. JSON'da NUL yalnız kaçışla gelebilir (ham denetim karakteri zaten geçersiz JSON).
+ *  · Dize DEĞERİNDEN NUL sessizce silinir — sağlayıcı dizesi kuralı (`canonicalStr`) ve QR mesajının pinli sözleşmesi ("denetim karakteri
+ *    sessizce silinir, mesaj 500 de 400 de vermez") ile AYNI. İlk sürüm (54c7dc31) 400 veriyordu; o sözleşmeyi bozduğu tam kapıda görüldü.
+ *  · ANAHTARDA NUL → SyntaxError (çağıranın "bozuk gövde" dalı): silmek iki anahtarı birleştirebilirdi ("ro" + NUL + "le" → "role").
  */
-export function parseJsonRejectingNul<T>(text: string): T {
+export function parseJsonWithoutNul<T>(text: string): T {
   return JSON.parse(text, (key, value) => {
-    if ((typeof value === "string" && value.includes("\0")) || key.includes("\0")) throw new SyntaxError("JSON gövdesinde NUL karakteri");
-    return value;
+    if (key.includes("\0")) throw new SyntaxError("JSON anahtarında NUL karakteri");
+    return typeof value === "string" && value.includes("\0") ? value.replaceAll("\0", "") : value;
   }) as T;
 }
 
