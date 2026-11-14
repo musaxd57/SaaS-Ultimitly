@@ -30,12 +30,12 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
   const [items, existingRows] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { property: { organizationId }, ...scope },
+      // METİN BURADA OKUNMAZ (sızma testi 11-14, L-8): pasif kalem plan sınırına sayılmaz, sayısı sınırsız; her KB yazımında ve
+      // zamanlanmış geçişte hepsinin metni belleğe alınıyordu. Metin yalnız hafızaya yazılacak (etkin + okunabilir) kalemler için ↓.
       select: {
         id: true,
         propertyId: true,
         category: true,
-        title: true,
-        content: true,
         isActive: true,
         reviewState: true,
         updatedAt: true,
@@ -47,12 +47,27 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
       select: { id: true, propertyId: true, sourceRef: true, title: true, body: true, category: true, observedAt: true, status: true },
     }),
   ]);
+  const readableIds = items.filter((kb) => kb.isActive && isAiReadableReviewState(kb.reviewState)).map((kb) => kb.id);
+  const texts = new Map(
+    readableIds.length === 0
+      ? []
+      : (
+          await prisma.knowledgeBaseItem.findMany({
+            where: { id: { in: readableIds }, property: { organizationId } },
+            select: { id: true, title: true, content: true },
+          })
+        ).map((t) => [t.id, t] as const),
+  );
   const key = (pid: string, ref: string) => `${pid}:${ref}`;
   const existing = new Map(existingRows.map((r) => [key(r.propertyId, r.sourceRef), r]));
   const seen = new Set<string>();
 
   for (const kb of items) {
     const k = key(kb.propertyId, kb.id);
+    const readable = kb.isActive && isAiReadableReviewState(kb.reviewState);
+    const text = readable ? texts.get(kb.id) : undefined;
+    // İki okuma arasında silinen kalem: görülmemiş sayılır → aşağıdaki "artık YOK" dalı hafızayı emekliye ayırır (tek okumadaki sonuçla aynı).
+    if (readable && !text) continue;
     seen.add(k);
     const ex = existing.get(k);
     // TASLAK MÜLK GERÇEĞİ DEĞİLDİR (A1, 09-08). Hafıza "bu mülk hakkında bilinen
@@ -60,7 +75,7 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
     // henüz onaylanmamış bir ÇIKARIMI oraya koymak, ürünün en güvendiği katmana
     // doğrulanmamış metin sokmak olurdu. Pasif kalemle aynı dala düşürülüyor:
     // onaya düşen bir kalem hafızada da `retired` olur, silinmez (tarihçe).
-    if (!kb.isActive || !isAiReadableReviewState(kb.reviewState)) {
+    if (!readable || !text) {
       if (ex && ex.status !== "retired") {
         await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired" } });
         out.retired++;
@@ -70,8 +85,8 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
     const data = {
       kind: "fact",
       category: kb.category,
-      title: kb.title,
-      body: kb.content,
+      title: text.title,
+      body: text.content,
       evidenceJson: JSON.stringify([{ type: "kb_item", id: kb.id }]),
       confidence: 1,
       observedAt: kb.updatedAt,
