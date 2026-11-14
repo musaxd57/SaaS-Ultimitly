@@ -32,6 +32,20 @@ function supportedSet(): Set<string> {
   return supportedCache;
 }
 
+/**
+ * KANONİK dilim adı ("europe/istanbul" → "Europe/Istanbul", takma ad "US/Eastern" → "America/New_York"); geçersizse null. YAZMA yolunda
+ * kullanılır (sızma testi 11-14, L-7): Intl dilim adını harf duyarsız kabul eder ve biçimlendirici önbellekleri ham dizeyle anahtarlanır —
+ * işletme saat dilimini her seferinde başka bir harf biçimiyle kaydeden biri her varyantta kalıcı bir biçimlendirici bırakıyordu (bellek).
+ */
+export function canonicalTimeZone(tz: string): string | null {
+  if (!tz) return null;
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz }).resolvedOptions().timeZone;
+  } catch {
+    return null;
+  }
+}
+
 /** IANA listesinde olan VEYA Intl'in gerçekten kurabildiği (alias toleransı) dilimler geçerli. */
 /**
  * Ad, çalışma ortamının desteklenen IANA listesinde mi — BÜYÜK / KÜÇÜK HARF DUYARSIZ (ECMA-402: dilim kimlikleri harf duyarsızdır; iCal
@@ -198,7 +212,7 @@ export function shiftZonedDaysKeepingWallClock(date: Date, n: number, tz: string
   let fmt = WALL_CLOCK_FORMATTERS.get(tz);
   if (!fmt) {
     fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
-    WALL_CLOCK_FORMATTERS.set(tz, fmt);
+    if (WALL_CLOCK_FORMATTERS.size < 1000) WALL_CLOCK_FORMATTERS.set(tz, fmt); // sınırlı (L-7): dilim adı veriden gelir
   }
   const [h, mi] = fmt.format(date).split(":").map(Number);
   return zonedWallClockToUtc(y, m, d + n, h % 24, mi, 0, tz);

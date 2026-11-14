@@ -5,7 +5,7 @@ import { badRequest, jsonOk, readJsonCappedOrNull, tooManyRequests } from "@/lib
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { withManage } from "@/lib/route-guard";
-import { isValidTimeZone } from "@/lib/timezone";
+import { canonicalTimeZone, isValidTimeZone } from "@/lib/timezone";
 import { canonicalMailbox, isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
 import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
@@ -254,10 +254,12 @@ export const PATCH = withManage(async (session, req) => {
   // free text would silently break every Intl call downstream.
   if ("timezone" in data) {
     const raw = data.timezone;
-    if (typeof raw !== "string" || !isValidTimeZone(raw.trim())) {
+    const canonical = typeof raw === "string" && isValidTimeZone(raw.trim()) ? canonicalTimeZone(raw.trim()) : null;
+    if (!canonical) {
       errors.timezone = "Geçerli bir saat dilimi seçin (örn. Europe/Istanbul).";
     } else {
-      update.timezone = raw.trim();
+      // Kanonik ad saklanır (L-7): "eUrOpE/iStAnBuL" gibi harf varyantları ayrı biçimlendirici önbelleği açamaz.
+      update.timezone = canonical;
     }
   }
 

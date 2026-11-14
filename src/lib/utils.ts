@@ -95,16 +95,22 @@ const APP_TIME_ZONE = "Europe/Istanbul";
 
 // Intl.DateTimeFormat construction is the expensive part, and these render once
 // per row in long lists. Memoise per (kind, tz) so a per-call tz costs nothing
-// after the first row. Keys come from our own code, never user input.
+// after the first row. ⚠️ `tz` İŞLETMENİN KAYITLI DİLİMİDİR (kullanıcı girdisi; sızma testi 11-14, L-7): önbellek SINIRLI — dolunca
+// yeni anahtar her çağrıda kurulur (sonuç aynı, yalnız yavaş). Yazma yolu dilimi kanonik ada çevirir (`canonicalTimeZone`).
+const FMT_CACHE_MAX = 1000;
 const fmtCache = new Map<string, Intl.DateTimeFormat>();
 function cachedFmt(key: string, tz: string, opts: Intl.DateTimeFormatOptions) {
   const k = `${key}|${tz}`;
   let f = fmtCache.get(k);
   if (!f) {
     f = new Intl.DateTimeFormat("tr-TR", { ...opts, timeZone: tz });
-    fmtCache.set(k, f);
+    if (fmtCache.size < FMT_CACHE_MAX) fmtCache.set(k, f);
   }
   return f;
+}
+/** YALNIZ test: önbellekteki biçimlendirici sayısı. */
+export function __fmtCacheSize(): number {
+  return fmtCache.size;
 }
 
 export function formatDate(date: Date | string | null | undefined) {

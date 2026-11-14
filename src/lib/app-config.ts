@@ -31,7 +31,7 @@
 // deliberately env-free (it is imported all over the app, including from code
 // that runs in the browser). Reading env is this module's job; the direction of
 // that import must not reverse.
-import { DEFAULT_TIMEZONE, isValidTimeZone } from "@/lib/timezone";
+import { DEFAULT_TIMEZONE, isValidTimeZone, canonicalTimeZone } from "@/lib/timezone";
 
 /**
  * Origins this codebase may be deployed under — a CLOSED list, first entry is the
@@ -222,7 +222,8 @@ export function resolveNewOrgTimezone(
   if (trustsBrowserTimezone(env) && typeof candidate === "string") {
     const v = candidate.trim();
     // Length first: a megabyte of junk should never reach Intl.
-    if (v && v.length <= MAX_TIMEZONE_LENGTH && isValidTimeZone(v)) return v;
+    // Kanonik ad (sızma testi 11-14, L-7): harf varyantı yeni işletmeye yazılmaz.
+    if (v && v.length <= MAX_TIMEZONE_LENGTH && isValidTimeZone(v)) return canonicalTimeZone(v) ?? appDefaultTimezone(env);
   }
   return appDefaultTimezone(env);
 }

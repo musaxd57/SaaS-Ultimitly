@@ -82,6 +82,10 @@ describe("org-timezone", () => {
     const after = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
     expect(after.timezone).toBe("America/New_York");
 
+    // Sızma testi 11-14 (L-7): harf varyantı KANONİK adla saklanır (biçimlendirici önbelleği varyant başına büyümesin).
+    expect((await patch({ timezone: "eUrOpE/iStAnBuL" })).status).toBe(200);
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: org.id } })).timezone).toBe("Europe/Istanbul");
+    expect((await patch({ timezone: "America/New_York" })).status).toBe(200);
     const bad = await patch({ timezone: "Mars/Olympus" });
     expect(bad.status).toBe(400);
     const data = await bad.json();
