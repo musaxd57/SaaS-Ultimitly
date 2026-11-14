@@ -15,7 +15,7 @@ const MODES = ["--no-regexp-optimization", "--regexp-interpret-all"];
 
 describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı süre", () => {
   it.each(MODES)(
-    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı + kişisel tehlike + evcil hayvan sızıntısı 4.000 karakterde 1,5 sn altında ya da doğrusal",
+    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı + kişisel tehlike + evcil hayvan sızıntısı + tazminat sözü 4.000 karakterde 1,5 sn altında ya da doğrusal",
     (mode) => {
       const r = spawnSync(process.execPath, [mode, "--import", "tsx", "tests/fixtures/regex-worst-mode-probe.ts"], {
         cwd: process.cwd(),
@@ -31,11 +31,11 @@ describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı s
       const last = times.length > 0 ? `son biten ölçüm: ${times[times.length - 1].name}` : "hiçbir ölçüm bitmedi";
       // Zaman aşımı da kırmızıdır — karesel iş alt süreci 240 sn'de bitiremez. (Eski tavan 90 sn idi; sınır aşılan her ölçüm artık
       // hakem için 5 tam + 5 küçük koşu harcar: yavaş makinede birkaç ölçüm hakeme giderse 90 sn yetmezdi — Opus incelemesi 11-12.)
-      expect(r.status, `${r.error ?? ""} ${r.stderr} (${times.length} / 28 ölçüm; ${last})`).toBe(0);
+      expect(r.status, `${r.error ?? ""} ${r.stderr} (${times.length} / 30 ölçüm; ${last})`).toBe(0);
       expect(rows[rows.length - 1]?.done).toBe(true);
       // 22 eski ölçüm + tutulan evcil hayvan isteği sızıntı denetiminin altı biçimi (S3, 11-12: en çok 31 ms).
-      expect(times).toHaveLength(28);
-      expect(new Set(times.map((t) => t.name)).size).toBe(28);
+      expect(times).toHaveLength(30);
+      expect(new Set(times.map((t) => t.name)).size).toBe(30);
       // Hüküm alt süreçte verilir (`tests/helpers/linear-cost.ts`): 1,5 sn altında ya da — yavaş makinede aşıldıysa — doğrusal.
       for (const t of times) expect(t.ok, `${t.name}: ${t.note}`).toBe(true);
     },

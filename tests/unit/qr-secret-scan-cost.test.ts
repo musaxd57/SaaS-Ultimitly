@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { withoutSecretKbItems, scrubStyleProfileForPublic, redactDoorCodes, qrReplyHasDoorCode } from "@/lib/guest-chat";
+import { withoutSecretKbItems, withoutQrSecretKbItems, scrubStyleProfileForPublic, redactDoorCodes, qrReplyHasDoorCode } from "@/lib/guest-chat";
+import { measureCost, costMessage } from "../helpers/linear-cost";
 
 // ---------------------------------------------------------------------------
 // QR SIR TARAYICISI MALİYETİ — DAVRANIŞSAL (DENETIM 08-09 #34, 10-12 gece). Kardeş yapısal tarama
@@ -61,4 +62,25 @@ describe("QR sır tarayıcısı — düşmanca girdide sınırlı süre", () => 
     expect(withoutSecretKbItems([{ title: "T", content }])).toEqual([]);
     expect(qrReplyHasDoorCode(content, [])).toBe(true);
   });
+});
+
+// Sızma testi 11-14 (E-1): erişim cümlesi (erişim adı + kod benzeri sayı) bilgi tabanı kaleminde (20.000 karaktere kadar) ve cevapta
+// taranır; yazıyla / virgüllü haneler tarama kopyasında birleşir. Sınırın altında ya da doğrusal (`linear-cost`).
+describe("QR erişim cümlesi — düşmanca girdide doğrusal", () => {
+  const qrKb = (t: string) => withoutQrSecretKbItems([{ category: "general", title: "x", content: t }]);
+  const FAMILIES: [string, (n: number) => string, (t: string) => unknown][] = [
+    ["süzgeç · erişim adı + sayı tekrarı", (n) => "anahtar 1234 ".repeat(Math.max(1, Math.floor(n / 13))), qrKb],
+    ["süzgeç · kutu + boşluk dizisi", (n) => "kutu" + " ".repeat(n) + "4590", qrKb],
+    ["süzgeç · sayı sözcüğü tekrarı", (n) => "bir ".repeat(Math.max(1, Math.floor(n / 4))), qrKb],
+    ["süzgeç · erişim adı tekrarı (sayısız)", (n) => "anahtar kutusu ".repeat(Math.max(1, Math.floor(n / 15))), qrKb],
+    ["tarama · virgüllü hane tekrarı", (n) => "1, ".repeat(Math.max(1, Math.floor(n / 3))), (t) => qrReplyHasDoorCode(t, [])],
+    ["tarama · sayı sözcüğü + virgül tekrarı", (n) => "dört, ".repeat(Math.max(1, Math.floor(n / 6))), (t) => qrReplyHasDoorCode(t, [])],
+    ["tarama · tuş başlığı tekrarı", (n) => "4\uFE0F\u20E3".repeat(Math.max(1, Math.floor(n / 3))), (t) => qrReplyHasDoorCode(t, [])],
+  ];
+  for (const [name, family, run] of FAMILIES) {
+    it(name, () => {
+      const v = measureCost(run, family, 20_000, 1_000);
+      expect(v.ok, costMessage(v, 1_000)).toBe(true);
+    });
+  }
 });

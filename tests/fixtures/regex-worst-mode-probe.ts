@@ -14,6 +14,7 @@ import { personDangerOf } from "@/lib/ai/person-danger";
 import { hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import { mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
 import { heldPetLeak } from "@/lib/conversation-items/pet-policy";
+import { promisesCompensation } from "@/lib/ai/compensation-promise";
 import { costMessage, measureCost } from "../helpers/linear-cost";
 
 const N = 4_000;
@@ -70,4 +71,8 @@ measure("evcil hayvan sızıntısı · kök tekrarı (ek gelmiyor)", N / 23, (n)
 measure("evcil hayvan sızıntısı · sayı tekrarı (para birimi gelmiyor)", N / 8, (n) => "100 200 ".repeat(n), (t) => heldPetLeak(t));
 measure("evcil hayvan sızıntısı · virgüllü yan cümle tekrarı", N / 7, (n) => "bilgi, ".repeat(n), (t) => heldPetLeak(t));
 measure("evcil hayvan sızıntısı · Arap harfi dizisi", N / 2, (n) => "\u0627\u0644".repeat(n), (t) => heldPetLeak(t));
+// Sızma testi 11-14 (E-3 tazminat sözü kemeri): model çıktısı taranır. (QR erişim cümlesi `guest-chat.ts` `server-only` içe aktardığı için
+// burada değil — `qr-secret-scan-cost.test.ts`te ölçülür, var olan QR tarayıcılarıyla aynı.)
+measure("tazminat sözü · telafi kökü tekrarı", N / 5, (n) => "iade ".repeat(n), (t) => promisesCompensation(t));
+measure("tazminat sözü · boşluk dizisi", N, (n) => "iade" + " ".repeat(n) + "edeceğiz", (t) => promisesCompensation(t));
 process.stdout.write(`${JSON.stringify({ done: true })}\n`);

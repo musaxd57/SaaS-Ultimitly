@@ -566,7 +566,8 @@ function qrWifiItemAllowed(raw: string): boolean {
 export function withoutQrSecretKbItems<T extends { category: string; title: string; content: string }>(items: T[]): T[] {
   return items.filter((k) => {
     const text = `${k.title}\n${k.content}`;
-    return k.category === "wifi" ? qrWifiItemAllowed(text) : !looksLikeSecret(text);
+    // Wi-Fi dışı dal: tam tarama + erişim cümlesi (sızma testi 11-14, E-1 — kod sözcüğü olmadan yazılmış anahtar kutusu kodu).
+    return k.category === "wifi" ? qrWifiItemAllowed(text) : !looksLikeSecret(text) && accessSentenceCodes(text).length === 0;
   });
 }
 
@@ -598,7 +599,87 @@ const PASSWORD_WORDS = new Set(["sifre", "parola", "password", "passcode", "pass
 
 /** "4 5 9 0" / "4-5-9-0" → "4590" (tek hanelerin ayraçla yazımı; saat / tarih / telefon öbekleri çok hanelidir, dokunulmaz). */
 // Ayraç: boşluk (NBSP dahil), tire, nokta, eğik çizgi, orta nokta — "6.1.4.2", "6/1/4/2", "6\u00a01\u00a04\u00a02" (Haiku 10-14).
-const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[\s\-./·]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
+// Sızma testi 11-14 (E-1, V-E1): virgül + isteğe bağlı tek boşluk da ayraçtır ("4, 5, 9, 0"). Yalnız TARAMA kopyası; karar yine kapı
+// bağlamı kalıplarından gelir (tek başına tutuş üretmez). Sınırlı ({3,7}, tek karakterlik ayraçlar) → doğrusal.
+const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:(?:[\s\-./·]|,\s?)\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
+
+/** Tuş başlığı emojisinin kapsayan işareti ("4️⃣") — görünmez karakter silinince rakamlar bitişsin diye tarama kopyasından silinir. */
+const KEYCAP_MARK = new RegExp(String.fromCharCode(0x20e3), "g");
+
+/** Yazıyla yazılmış tek haneler (ASCII katlanmış, TR + EN) — "dört beş dokuz sıfır" → "4590" (yalnız tarama kopyası). */
+const DIGIT_WORD_VALUE: Readonly<Record<string, string>> = {
+  sifir: "0", bir: "1", iki: "2", uc: "3", dort: "4", bes: "5", alti: "6", yedi: "7", sekiz: "8", dokuz: "9",
+  zero: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9",
+};
+/** Art arda en az 4 (en çok 8) sayı sözcüğü — aralarında yalnız boşluk / virgül / tire (en çok 3 karakter) — rakama döner. DOĞRUSAL tarama
+ *  (düzenli ifade iç içe niceleyici kurmaz). Daha kısa diziler ("bir iki üç gün") dokunulmaz. */
+function spelledDigits(ascii: string): string {
+  const words = [...ascii.matchAll(/\p{L}+/gu)];
+  if (words.length < 4) return ascii;
+  let out = "";
+  let cursor = 0;
+  let i = 0;
+  while (i < words.length) {
+    let j = i;
+    while (j < words.length && DIGIT_WORD_VALUE[words[j]![0]] !== undefined) {
+      if (j > i) {
+        const prev = words[j - 1]!;
+        const gap = ascii.slice(prev.index! + prev[0].length, words[j]!.index!);
+        if (gap.length === 0 || gap.length > 3 || /[^\s,\-]/.test(gap)) break;
+      }
+      j++;
+    }
+    const run = j - i;
+    if (run >= 4 && run <= 8) {
+      const start = words[i]!.index!;
+      const last = words[j - 1]!;
+      out += ascii.slice(cursor, start) + words.slice(i, j).map((w) => DIGIT_WORD_VALUE[w[0]]).join("");
+      cursor = last.index! + last[0].length;
+      i = j;
+    } else {
+      i = Math.max(j, i + 1);
+    }
+  }
+  return out + ascii.slice(cursor);
+}
+
+/**
+ * ERİŞİM CÜMLESİ (sızma testi 11-14, E-1; bağımsız doğrulama V-E1). Kurucu kuralı: QR'da kapı / anahtar kutusu kodu HİÇBİR biçimde
+ * verilmez. Kod sözcüğü ("kod / şifre / pin") geçmeyen doğal cümleler — "Anahtar gri kutuda. Kutuyu 4590 ile açabilirsiniz.", "the
+ * combination is 4590" — `checkin` dışı kategoride bütün kalıplardan geçiyordu. Kural: AYNI cümlede bir ERİŞİM ADI (anahtar / kilit / kutu
+ * / kasa / key / lock / lockbox / combination …) ve KOD BENZERİ bir sayı (4–8 hane; fiyat / yıl / daire / sokak / telefon / ölçü DEĞİL —
+ * kilit kalıplarının ölçülmüş korumaları AYNEN) → o sayı erişim kodudur. İçe aktarmanın "erişim adı varsa QR görmez" kuralından DAR
+ * (sayı da şart): "Anahtarı çıkışta masaya bırakın" QR'da kalır.
+ */
+const ACCESS_NAME =
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit\p{L}{0,4}|kilid\p{L}{0,4}|kutu(?!p)\p{L}{0,8}|kasa(?!ba|p)\p{L}{0,6}|keys?|lock(?:s|ed)?|lockbox(?:es)?|keybox(?:es)?|key\s?box|key\s?safe|keypad|combination|kombinasyon\p{L}{0,4}|cles?|llaves?|serrure|cerradura)(?![\p{L}\p{N}])/iu;
+const ACCESS_CODE_NUMBER = new RegExp(`${LOCK_VALUE_LEFT}${LOCK_NOT_YEAR}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${LOCK_VALUE_RIGHT}`, "gi");
+
+/** Tarama kopyaları (Unicode rakam + görünmez karakter + tuş başlığı işareti söküldü, ASCII katlandı; ayraçlı ve yazıyla haneler birleşti). */
+function scanForms(raw: string): { text: string; ascii: string; variants: string[] } {
+  const text = foldForSecretScan(raw).replace(KEYCAP_MARK, "");
+  const ascii = foldTurkishAscii(text);
+  const spelled = spelledDigits(ascii);
+  return { text, ascii, variants: [text, foldTurkishLower(text), ascii, spacedDigits(ascii), spelled, spacedDigits(spelled)] };
+}
+
+/** Erişim adıyla AYNI cümlede geçen kod benzeri sayılar (boş = erişim cümlesi yok). */
+export function accessSentenceCodes(raw: string): string[] {
+  if (!raw) return [];
+  const { ascii } = scanForms(raw);
+  const out = new Set<string>();
+  for (const v of [ascii, spacedDigits(ascii), spelledDigits(ascii)]) {
+    for (const sentence of v.split(/[.!?\n]+/)) {
+      if (!ACCESS_NAME.test(sentence)) continue;
+      ACCESS_CODE_NUMBER.lastIndex = 0;
+      for (const m of sentence.matchAll(ACCESS_CODE_NUMBER)) {
+        const d = m[0].match(/\d{4,8}/)?.[0];
+        if (d) out.add(d);
+      }
+    }
+  }
+  return [...out];
+}
 
 /**
  * Codex 11-04 P2 — KAPI ETİKETİNİN HEMEN ARDINDAKİ kısa / harfli kod: "Kapı kodu: A7B9", "Door code 123", "keybox PIN: 4B7#". Yukarıdaki kalıplar
@@ -659,10 +740,11 @@ export function labeledShortDoorCodes(text: string): string[] {
 /** Cevaptaki kapı kodu DEĞERLERİ (kapı bağlamlı: hepsi; bağlamsız: bilgi tabanında geçmeyenler). Boş dizi = sızıntı yok. */
 function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] {
   // Y2 (10-14): Unicode rakamlar ASCII'ye iner — "Kapı kodu: ٦١٤٢" çıktı taramasından ve geçmiş maskesinden kaçıyordu.
-  const text = foldForSecretScan(raw);
-  const allowed = new Set(allowedTexts.flatMap((t) => foldForSecretScan(t).match(/\d{4,8}/g) ?? []));
-  const ascii = foldTurkishAscii(text);
-  const variants = [text, foldTurkishLower(text), ascii, spacedDigits(ascii)];
+  // Sızma testi 11-14 (E-1): tuş başlığı emojisi / virgüllü / yazıyla haneler de tarama kopyasında birleşir (`scanForms`).
+  const { text, ascii, variants } = scanForms(raw);
+  // Bilgi tabanı muafiyeti erişim cümlesindeki sayıyı KAPSAMAZ (E-1): süzgeçten kaçmış bir kalem "PIN: 4590" yolunu açmasın.
+  const accessInAllowed = new Set(allowedTexts.flatMap((t) => accessSentenceCodes(t)));
+  const allowed = new Set(allowedTexts.flatMap((t) => foldForSecretScan(t).match(/\d{4,8}/g) ?? []).filter((d) => !accessInAllowed.has(d)));
   const out = new Set<string>();
   const collect = (re: RegExp, keep: (d: string) => boolean) => {
     const global = new RegExp(re.source, `${re.flags.replace("g", "")}g`);
@@ -678,6 +760,8 @@ function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] 
   }
   // Kapı etiketinin ardındaki harfli / 3 haneli kod (Codex 11-04): kapı bağlamlı → bilgi tabanında geçse de sızıntı.
   for (const v of [text, ascii]) for (const t of labeledShortDoorCodes(v)) out.add(t);
+  // Erişim cümlesi (E-1): kapı bağlamlı sayılır → bilgi tabanında geçse de sızıntı.
+  for (const d of accessSentenceCodes(raw)) out.add(d);
   return [...out];
 }
 
@@ -707,7 +791,7 @@ export function redactDoorCodes(raw: string): string {
     const spaced = value
       .split("")
       .map((ch) => ch.replace(/[#*]/g, "\\$&"))
-      .join("[\\s\\-./·]?"); // ↑spacedDigits ile aynı ayraçlar
+      .join("(?:[\\s\\-./·]|,\\s?)?"); // ↑spacedDigits ile aynı ayraçlar (virgül dahil — E-1)
     const alpha = /[A-Za-z]/.test(value);
     out = out.replace(new RegExp(alpha ? `(?<![A-Za-z0-9])${spaced}(?![A-Za-z0-9])` : `(?<!\\d)${spaced}(?!\\d)`, alpha ? "gi" : "g"), REDACTED_DOOR_CODE);
   }
