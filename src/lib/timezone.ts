@@ -33,15 +33,34 @@ function supportedSet(): Set<string> {
 }
 
 /** IANA listesinde olan VEYA Intl'in gerçekten kurabildiği (alias toleransı) dilimler geçerli. */
+/**
+ * Ad, çalışma ortamının desteklenen IANA listesinde mi — BÜYÜK / KÜÇÜK HARF DUYARSIZ (ECMA-402: dilim kimlikleri harf duyarsızdır; iCal
+ * ayrıştırıcısı özellik anahtarını — TZID parametresi dahil — büyük harfe çevirir: "EUROPE/ISTANBUL"). Ucuz küme araması; takma adlar
+ * ("US/Eastern", "UTC") listede olmayabilir.
+ */
+let supportedLowerCache: Set<string> | null = null;
+export function isListedTimeZone(tz: string): boolean {
+  if (!supportedLowerCache) supportedLowerCache = new Set([...supportedSet()].map((z) => z.toLowerCase()));
+  return supportedLowerCache.has(tz.toLowerCase());
+}
+
+// Desteklenen listede olmayan dilim adlarının hükmü (geçerli / geçersiz) bir kez hesaplanır — iCal beslemesindeki her TZID buraya gelir
+// (sızma testi 11-14, ↓OFFSET_FORMATTERS). Sınırlı: 1.000 ad dolunca yeni adlar her seferinde hesaplanır (sonuç aynı, yalnız yavaş).
+const TZ_VALIDITY = new Map<string, boolean>();
 export function isValidTimeZone(tz: string): boolean {
   if (!tz) return false;
   if (supportedSet().has(tz)) return true;
+  const known = TZ_VALIDITY.get(tz);
+  if (known !== undefined) return known;
+  let ok: boolean;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
+    ok = true;
   } catch {
-    return false;
+    ok = false;
   }
+  if (TZ_VALIDITY.size < 1000) TZ_VALIDITY.set(tz, ok);
+  return ok;
 }
 
 /** DB'den okunan org.timezone'u güvenle çözer: null/bozuk → Europe/Istanbul. */
@@ -69,10 +88,19 @@ function dateKeyFormatter(tz: string): Intl.DateTimeFormat {
   return f;
 }
 
-/** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
-function tzOffsetMs(tz: string, at: Date): number {
+/**
+ * Ofset biçimlendiricisi dilim başına BİR kez kurulur (sızma testi 11-14, G E-1 — ÖLÇÜLDÜ). Eskiden her çağrı yeni bir
+ * `Intl.DateTimeFormat` kuruyordu (çağrı başına ~100 µs); iCal ayrıştırıcısı TZID'li her tarih için iki kez çağırır → ev sahibinin girdiği
+ * 10 MB'lık bir besleme (130 bin etkinlik) olay döngüsünü 26 sn kilitliyordu, gerçekçi 9.000 etkinlik bile 3,7 sn. Geçersiz ad `null`
+ * olarak saklanır (ofset 0 — eski davranış). Sınırlı: 1.000 ad.
+ */
+const OFFSET_FORMATTERS = new Map<string, Intl.DateTimeFormat | null>();
+function offsetFormatter(tz: string): Intl.DateTimeFormat | null {
+  const cached = OFFSET_FORMATTERS.get(tz);
+  if (cached !== undefined) return cached;
+  let f: Intl.DateTimeFormat | null;
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
+    f = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
@@ -81,7 +109,20 @@ function tzOffsetMs(tz: string, at: Date): number {
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
-    }).formatToParts(at);
+    });
+  } catch {
+    f = null;
+  }
+  if (OFFSET_FORMATTERS.size < 1000) OFFSET_FORMATTERS.set(tz, f);
+  return f;
+}
+
+/** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
+function tzOffsetMs(tz: string, at: Date): number {
+  const formatter = offsetFormatter(tz);
+  if (!formatter) return 0;
+  try {
+    const parts = formatter.formatToParts(at);
     const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
     const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
     return asUtc - at.getTime();

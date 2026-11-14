@@ -1,4 +1,4 @@
-import { zonedWallClockToUtc, isValidTimeZone } from "@/lib/timezone";
+import { zonedWallClockToUtc, isValidTimeZone, isListedTimeZone } from "@/lib/timezone";
 
 // ICS (iCalendar) parser for reservation imports.
 // Handles VEVENT blocks with DTSTART/DTEND in both date-only and datetime formats.
@@ -155,6 +155,19 @@ function decodeIcsText(s: string): string {
  * üstündedir (7 daire × yıllarca rezervasyon bile bunun altında kalır).
  */
 const MAX_EVENTS = 10_000;
+/**
+ * İşlenen etkinlik BLOĞU tavanı (sızma testi 11-14, G E-1). `MAX_EVENTS` yalnız SONUCA eklenen etkinliği sayıyordu; okunamayan etkinlik
+ * (ör. DTEND bozuk, DTSTART TZID'li — tarih yine hesaplanır) tavandan önce düştüğü için sayısı yalnız dosya boyutuyla sınırlıydı. Blok
+ * tavanı sonuç tavanının iki katı: gerçek bir besleme (okunamayan birkaç etkinlikle) hiç değişmez; aşılınca okuma `event_cap` ile EKSİK
+ * döner (F16: eksik okuma hüküm vermez — iptal yazılmaz).
+ */
+const MAX_EVENT_BLOCKS = 2 * MAX_EVENTS;
+/**
+ * Listede olmayan TZID adının doğrulanması pahalıdır (her ad için `Intl` kurulumu). Besleme başına en çok bu kadar FARKLI liste dışı ad
+ * dilimiyle okunur; fazlası dilimsiz okunur → öğlen çapası (geçersiz adla AYNI sonuç, takvim günü doğru kalır). Gerçek beslemeler bir iki
+ * dilim taşır (sızma testi 11-14: 60 bin farklı uydurma TZID 2,3 sn sürüyordu).
+ */
+const MAX_UNLISTED_TZIDS = 32;
 
 /**
  * 🚨 OKUMA EKSİK MİYDİ — kapalı küme (F16, Codex 09-05; düzeltme 09-26).
@@ -229,6 +242,14 @@ export function parseIcsDetailed(text: string): IcsParseResult {
   let nested = 0;
   let calendarOpen = false;
   let capped = false;
+  let blocks = 0;
+  const unlistedTzids = new Set<string>();
+  const admitTzid = (tz: string | null): string | null => {
+    if (!tz || isListedTimeZone(tz) || unlistedTzids.has(tz)) return tz;
+    if (unlistedTzids.size >= MAX_UNLISTED_TZIDS) return null;
+    unlistedTzids.add(tz);
+    return tz;
+  };
   let current: Record<string, string> = {};
 
   for (const rawLine of lines) {
@@ -268,6 +289,10 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         continue;
       }
       inEvent = false;
+      if (++blocks > MAX_EVENT_BLOCKS) {
+        capped = true;
+        break;
+      }
       // Kapanmamış alt bileşenle biten etkinlik: yapısı bozuk (alt bileşenden sonraki özellikleri okunmadı).
       if (nested > 0) reasons.add("unreadable_event");
       nested = 0;
@@ -302,8 +327,8 @@ export function parseIcsDetailed(text: string): IcsParseResult {
         continue;
       }
 
-      const arrivalDate = parseIcsDate(dtStartRaw, tzidOf("DTSTART"));
-      const departureDate = parseIcsDate(dtEndRaw, tzidOf("DTEND"));
+      const arrivalDate = parseIcsDate(dtStartRaw, admitTzid(tzidOf("DTSTART")));
+      const departureDate = parseIcsDate(dtEndRaw, admitTzid(tzidOf("DTEND")));
 
       if (!arrivalDate || !departureDate) {
         reasons.add("unreadable_event");
