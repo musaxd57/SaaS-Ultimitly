@@ -67,4 +67,23 @@ describe("cevap taraması (QR): aynı cümle ve kodlanmış biçimler yakalanır
   it("geçmiş maskesi de erişim cümlesindeki kodu gizler", () => {
     expect(redactDoorCodes("Kutuyu 4590 ile açabilirsiniz, anahtar içinde.")).not.toContain("4590");
   });
+
+  // Mutasyon 11-14 (Q7–Q9): aşağıdaki üç yol testsizdi — virgüllü kodun maskelenmesi, TEK erişim adı "combination", kod sözcüğü OLMADAN
+  // aralıklı / yazıyla yazılmış kod.
+  it("🚨 geçmiş maskesi virgülle yazılmış kodu da gizler (rakamlar arası virgül + boşluk ayraçtır)", () => {
+    const out = redactDoorCodes("Kapı kodu: 4, 5, 9, 0");
+    expect(out.replace(/\D/g, "")).not.toContain("4590");
+    expect(out).not.toMatch(/4,\s?5,\s?9,\s?0/);
+  });
+
+  it("🚨 tek erişim adı 'combination' (anahtar / kutu / lock geçmeyen cümle) yine erişim cümlesidir", () => {
+    expect(withoutQrSecretKbItems([kb("Bike", "Bike storage: the combination is 7391.")])).toEqual([]);
+    expect(qrReplyHasDoorCode("The combination is 7391.", [])).toBe(true);
+  });
+
+  it("🚨 kod sözcüğü OLMADAN aralıklı ya da yazıyla yazılmış kod (erişim cümlesinde)", () => {
+    expect(withoutQrSecretKbItems([kb("Anahtar", "Anahtar gri kutuda; kutuyu 4 5 9 0 ile açabilirsiniz.")])).toEqual([]);
+    expect(withoutQrSecretKbItems([kb("Anahtar", "Anahtar gri kutuda; kutuyu dört beş dokuz sıfır ile açabilirsiniz.")])).toEqual([]);
+    expect(qrReplyHasDoorCode("Anahtar gri kutuda; kutuyu 4 5 9 0 ile açabilirsiniz.", [])).toBe(true);
+  });
 });
