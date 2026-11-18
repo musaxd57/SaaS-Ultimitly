@@ -197,17 +197,30 @@ export function TaskBoard({
     if (ok) await setStatus(id, "done");
   }
 
-  /** Yönetici: görevi başka birine atar (boş dize = atanmamış). "Yapılamıyor" görev sunucuda "Yapılacak"a döner. */
-  async function assign(id: string, assignedToId: string) {
+  /**
+   * Yönetici: görevi başka birine atar (boş dize = atanmamış). "Yapılamıyor" görev sunucuda "Yapılacak"a döner.
+   * H7 (Codex 11-17): kartın GÖRDÜĞÜ atanan ön şart olarak gider — bu arada başka biri görevi başkasına verdiyse sunucu yazmaz (409), kart
+   * sessizce devralmaz; uyarı + pano yenilenir. Yalnız atanan sınanır (`expectAssigneeOnly`): başlamış işi bilerek yeniden atamak serbest.
+   */
+  async function assign(id: string, assignedToId: string, seenAssigneeId: string | null) {
     setBusyId(id);
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        // "Atanmadı" = boş kimlik (şema `null` kabul etmez — Opus 11-06 N1; sunucu boşu "atanmamış" yazar).
-        body: JSON.stringify({ assignedToId }),
+        // "Atanmadı" = boş kimlik (şema `null` kabul etmez — Opus 11-06 N1; sunucu boşu "atanmamış" yazar). Ön şartta boş dize = "atanmamış
+        // gördüm" (Girişler ile aynı sözleşme).
+        body: JSON.stringify({ assignedToId, expectAssignedToId: seenAssigneeId ?? "", expectAssigneeOnly: true }),
       });
       if (!res.ok) {
+        if (res.status === 409) {
+          const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+          if (body?.code === "assignee_changed") {
+            toast.error("Bu görev bu arada başka birine atandı.");
+            startTransition(() => router.refresh());
+            return;
+          }
+        }
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev atanamadı.");
         return;
       }
@@ -511,7 +524,7 @@ export function TaskBoard({
           <Select
             value={t.assigneeId ?? ""}
             disabled={busyId === t.id}
-            onChange={(e) => assign(t.id, e.target.value)}
+            onChange={(e) => assign(t.id, e.target.value, t.assigneeId ?? null)}
             className="mt-2 h-10 text-xs sm:h-9"
             aria-label={`Atanan kişi: ${t.title}`}
           >

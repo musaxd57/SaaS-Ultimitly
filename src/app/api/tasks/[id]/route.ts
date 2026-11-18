@@ -73,7 +73,8 @@ function nextChecklist(
 class PhotoGone extends Error {}
 const PHOTO_GONE_TEXT = "Fotoğraf artık kullanılamıyor. Yeniden yükleyip tekrar deneyin.";
 
-// UX-10 D3 (kurucu 11-13): Girişler'den atama ön şartı tutmadı — yazma YOK (kilitli satıra göre). Pano bu alanı göndermez → davranışı aynı.
+// UX-10 D3 (kurucu 11-13): Girişler'den atama ön şartı tutmadı — yazma YOK (kilitli satıra göre). Pano (H7) ön şartı `expectAssigneeOnly` ile
+// gönderir: yalnız atanan sınanır, başlamış işi yeniden atamak serbest kalır.
 class AssigneeChanged extends Error {}
 class TaskMovedOn extends Error {}
 class TaskGone extends Error {}
@@ -198,10 +199,13 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           // Görev ilk okumayla kilit arasında silindiyse (Opus P3-6) "başka birine atandı / başladı" demek yanlış olurdu → 404.
           if (!row) throw new TaskGone();
           if ((row.assignedToId ?? "") !== d.expectAssignedToId) throw new AssigneeChanged();
-          const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`SELECT "checklistJson" FROM "Task" WHERE "id" = ${id}`;
-          // "Başladı" izi: dar tanım (kurucu 11-13 — ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı iş sayılmaz).
-          const traces = await tx.taskUpdate.count({ where: { taskId: id, ...WORK_TRACE_TASK_UPDATE_WHERE } });
-          if (!assignableTask({ status: row.status, touched: traces > 0 || checklistTouched(locked?.checklistJson ?? null) })) throw new TaskMovedOn();
+          // "İş başladı mı" kuralı yalnız Girişler'in ön şartında; pano (`expectAssigneeOnly`) yalnız atananı sınar (H7).
+          if (!d.expectAssigneeOnly) {
+            const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`SELECT "checklistJson" FROM "Task" WHERE "id" = ${id}`;
+            // "Başladı" izi: dar tanım (kurucu 11-13 — ev sahibinin yeniden ataması ve eski "Yapılamıyor" kaydı iş sayılmaz).
+            const traces = await tx.taskUpdate.count({ where: { taskId: id, ...WORK_TRACE_TASK_UPDATE_WHERE } });
+            if (!assignableTask({ status: row.status, touched: traces > 0 || checklistTouched(locked?.checklistJson ?? null) })) throw new TaskMovedOn();
+          }
         }
       }
       const resetBlocked = reassigned && d.status === undefined && prevStatus === "blocked";

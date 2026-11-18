@@ -96,3 +96,42 @@ describe("pano — görev sayfa açıkken başkasına verildi (eski sekme)", () 
     expect(nav.refresh).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("pano — yönetici bayat karttan atama (H7, Codex 11-17)", () => {
+  const MEMBERS = [{ id: "u-ayse", name: "Ayşe" }, { id: "u-mehmet", name: "Mehmet" }];
+  async function pick(value: string) {
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Atanan kişi: Çıkış temizliği"), { target: { value } });
+      for (let i = 0; i < 12; i++) await Promise.resolve();
+    });
+  }
+
+  it("🚨 bu arada başkasına atanmış → sunucu 409 'assignee_changed' → 'Bu görev bu arada başka birine atandı.' + pano yenilenir", async () => {
+    response = { status: 409, body: { error: "Bu görev bu arada başka birine atandı.", code: "assignee_changed" } };
+    render(<TaskBoard tasks={[{ ...base, status: "in_progress" }]} canManage members={MEMBERS} />);
+    await pick("u-mehmet");
+    expect(toasts).toEqual(["error: Bu görev bu arada başka birine atandı."]);
+    expect(nav.refresh).toHaveBeenCalledTimes(1);
+    // Gövde: kartın gördüğü atanan ön şart, yalnız atanan sınanır.
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ assignedToId: "u-mehmet", expectAssignedToId: "u-ayse", expectAssigneeOnly: true });
+  });
+
+  it("atanmamış kart: ön şart boş dize ('atanmamış gördüm')", async () => {
+    response = { status: 200, body: {} };
+    render(<TaskBoard tasks={[{ ...base, assigneeId: null, assigneeName: null }]} canManage members={MEMBERS} />);
+    await pick("u-ayse");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ assignedToId: "u-ayse", expectAssignedToId: "", expectAssigneeOnly: true });
+    expect(toasts).toEqual([]);
+    expect(nav.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("KONTROL — başka 409 / hata eski mesajı korur ('Görev atanamadı.'), pano yenilenmez", async () => {
+    response = { status: 409, body: { error: "Bu iş bu arada başladı ya da bitti.", code: "task_moved_on" } };
+    render(<TaskBoard tasks={[base]} canManage members={MEMBERS} />);
+    await pick("u-mehmet");
+    expect(toasts).toEqual(["error: Görev atanamadı."]);
+    expect(nav.refresh).not.toHaveBeenCalled();
+  });
+});

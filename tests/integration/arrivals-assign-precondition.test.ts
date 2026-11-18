@@ -7,7 +7,8 @@ import type { SessionPayload } from "@/lib/auth";
 // ---------------------------------------------------------------------------
 // UX-10 D3 (kurucu 11-13: "ilk 2'si kesinlikle olur"): Girişler satırından atama, satırın gördüğü atananı ÖN ŞART olarak gönderir
 // (`expectAssignedToId`; boş dize = "atanmamış bekliyorum"). Kilitli satıra göre: tutmazsa ya da iş başladıysa / bittiyse yazma YOK (409).
-// Pano bu alanı göndermez → panonun davranışı DEĞİŞMEZ. Yükleyici, atanabilir satıra atama eylemini kişi kimliğiyle verir.
+// Pano (H7, Codex 11-17) ön şartı `expectAssigneeOnly` ile gönderir: yalnız atanan sınanır, başlamış görevi yeniden atamak serbest kalır.
+// Yükleyici, atanabilir satıra atama eylemini kişi kimliğiyle verir.
 // ---------------------------------------------------------------------------
 
 let session: SessionPayload;
@@ -136,6 +137,28 @@ describe("Girişler'den atama — ön şart", () => {
     const res = await patch(taskId, { assignedToId: ayse.id });
     expect(res.status).toBe(200);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
+  });
+
+  it("🚨 H7 pano (yalnız atanan ön şartı): başlamış / dokunulmuş görev yeniden atanır; bayat kart (bu arada başkasına atandı) 409, yazma yok", async () => {
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: "in_progress", assignedToId: mehmet.id, checklistJson: JSON.stringify([{ label: "Havlu", done: true }]) },
+    });
+    const ok = await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id, expectAssigneeOnly: true });
+    expect(ok.status).toBe(200);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
+    // Kart hâlâ Mehmet'i gösteriyor (bayat) → Ayşe'ye verilmiş görevi sessizce devralamaz.
+    const stale = await patch(taskId, { assignedToId: owner.id, expectAssignedToId: mehmet.id, expectAssigneeOnly: true });
+    expect(stale.status).toBe(409);
+    expect((await stale.json()).code).toBe("assignee_changed");
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
+  });
+
+  it("KONTROL — `expectAssigneeOnly` olmadan (Girişler) başlamış iş yine 409 task_moved_on", async () => {
+    await prisma.task.update({ where: { id: taskId }, data: { status: "in_progress", assignedToId: mehmet.id } });
+    const res = await patch(taskId, { assignedToId: ayse.id, expectAssignedToId: mehmet.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("task_moved_on");
   });
 
   it("atamasız ön şart reddedilir (400); personel ön şartla atayamaz (403)", async () => {

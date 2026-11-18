@@ -74,7 +74,8 @@ describe("pano — 'Yapamıyorum' kaldırıldı; eski 'Yapılamıyor' verisi", (
     expect(screen.queryAllByText("hastayım")).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("Atanan kişi: Çıkış temizliği"), { target: { value: "u-mehmet" } });
     await settle();
-    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "u-mehmet" } }]);
+    // H7: kartın gördüğü atanan ön şart olarak gider (yalnız atanan sınanır).
+    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "u-mehmet", expectAssignedToId: "u-ayse", expectAssigneeOnly: true } }]);
   });
 
   it("mutasyon Q28: temizlikçi eski 'Yapılamıyor' kartında düğme yerine 'Ev sahibi bu görevi görüyor' + yine yaparsa ne yapacağı yazar", () => {
@@ -108,7 +109,7 @@ describe("pano — 'Yapamıyorum' kaldırıldı; eski 'Yapılamıyor' verisi", (
     render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage members={[{ id: "u-ayse", name: "Ayşe" }]} />);
     fireEvent.change(screen.getByLabelText("Atanan kişi: Çıkış temizliği"), { target: { value: "" } });
     await settle();
-    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "" } }]);
+    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "", expectAssignedToId: "u-ayse", expectAssigneeOnly: true } }]);
   });
 
   it("KONTROL — temizlikçi kartında 'Atanan' seçimi YOK; biten görevde 'Yapamıyorum' YOK", () => {

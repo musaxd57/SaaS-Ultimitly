@@ -310,6 +310,10 @@ export const taskUpdateSchema = z.object({
   assignedToId: z.string().optional(),
   // UX-10 D3 (Girişler'den atama): satırın gördüğü atanan — boş dize = "atanmamış bekliyorum". Tutmazsa 409 (`api/tasks/[id]`).
   expectAssignedToId: z.string().max(64).optional(),
+  // H7 (Codex 11-17): ön şart YALNIZ atanan kişiye bakar — görev panosu. Yönetici kartta durumu (başladı / dokunuldu) görerek yeniden atar;
+  // bu bilinçli bir karardır, Girişler'in "iş başladıysa yazma" kuralı panoya uygulanmaz (pinli: pano başlamış görevi yeniden atayabilir).
+  // Bayat kart (bu arada başkasına atandı) yine 409 alır. Ön şartsız gönderilirse anlamı yok (yok sayılır).
+  expectAssigneeOnly: z.literal(true).optional(),
   note: z.string().max(5000).optional(),
   // Only a same-origin relative path (what /api/upload returns: "/uploads/…") or
   // an explicit https URL (future object storage). This value is rendered as an
