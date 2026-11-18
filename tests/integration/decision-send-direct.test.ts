@@ -219,6 +219,32 @@ describe("G2-02 / K2-01 — karar mesajı: gönderimden hemen önce taze iptal o
     expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: s.itemId } })).status).toBe("open");
   });
 
+  // Ana oturum incelemesi (11-18): doğrudan yol, operatörün "teslimatı durdur" anahtarını (kuyruk açıkken acil fren) ATLAMAMALI. Eskiden
+  // karar mesajı kuyrukta beklerdi; doğrudan yola alınınca fren onu durdurmaz olmuştu. Emsal elle giriş mesajı: fren açıkken gönderilmez.
+  it("🚨 kuyruk AÇIK + teslimat DURDURULMUŞ → karar mesajı gitmez; kart yeniden açılır (503, var olan 'birazdan tekrar deneyin' metni), kuyruğa da yazılmaz", async () => {
+    queueOn();
+    vi.stubEnv("OUTBOX_DELIVERY_PAUSED", "1");
+    const s = await seed();
+    const res = await approve(s);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toBe("Şu anda gönderilemedi — lütfen birazdan tekrar deneyin.");
+    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ ESKİDE (doğrudan yol, frensiz) kanala çıkıyordu
+    expect(await prisma.messageOutbox.count()).toBe(0);
+    expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
+    const d = await card(s);
+    expect(d.status).toBe("pending");
+    expect(body.version).toBe(d.version);
+  });
+
+  it("KONTROL — kuyruk KAPALI iken aynı anahtarın etkisi yok (fren kuyruğun frenidir): karar gider", async () => {
+    vi.stubEnv("OUTBOX_DELIVERY_PAUSED", "1");
+    const s = await seed();
+    const res = await approve(s);
+    expect(res.status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it("KONTROL (aşırı uygulama) — kuyruk AÇIK: ev sahibinin GENEL elle cevabı kuyruğa yazmaya devam eder (202, kanala doğrudan gitmez)", async () => {
     queueOn();
     const s = await seed();

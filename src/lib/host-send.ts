@@ -14,7 +14,7 @@ import {
   extendOutboundRequest,
   newClaimOwner,
 } from "@/lib/outbound-claim";
-import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { durableOutboxEnabledFor, outboxDeliveryPaused } from "@/lib/outbox/flag";
 import { enqueueOutbound, SupersededRowRevivedError } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
 import { applyHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
@@ -122,6 +122,13 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
   const isInternal = localDelivery === "qr_visible";
   const token = (await resolveOrgChannelCredential(input.organizationId))?.token ?? null;
   if (!isInternal && conversation.externalReservationId && !token) return { status: "not_connected" };
+  // 🚨 DOĞRUDAN YOL OPERATÖR FRENİNİ ATLAMAZ (ana oturum incelemesi 11-18): "teslimatı durdur" anahtarı kalıcı kuyruğun acil frenidir. Karar
+  // mesajı kuyrukta beklerken fren onu da durduruyordu; `sendDirect` ile doğrudan yola alınınca durdurmaz olmuştu. Kuyruk bu işletmede açık ve
+  // fren çekiliyken dış kanala gidecek doğrudan gönderim YAPILMAZ: hiçbir şey gönderilmedi, sonuç kesin → çağıran var olan "birazdan tekrar
+  // deneyin" dalına düşer (kart yeniden açılır). Emsal elle giriş mesajı (`sendCheckinNow` → `paused`). Kuyruk kapalıyken fren geçersizdir.
+  if (input.sendDirect && !isInternal && conversation.externalReservationId && durableOutboxEnabledFor(input.organizationId) && outboxDeliveryPaused()) {
+    return { status: "claim_unavailable" };
+  }
   // Bu DENEMENİN jetonu (mesaj M1, Codex 11-10): aldığı talepleri yalnız kendisi bırakır / uzatır — süresi dolmuş eski bir denemenin geç
   // temizliği, aynı metni / isteği almış yeni denemenin talebini silemez.
   const attempt = newClaimOwner();
