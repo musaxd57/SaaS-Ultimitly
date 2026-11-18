@@ -212,6 +212,9 @@ export const MESSAGE_FIELD_POLICY: Record<
   // L5 (migration 71): kanalın bildirdiği gönderen rolü — içerik kimliği değil, türetilmiş üst veri (rol 71'den önce alınan kopyada NULL,
   // sonra alınanda dolu olabilir). Kıyaslanmaz; keeper'daki kopya kendi rolüyle yaşar.
   channelSenderRole: "provenance",
+  // Migration 98: giden mesajın BİZİM kaydettiğimiz teslim yolu (direct · queue · qr · local) — içerik kimliği değil; kanaldan eşitlenen
+  // kopyada NULL, bizim gönderdiğimiz kopyada dolu olabilir. Kıyaslanmaz; keeper'daki kopya kendi değeriyle yaşar.
+  deliveryPath: "provenance",
 };
 
 /** Şema ↔ politika sürüklenmesine karşı RUNTIME kapısı (fail-closed). */

@@ -230,12 +230,16 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     KVKK ihracına girer (`data-export.ts`).
       //   · MessageOutbox.deliveryEffectAt (DateTime?, migration 91, Tur 7 T7-OB-5 11-05) → KAPSAM DIŞI: teslimin konuşma etkisinin
       //     yazıldığı an (onarıcı sayfalaması); misafirin ne metnini ne kimliğini taşır (`ingestedAt` emsali). Anonim satırda da doğrudur.
-      Message: 18,
+      //   · Migration 98 (kurucu 11-18) → HEPSİ KAPSAM DIŞI: Message.deliveryPath (String?, kapalı küme direct · queue · qr · local) ·
+      //     Task.dueAtPrecision (String?, kapalı küme day · minute) · MessageOutbox.dispatchStartedAt / cancelRequestedAt (DateTime?, damga) ·
+      //     MessageOutbox.cancelReason (String?, kısa KOD — serbest metin yazılmaz; `lastErrorCode` emsali) · MessageOutbox.decisionRequestId
+      //     (String?, opak kart kimliği). Hiçbiri misafirin metnini / kimliğini taşımaz; anonim satırda da doğrudur.
+      Message: 19,
       Conversation: 26,
       Reservation: 42,
-      Task: 15,
+      Task: 16,
       TaskUpdate: 6,
-      MessageOutbox: 25,
+      MessageOutbox: 29,
       AiGeneration: 23,
       AiReviewLabel: 5,
       // migration 96 → yalnız draftEnc / diffEnc / draftHash KAPSAM İÇİ (↑liste). Diğerleri opak kimlik (konuşma / mesaj), kapalı küme etiket

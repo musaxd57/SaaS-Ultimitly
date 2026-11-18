@@ -175,8 +175,8 @@ model Organization {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
-  users                 User[]       @relation("UserHomeOrganization")
-  lastActiveUsers       User[]       @relation("UserLastActiveOrganization")
+  users                 User[]                 @relation("UserHomeOrganization")
+  lastActiveUsers       User[]                 @relation("UserLastActiveOrganization")
   memberships           Membership[]
   trialIdentities       TrialIdentity[]
   signupNetworkTraces   SignupNetworkTrace[]
@@ -284,21 +284,21 @@ model User {
 
   // M-2 (dilim 1): `organizationId` / `role` = ANA İŞLETME AYNASI — yetki üyelikte (`Membership`); yalnız tek yazıcı
   // (`lib/membership/write.ts`) yazar. Okuyucular dilim 3'te üyeliğe geçer (tasarım docs/TASARIM-2026-11-06-uyelik-modeli-M2.md).
-  organization     Organization             @relation("UserHomeOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
-  memberships        Membership[] @relation("MembershipUser")
-  invitedMemberships Membership[] @relation("MembershipInvitedBy")
+  organization             Organization             @relation("UserHomeOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships              Membership[]             @relation("MembershipUser")
+  invitedMemberships       Membership[]             @relation("MembershipInvitedBy")
   // Son kullanılan işletme (girişte varsayılan — dilim 2 `pickLoginMembership`). Silinen işletmeyi göstermez (SetNull).
   lastActiveOrganizationId String?
-  lastActiveOrganization   Organization? @relation("UserLastActiveOrganization", fields: [lastActiveOrganizationId], references: [id], onDelete: SetNull)
-  assignedTasks    Task[]                   @relation("TaskAssignee")
-  taskUpdates      TaskUpdate[]
-  auditLogs        AuditLog[]
-  checkoutConsents CheckoutConsent[]
-  recoveryCodes    TwoFactorRecoveryCode[]
-  emailOutbox      EmailOutbox[]
-  resetChallenges  PasswordResetChallenge[]
+  lastActiveOrganization   Organization?            @relation("UserLastActiveOrganization", fields: [lastActiveOrganizationId], references: [id], onDelete: SetNull)
+  assignedTasks            Task[]                   @relation("TaskAssignee")
+  taskUpdates              TaskUpdate[]
+  auditLogs                AuditLog[]
+  checkoutConsents         CheckoutConsent[]
+  recoveryCodes            TwoFactorRecoveryCode[]
+  emailOutbox              EmailOutbox[]
+  resetChallenges          PasswordResetChallenge[]
 
-  hostChannelBindings HostChannelBinding[]
+  hostChannelBindings  HostChannelBinding[]
   staffChannelBindings StaffChannelBinding[]
 
   @@index([organizationId])
@@ -315,23 +315,23 @@ model User {
 /// 🚨 GEÇİCİ BEKÇİ `singleMembershipGuard`: dilim 6c'ye kadar kişi başına TEK üyelik veritabanında imkânsız (okuyucular üyeliğe geçmeden
 /// çok üyelik oluşamasın — Opus M11). Yazıcı her satıra `userId` yazar; dilim 6c sütunu boşaltır / dizini düşürür.
 model Membership {
-  id             String    @id @default(cuid())
-  userId         String
-  organizationId String
+  id                    String    @id @default(cuid())
+  userId                String
+  organizationId        String
   /// owner | manager | staff — VARSAYILANSIZ (rolü unutan yazım derlenmez; `User.role @default("owner")` hatası tekrarlanmasın, Opus M19).
-  role           String
+  role                  String
   /// active | revoked
-  status         String    @default("active")
+  status                String    @default("active")
   /// Rol değişimi / çıkarma kuşağı artırır → o işletmedeki oturumlar düşer (dilim 2).
-  epoch          Int       @default(0)
+  epoch                 Int       @default(0)
   /// signup | operator | demo | seed | backfill | repair | invite | team (giriş yapamayan ekip kişisi, T3) — kötüye kullanım sinyalleri kurucu üyelikleri sayar (Opus M9).
-  origin         String
-  invitedById    String?
-  revokedAt      DateTime?
+  origin                String
+  invitedById           String?
+  revokedAt             DateTime?
   /// Geçici tek-üyelik bekçisi (yukarıda). Tekil dizin sütunda, ilişki alanında DEĞİL — ilişki bire-çok kalır.
-  singleMembershipGuard String? @unique
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  singleMembershipGuard String?   @unique
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user         User         @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -719,17 +719,17 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property      Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  reservation   Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  messages      Message[]
-  signals       Signal[]
-  items         ConversationItem[]
-  decisions     DecisionRequest[]
+  property        Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation     Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  signals         Signal[]
+  items           ConversationItem[]
+  decisions       DecisionRequest[]
   // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
-  aiGenerations AiGeneration[]
+  aiGenerations   AiGeneration[]
   replyDraftLinks ReplyDraftLink[]
   // Migration 62: misafire verilen sözler (metin YOK) — konuşmayla birlikte gider.
-  commitments   GuestCommitment[]
+  commitments     GuestCommitment[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -805,6 +805,10 @@ model Message {
   /// satır / bu kolondan önceki satır. Güvenlik ve "cevap mı" kararı bundan TÜREMEZ (`authorType` tek otorite); yalnız öğrenme / üslup /
   /// öneri girdisi. Metin / kimlik taşımaz.
   channelSenderRole  String?
+  /// GİDEN mesajın gerçek teslim yolu (migration 98, kurucu 11-18): direct (doğrudan kanal isteği) | queue (kalıcı kuyruk) | qr (iç QR
+  /// sohbeti — misafir sohbet sayfasında görür) | local (hedef yok: yalnız kaydedildi). NULL = gelen mesaj / bu alandan önceki kayıt /
+  /// kanaldan eşitlenen satır. Teslim SONUCU değildir (sonuç kuyruk satırında / gönderim cevabında).
+  deliveryPath       String?
   createdAt          DateTime  @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -826,6 +830,9 @@ model Task {
   description     String?
   assignedToId    String?
   dueAt           DateTime?
+  /// Vade hassasiyeti (migration 98, kurucu 11-18): "day" = saatsiz takvim günü · "minute" = belirli saat. NULL = bu alandan önceki kayıt
+  /// (eski kural: tam UTC 00:00 / 12:00 değeri saatsiz gün sayılır — `calendarDateOf`).
+  dueAtPrecision  String?
   status          String    @default("todo") // todo | in_progress | awaiting_review | done
   priority        String    @default("standard") // urgent | standard | low
   checklistJson   String? // JSON-encoded array of { label, done }
@@ -1197,8 +1204,15 @@ model WebhookEvent {
   error           String?
   processedAt     DateTime?
   createdAt       DateTime  @default(now())
+  /// Yeniden işleme (migration 98, kurucu 11-18): vade olayın KENDİ satırında. Eskiden vade yalnız `createdAt` + ortak "son tur" işaretinden
+  /// türetiliyordu (satırda deneme bilgisi yoktu). `nextAttemptAt` = sıradaki yeniden işleme anı (null = planlı deneme yok: işlendi /
+  /// denemeler tükendi / henüz planlanmadı — eski satır); `attemptCount` = yapılan yeniden işleme denemesi; `lastAttemptAt` = sonuncusu.
+  attemptCount    Int       @default(0)
+  lastAttemptAt   DateTime?
+  nextAttemptAt   DateTime?
 
   @@index([provider, status])
+  @@index([provider, nextAttemptAt])
 }
 
 // Append-only decision history for the AI risk pipeline (Codex #32). One row =
@@ -1339,6 +1353,16 @@ model MessageOutbox {
   // sürümle kıyaslar; farklıysa (ya da NULL — geçiş öncesi satır) gövdeyi AYNI satırda güncel metinle yeniden kurar, metin boş / doldurulamaz
   // ise iptal eder. Anahtar değişmez (rezervasyon başına tek satır — çift gönderim yok). Yanıt satırlarında NULL.
   templateRevision      Int?
+  /// DIŞ GÖNDERİM BAŞLADI işareti (migration 98, kurucu 11-18). `sending` iki ayrı anı kapsıyordu: "hazırlanıyor" (talep alındı, son
+  /// kontroller sürüyor) ve "kanala istek çıktı". İşçi kanala istek atmadan HEMEN önce bu alanı koşullu yazar (yalnız iptal İSTENMEMİŞSE);
+  /// iptal de yalnız bu alan BOŞKEN yazılabilir → iptal ile gönderimi başlatma aynı satırda atomik karar verir. Boşken süresi dolan talep
+  /// "kesinlikle gitmedi"dir (yeniden sıraya), doluyken "sonuç belirsiz".
+  dispatchStartedAt     DateTime?
+  /// İptal İSTENDİ (dış gönderim başlamadan). İşçi görürse göndermez, satırı iptal eder. `cancelReason` kısa kod (PII yok).
+  cancelRequestedAt     DateTime?
+  cancelReason          String?
+  /// Bu satır bir karar kartının mesajıysa kartın kimliği — işçi göndermeden önce kartı / rezervasyonu yeniden doğrular, sonucu karta yazar.
+  decisionRequestId     String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -1435,29 +1459,33 @@ model KbCopyOperation {
 // Takma adlı kimlikler (işletme, onay, Paddle işlem kimliği); misafir verisi yok. Kapanan niyet 90 gün sonra silinir.
 // ---------------------------------------------------------------------------
 model CheckoutIntent {
-  id             String    @id @default(cuid())
-  organizationId String
+  id              String    @id @default(cuid())
+  organizationId  String
   /// İşlemi açan onay (Paddle `custom_data.consentId` bu olur → webhook bugünkü gibi onaydan bağlar).
-  consentId      String
-  planCode       String
-  priceId        String
+  consentId       String
+  planCode        String
+  priceId         String
   /// Paddle işlem kimliği (txn_…); NULL = Paddle çağrısı sürüyor.
-  providerRef    String?   @unique
+  providerRef     String?   @unique
   /// opening · open · completed · canceled · expired · failed (kapalı küme, `lib/billing/checkout-intent.ts`).
-  status         String
+  status          String
   /// Açık niyet tekil anahtarı: opening / open iken = organizationId, kapanınca NULL.
-  openKey        String?   @unique
+  openKey         String?   @unique
   /// Ödeme ekranının geçerliliği (3 sa; webhook onay tazeliği 24 sa sınırının içinde).
-  expiresAt      DateTime
-  closedAt       DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  expiresAt       DateTime
+  closedAt        DateTime?
+  /// Ödeme–abonelik bağı (migration 98, kurucu 11-18): bu ödemenin Paddle'da bağlandığı abonelik kimliği (işlemden / abonelik olayından
+  /// okunur). Boş = henüz bilinmiyor. Otomatik bağlama ve operatör teşhisi buradan okur.
+  subscriptionRef String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   consent      CheckoutConsent @relation(fields: [consentId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([status, expiresAt])
+  @@index([subscriptionRef])
 }
 
 model AutomatedMessageSend {
@@ -1649,6 +1677,7 @@ model ConversationItem {
   @@index([organizationId, status])
   @@index([conversationId, status])
 }
+
 /// KONUŞMA KONTROLÜ — ENGEL (tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §3 / §11; kurucu K-1..K-6, migration onayı K-6).
 /// Yapay zekânın neden susması gerektiğinin KAYDI: tür + kapsam + kaynak mesaj + kısa KANIT KODU (misafir metni ASLA — KVKK). G0 gölgede
 /// yalnız AÇILIR (bugün `problem` yazan dört yol aynı işlemde yazar), karar değişmez; kapanış G1'de ("Olay çözüldü", yalnız owner/manager).
@@ -1677,7 +1706,6 @@ model ConversationBlock {
   @@index([conversationId, status])
   @@index([organizationId, status])
 }
-
 
 // HOST KARAR MOTORU (Faz 1, migration 59; tasarım `docs/TASARIM-2026-10-02-host-karar-motoru.md`). Misafirin ev sahibi KARARI
 // gerektiren konaklama isteği (erken giriş / geç çıkış / uzatma / tarih değişikliği): "karar bekliyor" kartı, tek bildirim, ev
@@ -2413,38 +2441,38 @@ model LicenseHolder {
 
 /// İŞLETME BELGESİ (Faz 1a). Durum ve kural tek kaynak lib/licenses/state.ts; yetki (işaret) HESAPLANIR, saklanmaz (capabilities.ts).
 model BusinessLicense {
-  id               String    @id @default(cuid())
-  organizationId   String
-  holderId         String
+  id                 String    @id @default(cuid())
+  organizationId     String
+  holderId           String
   /// agency | tourism_operation | simple_accommodation (Faz 1a kapalı küme; konut izni Faz 1b — Bakanlık API'si)
-  type             String
+  type               String
   /// Kullanıcının yazdığı numara (ekranda) + normalize hâli (karşılaştırma / bekçi).
-  number           String
-  numberNorm       String
+  number             String
+  numberNorm         String
   /// Tür bazında nitelikler: acentada { group }, tesiste { facilityType?, starClass? }. Doğrulamada resmî kayıttaki değer kazanır.
-  attributes       Json
+  attributes         Json
   /// pending | under_review | verified | suspended | rejected | withdrawn | expired
-  status           String
+  status             String
   /// Askı sebebi: registry_cancelled | not_found | mismatch | operator
-  suspendReason    String?
+  suspendReason      String?
   /// İyimser kilit (CAS): her geçiş `version` eşitken yazar ve artırır — eski okumaya göre hesaplanmış karar araya giren kararı ezemez.
-  version          Int       @default(0)
+  version            Int       @default(0)
   /// BEKÇİ: verified / suspended iken `${type}:${numberNorm}`, yoksa NULL — bir belge aynı anda yalnız bir hesapta doğrulanmış olabilir.
-  lockKey          String?   @unique
+  lockKey            String?   @unique
   /// Bekleyen başvurunun bitişi (14 gün); geçince süresi dolmuş sayılır.
-  pendingUntil     DateTime?
-  verifiedAt       DateTime?
+  pendingUntil       DateTime?
+  verifiedAt         DateTime?
   /// Son BAŞARILI ve eşleşen resmî kayıt okuması — "eşleşti" işareti bundan 30 gün sonra kendiliğinden kalkar.
-  lastRegistryOkAt DateTime?
+  lastRegistryOkAt   DateTime?
   /// O okumanın kaynağı (lib/licenses/catalog.ts REGISTRY_SOURCES) — işaret metni kaynağa göre ("Bakanlık" / "TÜRSAB").
   lastRegistrySource String?
   /// Onayda (ya da askıdan dönüşte) KABUL EDİLEN kayıttaki ticari unvanın normal biçimi; tesis kaydı unvan göstermiyorsa NULL. Sonraki
   /// okumalar bununla (ya da hak sahibinin unvanıyla) karşılaştırılır — gerekçeyle onaylanmış eski unvanlı kayıt da tazelenebilir.
-  registryNameNorm String?
+  registryNameNorm   String?
   /// Başvuruyu açan kişi (düz kimlik; kişi silinse de iz kalır).
-  createdByUserId  String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdByUserId    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   holder       LicenseHolder  @relation(fields: [holderId], references: [id], onDelete: Cascade)
