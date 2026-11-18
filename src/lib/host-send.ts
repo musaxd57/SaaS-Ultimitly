@@ -310,6 +310,16 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     // sonra yeniden basardı; talepler 2 dk'da düşmüşse (uzatma da aynı arızada yazılamamış olabilir) misafire İKİNCİ mesaj giderdi ("çift
     // mesaj, nadir sessiz kayıptan kötüdür"). Hata raporlanır, sonuç "gönderildi" — satır sonraki senkronla sağlayıcıdan gelir.
     if (!isUniqueViolation(err, ["conversationId", "externalId"])) {
+      // 🚨 Dış kanal YOKSA (hedefsiz / iç QR) yukarıdaki gerekçe geçmez: hiçbir şey ne gitti ne kaydedildi → "kaydedildi / gönderildi" demek
+      // yalan olur, ev sahibi cevabının kaybolduğunu bilmez (C1 2. tur). KESİN başarısızlık: bu denemenin talepleri (başarıda 24 saate uzatılmış
+      // istek talebi dahil) bırakılır, aynı metin / kimlik hemen yeniden denenebilir; çağıranların kesin başarısızlık yolu (rota "gönderilemedi",
+      // karar kartı yeniden açılır) aynen çalışır.
+      if (localDelivery) {
+        void reportError("host-send.local-persist-failed", err);
+        await releaseOutboundSend(id, input.claimBody, attempt);
+        if (input.strictIdempotency) await releaseOutboundRequest(id, input.idempotencyKey, attempt);
+        return { status: "failed_definitive", error: undefined };
+      }
       void reportError("host-send.persist-after-delivery", err);
       return deliveredResult(null);
     }
