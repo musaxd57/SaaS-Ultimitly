@@ -693,9 +693,18 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
   // tekrar ve pencere hükümleri önce verilir — süresi geçmiş satır beklemez, iptal olur (giriş: çıkış günü; çıkış: çıkış gününden sonra).
   // Karşılamanın pencere kuralı yok: varış günü geçtiği hâlde onaylanmamışsa bayattır.
   // 🚨 İki FARKLI dairede etkin kaydı olan rezervasyonun otomatik mesajı TUTULUR (kurucu 11-18 akşam; `booking-property-conflict.ts`):
-  // satır kuyruğa tek kayıtlıyken girmiş, kopya sonradan oluşmuş olabilir. İptal değil erteleme — ev sahibi yanlış kaydı kaldırınca gider;
-  // süresi geçen satır yukarıdaki pencere hükümleriyle zaten iptal olur.
-  if ((type === "welcome" || type === "checkin" || type === "checkout") && spansMultipleProperties(siblings, now)) return LIFECYCLE_STATUS_HOLD;
+  // satır kuyruğa tek kayıtlıyken girmiş, kopya sonradan oluşmuş olabilir. İptal değil erteleme — ev sahibi yanlış kaydı kaldırınca gider.
+  // Tutulan satır varış günü GEÇİNCE bayattır (Opus 11-18 B-1): çıkış mesajının pencere hükmü yukarıda verildi, ama karşılamanın hiç
+  // pencere kuralı yok ve giriş mesajınınki çıkış gününe kadar açık — yanlış kayıt konaklamanın üçüncü günü kaldırılsa karşılama / giriş
+  // bilgisi konaklamanın ortasında giderdi (doğrudan yol varışı geçmiş rezervasyonu hiç aday yapmaz; "bayat mesaj gitmemeli", N1 ile
+  // aynı kural). Giriş bilgisi yine gerekiyorsa ev sahibi Girişler'den elle gönderir.
+  if ((type === "welcome" || type === "checkin" || type === "checkout") && spansMultipleProperties(siblings, now)) {
+    if (type !== "checkout") {
+      const tz = orgTimezone(res.property?.organization?.timezone);
+      if (todayKey(now, tz) > calendarDateOf(res.arrivalDate, tz).key) return "window_passed";
+    }
+    return LIFECYCLE_STATUS_HOLD;
+  }
   if ((type === "welcome" || type === "checkin" || type === "checkout") && !lifecycleStatusAllows(type, res.status)) {
     if (type === "welcome") {
       const tz = orgTimezone(res.property?.organization?.timezone);

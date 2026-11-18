@@ -352,20 +352,31 @@ export async function loadArrivalReadiness(
   // Kuyrukta bu rezervasyonun giriş mesajı satırı varsa (uçuşta / gönderildi / doğrulanamadı) düğme SUNULMAZ — dokunuş "zaten gönderim
   // sırasında" derdi (Haiku D5 #5). Kesin başarısız ya da iptal satır misafire ulaşmadı: elle gönderim doğrudan yoldan gider (Opus B1) →
   // düğme kalır (`sendCheckinNow` ile aynı küme).
+  // İstisna (Opus 11-18 B-2): rezervasyon iki dairede kayıtlıysa kuyruk işçisi BEKLEYEN satırı tutar, mesaj kendiliğinden gitmez — düğme
+  // kalır; ev sahibi doğru dairenin satırından gönderince `sendCheckinNow` bekleyen satırı iptal edip doğrudan yoldan gönderir. Uçuşta /
+  // gönderildi / doğrulanamadı satır bu istisnaya girmez.
   const queuedCheckinRefs = new Set<string>();
+  const queuedBeyondPendingRefs = new Set<string>();
   if (manualConnection) {
     const refs = [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))];
     if (refs.length > 0) {
       const owned = await prisma.messageOutbox.findMany({
         where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { notIn: ["failed", "canceled"] } },
-        select: { externalReservationId: true },
+        select: { externalReservationId: true, status: true },
       });
-      for (const o of owned) if (o.externalReservationId) queuedCheckinRefs.add(o.externalReservationId);
+      for (const o of owned) {
+        if (!o.externalReservationId) continue;
+        queuedCheckinRefs.add(o.externalReservationId);
+        if (o.status !== "pending") queuedBeyondPendingRefs.add(o.externalReservationId);
+      }
     }
   }
   const checkinManualSendableOf = (a: (typeof arrivals)[number]): boolean => {
     if (!manualConnection || a.checkinSentAt || a.status !== "confirmed" || !reservationMessagingCapable(a)) return false;
-    if (a.sourceReference && queuedCheckinRefs.has(a.sourceReference)) return false;
+    if (a.sourceReference && queuedCheckinRefs.has(a.sourceReference)) {
+      const heldForTwoProperties = twoProperties.has(a.sourceReference) && !queuedBeyondPendingRefs.has(a.sourceReference);
+      if (!heldForTwoProperties) return false;
+    }
     if (manualErasure?.blocksSourceReference(a.sourceReference)) return false;
     const t = autoCheckinOf.get(a.propertyId);
     if (!t || t.body.trim() === "") return false;

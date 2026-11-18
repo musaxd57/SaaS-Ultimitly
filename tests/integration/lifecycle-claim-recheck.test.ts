@@ -530,6 +530,62 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     },
   );
 
+  // Opus 11-18 B-1: tutulan karşılama / giriş satırı varış günü GEÇİNCE bayattır. Karşılamanın pencere kuralı yoktu, giriş mesajınınki
+  // çıkış gününe kadar açık → yanlış kayıt konaklamanın ortasında kaldırılınca mesaj o zaman giderdi.
+  const midStay = { arrivalDate: new Date(Date.now() - 2 * DAY), departureDate: new Date(Date.now() + 2 * DAY) };
+  it.each(["welcome", "checkin"] as const)(
+    "🚨 iki daire (%s): tutulan satır varış günü GEÇTİYSE iptal edilir — yanlış kayıt konaklamanın ortasında kaldırılsa da mesaj GİTMEZ",
+    async (kind) => {
+      const { orgId, drain, row, posts } = await holdSetup(kind);
+      const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+      const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
+      const sibling = await prisma.reservation.create({
+        data: { propertyId: other.id, guestName: a.guestName, arrivalDate: a.arrivalDate, departureDate: a.departureDate, channel: "airbnb", status: "confirmed", sourceReference: "res-a" },
+      });
+      // Konaklama başladı (iki kayıt da aynı tarihte), çakışma sürüyor.
+      await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: midStay });
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+      await drain();
+      expect(posts()).toBe(0);
+      const canceled = await row();
+      expect(canceled.status).toBe("canceled"); // ⬅️ ESKİDE "pending": yanlış kayıt kaldırılınca konaklamanın ortasında gidiyordu
+      expect(canceled.lastErrorCode).toBe("window_passed");
+
+      await prisma.reservation.delete({ where: { id: sibling.id } });
+      await drain();
+      expect(posts()).toBe(0);
+    },
+  );
+
+  it.each(["welcome", "checkin"] as const)(
+    "KONTROL (%s): çakışma YOKKEN varışı geçmiş kuyruk satırı eskisi gibi gider (yeni hüküm yalnız iki dairede kayıtlı rezervasyonda)",
+    async (kind) => {
+      const { orgId, drain, row, posts } = await holdSetup(kind);
+      await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: midStay });
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+      await drain();
+      expect(posts()).toBe(1);
+      expect((await row()).status).toBe("sent");
+    },
+  );
+
+  it("iki daire (çıkış): tutulan çıkış mesajı varış geçti diye iptal EDİLMEZ (çıkış günü beklenir) — yanlış kayıt kaldırılınca gider", async () => {
+    const { orgId, drain, row, posts } = await holdSetup("checkout");
+    const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+    expect(a.arrivalDate.getTime()).toBeLessThan(Date.now() - DAY / 2); // vakum değil: varış günü gerçekten geçmiş
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
+    const sibling = await prisma.reservation.create({
+      data: { propertyId: other.id, guestName: a.guestName, arrivalDate: a.arrivalDate, departureDate: a.departureDate, channel: "airbnb", status: "confirmed", sourceReference: "res-a" },
+    });
+    await drain();
+    expect(posts()).toBe(0);
+    expect((await row()).status).toBe("pending");
+    await prisma.reservation.delete({ where: { id: sibling.id } });
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date() } });
+    await drain();
+    expect(posts()).toBe(1);
+  });
+
   it("🚨 kalıcı kuyruk: açıkça SİLİNEN misafire satır açılmaz; kuyruktaki satır gönderim anında 'erased' ile iptal (Haiku 10-14)", async () => {
     const orgId = await seed("checkin");
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });

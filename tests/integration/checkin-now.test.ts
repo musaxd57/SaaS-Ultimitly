@@ -295,6 +295,83 @@ describe("Girişler — elle gönderim: geri alma alarmı ve kalıcı kuyruk", (
     await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "canceled" } });
     expect(await offered()).toBe(true);
   });
+
+  // Opus 11-18 B-2: rezervasyon iki dairede kayıtlıyken kuyruk işçisi bekleyen satırı TUTAR. Eskiden elle gönderim satırın vadesini öne
+  // çekip "sıraya alındı" diyordu — işçi yine tuttuğu için mesaj hiç gitmiyordu.
+  const twoPropertySetup = async () => {
+    const s = await seed({ autoCheckin: true });
+    // Otomatik giriş tabanı rezervasyondan ÖNCE (satır "iki dairede kayıtlı" sebebine kadar ilerlesin).
+    await prisma.organization.update({ where: { id: s.orgId }, data: { autoCheckinEnabledAt: new Date(Date.now() - 30 * DAY) } });
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: s.reservationId } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: s.orgId, name: "Başka Daire" } });
+    await createKbWithAutoMessage({
+      data: { propertyId: other.id, category: "checkin", title: "Giriş", content: "Hoş geldiniz — kapı kodumuz 9999.", isActive: true },
+    });
+    const sibling = await prisma.reservation.create({
+      data: { propertyId: other.id, guestName: res.guestName, arrivalDate: res.arrivalDate, departureDate: res.departureDate, channel: "airbnb", status: "confirmed", sourceReference: res.sourceReference },
+    });
+    const row = await prisma.messageOutbox.create({
+      data: {
+        organizationId: s.orgId,
+        reservationId: s.reservationId,
+        channel: "airbnb",
+        externalReservationId: res.sourceReference,
+        messageType: "checkin",
+        body: "x",
+        idempotencyKey: `checkin:${s.orgId}:${res.sourceReference}`,
+        status: "pending",
+        availableAt: new Date(Date.now() + 20 * 60_000), // işçi tutmuş: 20 dakika sonra yeniden bakacak
+      },
+    });
+    return { s, row, sibling };
+  };
+
+  it("🚨 iki dairede kayıtlı + kuyrukta TUTULAN satır: elle gönderim 'sıraya alındı' DEMEZ — satır iptal edilir, mesaj seçilen dairenin metniyle doğrudan gider", async () => {
+    const { s, row, sibling } = await twoPropertySetup();
+    expect(await sendCheckinNow(await args(s))).toEqual({ ok: true, kind: "sent" }); // ⬅️ ESKİDE { ok: true, kind: "queued" } ve mesaj hiç gitmiyordu
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("4821"); // ev sahibinin seçtiği dairenin metni
+    expect(JSON.stringify(mockSend.mock.calls[0])).not.toContain("9999");
+    const after = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } });
+    expect(after.status).toBe("canceled");
+    expect(after.lastErrorCode).toBe("manual_send_two_properties");
+    // Kopya kayıt da damgalanır → yanlış kayıt sonradan kaldırılsa da otomatik gönderici ikinci kez göndermez.
+    expect(await stamp(s.reservationId)).toBeInstanceOf(Date);
+    expect(await stamp(sibling.id)).toBeInstanceOf(Date);
+  });
+
+  it("iki dairede kayıtlı ama satır UÇUŞTA / gönderilmiş: dokunulmaz, eski hüküm (çift gönderim yok)", async () => {
+    const { s, row } = await twoPropertySetup();
+    for (const [status, kind] of [["sending", "queue_owns"], ["sent", "already_sent"], ["review", "ambiguous"]] as const) {
+      await prisma.messageOutbox.update({ where: { id: row.id }, data: { status } });
+      expect(await sendCheckinNow(await args(s)), status).toEqual({ ok: false, kind });
+      expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(status);
+    }
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: tek dairede kayıtlı rezervasyonda ertelenmiş satır eskisi gibi öne çekilir ('sıraya alındı'), iptal edilmez", async () => {
+    const { s, row, sibling } = await twoPropertySetup();
+    await prisma.reservation.delete({ where: { id: sibling.id } });
+    expect(await sendCheckinNow(await args(s))).toEqual({ ok: true, kind: "queued" });
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("pending");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Girişler: iki dairede kayıtlı + kuyrukta yalnız BEKLEYEN satır → düğme sunulur (mesaj kendiliğinden gitmeyecek); uçuşta satır varsa sunulmaz", async () => {
+    const { s, row, sibling } = await twoPropertySetup();
+    const offeredFor = async () => {
+      const rows = (await loadArrivalReadiness(s.orgId, new Date())).rows;
+      return rows.filter((r) => JSON.stringify(r).includes('"sendCheckin":true')).length;
+    };
+    expect(await offeredFor()).toBeGreaterThan(0); // ⬅️ ESKİDE 0: satır tutuluyor, düğme de yoktu
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "sending" } });
+    expect(await offeredFor()).toBe(0);
+    // Tek dairede kayıtlıysa bekleyen satır düğmeyi eskisi gibi gizler (kuyruk kendisi gönderecek).
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "pending" } });
+    await prisma.reservation.delete({ where: { id: sibling.id } });
+    expect(await offeredFor()).toBe(0);
+  });
 });
 
 describe("Girişler — giriş mesajı rotası", () => {

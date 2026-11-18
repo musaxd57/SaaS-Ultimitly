@@ -6591,7 +6591,23 @@ export async function sendCheckinNow(input: {
       orderBy: { createdAt: "desc" },
       select: { id: true },
     });
-    if (existing) {
+    // 🚨 Opus 11-18 B-2: rezervasyon iki dairede kayıtlıysa kuyruk işçisi satırı her bakışta TUTAR (`lifecycleVeto`) — satırın vadesini
+    // öne çekip "sıraya alındı" demek yalan olurdu (mesaj hiç gitmez, çıkış günü iptal olur). Ev sahibi doğru dairenin satırından
+    // "Gönder"e basarak daireyi SEÇTİ: bekleyen satır iptal edilir ve mesaj doğrudan yoldan, bu dairenin metniyle gider. Satır o an
+    // uçuştaysa (işçi talep etti) dokunulmaz, aşağıdaki hüküm söyler. Çift gönderimi doğrudan yolun talep damgası kapatır.
+    const conflicted =
+      existing !== null &&
+      (await bookingRefsInMultipleProperties(prisma, { organizationId, refs: [r.sourceReference], now })).has(r.sourceReference);
+    const released =
+      conflicted && existing
+        ? (
+            await prisma.messageOutbox.updateMany({
+              where: { id: existing.id, organizationId, status: "pending" },
+              data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "manual_send_two_properties" },
+            })
+          ).count > 0
+        : false;
+    if (existing && !released) {
       const verdict = await existingCheckinOutboxVerdict(organizationId, existing.id);
       if (verdict === "queued") {
         await audit("queued");
