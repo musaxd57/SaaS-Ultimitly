@@ -390,6 +390,22 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Şablon yer tutucu ikamesi TEK GEÇİŞ (`replace` + callback); sıralı split/join ASLA.
 
 **Faturalandırma**
+- 🚨 **ÖDEME ALINDI, ABONELİK BEKLENİYOR — SÜREYLE KAPANMAZ (11-18, Codex 11-17 1. bulgu; `lib/billing/checkout-paid.ts`, tasarım
+  `docs/TASARIM-2026-11-18-odeme-alindi-abonelik-bekleniyor.md`):** sunucunun gördüğü ödeme (işlem olayı · Paddle okuması · doğrulanmış
+  istemci sinyali) `CheckoutIntent` "completed" kaydıdır; kayıt varken o işletmeye yeni ödeme ekranı / işlem AÇILMAZ, süre sınırı yok.
+  10 dakikalık kilit yalnız yardımcıdır (istemci sinyali köprüsü + ilk metin); asıl koruma kayıttır — kilit yazılamasa da kayıt yazılır.
+  Kayıt yalnız KANITLA kapanır: abonelik hesaba yazıldı (`fulfilled`: aynı onay kimliğini taşıyan abonelik olayı · işlem olayındaki
+  abonelik kimliği yereldekiyle aynı · uzlaştırmada aynı) ya da ödeme geçersiz (`released`: Paddle'da aboneliği iptal edilmiş · operatör
+  bıraktı). Paddle okunamıyor / bulamıyor → durum DEĞİŞMEZ. İstemcinin sözü tek başına kalıcı kayıt yazmaz. Yenileme / plan değişikliği
+  işlemi kayıt açmaz (köken `web` / `api` şartı). Saklama süpürgesi "completed" satırı silmez. Web kancasında kayıt adımları hata
+  YUTMAZ (olay yeniden gelir) ve yazımdan önceki satıra bağlı alarmlardan SONRA koşar. Kural: **süreyle düşen bir kilit "ödeme alındı"
+  gibi kalıcı bir gerçeği taşıyamaz; kalıcı gerçek kalıcı kayıt ister ve yalnız kanıtla açılıp kapanır.**
+- **Yeniden işleme vadesi geleni SORGUDA seçer (11-18, Codex 2. bulgu; `payments/paddle-replay.ts`):** "en eski N kaydı oku, sonra süz"
+  yok — vade koşulu `where`de (`paddleReplayDueWhere`, `paddleReplayDue` ile kâhin eşdeğeri), sayfalı; tur tavanı (2.000) aşılırsa tur
+  birkaç koşuya yayılan TEK mantıksal turdur (imleç + dondurulmuş an `SystemLock`ta), tur işareti dondurulmuş ana ilerler, tavan alarmı.
+- **Dış sisteme yazmadan HEMEN önce yerel satır yeniden okunur (11-18, `plan-change` / `resume`):** istek başında okunan abonelik kimliği
+  PATCH anında değişmiş olabilir (yeni abonelik eskisinin yerine geçti). Değiştiyse yazılmaz (var olan ret metni); yazımdan sonra değiştiği
+  görülürse müşteri yanıtı aynı kalır, denetim işareti + operatör alarmı gider. Devam belirteci aboneliği bağlar.
 - Kayıtlı abonelikten FARKLI aboneliğin olayı planı değiştirmez (K4, 09-30: ters sırada gelen eski iptal yeni aboneliği ezmiyordu).
   Şart UPDATE'in WHERE'inde (10-01, Codex: bayat okuma yarışı; ilk kayıt çatışması P2002 dalında da) — yalnız aktifleşen yeni abonelik
   eskisinin yerine geçer.

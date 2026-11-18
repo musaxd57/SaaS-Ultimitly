@@ -206,6 +206,14 @@ bekleyen satır 10 dakikayı geçmemeli.
 
 ## 4. Listede olmayan, bilinçli KAPALI kalanlar (açmayın)
 
+> 🚨 **Ödeme — iki kipte de geçerli, anahtarsız (11-18, Codex 11-17):** ödemesi alınmış ama aboneliği hesaba bağlanmamış işletmeye yeni ödeme
+> ekranı açılmaz ve bu durum süreyle kapanmaz (`lib/billing/checkout-paid.ts`). İlk canlı / sandbox ödeme denemesinde BİRLİKTE bakılacaklar:
+> (1) `GET /transactions/{id}` yanıtında `status` · `subscription_id` · `custom_data.consentId` · `origin` alanları geliyor mu (yenileme
+> işlemi `origin: subscription_recurring` mi); (2) Paddle.js `checkout.completed` olayı `data.transaction_id` taşıyor mu; (3) ödeme sonrası
+> Operasyon Teşhisi › "Ödemesi alınan, aboneliği bağlanmayan" listesi abonelik bağlanınca boşalıyor mu; (4) Paddle panelinden abonelik
+> iptal + iade edilince kayıt kendiliğinden kapanıyor mu. Biri tutmazsa en kötü sonuç: kayıt bekler, operatör alarmı gelir, "Serbest
+> bırak" ile elle kapatılır (ikinci ödeme yine açılmaz).
+
 `PADDLE_CHECKOUT_INTENT_ENABLED` (Codex 10-21 P1, migration 82: ödeme ekranı sunucunun açtığı TEK Paddle işlemiyle — iki sekme = iki tahsilat
 riskini kapatır. Kod + testler hazır; 🚨 Paddle SANDBOX denemesi kurucuyla birlikte yapılmadan AÇILMAZ — doğrulanacaklar: `POST /transactions`
 "ready" işlem; `Checkout.open({ transactionId })`; iki sekmede aynı işlem bir kez ödenir; `PATCH /transactions/{id} { status: "canceled" }` ödenmemiş
