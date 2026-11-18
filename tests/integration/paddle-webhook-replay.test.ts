@@ -43,7 +43,12 @@ import { getSubscriptionCreatedAt } from "@/lib/payments/paddle";
 import {
   replayPendingPaddleEvents,
   isPaddleUnreadableError,
+  paddleReplayDue,
+  paddleReplayDueWhere,
   PADDLE_REPLAY_KEY_ALERT,
+  PADDLE_REPLAY_MAX_PER_PASS,
+  PADDLE_REPLAY_THRESHOLDS_MS,
+  PADDLE_UNREADABLE_MARKER,
   type PaddleRedeliver,
 } from "@/lib/payments/paddle-replay";
 import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
@@ -429,6 +434,155 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       expect(out).toMatchObject({ replayed: 1, settled: 1 });
       expect((await eventRow(ev.event_id)).status).toBe("processed");
       expect((await sub(orgId)).status).toBe("past_due");
+    });
+
+    // -------------------------------------------------------------------------
+    // Codex 11-17 B1 — VADESİ GELEN OLAY DİLİMİN ARKASINDA KALMAZ. Eskiden en eski 200 aday okunup "vadesi geldi mi" bellekte süzülüyor,
+    // tur işareti koşulsuz ilerliyordu: 200 eski, vadesi gelmemiş adayın arkasındaki vadesi gelmiş olay o turda hiç okunmuyor, geçtiği eşik
+    // de "harcanıyordu". Artık vade koşulu sorguda; vadesi gelenler sayfa sayfa okunur; tur tavanı aşılırsa tur işareti ilerlemez.
+    // -------------------------------------------------------------------------
+    const LAST_PASS = "paddle-webhook-replay:last";
+    const setLastPass = (at: Date) => prisma.systemLock.upsert({ where: { name: LAST_PASS }, create: { name: LAST_PASS, lockedUntil: at }, update: { lockedUntil: at } });
+    const lastPassAt = async () => (await prisma.systemLock.findUnique({ where: { name: LAST_PASS } }))?.lockedUntil ?? null;
+    /** Toplu aday: `${prefix}_${i}`; yaş, olay zamanı, hata metni ve küçültme satır başına. */
+    const seedMany = (
+      n: number,
+      prefix: string,
+      over: { ageMs: (i: number) => number; occurredAt?: (i: number) => Date; error?: string | null; redacted?: boolean },
+    ) =>
+      prisma.webhookEvent.createMany({
+        data: Array.from({ length: n }, (_, i) => {
+          const id = `${prefix}_${i}`;
+          const ev = { event_id: id, event_type: "subscription.updated", occurred_at: (over.occurredAt?.(i) ?? new Date()).toISOString(), data: { id: "sub_X", status: "active" } };
+          return {
+            provider: "paddle",
+            eventType: ev.event_type,
+            providerEventId: id,
+            payloadJson: over.redacted ? redactPaddlePayload(JSON.stringify(ev), "kvkk-erasure") : JSON.stringify(ev),
+            status: "error",
+            error: over.error === undefined ? "Error: x" : over.error,
+            createdAt: new Date(Date.now() - over.ageMs(i)),
+          };
+        }),
+      });
+    const KEY_ERROR = `Error: kayıtlı aboneliğin oluşturulma zamanı ${PADDLE_UNREADABLE_MARKER}`;
+
+    it("🚨 B1: vadesi gelmemiş 200 ESKİ adayın arkasındaki vadesi gelmiş olay bu turda denenir (eskiden okunmuyordu, eşiği de harcanıyordu)", async () => {
+      // Eski 200: 3 sa önce alınmış, hep hata veren. Son tur 10 dk önce: 2 sa eşiği çoktan geçildi, 4 sa henüz değil → bu turda vadesi yok.
+      await seedMany(200, "old", { ageMs: (i) => 3 * HOUR - i * 1_000 });
+      await stored("fresh"); // 20 dk önce: 15 dk eşiğini BU turda geçiyor
+      await setLastPass(new Date(Date.now() - 10 * MIN));
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(seen).toEqual(["fresh"]); // ⬅️ ESKİDE []: okunan dilim 200 eski satırla doluydu
+      expect(out).toMatchObject({ pending: 201, replayed: 1, settled: 1 }); // bekleyen sayısı da dilime göre değil pencereye göre
+    });
+
+    it("KONTROL (B1): aynı kurulum 199 eski adayla — bugün de denenir; eski adaylar vadesi gelmeden denenmez", async () => {
+      await seedMany(199, "old", { ageMs: (i) => 3 * HOUR - i * 1_000 });
+      await stored("fresh");
+      await setLastPass(new Date(Date.now() - 10 * MIN));
+      const { seen, deliver } = recordingDeliver();
+      expect(await replayPendingPaddleEvents({ deliver })).toMatchObject({ pending: 200, replayed: 1 });
+      expect(seen).toEqual(["fresh"]);
+    });
+
+    it("🚨 B1: vadesi gelen 250 olayın HEPSİ bir turda verilir (sayfalı) ve sıra sayfalar arasında da OLAY zamanına göredir", async () => {
+      // Alınma sırası ile olay sırası TERS: sonra alınan olay daha önce olmuş. Sayfa sayfa teslim edilseydi 2. sayfanın erken olayları
+      // 1. sayfanın geç olaylarından sonra uygulanırdı.
+      const base = Date.now() - HOUR;
+      await seedMany(250, "m", { ageMs: (i) => 3 * HOUR - i * 1_000, occurredAt: (i) => new Date(base - i * 1_000) });
+      const { seen, deliver } = recordingDeliver();
+      const before = Date.now();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(out).toMatchObject({ pending: 250, replayed: 250, settled: 250 }); // ⬅️ ESKİDE 200
+      expect(seen).toEqual(Array.from({ length: 250 }, (_, i) => `m_${249 - i}`));
+      expect((await lastPassAt())!.getTime()).toBeGreaterThanOrEqual(before); // tavan aşılmadı → tur işareti ilerledi
+    });
+
+    it("🚨 B1: tur tavanı aşılırsa tavan kadarı verilir ve tur işareti İLERLEMEZ — kalan sonraki turda yine vadesi gelmiş görünür", async () => {
+      const old = new Date(Date.now() - 2 * HOUR);
+      await setLastPass(old);
+      // Hepsi bu turda 1 sa eşiğini geçiyor (yaş 70 dk; son turda 2 sa önce alınmamışlardı bile → ageLast < 0).
+      await seedMany(PADDLE_REPLAY_MAX_PER_PASS + 1, "cap", { ageMs: (i) => 70 * MIN - i * 10 });
+      const first = recordingDeliver();
+      const out1 = await replayPendingPaddleEvents({ deliver: first.deliver });
+      expect(out1.replayed).toBe(PADDLE_REPLAY_MAX_PER_PASS);
+      expect(out1.pending).toBe(PADDLE_REPLAY_MAX_PER_PASS + 1);
+      expect(first.seen).not.toContain(`cap_${PADDLE_REPLAY_MAX_PER_PASS}`); // en yeni alınan dışarıda kaldı
+      expect((await lastPassAt())!.getTime()).toBe(old.getTime()); // ⬅️ ilerleseydi kalanın geçtiği eşik harcanırdı
+      // İşlenenler kapandı (işleyicinin işi; teslim taklidi DB'ye yazmıyor).
+      await prisma.webhookEvent.updateMany({ where: { providerEventId: { in: first.seen } }, data: { status: "processed", error: null } });
+      const second = recordingDeliver();
+      const before = Date.now();
+      expect(await replayPendingPaddleEvents({ deliver: second.deliver })).toMatchObject({ pending: 1, replayed: 1 });
+      expect(second.seen).toEqual([`cap_${PADDLE_REPLAY_MAX_PER_PASS}`]);
+      expect((await lastPassAt())!.getTime()).toBeGreaterThanOrEqual(before); // artık tavan aşılmadı → ilerledi
+    });
+
+    it("🚨 B1: küçültülmüş (kişisel verisi silinmiş) çok sayıda eski yük sayfayı dolduramaz — arkasındaki gerçek olay denenir", async () => {
+      await seedMany(205, "red", { ageMs: (i) => 3 * HOUR - i * 1_000, redacted: true }); // vadesi gelmiş (ilk tur) ama yeniden işlenmez
+      await stored("fresh");
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(seen).toEqual(["fresh"]); // ⬅️ ESKİDE []: ilk 200 satır küçültülmüş yüklerdi
+      expect(out).toMatchObject({ pending: 1, replayed: 1 }); // küçültülmüş yük bekleyen sayılmaz (eskisiyle aynı anlam)
+    });
+
+    it("🚨 B1: anahtar DÜZELİNCE o sınıfın 200'den fazla bekleyeninin HEPSİ ilk turda (vade beklenmeden) geçer; alarm kapanır", async () => {
+      await seedMany(250, "key", { ageMs: (i) => 5 * MIN - i * 100, error: KEY_ERROR }); // 5 dk'lık: olağan vade daha gelmedi
+      await alertOnTransition(PADDLE_REPLAY_KEY_ALERT, KEY_ALARM, new Error("x")); // önceki turda anahtar okunamıyordu
+      probe.result = "ok";
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(out).toMatchObject({ pending: 250, replayed: 250, heldForKey: 0 }); // ⬅️ ESKİDE 200 (kalan 50 olağan sıklığa düşüyordu)
+      expect(new Set(seen).size).toBe(250);
+      expect(await alertStateActive(PADDLE_REPLAY_KEY_ALERT)).toBe(false);
+    });
+
+    it("🚨 B1: anahtar okunamıyorken bekleyen sayısı dilimle sınırlı değil (alarm gerçek sayıyı söyler); öteki sınıfın vadesi gelen olayı yine denenir", async () => {
+      await seedMany(250, "key", { ageMs: (i) => 3 * HOUR - i * 1_000, error: KEY_ERROR });
+      await stored("other"); // başka sebeple hata, 20 dk: 250 anahtar satırının ARKASINDA
+      probe.result = "unreadable";
+      reportErrorMock.mockClear();
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(out).toMatchObject({ pending: 251, replayed: 1, heldForKey: 250 }); // ⬅️ ESKİDE 200 / 0 ("other" okunmuyordu)
+      expect(seen).toEqual(["other"]);
+      expect(String(keyAlarms()[0][1])).toContain("250 ödeme olayı bekliyor");
+    });
+
+    it("🚨 B1: anahtar düzelme turunda tavan aşılırsa alarm durumu KAPANMAZ — kalanlar sonraki turda da vade beklemeden geçer", async () => {
+      await seedMany(PADDLE_REPLAY_MAX_PER_PASS + 1, "key", { ageMs: (i) => 5 * MIN - i, error: KEY_ERROR });
+      await alertOnTransition(PADDLE_REPLAY_KEY_ALERT, KEY_ALARM, new Error("x"));
+      probe.result = "ok";
+      const first = recordingDeliver();
+      expect((await replayPendingPaddleEvents({ deliver: first.deliver })).replayed).toBe(PADDLE_REPLAY_MAX_PER_PASS);
+      expect(await alertStateActive(PADDLE_REPLAY_KEY_ALERT)).toBe(true); // kapansaydı kalan satır olağan vadeye (15 dk) düşerdi
+      await prisma.webhookEvent.updateMany({ where: { providerEventId: { in: first.seen } }, data: { status: "processed", error: null } });
+      const second = recordingDeliver();
+      expect(await replayPendingPaddleEvents({ deliver: second.deliver })).toMatchObject({ replayed: 1 });
+      expect(second.seen).toEqual([`key_${PADDLE_REPLAY_MAX_PER_PASS}`]);
+      expect(await alertStateActive(PADDLE_REPLAY_KEY_ALERT)).toBe(false);
+    });
+
+    it("🚨 B1: veritabanının seçtiği küme paddleReplayDue ile aynı (her eşiğin tam sınırı ve ±1 ms; ilk tur ve sonraki tur)", async () => {
+      const now = new Date(Date.now() - 60_000);
+      for (const last of [null, new Date(now.getTime() - 10 * MIN), new Date(now.getTime() - 5 * HOUR)]) {
+        await prisma.webhookEvent.deleteMany({});
+        const created: Date[] = [];
+        for (const t of PADDLE_REPLAY_THRESHOLDS_MS) {
+          for (const anchor of [now.getTime() - t, ...(last ? [last.getTime() - t] : [])]) for (const d of [-1, 0, 1]) created.push(new Date(anchor + d));
+        }
+        await prisma.webhookEvent.createMany({
+          data: created.map((c, i) => ({ provider: "paddle", eventType: "subscription.updated", providerEventId: `b_${i}`, payloadJson: "{}", status: "error", createdAt: c })),
+        });
+        const rows = await prisma.webhookEvent.findMany({ where: paddleReplayDueWhere(last, now), select: { providerEventId: true } });
+        const expected = created.map((c, i) => (paddleReplayDue(c, last, now) ? `b_${i}` : null)).filter((x): x is string => x !== null);
+        expect(rows.map((r) => r.providerEventId).sort()).toEqual(expected.sort());
+        expect(expected.length).toBeGreaterThan(0);
+        expect(expected.length).toBeLessThan(created.length);
+      }
     });
   });
 });
