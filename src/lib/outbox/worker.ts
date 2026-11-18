@@ -941,7 +941,8 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
     const held = await applyHandoffHold(row, now);
     effectsOk = delivered && held;
   }
-  if (type === "ai" && row.messageId) await recloseDeliveredItems(row, now);
+  // Codex 11-17 C3: öğe yeniden kapatma da teslim etkisinin parçası — yazılamazsa damga YOK, onarıcı yeniden dener (↓ `healDeliveryEffects`).
+  if (type === "ai" && row.messageId) effectsOk = (await recloseDeliveredItems(row, now)) && effectsOk;
   // T7-OB-5: etki değerlendirildi → 48 saatlik onarıcı bu satırı bir daha onarmaz (ev sahibinin sonradan seçtiği durum ezilmez). Bir etki
   // yazılamadıysa (ya da damganın kendisi düşerse) damga YOK → onarıcı o etkiyi yeniden dener (Haiku 11-05). Hata teslimi bozmaz.
   if (!effectsOk) return;
@@ -1154,12 +1155,15 @@ async function cancelRow(row: OutboxRow, token: string, reason: string): Promise
 }
 
 /** En iyi çaba: öğe defteri hatası teslim durumunu bozmaz, iz bırakır. */
-async function recloseDeliveredItems(row: OutboxRow, now: Date): Promise<void> {
-  if (!row.messageId) return;
+/** Yazıldıysa (ya da yazılacak bir şey yoksa) true; hata raporlanır ve false döner → teslim etkisi damgalanmaz (C3). */
+async function recloseDeliveredItems(row: OutboxRow, now: Date): Promise<boolean> {
+  if (!row.messageId) return true;
   try {
     await recloseItemsDeliveredBy(prisma, { organizationId: row.organizationId, messageId: row.messageId, now });
+    return true;
   } catch (err) {
     void reportError("outbox-reclose-items", err);
+    return false;
   }
 }
 
@@ -1667,6 +1671,7 @@ async function healDeliveryEffects(now: Date): Promise<void> {
       organizationId: string;
       conversationId: string | null;
       messageId: string | null;
+      messageType: string | null;
       providerMessageId: string | null;
       sentAt: Date | null;
     }[] = await prisma.messageOutbox.findMany({
@@ -1688,6 +1693,7 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         organizationId: true,
         conversationId: true,
         messageId: true,
+        messageType: true,
         providerMessageId: true,
         sentAt: true,
       },
@@ -1810,6 +1816,19 @@ async function healDeliveryEffects(now: Date): Promise<void> {
               healFailed.add(r.id); // T7-OB-5 (Haiku 11-05): damgalanmaz → sonraki geçişte yeniden denenir
             });
         }
+      }
+    }
+    // ---- Öğe yeniden kapatma (Codex 11-17 C3) — DÖRDÜNCÜ teslimat etkisi ----
+    // Kalıcı hatadan sonra yeniden kuyruğa alınıp teslim edilen yapay zekâ cevabı, kendi düşüşüyle ev sahibinde yeniden açılmış öğeleri yeniden
+    // kapatır (`applyDeliveryEffect` ile aynı adım). İdempotent: yalnız bu mesaja bağlı ve hâlâ `pending_host` olanlar — ev sahibinin arada
+    // kapattığına / başka mesajla cevaplanana dokunulmaz. Yazılamazsa satır damgalanmaz → sonraki geçişte yeniden denenir.
+    for (const r of rows) {
+      if (r.messageType !== "ai" || !r.messageId) continue;
+      try {
+        await recloseItemsDeliveredBy(prisma, { organizationId: r.organizationId, messageId: r.messageId, now });
+      } catch (err) {
+        void reportError("outbox-heal-reclose-items", err);
+        healFailed.add(r.id);
       }
     }
     // T7-OB-5: bu sayfanın satırları değerlendirildi — bir daha onarılmaz (ev sahibinin sonraki durum seçimi korunur).
