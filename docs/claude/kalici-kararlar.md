@@ -298,7 +298,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   bilgisi gidebilir. Etkin = iptal edilmemiş + konaklaması bitmemiş (bayat kopya canlı rezervasyonu tutmaz). Kural tek kaynak, üç yerde:
   göndericilerin aday hazırlığı · kuyruk işçisinin gönderim anı kontrolü (iptal değil ERTELEME) · Girişler satırı ("hazır" demez; ev sahibi
   doğru dairenin satırından elle gönderebilir). Yanlış kayıt kaldırılınca / iptal olunca olağan akış sürer. Ev sahibine tek seferlik uyarı
-  satırı (Dikkat paneli) ayrı dilim.
+  satırı (Dikkat paneli) ayrı dilim. İki ek (Opus dilim sonu 11-18): (a) bu sebeple kuyrukta TUTULAN karşılama / giriş mesajı varış günü
+  geçince iptal edilir (yanlış kayıt konaklamanın ortasında kaldırılınca bayat mesaj gitmesin; çıkış mesajı çıkış gününü bekler) · (b) ev
+  sahibi doğru dairenin satırından elle gönderirse kuyrukta BEKLEYEN satır iptal edilir ve mesaj seçilen dairenin metniyle doğrudan gider —
+  "sıraya alındı" denmez (kuyruk yine tutardı); satır uçuştaysa dokunulmaz. Girişler'de bu durumda düğme görünür.
 - **Karar mesajı kuyruk açıkken de DOĞRUDAN gider (11-18, Codex 11-17 G2-02 + K2-01; `decisions/decide.ts`, `host-send.ts sendDirect`):** kart
   gerçek gönderim sonucuna göre kapanır (kuyruğa kabul "onaylandı" değildir). Kilitten sonra, gönderimden hemen önce rezervasyon TAZE okunur;
   iptalse gönderim yok, kart yeniden açılır. Operatörün "teslimatı durdur" freni doğrudan yolda da geçerlidir (kuyruk o işletmede açıksa).
@@ -625,3 +628,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - .eu açılışı: ayrı deployment (env: `APP_URL`, `APP_LOCALE`, `APP_BILLING_CURRENCY`, `APP_DEFAULT_TIMEZONE`,
   `APP_TRUST_BROWSER_TIMEZONE=1`); Paddle webhook izolasyonu (ayrı hesap ya da org çözümü persist'ten önce)
   kararı ŞART; SEO yüzeyleri `.com`'a sabit (ayrı tur).
+- **Otomatik erken giriş — dar pilot tutuşları (kurucu 11-18 akşam H-3; `early-checkin/core.ts`):** ikisi de yalnız TUTAR (onaylanabilirlik,
+  saat, ücret aynı; değişen tek şey onayın kendiliğinden gidip gitmediği). (1) **Yalnız ücretsiz:** anahtar `EARLY_CHECKIN_FREE_ONLY_ENABLED`
+  (KAPALI) açıkken kuralında ücret olan dairede onay kendiliğinden gitmez (`fee_required`) — ücreti bildirmek kabul / tahsil değildir.
+  Anahtarlı, çünkü bugünkü ücretli + otomatik davranışı değiştirir (soru EG-2). (2) **Son karar payı:** kural alanı `decisionLeadMinutes`
+  (isteğe bağlı, 0–240 tam sayı; varsayılanı YOK → bugünkü davranış). Pay geçtiyse (`şimdi > istenen − pay`; sınır anı dahil) onay
+  kendiliğinden çıkmaz (`decision_window_passed`). Bozuk pay değeri bütün kuralı reddeder (sessizce "pay yok" sayılmaz — ev sahibinin sınırı
+  yok sayılıp otomatik onay verilmez). "Misafirin son mesajı" şartı kod gerektirmedi: yeniden bakış yalnız tutulan istek hâlâ son misafir
+  mesajıysa çalışır (senaryo P3 ile pinli). "Erişim" şartı soruda (EG-4). Tasarım `docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md`.

@@ -51,6 +51,30 @@ Açık geliştirme setinde (37 örnek: 14 görev · 9 kart · 14 hiçbir şey; k
   (eski kusur — düzeltmesi görünür değişiklik, §5).
 - Mutasyon: WP-M1 20, WP-K2 30 mutant (sonuç `docs/claude/durum.md` "11-18 akşam").
 
+### 4.1 Dilim sonu sert inceleme (Opus, salt okuma) — bulgular ve yapılanlar
+
+Kapsam: bu dalganın tamamı (karar mesajı, iki dairede kayıtlı rezervasyon, söz okuyucusu çekirdeği, iki Opus paketi). İki gerçek bulgu, ikisi
+de "iki dairede kayıtlı rezervasyon" parçasında; her biri kodda izlenip doğrulandı ve düzeltildi.
+
+| # | Bulgu | Ne oluyordu | Düzeltme |
+|---|---|---|---|
+| B-1 | Kuyrukta tutulan karşılama / giriş mesajı bayat gidebiliyordu | Karşılamanın kuyrukta pencere kuralı yok, giriş mesajınınki çıkış gününe kadar açık. Yanlış kayıt konaklamanın 3. günü kaldırılınca karşılama o gün giderdi | İki dairede kayıtlı olduğu için tutulan satır varış günü geçince iptal edilir (çıkış mesajı çıkış gününü bekler). Çakışma olmayan satırda davranış aynı (kontrol testi) |
+| B-2 | Elle gönderim "sıraya alındı" diyor, mesaj hiç gitmiyordu | Kuyrukta tutulan satır varken ev sahibi doğru dairenin satırından gönderince satırın vadesi öne çekiliyordu; kuyruk yine tutuyordu | Bekleyen satır iptal edilir, mesaj ev sahibinin seçtiği dairenin metniyle doğrudan gider; öteki kayıt da damgalanır (ikinci gönderim yok). Girişler'de bu durumda düğme artık görünür (eskiden gizliydi — ajan düğmenin göründüğünü varsaymıştı; kodda gizli olduğu görüldü, yani ev sahibinin hiçbir yolu yoktu) |
+| C-1 | Söz okuyucusu: ölçü işareti (55") gerçek tırnağı yutuyordu | Temkin payı (tırnak içindeki üstlenme → kart) o cümlede çalışmıyordu | Tırnak türleri ayrı izlenir; rakamdan hemen sonraki düz tırnak açılış sayılmaz. Modül henüz çağrılmıyor |
+| C-2 | Söz okuyucusu: iki kat iletme (">> …") işareti doğrulamadan önce siliniyordu | İletilmiş satır iletilmiş sayılmıyordu | Satır başındaki işaret dizisi çit temizliğinden önce tek işarete iner |
+| A-1 | WhatsApp karar cevabı teslim sonucunu okumuyor (büyük ölçüde eski) | Hedefi olmayan konuşmada WhatsApp "Gönderildi ✓" diyor, panel doğru metni gösteriyor | DÜZELTİLMEDİ — yeni metin ister (soru AK-6) |
+
+"Emin değilim" notları (hata değil, ölçülecek): saat doğrulaması gevşek (model "15:00" derse alıntıdaki "3 havlu" rakamı yetiyor) · model cümlenin
+tamamını alıntılarsa tırnak payı çalışmıyor. İkisi de yalnız tutan payın sınırı; kredi gelince ölçüm setine vaka olarak eklenecek.
+
+### 4.2 İlk tam kapıda çıkan üç kırmızı (yayın öncesi yakalandı)
+
+1. Yeni anahtar (`AI_HOST_COMMITMENT_READER_ENABLED`) ölçüm koşu kimliği listesine eklenmemişti (pin: her `AI_*` anahtarı kimlikte görünür).
+2. Migration 98 manifest tablosuna ve açılış belgesindeki bekleyen aralığa yazılmamıştı (pin).
+3. Bir ölçer testi gece 01:42'de bir kez kırmızı: test, cevap istemini iki ayrı anda kuruyor ve istem "saat SS:DD" taşıyor — iki kurulum bir
+   dakika sınırının iki yanına düşünce ayrışıyor. Ürün hatası değil; testin saati sabitlendi.
+Üçü de düzeltildi; dalga yeniden kapıdan geçirildi.
+
 ## 5. Kurucuya sorular (bu dalga)
 
 - **AK-1 — etiket:** "Gönderim doğrulanamadı" ürün genelinde yerleşik bir ifade (cevap rotası, giriş mesajı, WhatsApp, Dikkat paneli). Mesajınızda
@@ -63,3 +87,8 @@ Açık geliştirme setinde (37 örnek: 14 görev · 9 kart · 14 hiçbir şey; k
 - **AK-4 — "bekliyor" durumundaki kopya:** öteki dairedeki kayıt onaylı değil "bekliyor" ise de tutuyorum (iptal değilse etkin). Uygun mu?
 - **AK-5 — saatli söz 15:00'te saatsiz görünüyor:** düzeltelim mi (kartta "15:00" yazar)? Önerim evet; görünen değişiklik olduğu için soruyorum.
 - **SM-1…SM-3:** söz okuyucusunun açılma ölçütü, tırnak temkin payı, neden kaydının ev sahibine gösterilmesi — `docs/TASARIM-2026-11-18-soz-sahipligi-model-okumasi.md` §6.
+- **AK-6 — WhatsApp karar cevabı:** hedefi olmayan konuşmada WhatsApp'tan onaylanan karar "Gönderildi ✓" diye cevaplanıyor (panel aynı durumda
+  "kaydedildi" diyor). Y-1 yeni tasarımıyla (yerel kayıtta gönderim hiç yok) bu durum zaten ortadan kalkacak; o dilime kadar metni panelle aynı
+  yapalım mı?
+- **EG-1 / EG-2 — erken giriş pilotu:** `docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md` §5 (son karar payının varsayılanı; "yalnız ücretsiz"
+  anahtarının açılması).

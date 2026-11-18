@@ -25,6 +25,25 @@ istekler yeniden değerlendirilir. Otomatik onay yalnız: kural "otomatik" + bü
 
 1 ve 2 karar çekirdeğinde küçük, saf değişikliklerdir (yalnız TUTAR — otomatik onay azalır, hiçbir yeni onay doğmaz). 3 ve 4 önce ölçülür.
 
+### 2.1 Durum (11-18 gece) — 1 ve 2 YAZILDI
+
+- **1 · yalnız ücretsiz:** anahtar `EARLY_CHECKIN_FREE_ONLY_ENABLED` (VARSAYILAN KAPALI). Açıkken kuralında ücret yazılı dairede onay
+  kendiliğinden gitmez; hazır cevap (ücretiyle birlikte, aynı metin) size gelir, panelde "Erken giriş ücretli; onay kendiliğinden gönderilmez,
+  hazır cevabı siz gönderin." satırı çıkar; kural formu otomatik kipte ücret yazılınca bunu söyler. Anahtarın arkasında olmasının sebebi: bugün
+  ücretli + otomatik kural onayı ücretiyle birlikte kendiliğinden gönderiyor (var olan, testli davranış) — bunu değiştirmek sizin kararınız (EG-2).
+- **2 · son karar payı:** daire kuralında isteğe bağlı alan (anahtarsız; alan boşsa bugünkü davranış). Kural formunda otomatik kipte
+  "Otomatik onay en geç ne zaman verilsin?" → Sınır yok · İstenen saatten 15 / 30 / 60 dakika öncesine kadar. Pay geçtiyse onay kendiliğinden
+  çıkmaz, hazır cevap size gelir ("İstenen saate çok az kaldı; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin."). Sınır anı dahildir
+  (pay 30, istek 13:00 → 12:30'da hâlâ otomatik, 12:31'de değil).
+- Uçtan uca senaryolar (`tests/integration/early-checkin-scenarios.test.ts` P1, P2): ücretli + anahtar açık → taslak · ücretsiz → otomatik ·
+  pay 30, temizlik 12:35'te bitti, 12:41'de yeniden bakıldı → otomatik onay yok · temizlik 12:15'te bitti → onay gider.
+- **3 · misafirin son mesajı — ölçüldü, kod gerekmedi:** temizlik bitince yapılan yeniden bakış yalnız, tutulan istek HÂLÂ konuşmanın son
+  misafir mesajıysa çalışıyor. Misafir arada yeniden yazdıysa ("vazgeçtik", "15:00'te geleceğiz") eski istek yeniden açılmıyor, onay çıkmıyor;
+  yeni mesajı olağan geçiş okuyor. Bu davranış senaryo testiyle sabitlendi (P3, iki durum).
+- **4 · erişim — ölçüldü, KARAR SİZDE (EG-4):** bugün giriş bilgisinin gönderilmiş olması otomatik onayın şartı değil. Giriş mesajı olağan
+  akışta varıştan önce gittiği için çoğu durumda misafirin elinde olur; ama otomatik giriş mesajı kapalıysa, metni eksikse ya da mesaj
+  tutulduysa onay "12:00'den itibaren giriş yapabilirsiniz" der ve misafir kapıya giriş bilgisi olmadan gelebilir.
+
 ## 3. Testler (kurucu: "testlerle yapalım")
 
 Senaryo tablosu (`tests/integration/early-checkin-scenarios.test.ts` üstüne): her satır = saat çizelgesi + beklenen sonuç. Pilot satırları:
@@ -48,8 +67,16 @@ bırakılır; kod sonucu doğrular (saat iki okumada aynı mı, alıntı metinde
 
 ## 5. Kurucuya sorular
 
-- **EG-1 — son karar payı:** varsayılan kaç dakika? Örneğinizde 13:00 için 12:30 (30 dakika). Önerim: varsayılan 30, kural ekranında değiştirilebilir.
-- **EG-2 — ücretli + otomatik kuralı olan daireler:** bugün otomatik onay ücretiyle birlikte gidiyor; pilotla taslağa döner (siz gönderirsiniz).
-  Onay metni aynı. Uygun mu?
+- **EG-1 — son karar payı:** alan yazıldı, şimdilik VARSAYILANI YOK (boş = sınır yok = bugünkü davranış). Yeni kurulan otomatik kuralda
+  varsayılan 30 dakika olsun mu (örneğinizdeki 13:00 → 12:30)? Dikkat: pay, son dakikada gelen isteği de tutar — örnek: daire sabahtan hazır,
+  misafir 12:45'te "13:00'te gelebilir miyiz?" diye soruyor → pay 30 ise onay kendiliğinden gitmez, hazır cevap size gelir; pay yoksa bugünkü gibi
+  kendiliğinden gider. Önerim: varsayılan 30, formda değiştirilebilir. Form metinleri (yukarıda) uygun mu?
+- **EG-2 — ücretli + otomatik kuralı olan daireler:** bugün otomatik onay ücretiyle birlikte gidiyor; anahtar açılınca hazır cevaba döner (siz
+  gönderirsiniz). Onay metni aynı. Açalım mı? Örnek — misafir: "12'de gelebilir miyiz?" (kural: otomatik, 30 €). Bugün: "Bugün 12:00'den itibaren
+  giriş yapabilirsiniz. Erken giriş ücreti 30 €." kendiliğinden gider. Anahtar açıkken: aynı metin size hazır cevap olarak gelir, siz gönderirsiniz.
 - **EG-3 — örnek kaynağı:** örnek bankası için gerçek (anonimleştirilmiş) misafir mesajlarından yararlanılsın mı, yoksa yalnız elle yazılmış
   örnekler mi? Gerçek mesaj daha iyi öğretir; gizlilik şartı: ad / telefon / kod maskeli, dışarıya yalnız eğitim sağlayıcısına gider.
+- **EG-4 — erişim şartı:** otomatik erken giriş onayı, giriş bilgisi bu misafire GÖNDERİLMİŞSE mi çıksın? Örnek — daire hazır, misafir 12:00
+  istiyor, ama giriş mesajı henüz gitmemiş (otomatik giriş kapalı ya da metin eksik). Bugün: onay kendiliğinden gider. Öneri: onay
+  kendiliğinden gitmez, hazır cevap size gelir ve panelde "Giriş bilgisi bu misafire henüz gönderilmedi" satırı çıkar. Bedeli: giriş bilgisini
+  her zaman elle gönderen ev sahibinde erken giriş onayı hiç kendiliğinden gitmez. Önerim: evet (dar pilot), anahtarın arkasında.
