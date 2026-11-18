@@ -213,6 +213,11 @@ async function signalExhausted(
  * ⚠️ TEK-KULLANIM HAKEMİ `consumedAt`: tüketim `consumedAt: null` koşullu bir
  * `updateMany`'dir. Paralel iki DOĞRU istekte yalnız biri `count === 1` alır;
  * ikincisi `false` döner ve HİÇBİR yazma yapmaz.
+ *
+ * ⚠️ SÜRE KARARI HAK ALMA ANINDA VERİLİR (F4, Codex 11-17 — bilinçli): süre sonu `verifyChallenge`in atomik deneme talebinde
+ * (`expiresAt > now`) sınanır; bu tüketim süreyi YENİDEN sınamaz, yalnız `consumedAt` / `invalidatedAt` koşulludur. Arada iki bcrypt
+ * (kuyrukta saniyeler) var: süresi dolmadan doğrulanmış istek kuyruk gecikmesi yüzünden reddedilmez. Pin:
+ * `identity-expiry-decided-at-claim.test.ts`.
  */
 export async function consumeChallengeAndResetPassword(args: {
   challengeId: string;

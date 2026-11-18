@@ -223,6 +223,10 @@ export async function POST(req: NextRequest) {
       // bu cihazın çerezi, düşmesi gereken o ikinci geçersiz kılmadan sağ çıkardı. Satır kilidi
       // işlem sonuna kadar tutulduğu için içerideki okuma TAM bu değişikliğin epoch'unu verir.
       const newEpoch = await prisma.$transaction(async (tx) => {
+        // ⚠️ SÜRE KARARI HAK ALMA ANINDA VERİLİR (F4, Codex 11-17 — bilinçli): süre sonu ↑hak almada (`pwChangeCodeExpiresAt > claimAt`)
+        // sınanır; bu son yazma süreyi YENİDEN sınamaz, kod özetine + oturum sürümüne koşulludur. Arada iki bcrypt (kuyrukta saniyeler)
+        // var: süresi dolmadan hakkını almış, doğru kodla gelmiş istek kuyruk gecikmesi yüzünden reddedilmez. Tüketilen kod, hak alındığı
+        // anda geçerli olan kodun ta kendisidir (özet koşulu) — saldırgana yeni bir şey vermez. Pin: `identity-expiry-decided-at-claim.test.ts`.
         // 🚨 U43 (Codex 10-07): oturum sürümü de koşulda — istek isteğin BAŞINDA denetlenen sürümle başladı; arada parola sıfırlandıysa
         // (sürüm arttı) bu bayat istek parolayı YENİDEN değiştiremez ve iptal edilmiş cihaza yeni oturum veremez. Eşzamanlı sıfırlama satır
         // kilidini tutar; READ COMMITTED altında PostgreSQL koşulu onun commit'inden SONRA yeniden değerlendirir → 0 satır.
