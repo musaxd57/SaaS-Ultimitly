@@ -133,9 +133,10 @@ import { POST as webhook } from "@/app/api/webhooks/paddle/route";
 import { POST as consentPost } from "@/app/api/billing/consent/route";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
 import { POST as pendingPost } from "@/app/api/billing/checkout-pending/route";
-import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
+import { completeCheckoutIntent, sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
 import {
   paidCheckoutAlertKey,
+  paidCheckoutAwaiting,
   paidCheckoutsAwaitingSummary,
   recordPaidCheckout,
   releasePaidCheckoutByOperator,
@@ -315,6 +316,19 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       paddle.txns.get("txn_1")!.status = "completed";
       await postEvent("transaction.completed", txnData("txn_1", first.body.consentId!, { origin: "api" }));
       expect((await intentOf(orgId))!.status).toBe("completed");
+      await expireLock(orgId);
+      expect((await openCheckout()).status).toBe(400);
+      expect(paddle.created).toBe(1);
+    });
+
+    // Mutasyon 11-18 (I2): web kancasında kaydı İKİ adım yazar (niyet adımı + defter adımı). Defter adımı onay kimliği ister; olay onu
+    // taşımıyorsa (ya da o adım düşerse) kapanmış niyeti "ödeme alındı"ya çeviren TEK yer niyet adımıdır — tek başına sınanır.
+    it.each(["expired", "canceled"])("🚨 niyet adımı TEK BAŞINA: '%s' diye kapanmış niyetin işlemi ödenince kayıt 'ödeme alındı' olur", async (closedAs) => {
+      await openCheckout();
+      await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { status: closedAs, openKey: null, closedAt: new Date() } });
+      await completeCheckoutIntent("txn_1");
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      expect(await paidCheckoutAwaiting(orgId)).not.toBeNull();
       await expireLock(orgId);
       expect((await openCheckout()).status).toBe(400);
       expect(paddle.created).toBe(1);
@@ -591,6 +605,18 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       arrange(consentId);
       expect((await openCheckout()).status).toBe(400);
       expect((await intentOf(orgId))!.status).toBe("completed");
+    });
+
+    // Mutasyon 11-18 (P14): "işlemin abonelik kimliği yok" kapısı kalkarsa yerel satırın BOŞ kimliği işlemin boş kimliğiyle "eşleşir"
+    // (boş = boş) ve kayıt kanıtsız kapanır → ikinci ödeme açılır. Paddle sağlayıcılı ama kimliği boş satır = elle düzeltilmiş / yarım kayıt.
+    it("🚨 işlemin abonelik kimliği YOK, hesabın abonelik satırında da kimlik yok → 'boş = boş' eşleşmesi kaydı KAPATMAZ; Paddle'a abonelik sorulmaz", async () => {
+      const consentId = await awaiting();
+      await prisma.subscription.create({ data: { organizationId: orgId, planCode: "pro", status: "canceled", provider: "paddle", providerRef: null } });
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: null, custom_data: { consentId }, origin: "web" });
+      paddle.calls.length = 0;
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      expect(paddle.calls.filter((c) => c.startsWith("/subscriptions"))).toEqual([]);
     });
 
     it("🚨 abonelik hesaba BAĞLI ama kayıt kapanmamış (kapatma adımı kaçmış): uzlaştırma Paddle'daki işlemin aboneliğini yereldekiyle eşleştirip kapatır", async () => {

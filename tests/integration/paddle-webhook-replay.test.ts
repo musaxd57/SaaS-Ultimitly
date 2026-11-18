@@ -581,6 +581,18 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       expect(String(keyAlarms()[0][1])).toContain("250 ödeme olayı bekliyor");
     });
 
+    // Mutasyon 11-18: tümleyen süzgecinden "hata metni boş" kolu çıkarılınca yaşıyordu. Durumu "hata" ama metni BOŞ satır "okunamadı
+    // içermiyor" koşulunda veritabanında kaybolur (boş değer karşılaştırması ne doğru ne yanlış) → anahtar okunamadığı sürece hiç denenmezdi.
+    it("🚨 B1: anahtar okunamıyorken durumu 'hata', metni BOŞ satır öteki sınıftadır — denenir", async () => {
+      await stored("key1", { error: KEY_ERROR, ageMs: 3 * HOUR });
+      await stored("null_err", { error: null }); // durum "hata" (varsayılan), hata metni boş
+      probe.result = "unreadable";
+      const { seen, deliver } = recordingDeliver();
+      const out = await replayPendingPaddleEvents({ deliver });
+      expect(seen).toEqual(["null_err"]);
+      expect(out).toMatchObject({ pending: 2, replayed: 1, heldForKey: 1 });
+    });
+
     it("🚨 B1: anahtar düzelme turunda tavan aşılırsa alarm durumu KAPANMAZ — kalanlar sonraki turda da vade beklemeden geçer", async () => {
       await seedMany(PADDLE_REPLAY_MAX_PER_PASS + 1, "key", { ageMs: (i) => 5 * MIN - i, error: KEY_ERROR });
       await alertOnTransition(PADDLE_REPLAY_KEY_ALERT, KEY_ALARM, new Error("x"));
