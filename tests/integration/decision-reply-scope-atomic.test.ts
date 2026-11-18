@@ -196,6 +196,31 @@ describe("C4 — gönderim çekirdeğinin kayıt kancası (onRecorded) mesajla a
     expect(seen).toEqual([out.id]);
     expect("message" in r && r.message?.id).toBe(out.id);
   });
+
+  it("senkron satırı önce yazdı (aynı sağlayıcı kimliği → benzersizlik çakışması): kanca var olan satırın kimliğiyle işlem DIŞINDA çağrılır; kanca düşse de sonuç 'sent'", async () => {
+    const { s, input: base } = await input();
+    // Senkron, gönderimimizin satırını sağlayıcı kimliğiyle ÖNCE içeri aldı.
+    const synced = await prisma.message.create({
+      data: { conversationId: s.conversation.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Merhaba", externalId: "prov-sync" },
+    });
+    mockSend.mockResolvedValueOnce({ ok: true, providerMessageId: "prov-sync" } as never);
+    const seen: string[] = [];
+    const r = await sendHostMessage({ ...base, onRecorded: async (_db, messageId) => { seen.push(messageId); } });
+    expect(seen).toEqual([synced.id]);
+    expect(r).toMatchObject({ status: "sent", message: { id: synced.id } });
+    expect(await outboundCount(s.conversation.id)).toBe(1);
+
+    // Kanca düşerse: teslim kesin, en iyi çaba — sonuç yine "gönderildi".
+    mockSend.mockResolvedValueOnce({ ok: true, providerMessageId: "prov-sync" } as never);
+    const again = await sendHostMessage({
+      ...base,
+      body: "Merhaba",
+      claimBody: "Merhaba (2)",
+      idempotencyKey: `k-${Math.random()}`,
+      onRecorded: async () => { throw new Error("link failed (test)"); },
+    });
+    expect(again).toMatchObject({ status: "sent", message: { id: synced.id } });
+  });
 });
 
 // EN SONDA: Prisma temsilcisine kurulan casus geri alındıktan sonra da sonraki testlere sızabiliyor (CLAUDE.md dersi) — casuslar BİR KEZ kurulur,
