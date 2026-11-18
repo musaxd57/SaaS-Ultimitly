@@ -3,6 +3,8 @@ import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
 import { installTurkishZodErrors } from "@/lib/zod-tr";
 import { newPasswordProblem } from "@/lib/auth/password-policy";
 import { GUEST_DISPLAY_NAME_MAX, guestDisplayNameTooLong } from "@/lib/guest-display-name";
+import { isZonelessWallClock, zonelessWallClockToUtc } from "@/lib/timezone";
+import type { TaskDueInput } from "@/lib/tasks/due-at";
 
 // ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
 // metinleri İngilizce ve doğrudan müşterinin ekranına çıkıyordu ("String must
@@ -243,6 +245,35 @@ export const aiSuggestSchema = z.object({
 });
 
 // --- Tasks ------------------------------------------------------------------
+/** Bugünkü vade kuralı (dilim taşıyan ISO / sayı): mutlak an, 1900–9999. */
+const taskDueInstant = z.coerce.date().refine(isStorableDate, STORABLE_DATE_MESSAGE);
+
+/**
+ * Görev vadesi (E5, Codex 11-17): saat dilimi TAŞIMAYAN duvar saati ("2026-11-20T15:00" — formun `datetime-local`'ı) burada ana ÇEVRİLMEZ
+ * (`new Date` sürecin dilimini okurdu); `{ wallClock }` olarak rotaya gider, rota işletmenin diliminde çevirir (`lib/tasks/due-at.ts`).
+ * Takvimde olmayan / saklanamaz duvar saati → aynı "Geçersiz tarih". Başka her değer bugünkü kuraldan geçer (hata metinleri aynı).
+ * `allowEmpty`: oluşturma formu boş vadeyi "" gönderir (vade yok); güncelleme bugünkü gibi boşu reddeder.
+ */
+function taskDueAtSchema(allowEmpty: boolean) {
+  return z.unknown().transform((v, ctx): TaskDueInput | undefined => {
+    if (v === undefined || (allowEmpty && v === "")) return undefined;
+    if (typeof v === "string" && isZonelessWallClock(v)) {
+      const probe = zonelessWallClockToUtc(v, "UTC");
+      if (!probe || !isStorableDate(probe)) {
+        ctx.addIssue({ code: "custom", message: STORABLE_DATE_MESSAGE });
+        return z.NEVER;
+      }
+      return { wallClock: v };
+    }
+    const r = taskDueInstant.safeParse(v);
+    if (!r.success) {
+      for (const issue of r.error.issues) ctx.addIssue({ code: "custom", message: issue.message });
+      return z.NEVER;
+    }
+    return r.data;
+  });
+}
+
 export const taskSchema = z.object({
   propertyId: z.string().min(1, "Daire seçin"),
   reservationId: z.string().optional().or(z.literal("")),
@@ -250,7 +281,7 @@ export const taskSchema = z.object({
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
   description: z.string().max(5000).optional().or(z.literal("")),
   assignedToId: z.string().optional().or(z.literal("")),
-  dueAt: z.coerce.date().refine(isStorableDate, STORABLE_DATE_MESSAGE).optional().or(z.literal("").transform(() => undefined)),
+  dueAt: taskDueAtSchema(true).optional(),
   priority: z.enum(PRIORITY.values).default("standard"),
   // "Yapılamıyor" atanan kişinin bildirimidir (kim / ne zaman / neden kaydıyla, `api/tasks/[id]`) — görev o durumda AÇILMAZ (Haiku 11-06).
   status: z
@@ -315,7 +346,7 @@ export const taskUpdateSchema = z.object({
   title: z.string().max(300).optional(),
   description: z.string().max(5000).optional(),
   priority: z.enum(PRIORITY.values).optional(),
-  dueAt: z.coerce.date().refine(isStorableDate, STORABLE_DATE_MESSAGE).optional(),
+  dueAt: taskDueAtSchema(false).optional(),
   // Checklist items ({label, done}) so the cleaner can tick off "Çarşaf takımı × 2".
   checklist: z
     .array(z.object({ label: z.string().max(300), done: z.boolean() }))

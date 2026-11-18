@@ -294,3 +294,41 @@ export function currentHourInTimeZone(timeZone: string, now: Date = new Date()):
     return now.getHours();
   }
 }
+
+/**
+ * HTML `datetime-local` biçimi: saat dilimi TAŞIMAYAN duvar saati ("2026-11-20T15:00"; isteğe bağlı saniye ve milisaniye). Çapalı, sabit
+ * uzunluklu — karesel iş yok.
+ */
+const ZONELESS_WALL_CLOCK_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?$/;
+
+/** Değer saat dilimi taşımayan duvar saati mi (`Z` / `±hh:mm` taşıyan ISO değil)? */
+export function isZonelessWallClock(v: string): boolean {
+  return ZONELESS_WALL_CLOCK_RE.test(v);
+}
+
+/**
+ * Saat dilimsiz duvar saatini `tz`'de okunduğu hâliyle UTC anına çevirir (E5, Codex 11-17). Sunucunun kendi dilimi KULLANILMAZ
+ * (`new Date("2026-11-20T15:00")` süreç dilimini okur: UTC sunucuda İstanbul'un 15:00'i 18:00 olurdu); tarayıcının dilimine de güvenilmez
+ * (kalıcı karar `APP_TRUST_BROWSER_TIMEZONE`). Takvimde olmayan değer (31 Şubat, 24:00) → `null`. Yaz saati geçişi (`zonedWallClockToUtc`
+ * iki geçişi): ileri alınan boşluktaki saat bir saat sonrasına düşer (Berlin 29 Mart 02:30 → 03:30 yaz saati); geri alınan saatte iki kez
+ * yaşanan saat İKİNCİ (kış saati) okumasıdır (Berlin 25 Ekim 02:30 → 02:30 kış saati).
+ */
+export function zonelessWallClockToUtc(v: string, tz: string): Date | null {
+  const m = ZONELESS_WALL_CLOCK_RE.exec(v);
+  if (!m) return null;
+  const [y, mo, d, h, mi, s] = [m[1], m[2], m[3], m[4], m[5], m[6] ?? "0"].map(Number);
+  const probe = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+  // Date.UTC taşmayı sessizce devirir (31 Şubat → 3 Mart): bileşenler geri okunamıyorsa değer takvimde yok. Yıl 0–99 Date.UTC'de 1900'e
+  // kayar → yıl da karşılaştırılır.
+  if (
+    probe.getUTCFullYear() !== y ||
+    probe.getUTCMonth() !== mo - 1 ||
+    probe.getUTCDate() !== d ||
+    probe.getUTCHours() !== h ||
+    probe.getUTCMinutes() !== mi ||
+    probe.getUTCSeconds() !== s
+  ) {
+    return null;
+  }
+  return zonedWallClockToUtc(y, mo, d, h, mi, s, tz);
+}

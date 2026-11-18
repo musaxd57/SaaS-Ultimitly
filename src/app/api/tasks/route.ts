@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
-import { taskSchema, zodFieldErrors } from "@/lib/validators";
+import { isStorableDate, taskSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, canManage, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { findOrCreateManualTask, withoutDedupeKey } from "@/lib/tasks/manual-request";
+import { needsOrgTimeZone, resolveTaskDueAt } from "@/lib/tasks/due-at";
+import { orgTimezone } from "@/lib/timezone";
 
 export const GET = withAuth(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -62,6 +64,12 @@ export const POST = withManage(async (session, req) => {
     if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
   }
 
+  // E5 (Codex 11-17): formun dilimsiz saati İŞLETMENİN diliminde okunur (sunucunun / tarayıcının değil). Dilim taşıyan değer bugünkü gibi.
+  const tz = needsOrgTimeZone(d.dueAt) ? await orgTimeZoneOf(session.organizationId) : null;
+  // `tz` yalnız duvar saatinde okunur; mutlak an dilimden bağımsız döner.
+  const dueAt = d.dueAt === undefined ? null : resolveTaskDueAt(d.dueAt, tz ?? "UTC");
+  if (d.dueAt !== undefined && (!dueAt || !isStorableDate(dueAt))) return badRequest({ dueAt: "Geçersiz tarih" });
+
   const taskData = {
     propertyId: d.propertyId,
     reservationId: d.reservationId || null,
@@ -70,7 +78,7 @@ export const POST = withManage(async (session, req) => {
     title: d.title,
     description: d.description || null,
     assignedToId: d.assignedToId || null,
-    dueAt: d.dueAt instanceof Date ? d.dueAt : null,
+    dueAt,
     status: d.status,
     priority: d.priority,
   };
@@ -100,3 +108,8 @@ export const POST = withManage(async (session, req) => {
   if (outcome.kind === "mismatch") return badRequest({ requestId: "Geçersiz istek" });
   return jsonOk(withoutDedupeKey(outcome.task), outcome.kind === "created" ? 201 : 200);
 });
+
+async function orgTimeZoneOf(organizationId: string): Promise<string> {
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+  return orgTimezone(org?.timezone);
+}

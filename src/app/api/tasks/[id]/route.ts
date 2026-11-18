@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { taskUpdateSchema, zodFieldErrors } from "@/lib/validators";
+import { isStorableDate, taskUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { NextResponse } from "next/server";
 import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
@@ -14,6 +14,7 @@ import { enqueueUnreferencedPhotoDeletions, photoStillAttachable } from "@/lib/s
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { withoutDedupeKey } from "@/lib/tasks/manual-request";
+import { needsOrgTimeZone, resolveTaskDueAt } from "@/lib/tasks/due-at";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 import { notifyAssignmentRemoved } from "@/lib/tasks/notify";
 import { assignableTask } from "@/lib/readiness-list/evaluate";
@@ -141,6 +142,19 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     }
   }
 
+  // E5 (Codex 11-17): oluşturmayla AYNI kural — dilimsiz duvar saati işletmenin diliminde, dilim taşıyan değer bugünkü gibi mutlak an.
+  let dueAt: Date | undefined;
+  if (d.dueAt !== undefined) {
+    let tz = "UTC"; // yalnız duvar saatinde okunur
+    if (needsOrgTimeZone(d.dueAt)) {
+      const org = await prisma.organization.findUnique({ where: { id: session.organizationId }, select: { timezone: true } });
+      tz = orgTimezone(org?.timezone);
+    }
+    const resolved = resolveTaskDueAt(d.dueAt, tz);
+    if (!resolved || !isStorableDate(resolved)) return badRequest({ dueAt: "Geçersiz tarih" });
+    dueAt = resolved;
+  }
+
   let assigneeMember: { id: string; name: string; email: string; role: string } | null = null;
   if (d.assignedToId) {
     const member = await prisma.user.findFirst({
@@ -206,7 +220,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           ...(d.title !== undefined ? { title: d.title } : {}),
           ...(d.description !== undefined ? { description: d.description } : {}),
           ...(d.priority !== undefined ? { priority: d.priority } : {}),
-          ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
+          ...(dueAt !== undefined ? { dueAt } : {}),
           // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
           ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
         },
@@ -218,7 +232,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       if (d.status !== undefined && prevStatus !== null) {
         await syncCommitmentsForTaskStatus(tx, commitmentScope, prevStatus, d.status, new Date());
       }
-      if (d.dueAt instanceof Date) await syncCommitmentsForTaskDueAt(tx, commitmentScope, d.dueAt);
+      if (dueAt !== undefined) await syncCommitmentsForTaskDueAt(tx, commitmentScope, dueAt);
       // Yeniden atama "Yapılamıyor"u kapattı → zaman çizelgesinde kim / ne zaman (bildiren kişinin kaydı ayrı satırda kalır).
       if (resetBlocked) await tx.taskUpdate.create({ data: { taskId: id, userId: session.userId, status: "todo", note: null, photoUrl: null } });
       // Fotoğraf bağlama kapısı (Codex 11-10 X1): silinmesi sahiplenilmiş / silinmiş nesne göreve bağlanmaz — nesnenin kilidi altında,
