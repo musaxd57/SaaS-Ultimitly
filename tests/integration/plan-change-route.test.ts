@@ -716,6 +716,29 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       expect(await supersededAlarm()).not.toBeNull();
     });
 
+    it("🚨 belirsiz PATCH, uzlaştırılamadı (202 bekliyor) ve o arada abonelik B'ye geçti → yanıt 202 AYNI, operatöre alarm + bekliyor kaydında işaret", async () => {
+      updateMock.mockImplementationOnce(async () => {
+        await swapTo({ providerRef: "sub_2" });
+        return { ok: false, kind: "ambiguous" };
+      });
+      getPriceMock.mockResolvedValueOnce("pri_pro").mockResolvedValueOnce("pri_pro"); // uzlaştırma: Paddle hâlâ eski fiyatta
+      const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
+      expect(res.status).toBe(202);
+      expect(await res.json()).toEqual({ pending: true, error: "İşleminiz alındı, ödeme sağlayıcısının onayı bekleniyor. Planınız birkaç dakika içinde güncellenecek." });
+      expect(await supersededAlarm()).not.toBeNull(); // ⬅️ 1. turda bu dalda tespit yoktu
+      const pendingAudit = await prisma.auditLog.findFirst({ where: { organizationId: orgId, action: "billing.plan_change_pending" } });
+      expect(JSON.parse(pendingAudit?.metadataJson ?? "{}")).toMatchObject({ subscriptionSupersededDuringApply: true });
+    });
+
+    it("KONTROL (B2): belirsiz + uzlaştırılamadı, satır DEĞİŞMEDİ → 202 aynen, alarm ve işaret YOK", async () => {
+      updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous" });
+      getPriceMock.mockResolvedValueOnce("pri_pro").mockResolvedValueOnce("pri_pro");
+      expect((await CHANGE(body(tok("pri_isletme", "upgrade")), ctx)).status).toBe(202);
+      expect(await supersededAlarm()).toBeNull();
+      const pendingAudit = await prisma.auditLog.findFirst({ where: { organizationId: orgId, action: "billing.plan_change_pending" } });
+      expect(JSON.parse(pendingAudit?.metadataJson ?? "{}")).not.toHaveProperty("subscriptionSupersededDuringApply");
+    });
+
     it("KONTROL (B2): satır değişmezse bugünkü akış aynen — 200, PATCH kayıtlı aboneliğe, işaret ve alarm YOK", async () => {
       const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
       expect(res.status).toBe(200);

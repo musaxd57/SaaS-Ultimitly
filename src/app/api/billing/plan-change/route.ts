@@ -260,13 +260,21 @@ export const POST = withOwner(async (session, req) => {
     // settle and tell the customer we're confirming.
     const currentPrice = await getSubscriptionCurrentPriceId(r.providerRef);
     if (currentPrice !== r.priceId) {
+      // Değişiklik Paddle'a ulaşmış OLABİLİR: o arada kayıtlı abonelik değiştiyse aynı tespit (müşteri yanıtı aynı; operatöre alarm).
+      const supersededPending = await supersededDuringApply(session.organizationId, r.providerRef);
       // 🚨 Tahsilat GERÇEKLEŞMİŞ OLABİLİR (cevap kayboldu) ama iz yoktu (15 ajan A10 F6; hızlı dalın 08-09 düzeltmesinin kardeşi):
       // "bekliyor" kaydı yazılır, gerçekleşen değişikliğin eylemi ("billing.plan_change") webhook / mutabakat netleştirince anlamını korur.
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: auditActor(session),
         action: "billing.plan_change_pending",
-        metadata: { from: r.currentCode, to: planCode, mode: r.mode, ...auditImpersonation(session) },
+        metadata: {
+          from: r.currentCode,
+          to: planCode,
+          mode: r.mode,
+          ...(supersededPending ? { subscriptionSupersededDuringApply: true } : {}),
+          ...auditImpersonation(session),
+        },
       }).catch(() => {});
       return NextResponse.json(
         {
