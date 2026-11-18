@@ -251,6 +251,17 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
 **Mesajlaşma / outbox / sync**
+- 🚨 **"KAYDEDİLDİ" ≠ "KANAL KABUL ETTİ" ≠ "İŞ ÇÖZÜLDÜ" (11-18, Codex 11-17 3. bulgu; `lib/delivery-outcome.ts`):** gönderim sonucu kapalı
+  kümedir — `local_only` (hedefi olmayan, elle açılmış konuşma: yalnız Lixus'a kaydedildi, misafire HİÇBİR kanaldan gitmedi) · `qr_visible`
+  (iç QR sohbeti) · `queued` · `channel_accepted` (kanal kabul etti; okundu / ulaştı DEĞİL) · `unverified` · `not_delivered`. Eşleyiciler
+  kaynaklarının yanında (kuyruk durumu `outbox/state.ts`, rota `channels/outbound.ts`). `sendHostMessage` kanala çıkmayan cevap için
+  "sent" DEĞİL "recorded" döner; her başarılı API yanıtı `delivery` taşır; arayüz duyuruyu HTTP kodundan değil bu alandan seçer ("Mesaj
+  gönderildi." yalnız kanal kabulü ve QR için). Yerel / QR konuşmada kayıt düşerse sonuç KESİN başarısızlıktır (hiçbir şey ne gitti ne
+  kaydedildi → "kaydedildi" denmez; talepler bırakılır). Kuyrukta KESİN gitmemiş (başarısız / engellenmiş / iptal) ev sahibi mesajı "ev
+  sahibi yazdı" SAYILMAZ (öğe defteri + karar kartı; tek kaynak `outbox/undelivered.ts`). Karar / WhatsApp cevabının "yalnız kendi talebini
+  yanıtlar" bağı mesajla AYNI işlemde yazılır (`onRecorded`), kartın durumundan bağımsız; kapanış bağı boşla ezmez. Öğe yeniden kapatma
+  teslim etkisinin dördüncü parçasıdır (düşerse damga yok, onarıcı yeniden dener). **Bekleyen ürün kararları (davranış DEĞİŞMEDİ):** yerel
+  cevap konuşmayı "Cevaplandı" yapıyor / ihtiyacı kapatıyor / sözden görev üretiyor (S-1, S-4), doğrulanamayan gönderim ihtiyacı kapatıyor (S-2).
 - 🚨 **SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):** `err instanceof HospitableError` /
   `err.name === "HospitableError"` YASAK (izinli beş dosya: istemci, adaptör sarmalı, `provider-errors`,
   adaptörsüz iki bağlantı rotası — pin `provider-error-wrapper-pin.test.ts`). Okuma TEK yerden:

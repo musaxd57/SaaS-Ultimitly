@@ -333,6 +333,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - Hesap silme Invoice/Consent/AuditLog'u da siler (migration ister, açık). `Organization.plan` kolonu ölü.
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 **Mesajlaşma / outbox / sync**
+- 🚨 "KAYDEDİLDİ" ≠ "KANAL KABUL ETTİ" ≠ "İŞ ÇÖZÜLDÜ" (11-18, `lib/delivery-outcome.ts`):
 - 🚨 SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):
 - 🚨 PERİYODİK İŞİN ALARMI GEÇİŞ TABANLIDIR (09-23, `src/lib/alert-state.ts`, migration YOK):
 - Kimlik e-postası kurtarması HER geçişte
@@ -358,6 +359,8 @@ Bu dosyaya token/anahtar/parola yazma.
 - Plan sınırları POST/PATCH/COPY hepsinde; yalnız büyüme reddedilir; fail-open (kullanım kapısı).
 - Şablon yer tutucu ikamesi TEK GEÇİŞ (`replace` + callback); sıralı split/join ASLA.
 **Faturalandırma**
+- 🚨 ÖDEME ALINDI, ABONELİK BEKLENİYOR — SÜREYLE KAPANMAZ (11-18, `lib/billing/checkout-paid.ts`):
+- Yeniden işleme vadesi geleni SORGUDA seçer (11-18) · dış sisteme yazmadan HEMEN önce yerel satır yeniden okunur (11-18):
 - Kayıtlı abonelikten FARKLI aboneliğin olayı planı değiştirmez (K4, 09-30: ters sırada gelen eski iptal yeni aboneliği ezmiyordu).
 - Bağlanamayan ödeme sessiz kalmaz (10-01, 15 ajan A10 F1):
 - previewToken HMAC + `jti` tek kullanım; apply öncesi re-preview (409 amountChanged); definitive/ambiguous
@@ -507,6 +510,18 @@ Bu dosyaya token/anahtar/parola yazma.
   (11-11) Liste, değişen DOSYANIN ADINI okuyan kaynak pinlerini de kapsar (`grep -rlF "automation.ts" tests`): çağıran taraması bir davranış
   gerilemesini yakaladı, ama anahtarın çağrı sayısını sayan pin ancak tam kapıda kırmızı çıktı (40 dakika kayıp).
 - 🚨 **Nullable kolonda `NOT: { kolon: değer }` NULL satırı da DIŞARIDA bırakır** (11-04, SQL `NOT (x = v)` NULL'da NULL): bekleyen (sahipsiz) satırları arayan sorgu hiçbirini görmüyordu, yedek e-posta HİÇ gitmezdi — mutasyon koşucusunun M0'ı yakaladı. `OR: [{ kolon: null }, { kolon: { not: değer } }]`. **Commit'ten ÖNCE ilgili test dosyaları koşulur** (aynı gün 8 commit testsiz birikmişti; ikinci hata Türkçe ek: kalıp kökte bitiyordu, testler yalnız İngilizcede yeşildi).
+- **`beforeEach(() => sahte.mockReset())` YAZILMAZ (11-18):** ok işlevi sahte işlevin KENDİSİNİ döndürür; vitest dönen işlevi temizlik sanıp test
+  SONUNDA çağırır — son taklit reddediyorsa test o hatayla düşer (hata satırı ilgisiz bir `new Error`ı gösterir). Gövde süslü parantezli yazılır.
+- 🚨 **"SÜREYLE DÜŞEN KİLİT KALICI GERÇEĞİ TAŞIYAMAZ" + "EN ESKİ N'Yİ OKU, SONRA SÜZ" (11-18, Codex 11-17):** (a) "ödeme alındı" gibi kalıcı bir
+  gerçek 10 dakikalık kilitte tutuluyordu → kilit düşünce ikinci ödeme açılıyordu; kalıcı gerçek kalıcı kayıt ister, yalnız kanıtla açılıp kapanır.
+  (b) Sınırlı okuma + bellekte süzme, süzgece takılan N satırın arkasındakini kalıcı aç bırakır (yeniden işleme 200, otomatik mesaj 200, açık
+  ihtiyaç 500): süzgeç SORGUYA iner; tavan kalıyorsa sessiz olmaz (alarm) ve ilerleme kalıcı imleçle sürer. (c) Dış sisteme yazmadan HEMEN
+  önce yerel satır yeniden okunur (istek başındaki kimlik bayatlamış olabilir).
+- **Paralel kod yazan ajanlar (11-18, kurucu: "Opus kod yazabilir, push etmez"):** her ajan ayrık çalışma ağacı + KENDİ test veritabanı
+  (`TEST_DATABASE_URL`, ayrı PostgreSQL 5441; `tests/global-setup.ts` dış veritabanında 5433'e dokunmaz) → ajan testleri birbirini ve 5433'ü
+  bozmaz. Mutasyon koşucusu / tam kapı yine TEK başına koşar: önce bekleme işareti (ajanlar test koşmayı durdurur), sonra koşu. Mutasyon
+  `TEST_DATABASE_URL` ile ~4 kat hızlı (her mutantta `initdb` yok). Ajan çıktısı satır satır okunur ve ana oturumda yeniden test edilir —
+  11-18'de ajanın eklediği tavan dalında açlık kusuru, öz kodda Opus incelemesiyle altı P3 bulundu. Ayrıntı `docs/claude/calisma-ortami.md`.
 - **Genel Prisma temsilcisine kurulan casus İŞLEM istemcisinin (`tx`) çağrısını GÖRMEZ** (11-04): yazma kilitli işleme taşınınca yarış / çökme testleri sessizce kurulmaz oldu (tam kapıda kırmızı). Araya girme, kilitli bölgenin test kancasından (`__kbCapHooks`) kurulur; mutasyonla kancanın gerçekten tetiklendiği sınanır.
 - **Aynı işlemde AYNI zaman damgasıyla yazılan satırların sıralaması `id` ile kesinleşir** (09-27): konuşma öğeleri bir turda tek
   `createdAt` ile yazılıyor, `requestIndex` mesaj başına 0'dan başlıyordu → iki mesajın öğesi tam eşit, sıra rastgele (tam kapı bir kez
@@ -558,3 +573,4 @@ Bu dosyaya token/anahtar/parola yazma.
 **11-14 gece:** sızma testi tur 1 — dokuz ajan, P1 yok; ölçülen üç DoS (getirme yazım toleransı 17,6 sn · kötü niyetli takvim beslemesi 26 sn · CSV 15 sn) + NUL alarm bastırma + kurtarma kodu özeti + QR anahtar kutusu kodu (E-1) + tazminat sözü (E-3) düzeltildi; E-1 / E-3 kurucu onayında — `docs/INCELEME-2026-11-14-sizma-testi-tur1.md`, sorular `docs/claude/acik-isler.md` "11-14 gece". Kural: sistemik "reddet" düzeltmesinden önce aynı girdinin pinli "sessizce temizle" sözleşmesi aranır; kötü niyetli girdi süresi en kötü durumda ölçülür.
 **11-13 akşam:** kurucu UX kararları uygulandı (`docs/INCELEME-2026-11-13-ux-denetimi.md` §10) · ödeme onayı üç ayrı kutu (ön bilgi ONAYLANIR · sözleşme KABUL edilir · hemen başlama + cayma kaybı ayrı onay; kartla denemede üçüncü yok; tek kaynak `billing/consent-copy.ts`, özet `LEGAL_TEXT_HASH`'e girer; Gizlilik hiçbir yerde kabul ettirilmez) · AaaS tasarımı `docs/TASARIM-2026-11-13-aaas-yonu.md` (KOD YOK, AAS-1…8). Özet `docs/claude/durum.md`, sorular `docs/claude/acik-isler.md` "11-13 akşam". Kural: onay metninde fiil belgeye göre seçilir (bilgi → onaylıyorum, sözleşme → kabul ediyorum, aydınlatma → yalnız bilgi satırı); istemci ve sunucu hangi kutunun gerektiğine AYNI saf kuraldan karar verir.
 **11-18:** Codex 11-17 raporu (957e91c1 denetimi: ödeme · mesaj doğruluğu · kimlik yarışları · yapay zekâ anlam koruması · arayüz / AaaS tasarım önerileri) + kurucunun orkestrasyon talimatı AYNEN `docs/KURUCU-TALIMATI-2026-11-18-codex-raporu-ve-orkestrasyon.md` — kurucu: "oraya bakıp bakıp ilerle"; bu işte her dilimden ÖNCE o dosyanın ilgili bölümü okunur. Kodda doğrulama + madde madde durum `docs/INCELEME-2026-11-18-codex-bulgulari.md`. Çalışma düzeni (kurucu 11-18): Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude yazar; kontrollerde alt ajan; acele yok.
+**11-18:** Codex 11-17 raporu dalga 1 — ikinci ödeme riski kapandı ("ödeme alındı, abonelik bekleniyor" kaydı süreyle kapanmaz) · yeniden işleme vadesi geleni sorguda seçer · kanala gitmeyen cevap "gönderildi" denmez (teslim sonucu sözlüğü); şema değişmedi. Kayıt `docs/INCELEME-2026-11-18-codex-bulgulari.md`, özet `docs/claude/durum.md` "11-18", sorular (Ö-1…Ö-3, Y-1, Y-2, S-1…S-4, H-1…H-8) `docs/claude/acik-isler.md` "11-18"; ürün yönü önerisi (kod YOK) `docs/TASARIM-2026-11-18-ev-sahibine-nerede-soruyoruz-ve-ilk-akis.md`. Kural: kalıcı gerçek süreli kilitte tutulmaz; kapanış yalnız kanıtla.

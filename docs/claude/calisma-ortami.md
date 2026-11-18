@@ -44,3 +44,19 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   ÇALIŞTIRILMAZ** (11-13: şema değişikliğinden sonra geliştirme ağacında koşuldu, koşan kapının Prisma istemcisi yeni şemaya döndü). Test yardımcısı
   tabloları açık listeyle sildiği için davranış testleri etkilenmez; DMMF okuyan pinler yanlış KIRMIZI verir (yanlış yeşil değil). Şema değişince
   istemci, kapı bittikten sonra ya da yeni şemayı taşıyan kapının başında üretilir.
+
+## Paralel kod yazan ajanlar (11-18; kurucu: "sen orkestratörsün, Opus kod yazabilir ama push etmez, kodunu hemen eleştirel incele")
+
+- **Ağaç:** `git worktree add -b agent/<ad> <scratchpad>/wt-<ad> dev/gates` + `node_modules` sembolik bağ. Ajan yalnız kendi ağacına yazar,
+  yerel commit atar, push etmez. Bitince ana oturum `git diff` ile satır satır okur → `git cherry-pick` → commit mesajına oturum satırları
+  (`git filter-branch --msg-filter`) → kendi veritabanında yeniden test.
+- **Veritabanı:** ayrı küme `initdb -D /tmp/lixus-pg-agents` + `pg_ctl … -o '-p 5441 -k /tmp' start`, içinde ajan başına boş veritabanı
+  (`createdb lixus_t1 …`). Ajan `TEST_DATABASE_URL="postgresql://postgres@localhost:5441/lixus_tN?schema=public" npx vitest run <dosyalar>` koşar;
+  `tests/global-setup.ts` dış veritabanında yalnız şemayı iter, 5433'e dokunmaz. İki ajan AYNI veritabanını paylaşamaz (her test tabloları boşaltır).
+- **Sıra:** mutasyon koşucusu başka bir vitest görürse durur; tam kapı 5433'ü sıfırlar ve süre pinleri yükten etkilenir → ikisi de TEK başına.
+  Bekleme işareti: ajan kural dosyası her `vitest` / `tsc` öncesi bir dosyanın varlığına baktırır; ana oturum koşudan önce dosyayı koyar
+  (`touch`), süreçlerin bittiğini `ps` ile görür, koşar, kaldırır. Ajanlar o sırada kod yazmaya devam eder.
+- **Mutasyon hızlı kipi:** `TEST_DATABASE_URL=… node scripts/mutation-run.mjs <liste>` — her mutantta `initdb` yerine şema itme (≈ 13 sn / mutant;
+  varsayılan kipte ≈ 60 sn).
+- **Kural dosyası** ajan isteminin ilk satırıdır: yasak dosyalar, push / şema / `npm install` yasağı, kanıt sözleşmesi (kırmızı-önce çıktısı,
+  kontrol testi, mutasyon listesi), "yeni müşteri metni yazma", rapor biçimi ("yapılmayan / emin olmadıklarım" zorunlu).

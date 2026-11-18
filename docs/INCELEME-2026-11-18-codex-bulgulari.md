@@ -14,10 +14,14 @@ Durum simgeleri: ✅ düzeltildi (commit) · 🔧 yazılıyor / incelemede · �
 |---|---|---|---|---|
 | ÖDEME-1 | Ödeme alınmış, abonelik bağlanmamışken 10 dk kilit düşünce yeni ödeme işlemi açılıyor | DOĞRU — iki kipte de kırmızı-önce testle yeniden üretildi (`checkout-paid-awaiting.test.ts`). Niyet kapalı kipte işlem olayı hiçbir şey yazmıyordu | Evet (anahtar gerekmez) | ✅ `12e5c1f1` + `9c5c013a` — "ödeme alındı, abonelik bekleniyor" süreyle kapanmayan kayıt; tasarım `docs/TASARIM-2026-11-18-odeme-alindi-abonelik-bekleniyor.md` |
 | ÖDEME-2 | Yeniden işleme işi en eski 200 kaydı seçip vadeye sonra bakıyor; arkadaki vadesi gelmiş olay hiç denenmiyor, tur işareti yine ilerliyor | DOĞRU (`paddle-replay.ts`) | Evet | ✅ `57557676`, `b6fa2706` — vade koşulu sorguda, sayfalama; tavanı aşan tur birkaç koşuya yayılan tek mantıksal tur (imleç + dondurulmuş an), tavan alarmı |
-| MESAJ-3 | Dış hedefi olmayan elle açılmış konuşmada cevap yalnız kaydediliyor ama "Mesaj gönderildi" deniyor | DOĞRU (`host-send.ts` `skipped` alanını okumuyor) | Evet | 🔧 WP-B |
+| MESAJ-3 | Dış hedefi olmayan elle açılmış konuşmada cevap yalnız kaydediliyor ama "Mesaj gönderildi" deniyor | DOĞRU (`host-send.ts` `skipped` alanını okumuyor) | Evet | ✅ `8b4d077e`, `344ac34d`, `2fd04d7d` — tek teslim sonucu (`lib/delivery-outcome.ts`: yalnız kayıt · QR'da görünür · sıraya alındı · kanal kabul etti · doğrulanamadı · gitmedi); ekran ve karar paneli duyuruyu bu sonuçtan seçer; yerel kayıt düşerse başarı dönülmez. Yeni ev sahibi metni ❓ Y-1 |
 
 Codex'in uzun vadeli önerisi (ÖDEME-2: olay başına "sonraki deneme zamanı" sütunu) migration ister → migration turu adayı (§6). Şemasız
 düzeltme birebir aynı seçimi yapıyor (kâhin testi) ve bugünkü ölçeğin çok üstünü taşıyor.
+
+**Kanıt (dalga 1):** her düzeltme kırmızı-önce testle başladı; mutasyon (ayrık çalışma ağacı, kontrol koşusu yeşil): ödeme-1 39 / 41 →
+yaşayan iki mutant eşdeğer değildi, eksik kollar pinlendi (`8f2fe356`), yeniden koşuda öldü · ödeme-2 52 / 53 → pinlendi, yeniden koşuda
+öldü · mesaj doğruluğu 31 / 31. Opus sert incelemesi (ödeme-1): P1 / P2 yok; altı P3 + iki "emin değilim" işlendi (`6bd7ff79`).
 
 ## 2. "Kalan önemli açıklar" 1–7
 
@@ -25,8 +29,8 @@ düzeltme birebir aynı seçimi yapıyor (kâhin testi) ve bugünkü ölçeğin 
 |---|---|---|---|---|
 | 1 | Plan değişikliği sürerken abonelik değişirse işlem eski aboneliğe gidiyor | DOĞRU, pencere 1–3 sn (`plan-change/route.ts`) | Evet (`PADDLE_PLAN_CHANGE_ENABLED`) | ✅ `1931e574`, `06def63b` — PATCH'ten hemen önce yeniden okuma (ret: var olan metin), PATCH sonrası değişim → denetim işareti + operatör alarmı (202 dalı dahil). Aynı sınıf "devam ettir": `2df90d3f` (belirteç aboneliği bağlar) |
 | 2 | Onaylıdan "bekliyor"a dönen rezervasyona kuyruktaki giriş mesajı gidiyor | DOĞRU, yalnız kalıcı kuyruk yolunda (`worker.ts lifecycleVeto`) | Hayır (kuyruk kapalı) | 📋 dalga 2 (kuyruk açılış engelleri) · ❓ erteleme mi iptal mi |
-| 3 | Misafire ulaşmamış ev sahibi cevabı açık ihtiyacı gizliyor | DOĞRU (`HOST_OUTBOUND_WHERE` teslim durumuna bakmıyor; dört okuyucu) | Kuyruk yolu hayır; yerel cevap evet | 🔧 WP-B (kesin gitmeyenler) · ❓ yerel / doğrulanamayan cevap (S-1, S-2) |
-| 4 | Kuyrukta ihtiyaç güncellemesi düşerse teslim etkisi yine damgalanıyor | KISMEN — damga doğru; onarıcıda yeniden kapatma adımı hiç yok; etki güvenli yönde (fazladan açık iş) | Hayır | 🔧 WP-B |
+| 3 | Misafire ulaşmamış ev sahibi cevabı açık ihtiyacı gizliyor | DOĞRU (`HOST_OUTBOUND_WHERE` teslim durumuna bakmıyor; dört okuyucu) | Kuyruk yolu hayır; yerel cevap evet | ✅ `2f819d23` — KESİN gitmemiş (başarısız / iptal) cevap dört okuyucuda da ihtiyacı kapatmaz (tek kaynak `outbox/undelivered.ts`) · ❓ yerel / doğrulanamayan cevap (S-1, S-2) bugünkü gibi kaldı |
+| 4 | Kuyrukta ihtiyaç güncellemesi düşerse teslim etkisi yine damgalanıyor | KISMEN — damga doğru; onarıcıda yeniden kapatma adımı hiç yok; etki güvenli yönde (fazladan açık iş) | Hayır | ✅ `79b0c89e` — yeniden kapatmanın sonucu teslim etkisine katılır; onarıcıda yeniden kapatma adımı var |
 | 5 | QR'da süren isteğin tekrarı mesajı kaybettirebiliyor (`deduped: true`) | DOĞRU, tetik dar (üç koşul birlikte) | Evet (`GUEST_CHAT_ENABLED`) | 📋 dalga 2 |
 | 6 | Elle görev oluşturma tekrar güvenli değil | DOĞRU (`api/tasks` işlem kimliği okumuyor) | Evet | 📋 dalga 2 |
 | 7 | Otomatik mesaj sırasında 200 gönderilemeyen kayıt 201.'yi kalıcı engelliyor | DOĞRU (imleç her geçişte sıfırlanıyor) | Evet (büyük portföy) | 📋 dalga 2 |
@@ -35,7 +39,7 @@ düzeltme birebir aynı seçimi yapıyor (kâhin testi) ve bugünkü ölçeğin 
 
 | Konu | Kodda | Durum |
 |---|---|---|
-| Karar cevabının bağı mesajdan ayrı yazılıyor (G2-01) | DOĞRU — bağın kalıcı yazılmadığı dört yol | 🔧 WP-B (bağ mesajla aynı işlemde) |
+| Karar cevabının bağı mesajdan ayrı yazılıyor (G2-01) | DOĞRU — bağın kalıcı yazılmadığı dört yol | ✅ `772374f0`, `105dbd80` — bağ mesaj satırıyla AYNI işlemde yazılır (`onRecorded`); karar kapanışı bağı silmez |
 | Karar + kuyruk: kuyruğa kabul = tamamlandı (K2-01) | DOĞRU, belgelenmiş engel; iki anahtar birlikte açılamaz | 📋 dalga 2 |
 | Onay ile gönderim arası rezervasyon iptali (G2-02) | KISMEN — doğrudan yolda ms; asıl açık kuyrukta (ev sahibi satırı vetodan muaf) | 📋 dalga 2 |
 | Kuyrukta son kontrol → gönderim penceresi | KISMEN — pencere Codex'in tarifinden farklı yerde (yanıt satırında varlık vetosu ↔ son talep; otomatik mesajda son talep ↔ gönderim) | 📋 dalga 2 (gerçek PostgreSQL + sahte sağlayıcı testleriyle) |
@@ -75,6 +79,9 @@ düzeltme birebir aynı seçimi yapıyor (kâhin testi) ve bugünkü ölçeğin 
 - S-1…S-4: elle konuşmada kaydedilen cevap konuşmayı "Cevaplandı" yapsın / ihtiyaçları kapatsın mı; doğrulanamayan gönderim ihtiyacı
   kapatsın mı; düğme "Kaydet" mi olsun; yerel cevaptaki sözden görev üretilsin mi.
 - Kalan-2: "bekliyor"a dönen rezervasyonun kuyruk mesajı ertelensin mi iptal mi edilsin.
+- Y-1 / Y-2: kanala bağlı olmayan konuşmadaki yeni ev sahibi metinleri ("Cevabınız kaydedildi. Bu konuşma bir kanala bağlı olmadığı için
+  misafire gönderilmedi." + yazma alanı notu) ve aynı durumun WhatsApp karşılığı.
+- H-1…H-8: ürün yönü soruları — `docs/TASARIM-2026-11-18-ev-sahibine-nerede-soruyoruz-ve-ilk-akis.md` §11.
 
 ## 6. Migration turu adayları (kod YOK; tek onay)
 
