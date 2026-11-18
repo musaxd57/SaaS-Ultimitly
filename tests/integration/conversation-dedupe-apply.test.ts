@@ -272,11 +272,13 @@ describe("apply — referans envanteri", () => {
       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
       "GuestCommitment", // 10-10 (migration 62): FK Cascade — repoint listesinde (silinirse misafire verilmiş açık söz kaybolurdu)
       "HostQuestion", // 10-30 (migration 88): FK Cascade — repoint listesinde (silinirse ev sahibine sorulmuş, cevap bekleyen soru kaybolurdu)
+      "InternalNote", // 11-18 (migration 99): FK SetNull — repoint listesinde (silinirse notun hangi konuşmadan yazıldığı kopardı)
       "Message",
       "MessageOutbox",
       "ReplyDraftLink", // 11-13 (migration 96): FK Cascade — repoint listesinde (silinirse taslak ↔ gönderim bağı kaybolurdu)
       "ReplyDraftSpan", // 11-13 (migration 96): düz konuşma kimliği — repoint listesinde (kümeleme kaybedenin kimliğini saymasın)
       "RiskEvent",
+      "SemanticReading", // 11-18 (migration 99): FK Cascade — repoint listesinde (silinirse modelin okuma kaydı kaybolurdu)
       "ShadowVerdict",
       "Signal", // V1 (migration 52): FK SetNull — repoint listesinde
     ]);
@@ -478,6 +480,13 @@ describe("apply — başarı yolu", () => {
     await prisma.replyDraftSpan.create({
       data: { linkId: draftLink.id, organizationId: org.organizationId, conversationId: b.id, textEnc: "x", contentTokens: 3 },
     });
+    // Migration 99: iç not (FK SetNull — silinirse bağlam kopardı) + anlam okuması gölge kaydı (FK Cascade — silinirse kayıt giderdi).
+    await prisma.internalNote.create({
+      data: { organizationId: org.organizationId, propertyId, conversationId: b.id, authorName: "Sahip", body: "Misafir telefonla aradı." },
+    });
+    await prisma.semanticReading.create({
+      data: { organizationId: org.organizationId, conversationId: b.id, messageId: "apply-sr-1", layer: "host_commitment", outcome: "ok", modelDecision: "none" },
+    });
 
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
@@ -502,7 +511,11 @@ describe("apply — başarı yolu", () => {
       conversationBlock: 1,
       replyDraftLink: 1,
       replyDraftSpan: 1,
+      internalNote: 1,
+      semanticReading: 1,
     });
+    expect(await prisma.internalNote.count({ where: { conversationId: a.id } })).toBe(1);
+    expect(await prisma.semanticReading.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.replyDraftLink.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.replyDraftSpan.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.conversationBlock.count({ where: { conversationId: a.id, status: "active", kind: "safety_incident" } })).toBe(1);

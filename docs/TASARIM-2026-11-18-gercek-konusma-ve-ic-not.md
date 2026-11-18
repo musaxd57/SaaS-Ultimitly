@@ -71,6 +71,14 @@ daire silinince birlikte; rezervasyon silinince not da silinir (misafire ait kay
 Yeni misafir verisi tablosu olduğu için veri saklama süpürgesi, silme talebi, dışa aktarma ve kopya konuşma betiğinin envanterleri bilerek
 güncellenir (kanarya testleri bunu zaten zorunlu kılıyor).
 
+**Durum (11-18 gece): tablo ve gizlilik kuralları YAZILDI** (migration 99; ekran / rota henüz yok — dilim D1):
+- İstek kimliği sütunu eklendi (işletme kapsamında tekil) → çift tıklama ikinci not yazamaz.
+- Saklama süresi: konaklamaya bağlı not konaklama saklama süresini doldurunca, daireye yazılmış (konaklamasız) not kendi yazılma anına göre
+  silinir. Konaklama süpürüldükten sonra yazılan not da bir sonraki geçişte gider.
+- Misafir silme talebi: konaklamanın notları ve konuşmasından yazılan notlar silinir. Daireye yazılmış, hiçbir konaklamaya / konuşmaya bağlı
+  olmayan not kimin hakkında olduğu bilinemediği için kalır (ev sahibi siler; saklama süresinde zaten silinir).
+- Dışa aktarma: notlar dökümde (metin, yazan adı, bağlar). Konuşma birleştirmede not korunan konuşmayı izler. Demo sıfırlamada silinir.
+
 ## 5. Dilimler (her biri küçük, geri alınabilir; sıra bağımlılığa göre)
 
 | Dilim | Ne | Kim | Not |

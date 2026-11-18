@@ -352,8 +352,13 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
       },
     });
     await prisma.replyDraftSpan.create({ data: { linkId: link.id, organizationId: orgId, conversationId: stale.id, textEnc: "x", contentTokens: 3 } });
+    // Migration 99: iç notun bağlamı ve anlam okuması gölge kaydı kopyayla kaybolmamalı.
+    await prisma.internalNote.create({ data: { organizationId: orgId, propertyId, conversationId: stale.id, authorName: "Sahip", body: "Kapıda söylendi: geç gelecekler." } });
+    await prisma.semanticReading.create({ data: { organizationId: orgId, conversationId: stale.id, messageId: "cleanup-sr-1", layer: "host_commitment", outcome: "ok" } });
 
     expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.internalNote.count({ where: { conversationId: keeper.id } })).toBe(1);
+    expect(await prisma.semanticReading.count({ where: { conversationId: keeper.id } })).toBe(1);
     expect(await prisma.replyDraftLink.count({ where: { conversationId: keeper.id } })).toBe(1);
     expect(await prisma.replyDraftSpan.count({ where: { conversationId: keeper.id } })).toBe(1);
     expect(await prisma.conversationBlock.count({ where: { conversationId: keeper.id, status: "active" } })).toBe(1);

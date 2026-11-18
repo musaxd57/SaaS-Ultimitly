@@ -175,10 +175,12 @@ export const CLEANUP_REPOINTED_MODELS = [
   "DecisionRequest",
   "GuestCommitment",
   "HostQuestion",
+  "InternalNote",
   "MessageOutbox",
   "ReplyDraftLink",
   "ReplyDraftSpan",
   "RiskEvent",
+  "SemanticReading",
   "ShadowVerdict",
   "Signal",
 ] as const;
@@ -193,11 +195,16 @@ async function repointConversationChildren(tx: Prisma.TransactionClient, fromId:
   await tx.guestCommitment.updateMany(move);
   // Ev sahibine giden soru (migration 88, FK Cascade): silinirse ev sahibinin WhatsApp cevabı bağlanacak soru bulamazdı.
   await tx.hostQuestion.updateMany(move);
+  // İç not (migration 99, FK SetNull): silinirse not kalır ama hangi konuşmadan yazıldığı (bağlam) kaybolurdu → korunan konuşmayı izler.
+  await tx.internalNote.updateMany(move);
   await tx.messageOutbox.updateMany(move);
   // Taslak ↔ gönderilen metin bağı (migration 96, FK Cascade) + eklenen parçaların düz konuşma kimliği: silinirse özerklik ölçüsü kaybolurdu.
   await tx.replyDraftLink.updateMany(move);
   await tx.replyDraftSpan.updateMany(move);
   await tx.riskEvent.updateMany(move);
+  // Anlam okuması gölge kaydı (migration 99, FK Cascade): silinirse ölçüm kaydı kaybolurdu; mesaj korunan konuşmaya taşındığı için kayıt da
+  // onu izler (tekillik mesaj kimliği + katman — küresel, çakışmaz).
+  await tx.semanticReading.updateMany(move);
   await tx.shadowVerdict.updateMany(move);
   await tx.signal.updateMany(move);
 }

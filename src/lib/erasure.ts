@@ -595,8 +595,17 @@ async function maskReservationRows(
     where: { ...outboxLink, body: { not: ANON_BODY } },
     data: { body: ANON_BODY },
   });
+  // İç not (migration 99): ekibin bu konaklamaya yazdığı notlar (telefon görüşmesi, kapıda söylenen) misafir adı / telefonu taşıyabilir →
+  // misafir silmesinde konaklamanın serbest notuyla birlikte SİLİNİR. Konuşmadan yazılmış ama konaklamaya bağlanmamış notlar da (bağlam
+  // kimliğiyle) gider. Daireye yazılmış, hiçbir konaklamaya / konuşmaya bağlı olmayan not kimin hakkında olduğu bilinemediği için kalır
+  // (ev sahibi kendisi siler; saklama süresinde zaten silinir).
+  await db.internalNote.deleteMany({
+    where: { organizationId, OR: [{ reservationId }, ...(convIds.length ? [{ conversationId: { in: convIds } }] : [])] },
+  });
   // 🚨 Yapay zekâ üretim izi (migration 60, kurucu §D-1 10-09): taslak / gönderilen metin misafir silmesinde de silinir (org kapsamlı).
   if (convIds.length) {
+    // Anlam okuması gölge kaydı (migration 99): modelin kısa nedeni mesajı yeniden anlatabilir → misafir silmesinde satır silinir.
+    await db.semanticReading.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });
     await db.aiGeneration.updateMany({
       where: { organizationId, conversationId: { in: convIds } },
       data: { draftText: null, sentText: null },

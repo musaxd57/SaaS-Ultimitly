@@ -636,3 +636,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kendiliğinden çıkmaz (`decision_window_passed`). Bozuk pay değeri bütün kuralı reddeder (sessizce "pay yok" sayılmaz — ev sahibinin sınırı
   yok sayılıp otomatik onay verilmez). "Misafirin son mesajı" şartı kod gerektirmedi: yeniden bakış yalnız tutulan istek hâlâ son misafir
   mesajıysa çalışır (senaryo P3 ile pinli). "Erişim" şartı soruda (EG-4). Tasarım `docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md`.
+- **İç not ve anlam okuması gölge kaydı SİLİNEREK temizlenir (migration 99, 11-18 gece; `data-retention.ts` (3), `erasure.ts`):** iki tablo da
+  anonimleştirilmez. Saklama süpürgesinde iki daldan BAĞIMSIZ tek adım: koşul yalnız yaşa / konaklamanın bitişine bağlı → seçim bacağı,
+  parti sınırı, "yeniden seçilir mi" sorusu yok; silinen satır bir daha eşleşmez (kendiliğinden sonlanır). Not: konaklamaya bağlıysa
+  konaklamanın süresi dolunca, konaklamasızsa kendi yaşıyla. Okuma: saklama süresinden eski ya da süresi dolmuş konaklamanın konuşmasına
+  ait. Misafir silmesinde konaklamanın + konuşmalarının notları ve okumaları silinir; daireye yazılmış bağsız not kalır. Not dökümde,
+  okuma dökümde değil. Konuşma birleştirmede ikisi de korunan konuşmayı izler. 🚨 Kanarya dersi: şema kolon sayacı tip adından sonra
+  sözcük sınırı ister — `internalNotes InternalNote[]` ilişki alanı "Int…" diye kolon sayılıyordu (model adı skaler tip adıyla başlıyor).

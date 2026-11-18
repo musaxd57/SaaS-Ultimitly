@@ -766,3 +766,8 @@ göründüğünü varsaymıştı, kodda gizliydi). Söz okuyucusunda iki küçü
 doğrulamadan önce siliniyordu) düzeltildi. WhatsApp karar cevabının metni (A-1) soruda. (3) **Erken giriş pilotu (H-3):** "yalnız ücretsiz"
 anahtarlı (`EARLY_CHECKIN_FREE_ONLY_ENABLED`, KAPALI) · son karar payı kural alanı + form seçimi · "misafirin son mesajı" ölçüldü, kod
 gerekmedi (pinlendi) · "erişim" soruda. Kayıt `docs/INCELEME-2026-11-18-aksam-kararlar.md` §4.1–4.2; sorular AK-6, EG-1, EG-2, EG-4.
+(4) **Migration 99 (yalnız iki yeni tablo, taze veritabanında sıfır sapma):** `InternalNote` (ekibin kendi notu — Y-1 yeni tasarımının ilk
+adımı; ekran / rota sıradaki dilim) + `SemanticReading` (anlam okumasının gölge kaydı — söz okuyucusu ve ileride "cevap hangi isteği
+karşıladı" için ortak). İkisi de saklama süresi, misafir silme talebi, konuşma birleştirme ve demo sıfırlama kurallarına bağlandı; not dışa
+aktarımda. Davranış testleri `tests/integration/internal-note-semantic-reading-lifecycle.test.ts` (13). Son iki haneli numara: sonraki
+migration `99a_…`.

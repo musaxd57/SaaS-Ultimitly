@@ -88,6 +88,8 @@ export interface ApplyOutcome {
     conversationBlock: number;
     replyDraftLink: number;
     replyDraftSpan: number;
+    internalNote: number;
+    semanticReading: number;
   };
   conversationsBefore: number;
   conversationsAfter: number;
@@ -131,7 +133,10 @@ const HANDLED_REFERENCES = {
   // `ReplyDraftLink` (11-13, migration 96): FK Cascade — kaybeden silinince taslak ↔ gönderilen metin bağı (özerklik ölçüsünün tek kaynağı) SESSİZCE
   // silinirdi; silmeden ÖNCE keeper'a taşınır (tekillikler mesaj kimliğidir — küresel, çakışmaz). `ReplyDraftSpan` FK'siz düz `conversationId`
   // taşır (bağa Cascade ile bağlı) → aynı turda keeper'a taşınır, yoksa kümeleme kaybedenin kimliğini sayardı.
-  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration", "GuestCommitment", "HostQuestion", "ConversationBlock", "ReplyDraftLink", "ReplyDraftSpan"],
+  // `InternalNote` (11-18, migration 99): FK SetNull — not kaybolmaz ama hangi konuşmadan yazıldığı (bağlam) SESSİZCE kopardı; silmeden ÖNCE
+  // keeper'a taşınır. `SemanticReading` (migration 99): FK Cascade — kaybeden silinince modelin okuma kaydı (gölge ölçümü) SESSİZCE silinirdi;
+  // mesaj keeper'a taşındığı için kayıt da onu izler (tekillik mesaj kimliği + katman — küresel, çakışmaz).
+  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration", "GuestCommitment", "HostQuestion", "ConversationBlock", "ReplyDraftLink", "ReplyDraftSpan", "InternalNote", "SemanticReading"],
 } as const;
 
 export function inventoryConversationReferences(): string[] {
@@ -304,7 +309,7 @@ export async function applyConversationDedupe(
           messagesDropped: 0,
           messagesMovedUnique: 0,
           messagesMovedNull: 0,
-          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0, conversationBlock: 0, replyDraftLink: 0, replyDraftSpan: 0 },
+          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0, conversationBlock: 0, replyDraftLink: 0, replyDraftSpan: 0, internalNote: 0, semanticReading: 0 },
           conversationsBefore,
           conversationsAfter: conversationsBefore,
           messagesBefore,
@@ -341,7 +346,7 @@ export async function applyConversationDedupe(
       let dropped = 0;
       let movedUnique = 0;
       let movedNull = 0;
-      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0, conversationBlock: 0, replyDraftLink: 0, replyDraftSpan: 0 };
+      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0, conversationBlock: 0, replyDraftLink: 0, replyDraftSpan: 0, internalNote: 0, semanticReading: 0 };
 
       for (const key of keys) {
         // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
@@ -521,6 +526,19 @@ export async function applyConversationDedupe(
         ).count;
         refs.replyDraftSpan += (
           await tx.replyDraftSpan.updateMany({
+            where: { conversationId: { in: loserIds } },
+            data: { conversationId: plan.keeper.id },
+          })
+        ).count;
+        // İç not (FK SetNull) + anlam okuması gölge kaydı (cascade FK) — migration 99: silmeden ÖNCE keeper'a.
+        refs.internalNote += (
+          await tx.internalNote.updateMany({
+            where: { conversationId: { in: loserIds } },
+            data: { conversationId: plan.keeper.id },
+          })
+        ).count;
+        refs.semanticReading += (
+          await tx.semanticReading.updateMany({
             where: { conversationId: { in: loserIds } },
             data: { conversationId: plan.keeper.id },
           })

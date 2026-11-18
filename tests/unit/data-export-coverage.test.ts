@@ -38,6 +38,7 @@ const EXPORTED: Record<string, string> = {
   LicenseHolder: "prisma.licenseHolder.findMany", // işletme belgesi hak sahibi (Faz 1a, migration 95) — vergi no özeti / şifresi YOK, son iki hane
   BusinessLicense: "prisma.businessLicense.findMany", // işletme belgesi (Faz 1a) — durum ev sahibinin gördüğü gibi (under_review → pending)
   LicenseUnit: "units: { select: { propertyId: true } }", // belgenin kapsadığı daireler, belge satırının içinde
+  InternalNote: "prisma.internalNote.findMany", // ekibin kendi notu (migration 99) — ev sahibi verisi; yazan adı kopyadan
 };
 
 /** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */
@@ -88,6 +89,8 @@ const EXCLUDED: Record<string, string> = {
     "Taslak ↔ gönderilen metin bağı (migration 96) — iç kalite ölçümü: türetilmiş sınıf + sayılar, taslak / fark şifreli ve saklama süresinde boşalır; kaynakları (mesajlar ve gönderilen cevap) dökümde",
   ReplyDraftSpan:
     "Ev sahibinin eklediği parçanın şifreli + sır maskeli kopyası ve vektörü (migration 96) — türetilmiş; asıl metin gönderilen mesaj olarak dökümde",
+  SemanticReading:
+    "Anlam okumasının gölge kaydı (migration 99) — iç kalite ölçümü: modelin okuması (kapalı küme etiketler, konum, kısa neden) ve bugünkü kuralla kıyas; alıntı metni yok, kaynağı (mesaj) dökümde; konuşmayla birlikte ve saklama süresinde silinir",
   StaffChannelBinding:
     "Ekip kişisinin WhatsApp bağı (migration 97) — numara yalnız şifreli + HMAC özeti, kod özeti; kimlik bilgisi niteliğinde (bağ Ayarlar › Ekip kişileri'nden görülür / kaldırılır), dökümde düz numara olmaz",
   HostQuestion:

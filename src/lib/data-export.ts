@@ -87,6 +87,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     autoMessages,
     licenseHolders,
     businessLicenses,
+    internalNotes,
   ] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
@@ -361,6 +362,13 @@ export async function buildOrganizationDataExport(organizationId: string) {
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
+    // İç notlar (migration 99): ekibin kendi yazdığı kayıtlar (telefon görüşmesi, hatırlatma) — ev sahibi verisi, taşınabilir. Yazan kişinin
+    // adı satırdaki kopyadan (kişi ekipten çıkmış olabilir); kullanıcı kimliği dökümde `users` altında.
+    prisma.internalNote.findMany({
+      where: { organizationId },
+      select: { id: true, propertyId: true, reservationId: true, conversationId: true, authorName: true, body: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
   ]);
   if (!org) return null;
   return {
@@ -375,6 +383,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     propertyInstructions,
     historyLearnReviews,
     autoMessages,
+    internalNotes,
     // "under_review" çakışma sebebiyle de oluşur → ev sahibine "İnceleniyor" gibi "pending" görünür (başka hesap hakkında sızıntı yok).
     businessLicenses: {
       holders: licenseHolders,

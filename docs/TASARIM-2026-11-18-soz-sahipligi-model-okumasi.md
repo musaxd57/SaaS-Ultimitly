@@ -64,6 +64,10 @@ Model düşerse (anahtar yok, zaman aşımı, bozuk cevap) her aşamada bugünk�
 
 ## 4. Kayıt ve gizlilik
 
+**Durum (11-18 gece): tablo YAZILDI** — `SemanticReading` (migration 99), katman adıyla genel (ev sahibinin sözü + ileride "cevap hangi
+isteği karşıladı"); mesaj + katman başına tek satır; konuşmayla birlikte, saklama süresinde ve misafir silme talebinde silinir; dışa
+aktarılmaz. Okuyucuyu bu tabloya bağlayan kanca sıradaki dilim.
+
 Gölge kaydı için yeni tablo gerekir (migration; kurucu onayı var — "migrationları yapabilirsin"): mesaj başına bir satır; modelin ifadeleri
 (okuma, konu, gün, saat, alıntının metindeki KONUMU, neden), sözcük ağının kararı, kıyas, model, istem kimliği, süre. Alıntı metni
 saklanmaz (konum yeter — metin mesaj satırında zaten var); modelin nedeni kısa serbest metindir (≤ 240 karakter) ve mesajı yeniden

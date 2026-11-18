@@ -215,6 +215,8 @@ model Organization {
   hostQuestions         HostQuestion[]
   licenseHolders        LicenseHolder[]
   businessLicenses      BusinessLicense[]
+  internalNotes         InternalNote[]
+  semanticReadings      SemanticReading[]
 }
 
 model User {
@@ -300,6 +302,7 @@ model User {
 
   hostChannelBindings  HostChannelBinding[]
   staffChannelBindings StaffChannelBinding[]
+  internalNotes        InternalNote[]
 
   @@index([organizationId])
   @@index([lastActiveOrganizationId])
@@ -450,6 +453,7 @@ model Property {
   historyLearnReviews HistoryLearnComparison[]
   autoMessages        AutoMessageTemplate[]
   licenseUnits        LicenseUnit[]
+  internalNotes       InternalNote[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -616,6 +620,7 @@ model Reservation {
   tasks          Task[]
   supplyRequests SupplyRequest[]
   signals        Signal[]
+  internalNotes  InternalNote[]
 
   // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
   // every 2-min cron — index it so that's a seek, not a per-row scan.
@@ -719,17 +724,20 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property        Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  reservation     Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  messages        Message[]
-  signals         Signal[]
-  items           ConversationItem[]
-  decisions       DecisionRequest[]
+  property         Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation      Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages         Message[]
+  signals          Signal[]
+  items            ConversationItem[]
+  decisions        DecisionRequest[]
   // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
-  aiGenerations   AiGeneration[]
-  replyDraftLinks ReplyDraftLink[]
+  aiGenerations    AiGeneration[]
+  replyDraftLinks  ReplyDraftLink[]
+  // Migration 99: ekip içi notlar (konuşma silinince bağ boşalır) + anlam okuması gölge kaydı (konuşmayla birlikte gider).
+  internalNotes    InternalNote[]
+  semanticReadings SemanticReading[]
   // Migration 62: misafire verilen sözler (metin YOK) — konuşmayla birlikte gider.
-  commitments     GuestCommitment[]
+  commitments      GuestCommitment[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -2517,4 +2525,76 @@ model LicenseEvent {
 
   @@index([licenseId, createdAt])
   @@index([organizationId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// İÇ NOT (migration 99; kurucu 11-18 akşam, "gerçek konuşma ile iç notu ayır" — `docs/TASARIM-2026-11-18-gercek-konusma-ve-ic-not.md`).
+// Ekibin kendi kaydı: telefon görüşmesi, kapıda söylenen, hatırlatma. Misafire GİTMEZ, mesaj değildir (konuşma akışına karışmaz), cevap
+// sayılmaz, hiçbir işi kapatmaz, yapay zekâya girdi olmaz. Konaklamaya bağlanır; konaklama yoksa daireye. `conversationId` yalnız BAĞLAMDIR
+// (not hangi konuşma sayfasından yazıldı) — konuşma silinince boşalır, not kalır.
+// Gizlilik: metin misafir adı / telefonu taşıyabilir → misafir verisi sayılır (saklama süresi ve silme talebi kapsamında; dışa aktarımda).
+// Yazan kişinin adı KOPYALANIR (kişi ekipten çıksa da not okunur); kişi silinince bağ boşalır.
+// ---------------------------------------------------------------------------
+model InternalNote {
+  id              String   @id @default(cuid())
+  organizationId  String
+  propertyId      String
+  reservationId   String?
+  conversationId  String?
+  authorUserId    String?
+  authorName      String
+  body            String
+  /// İstemcinin ürettiği istek kimliği: çift tıklama / yeniden deneme ikinci not yazmaz (işletme kapsamında tekil; NULL çakışmaz).
+  clientRequestId String?
+  createdAt       DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation  Reservation?  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  author       User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, clientRequestId])
+  @@index([organizationId, propertyId, createdAt])
+  @@index([reservationId, createdAt])
+  @@index([conversationId])
+}
+
+// ---------------------------------------------------------------------------
+// ANLAM OKUMASI — GÖLGE KAYDI (migration 99; kurucu 11-18 akşam: "anlamı model güçlerine bırak ama arkada hızlı kontroller sağlansın,
+// doğru anlandığına dair anlama şekli ve nedeni tutulsun"). Bir mesajı modelin NASIL okuduğu, kodun doğrulaması ve bugünkü kuralın kararıyla
+// kıyası. Davranışı DEĞİŞTİRMEZ: ölçüm ve teşhis içindir. Katman (`layer`) kapalı kümedir (kodda): ev sahibinin sözü (`host_commitment`),
+// cevabın hangi isteği karşıladığı (`reply_items`) …; mesaj + katman başına TEK satır (yeniden deneme ikinci satır yazmaz).
+// `detailJson`: ifadeler — okuma, konu, gün, saat, alıntının metindeki KONUMU, doğrulama sonucu, modelin kısa nedeni. Alıntı METNİ saklanmaz
+// (metin mesaj satırında). Modelin nedeni mesajı yeniden anlatabilir → satır misafir verisi gibi ele alınır: konuşmayla birlikte silinir,
+// saklama süresinde ve silme talebinde silinir; dışa aktarılmaz (iç kalite kaydı).
+// ---------------------------------------------------------------------------
+model SemanticReading {
+  id              String   @id @default(cuid())
+  organizationId  String
+  conversationId  String
+  /// Okunan mesaj (düz kimlik).
+  messageId       String
+  layer           String
+  /// ok · no_key · too_long · http_error · timeout · invalid_output · budget (kodda kapalı küme)
+  outcome         String
+  /// Bugünkü kuralın (sözcük ağı) kararı; kıyas yoksa NULL.
+  lexicalDecision String?
+  /// Modelin okumasından doğrulama SONRASI çıkan karar; okuma başarısızsa NULL.
+  modelDecision   String?
+  /// agree · model_holds · model_opens; kıyas yoksa NULL.
+  agreement       String?
+  detailJson      String?
+  model           String?
+  /// İstem kimliği (SHA-256 ilk 12).
+  promptId        String?
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, layer])
+  @@index([organizationId, layer, createdAt])
+  @@index([conversationId])
 }

@@ -230,6 +230,9 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         : 0;
 
       // --- Demo org'unun işletme verisi silinir (denetim kaydı KORUNUR) ---
+      // İç notlar (migration 99): konaklamaya bağlı olanlar konaklamayla zincirleme gider; DAİREYE yazılan (konaklamasız) not, daire
+      // silinmediği için kalırdı → açıkça silinir. Konuşma silinmeden ÖNCE (bağ boşalmadan), işletme kapsamıyla.
+      await tx.internalNote.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       await tx.conversation.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } }); // mesajlar zincirleme
       await tx.task.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } }); // güncellemeler zincirleme
       await tx.supplyRequest.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });

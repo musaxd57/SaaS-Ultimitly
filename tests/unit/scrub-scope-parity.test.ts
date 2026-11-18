@@ -55,7 +55,9 @@ function schemaColumns(): Record<string, Set<string>> {
       // ⚠️ İlişkiler ve ENUM'lar hâlâ dışarıda — ilişki alanı model adı taşır,
       // enum ise kendi adını; ikisi de bu listede yok. Şemaya bir gün enum
       // kolonu eklenirse kanarya onu da göremez (bilinen sınır).
-      const m = /^\s+(\w+)\s+(String|Boolean|Int|BigInt|Float|Decimal|DateTime|Json|Bytes)(\[\])?\??\s*(.*)$/.exec(line);
+      // 🚨 Tip adından sonra SÖZCÜK SINIRI (11-18, migration 99'da yakalandı): sınır olmadan `internalNotes InternalNote[]` ilişki alanı
+      // "Int" + "ernalNote[]" diye KOLON sayılıyordu (model adı bir skaler tip adıyla başlıyor) → kanarya ilişki için yanlış alarm verdi.
+      const m = /^\s+(\w+)\s+(String|Boolean|Int|BigInt|Float|Decimal|DateTime|Json|Bytes)\b(\[\])?\??\s*(.*)$/.exec(line);
       if (m && !m[4].includes("@relation") && !m[4].includes("@id")) cols.add(m[1]);
     }
     out[name] = cols;
@@ -298,6 +300,30 @@ describe("WhatsApp soru metinleri (HostQuestion)", () => {
 
   it("HostQuestion kolon sayısı değişmedi (yeni kolon → misafir metni mi, karar ver)", () => {
     expect(COLS.HostQuestion?.size).toBe(29);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// İÇ NOT + ANLAM OKUMASI GÖLGE KAYDI (migration 99, kurucu 11-18 akşam). İkisi de anonimleştirilmez, SİLİNİR:
+//   · `InternalNote.body` ekibin serbest metnidir (telefon görüşmesi kaydı misafir adı / numarası taşıyabilir). Misafir silmesinde konaklamanın
+//     ve konuşmalarının notları; saklama süpürgesinde konaklamaya bağlı notlar konaklamanın süresi dolunca, konaklamasız notlar kendi yaşıyla silinir.
+//     `authorName` ekip üyesinin adıdır (misafir verisi değil); kalan kolonlar opak kimlik + damga.
+//   · `SemanticReading.detailJson` modelin kısa nedenini taşır (mesajı yeniden anlatabilir). Misafir silmesinde ve saklama süpürgesinde
+//     (yaşa ve konaklamanın bitişine göre) silinir. Kalan kolonlar opak kimlik, kapalı küme etiket (katman · sonuç · karar · kıyas), model adı, istem kimliği, süre, damga.
+// ---------------------------------------------------------------------------
+describe("iç not ve anlam okuması gölge kaydı (InternalNote, SemanticReading)", () => {
+  it("misafir silmesi ikisini de SİLER; saklama süpürgesi ikisini de kendi (dallardan bağımsız) adımında siler", () => {
+    const erasure = read("src/lib/erasure.ts");
+    const retention = read("src/lib/data-retention.ts");
+    expect(erasure).toMatch(/db\.internalNote\.deleteMany\(/);
+    expect(erasure).toMatch(/db\.semanticReading\.deleteMany\(/);
+    expect(retention.match(/prisma\.internalNote\.deleteMany\(/g)?.length).toBe(1);
+    expect(retention.match(/prisma\.semanticReading\.deleteMany\(/g)?.length).toBe(1);
+  });
+
+  it("kolon sayıları değişmedi (yeni kolon → misafir metni mi, karar ver)", () => {
+    expect(COLS.InternalNote?.size).toBe(9);
+    expect(COLS.SemanticReading?.size).toBe(13);
   });
 });
 

@@ -714,6 +714,20 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     for (const [orgId, names] of orphanNamesByOrg) await scrubStyleProfile(prisma, orgId, names);
   }
 
+  // (3) İÇ NOT + ANLAM OKUMASI GÖLGE KAYDI (migration 99) — anonimleştirilmez, SİLİNİR. Yukarıdaki iki daldan BAĞIMSIZ, tek geçişte ve
+  // koşulu yalnız yaşa / konaklamanın bitişine bağlı: seçim bacağı, parti sınırı ya da "yeniden seçilir mi" sorusu yok (silinen satır bir
+  // daha eşleşmez → kendiliğinden sonlanır; konaklama süpürüldükten SONRA yazılan not da bir sonraki geçişte gider).
+  //  · İç not: ekibin serbest metni (telefon görüşmesi kaydı misafir adı / numarası taşıyabilir). Konaklamaya bağlı not, konaklama saklama
+  //    süresini doldurunca; konaklamasız (daireye yazılmış) not kendi yazılma anına göre silinir.
+  //  · Anlam okuması: modelin kısa nedeni mesajı yeniden anlatabilir. Saklama süresinden eski satır ve süresi dolmuş konaklamanın
+  //    konuşmalarına ait satır silinir (ölçüm kaydıdır; kaynağı mesaj).
+  await prisma.internalNote.deleteMany({
+    where: { OR: [{ reservation: { departureDate: { lt: cutoff } } }, { reservationId: null, createdAt: { lt: cutoff } }] },
+  });
+  await prisma.semanticReading.deleteMany({
+    where: { OR: [{ createdAt: { lt: cutoff } }, { conversation: { reservation: { departureDate: { lt: cutoff } } } }] },
+  });
+
   return { anonymized };
 }
 
