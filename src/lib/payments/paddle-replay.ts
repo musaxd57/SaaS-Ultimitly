@@ -192,16 +192,17 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
 
   // Seçilenler sayfa sayfa (alınma zamanı + kimlik imleci; sayfa sınırında aynı anda alınmış iki satır atlanmaz / tekrarlanmaz).
   // Küçültülmüş yük bellekte elenir — sayfa dolu geldikçe okumaya devam edildiği için yer kaplasa da arkasındakileri gizleyemez.
-  const chosen: { payloadJson: string; createdAt: Date }[] = [];
+  type Candidate = { id: string; payloadJson: string; createdAt: Date };
+  const chosen: Candidate[] = [];
   let read = 0;
-  let cursor: { createdAt: Date; id: string } | null = null;
+  let cursor: Candidate | null = null;
   let truncated = false;
-  const afterCursor = (c: { createdAt: Date; id: string } | null): Prisma.WebhookEventWhereInput => ({
+  const afterCursor = (c: Candidate | null): Prisma.WebhookEventWhereInput => ({
     AND: [base, selection, ...(c ? [{ OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] }] : [])],
   });
   for (;;) {
     const take = Math.min(PADDLE_REPLAY_PAGE, PADDLE_REPLAY_MAX_PER_PASS - read);
-    const page = await prisma.webhookEvent.findMany({
+    const page: Candidate[] = await prisma.webhookEvent.findMany({
       where: afterCursor(cursor),
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take,
