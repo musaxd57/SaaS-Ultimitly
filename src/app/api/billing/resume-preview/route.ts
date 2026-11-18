@@ -32,6 +32,6 @@ export const POST = withOwner(async (session) => {
     amount,
     annual: r.annual,
     confirm: resumeConfirmText(r.planName, amount, r.annual),
-    previewToken: signResumeToken({ org: session.organizationId, priceId: r.priceId, amount }),
+    previewToken: signResumeToken({ org: session.organizationId, priceId: r.priceId, amount, sub: r.providerRef }),
   });
 });

@@ -20,7 +20,7 @@ vi.mock("@/lib/api", async (orig) => {
 import { POST as preview } from "@/app/api/billing/resume-preview/route";
 import { POST as resume } from "@/app/api/billing/resume/route";
 import { POST as webhook } from "@/app/api/webhooks/paddle/route";
-import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
+import { RESUME_PENDING_LOCK, RESUME_TEXT } from "@/lib/billing/resume";
 import { createHmac } from "node:crypto";
 
 type PaddleState = {
@@ -40,6 +40,8 @@ type PaddleState = {
   resumeOkStatus?: string;
   /** Devam yanıtının gövdesindeki durum (verilmezse gerçek durum; null → alan yok). */
   resumeBodyStatus?: string | null;
+  /** Her abonelik okumasından (GET) önce çalışır — istek sürerken yerel satırın değişmesini (webhook) sınamak için. */
+  onGet?: () => Promise<void>;
 };
 let includeSeen: string[] = [];
 let pricingPreviewCalls = 0;
@@ -55,6 +57,7 @@ function stubPaddle() {
       const method = init?.method ?? "GET";
       const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
       if (method === "GET" && /^\/subscriptions\/sub_\w+$/.test(path)) {
+        await paddle.onGet?.();
         const st = paddle.statusSeq.length > 0 ? paddle.statusSeq.shift()! : paddle.status;
         const q = new URL(url).searchParams.get("include");
         if (q) includeSeen.push(q);
@@ -362,5 +365,53 @@ describe("Aboneliği devam ettir", () => {
     const statuses = (await Promise.all([doResume(a), doResume(b)])).map((r) => r.status).sort();
     expect(statuses).toEqual([200, 409]);
     expect(resumeCalls).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Codex 11-17 B2 sınıfı (anahtar KAPALI — açılmadan önce): devam belirteci aboneliği bağlamıyordu ve Paddle çağrısından önce yerel satır
+  // yeniden okunmuyordu → istek sürerken (ya da önizlemeden sonra) kayıtlı abonelik değişirse "devam" başka aboneliğe gidebiliyordu.
+  // -------------------------------------------------------------------------
+  const resumePosts = () =>
+    vi.mocked(fetch).mock.calls.filter(([u, init]) => (init as RequestInit | undefined)?.method === "POST" && /\/resume$/.test(new URL(String(u)).pathname)).length;
+
+  it("🚨 önizlemeden SONRA kayıtlı abonelik değişti (sub_9, yine duraklatılmış) → eski belirteç geçmez: 400, Paddle'a devam GİTMEZ", async () => {
+    const t = await token(); // sub_1 için
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { providerRef: "sub_9" } });
+    const r = await doResume(t);
+    expect(r.status).toBe(400); // ⬅️ ESKİDE devam isteği sub_9'a gidiyordu
+    expect((await r.json()).fields.error).toBe(RESUME_TEXT.tokenExpired);
+    expect(resumePosts()).toBe(0);
+  });
+
+  it("🚨 kilitten sonraki Paddle durum okuması sırasında kayıtlı abonelik değişti → devam GİTMEZ (400), kilit ve onay geri bırakılır", async () => {
+    const t = await token();
+    let gets = 0;
+    paddle.onGet = async () => {
+      // Devam isteğinde dördüncü okuma = kilitten sonraki canlı durum (önce: fiyat, durum, tekrarlayan tutar).
+      if (++gets === 4) await prisma.subscription.update({ where: { organizationId: orgId }, data: { providerRef: "sub_9" } });
+    };
+    const r = await doResume(t);
+    expect(r.status).toBe(400); // ⬅️ ESKİDE 200 + devam sub_1'e (artık kayıtlı olmayan abonelik)
+    expect((await r.json()).fields.error).toBe(RESUME_TEXT.tokenExpired);
+    expect(resumePosts()).toBe(0);
+    expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(0);
+    // Onay tüketilmedi: satır geri dönünce aynı belirteç geçer.
+    paddle.onGet = undefined;
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { providerRef: "sub_1" } });
+    expect((await doResume(t)).status).toBe(200);
+    expect(resumeCalls).toBe(1);
+  });
+
+  it("🚨 kilitten sonraki okuma sırasında webhook yerel satırı 'etkin' yazdı (Paddle okuması hâlâ duraklatılmış) → devam GİTMEZ (409 zaten etkin)", async () => {
+    const t = await token();
+    let gets = 0;
+    paddle.onGet = async () => {
+      if (++gets === 4) await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "active" } });
+    };
+    const r = await doResume(t);
+    expect(r.status).toBe(409); // ⬅️ ESKİDE 200 + ikinci devam
+    expect(await r.json()).toMatchObject({ alreadyActive: true });
+    expect(resumePosts()).toBe(0);
+    expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(0);
   });
 });

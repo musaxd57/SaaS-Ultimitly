@@ -88,13 +88,16 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
 
 const RESUME_TOKEN_TTL_MS = 10 * 60 * 1000;
 
-export type ResumeTokenPayload = { org: string; priceId: string; amount: string; jti: string; exp: number };
+// 🚨 `sub` (Codex 11-17 B2 sınıfı): önizlemenin yapıldığı abonelik. Belirteç yalnız kuruluş + fiyat + tutarı bağlıyordu; önizlemeden sonra kayıtlı
+// abonelik değişirse (yeni abonelik eskisinin yerine geçti) aynı onay BAŞKA aboneliğe "devam" olarak gidebiliyordu. Aboneliği taşımayan eski
+// biçim geçersizdir (en çok 10 dk'lık belirteçler etkilenir; müşteri tutarı yeniden onaylar).
+export type ResumeTokenPayload = { org: string; priceId: string; amount: string; sub: string; jti: string; exp: number };
 
 function mac(body: string): string {
   return createHmac("sha256", `resume:${process.env.AUTH_SECRET ?? ""}`).update(body).digest("base64url");
 }
 
-export function signResumeToken(p: { org: string; priceId: string; amount: string }): string {
+export function signResumeToken(p: { org: string; priceId: string; amount: string; sub: string }): string {
   const payload: ResumeTokenPayload = { ...p, jti: randomBytes(12).toString("base64url"), exp: Date.now() + RESUME_TOKEN_TTL_MS };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${body}.${mac(body)}`;
@@ -116,6 +119,7 @@ export function verifyResumeToken(token: string | null | undefined): ResumeToken
   }
   if (!p || typeof p.exp !== "number" || Date.now() > p.exp) return null;
   if (typeof p.jti !== "string" || !p.jti || typeof p.amount !== "string" || !p.amount) return null;
+  if (typeof p.sub !== "string" || !p.sub) return null;
   return p;
 }
 

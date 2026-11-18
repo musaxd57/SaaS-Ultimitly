@@ -37,7 +37,8 @@ export const POST = withOwner(async (session, req) => {
   const data = (await readJsonCappedOrNull(req)) as { previewToken?: unknown } | null;
   const token = verifyResumeToken(typeof data?.previewToken === "string" ? data.previewToken : null);
   if (!token) return badRequest({ error: RESUME_TEXT.tokenExpired });
-  if (token.org !== org || token.priceId !== r.priceId) return badRequest({ error: RESUME_TEXT.tokenExpired });
+  // Abonelik de bağlı (Codex 11-17 B2 sınıfı): önizlemeden sonra kayıtlı abonelik değiştiyse eski onay yenisine uygulanmaz.
+  if (token.org !== org || token.priceId !== r.priceId || token.sub !== r.providerRef) return badRequest({ error: RESUME_TEXT.tokenExpired });
 
   let claimed: boolean;
   try {
@@ -94,6 +95,29 @@ export const POST = withOwner(async (session, req) => {
     await releasePlanChangeNonce(token.jti);
     await clearLock();
     const already = live?.status === "active" || live?.status === "trialing";
+    return NextResponse.json({ error: already ? RESUME_TEXT.alreadyActive : RESUME_TEXT.statusUnknown, alreadyActive: already }, { status: 409 });
+  }
+  // 🚨 Yerel satır Paddle çağrısından HEMEN önce (Codex 11-17 B2 sınıfı): yukarıdaki karşılaştırmalar istek başında okunan satıra ve eski
+  // aboneliğin KENDİ Paddle durumuna bakıyordu — istek sürerken webhook kayıtlı aboneliği değiştirirse (ya da "etkin" yazarsa) göremiyorlardı.
+  // Abonelik değiştiyse belirteç uyuşmazlığıyla AYNI ret; durum artık duraklatılmış değilse canlı durum dalıyla AYNI ret. Okunamazsa kör
+  // devam yok. Kilit ve onay geri bırakılır.
+  let row: { provider: string; providerRef: string | null; status: string } | null;
+  try {
+    row = await prisma.subscription.findUnique({ where: { organizationId: org }, select: { provider: true, providerRef: true, status: true } });
+  } catch {
+    await releasePlanChangeNonce(token.jti);
+    await clearLock();
+    return NextResponse.json({ error: RESUME_TEXT.failed }, { status: 503 });
+  }
+  if (!row || row.provider !== "paddle" || row.providerRef !== r.providerRef) {
+    await releasePlanChangeNonce(token.jti);
+    await clearLock();
+    return badRequest({ error: RESUME_TEXT.tokenExpired });
+  }
+  if (row.status !== "paused") {
+    await releasePlanChangeNonce(token.jti);
+    await clearLock();
+    const already = row.status === "active" || row.status === "trialing";
     return NextResponse.json({ error: already ? RESUME_TEXT.alreadyActive : RESUME_TEXT.statusUnknown, alreadyActive: already }, { status: 409 });
   }
 
