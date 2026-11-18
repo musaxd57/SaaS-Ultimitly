@@ -22,10 +22,20 @@ const { paddle } = vi.hoisted(() => ({
     reads: [] as string[],
     /** Paddle'a giden HER çağrının yolu (biçimsiz kimlikle çağrı yapılmadığını göstermek için). */
     calls: [] as string[],
+    /** "İşlem aç" çağrısı dönmeden hemen önce bir kez çalışır (dış çağrı sürerken olan olayı kurmak için). */
+    onCreate: null as null | (() => Promise<void>),
   },
 }));
 // Onay kapısının "bekleyen ödeme var mı" bakışından hemen SONRA bir kez çalışır (yarış penceresi: kapı geçildi, ödeme o arada tamamlandı).
-const { gate } = vi.hoisted(() => ({ gate: { afterBlockCheck: null as null | (() => Promise<void>) } }));
+const { gate } = vi.hoisted(() => ({
+  gate: {
+    afterBlockCheck: null as null | (() => Promise<void>),
+    /** Bir kez: abonelik olayının kaydı kapatma adımı düşer (veritabanı arızası taklidi). */
+    failFulfilOnce: false,
+    /** Bir kez: işlem olayının kayıt yazımı düşer. */
+    failRecordOnce: false,
+  },
+}));
 vi.mock("@/lib/billing/checkout-paid", async (orig) => {
   const actual = await orig<typeof import("@/lib/billing/checkout-paid")>();
   return {
@@ -36,6 +46,20 @@ vi.mock("@/lib/billing/checkout-paid", async (orig) => {
       gate.afterBlockCheck = null;
       if (hook) await hook();
       return out;
+    }),
+    fulfilPaidCheckouts: vi.fn(async (...args: Parameters<typeof actual.fulfilPaidCheckouts>) => {
+      if (gate.failFulfilOnce) {
+        gate.failFulfilOnce = false;
+        throw new Error("kayıt kapatılamadı (test)");
+      }
+      return actual.fulfilPaidCheckouts(...args);
+    }),
+    recordPaidCheckout: vi.fn(async (...args: Parameters<typeof actual.recordPaidCheckout>) => {
+      if (gate.failRecordOnce) {
+        gate.failRecordOnce = false;
+        throw new Error("kayıt yazılamadı (test)");
+      }
+      return actual.recordPaidCheckout(...args);
     }),
   };
 });
@@ -48,6 +72,9 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
       const id = `txn_${paddle.created}`;
       const body = init.body as { custom_data?: Record<string, unknown> };
       paddle.txns.set(id, { status: "ready", subscription_id: null, custom_data: body.custom_data ?? null, origin: "api" });
+      const hook = paddle.onCreate;
+      paddle.onCreate = null;
+      if (hook) await hook();
       return { data: { id, status: "ready" } };
     }
     const t = path.match(/^\/transactions\/(txn_[A-Za-z0-9]+)$/);
@@ -107,7 +134,13 @@ import { POST as consentPost } from "@/app/api/billing/consent/route";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
 import { POST as pendingPost } from "@/app/api/billing/checkout-pending/route";
 import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
-import { paidCheckoutAlertKey, paidCheckoutsAwaitingSummary, releasePaidCheckoutByOperator } from "@/lib/billing/checkout-paid";
+import {
+  paidCheckoutAlertKey,
+  paidCheckoutsAwaitingSummary,
+  recordPaidCheckout,
+  releasePaidCheckoutByOperator,
+  sweepPaidCheckouts,
+} from "@/lib/billing/checkout-paid";
 import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
@@ -197,7 +230,8 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
     paddle.subs.clear();
     paddle.reads.length = 0;
     paddle.calls.length = 0;
-    gate.afterBlockCheck = null;
+    paddle.onCreate = null;
+    Object.assign(gate, { afterBlockCheck: null, failFulfilOnce: false, failRecordOnce: false });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
@@ -313,6 +347,45 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(second.status).toBe(400);
       expect(paddle.created).toBe(1);
       expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId, status: { in: ["open", "opening"] } } })).toBe(0);
+    });
+
+    it("Paddle işlemi açılırken (dış çağrı sürerken) işletmenin eski işlemi ödenirse yeni işlem istemciye VERİLMEZ ve iptal edilir", async () => {
+      const first = await openCheckout();
+      await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { status: "expired", openKey: null, closedAt: new Date() } });
+      // İkinci sekme yeni işlem açıyor; Paddle'ın "işlem aç" çağrısı dönerken eski işlemin ödeme olayı işleniyor.
+      paddle.onCreate = async () => {
+        paddle.txns.get("txn_1")!.status = "completed";
+        await postEvent("transaction.completed", txnData("txn_1", first.body.consentId!, { origin: "api" }));
+      };
+      const second = await openCheckout();
+      expect(second.status).toBe(400);
+      expect(second.body.transactionId).toBeUndefined();
+      expect(paddle.txns.get("txn_2")!.status).toBe("canceled");
+      expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId, status: { in: ["open", "opening"] } } })).toBe(0);
+    });
+
+    it("niyet yolundan dönen 'ödendi' de ödemenin yaşına göre metin seçer (eski ödemede 'birkaç dakika' denmez)", async () => {
+      const first = await openCheckout();
+      // Açık niyetin işlemi Paddle'da çoktan ödenmiş; sunucu bunu onay isteği sırasında görüyor.
+      paddle.txns.get("txn_1")!.status = "completed";
+      const now = await openCheckout();
+      expect(now.status).toBe(400);
+      expect(now.text).toContain(CHECKOUT_PENDING_MESSAGE);
+      expect(first.body.transactionId).toBe("txn_1");
+    });
+
+    it("yarışta görülen ödeme ESKİ bir ödemeyse (geç gelen kayıt) metin 'alındı, henüz tanımlanmadı' olur", async () => {
+      const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      gate.afterBlockCheck = async () => {
+        // Kapı geçildikten sonra, 20 dakika önce alınmış bir ödemenin kaydı beliriyor (olay geç işlendi).
+        await prisma.checkoutIntent.create({
+          data: { organizationId: orgId, consentId: consent.id, planCode: "pro", priceId: "pri_pro", providerRef: "txn_gec", status: "completed", expiresAt: new Date(), closedAt: new Date(Date.now() - 20 * MIN) },
+        });
+      };
+      const res = await openCheckout();
+      expect(res.status).toBe(400);
+      expect(res.text).toContain(CHECKOUT_PAID_AWAITING_MESSAGE);
+      expect(paddle.created).toBe(0);
     });
 
     it("istemci 'tamamlandı' sinyali: sunucu KENDİ açtığı işlemi Paddle'dan okur (kimlik istemciden gelmez) → ödenmişse kayıt hemen 'ödeme alındı'", async () => {
@@ -520,6 +593,27 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect((await intentOf(orgId))!.status).toBe("completed");
     });
 
+    it("🚨 abonelik hesaba BAĞLI ama kayıt kapanmamış (kapatma adımı kaçmış): uzlaştırma Paddle'daki işlemin aboneliğini yereldekiyle eşleştirip kapatır", async () => {
+      const consentId = await awaiting();
+      // Abonelik satırı bu ödemenin aboneliğini taşıyor (sonradan iptal edilmiş); kayıt "bekliyor" kalmış.
+      await prisma.subscription.create({ data: { organizationId: orgId, planCode: "pro", status: "canceled", provider: "paddle", providerRef: "sub_1" } });
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_1", custom_data: { consentId }, origin: "web" });
+      expect((await openCheckout()).status).toBe(201);
+      expect((await intentOf(orgId))!.status).toBe("fulfilled");
+      expect(paddle.reads).toEqual(["txn_c1"]); // abonelik Paddle'a sorulmadı — yerel eşleşme yetti
+    });
+
+    it("kapanış anı kaydın KAPANDIĞI andır (ödeme anı değil): eski ödemenin bırakılan kaydı saklama süpürgesinde hemen silinmez", async () => {
+      await awaiting();
+      const row = (await intentOf(orgId))!;
+      await prisma.checkoutIntent.update({ where: { id: row.id }, data: { closedAt: new Date(Date.now() - 100 * 24 * 60 * MIN) } });
+      await releasePaidCheckoutByOperator(row.id);
+      const closed = await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } });
+      expect(Date.now() - closed.closedAt!.getTime()).toBeLessThan(60_000);
+      await sweepCheckoutIntents();
+      expect(await prisma.checkoutIntent.findUnique({ where: { id: row.id } })).not.toBeNull();
+    });
+
     it("KİRACI: A'nın bekleyen ödemesi B'nin ödeme ekranını engellemez", async () => {
       await awaiting();
       const other = await owner("b");
@@ -537,6 +631,69 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(await releasePaidCheckoutByOperator(row.id)).toEqual({ ok: false, reason: "not_awaiting" });
       expect(await releasePaidCheckoutByOperator("yok")).toEqual({ ok: false, reason: "not_found" });
       expect((await openCheckout()).status).toBe(201);
+    });
+  });
+
+  describe("web kancası sağlamlığı — kayıt adımı düşerse olay işlenmiş SAYILMAZ, yeniden gelince tamamlanır", () => {
+    const invoices = () => prisma.invoice.count({ where: { organizationId: orgId } });
+
+    it("işlem olayında kayıt yazımı düşer → 500 (fatura da yazılmadı); olay yeniden gelince kayıt + fatura yazılır", async () => {
+      const first = await openCheckout();
+      gate.failRecordOnce = true;
+      expect(await postEvent("transaction.completed", txnData("txn_c1", first.body.consentId!))).toBe(500);
+      expect(await prisma.checkoutIntent.count()).toBe(0);
+      expect(await invoices()).toBe(0);
+      expect(await postEvent("transaction.completed", txnData("txn_c1", first.body.consentId!))).toBe(200);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      expect(await invoices()).toBe(1);
+    });
+
+    it("🚨 abonelik olayında kaydı kapatma adımı düşer → 500, ama 'ikinci abonelik' alarmı YİNE gider (yeniden gelen olayda koşulu görünmez olurdu)", async () => {
+      // Kayıtlı canlı abonelik A; ikinci ödemenin (B) işlemi geldi, kaydı bekliyor.
+      const a = await openCheckout();
+      await postEvent("subscription.created", subData("sub_a", "active", a.body.consentId!));
+      const consentB = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      await postEvent("transaction.completed", txnData("txn_b", consentB.id));
+      const rowB = () => prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: "txn_b" } });
+      expect((await rowB()).status).toBe("completed");
+
+      gate.failFulfilOnce = true;
+      expect(await postEvent("subscription.created", subData("sub_b", "active", consentB.id))).toBe(500);
+      const second = () => reportErrorMock.mock.calls.filter(([context]) => context === "paddle-webhook-second-subscription");
+      expect(second()).toHaveLength(1);
+      expect((await rowB()).status).toBe("completed");
+      // Olay yeniden gelir: abonelik zaten B; kayıt kapanır, alarm yinelenmez.
+      expect(await postEvent("subscription.updated", subData("sub_b", "active", consentB.id))).toBe(200);
+      expect((await rowB()).status).toBe("fulfilled");
+      expect(second()).toHaveLength(1);
+    });
+
+    it.each(["open", "opening", "expired", "canceled"])(
+      "niyet satırı '%s' durumunda kalmışken (niyet modülü çeviremedi) işlem olayının kaydı satırı 'ödeme alındı'ya çevirir",
+      async (status) => {
+        const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+        const open = status === "open" || status === "opening";
+        const row = await prisma.checkoutIntent.create({
+          data: { organizationId: orgId, consentId: consent.id, planCode: "pro", priceId: "pri_pro", providerRef: "txn_k1", status, openKey: open ? orgId : null, expiresAt: new Date() },
+        });
+        await recordPaidCheckout({ transactionId: "txn_k1", consentId: consent.id, subscriptionId: null, origin: "api", paidAt: new Date() });
+        expect(await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ status: "completed", openKey: null });
+      },
+    );
+
+    it.each(["fulfilled", "released", "failed"])("KONTROL: '%s' satıra dokunulmaz", async (status) => {
+      const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      const row = await prisma.checkoutIntent.create({
+        data: { organizationId: orgId, consentId: consent.id, planCode: "pro", priceId: "pri_pro", providerRef: "txn_k1", status, expiresAt: new Date() },
+      });
+      await recordPaidCheckout({ transactionId: "txn_k1", consentId: consent.id, subscriptionId: null, origin: "api", paidAt: new Date() });
+      expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(status);
+    });
+
+    it("köken alanı YOK ve işlemin aboneliği yerelde bağlı DEĞİL → ödeme ekranı işlemi sayılır, kayıt açılır", async () => {
+      const first = await openCheckout();
+      await postEvent("transaction.completed", txnData("txn_c1", first.body.consentId!, { origin: undefined, subscription_id: "sub_yeni" }));
+      expect((await intentOf(orgId))!).toMatchObject({ status: "completed", providerRef: "txn_c1" });
     });
   });
 
@@ -594,6 +751,30 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       });
       await sweepCheckoutIntents();
       expect(alarms()).toHaveLength(51);
+    });
+
+    it("süpürge sınırına çarparsa (gezilemeyen kayıt kaldı) operatöre ayrıca haber verir — sessiz sınır yok", async () => {
+      const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      await prisma.checkoutIntent.createMany({
+        data: Array.from({ length: 51 }, (_, i) => ({
+          organizationId: orgId,
+          consentId: consent.id,
+          planCode: "pro",
+          priceId: "pri_pro",
+          providerRef: `txn_s${i}`,
+          status: "completed",
+          expiresAt: new Date(),
+          closedAt: new Date(Date.now() - 60 * MIN),
+        })),
+      });
+      const backlog = () => reportErrorMock.mock.calls.filter(([context]) => context === "paddle-paid-not-linked-backlog");
+      await sweepPaidCheckouts(new Date(), { maxPages: 1 });
+      expect(alarms()).toHaveLength(50);
+      expect(backlog()).toHaveLength(1);
+      // KONTROL: sınır yetiyorsa bu alarm yok.
+      reportErrorMock.mockClear();
+      await sweepPaidCheckouts(new Date(), { maxPages: 3 });
+      expect(backlog()).toHaveLength(0);
     });
 
     it("🚨 saklama süresi 'ödeme alındı' kaydını SİLMEZ (silinseydi ikinci ödeme yine açılırdı); bağlanmış eski kayıt silinir", async () => {

@@ -325,6 +325,15 @@ async function createTransaction(
     await cancelTransaction(transactionId);
     return { kind: "busy", message: CHECKOUT_INTENT_OPENING_MESSAGE };
   }
+  // Paddle çağrısı sürerken (dış çağrı, saniyeler) işletmenin ESKİ bir işlemi ödenmiş olabilir (kapanmış niyetin geç ödemesi — o an bu
+  // niyet henüz "açılıyor"du, `closeOtherOpenIntent` onu göremedi; Opus incelemesi 11-18). Yeni işlem istemciye VERİLMEZ: kimliği
+  // bilinmeyen işlem ödenemez. İptal edilebilirse niyet kapanır; edilemezse açık kalır, süpürge kapatır.
+  if (await paidCheckoutAwaiting(input.organizationId)) {
+    if (await cancelOrConfirmClosed(transactionId)) {
+      await prisma.checkoutIntent.updateMany({ where: { id: intentId, status: "open" }, data: { status: "canceled", openKey: null, closedAt: now } });
+    }
+    return { kind: "paid" };
+  }
   return { kind: "open", transactionId, reused: false };
 }
 

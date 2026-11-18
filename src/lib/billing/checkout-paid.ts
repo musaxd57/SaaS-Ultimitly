@@ -33,15 +33,22 @@ export const CHECKOUT_FULFILLED_STATUS = "fulfilled";
 /** Ödeme geçersiz sayıldı (aboneliği Paddle'da iptal edilmiş / operatör bıraktı): yeni ödeme açılabilir. */
 export const CHECKOUT_RELEASED_STATUS = "released";
 
-/** Ödenmeden önceki her durum: Paddle "ödendi" derse satır bunlardan hangisinde olursa olsun "ödeme alındı"ya geçer. */
-export const CHECKOUT_UNPAID_STATUSES = ["open", "opening", "expired", "canceled", "failed"] as const;
+/**
+ * İşlem kimliği taşıyabilen, ödenmemiş her durum: Paddle "ödendi" derse satır bunlardan hangisinde olursa olsun "ödeme alındı"ya geçer
+ * (kapanmış olanlar dahil — yerel kapanış Paddle'ın "ödendi"sini geçersiz kılmaz). "failed" listede yok: o satırın işlem kimliği hiç olmadı.
+ */
+export const CHECKOUT_UNPAID_STATUSES = ["open", "opening", "expired", "canceled"] as const;
 
 /** Ödeme ekranı işlemi sayılan kökenler (Paddle `origin`): yenileme / plan değişikliği / ek tahsilat işlemleri kayıt AÇMAZ. */
 const CHECKOUT_ORIGINS: ReadonlySet<string> = new Set(["web", "api"]);
 
 /** Bu kadar süredir bağlanmayan ödeme operatöre bildirilir (abonelik olayı normalde saniyeler içinde gelir). */
 export const PAID_CHECKOUT_ALERT_AFTER_MS = 15 * 60_000;
-/** Süpürgenin bir turda baktığı en çok kayıt (sayfalı; aşılırsa kalanlar sonraki turda — sıra kimlikle, kayıt atlanmaz). */
+/**
+ * Süpürgenin bir turda gezdiği kayıt: sayfa boyu × sayfa sayısı (1.000). Sıra kimlikle ve her tur baştan: tur içinde kayıt atlanmaz, ama
+ * 1.000'den çok kayıt beklemeye devam ederse arkadakiler gezilmez → sınır aşılırsa operatöre ayrıca haber verilir (sessiz sınır yok).
+ * Bin takılı ödeme zaten genel bir arızadır.
+ */
 const SWEEP_PAGE = 50;
 const SWEEP_MAX_PAGES = 20;
 /** Onay rotasında art arda uzlaştırılan en çok kayıt (beklenen: 1). */
@@ -73,7 +80,9 @@ async function closePaidCheckout(
   status: typeof CHECKOUT_FULFILLED_STATUS | typeof CHECKOUT_RELEASED_STATUS,
   reason: string,
 ): Promise<boolean> {
-  const done = await prisma.checkoutIntent.updateMany({ where: { id: row.id, status: CHECKOUT_PAID_STATUS }, data: { status } });
+  // Kapanış anı bağlandığı / bırakıldığı andır (ödeme anı değil): 90 günlük saklama bu andan sayılır — eski bir ödemenin kaydı kapanır
+  // kapanmaz silinseydi, aynı işlemin yeniden gönderilen olayı "ödeme alındı"yı baştan açardı.
+  const done = await prisma.checkoutIntent.updateMany({ where: { id: row.id, status: CHECKOUT_PAID_STATUS }, data: { status, closedAt: new Date() } });
   if (done.count !== 1) return false;
   await clearAlertState(paidCheckoutAlertKey(row.id));
   await logEvent(
@@ -112,7 +121,18 @@ export async function recordPaidCheckout(input: {
   const existing = await prisma.checkoutIntent.findUnique({ where: { providerRef: input.transactionId }, select: { ...ROW, status: true } });
   const linkedOrg = await organizationOfSubscription(input.subscriptionId);
   if (existing) {
-    if (existing.status === CHECKOUT_PAID_STATUS && linkedOrg === existing.organizationId) {
+    // Satır hâlâ ödenmemiş durumda: niyet modülü onu "ödeme alındı"ya çeviremedi (o yol hatasını yutar — fatura / abonelik yazımı sürsün
+    // diye). Kalıcı kayıt burada yazılır; hata yutulmaz (olay yeniden gelir). Kapanmış niyetin sonradan ödenen işleminde bu, kaydın
+    // oluştuğu TEK yerdir: açık niyeti süpürge / sonraki onay Paddle'dan okuyup yakalar, kapanmış niyeti kimse yeniden okumaz.
+    let status = existing.status;
+    if ((CHECKOUT_UNPAID_STATUSES as readonly string[]).includes(status)) {
+      await prisma.checkoutIntent.updateMany({
+        where: { id: existing.id, status: { in: [...CHECKOUT_UNPAID_STATUSES] } },
+        data: { status: CHECKOUT_PAID_STATUS, openKey: null, closedAt: input.paidAt },
+      });
+      status = CHECKOUT_PAID_STATUS;
+    }
+    if (status === CHECKOUT_PAID_STATUS && linkedOrg === existing.organizationId) {
       await closePaidCheckout(existing, CHECKOUT_FULFILLED_STATUS, "transaction_subscription_linked");
       return "fulfilled";
     }
@@ -239,11 +259,15 @@ export async function paidCheckoutBlock(organizationId: string): Promise<{ paidA
  * Saatlik süpürge: 15 dakikadır bağlanmayan her ödeme önce uzlaştırılır; hâlâ bekliyorsa operatöre geçiş tabanlı alarm (kayıt başına bir
  * kez + 24 saatte hatırlatma). Bütün kayıtlar kimlik sırasıyla sayfalanır — alarm verilmiş eski kayıtlar yenilerin önünü kesmez.
  */
-export async function sweepPaidCheckouts(now: Date = new Date()): Promise<{ checked: number; closed: number; alerted: number }> {
+export async function sweepPaidCheckouts(
+  now: Date = new Date(),
+  opts: { /** Yalnız test: gezilen sayfa sınırı (üretimde sabit). */ maxPages?: number } = {},
+): Promise<{ checked: number; closed: number; alerted: number }> {
+  const maxPages = opts.maxPages ?? SWEEP_MAX_PAGES;
   const result = { checked: 0, closed: 0, alerted: 0 };
   const cutoff = new Date(now.getTime() - PAID_CHECKOUT_ALERT_AFTER_MS);
   let after: string | null = null;
-  for (let page = 0; page < SWEEP_MAX_PAGES; page++) {
+  for (let page = 0; page < maxPages; page++) {
     const rows: PaidCheckoutRow[] = await prisma.checkoutIntent.findMany({
       where: {
         status: CHECKOUT_PAID_STATUS,
@@ -267,9 +291,10 @@ export async function sweepPaidCheckouts(now: Date = new Date()): Promise<{ chec
         "paddle-paid-not-linked",
         new Error(
           `İşletme ${row.organizationId}: Paddle işlemi ${row.providerRef ?? "?"} ödendi (${minutes} dk önce) ama abonelik hesaba bağlanmadı — ` +
-            `müşteri yeniden ödeme yapamaz (bilerek engelli). Paddle: ${verdict.paddle}. Yapılacak: abonelik olayını Paddle'dan yeniden gönderin; ` +
-            `bağlanamıyorsa Paddle'da aboneliği iptal edip ödemeyi iade edin (iptal görülünce engel kendiliğinden kalkar) ya da Operasyon ` +
-            `Teşhisi'nden kaydı serbest bırakın.`,
+            `müşteri yeniden ödeme yapamaz (bilerek engelli). Paddle: ${verdict.paddle}. Yapılacak: abonelik olayını Paddle'dan yeniden gönderin. ` +
+            `Olay yine bağlanamıyorsa (ör. Ödeme incelemesi'nde "bağlanamadı" görünüyor) Paddle'da aboneliği HEMEN iptal edip ödemeyi iade edin — ` +
+            `iptal gerçekleşince engel kendiliğinden kalkar (dönem sonuna planlanan iptalde abonelik etkin kalır, engel de kalır) — ya da ` +
+            `Operasyon Teşhisi'nden kaydı serbest bırakın.`,
         ),
         { now },
       );
@@ -277,6 +302,14 @@ export async function sweepPaidCheckouts(now: Date = new Date()): Promise<{ chec
     }
     if (rows.length < SWEEP_PAGE) break;
     after = rows[rows.length - 1]!.id;
+    if (page === maxPages - 1) {
+      await alertOnTransition(
+        "checkout-paid-sweep-cap",
+        "paddle-paid-not-linked-backlog",
+        new Error(`${SWEEP_PAGE * maxPages} kayıttan fazla ödeme abonelik bekliyor — süpürge hepsini gezemedi (genel bir ödeme arızası olabilir).`),
+        { now },
+      );
+    }
   }
   return result;
 }

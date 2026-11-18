@@ -12,7 +12,7 @@ import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
 import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor } from "@/lib/billing/consent-copy";
 import { getEntitlement, planFitsPropertyCount } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE, checkoutBlockMessage } from "@/lib/billing/checkout-pending-shared";
-import { paidCheckoutBlock } from "@/lib/billing/checkout-paid";
+import { paidAtOf, paidCheckoutAwaiting, paidCheckoutBlock } from "@/lib/billing/checkout-paid";
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import { NextResponse } from "next/server";
@@ -161,7 +161,12 @@ export const POST = withOwner(async (session, req) => {
       planCode: row.planCode,
       priceId: parsed.data.priceId,
     });
-    if (intent.kind === "paid") return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+    if (intent.kind === "paid") {
+      // Ödeme bu istek sırasında görüldü (yarış / süresi dolmuş niyetin Paddle'da ödenmiş çıkması). Metin yine ödemenin yaşına göre: eski bir
+      // ödemede "birkaç dakika" sözü verilmez (Opus incelemesi 11-18).
+      const paid = await paidCheckoutAwaiting(session.organizationId).catch(() => null);
+      return badRequest({ _: paid ? checkoutBlockMessage(paidAtOf(paid)) : CHECKOUT_PENDING_MESSAGE });
+    }
     if (intent.kind === "busy") return NextResponse.json({ error: intent.message }, { status: 409 });
     if (intent.kind === "failed") return NextResponse.json({ error: intent.message }, { status: 503 });
     return jsonOk({ ok: true, consentId: row.id, transactionId: intent.transactionId }, 201);

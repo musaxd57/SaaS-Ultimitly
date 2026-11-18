@@ -471,9 +471,6 @@ async function applySubscriptionEventOnce(
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
     // Kartla deneme: kart eklendi (`trialing`) → "Ödemeniz işleniyor" kilidi de kalkar (Haiku 10-17).
     // Yalnız BU olayın ödemesinin kilidi kalkar (ödeme P4 — başka aboneliğin olayı yeni ödemenin kilidini silmesin).
-    // "Ödeme alındı, abonelik bekleniyor" kaydı (Codex 11-17): bu onayın aboneliği hesaba YAZILDI → kayıt kapanır. Durumdan bağımsız (bağ,
-    // satırdaki abonelik kimliğidir); kimlik bu olayla yazılmadıysa (kimliksiz olay) dokunulmaz.
-    if (providerRef && eventConsentId) await fulfilPaidCheckouts(organizationId, eventConsentId);
     if (status === "trialing") await clearCheckoutPending(organizationId, eventConsentId);
     if (status === "active") {
       await clearCheckoutPending(organizationId, eventConsentId);
@@ -489,6 +486,11 @@ async function applySubscriptionEventOnce(
         ),
       );
     }
+    // "Ödeme alındı, abonelik bekleniyor" kaydı (Codex 11-17): bu onayın aboneliği hesaba YAZILDI → kayıt kapanır. Durumdan bağımsız (bağ,
+    // satırdaki abonelik kimliğidir); kimlik bu olayla yazılmadıysa (kimliksiz olay) dokunulmaz. Hata YUTULMAZ (olay yeniden gelir) — bu
+    // yüzden yukarıdaki "ikinci abonelik" alarmından SONRA: alarmın koşulu yazımdan ÖNCEKİ satıra bağlı, yeniden gelen olayda artık
+    // görünmez; burada fırlayan hata o alarmı yutmasın (Opus incelemesi 11-18).
+    if (providerRef && eventConsentId) await fulfilPaidCheckouts(organizationId, eventConsentId);
     // STRICT match only: the event must carry the pending TARGET price. A lock
     // without a matching event (incl. any legacy null-holder row) expires via
     // its 15-min TTL instead of being cleared by an unrelated event.
