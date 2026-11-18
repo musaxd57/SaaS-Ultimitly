@@ -337,11 +337,10 @@ export async function decideHostDecision(args: {
       data: { status, ...(resultMessageId ? { resultMessageId } : {}), version: { increment: 1 } },
     });
   // Mesaj misafire ulaşmış OLABİLİR: kart "gönderim doğrulanamadı" (kör tekrar yok — ev sahibi kanaldan bakar).
+  // 🚨 BAĞLI İHTİYAÇ KAPANMAZ (kurucu 11-18 akşam): öğe eskiden burada "tamamlandı" oluyordu — misafirin mesajı gördüğü bilinmeden. Kart
+  // açık kalır (ev sahibinin işi); öğe, ev sahibi kartı kapatınca ("kanaldan baktım") kapanır (↑ `dismiss`). Yeniden gönderim yok.
   const unverified = async (why: string): Promise<DecideOutcome> => {
     const fin = await settle("send_unverified", null).catch(() => ({ count: 0 }));
-    if (decision.itemId) {
-      await applyItemEvent(prisma, { organizationId, ids: [decision.itemId], event: "host_done", now }).catch(() => {});
-    }
     await audit(approve ? "decision.approved" : "decision.declined", { delivery: "unverified", why, ...(fin.count === 1 ? {} : { finalize: "lost" }) });
     return { kind: "unverified", error: DECISION_UNVERIFIED_TEXT };
   };
@@ -401,11 +400,32 @@ export async function decideHostDecision(args: {
   // Bu kilidin kimliğiyle kuyrukta başka bir içerik var: o gönderim sürüyor olabilir.
   if (sent.status === "idempotency_conflict") return unverified("idempotency_conflict");
 
-  // "recorded" (kanala bağlı olmayan / iç QR konuşma) bugünkü "sent" yoluyla BİREBİR aynı ele alınır (C1: yalnız sonuç dürüstleşti).
+  // Yeniden açma (kesin olumsuz sonuç): hiçbir şey gitmedi → kart yeniden "karar bekliyor"; yeni sürüm sonuçta döner (istemci bir sonraki
+  // denemede onu gönderir — yoksa her yeniden deneme önce "kart değişti" ile düşerdi).
+  const reopenedVersion = async () => ((await reopen()).count === 1 ? lockedVersion + 1 : undefined);
+
   if (sent.status === "sent" || sent.status === "queued" || sent.status === "recorded") {
+    const delivery: DeliveryOutcome =
+      sent.status === "queued" ? deliveryOutcomeOfOutboxStatus(sent.deliveryStatus) : sent.status === "recorded" ? sent.delivery : "channel_accepted";
+    // 🚨 ESKİ KUYRUK SATIRI (bu kimlikle, doğrudan yoldan önceki kodun yazdığı): sonucu SATIRIN DURUMUNDAN okunur (kurucu 11-18 akşam) —
+    // "kuyrukta bulundu" tek başına "gitti" değildir. Kanal kabul ettiyse aşağıdaki olağan kapanış; KESİNLİKLE gitmediyse (başarısız / iptal /
+    // engelli) kart yeniden açılır — yeni sürüm yeni istek kimliğidir, ölü satır yolu bir daha kesmez; aksi (sırada · sonucu belirsiz)
+    // misafire ulaşmış ya da ulaşacak OLABİLİR → "gönderim doğrulanamadı". Hiçbirinde ikinci gönderim yok.
+    if (sent.status === "queued" && delivery !== "channel_accepted") {
+      if (delivery !== "not_delivered") return unverified("queued");
+      return {
+        kind: "failed",
+        httpStatus: 502,
+        error: "Mesaj gönderilemedi. Lütfen kısa bir süre sonra tekrar deneyin.",
+        version: await reopenedVersion(),
+      };
+    }
     const resultMessageId = sent.message?.id ?? null;
     const fin = await settle(approve ? "approved" : "declined", resultMessageId);
-    if (decision.itemId) {
+    // 🚨 Bağlı ihtiyaç YALNIZ misafirin mesajı gördüğü kanıtlanınca kapanır: kanal kabul etti ya da iç QR sohbetinde görünür. Hedefi olmayan
+    // konuşmada ("local_only") karar kaydedilir ama misafire hiçbir şey gitmemiştir → öğe açık kalır (ev sahibi misafire kendi kanalından
+    // haber verip öğeyi kapatır). Eskiden üçü de aynı ele alınıyor, öğe her durumda "tamamlandı" oluyordu.
+    if (decision.itemId && (delivery === "channel_accepted" || delivery === "qr_visible")) {
       await applyItemEvent(prisma, { organizationId, ids: [decision.itemId], event: "host_done", now });
     }
     // Mesaj gitti; kart o arada başka bir yoldan değiştiyse (yarıda kalan gönderim sayılıp kapatıldı) sonuç yine "gitti"dir.
@@ -413,15 +433,11 @@ export async function decideHostDecision(args: {
       ...(fin.count === 1 ? {} : { finalize: "lost" }),
       ...(textCheckOn && input.force === true ? { textCheck: "overridden" } : {}),
     });
-    const delivery: DeliveryOutcome =
-      sent.status === "queued" ? deliveryOutcomeOfOutboxStatus(sent.deliveryStatus) : sent.status === "recorded" ? sent.delivery : "channel_accepted";
     return { kind: "done", status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued", delivery };
   }
 
-  // Kesin olumsuz sonuçlar: hiçbir şey gitmedi → kart yeniden açılır (ev sahibi düzeltip tekrar dener). Yeni sürüm sonuçta döner:
-  // istemci bir sonraki denemede onu gönderir (yoksa her yeniden deneme önce "kart değişti" ile düşerdi).
-  const reopened = await reopen();
-  const version = reopened.count === 1 ? lockedVersion + 1 : undefined;
+  // Kesin olumsuz sonuçlar: hiçbir şey gitmedi → kart yeniden açılır (ev sahibi düzeltip tekrar dener).
+  const version = await reopenedVersion();
   switch (sent.status) {
     case "not_connected":
       return { kind: "failed", httpStatus: 502, error: "Kanal hesabınız bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlantınızı kurun.", version };

@@ -246,7 +246,10 @@ export default async function ConversationPage({
       : [];
   const resolvedRows = resolvedDecisionRows(decisionViews, TZ);
   // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez.
-  const decisionItems = decisionLinkedItemIds(decisionViews);
+  const decisionItems = decisionLinkedItemIds(
+    decisionViews,
+    new Set(itemsRead.views.filter((v) => isOpenForHost(v.effective)).map((v) => v.id)),
+  );
   // Son misafir mesajının tutuşu bir karar kartıyla anlatılıyorsa "AI emin olamadı / misafir cevabınızı bekliyor" bandı tekrar olur.
   const decisionCoversHold = shownDecisions.some((v) => isOpenDecision(v.effective) && v.messageId === lastInboundId);
   // Açıklar üstte (HEPSİ), sonra en yeni kapanmışlar tavana kadar; rozet açıkların toplamından (Codex 11-17 E4, kural `itemRowsForCard`).

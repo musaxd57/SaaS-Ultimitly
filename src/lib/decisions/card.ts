@@ -173,10 +173,17 @@ export function resolvedDecisionRows(views: readonly DecisionView[], timeZone: s
 /**
  * Sayfada bir kartla (açık / yanıtladınız) ya da sonuç satırıyla gösterilen kararların bağlı olduğu konuşma öğeleri — "Açık
  * işler" kartı aynı talebi ikinci kez göstermesin.
+ * 🚨 Sonuç SATIRI (onaylandı / reddedildi / kapatıldı) hâlâ AÇIK olan bir öğeyi GİZLEMEZ (kurucu 11-18 akşam): karar kaydedilmiş ama misafire
+ * ulaşmamışsa (hedefi olmayan konuşma) öğe ev sahibinin işi olarak kalır — burada gizlenirse hiçbir yerde görünmezdi (liste rozeti onu
+ * sayarken sayfa göstermezdi). Açık KART (karar bekleyen / gönderimi doğrulanamayan) öğeyi bugünkü gibi temsil eder.
  */
-export function decisionLinkedItemIds(views: readonly DecisionView[]): Set<string> {
-  const shown = new Set([...visibleDecisions(views), ...views.filter((v) => RESOLVED_SHOWN.has(v.effective))].map((v) => v.id));
-  return new Set(views.filter((v) => shown.has(v.id) && v.itemId).map((v) => v.itemId as string));
+export function decisionLinkedItemIds(views: readonly DecisionView[], openItemIds: ReadonlySet<string> = new Set()): Set<string> {
+  const carded = new Set(visibleDecisions(views).map((v) => v.id));
+  return new Set(
+    views
+      .filter((v) => v.itemId && (carded.has(v.id) || (RESOLVED_SHOWN.has(v.effective) && !openItemIds.has(v.itemId))))
+      .map((v) => v.itemId as string),
+  );
 }
 
 /** Talebin mesajından kısa, tek satırlık alıntı (boşluklar teke iner; uzunsa kod noktası sınırında kırpılır). */
