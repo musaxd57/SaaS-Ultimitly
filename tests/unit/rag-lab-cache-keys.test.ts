@@ -27,6 +27,11 @@ const input: SuggestReplyInput = {
   history: [],
   tone: "warm",
   language: "tr",
+  // İstem "şu an SS:DD" satırı taşır ve saat verilmezse gerçek saatten okunur: `suggestReply` ile `replyRequestIdentity` istemi ayrı
+  // anlarda kurar → iki kurulum bir dakika sınırının iki yanına düşerse kimlik ile gönderilen istem ayrışır (11-18 gece tam kapıda bir kez
+  // kırmızı; ürün hatası değil, testin iki `new Date()` yarışı). Saat girdide sabit → iki kurulum aynı anı görür. Rezervasyon yok: sabit
+  // tarihin eskiyecek bir penceresi de yok.
+  now: new Date("2026-11-18T09:00:00.000Z"),
 };
 
 function capture(): { bodies: Record<string, unknown>[] } {
