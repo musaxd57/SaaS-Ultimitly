@@ -327,7 +327,6 @@ async function main(): Promise<void> {
         ["dashboard", "Pano", "/dashboard"],
         ["inbox", "Gelen kutusu", "/inbox"],
         ...(conversation ? ([["inbox-konusma", "Konuşma ayrıntısı (yapay zekâ önerisi + cevap kutusu)", `/inbox/${conversation.id}`, true]] as [string, string, string, boolean?][]) : []),
-        ["inbox-yeni", "Yeni konuşma", "/inbox/new"],
         ["guest-chats", "QR misafir sohbetleri (liste)", "/guest-chats"],
         ...(qrConversation
           ? ([

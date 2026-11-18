@@ -1,62 +1,12 @@
-import { ArrowLeft, Building2 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { requireManagerSession } from "@/lib/auth/manager-page";
-import { prisma } from "@/lib/db";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { LinkButton } from "@/components/ui/link-button";
-import { EmptyState } from "@/components/empty-state";
-import { ConversationForm } from "@/components/inbox/conversation-form";
-import { formatDate } from "@/lib/utils";
 
+// "Yeni konuşma" formu KALDIRILDI (kurucu 11-18 akşam: "Lixus misafir konuşması uydurmaz. Konuşma ya kanaldan gelir ya QR'dan." — tasarım
+// `docs/TASARIM-2026-11-18-gercek-konusma-ve-ic-not.md` D2). Adres eski yer imleri 404 vermesin diye durur ve Gelen Kutusu'na yönlendirir.
+// Personel kapısı önce koşar (personel `/tasks`'a gider — öteki uygulama sayfalarıyla aynı kural, `manager-page-gate.test.ts`).
 export const dynamic = "force-dynamic";
 
 export default async function NewConversationPage() {
-  const session = await requireManagerSession();
-  const [properties, reservations] = await Promise.all([
-    prisma.property.findMany({
-      where: { organizationId: session.organizationId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.reservation.findMany({
-      where: { property: { organizationId: session.organizationId } },
-      select: { id: true, propertyId: true, guestName: true, arrivalDate: true },
-      orderBy: { arrivalDate: "desc" },
-      take: 100,
-    }),
-  ]);
-
-  const reservationOptions = reservations.map((r) => ({
-    id: r.id,
-    propertyId: r.propertyId,
-    label: `${r.guestName} · ${formatDate(r.arrivalDate)}`,
-  }));
-
-  return (
-    <>
-      <PageHeader title="Yeni Konuşma" description="Bir misafir konuşması başlatın.">
-        <LinkButton href="/inbox" variant="outline" size="sm">
-          <ArrowLeft className="size-4" /> Geri
-        </LinkButton>
-      </PageHeader>
-
-      {properties.length === 0 ? (
-        <EmptyState
-          icon={Building2}
-          title="Önce bir daire ekleyin"
-          description="Konuşma başlatmak için en az bir daireye ihtiyacınız var."
-        >
-          <LinkButton href="/properties/new" size="sm">
-            Daire ekle
-          </LinkButton>
-        </EmptyState>
-      ) : (
-        <Card className="max-w-2xl">
-          <CardContent className="pt-6">
-            <ConversationForm properties={properties} reservations={reservationOptions} />
-          </CardContent>
-        </Card>
-      )}
-    </>
-  );
+  await requireManagerSession();
+  redirect("/inbox");
 }

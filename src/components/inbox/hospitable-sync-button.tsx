@@ -54,7 +54,7 @@ export function HospitableSyncButton() {
         onClick={sync}
         disabled={busy}
         title="Airbnb / Booking konuşmalarını kanal bağlantınızdan çek (sadece okuma — hiçbir şey gönderilmez)"
-        // Kompakt SECONDARY: başlıktaki tek primary komut "Yeni konuşma".
+        // Kompakt SECONDARY (başlıktaki "Yeni konuşma" birincil düğmesi 11-18 akşam kaldırıldı; görünüm bilerek değiştirilmedi).
         // Yükseklik/radius diğer kontrollerle aynı (h-8 · rounded-md = 6px).
         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}
       >

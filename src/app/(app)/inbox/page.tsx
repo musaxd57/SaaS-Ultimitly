@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
+import { MessageSquare, AlertTriangle, Search, X } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { canManage } from "@/lib/api";
 import { orgTimezone } from "@/lib/timezone";
@@ -267,9 +267,6 @@ export default async function InboxPage({
           upgradeHref={billingTabAvailable(session.role) ? "/settings?tab=faturalandirma" : undefined}
           title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır.`}
         />
-        <LinkButton href="/inbox/new">
-          <Plus className="size-4" /> Yeni konuşma
-        </LinkButton>
       </PageHeader>
 
       {triageRows.length > 0 ? (
@@ -416,12 +413,12 @@ export default async function InboxPage({
             title={channelConnected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
             description={
               channelConnected
-                ? "Misafir mesajları geldikçe burada listelenir. Dilerseniz elle de konuşma başlatabilirsiniz."
-                : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
+                ? "Misafir mesajları geldikçe burada listelenir."
+                : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar."
             }
           >
-            {/* UX-14 (kurucu 11-13): boş durum başlıktaki "Yeni konuşma"nın KOPYASINI vermez (ekranda iki koyu düğme vardı); boşluğun
-                NEDENİNİ çözen tek eylemi verir — bağlantı yoksa ve kurabilecek kişiyse bağlantı. */}
+            {/* UX-14 (kurucu 11-13): boş durum boşluğun NEDENİNİ çözen tek eylemi verir — bağlantı yoksa ve kurabilecek kişiyse bağlantı.
+                "Yeni konuşma" girişi ve "elle konuşma başlatabilirsiniz" cümlesi 11-18 akşam KALDIRILDI (D2: konuşma ya kanaldan ya QR'dan gelir). */}
             {showConnectChannel(session, channelConnected) ? <ConnectChannelButton /> : null}
           </EmptyState>
         )

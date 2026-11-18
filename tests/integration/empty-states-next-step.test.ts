@@ -35,6 +35,7 @@ vi.mock("@/lib/channels", async (orig) => ({
 
 import { requireAuth } from "@/lib/auth";
 import InboxPage from "@/app/(app)/inbox/page";
+import NewConversationPage from "@/app/(app)/inbox/new/page";
 import PropertiesPage from "@/app/(app)/properties/page";
 import TasksPage from "@/app/(app)/tasks/page";
 import SentPage from "@/app/(app)/sent/page";
@@ -69,19 +70,34 @@ beforeEach(async () => {
 });
 
 describe("Mesajlar — boş gelen kutusu", () => {
-  it("hesap sahibi, bağlantı yok: boş durumda bağlantı düğmesi; 'Yeni konuşma' yalnız başlıkta (bir kez)", async () => {
+  // D2 (kurucu 11-18 akşam: "Lixus misafir konuşması uydurmaz. Konuşma ya kanaldan gelir ya QR'dan."): "Yeni konuşma" girişi ve boş
+  // durumdaki "elle konuşma başlatabilirsiniz" cümlesi KALKTI; boş durumun tek eylemi (bağlantı) ve kalan cümlesi aynı.
+  it("hesap sahibi, bağlantı yok: boş durumda bağlantı düğmesi; 'Yeni konuşma' girişi ve 'elle konuşma' önerisi YOK", async () => {
     await orgWith("owner");
     const tree = await InboxPage({ searchParams: sp({}) });
     expect(countHref(tree, CONNECT)).toBe(1);
-    expect(countHref(tree, "/inbox/new")).toBe(1);
+    expect(countHref(tree, "/inbox/new")).toBe(0);
+    const text = treeText(tree);
+    expect(text).not.toContain("Yeni konuşma");
+    expect(text).not.toContain("konuşma başlat");
+    expect(text).toContain("Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar.");
   });
 
-  it("bağlı: boş durumda düğme yok (başlıktaki eylemler yeter)", async () => {
+  it("bağlı: boş durumda düğme yok, 'elle konuşma' önerisi yok", async () => {
     await orgWith("owner");
     connected.value = true;
     const tree = await InboxPage({ searchParams: sp({}) });
     expect(countHref(tree, CONNECT)).toBe(0);
-    expect(countHref(tree, "/inbox/new")).toBe(1);
+    expect(countHref(tree, "/inbox/new")).toBe(0);
+    const text = treeText(tree);
+    expect(text).not.toContain("Yeni konuşma");
+    expect(text).not.toContain("konuşma başlat");
+    expect(text).toContain("Misafir mesajları geldikçe burada listelenir.");
+  });
+
+  it("🚨 eski yer imi /inbox/new 404 vermez: Gelen Kutusu'na yönlendirir (form çizilmez)", async () => {
+    await orgWith("owner");
+    await expect(NewConversationPage()).rejects.toThrow(/^NEXT_REDIRECT:\/inbox$/);
   });
 
   it("yönetici, bağlantı yok: kuramayacağı bağlantının düğmesi yok", async () => {

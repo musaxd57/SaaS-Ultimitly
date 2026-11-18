@@ -228,15 +228,6 @@ export const conversationReplySchema = z.object({
     .optional(),
 });
 
-export const conversationCreateSchema = z.object({
-  propertyId: z.string().min(1, "Daire seçin"),
-  reservationId: z.string().optional().or(z.literal("")),
-  guestIdentifier: z.string().trim().min(1, "Misafir bilgisi gerekli").max(200),
-  channel: z.string().max(40).default("manual"),
-  firstMessage: z.string().min(1, "İlk mesaj gerekli").max(10000),
-  priority: z.enum(PRIORITY.values).default("standard"),
-});
-
 export const conversationUpdateSchema = z.object({
   status: z.enum(CONVERSATION_STATUS.values).optional(),
   priority: z.enum(PRIORITY.values).optional(),

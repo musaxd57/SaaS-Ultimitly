@@ -1,9 +1,7 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { conversationCreateSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
+import { jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { applyInboundMessageRules } from "@/lib/automation";
-import { rateLimit } from "@/lib/rate-limit";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -25,56 +23,16 @@ export const GET = withManage(async (session, req) => {
   return jsonOk(conversations);
 });
 
-// Creating a conversation is an owner/manager action; staff are read + tasks.
-export const POST = withManage(async (session, req) => {
-  // Limitsizdi: her istek uyari e-postasi tetikleyebiliyordu (aciik role zincirinin halkasi) ve export boyutunu sinirsiz buyutuyordu.
-  const limited = await rateLimit(`conv-create:${session.organizationId}`, 60, 60_000);
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+/**
+ * 🚨 ELLE KONUŞMA AÇMA KALDIRILDI (kurucu 11-18 akşam, tasarım `docs/TASARIM-2026-11-18-gercek-konusma-ve-ic-not.md` §1 / D2): "Lixus misafir
+ * konuşması uydurmaz. Konuşma ya kanaldan gelir ya QR'dan." Bu uç eskiden ev sahibinin seçtiği kanal etiketiyle ("Airbnb" dahil) bir konuşma
+ * + misafirden gelmiş gibi bir mesaj yazıyordu; kanal kimliği yazılmadığı için konuşmanın gideceği yer yoktu. Formu ve girişi kaldırıldı.
+ * İstek sessizce yok sayılmaz: eski sekmeden gelen istek açık bir ret alır (405 + `Allow: GET`) ve HİÇBİR şey yazılmaz. Rol kapısı
+ * (`withManage`) yerinde kalır — personel / oturumsuz istek eskisi gibi 403 / 401 alır, bürünme yazma reddi de aynı.
+ * İleti, eski formun ret yanıtında gösterdiği kendi varsayılan metnidir (yeni metin yazılmadı; daha açıklayıcı bir metin kurucu onayına bağlı).
+ */
+const CREATE_REMOVED_MESSAGE = "Konuşma oluşturulamadı";
 
-  const data = await readJsonCappedOrNull(req);
-  const parsed = conversationCreateSchema.safeParse(data);
-  if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
-  const d = parsed.data;
-
-  if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
-    return badRequest({ propertyId: "Geçersiz daire" });
-  }
-
-  // The reservation (if linked) must belong to the SAME org AND property — never
-  // trust a client-supplied reservationId, or another tenant's guest data could
-  // be shown in this org's conversation sidebar.
-  if (d.reservationId) {
-    const reservation = await prisma.reservation.findFirst({
-      where: {
-        id: d.reservationId,
-        propertyId: d.propertyId,
-        property: { organizationId: session.organizationId },
-      },
-      select: { id: true },
-    });
-    if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
-  }
-
-  const conversation = await prisma.conversation.create({
-    data: {
-      propertyId: d.propertyId,
-      reservationId: d.reservationId || null,
-      guestIdentifier: d.guestIdentifier,
-      channel: d.channel,
-      priority: d.priority,
-      status: "new",
-      messages: {
-        create: {
-          direction: "inbound",
-          senderName: d.guestIdentifier,
-          body: d.firstMessage,
-        },
-      },
-    },
-  });
-
-  // Classify + escalate if needed (fixed rules).
-  await applyInboundMessageRules(conversation.id, d.firstMessage);
-
-  return jsonOk(conversation, 201);
-});
+export const POST = withManage(async () =>
+  NextResponse.json({ error: CREATE_REMOVED_MESSAGE }, { status: 405, headers: { Allow: "GET" } }),
+);
