@@ -76,7 +76,9 @@ export function VerifyEmailForm() {
   const [state, setState] = useState<State>("reading");
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
-  const [reason, setReason] = useState<string>("error");
+  // F5 (Codex 11-17): başlangıçta BOŞ — eskiden "error" idi ve geçerli bağlantı açılınca, hiçbir işlem yapılmadan "Doğrulama şu an
+  // tamamlanamadı" görünüyordu (şifre alanı da hataya bağlanıyordu). Sebep yalnız bir gönderim sonucu ya da anahtarsız açılışla yazılır.
+  const [reason, setReason] = useState<string | null>(null);
   // React 18 StrictMode dev'de effect'i iki kez koşturur; fragment okuma ve
   // adres çubuğu temizliği tek sefer olmalı.
   const started = useRef(false);
@@ -111,7 +113,7 @@ export function VerifyEmailForm() {
       if (stateRef.current === "submitting" || stateRef.current === "done") return;
       setToken(next);
       setPassword("");
-      setReason("error");
+      setReason(null); // yeni bağlantı: önceki denemenin hatası taşınmaz
       setState("form");
     }
     window.addEventListener("hashchange", onHashChange);
@@ -124,6 +126,7 @@ export function VerifyEmailForm() {
         setState("failed");
       } else {
         setToken(token);
+        setReason(null);
         setState("form");
       }
     }
@@ -179,11 +182,11 @@ export function VerifyEmailForm() {
   }
 
   if (state === "failed") {
-    const next = failedNextStep(reason);
+    const next = failedNextStep(reason ?? "error");
     return (
       <div className="space-y-4">
         {/* `FormError` kendi uyarı simgesini basar — içeride ikinci simge yok (UX-14: çift simge). */}
-        <FormError>{FATAL[reason] ?? FATAL.error}</FormError>
+        <FormError>{(reason !== null && FATAL[reason]) || FATAL.error}</FormError>
         {next.hint ? <p className="text-sm text-muted-foreground">{next.hint}</p> : null}
         {next.apiRoute ? (
           // Çıkış bir API rotasıdır (çerezi siler, girişe yönlendirir) — istemci yönlendiricisi değil, tam sayfa geçişi.
@@ -199,6 +202,7 @@ export function VerifyEmailForm() {
     );
   }
 
+  const retryText = reason !== null && reason in RETRY ? RETRY[reason] : null;
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <p className="inline-flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
@@ -214,15 +218,13 @@ export function VerifyEmailForm() {
           id="verify-password"
           autoComplete="current-password"
           autoFocus
-          aria-describedby={reason in RETRY ? FORM_ERROR_ID : undefined}
+          aria-describedby={retryText !== null && state === "form" ? FORM_ERROR_ID : undefined}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
       </Field>
-      {reason in RETRY && state === "form" ? (
-        <FormError id={FORM_ERROR_ID}>{RETRY[reason]}</FormError>
-      ) : null}
+      {retryText !== null && state === "form" ? <FormError id={FORM_ERROR_ID}>{retryText}</FormError> : null}
       <Button type="submit" className="w-full" disabled={state === "submitting" || !password}>
         {state === "submitting" ? (
           <>

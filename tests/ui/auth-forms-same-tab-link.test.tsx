@@ -205,6 +205,81 @@ describe("A4 — e-posta doğrulama: hata ekranı açıkken gelen geçerli bağl
   });
 });
 
+// F5 (Codex 11-17): `reason` başlangıçta "error" idi → geçerli bağlantı açılınca, hiçbir işlem yapılmadan "Doğrulama şu an tamamlanamadı"
+// görünüyor ve şifre alanı hataya bağlanıyordu (aynı sekmede açılan bağlantıda da). Hata metni yalnız bir gönderim sonucunda görünür.
+describe("F5 — e-posta doğrulama: geçerli bağlantıda hiçbir işlem yapılmadan hata gösterilmez", () => {
+  const NO_ACTION_ERROR = /Doğrulama şu an tamamlanamadı/;
+
+  it("🚨 ilk açılış: form gelir, hata metni YOK, şifre alanı hataya bağlı değil", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    window.history.replaceState({}, "", "/verify-email#t=gecerli-anahtar-f5");
+    render(<VerifyEmailForm />);
+    const pw = await screen.findByLabelText("Şifreniz");
+    expect(screen.queryByText(NO_ACTION_ERROR), "geçerli bağlantıda işlem yapılmadan hata gösterildi").toBeNull();
+    expect(pw.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("🚨 aynı sekmede açılan geçerli bağlantı (anahtarsız hata ekranından): form gelir, hata metni YOK", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    window.history.replaceState({}, "", "/verify-email");
+    render(<VerifyEmailForm />);
+    await waitFor(() => expect(screen.queryByLabelText("Şifreniz")).toBeNull());
+    await openLinkInSameTab("/verify-email", "#t=gecerli-anahtar-f5b");
+    const pw = await screen.findByLabelText("Şifreniz");
+    expect(screen.queryByText(NO_ACTION_ERROR)).toBeNull();
+    expect(pw.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("🚨 hatalı şifreden sonra aynı sekmede yeni bağlantı gelirse eski hata temizlenir", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ reason: "password" }), { status: 400 })));
+    window.history.replaceState({}, "", "/verify-email#t=ilk-f5");
+    render(<VerifyEmailForm />);
+    const pw = (await screen.findByLabelText("Şifreniz")) as HTMLInputElement;
+    fireEvent.change(pw, { target: { value: "yanlis-sifre-1" } });
+    await act(async () => {
+      fireEvent.submit(pw.closest("form")!);
+    });
+    await screen.findByText(/Şifre hatalı/);
+    await openLinkInSameTab("/verify-email", "#t=ikinci-f5");
+    expect(screen.queryByText(/Şifre hatalı/)).toBeNull();
+    expect(screen.queryByText(NO_ACTION_ERROR)).toBeNull();
+    expect(screen.getByLabelText("Şifreniz").getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("KONTROL — ağ hatasında metin GÖRÜNÜR ve şifre alanı hataya bağlanır", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("network down");
+    }));
+    window.history.replaceState({}, "", "/verify-email#t=ag-f5");
+    render(<VerifyEmailForm />);
+    const pw = (await screen.findByLabelText("Şifreniz")) as HTMLInputElement;
+    fireEvent.change(pw, { target: { value: "sifre12345" } });
+    await act(async () => {
+      fireEvent.submit(pw.closest("form")!);
+    });
+    await screen.findByText(NO_ACTION_ERROR);
+    expect(screen.getByLabelText("Şifreniz").getAttribute("aria-describedby")).toBe("verify-email-form-error");
+  });
+
+  it("KONTROL — sunucu 'password' derse 'Şifre hatalı' görünür", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ reason: "password" }), { status: 400 })));
+    window.history.replaceState({}, "", "/verify-email#t=pw-f5");
+    render(<VerifyEmailForm />);
+    const pw = (await screen.findByLabelText("Şifreniz")) as HTMLInputElement;
+    fireEvent.change(pw, { target: { value: "sifre12345" } });
+    await act(async () => {
+      fireEvent.submit(pw.closest("form")!);
+    });
+    await screen.findByText(/Şifre hatalı/);
+  });
+
+  it("KONTROL — anahtarsız açılış hâlâ kurtarılamaz 'anahtar yok' ekranını gösterir", async () => {
+    window.history.replaceState({}, "", "/verify-email");
+    render(<VerifyEmailForm />);
+    await screen.findByText(/Bağlantıda doğrulama anahtarı yok/);
+  });
+});
+
 describe("A5 — giriş ekranı: bekleme dolunca 'tekrar gönder' düğmesi geri gelir", () => {
   async function requestOnce(fetchMock: ReturnType<typeof vi.fn>) {
     vi.stubGlobal("fetch", fetchMock);
