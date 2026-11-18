@@ -10,6 +10,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
+import { spansMultipleProperties } from "@/lib/booking-property-conflict";
 import { loadErasureGuard } from "@/lib/erasure";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
@@ -635,7 +636,7 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
   const siblings = await prisma.reservation.findMany({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
     select: {
-      id: true, status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      id: true, propertyId: true, status: true, arrivalDate: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
       // Org timezone for the checkout window rule below (same lookup, no extra query).
       property: { select: { organization: { select: { timezone: true } } } },
     },
@@ -691,6 +692,10 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
   // (`lifecycle-status.ts`); gönderilebilir durumda değilse satır ERTELENİR (↑`LIFECYCLE_STATUS_HOLD`). Sırası bilinçli: iptal, silme,
   // tekrar ve pencere hükümleri önce verilir — süresi geçmiş satır beklemez, iptal olur (giriş: çıkış günü; çıkış: çıkış gününden sonra).
   // Karşılamanın pencere kuralı yok: varış günü geçtiği hâlde onaylanmamışsa bayattır.
+  // 🚨 İki FARKLI dairede etkin kaydı olan rezervasyonun otomatik mesajı TUTULUR (kurucu 11-18 akşam; `booking-property-conflict.ts`):
+  // satır kuyruğa tek kayıtlıyken girmiş, kopya sonradan oluşmuş olabilir. İptal değil erteleme — ev sahibi yanlış kaydı kaldırınca gider;
+  // süresi geçen satır yukarıdaki pencere hükümleriyle zaten iptal olur.
+  if ((type === "welcome" || type === "checkin" || type === "checkout") && spansMultipleProperties(siblings, now)) return LIFECYCLE_STATUS_HOLD;
   if ((type === "welcome" || type === "checkin" || type === "checkout") && !lifecycleStatusAllows(type, res.status)) {
     if (type === "welcome") {
       const tz = orgTimezone(res.property?.organization?.timezone);

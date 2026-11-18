@@ -26,6 +26,10 @@ describe("Girişler — 'Giriş mesajını gönderin' görünürlüğü", () => 
     expect(access(stay({ autoCheckin: { state: "disabled" }, checkinManualSendable: true })).sendCheckin).toBe(true);
     expect(access(stay({ autoCheckin: { state: "not_sending", reason: "no_baseline" }, checkinManualSendable: true })).sendCheckin).toBe(true);
     expect(access(stay({ autoCheckin: { state: "not_sending", reason: "before_baseline" }, checkinManualSendable: true })).sendCheckin).toBe(true);
+    // Kurucu 11-18 akşam: iki dairede kayıtlı rezervasyonda otomatik mesaj tutulur; ev sahibi doğru dairenin satırından elle gönderebilir.
+    const two = access(stay({ autoCheckin: { state: "not_sending", reason: "two_properties" }, checkinManualSendable: true }));
+    expect(two.sendCheckin).toBe(true);
+    expect(two.label).toBe("Bu rezervasyon iki dairede kayıtlı, otomatik mesaj gitmez · giriş bilgisini siz gönderin");
   });
 
   it("yükleyici gönderilebilir demediyse (metin yok, onaysız, bağlantı yok…) aynı satırlarda düğme YOK", () => {

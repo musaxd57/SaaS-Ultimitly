@@ -17,6 +17,7 @@ import { reservationMessagingCapable } from "@/lib/channels/capability";
 // `channels/access`tan almak boş kayıt → her zaman "bağlantı yok" derdi (Gönderilenler / Mülkler / Raporlar da böyle alır).
 import { hasMessagingConnection } from "@/lib/channels";
 import { lifecycleBaselineWhere } from "@/lib/automation";
+import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
 import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { loadErasureGuard } from "@/lib/erasure";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
@@ -316,6 +317,15 @@ export async function loadArrivalReadiness(
     });
     for (const r of rows) afterBaseline.add(r.id);
   }
+  // Gönderici iki FARKLI dairede etkin kaydı olan rezervasyona göndermez (kurucu 11-18 akşam) — aynı yüklem, tek sorgu.
+  const twoProperties =
+    org?.autoCheckin && !orgOff
+      ? await bookingRefsInMultipleProperties(prisma, {
+          organizationId,
+          refs: arrivals.flatMap((a) => (a.sourceReference ? [a.sourceReference] : [])),
+          now,
+        })
+      : new Set<string>();
   const autoCheckinStateOf = (a: (typeof arrivals)[number]): NonNullable<StayReadinessInput["autoCheckin"]> => {
     if (a.checkinSentAt) return { state: "sent", at: a.checkinSentAt };
     if (!org?.autoCheckin) return { state: "disabled" };
@@ -327,6 +337,7 @@ export async function loadArrivalReadiness(
     if (a.status !== "confirmed") return { state: "not_sending", reason: "no_baseline" };
     if (erasure?.blocksSourceReference(a.sourceReference)) return { state: "not_sending", reason: "erased" };
     if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
+    if (a.sourceReference && twoProperties.has(a.sourceReference)) return { state: "not_sending", reason: "two_properties" };
     // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
     const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);
     if (issue && issue !== "empty") return { state: "skipped", reason: issue };

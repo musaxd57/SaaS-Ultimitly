@@ -191,7 +191,7 @@ export interface StayReadinessInput {
    */
   autoCheckin?:
     | { state: "sent"; at: Date }
-    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" }
+    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties" }
     | { state: "disabled" }
     | { state: "missing" }
     | { state: "skipped"; reason: string }
@@ -363,13 +363,15 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
 }
 
 /** Otomatik giriş mesajı bu rezervasyona GİTMEYECEK — neden (ev sahibi dili; teknik ayrıntı yok). */
-const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased", string> = {
+const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties", string> = {
   kill_switch: "Otomatik mesajlar şu an kapalı",
   no_connection: "Kanal bağlantısı yok, otomatik giriş mesajı gitmez",
   no_baseline: "Otomatik giriş mesajı gitmez",
   no_channel: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi)",
   before_baseline: "Rezervasyon otomatik giriş mesajı açılmadan önce yapılmış, mesaj gitmez",
   erased: "Misafirin verileri silindiği için otomatik mesaj gitmez",
+  // Kurucu 11-18 akşam: sistem daire tahmin etmez (`booking-property-conflict.ts`). Metin kurucu onayına sunuldu.
+  two_properties: "Bu rezervasyon iki dairede kayıtlı, otomatik mesaj gitmez",
 };
 
 /** Gitmeyen otomatik giriş mesajının sebebine göre bağlantı. Silinmiş misafire (erased) ve konuşması olmayana (no_channel) BİLİNÇLİ YOK. */
@@ -380,13 +382,15 @@ const NOT_SENDING_LINK: Record<keyof typeof NOT_SENDING_TEXT, FactorLink | null>
   before_baseline: { to: "conversation" },
   no_channel: null,
   erased: null,
+  two_properties: null,
 };
 
 /**
  * UX-10 D5: elle gönderim düğmesinin çıktığı "gitmez" sebepleri. Acil durdurma (kill_switch) BİLEREK yok (temkinli; kurucu sorusu S-1b),
  * bağlantı yok / kanalsız / silinmiş misafir zaten gönderilemez.
  */
-const MANUAL_SEND_REASONS: ReadonlySet<string> = new Set(["no_baseline", "before_baseline"]);
+// İki dairede kayıtlı rezervasyonda (two_properties) ev sahibi DOĞRU dairenin satırından elle gönderebilir: daireyi o seçmiş olur.
+const MANUAL_SEND_REASONS: ReadonlySet<string> = new Set(["no_baseline", "before_baseline", "two_properties"]);
 
 const SKIP_REASON_TEXT: Record<string, string> = {
   unfilled: "doldurulmamış alan var",

@@ -3,15 +3,14 @@ import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { seedAutoMessage } from "../helpers/auto-message";
 
 // ---------------------------------------------------------------------------
-// AYNI REZERVASYON İKİ DAİREDE KAYITLIYSA — TEK ADAY, SIRALAMADAKİ İLK SATIR (Codex 11-17 D2 dilim sonu incelemesi). Gerçek PostgreSQL.
+// AYNI REZERVASYON İKİ FARKLI DAİREDE KAYITLIYSA OTOMATİK MESAJ TUTULUR — SİSTEM DAİRE TAHMİN ETMEZ (kurucu 11-18 akşam). Gerçek PostgreSQL.
 //
-// Rezervasyon kaydı (daire, kaynak kimliği) çiftinde tekildir: aynı kaynak kimliği iki AYRI dairede bulunabilir. Göndericiler eskiden beri
-// "rezervasyon başına tek mesaj" der ve o rezervasyonun sıralamadaki İLK satırına bakar: ilk satır gönderilemiyorsa (dairesinin metni yok /
-// metin doldurulamıyor) rezervasyona o geçişte mesaj gitmez — kardeş satırın dairesinin metni (başka kapı kodu taşıyabilir) kullanılmaz.
-// D2 düzeltmesi iki yerde bu kuralı farkında olmadan gevşetmişti:
-//  (1) metni olmayan dairenin satırı sorguda elenince kardeş satır "ilk satır" gibi seçiliyor ve ÖTEKİ dairenin metni gidiyordu;
-//  (2) kalıcı imleç ilk satırı geçtikten sonraki geçişte kardeş satır tek başına okunuyor ve yine öteki dairenin metni gidiyordu.
-// Kural artık açık: ilk satır, tür süzgeci ve imleçten BAĞIMSIZ olarak rezervasyonun kendi kümesinden belirlenir.
+// Rezervasyon kaydı (daire, kaynak kimliği) çiftinde tekildir: aynı kaynak kimliği iki AYRI dairede bulunabilir. Misafirin hangi dairede
+// kalacağı kayıtlardan bilinemez. Önceki kural "sıralamadaki ilk kayıt belirler"di (11-18 gündüz): ilk kaydın dairesinde metin varsa o
+// dairenin metni gidiyordu — bu, yanlış daireye mesaj göndermeyi önleyen bir geri dönüş kuralıydı ama doğru daireyi kanıtlamıyordu. Şimdi:
+// iki farklı dairede ETKİN kaydı olan rezervasyona karşılama / giriş bilgisi / çıkış mesajı gönderilmez (damgalanmaz, bekler). Ev sahibi
+// yanlış kaydı kaldırınca ya da kayıt iptal olunca sonraki geçişte olağan gider. Kopyası olmayan rezervasyon etkilenmez.
+// Kural tek kaynak: `src/lib/booking-property-conflict.ts` (göndericiler · kuyruk işçisi · Girişler ekranı).
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/messaging", async (orig) => ({
@@ -82,7 +81,7 @@ async function seedDuplicate(ref: string, first: string, second: string, at: Dat
 const sentBodies = () => mockSend.mock.calls.map((c) => String(c[1]));
 const tomorrow = () => new Date(Date.now() + DAY);
 
-describe("otomatik mesaj — aynı rezervasyon iki dairede kayıtlıysa ilk satır belirler", () => {
+describe("otomatik mesaj — aynı rezervasyon iki farklı dairede kayıtlıysa tutulur", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -93,25 +92,44 @@ describe("otomatik mesaj — aynı rezervasyon iki dairede kayıtlıysa ilk sat�
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 karşılama: ilk satırın dairesinde metin YOK, kardeş satırın dairesinde var → mesaj GİTMEZ (öteki dairenin metni kullanılmaz)", async () => {
+  it("🚨 karşılama: ilk kaydın dairesinde metin VAR, kardeşinkinde yok → mesaj GİTMEZ (ilk kayıt 'kazanmaz'); kayıtlar damgalanmaz", async () => {
     const { orgId, a, b } = await seedOrg();
-    await seedAutoMessage(b, "welcome", WELCOME_B);
+    await seedAutoMessage(a, "welcome", WELCOME_A);
     await seedDuplicate("kopya", a, b, tomorrow());
 
     const out = await sendDueWelcomes(orgId);
-    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ D2 düzeltmesinden sonra 1'di: Lale 2'nin metni gidiyordu
+    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ ÖNCEKİ kural: Lale 1'in metni gidiyordu (ilk kayıt belirler)
     expect(out.sent).toBe(0);
     expect(out.considered).toBe(0);
     expect(await prisma.reservation.count({ where: { sourceReference: "kopya", welcomeSentAt: { not: null } } })).toBe(0);
   });
 
-  it("🚨 giriş bilgisi: aynı kural — ilk satırın dairesinde metin yoksa kardeş dairenin giriş bilgisi GİTMEZ", async () => {
+  it("🚨 karşılama: iki dairede de metin var → mesaj GİTMEZ (hangi dairenin metni — tahmin yok)", async () => {
     const { orgId, a, b } = await seedOrg();
-    await seedAutoMessage(b, "checkin", "Merhaba {isim}, Lale 2 giriş bilgileri: anahtar kutusu kapının sağında.");
+    await seedAutoMessage(a, "welcome", WELCOME_A);
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    await seedDuplicate("kopya", a, b, tomorrow());
+
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ ÖNCEKİ kural: Lale 1'in metni
+  });
+
+  it("🚨 karşılama: yalnız kardeş kaydın dairesinde metin var → mesaj GİTMEZ (metni olan daire 'kazanmaz')", async () => {
+    const { orgId, a, b } = await seedOrg();
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    await seedDuplicate("kopya", a, b, tomorrow());
+
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 giriş bilgisi: iki dairede kayıtlı rezervasyona giriş bilgisi GİTMEZ (ilk kaydın dairesinde metin olsa da)", async () => {
+    const { orgId, a, b } = await seedOrg();
+    await seedAutoMessage(a, "checkin", "Merhaba {isim}, Lale 1 giriş bilgileri: anahtar kutusu kapının solunda.");
     await seedDuplicate("kopya", a, b, new Date(Date.now() + 60 * 60_000)); // giriş bilgisi gelişe yakın pencerede gider
 
     const out = await sendDueCheckins(orgId);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ ÖNCEKİ kural: Lale 1'in giriş bilgisi gidiyordu
     expect(out.sent).toBe(0);
     expect(await prisma.reservation.count({ where: { sourceReference: "kopya", checkinSentAt: { not: null } } })).toBe(0);
   });
@@ -119,70 +137,31 @@ describe("otomatik mesaj — aynı rezervasyon iki dairede kayıtlıysa ilk sat�
   it("🚨 çıkış mesajı: aynı kural", async () => {
     const tz = morningZone();
     const { orgId, a, b } = await seedOrg(tz);
-    await seedAutoMessage(b, "checkout", "Merhaba {isim}, Lale 2 çıkış hatırlatması: anahtarı kutuya bırakabilirsiniz.");
+    await seedAutoMessage(a, "checkout", "Merhaba {isim}, Lale 1 çıkış hatırlatması: anahtarı kutuya bırakabilirsiniz.");
     await seedDuplicate("kopya", a, b, new Date(), "departure");
 
     const out = await sendDueCheckouts(orgId);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ ÖNCEKİ kural: Lale 1'in metni
     expect(out.sent).toBe(0);
   });
 
-  it("KONTROL: ilk satırın dairesinde metin VAR, kardeşinkinde yok → TEK mesaj, ilk satırın dairesinin metniyle; iki satır da damgalanır", async () => {
+  it("🚨 ÇÖZÜM: ev sahibi yanlış dairedeki kaydı KALDIRINCA sonraki geçişte mesaj kalan kaydın dairesinin metniyle gider", async () => {
     const { orgId, a, b } = await seedOrg();
     await seedAutoMessage(a, "welcome", WELCOME_A);
+    await seedAutoMessage(b, "welcome", WELCOME_B);
     await seedDuplicate("kopya", a, b, tomorrow());
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
 
+    await prisma.reservation.delete({ where: { id: "kopya-z-ilk" } }); // Lale 1'deki kayıt yanlıştı
     const out = await sendDueWelcomes(orgId);
     expect(out.sent).toBe(1);
-    expect(sentBodies()).toHaveLength(1);
-    expect(sentBodies()[0]).toContain("Lale 1 için");
-    expect(await prisma.reservation.count({ where: { sourceReference: "kopya", welcomeSentAt: { not: null } } })).toBe(2);
-    // İkinci geçiş: yeniden gönderilmez.
+    expect(sentBodies()).toEqual([expect.stringContaining("Lale 2 için")]);
+    // Yeniden gönderilmez.
     await sendDueWelcomes(orgId);
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("KONTROL: iki dairede de metin var → TEK mesaj ve İLK satırın dairesinin metni (kardeşinki değil)", async () => {
-    const { orgId, a, b } = await seedOrg();
-    await seedAutoMessage(a, "welcome", WELCOME_A);
-    await seedAutoMessage(b, "welcome", WELCOME_B);
-    await seedDuplicate("kopya", a, b, tomorrow());
-
-    const out = await sendDueWelcomes(orgId);
-    expect(out.sent).toBe(1);
-    expect(sentBodies()).toEqual([expect.stringContaining("Lale 1 için")]);
-  });
-
-  it("🚨 tarihler AYNIYSA sırayı kimlik belirler: küçük kimlikli satır ilk satırdır — onun dairesinde metin yoksa mesaj GİTMEZ", async () => {
-    const { orgId, a, b } = await seedOrg();
-    await seedAutoMessage(b, "welcome", WELCOME_B);
-    const arrival = tomorrow();
-    const row = (id: string, propertyId: string) => ({ id, propertyId, guestName: "Misafir Kopya", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "esit" });
-    await prisma.reservation.createMany({ data: [row("esit-a", a), row("esit-b", b)] });
-
-    const out = await sendDueWelcomes(orgId);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(out.sent).toBe(0);
-  });
-
-  it("KONTROL: kopyası olmayan rezervasyon bugünkü gibi gider (kural yalnız kopya satırı etkiler)", async () => {
-    const { orgId, a, b } = await seedOrg();
-    await seedAutoMessage(b, "welcome", WELCOME_B);
-    const arrival = tomorrow();
-    await prisma.reservation.create({
-      data: { propertyId: b, guestName: "Misafir Tek", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "tek" },
-    });
-    // Aynı kaynak kimliği taşımayan, metinsiz dairedeki başka bir rezervasyon: kimseyi gölgelemez.
-    await prisma.reservation.create({
-      data: { propertyId: a, guestName: "Misafir Başka", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "baska" },
-    });
-
-    const out = await sendDueWelcomes(orgId);
-    expect(out.sent).toBe(1);
-    expect(sentBodies()).toEqual([expect.stringContaining("Lale 2 için")]);
-  });
-
-  it("KONTROL: ilk satır gönderim kümesinin DIŞINDAYSA (iptal) kardeşi gölgelemez — bugünkü gibi kardeş satır gider", async () => {
+  it("KONTROL: kardeş kayıt İPTAL ise etkin değildir — rezervasyon tek dairededir, mesaj olağan gider", async () => {
     const { orgId, a, b } = await seedOrg();
     await seedAutoMessage(b, "welcome", WELCOME_B);
     await seedDuplicate("kopya", a, b, tomorrow());
@@ -193,7 +172,56 @@ describe("otomatik mesaj — aynı rezervasyon iki dairede kayıtlıysa ilk sat�
     expect(sentBodies()).toEqual([expect.stringContaining("Lale 2 için")]);
   });
 
-  it("🚨 imleç: ilk satır (metni doldurulamayan daire) imlecin GERİSİNDE kalınca kardeş satır tek başına okunur — yine GİTMEZ", async () => {
+  it("KONTROL: aynı kaynak kimliğini taşıyan, bir ay önce BİTMİŞ bayat kopya etkin değildir — canlı rezervasyonun mesajı olağan gider", async () => {
+    const { orgId, a, b } = await seedOrg();
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    const arrival = tomorrow();
+    await prisma.reservation.createMany({
+      data: [
+        { propertyId: b, guestName: "Misafir Kopya", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "kopya" },
+        { propertyId: a, guestName: "Misafir Kopya", arrivalDate: new Date(Date.now() - 35 * DAY), departureDate: new Date(Date.now() - 30 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "kopya" },
+      ],
+    });
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1);
+    expect(sentBodies()).toEqual([expect.stringContaining("Lale 2 için")]);
+  });
+
+  it("KONTROL: kardeş kayıt 'bekliyor' durumundaysa da ETKİNDİR (iptal değil) → mesaj tutulur", async () => {
+    const { orgId, a, b } = await seedOrg();
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    await seedDuplicate("kopya", a, b, tomorrow());
+    await prisma.reservation.update({ where: { id: "kopya-z-ilk" }, data: { status: "pending" } });
+
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: kopyası olmayan rezervasyon bugünkü gibi gider; aynı kaynak kimliğini taşımayan başka kayıt kimseyi tutmaz", async () => {
+    const { orgId, a, b } = await seedOrg();
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    const arrival = tomorrow();
+    const row = (propertyId: string, ref: string, guestName: string) => ({ propertyId, guestName, arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: ref });
+    await prisma.reservation.createMany({ data: [row(b, "tek", "Misafir Tek"), row(a, "baska", "Misafir Başka")] });
+
+    const out = await sendDueWelcomes(orgId);
+    expect(out.sent).toBe(1);
+    expect(sentBodies()).toEqual([expect.stringContaining("Lale 2 için")]);
+  });
+
+  it("KONTROL: BAŞKA işletmedeki aynı kaynak kimliği sayılmaz (kural işletme kapsamlı)", async () => {
+    const { orgId, b } = await seedOrg();
+    const other = await seedOrg();
+    await seedAutoMessage(b, "welcome", WELCOME_B);
+    const arrival = tomorrow();
+    const row = (propertyId: string) => ({ propertyId, guestName: "Misafir", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: "ortak-kimlik" });
+    await prisma.reservation.createMany({ data: [row(b), row(other.a)] });
+
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+  });
+
+  it("🚨 imleç: kardeş kayıt imlecin GERİSİNDE kalsa da (o geçişte hiç okunmasa da) rezervasyon tutulur", async () => {
     const { orgId, a, b } = await seedOrg();
     await seedAutoMessage(a, "welcome", UNFILLED); // Lale 1: metin var ama doldurulamıyor → sorguda elenmez, döngüde atlanır
     await seedAutoMessage(b, "welcome", WELCOME_B);
@@ -205,17 +233,16 @@ describe("otomatik mesaj — aynı rezervasyon iki dairede kayıtlıysa ilk sat�
         return { propertyId: a, guestName: `Misafir ${i}`, arrivalDate: arrival, departureDate: new Date(arrival.getTime() + 2 * DAY), channel: "airbnb", status: "confirmed", sourceReference: `blk-${i}` };
       }),
     });
-    await seedDuplicate("kopya", a, b, new Date(base + 500 * 60_000)); // 200. satır = ilk satır (Lale 1), 201. = kardeş (Lale 2)
+    await seedDuplicate("kopya", a, b, new Date(base + 500 * 60_000)); // 200. satır = Lale 1'deki kayıt, 201. = Lale 2'deki kardeş
 
-    // 1. geçiş: 200 satır okundu, hiçbiri gönderilemedi; imleç kopyanın İLK satırında kaldı.
     const first = await sendDueWelcomes(orgId);
     expect(first.sent).toBe(0);
     const cursor = await prisma.systemLock.findUnique({ where: { name: lifecycleScanCursorName("welcome", orgId) } });
     expect(String(cursor?.holder ?? "")).toContain("kopya-z-ilk"); // kurulumun gerçekten istenen anı yakaladığının kanıtı
 
-    // 2. geçiş: kuyruk sayfası imlecin ardından başlar → ilk okunan satır KARDEŞ satırdır (ilk satır bu geçişte hiç okunmaz).
+    // 2. geçiş: kuyruk sayfası imlecin ardından başlar → ilk okunan satır Lale 2'deki kayıttır (Lale 1'deki bu geçişte hiç okunmaz).
     const second = await sendDueWelcomes(orgId);
-    expect(mockSend).not.toHaveBeenCalled(); // ⬅️ D2 düzeltmesinden sonra 1'di: Lale 2'nin metni gidiyordu
+    expect(mockSend).not.toHaveBeenCalled();
     expect(second.sent).toBe(0);
     expect(await prisma.reservation.count({ where: { sourceReference: "kopya", welcomeSentAt: { not: null } } })).toBe(0);
   });

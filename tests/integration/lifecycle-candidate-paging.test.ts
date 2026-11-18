@@ -130,19 +130,25 @@ describe("yaşam döngüsü göndericileri — gönderilemeyen adaylar sırayı 
     expect(out.considered).toBe(1);
   });
 
-  it("aynı rezervasyonun kopya satırları (aynı kaynak kimliği) sayfalar arasında da TEK mesaj üretir", async () => {
+  it("aynı rezervasyonun iki FARKLI dairedeki kopya satırları sayfalar arasında da ÇİFT mesaj üretmez — kurucu 11-18 akşam: hiç mesaj üretmez (tutulur)", async () => {
     const { orgId, blockedId, goodId } = await seedOrg();
     // Öndeki 26 aday metni DOLDURULAMAYAN daireden (metinsiz daire D2'den beri aday değildir — kopya yine ikinci sayfaya düşsün).
     await seedAutoMessage(blockedId, "welcome", "Merhaba {isim}, kapı kodu [KOD] olacak.");
     await seedReservations(blockedId, "blk", 26, upcoming(1));
     await seedAutoMessage(goodId, "welcome", "Merhaba {isim}, rezervasyonunuz için teşekkürler.");
-    // Aynı rezervasyon iki dairede kayıtlı (kopya): ikisinin de metni var, yine TEK mesaj gider.
+    // Aynı rezervasyon iki dairede kayıtlı (kopya): ikisinin de metni var. ESKİ sözleşme "yine TEK mesaj gider"di (ilk kaydın dairesinin
+    // metni); kurucu 11-18 akşam: sistem daire tahmin etmez → mesaj TUTULUR (ayrıntı `lifecycle-duplicate-booking.test.ts`). Öndeki 26
+    // gönderilemeyen aday kopyayı ikinci sayfaya iter — kural sayfa sınırından bağımsızdır.
     const twin = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Lale 3" } });
     await seedAutoMessage(twin.id, "welcome", "Merhaba {isim}, rezervasyonunuz için teşekkürler.");
     const arrival = new Date(Date.now() + 5 * DAY);
     await prisma.reservation.createMany({
       data: [goodId, twin.id].map((propertyId) => ({ propertyId, guestName: "Kopya Misafir", arrivalDate: arrival, departureDate: new Date(arrival.getTime() + DAY), channel: "airbnb", status: "confirmed", sourceReference: "dup-1" })),
     });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+    // Kopyalardan biri kaldırılınca TEK mesaj gider (çift değil).
+    await prisma.reservation.deleteMany({ where: { sourceReference: "dup-1", propertyId: twin.id } });
     expect((await sendDueWelcomes(orgId)).sent).toBe(1);
     expect(mockSend).toHaveBeenCalledTimes(1);
   });

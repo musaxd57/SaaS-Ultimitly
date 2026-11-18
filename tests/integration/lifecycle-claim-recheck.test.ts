@@ -505,6 +505,31 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     expect((await row()).status).toBe("pending");
   });
 
+  // ── İKİ FARKLI DAİREDE KAYITLI REZERVASYON (kurucu 11-18 akşam; `booking-property-conflict.ts`) ─────────────────────────────────────
+  it.each(["welcome", "checkin", "checkout"] as const)(
+    "🚨 iki daire (%s): satır kuyruğa tek kayıtlıyken girdi, sonra aynı rezervasyon ikinci dairede de ETKİN kayıtlandı → mesaj GİTMEZ, ertelenir; yanlış kayıt kaldırılınca gider",
+    async (kind) => {
+      const { orgId, drain, row, posts } = await holdSetup(kind);
+      const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+      const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
+      const sibling = await prisma.reservation.create({
+        data: { propertyId: other.id, guestName: a.guestName, arrivalDate: a.arrivalDate, departureDate: a.departureDate, channel: "airbnb", status: "confirmed", sourceReference: "res-a" },
+      });
+      await drain();
+      expect(posts()).toBe(0); // ⬅️ ESKİDE 1: hangi dairenin misafiri olduğu bilinmeden satırın dairesinin metni gidiyordu
+      const held = await row();
+      expect(held.status).toBe("pending"); // iptal DEĞİL — ev sahibi düzeltince gider
+      expect(held.attemptCount).toBe(0);
+      expect(held.lastErrorCode).toBeNull();
+
+      await prisma.reservation.delete({ where: { id: sibling.id } }); // yanlış kayıt kaldırıldı
+      await prisma.messageOutbox.update({ where: { id: held.id }, data: { availableAt: new Date() } }); // bekleme süresi doldu
+      await drain();
+      expect(posts()).toBe(1);
+      expect((await row()).status).toBe("sent");
+    },
+  );
+
   it("🚨 kalıcı kuyruk: açıkça SİLİNEN misafire satır açılmaz; kuyruktaki satır gönderim anında 'erased' ile iptal (Haiku 10-14)", async () => {
     const orgId = await seed("checkin");
     await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });

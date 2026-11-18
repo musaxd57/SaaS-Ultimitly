@@ -105,6 +105,7 @@ import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 // Otomatik mesajın gönderilebildiği rezervasyon durumları — TEK KAYNAK (D1, 11-18): gönderici sorguları, son talepler, önizlemeler ve kalıcı
 // kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
+import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -5701,31 +5702,6 @@ function lifecycleAfterWhere(field: "arrivalDate" | "departureDate", k: Lifecycl
   return { OR: [{ [field]: { gt: k.at } }, { [field]: k.at, id: { gt: k.id } }] };
 }
 
-/**
- * 🚨 REZERVASYON BAŞINA TEK ADAY = SIRALAMADAKİ İLK SATIR (Codex 11-17 D2 dilim sonu incelemesi). Rezervasyon kaydı (daire, kaynak kimliği)
- * çiftinde tekildir → aynı kaynak kimliği iki AYRI dairede bulunabilir. Göndericiler eskiden beri o rezervasyonun (tarih, kimlik) sırasındaki
- * İLK satırına bakar: ilk satır gönderilemiyorsa (dairesinin metni yok / doldurulamıyor) rezervasyona mesaj gitmez; kardeş satırın dairesinin
- * metni — başka bir dairenin giriş bilgisi olabilir — kullanılmaz. Bu kural eskiden sorgu sırasının yan ürünüydü; aday sorgusuna tür süzgeci
- * (↑ `lifecycleTemplatedPropertyWhere`) ve kalıcı imleç girince ilk satır sayfaya HİÇ gelmeyebiliyor, kardeş satır "ilk" gibi seçiliyordu.
- * Bu yüzden ilk satır artık AYRI okunur: rezervasyonun kendi kümesinden (`bookingWhere` — tür süzgeci ve imleç YOK), aynı sıralamayla.
- * Dönen: kaynak kimliği → ilk satırın kimliği. Sayfa başına tek sorgu (≤ 25 kaynak kimliği; kimlik başına en çok daire sayısı kadar satır).
- */
-async function lifecycleFirstRowIds(
-  bookingWhere: Prisma.ReservationWhereInput,
-  field: "arrivalDate" | "departureDate",
-  refs: readonly string[],
-): Promise<Map<string, string>> {
-  const first = new Map<string, string>();
-  if (refs.length === 0) return first;
-  const rows = await prisma.reservation.findMany({
-    where: { AND: [bookingWhere, { sourceReference: { in: [...new Set(refs)] } }] },
-    select: { id: true, sourceReference: true },
-    orderBy: field === "arrivalDate" ? [{ arrivalDate: "asc" }, { id: "asc" }] : [{ departureDate: "asc" }, { id: "asc" }],
-  });
-  for (const row of rows) if (row.sourceReference && !first.has(row.sourceReference)) first.set(row.sourceReference, row.id);
-  return first;
-}
-
 /** Bir geçişte bir göndericinin (karşılama / giriş / çıkış) göndereceği en çok mesaj — anahtar açılınca toplu patlama olmasın. */
 const LIFECYCLE_SEND_CAP = 25;
 /** Gönderilebilir aday aranırken bir geçişte okunan en çok sayfa (sayfa = `LIFECYCLE_SEND_CAP` satır) — okuma sınırsız büyümesin. */
@@ -5870,10 +5846,10 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
   /** Kesin gün kararı (sorgunun üst kümesinden komşu günün çapası elenir). */
   eligible: (r: R) => boolean;
   /**
-   * Verilen kaynak kimlikleri için rezervasyonun İLK satırı (↑ `lifecycleFirstRowIds`; tür süzgeci ve imleçten bağımsız). İlk satırı olmayan
-   * aday (kopya / kardeş satır) atlanır — rezervasyonun mesajını ilk satırın dairesi belirler.
+   * Verilen kaynak kimliklerinden iki FARKLI dairede etkin kaydı olanlar (`booking-property-conflict.ts`). Böyle bir rezervasyon aday
+   * değildir: hangi dairenin metninin gideceği tahmin edilmez, mesaj tutulur (kurucu 11-18 akşam).
    */
-  firstRows: (refs: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  propertyConflicts: (refs: readonly string[]) => Promise<ReadonlySet<string>>;
   /**
    * Ön eleme (Opus incelemesi 11-11): sayfadaki adaylardan BU GEÇİŞTE hiçbir koşulda gönderilmeyecek olanların kimlikleri — açıkça
    * silinmiş (KVKK) misafir ya da kuyruğun sahiplendiği rezervasyon. Bunlar da damgalanmadığı için her geçişte en öne geliyor, 25'lik
@@ -5918,7 +5894,7 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
     after = keyOf(rows[rows.length - 1]);
     let unusable: ReadonlySet<string> | null = null; // sayfa başına en çok bir kez, ilk gönderilebilir adayda okunur
     let notDue: ((r: R, body: string) => boolean) | null = null; // aynı kural: sayfa başına en çok bir okuma
-    let firstRows: ReadonlyMap<string, string> | null = null; // aynı kural: sayfa başına en çok bir okuma (ilk uygun adayda)
+    let conflicts: ReadonlySet<string> | null = null; // aynı kural: sayfa başına en çok bir okuma (ilk uygun adayda)
     for (const r of rows) {
       if (ready.length >= LIFECYCLE_SEND_CAP) break;
       if (inTail) tailLast = keyOf(r); // incelenen (aşağıda elensin ya da seçilsin) — incelenmeyen satırın ötesine geçilmez
@@ -5928,11 +5904,13 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
         seenBookings.add(r.sourceReference);
       }
       if (!opts.eligible(r)) continue;
-      // Rezervasyonun İLK satırı değilse (kopya satır) aday değildir: ilk satır bu sayfaya gelmemiş olabilir (tür süzgecinde elendi ya da
-      // imlecin gerisinde kaldı) — yine de mesajı o belirler. Kayıt arada değiştiyse (ilk satır bulunamadı) güvenli yön: bu geçişte atla.
+      // 🚨 İki FARKLI dairede etkin kaydı olan rezervasyon aday DEĞİLDİR (kurucu 11-18 akşam): misafirin hangi dairede kalacağı kayıtlardan
+      // bilinemez — "ilk kayıt" ya da "metni olan daire" tahmindir, yanlış dairenin giriş bilgisi gidebilir. Mesaj tutulur (damgalanmaz);
+      // ev sahibi yanlış kaydı kaldırınca sonraki geçişte olağan gider. Okuma kardeş satırın sayfaya gelip gelmemesinden BAĞIMSIZDIR
+      // (tür süzgecinde elenmiş ya da imlecin gerisinde kalmış kardeş de sayılır).
       if (r.sourceReference) {
-        firstRows ??= await opts.firstRows(rows.flatMap((x) => (x.sourceReference ? [x.sourceReference] : [])));
-        if (firstRows.get(r.sourceReference) !== r.id) continue;
+        conflicts ??= await opts.propertyConflicts(rows.flatMap((x) => (x.sourceReference ? [x.sourceReference] : [])));
+        if (conflicts.has(r.sourceReference)) continue;
       }
       considered++;
       let tpl = templates.get(r.propertyId);
@@ -6065,8 +6043,7 @@ export async function sendDueWelcomes(
     // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
     AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
   };
-  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
-  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
   const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "welcome")] };
 
   const signature = org.aiSignature?.trim();
@@ -6086,7 +6063,7 @@ export async function sendDueWelcomes(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "welcome",
     organizationId,
-    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "arrivalDate", refs),
+    propertyConflicts: (refs) => bookingRefsInMultipleProperties(prisma, { organizationId, refs, now }),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "welcome", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "welcome", rows, now) : undefined,
     signature,
@@ -6285,8 +6262,7 @@ export async function sendDueCheckins(
     // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
     AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
   };
-  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
-  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
   const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "checkin")] };
 
   const signature = org.aiSignature?.trim();
@@ -6306,7 +6282,7 @@ export async function sendDueCheckins(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "checkin",
     organizationId,
-    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "arrivalDate", refs),
+    propertyConflicts: (refs) => bookingRefsInMultipleProperties(prisma, { organizationId, refs, now }),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkin", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkin", rows, now) : undefined,
     signature,
@@ -6868,8 +6844,7 @@ export async function sendDueCheckouts(
       await lifecycleBaselineWhere(organizationId, baseline),
     ],
   };
-  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
-  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
   const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "checkout")] };
   // Only when check-out is TODAY (same-day reminder) — kesin gün kararı `calendarDateOf` (üst kümeden komşu günün çapası
   // elenir). (No single-night skip anymore: that guard existed because the old evening-before send collided with the
@@ -6892,7 +6867,7 @@ export async function sendDueCheckouts(
   } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
     kind: "checkout",
     organizationId,
-    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "departureDate", refs),
+    propertyConflicts: (refs) => bookingRefsInMultipleProperties(prisma, { organizationId, refs, now }),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkout", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkout", rows, now) : undefined,
     signature,

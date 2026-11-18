@@ -401,7 +401,7 @@ describe("Claude 2. dalga #95 (10-21): veto ile metin yenileme AYNI rezervasyon 
     expect(bodies[0]).not.toContain("4821");
   });
 
-  it("kendi kopyası silinmiş; erken tarihli BEKLEYEN kopya + onaylı kopya → onaylı kopyanın dairesi (vetoyla aynı)", async () => {
+  it("kendi kopyası silinmiş; erken tarihli BEKLEYEN kopya + başka dairede onaylı kopya → iki dairede etkin kayıt: mesaj TUTULUR; bekleyen kopya iptal olunca onaylı kopyanın dairesinden gider", async () => {
     const { orgId, ownId, propertyId, otherPropertyId, own } = await seedTwoUnits();
     await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { reservationId: null } });
     await prisma.reservation.delete({ where: { id: ownId } });
@@ -418,6 +418,15 @@ describe("Claude 2. dalga #95 (10-21): veto ile metin yenileme AYNI rezervasyon 
       },
     });
     const { send, bodies } = capture();
+    await drain(send);
+    // Kurucu 11-18 akşam: aynı rezervasyon iki FARKLI dairede etkin (biri bekliyor, biri onaylı) → sistem daire tahmin etmez, hiçbir dairenin
+    // kapı kodu gitmez (ESKİ sözleşme: onaylı kopyanın dairesinden gidiyordu). Satır iptal edilmez, bekler.
+    expect(bodies).toHaveLength(0);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("pending");
+
+    // Bekleyen kopya iptal olunca rezervasyon tek dairededir: metin o dairenin (kopya seçimi vetoyla aynı kural) — başka dairenin kodu gitmez.
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-1", status: "pending" }, data: { status: "cancelled" } });
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date() } });
     await drain(send);
     expect(bodies).toHaveLength(1);
     expect(bodies[0]).toContain("9999");

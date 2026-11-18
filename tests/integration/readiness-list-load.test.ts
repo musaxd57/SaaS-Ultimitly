@@ -491,6 +491,28 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     });
   });
 
+  it("🚨 kurucu 11-18 akşam: aynı rezervasyon İKİ FARKLI dairede etkin kayıtlıysa gönderici göndermez — liste de 'hazır' DEMEZ; kayıt iptal olunca 'hazır'", async () => {
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
+    await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512" } });
+    const label = async () => factor((await rowOf())[0], "access")!.label;
+    expect(await label()).toBe("Otomatik giriş mesajı hazır · kapıya / kutuya yerleştiği kontrol edilmedi");
+
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 9" } });
+    const sibling = await prisma.reservation.create({
+      data: { propertyId: other.id, guestName: next.guestName, arrivalDate: next.arrivalDate, departureDate: next.departureDate, channel: "airbnb", status: "confirmed", sourceReference: `ref-${next.id}` },
+    });
+    const row = (await rowOf()).find((r) => factor(r, "access")!.label.includes("iki dairede"));
+    expect(row).toBeDefined(); // ⬅️ ESKİDE "hazır" diyordu
+    expect(factor(row!, "access")).toMatchObject({
+      state: "info",
+      label: "Bu rezervasyon iki dairede kayıtlı, otomatik mesaj gitmez · giriş bilgisini siz gönderin",
+    });
+
+    await prisma.reservation.update({ where: { id: sibling.id }, data: { status: "cancelled" } });
+    expect(await label()).toBe("Otomatik giriş mesajı hazır · kapıya / kutuya yerleştiği kontrol edilmedi");
+  });
+
   it("Haiku 11-06: gönderici yalnız ONAYLI ve SİLİNMEMİŞ misafire gönderir — liste de 'hazır' demez", async () => {
     vi.stubEnv("ERASURE_HMAC_SECRET", "x".repeat(48));
     const { next } = await sameDayTurnover();
