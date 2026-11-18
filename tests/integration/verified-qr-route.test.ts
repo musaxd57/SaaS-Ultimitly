@@ -162,7 +162,7 @@ describe("QR — doğrulanmış müsaitlik / uzatma kod metni", () => {
       return baseModel();
     });
     const res = await ask(s.token, "Merhaba, bir gece daha kalabilir miyiz?");
-    expect((await res.json()).deduped).toBe(true);
+    expect(((await res.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
     expect(guardAtSteal).toBeGreaterThanOrEqual(0); // kanca koştu
     expect(guardCalls()).toBe(guardAtSteal); // ⬅️ kontrolsüz: bekçi kayıptan SONRA çağrılırdı
     expect(await lastBotReply(s.propertyId)).toBeNull();

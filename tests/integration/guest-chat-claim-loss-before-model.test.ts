@@ -151,7 +151,7 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
     hook.paused = steal(`outbound-send:qr-in:${reservation.id}:${RID}`);
     const res = await call(token, "Çöp ne zaman alınıyor?", RID);
-    expect((await res.json()).deduped).toBe(true);
+    expect(((await res.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
     expect(hook.paused).toBeNull(); // kanca koştu
     expect(await prisma.chatUsage.count({ where: { propertyId } })).toBe(0); // ⬅️ KONTROLSÜZ: 1
     expect(counts.budget).toBe(0);
@@ -164,7 +164,7 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
     hook.limits = steal(`outbound-send:qr-in:${reservation.id}:${RID}`);
     const res = await call(token, "Çöp ne zaman alınıyor?", RID);
-    expect((await res.json()).deduped).toBe(true);
+    expect(((await res.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
     expect(counts.budget).toBe(0); // ⬅️ KOTA ÖNCESİ KONTROL YOKSA: 1 (eski işçi kotadan düşerdi)
     expect(counts.retrieve).toBe(0);
     expect(mockSuggest).not.toHaveBeenCalled();
@@ -176,13 +176,13 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
     hook.budget = steal(`outbound-send:qr-in:${reservation.id}:${RID}`);
     const res = await call(token, "Çöp ne zaman alınıyor?", RID);
-    expect((await res.json()).deduped).toBe(true);
+    expect(((await res.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
     expect(counts.budget).toBe(1);
     expect(counts.retrieve).toBe(0); // ⬅️ GETİRME ÖNCESİ KONTROL YOKSA: 1
     expect(mockSuggest).not.toHaveBeenCalled();
   });
 
-  it("🚨 bilgi tabanı seçimi sırasında kilit başka işçiye geçti → model HİÇ çağrılmaz, kayıt yok, cevap 'deduped'", async () => {
+  it("🚨 bilgi tabanı seçimi sırasında kilit başka işçiye geçti → model HİÇ çağrılmaz, kayıt yok, cevap 'pending' (iş yeni işçide sürüyor)", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
     const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
@@ -195,7 +195,7 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     };
     const res = await call(token, "Çöp ne zaman alınıyor?", RID);
     expect(res.status).toBe(200);
-    expect((await res.json()).deduped).toBe(true);
+    expect(((await res.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
     expect(hook.retrieve).toBeNull(); // kanca koştu
     expect(mockSuggest).not.toHaveBeenCalled(); // ⬅️ YENİLEMESİZ: ücretli çağrı yapılır, kayıtta düşerdi
     expect(await prisma.message.count({ where: { body: "Çöp ne zaman alınıyor?" } })).toBe(0);

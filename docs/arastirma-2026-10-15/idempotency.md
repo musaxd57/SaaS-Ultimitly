@@ -93,8 +93,9 @@ kapalı yolunda (`requestId` kullanılmıyor). Sıralı liste §8, kurucu sorula
 
 ### 1.8 QR misafir sohbeti — `POST /api/chat/[token]` (`requestId`)
 - **Koruma:** istemci mesaj başına kimlik, hata sonrası aynı metinle yeniden kullanır (`components/guest-chat/guest-chat.tsx:176-183`,
-  başarıda sıfırlar `:234`); sunucu `claimKeyedOutboundSend("qr-in:<konaklama>:<requestId>", metin)` — aynı gövde → `deduped`,
-  farklı gövde → 409, mağaza arızası → 503 (`chat/[token]/route.ts:641-664`); kayıt öncesi hata kalkanı bırakır (`:1354-1357`);
+  başarıda sıfırlar `:234`); sunucu `claimKeyedOutboundSend("qr-in:<konaklama>:<requestId>", metin)` — aynı gövde KAYDEDİLDİYSE →
+  `deduped`, aynı gövde başka istekte hâlâ SÜRÜYORSA → `pending` (11-18, Codex 11-17 E1: süren iş "kaydedildi" denmez; istemci aynı
+  kimlikle aralıklı yeniden sorar, kilit ömrü aşılınca metni geri verir), farklı gövde → 409, mağaza arızası → 503 (`chat/[token]/route.ts:641-664`); kayıt öncesi hata kalkanı bırakır (`:1354-1357`);
   konaklama tavanı kalkandan SONRA sayılır (`:665-671`); iptal edilmiş konaklama yolu ayrı tek-sefer kovası (`:507-509`).
   Ev sahibine e-posta olay kimliğiyle tekil (`guest-chat-alerts.ts:147-175`, acilde içerik parmak izi).
 - **Boşluk (ŞÜPHELİ, P3):** kalkan TTL 120 sn (`outbound-claim.ts:25`), ama QR yolu art arda birkaç model çağrısı yapabiliyor; her

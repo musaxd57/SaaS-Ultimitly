@@ -33,6 +33,23 @@ export function guestChatPollDelay(failures: number): number {
 }
 
 /**
+ * 🚨 SÜREN İSTEK (Codex 11-17 E1). Sunucu `pending` dediyse aynı kimlikli istek başka bir bağlantıda hâlâ işleniyor (ör. ilk gönderimin
+ * yanıtı ağda koptu, misafir yeniden bastı). O iş kayıttan önce düşebilir: ekran metni ve kimliği SİLMEZ, aynı kimlik + aynı metinle
+ * aralıklı yeniden sorar — iş kaydedildiyse sunucu "tekrar" der (ekran yenilenir), ilk iş düştüyse bu istek işlenir. Toplam bekleme
+ * sunucudaki çalışan kilidin ömrünü (120 sn) aşar: çökmüş bir işin kilidi dolunca son denemelerden biri mesajı işletir. Süre biterse
+ * metin yazma alanına geri gelir ve kimlik KORUNUR (misafirin elle yeniden gönderimi de aynı işlemdir).
+ */
+const PENDING_RETRY_DELAYS_MS = [3_000, 6_000, 12_000] as const;
+export const GUEST_CHAT_PENDING_GIVE_UP_MS = 140_000;
+
+/** `pending` cevabından sonraki bekleme: 3 sn, 6 sn, sonra hep 12 sn. */
+export function guestChatPendingDelay(attempt: number): number {
+  return PENDING_RETRY_DELAYS_MS[Math.min(Math.max(attempt, 0), PENDING_RETRY_DELAYS_MS.length - 1)]!;
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
  * Public guest concierge chat UI (mobile-first). Two-way: it loads the stay's
  * thread, polls for new messages, and shows three distinct senders —
  *   • Misafir (the guest)        → right, primary
@@ -72,6 +89,13 @@ export function GuestChat({
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // H6 (Codex 11-17): misafir geçmişi okurken (liste sonu ekranda değilken) arka plan sorgusu ekranı aşağı ÇEKMEZ. Liste sonu görünürse
+  // (ya da tarayıcı bunu söyleyemiyorsa) eski davranış: yeni mesajda sona kayar. Kendi gönderiminde her zaman sona kayar: bayrak gönderim
+  // başında VE cevabı getiren yenilemeden hemen önce açılır (gönderim durumu bu iş için güvenilmez — cevabın listeye girmesi ile
+  // "gönderim bitti" aynı çizimde işlenir; yumuşak kayma sürerken gözlemci "son görünmüyor" demiş olabilir).
+  const stickToEndRef = useRef(true);
+  // Ekran kapandıysa (sayfa değişti) süren "yeniden sor" döngüsü durur — kapanmış ekrana durum yazılmaz, boşuna istek atılmaz.
+  const unmountedRef = useRef(false);
   // Monotonic load counter (drop stale snapshots) + a live "sending" flag the
   // poll reads to avoid clobbering the optimistic bubble mid-send.
   const loadSeq = useRef(0);
@@ -212,6 +236,30 @@ export function GuestChat({
   }, [loadHistory, closed, boundElsewhere]);
 
   useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+
+  // Liste sonu ekranda mı? Hangi kutunun kaydığından bağımsız (sayfa da kayabilir, liste de) — gözlemci yoksa "sonda" sayılır.
+  // Bağımlılık: liste yalnız bu ekranlarda çizilir; kilit / kapanış ekranından dönünce gözlemci yeni öğeye yeniden bağlanır.
+  useEffect(() => {
+    const end = endRef.current;
+    if (!end || typeof IntersectionObserver === "undefined") {
+      stickToEndRef.current = true;
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      const last = entries[entries.length - 1];
+      if (last) stickToEndRef.current = last.isIntersecting;
+    });
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, [pinRequired, closed, boundElsewhere]);
+
+  useEffect(() => {
+    if (!stickToEndRef.current) return;
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, sending]);
 
@@ -251,12 +299,16 @@ export function GuestChat({
       // gönderilemeyen metin geri gelir.
       setInput((cur) => (cur.trim() ? cur : text));
     };
-    try {
+    stickToEndRef.current = true; // kendi mesajını gönderen misafir sonu görür
+    // Tek deneme. "recorded": kaydedildi (bu istekte ya da önceki denemede) · "pending": aynı kimlik başka bir istekte sürüyor, hiçbir
+    // şey kaydedilmedi · "stopped": ekran durumu zaten yazıldı (hata / kapanış / kilit), yapılacak bir şey kalmadı.
+    const attemptOnce = async (): Promise<"recorded" | "pending" | "stopped"> => {
       const res = await fetch(`/api/chat/${token}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: text, requestId }),
       });
+      if (unmountedRef.current) return "stopped";
       if (!res.ok) {
         rollback();
         // 🚨 SUNUCUNUN SEBEBİNİ GÖSTER (inceleme, 09-11). Rota 409/413/429/503
@@ -267,13 +319,15 @@ export function GuestChat({
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         // Sunucunun sebep metni Türkçe; İngilizce ekranda yerine aynı anlamda genel cümle (Türkçe cümle yabancı misafire bir şey söylemez).
         setError(locale === "tr" && typeof body?.error === "string" && body.error.trim() ? body.error : t.replyFailed);
-        return;
+        return "stopped";
       }
       const data = (await res.json().catch(() => ({}))) as {
         boundElsewhere?: boolean;
         pinRequired?: boolean;
         closed?: boolean;
+        pending?: boolean;
       };
+      if (data.pending) return "pending";
       // 🚨 SESSİZ MESAJ KAYBI (inceleme, 09-11). Konaklama sayfa AÇIKKEN biterse
       // rota 200 + `{closed:true}` döner ve mesajı KAYDETMEZ. `res.ok` doğru
       // olduğu için iyimser balon ekranda KALIYORDU: misafir gönderilmiş gibi
@@ -282,7 +336,7 @@ export function GuestChat({
       if (data.closed) {
         rollback();
         setClosed(true);
-        return;
+        return "stopped";
       }
       if (data.pinRequired) {
         // The stay needs the host's code (e.g. the device cookie lapsed) — send
@@ -290,15 +344,36 @@ export function GuestChat({
         // unlock, re-sending the restored text is the same composed message.
         rollback();
         setPinRequired(true);
-        return;
+        return "stopped";
       }
       if (data.boundElsewhere) {
         // This device isn't the one that claimed the stay — nothing was sent.
         rollback();
         setBoundElsewhere(true);
-        return;
+        return "stopped";
       }
-      requestIdRef.current = null; // delivered (or deduped) — next message is new
+      return "recorded";
+    };
+    try {
+      // `pending` gelirse AYNI gövde (aynı kimlik + aynı metin) aralıklı yeniden gönderilir (↑ E1). Bu sırada balon ve "yazıyor"
+      // göstergesi yerinde kalır, kimlik SİLİNMEZ; arka plan sorgusu da başlamaz (gönderim sürüyor).
+      let waitedMs = 0;
+      for (let attempt = 0; ; attempt++) {
+        const outcome = await attemptOnce();
+        if (outcome === "stopped") return;
+        if (outcome === "recorded") break;
+        if (waitedMs >= GUEST_CHAT_PENDING_GIVE_UP_MS) {
+          rollback(); // metin geri gelir; kimlik korunur → elle yeniden gönderim aynı işlemdir (çift kayıt olmaz)
+          setError(t.replyFailed);
+          return;
+        }
+        const delay = guestChatPendingDelay(attempt);
+        waitedMs += delay;
+        await wait(delay);
+        if (unmountedRef.current) return;
+      }
+      requestIdRef.current = null; // kaydedildi — sonraki mesaj yeni işlem
+      stickToEndRef.current = true; // kendi mesajının cevabı: sona in (↑ H6)
       await loadHistory({ force: true });
     } catch {
       rollback();

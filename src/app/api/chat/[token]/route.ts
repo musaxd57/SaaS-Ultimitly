@@ -68,7 +68,15 @@ import {
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
-import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend, renewKeyedOutboundSend, startKeyedClaimHeartbeat } from "@/lib/outbound-claim";
+import {
+  claimKeyedOutboundSend,
+  completeKeyedOutboundSend,
+  KeyedClaimLostError,
+  keyedOutboundSendRecorded,
+  releaseKeyedOutboundSend,
+  renewKeyedOutboundSend,
+  startKeyedClaimHeartbeat,
+} from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
@@ -772,9 +780,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (claimScopeId) {
     const claimed = await claimKeyedOutboundSend(claimScopeId, message, claimToken);
     if (claimed === "duplicate") {
-      // Already processed (or still in flight). The client is GET-authoritative —
-      // it reloads the thread and renders whatever the first attempt recorded.
+      // KAYDEDİLDİ (tamamlanmış kayıt). The client is GET-authoritative — it reloads the thread and renders what the first attempt
+      // recorded.
       return finalize({ deduped: true });
+    }
+    if (claimed === "in_flight") {
+      // 🚨 SÜREN İSTEK "KAYDEDİLDİ" DEĞİLDİR (Codex 11-17 E1). Aynı kimlik başka bir istekte hâlâ çalışıyor: misafir mesajı ancak cevabıyla
+      // birlikte yazılır, o iş kayıttan önce düşebilir. Eskiden bu da `deduped: true` dönüyordu → ekran metni ve kimliği siliyor, ilk iş
+      // düşerse mesaj hiçbir yerde kalmıyordu. `pending`: hiçbir şey yazılmadı, hiçbir sayaç tüketilmedi; istemci AYNI kimlik + AYNI
+      // metinle yeniden sorar — kaydedildiyse `deduped`, ilk iş düştüyse (kilit bırakıldı / süresi doldu) o istek işlenir.
+      return finalize({ pending: true });
     }
     if (claimed === "mismatch") {
       return NextResponse.json(
@@ -1635,8 +1650,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   return finalize({ escalated: sendEscalate, reply });
 
   } catch (err) {
-    // Kilit süresi dolarken aynı isteği yeni işçi aldı / bitirdi (kurucu 10-16): bu işçi hiçbir şey yazmadı; istemci kaydı GET ile okur.
-    if (err instanceof KeyedClaimLostError) return finalize({ deduped: true });
+    // Kilit süresi dolarken aynı isteği yeni işçi aldı / bitirdi (kurucu 10-16): bu işçi hiçbir şey yazmadı. Yeni işçi BİTİRDİYSE istemci
+    // kaydı GET ile okur (`deduped`); hâlâ ÇALIŞIYORSA sonucu belli değil → `pending` (E1: süren iş "kaydedildi" diye duyurulmaz).
+    if (err instanceof KeyedClaimLostError) {
+      return finalize(claimScopeId && (await keyedOutboundSendRecorded(claimScopeId, message)) ? { deduped: true } : { pending: true });
+    }
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
     // Yenileme ÖNCE durur (Haiku 10-16): bırakmadan sonra gelen bir yenileme turu, satır yok diye kilidi yeniden almasın.

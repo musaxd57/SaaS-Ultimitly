@@ -472,7 +472,110 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       expect(await prisma.systemLock.findUnique({ where: { name } })).not.toBeNull(); // ⬅️ ESKİDE A, B'nin kilidini siliyordu
     });
 
-    it("sürüm geçişi: önceki sürümün jetonsuz çalışan kilidi (holder = özet) hâlâ doğru sınıflanır — aynı içerik tekilleşir, farklı içerik 409", async () => {
+    // ── E1 (Codex 11-17): SÜREN İSTEK "KAYDEDİLDİ" DEĞİLDİR ──────────────────────────────────────────────────────────────────────────
+    // Misafir mesajı yalnız cevabıyla birlikte yazılır. İlk istek (A) çalışırken aynı kimlikle gelen tekrar (B) eskiden `deduped: true`
+    // alıyordu; ekran bunu "kaydedildi" sayıp metni ve kimliği siliyordu. A kayıttan önce düşerse mesaj hiçbir yerde kalmıyordu.
+    it("🚨 E1: ilk istek ÇALIŞIRKEN gelen tekrar 'pending' alır (deduped DEĞİL); ilk istek düşerse aynı kimlikli sonraki istek mesajı İŞLER", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      let retry: { status: number; body: Record<string, unknown> } | null = null;
+      mockSuggest.mockImplementationOnce(async () => {
+        // A'nın model çağrısı sürerken misafirin ekranı aynı isteği yeniden gönderiyor (B).
+        const b = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+        retry = { status: b.status, body: (await b.json()) as Record<string, unknown> };
+        throw new Error("model down"); // A kayıttan ÖNCE düşüyor
+      });
+      const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(a.status).toBe(500);
+      expect(retry!.status).toBe(200);
+      expect(retry!.body.pending).toBe(true); // ⬅️ ESKİDE deduped: true ("kaydedildi") — oysa hiçbir şey kaydedilmedi
+      expect(retry!.body.deduped).toBeUndefined();
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(0);
+      // Ekran aynı kimlikle yeniden soruyor: A kilidini bıraktı → bu istek işlenir, mesaj TEK kez kaydedilir.
+      const c = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      const cBody = (await c.json()) as Record<string, unknown>;
+      expect(c.status).toBe(200);
+      expect(cBody.pending).toBeUndefined();
+      expect(cBody.deduped).toBeUndefined();
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(1);
+      // Kaydedildikten SONRA gelen tekrar artık gerçekten "kaydedildi"dir.
+      const d = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(((await d.json()) as Record<string, unknown>).deduped).toBe(true);
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(1);
+    });
+
+    it("E1 KONTROL: ilk istek BAŞARIYLA biterse süren tekrar 'pending', sonraki tekrar 'deduped' alır — mesaj ve model çağrısı tek", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      const callsBefore = mockSuggest.mock.calls.length;
+      let during: Record<string, unknown> | null = null;
+      mockSuggest.mockImplementationOnce(async () => {
+        during = (await (await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID })).json()) as Record<string, unknown>;
+        return result();
+      });
+      const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(a.status).toBe(200);
+      expect(during!.pending).toBe(true);
+      const after = (await (await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID })).json()) as Record<string, unknown>;
+      expect(after.deduped).toBe(true);
+      expect(after.pending).toBeUndefined();
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(1);
+      expect(mockSuggest.mock.calls.length).toBe(callsBefore + 1); // süren tekrar ikinci model çağrısı yapmadı
+    });
+
+    it("E1: 'pending' cevabı saatlik mesaj hakkını TÜKETMEZ (sayaç sahiplenmeden sonra)", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      const stayCount = async () =>
+        (await prisma.rateLimitCounter.findUnique({ where: { key: `guestchat-stay:${reservation.id}` } }))?.count ?? 0;
+      const before = await stayCount();
+      const modelCallsBefore = mockSuggest.mock.calls.length;
+      // Başka bir istekte süren kilit (jetonlu, canlı): gelen tekrar hiçbir şey işlemez.
+      const { createHash, createHmac } = await import("node:crypto");
+      const key = process.env.AUTH_SECRET;
+      const digest = (key ? createHmac("sha256", key).update("qr-claim:v1:Çöp günü hangi gün?") : createHash("sha256").update("Çöp günü hangi gün?"))
+        .digest("base64url")
+        .slice(0, 24);
+      await prisma.systemLock.create({
+        data: { name: `outbound-send:qr-in:${reservation.id}:${RID}`, lockedUntil: new Date(Date.now() + 60_000), holder: `${digest}.baska-isci` },
+      });
+      const res = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(((await res.json()) as Record<string, unknown>).pending).toBe(true);
+      expect(await stayCount()).toBe(before);
+      expect(mockSuggest.mock.calls.length).toBe(modelCallsBefore); // model çağrılmadı
+    });
+
+    it("🚨 E1: kilidini kaybeden eski işçi — yeni işçi HÂLÂ ÇALIŞIYORSA 'pending' der (kaydedildi DEMEZ); kendi işini de kaydetmez", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      const name = `outbound-send:qr-in:${reservation.id}:${RID}`;
+      mockSuggest.mockImplementationOnce(async () => {
+        // A'nın kilidi süresi dolup süpürüldü; aynı isteği YENİ bir işçi aldı ve hâlâ çalışıyor (kayıt yok). A'nın modeli cevap veriyor.
+        const row = await prisma.systemLock.findUniqueOrThrow({ where: { name } });
+        const digest = (row.holder ?? "").split(".")[0];
+        await prisma.systemLock.update({ where: { name }, data: { holder: `${digest}.yeni-isci`, lockedUntil: new Date(Date.now() + 120_000) } });
+        return result();
+      });
+      const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      const body = (await a.json()) as Record<string, unknown>;
+      expect(a.status).toBe(200);
+      expect(body.pending).toBe(true); // ⬅️ ESKİDE deduped: true — yeni işçi düşerse mesaj kaybolurdu
+      expect(body.deduped).toBeUndefined();
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(0); // A kaydetmedi (kilit onun değil)
+      expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).holder).toContain("yeni-isci"); // yeni işçinin kilidine dokunulmadı
+    });
+
+    it("sürüm geçişi: önceki sürümün jetonsuz çalışan kilidi (holder = özet) hâlâ doğru sınıflanır — aynı içerik 'sürüyor' (yeniden işlenmez), farklı içerik 409", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);
       const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
@@ -486,13 +589,16 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         data: { name: `outbound-send:qr-in:${reservation.id}:${RID}`, lockedUntil: new Date(Date.now() + 60_000), holder: digest },
       });
       const same = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
-      expect((await same.json()).deduped).toBe(true);
+      // E1 (Codex 11-17): jetonsuz satır TAMAMLANMIŞ kayıt değil, önceki sürümün ÇALIŞAN kilididir (en çok 120 sn) → "sürüyor".
+      const sameBody = (await same.json()) as Record<string, unknown>;
+      expect(sameBody.pending).toBe(true);
+      expect(sameBody.deduped).toBeUndefined();
       const other = await call(token, "Bambaşka", deviceCookie(same), { requestId: RID });
       expect(other.status).toBe(409);
       expect(mockSuggest).not.toHaveBeenCalled();
     });
 
-    it("Haiku 10-16: yayından hemen önce eski sürümün yazdığı ANAHTARSIZ özetli kilit aynı içerikle tekilleşir (409 değil)", async () => {
+    it("Haiku 10-16: yayından hemen önce eski sürümün yazdığı ANAHTARSIZ özetli kilit aynı içerikle 'sürüyor' sayılır (409 değil, yeniden işlenmez)", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);
       const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
@@ -502,7 +608,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         data: { name: `outbound-send:qr-in:${reservation.id}:${RID}`, lockedUntil: new Date(Date.now() + 60_000), holder: legacy },
       });
       const same = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
-      expect((await same.json()).deduped).toBe(true);
+      expect(((await same.json()) as Record<string, unknown>).pending).toBe(true); // E1: çalışan (eski biçim) kilit = sürüyor, işlenmedi
       expect((await call(token, "Bambaşka", deviceCookie(same), { requestId: RID })).status).toBe(409);
     });
 
@@ -529,7 +635,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         const warm = await call(token, "merhaba");
         const cookie = deviceCookie(warm);
         const before = await prisma.message.count({ where: { direction: "inbound" } });
-        let retryDeduped: unknown = "unset";
+        let retryBody: Record<string, unknown> = {};
         mockSuggest.mockImplementationOnce(async () => {
           // 120 sn geçmiş gibi: kilidin süresi doldu. Canlı işçinin yenilemesi onu yeniden ileri atmalı.
           await prisma.systemLock.updateMany({
@@ -538,13 +644,16 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
           });
           await new Promise((r) => setTimeout(r, 120)); // birkaç yenileme turu
           const b = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
-          retryDeduped = (await b.json()).deduped;
+          retryBody = (await b.json()) as Record<string, unknown>;
           return result();
         });
         const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
         expect(a.status).toBe(200);
         expect((await a.json()).deduped).toBeUndefined(); // eski işçi işini bitirdi
-        expect(retryDeduped).toBe(true); // ⬅️ YENİLEMESİZ: süresi dolmuş kilit süpürülür, tekrar işi baştan yapardı
+        // ⬅️ YENİLEMESİZ: süresi dolmuş kilit süpürülür, tekrar işi baştan yapardı. E1 (11-18): canlı tutulan kilit = iş SÜRÜYOR → tekrar
+        // "sürüyor" cevabı alır (işlenmez, "kaydedildi" de denmez).
+        expect(retryBody.pending).toBe(true);
+        expect(retryBody.deduped).toBeUndefined();
         expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before + 1);
         expect(mockSuggest).toHaveBeenCalledTimes(2); // selam + A (tekrar modeli çağırmadı)
       } finally {
@@ -572,7 +681,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         });
         const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
         expect(a.status).toBe(200);
-        expect((await a.json()).deduped).toBe(true);
+        expect(((await a.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
         expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before); // eski işçi HİÇBİR ŞEY yazmadı
         expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).holder).toBe("baska.isci"); // yeni işçinin kilidi duruyor
       } finally {
@@ -659,7 +768,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         return result({ reply: "Çöp salı günü alınır; acil bir durumda 112'yi arayın." });
       });
       const a = await call(token, "Çöp ne zaman alınıyor?", cookie, { requestId: RID });
-      expect((await a.json()).deduped).toBe(true);
+      expect(((await a.json()) as Record<string, unknown>).pending).toBe(true); // E1 (11-18): kilit başka işçide SÜRÜYOR → "kaydedildi" denmez, ekran aynı kimlikle yeniden sorar
       expect(mockSuggest.mock.calls.length - before).toBe(1); // ⬅️ YENİLEMESİZ: ikinci (ücretli) çağrı yapılırdı, sonra kayıtta düşerdi
       expect(await prisma.message.count({ where: { body: "Çöp ne zaman alınıyor?" } })).toBe(0);
     });

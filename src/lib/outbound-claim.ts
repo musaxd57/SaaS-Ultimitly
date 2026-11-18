@@ -188,7 +188,12 @@ export async function extendOutboundRequest(conversationId: string, idempotencyK
 // Jetonsuz eski biçim (`holder = <özet>`, önceki sürümün yazdığı satır) okunurken özet olarak tanınır (sürüm geçişinde sınıflandırma bozulmaz).
 // ---------------------------------------------------------------------------
 
-export type KeyedOutboundClaim = "claimed" | "duplicate" | "mismatch" | "unavailable";
+/**
+ * `duplicate` = aynı istek KAYDEDİLDİ (`done:` kaydı) · `in_flight` = aynı istek başka bir işçide SÜRÜYOR, sonucu henüz belli değil
+ * (Codex 11-17 E1: ikisi eskiden tek "duplicate"ti — istemci süren isteği "kaydedildi" sanıp metni ve kimliği siliyordu; ilk işçi
+ * kayıttan önce düşerse misafirin mesajı hiçbir yerde kalmıyordu).
+ */
+export type KeyedOutboundClaim = "claimed" | "duplicate" | "in_flight" | "mismatch" | "unavailable";
 
 /** Tamamlanmış istek kaydının ömrü (kurucu 10-16). */
 export const KEYED_DONE_TTL_MS = 24 * 3_600_000;
@@ -254,13 +259,32 @@ export async function claimKeyedOutboundSend(scopeId: string, body: string, toke
         // a just-expired row) — refuse honestly; the client's next retry claims.
         if (!row) return "unavailable";
         const stored = digestOfHolder(row.holder);
-        return stored === digest || stored === legacyBodyDigest(body) ? "duplicate" : "mismatch";
+        if (stored !== digest && stored !== legacyBodyDigest(body)) return "mismatch";
+        // Tamamlanmış kayıt → iş KAYDEDİLDİ. Çalışan kilit (jetonlu ya da önceki sürümün jetonsuz biçimi — en çok 120 sn yaşar) → iş
+        // sürüyor: kaydedilip kaydedilmeyeceği belli değil, "kaydedildi" DENMEZ.
+        return row.holder?.startsWith(DONE_PREFIX) ? "duplicate" : "in_flight";
       } catch {
         return "unavailable";
       }
     }
     // Store down → fail CLOSED (same reasoning as claimOutboundSend).
     return "unavailable";
+  }
+}
+
+/**
+ * Kilidini kaybeden işçinin sorusu (`KeyedClaimLostError` sonrası): aynı istek KAYDEDİLDİ mi? Yalnız `done:` kaydı ve aynı özet "evet"tir;
+ * başka işçide süren kilit, satırın yokluğu ve okunamayan depo "hayır" (belirsizlikte "kaydedildi" denmez — istemci aynı kimlikle
+ * yeniden sorar; kaydedildiyse o zaman "duplicate" görür, kimse almadıysa işlenir).
+ */
+export async function keyedOutboundSendRecorded(scopeId: string, body: string): Promise<boolean> {
+  try {
+    const row = await prisma.systemLock.findUnique({ where: { name: `${PREFIX}${scopeId}` }, select: { holder: true } });
+    if (!row?.holder?.startsWith(DONE_PREFIX)) return false;
+    const stored = digestOfHolder(row.holder);
+    return stored === bodyDigest(body) || stored === legacyBodyDigest(body);
+  } catch {
+    return false;
   }
 }
 
