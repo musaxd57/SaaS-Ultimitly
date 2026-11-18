@@ -128,14 +128,15 @@ export async function resolvePlanChange(
   // tek başına revert edilebilir.
   // Kurucu 10-16 (S4): duraklatılmış abonelikte Paddle plan değişikliği yapmaz (önce devam ettirilmeli) — belirsiz cevapla nonce
   // tüketmemek için Paddle'a gitmeden açık metin.
-  if (sub.status === "paused") {
+  const statusBlock = planChangeStatusBlock(sub.status);
+  if (statusBlock === "paused") {
     return {
       ok: false,
       // Opus F8: portalda "devam ettir" olduğu doğrulanamadı → eylem vaat etmeyen metin (son biçim kurucu sorusu I4).
       error: "Aboneliğiniz duraklatıldığı için şu anda plan değiştirilemiyor.",
     };
   }
-  if (sub.status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") {
+  if (statusBlock === "canceled") {
     return {
       ok: false,
       error: "Aboneliğiniz iptal edilmiş. Plan değiştirmek yerine yeni bir abonelik başlatın.",
@@ -208,6 +209,34 @@ export async function resolvePlanChange(
     priceId,
     target,
   };
+}
+
+/**
+ * Abonelik durumu plan değişikliğini engelliyor mu (yukarıdaki iki kapının TEK kuralı; uygulama rotasının PATCH öncesi yeniden okuması da
+ * bunu kullanır). `canceled` kaçış anahtarı `BILLING_ALLOW_CANCELED_PLAN_CHANGE=1` ile açılır.
+ */
+export function planChangeStatusBlock(status: string): "paused" | "canceled" | null {
+  if (status === "paused") return "paused";
+  if (status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") return "canceled";
+  return null;
+}
+
+/**
+ * PATCH'ten hemen önce yeniden okunan yerel satır, isteğin başında çözülen değişiklikle hâlâ aynı mı (Codex 11-17 B2): aynı Paddle aboneliği,
+ * aynı plan, durum hâlâ izinli. İstek başındaki satıra karşı yapılan kaynak karşılaştırması, istek SÜRERKEN webhook'un kayıtlı aboneliği
+ * değiştirmesini göremiyordu (yeniden önizleme + fiyat okuması ≈ 1–3 sn) → PATCH artık kayıtlı olmayan eski aboneliğe gidiyordu.
+ */
+export function planChangeRowStillCurrent(
+  row: { provider: string; providerRef: string | null; planCode: string; status: string } | null,
+  resolved: { providerRef: string; currentCode: string },
+): boolean {
+  return (
+    row !== null &&
+    row.provider === "paddle" &&
+    row.providerRef === resolved.providerRef &&
+    row.planCode === resolved.currentCode &&
+    planChangeStatusBlock(row.status) === null
+  );
 }
 
 // ---------------------------------------------------------------------------

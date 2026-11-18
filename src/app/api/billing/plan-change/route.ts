@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { reportError } from "@/lib/report-error";
+import { alertOnTransition } from "@/lib/alert-state";
 import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -15,6 +16,7 @@ import {
   planChangeEnabled,
   planChangePendingHolder,
   planChangePendingLockName,
+  planChangeRowStillCurrent,
   planChangeSourceMatches,
   releasePlanChangeNonce,
   resolvePlanChange,
@@ -205,6 +207,28 @@ export const POST = withOwner(async (session, req) => {
     await releasePlanChangeNonce(token.jti);
     return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
+  // 🚨 Yerel satır PATCH'ten HEMEN önce (Codex 11-17 B2): yukarıdaki karşılaştırmalar istek başında okunan satıra ve o aboneliğin KENDİ Paddle
+  // fiyatına bakıyordu — istek sürerken webhook kayıtlı aboneliği başka bir aboneliğe çevirirse (yeni abonelik eskisinin yerine geçti)
+  // göremiyorlardı; PATCH kayıtlı olmayan eski aboneliğe gidiyor, yükseltmede fark onun kartından çekiliyor, müşteri "başarılı" görüyordu.
+  // Okuma Paddle fiyat okumasından SONRA (o çağrı da pencereyi açar). Satır artık tutmuyorsa uygulanmaz; kilit ve onay geri bırakılır, metin
+  // yukarıdaki kaynak retleriyle AYNI. Okunamazsa kör PATCH yok (fiyat okunamadığındaki gibi 503). Kalan pencere bu okuma ile Paddle'ın
+  // isteği alması arası — aşağıdaki PATCH sonrası okuma onu sessiz olmaktan çıkarır.
+  let liveRow: Parameters<typeof planChangeRowStillCurrent>[0];
+  try {
+    liveRow = await prisma.subscription.findUnique({
+      where: { organizationId: session.organizationId },
+      select: { provider: true, providerRef: true, planCode: true, status: true },
+    });
+  } catch {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  if (!planChangeRowStillCurrent(liveRow, r)) {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration, session.organizationId);
   if (!result.ok) {
     if (result.kind === "definitive") {
@@ -257,6 +281,11 @@ export const POST = withOwner(async (session, req) => {
   }
   if (result.ok) await clearPending();
 
+  // Uygulandı (ya da belirsiz → uzlaştırıldı). PATCH sürerken kayıtlı abonelik değiştiyse değişiklik artık kayıtlı OLMAYAN aboneliğe gitti:
+  // müşteri yanıtı aynı kalır (yeni metin kurucu kararı), ama kayıt işaretlenir ve operatöre geçiş tabanlı alarm gider — eski abonelik iki
+  // kez faturalanıyor olabilir (iade / iptal kararı). Alarm metninde yalnız kimlikler; bu yol isteği asla düşürmez.
+  const superseded = await supersededDuringApply(session.organizationId, r.providerRef);
+
   // ⚠️ BU ROTA PARA HAREKETİ YAPAR (upgrade `prorated_immediately` → fark ANINDA
   // karttan çekilir). Fail `auditActor` ile GERÇEK operatördür; `impersonation`
   // alanları da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar.
@@ -271,9 +300,33 @@ export const POST = withOwner(async (session, req) => {
       to: planCode,
       mode: r.mode,
       reconciled: !result.ok,
+      ...(superseded ? { subscriptionSupersededDuringApply: true } : {}),
       ...auditImpersonation(session),
     },
   }).catch(() => {});
 
   return jsonOk({ ok: true, mode: r.mode, reconciled: !result.ok });
 });
+
+/** PATCH'ten sonra kayıtlı abonelik, değişikliğin uygulandığı abonelik değil mi; öyleyse operatör alarmı. Asla fırlatmaz. */
+async function supersededDuringApply(organizationId: string, appliedTo: string): Promise<boolean> {
+  let current: string | null;
+  try {
+    current = (await prisma.subscription.findUnique({ where: { organizationId }, select: { providerRef: true } }))?.providerRef ?? null;
+  } catch {
+    return false; // okunamadı: işaret yok (müşteri yanıtı zaten değişmiyor)
+  }
+  if (current === appliedTo) return false;
+  try {
+    await alertOnTransition(
+      `billing-plan-change-superseded:${organizationId}:${appliedTo}`,
+      "billing-plan-change-superseded",
+      new Error(
+        `Plan değişikliği org=${organizationId} için ${appliedTo} aboneliğine uygulandı, ama kayıtlı abonelik artık ${current ?? "yok"} — eski abonelik ayrıca faturalanıyor olabilir; Paddle'da iade / iptal kararı gerekir.`,
+      ),
+    );
+  } catch {
+    // Alarm yolu isteği düşürmez; işaret yine kayda düşer.
+  }
+  return true;
+}

@@ -619,4 +619,100 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(await prisma.systemLock.count({ where: { name: lockName, lockedUntil: { gt: new Date() } } })).toBe(0);
   });
 
+  // ---------------------------------------------------------------------------
+  // Codex 11-17 B2 — İSTEK SÜRERKEN ABONELİK DEĞİŞİRSE. Kaynak yalnız istek başında yerel satırdan karşılaştırılıyordu; yeniden önizleme /
+  // fiyat okuması sırasında webhook kayıtlı aboneliği A'dan B'ye çevirirse rota A'ya PATCH atıp 200 dönüyordu (yükseltmede fark A'nın
+  // kartından anında çekilir, yerel plan değişmez). Artık PATCH'ten hemen önce satır yeniden okunur; PATCH sırasında değişirse kayda işaret
+  // düşer ve operatöre geçiş tabanlı alarm gider (müşteri yanıtı aynı).
+  // ---------------------------------------------------------------------------
+  describe("B2 — PATCH anında kayıtlı abonelik hâlâ önizlenen abonelik", () => {
+    const pendingRow = () => prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${orgId}` } });
+    const swapTo = (data: { providerRef?: string; planCode?: string; status?: string }) => prisma.subscription.update({ where: { organizationId: orgId }, data });
+    const supersededAlarm = () => prisma.systemLock.findUnique({ where: { name: `alert-state:billing-plan-change-superseded:${orgId}:sub_1` } });
+    const lastAudit = async () => {
+      const row = await prisma.auditLog.findFirst({ where: { organizationId: orgId, action: "billing.plan_change" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+      return row ? { metadata: JSON.parse(row.metadataJson ?? "{}") as Record<string, unknown> } : null;
+    };
+    const body = (t: string) => req({ immediateStartConsent: true, planCode: "business", previewToken: t });
+
+    async function expectRefusedThenSameTokenWorks(t: string, res: Response) {
+      expect(res.status).toBe(400); // ⬅️ ESKİDE 200 + PATCH eski aboneliğe (sub_1)
+      expect((await res.json()).fields.error).toMatch(/Tutar onayı bu plan için değil/);
+      expect(updateMock).not.toHaveBeenCalled();
+      const lock = await pendingRow();
+      expect(lock === null || lock.lockedUntil <= new Date()).toBe(true); // "işleniyor" kilidi takılı kalmadı
+      // Onay tüketilmedi: satır önizlenen hâline dönünce AYNI onay geçer.
+      await swapTo({ providerRef: "sub_1", planCode: "pro", status: "active" });
+      expect((await CHANGE(body(t), ctx)).status).toBe(200);
+      expect(updateMock).toHaveBeenCalledTimes(1);
+      expect(updateMock.mock.calls[0][0]).toBe("sub_1");
+    }
+
+    it("🚨 yeniden önizleme sırasında kayıtlı abonelik B'ye geçti → PATCH YOK, 400 (var olan metin), kilit serbest, onay tüketilmedi", async () => {
+      const t = tok("pri_isletme", "upgrade");
+      previewMock.mockImplementationOnce(async () => {
+        await swapTo({ providerRef: "sub_2" }); // webhook: yeni abonelik eskisinin yerine geçti
+        return { mode: "prorated_immediately", immediateTotal: "₺123,45", recurringTotal: "₺899,00" };
+      });
+      await expectRefusedThenSameTokenWorks(t, await CHANGE(body(t), ctx));
+    });
+
+    it("🚨 Paddle fiyat okuması sırasında (kilitten sonra) abonelik B'ye geçti → aynı ret (yeniden okuma fiyat okumasından SONRA)", async () => {
+      const t = tok("pri_isletme", "upgrade");
+      getPriceMock.mockImplementationOnce(async () => {
+        await swapTo({ providerRef: "sub_2" });
+        return "pri_pro"; // A'nın Paddle'daki fiyatı değişmedi — eski son bakış bunu göremiyordu
+      });
+      await expectRefusedThenSameTokenWorks(t, await CHANGE(body(t), ctx));
+    });
+
+    it("🚨 fiyat okuması sırasında PLAN ya da DURUM değişti (aynı abonelik) → aynı ret", async () => {
+      for (const change of [{ planCode: "business" }, { status: "paused" }, { status: "canceled" }]) {
+        updateMock.mockClear();
+        const t = tok("pri_isletme", "upgrade");
+        getPriceMock.mockImplementationOnce(async () => {
+          await swapTo(change);
+          return "pri_pro";
+        });
+        const res = await CHANGE(body(t), ctx);
+        expect(res.status, JSON.stringify(change)).toBe(400);
+        expect(updateMock, JSON.stringify(change)).not.toHaveBeenCalled();
+        await swapTo({ providerRef: "sub_1", planCode: "pro", status: "active" });
+      }
+    });
+
+    it("🚨 PATCH sırasında abonelik B'ye geçti → müşteri yanıtı AYNI (200) ama kayıtta işaret + operatöre geçiş tabanlı alarm (yalnız kimlikler)", async () => {
+      updateMock.mockImplementationOnce(async () => {
+        await swapTo({ providerRef: "sub_2" });
+        return { ok: true };
+      });
+      const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, mode: "upgrade", reconciled: false });
+      expect((await lastAudit())?.metadata).toMatchObject({ subscriptionSupersededDuringApply: true });
+      expect(await supersededAlarm()).not.toBeNull(); // ⬅️ ESKİDE iz yoktu
+    });
+
+    it("🚨 belirsiz PATCH → uzlaştırıldı (Paddle hedefte) ve o arada abonelik B'ye geçti → aynı işaret + alarm", async () => {
+      updateMock.mockImplementationOnce(async () => {
+        await swapTo({ providerRef: "sub_2" });
+        return { ok: false, kind: "ambiguous" };
+      });
+      getPriceMock.mockResolvedValueOnce("pri_pro").mockResolvedValueOnce("pri_isletme"); // önce kaynak, sonra uzlaştırma: hedefte
+      const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
+      expect(res.status).toBe(200);
+      expect((await res.json()).reconciled).toBe(true);
+      expect((await lastAudit())?.metadata).toMatchObject({ subscriptionSupersededDuringApply: true, reconciled: true });
+      expect(await supersededAlarm()).not.toBeNull();
+    });
+
+    it("KONTROL (B2): satır değişmezse bugünkü akış aynen — 200, PATCH kayıtlı aboneliğe, işaret ve alarm YOK", async () => {
+      const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
+      expect(res.status).toBe(200);
+      expect(updateMock).toHaveBeenCalledTimes(1);
+      expect(updateMock.mock.calls[0][0]).toBe("sub_1");
+      expect((await lastAudit())?.metadata).not.toHaveProperty("subscriptionSupersededDuringApply");
+      expect(await supersededAlarm()).toBeNull();
+    });
+  });
 });
