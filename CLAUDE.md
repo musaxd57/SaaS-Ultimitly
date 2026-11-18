@@ -336,7 +336,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - 🚨 "KAYDEDİLDİ" ≠ "KANAL KABUL ETTİ" ≠ "İŞ ÇÖZÜLDÜ" (11-18, `lib/delivery-outcome.ts`):
 - Cevap rotasında çeviriyle gönderim YOK; kaldırılan alan sessizce yok sayılmaz, reddedilir (11-18, `api/conversations/[id]/reply`):
 - Otomatik mesajın gönderilebildiği rezervasyon durumu TEK KAYNAK; kuyrukta onayı kalkmış rezervasyon İPTAL değil ERTELEME (11-18, `lib/lifecycle-status.ts`):
-- Otomatik mesaj aday taraması: metinsiz daire sorguda elenir + kalıcı imleç + tavan alarmı (11-18, `lib/lifecycle-scan-cursor.ts`) · karar mesajı kuyruk açıkken de doğrudan gider, operatör freni geçerli (11-18):
+- Otomatik mesaj aday taraması: metinsiz daire sorguda elenir + kalıcı imleç + tavan alarmı; rezervasyon başına tek aday = sıralamadaki İLK satır (11-18, `lib/lifecycle-scan-cursor.ts`) · karar mesajı kuyruk açıkken de doğrudan gider, operatör freni geçerli (11-18):
 - QR'da SÜREN istek "kaydedildi" DEĞİLDİR (`pending`, 11-18, `outbound-claim.ts`):
 - 🚨 SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):
 - 🚨 PERİYODİK İŞİN ALARMI GEÇİŞ TABANLIDIR (09-23, `src/lib/alert-state.ts`, migration YOK):
@@ -521,7 +521,9 @@ Bu dosyaya token/anahtar/parola yazma.
   gerçek 10 dakikalık kilitte tutuluyordu → kilit düşünce ikinci ödeme açılıyordu; kalıcı gerçek kalıcı kayıt ister, yalnız kanıtla açılıp kapanır.
   (b) Sınırlı okuma + bellekte süzme, süzgece takılan N satırın arkasındakini kalıcı aç bırakır (yeniden işleme 200, otomatik mesaj 200, açık
   ihtiyaç 500): süzgeç SORGUYA iner; tavan kalıyorsa sessiz olmaz (alarm) ve ilerleme kalıcı imleçle sürer. (c) Dış sisteme yazmadan HEMEN
-  önce yerel satır yeniden okunur (istek başındaki kimlik bayatlamış olabilir).
+  önce yerel satır yeniden okunur (istek başındaki kimlik bayatlamış olabilir). (d) Süzgeci sorguya indirirken ya da imleç eklerken eski
+  SIRANIN taşıdığı örtük kural kaybolabilir (otomatik mesajda "kopya satırlarda ilk satır belirler" — süzgeç ilk satırı eleyince kardeş
+  satır öteki dairenin metniyle gidiyordu): eski ve yeni yol KOPYA / kardeş satır vakasıyla da kıyaslanır, örtük kural açık koda yazılır.
 - **Paralel kod yazan ajanlar (11-18, kurucu: "Opus kod yazabilir, push etmez"):** her ajan ayrık çalışma ağacı + KENDİ test veritabanı
   (`TEST_DATABASE_URL`, ayrı PostgreSQL 5441; `tests/global-setup.ts` dış veritabanında 5433'e dokunmaz) → ajan testleri birbirini ve 5433'ü
   bozmaz. Mutasyon koşucusu / tam kapı yine TEK başına koşar: önce bekleme işareti (ajanlar test koşmayı durdurur), sonra koşu. Mutasyon
@@ -583,4 +585,4 @@ Bu dosyaya token/anahtar/parola yazma.
 **11-18 (3):** kuyruk açılış engeli D1 — onaylıyken kuyruğa girip "bekliyor"a dönen rezervasyona giriş bilgisi gidiyordu → durum kuralı tek kaynak (`lib/lifecycle-status.ts`), işçi iptal etmeden bekletir, yeniden onaylanınca gider. Ders: commit edilmemiş işi taşıyan dosyada `git checkout <dosya>` YAPILMAZ (geçici düzenleme ayrı kopyada ya da ters düzenlemeyle geri alınır) — yeni yazılmış bir test bloğu silindi, bağlamdan yeniden yazıldı.
 **11-18 (4):** dalga 2b — bekleyen hassas istek listesinde süzgeç sorguya indi (500 tavanı yalnız adaylara, aşımda alarm) · konuşma sayfasında açık işlerin hepsi görünür · okuma hatası boş liste gibi görünmez · şablon ve daire formu eski sekmeden başkasının kaydını ezmez (`expectedUpdatedAt`, bilgi tabanı kalıbı) · operatör kalite konsolu geç yanıt; şema değişmedi, yeni müşteri metni yok (metin soruları `docs/claude/acik-isler.md` "11-18 (4)"). Özet `docs/claude/durum.md` "11-18 (4)".
 **11-18 (5):** dalga 2c — karar mesajı: kilitten sonra taze iptal okuması + kuyruk açıkken doğrudan yol (operatör freni korunur) · otomatik mesaj taraması: metinsiz daire sorguda elenir, kalıcı imleç, tavan alarmı (misafire giden küme aynı). Özet `docs/claude/durum.md` "11-18 (5)". Kural: bir işi kuyruktan doğrudan yola alırken kuyruğun frenleri (duraklatma, veto) de taşınır.
-**11-18 (6):** çeviriyle önizlemesiz gönderim alanı kaldırıldı (gelirse 400; arayüzde çağıran yoktu) · alıntılanan söz → görev: kod YOK, bugünkü davranış ölçüldü, öneri `docs/TASARIM-2026-11-18-alintilanan-soz-gorev-acmasin.md` (G1-a…G1-d). Özet `docs/claude/durum.md` "11-18 (6)". Kural: ajanın "bugün şöyle oluyor" iddiası kod okumasıysa önce / sonra örneği kurucuya gitmeden ÇALIŞTIRILARAK ölçülür (bir örnek yanlış çıktı); kaldırılan API alanı yok sayılmaz, reddedilir.
+**11-18 (6):** çeviriyle önizlemesiz gönderim alanı kaldırıldı (gelirse 400; arayüzde çağıran yoktu) · alıntılanan söz → görev: kod YOK, bugünkü davranış ölçüldü, öneri `docs/TASARIM-2026-11-18-alintilanan-soz-gorev-acmasin.md` (G1-a…G1-d). Özet `docs/claude/durum.md` "11-18 (6)". Opus dilim sonu incelemesi: P1 / P2 yok; işaret ettiği köşe (aynı rezervasyon iki dairede kayıtlıysa yeni tarama öteki dairenin metnini gönderiyordu) çalıştırılarak doğrulandı ve yayına girmeden düzeltildi. Kural: ajanın "bugün şöyle oluyor" iddiası kod okumasıysa önce / sonra örneği kurucuya gitmeden ÇALIŞTIRILARAK ölçülür (bir örnek yanlış çıktı); kaldırılan API alanı yok sayılmaz, reddedilir; "misafire giden küme aynı" iddiası yayındaki kodla AYNI testte ölçülür.

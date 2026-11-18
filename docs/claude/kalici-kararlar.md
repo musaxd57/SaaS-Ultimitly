@@ -284,6 +284,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   GERÇEKTEN incelenen son adaya ilerler (baştaki adayların sonucundan bağımsız), sona varınca başa sarar, gönderimden SONRA yazılır ve hız
   sınırıyla yarıda kalan geçişte yazılmaz. Okuma sınırı arkada aday bırakırsa operatöre geçiş tabanlı alarm (sessiz sınır yok). Çift gönderim
   koruması değişmedi (gönderildi damgasına koşullu talep / kuyruk anahtarı).
+  🚨 **Rezervasyon başına TEK aday = sıralamadaki İLK satır (`lifecycleFirstRowIds`).** Rezervasyon kaydı (daire, kaynak kimliği) çiftinde
+  tekildir → aynı rezervasyon iki AYRI dairede kayıtlı olabilir. İlk satır gönderilemiyorsa (dairesinin metni yok / doldurulamıyor) mesaj
+  gitmez; kardeş satırın dairesinin metni (başka dairenin giriş bilgisi olabilir) kullanılmaz. Kural eskiden sorgu sırasının yan ürünüydü;
+  tür süzgeci ve imleç onu gevşetmişti (dilim sonu incelemesi yakaladı, yayına girmeden düzeltildi). İlk satır artık AYRI okunur:
+  rezervasyonun kendi kümesinden (`bookingWhere` — tür süzgeci ve imleç yok), sayfa sorgusuyla aynı sırayla. Misafire giden küme 11-18
+  öncesiyle aynıdır. Kuralın kendisi (iki dairede kayıtlı rezervasyonda hangi dairenin metni) kurucu sorusu — `acik-isler.md` "11-18 (6)".
 - **Karar mesajı kuyruk açıkken de DOĞRUDAN gider (11-18, Codex 11-17 G2-02 + K2-01; `decisions/decide.ts`, `host-send.ts sendDirect`):** kart
   gerçek gönderim sonucuna göre kapanır (kuyruğa kabul "onaylandı" değildir). Kilitten sonra, gönderimden hemen önce rezervasyon TAZE okunur;
   iptalse gönderim yok, kart yeniden açılır. Operatörün "teslimatı durdur" freni doğrudan yolda da geçerlidir (kuyruk o işletmede açıksa).
