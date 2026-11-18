@@ -9,6 +9,7 @@ import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleA
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { loadErasureGuard } from "@/lib/erasure";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
@@ -608,10 +609,23 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
 }
 
 /**
+ * Yaşam döngüsü satırının rezervasyonu gönderim anında "gönderilebilir" durumda değil ama iptal de değil ("bekliyor" gibi ara durum — Codex
+ * 11-17 D1). Bu bir İPTAL sebebi DEĞİLDİR: çağıran satırı erteler (↓`LIFECYCLE_STATUS_RECHECK_MS`). Onaylıdan "bekliyor"a dönen
+ * rezervasyon çoğu zaman yeniden onaylanır; satır iptal edilseydi rezervasyon başına tek anahtar mesajı kalıcı yutardı (yeniden onaylanan
+ * misafire giriş bilgisi hiç gitmezdi). Doğrudan yol aynı şeyi yapar: onaylı değilse göndermez, sonraki geçişte yeniden bakar.
+ */
+export const LIFECYCLE_STATUS_HOLD = "reservation_not_ready";
+/** Durumu bekleyen satırın yeniden bakma aralığı (deneme sayılmaz). */
+export const LIFECYCLE_STATUS_RECHECK_MS = 20 * 60_000;
+/** Karşılama: varış günü geçti ve rezervasyon hâlâ onaylı değil → bayat (sonsuz erteleme olmasın). */
+const RESERVATION_NOT_CONFIRMED = "reservation_not_confirmed";
+
+/**
  * SEND-TIME VETO for a PROACTIVE lifecycle send (welcome/checkin/checkout). Between enqueue and
  * this POST the booking may have changed: cancelled/completed, the message window passed, or the
  * same lifecycle message was already delivered (its *SentAt got stamped by an earlier attempt).
  * In any of those, no provider call is made → the row is canceled/superseded.
+ * Tek istisna `LIFECYCLE_STATUS_HOLD` (↑): iptal değil erteleme.
  */
 async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = false): Promise<string | null> {
   if (!row.externalReservationId) return "no_destination";
@@ -672,6 +686,18 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
     const tz = orgTimezone(res.property?.organization?.timezone);
     if (todayKey(now, tz) > calendarDateOf(res.arrivalDate, tz).key) return "window_passed";
   }
+  // 🚨 DURUM HÜKMÜ EN SONDA (Codex 11-17 D1): kuyruğa giriş "onaylı" ister ama gönderim anında yalnız "iptal değil" soruluyordu → onaylıyken
+  // kuyruğa girip gönderilmeden "bekliyor"a dönen rezervasyona giriş bilgisi (kapı kodu taşıyabilir) gidiyordu. Kural tek kaynaktan
+  // (`lifecycle-status.ts`); gönderilebilir durumda değilse satır ERTELENİR (↑`LIFECYCLE_STATUS_HOLD`). Sırası bilinçli: iptal, silme,
+  // tekrar ve pencere hükümleri önce verilir — süresi geçmiş satır beklemez, iptal olur (giriş: çıkış günü; çıkış: çıkış gününden sonra).
+  // Karşılamanın pencere kuralı yok: varış günü geçtiği hâlde onaylanmamışsa bayattır.
+  if ((type === "welcome" || type === "checkin" || type === "checkout") && !lifecycleStatusAllows(type, res.status)) {
+    if (type === "welcome") {
+      const tz = orgTimezone(res.property?.organization?.timezone);
+      if (todayKey(now, tz) > calendarDateOf(res.arrivalDate, tz).key) return RESERVATION_NOT_CONFIRMED;
+    }
+    return LIFECYCLE_STATUS_HOLD;
+  }
   return null;
 }
 
@@ -706,7 +732,7 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
   // her geçişte vadeyi şimdiye çekerken işçinin her seferinde ertelemesi döngüsü doğurmasın). Onaylı satır yoksa diğer vetolar karar verir.
   const earliest =
     (await prisma.reservation.findFirst({
-      where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: "confirmed" },
+      where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: lifecycleStatusWhere("checkin") },
       orderBy: { arrivalDate: "asc" },
       select: { arrivalDate: true },
     })) ??
@@ -1317,6 +1343,11 @@ async function processOne(
   try {
     deferUntil = await checkinNotYetDue(row, now);
     if (!deferUntil) veto = await sendTimeVeto(row, now);
+    // Rezervasyon gönderilebilir durumda değil ama iptal de değil (D1): iptal YOK, satır yeniden bakmak üzere ertelenir.
+    if (veto === LIFECYCLE_STATUS_HOLD) {
+      veto = null;
+      deferUntil = new Date(now.getTime() + LIFECYCLE_STATUS_RECHECK_MS);
+    }
     // Abonelik erişimi talepten SONRA kapandıysa (Codex 10-16): yaşam döngüsü satırı POST edilmez, iptal de edilmez — ertelenir (yapay zekâ
     // cevabı ↑sendTimeVeto'da iptal edildi — N1).
     if (!deferUntil && !veto) deferUntil = await billingHoldUntil(row, now);

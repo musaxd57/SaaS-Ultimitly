@@ -102,6 +102,9 @@ import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+// Otomatik mesajın gönderilebildiği rezervasyon durumları — TEK KAYNAK (D1, 11-18): gönderici sorguları, son talepler, önizlemeler ve kalıcı
+// kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
+import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -5904,7 +5907,7 @@ export async function sendDueWelcomes(
   const today = todayKey(now, tz);
   const candidateWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
-    status: "confirmed",
+    status: lifecycleStatusWhere("welcome"),
     welcomeSentAt: null,
     // V0.5: mesajlanabilirlik TEK KAYNAK (channels/capability.ts) — sourceReference
     // dolu + calendarSourceId null + channel notIn [ics, manual]. Gerekçe (08-08
@@ -6000,7 +6003,7 @@ export async function sendDueWelcomes(
       // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, welcome.id, welcome.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
-        where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
+        where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: lifecycleStatusWhere("welcome") },
         data: { welcomeSentAt: stampedAt },
       });
       if (c.count > 0) {
@@ -6120,7 +6123,7 @@ export async function sendDueCheckins(
   const today = todayKey(now, tz);
   const candidateWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
-    status: "confirmed",
+    status: lifecycleStatusWhere("checkin"),
     checkinSentAt: null,
     ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
@@ -6261,7 +6264,7 @@ async function claimAndSendCheckin(
         sourceReference: r.sourceReference,
         property: { organizationId },
         checkinSentAt: null,
-        status: "confirmed",
+        status: lifecycleStatusWhere("checkin"),
         arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
         AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
       },
@@ -6357,7 +6360,7 @@ async function prepareCheckinNow(organizationId: string, reservationId: string, 
   });
   if (!base) return { ok: false, kind: "not_found" };
   if (base.checkinSentAt) return { ok: false, kind: "already_sent" };
-  if (base.status !== "confirmed") return { ok: false, kind: "not_confirmed" };
+  if (!lifecycleStatusAllows("checkin", base.status)) return { ok: false, kind: "not_confirmed" };
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
   const day = calendarDateOf(base.arrivalDate, tz).key;
@@ -6540,7 +6543,7 @@ export async function previewWelcomes(
   const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
-      status: "confirmed",
+      status: lifecycleStatusWhere("welcome"),
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       arrivalDate: { lte: horizon },
       AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
@@ -6600,7 +6603,7 @@ export async function previewCheckins(
   const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
-      status: "confirmed",
+      status: lifecycleStatusWhere("checkin"),
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       arrivalDate: { lte: horizon },
       AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
@@ -6691,7 +6694,7 @@ export async function sendDueCheckouts(
 
   const candidateWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
-    status: { in: ["confirmed", "completed"] },
+    status: lifecycleStatusWhere("checkout"),
     checkoutSentAt: null,
     ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
@@ -6788,7 +6791,7 @@ export async function sendDueCheckouts(
           sourceReference: r.sourceReference,
           property: { organizationId },
           checkoutSentAt: null,
-          status: { in: ["confirmed", "completed"] },
+          status: lifecycleStatusWhere("checkout"),
           AND: [{ OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] }],
         },
         data: { checkoutSentAt: stampedAt },
@@ -7364,7 +7367,7 @@ export async function previewCheckouts(
   const candidates = await prisma.reservation.findMany({
     where: {
       property: { organizationId },
-      status: { in: ["confirmed", "completed"] },
+      status: lifecycleStatusWhere("checkout"),
       ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       departureDate: { lte: horizon },
       AND: [onOrAfterTodayWhere("departureDate", now, tz)], // gönderici ile AYNI gün kuralı

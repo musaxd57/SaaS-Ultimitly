@@ -25,7 +25,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes, sendDueCheckins, sendDueCheckouts } from "@/lib/automation";
 import { eraseReservationData } from "@/lib/erasure";
-import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { drainOutboxOnce, LIFECYCLE_STATUS_RECHECK_MS, type OutboxSendFn } from "@/lib/outbox/worker";
 import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
@@ -203,7 +203,10 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
 
   it("🚨 kuyruktan sonra 3 ay ileri → POST YOK, satır pencere açılana kadar ertelenir; tarih geri gelince bekletmeden gider", async () => {
     const orgId = await seed("checkin");
@@ -387,6 +390,119 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(row.status).toBe("pending");
     expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() + 30 * DAY);
+  });
+
+  // ── D1 (Codex 11-17): ONAYI KALKMIŞ REZERVASYON ──────────────────────────────────────────────────────────────────────────────────────
+  // Kuyruğa giriş "onaylı" ister; işçi gönderim anında yalnız "iptal değil" soruyordu. Onaylıyken kuyruğa girip gönderilmeden "bekliyor"a
+  // dönen (tarihi AYNI, pencere içinde) rezervasyona giriş bilgisi — kapı kodu taşıyabilir — gidiyordu. Doğrudan yol bunu zaten yapmıyor.
+  const holdSetup = async (kind: "welcome" | "checkin" | "checkout") => {
+    if (kind === "checkout") {
+      // Çıkış mesajı çıkış günü sabahı gider (İstanbul 09:00) — saat sabitlenir (yalnız `Date`; ↑kuyruksuz çıkış testiyle aynı kalıp).
+      const at9 = new Date();
+      at9.setUTCHours(6, 0, 0, 0);
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(at9);
+    }
+    const orgId = await seed(kind);
+    await prisma.reservation.deleteMany({ where: { sourceReference: "res-b" } });
+    const enqueue = kind === "welcome" ? sendDueWelcomes : kind === "checkin" ? sendDueCheckins : sendDueCheckouts;
+    expect((await enqueue(orgId)).sent).toBe(1);
+    let posts = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++posts}` });
+    const drain = () => drainOutboxOnce({ send, tokenFor: async () => "t" });
+    const row = () => prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    return { orgId, drain, row, posts: () => posts };
+  };
+
+  it.each(["welcome", "checkin", "checkout"] as const)(
+    "🚨 D1 (%s): kuyruğa girdikten sonra 'bekliyor'a dönen rezervasyona mesaj GİTMEZ — satır iptal edilmez, yeniden bakmak üzere ertelenir",
+    async (kind) => {
+      const { drain, row, posts } = await holdSetup(kind);
+      await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { status: "pending" } }); // tarih AYNI
+      const before = Date.now();
+      await drain();
+      expect(posts()).toBe(0); // ⬅️ ESKİDE 1: giriş bilgisi onayı kalkmış rezervasyona gidiyordu
+      const held = await row();
+      expect(held.status).toBe("pending"); // iptal DEĞİL
+      expect(held.availableAt.getTime()).toBeGreaterThanOrEqual(before + LIFECYCLE_STATUS_RECHECK_MS - 1_000);
+      expect(held.lastErrorCode).toBeNull(); // hata değil, bekleme (gönderici yeniden onaylanınca vadeyi öne çekebilsin)
+      expect(held.attemptCount).toBe(0); // bekleme bir deneme sayılmaz
+      const stamp = kind === "welcome" ? "welcomeSentAt" : kind === "checkin" ? "checkinSentAt" : "checkoutSentAt";
+      expect(await stampOf("res-a", stamp)).toBeNull();
+    },
+  );
+
+  it("🚨 D1: rezervasyon YENİDEN onaylanınca bekleyen satır gider (erteleme mesajı yutmaz; iptal edilseydi tek anahtar yüzünden hiç gitmezdi)", async () => {
+    const { orgId, drain, row, posts } = await holdSetup("checkin");
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { status: "pending" } });
+    await drain();
+    expect(posts()).toBe(0);
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { status: "confirmed" } });
+    // Bekleme süresi doldu (satırın vadesi geçmişe çekilir = 20 dakika sonrası).
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+    await drain();
+    expect(posts()).toBe(1);
+    expect((await row()).status).toBe("sent");
+    expect(await stampOf("res-a", "checkinSentAt")).not.toBeNull();
+  });
+
+  it("D1: hâlâ 'bekliyor'sa her bakışta yeniden ertelenir — deneme tavanını yemez, hiçbir zaman POST edilmez", async () => {
+    const { orgId, drain, row, posts } = await holdSetup("checkin");
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { status: "pending" } });
+    for (let i = 0; i < 4; i++) {
+      await drain();
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+    }
+    expect(posts()).toBe(0);
+    const held = await row();
+    expect(held.status).toBe("pending");
+    expect(held.attemptCount).toBe(0);
+  });
+
+  it("D1: karşılama — varış günü GEÇTİĞİ hâlde onaylanmamışsa satır bayattır, iptal edilir (sonsuz erteleme yok)", async () => {
+    const { drain, row, posts } = await holdSetup("welcome");
+    await prisma.reservation.updateMany({
+      where: { sourceReference: "res-a" },
+      data: { status: "pending", arrivalDate: new Date(Date.now() - 2 * DAY), departureDate: new Date(Date.now() + 2 * DAY) },
+    });
+    await drain();
+    expect(posts()).toBe(0);
+    const canceled = await row();
+    expect(canceled.status).toBe("canceled");
+    expect(canceled.lastErrorCode).toBe("reservation_not_confirmed");
+  });
+
+  it("D1: giriş — 'bekliyor' + çıkış günü geldiyse var olan pencere hükmü önce verilir (bekletilmez, iptal)", async () => {
+    const { drain, row, posts } = await holdSetup("checkin");
+    await prisma.reservation.updateMany({
+      where: { sourceReference: "res-a" },
+      data: { status: "pending", arrivalDate: new Date(Date.now() - 3 * DAY), departureDate: new Date(Date.now() - 1 * DAY) },
+    });
+    await drain();
+    expect(posts()).toBe(0);
+    const canceled = await row();
+    expect(canceled.status).toBe("canceled");
+    expect(canceled.lastErrorCode).toBe("window_passed");
+  });
+
+  it("D1 KONTROL: çıkış mesajı 'tamamlandı' durumunda gitmeye DEVAM eder (çıkış günü durum dönmüş olabilir)", async () => {
+    const { drain, posts } = await holdSetup("checkout");
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { status: "completed" } });
+    await drain();
+    expect(posts()).toBe(1);
+  });
+
+  it("🚨 D1: satırın KENDİ kopyası 'bekliyor', başka dairedeki kardeş kopya onaylı → mesaj başka dairenin metniyle GİTMEZ, bekler", async () => {
+    const { orgId, drain, row, posts } = await holdSetup("checkin");
+    const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
+    await prisma.reservation.create({
+      data: { propertyId: other.id, guestName: a.guestName, arrivalDate: a.arrivalDate, departureDate: a.departureDate, channel: "airbnb", status: "confirmed", sourceReference: "res-a" },
+    });
+    await prisma.reservation.update({ where: { id: a.id }, data: { status: "pending" } });
+    await drain();
+    expect(posts()).toBe(0);
+    expect((await row()).status).toBe("pending");
   });
 
   it("🚨 kalıcı kuyruk: açıkça SİLİNEN misafire satır açılmaz; kuyruktaki satır gönderim anında 'erased' ile iptal (Haiku 10-14)", async () => {
