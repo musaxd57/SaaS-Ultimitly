@@ -13,6 +13,7 @@ import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { enqueueUnreferencedPhotoDeletions, photoStillAttachable } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
+import { withoutDedupeKey } from "@/lib/tasks/manual-request";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 import { notifyAssignmentRemoved } from "@/lib/tasks/notify";
 import { assignableTask } from "@/lib/readiness-list/evaluate";
@@ -298,7 +299,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       .catch((err) => void reportError("task-assign-mail", err));
   }
 
-  return jsonOk(canManage(session) ? task : staffTaskProjection(task));
+  // İç tekrar anahtarı yanıta girmez (E2 — liste ve oluşturma yanıtıyla aynı kural).
+  return jsonOk(withoutDedupeKey(canManage(session) ? task : staffTaskProjection(task)));
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {

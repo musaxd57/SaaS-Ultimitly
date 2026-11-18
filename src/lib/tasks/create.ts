@@ -10,8 +10,9 @@ export type CreateOperationalTaskResult =
   | { status: "duplicate" }
   | { status: "none" };
 
-/** Mesajdan görev kilidi ad alanı (diğerleri: 23 · 40–44 — `automation.ts` RESERVATION_TASKS_LOCK_NS yanında). */
-const TASK_DEDUPE_LOCK_NS = 45;
+/** Mesajdan görev kilidi ad alanı (diğerleri: 23 · 40–44 — `automation.ts` RESERVATION_TASKS_LOCK_NS yanında). Elle görevin istek kimliği
+ *  kilidi de bunu paylaşır (`manual-request.ts`, anahtar öneki `manual-req:` — akıllı görev anahtarıyla çakışmaz). */
+export const TASK_DEDUPE_LOCK_NS = 45;
 /**
  * Codex 11-04 P3: AYNI kaynak mesajın kilidi (gün içermez). Gün anahtarı işleme anından türer → aynı mesajın gece yarısının iki yanında
  * eşzamanlı iki işlenişi FARKLI gün kilitleri alıp ikisi de "bu mesajdan görev yok" okuyabiliyordu (`sourceMessageId` benzersiz değil).

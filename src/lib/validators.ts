@@ -257,6 +257,15 @@ export const taskSchema = z.object({
     .enum(TASK_STATUS.values)
     .default("todo")
     .refine((s) => s !== "blocked", "Yeni görev bu durumda açılamaz."),
+  /**
+   * Tekrar güvenliği (E2, Codex 11-17; şemasız): form başına istemcinin ürettiği kimlik — aynı işletmede aynı kimlik ikinci görev açmaz
+   * (`lib/tasks/manual-request.ts`). İsteğe bağlı (eski istemci göndermez). Biçim KB / söz kimliğiyle aynı (`KB_REQUEST_ID_RE`; aşağıda
+   * tanımlı → kontrol ayrıştırma anında okunur).
+   */
+  requestId: z
+    .string()
+    .refine((v) => KB_REQUEST_ID_RE.test(v), "Geçersiz istek")
+    .optional(),
 });
 export type TaskInput = z.infer<typeof taskSchema>;
 

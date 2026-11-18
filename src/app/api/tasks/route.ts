@@ -3,6 +3,7 @@ import { taskSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, canManage, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
+import { findOrCreateManualTask, withoutDedupeKey } from "@/lib/tasks/manual-request";
 
 export const GET = withAuth(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -25,7 +26,8 @@ export const GET = withAuth(async (session, req) => {
     take: 500, // bound the payload — no pagination yet
   });
   // Personel (temizlikçi) misafir adını / mesajını görmez: başlık + açıklama TEK kuraldan (`tasks/staff-view.ts`).
-  return jsonOk(canManage(session) ? tasks : tasks.map(staffTaskProjection));
+  // İç tekrar anahtarı (`dedupeKey`: akıllı görevin konu anahtarı / elle görevin istek kimliği) hiçbir görev yanıtına girmez (E2).
+  return jsonOk(canManage(session) ? tasks.map(withoutDedupeKey) : tasks.map((t) => withoutDedupeKey(staffTaskProjection(t))));
 });
 
 export const POST = withManage(async (session, req) => {
@@ -60,19 +62,41 @@ export const POST = withManage(async (session, req) => {
     if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
   }
 
-  const task = await prisma.task.create({
-    data: {
-      propertyId: d.propertyId,
-      reservationId: d.reservationId || null,
-      type: d.type,
-      origin: "manual",
-      title: d.title,
-      description: d.description || null,
-      assignedToId: d.assignedToId || null,
-      dueAt: d.dueAt instanceof Date ? d.dueAt : null,
-      status: d.status,
-      priority: d.priority,
-    },
-  });
-  return jsonOk(task, 201);
+  const taskData = {
+    propertyId: d.propertyId,
+    reservationId: d.reservationId || null,
+    type: d.type,
+    origin: "manual",
+    title: d.title,
+    description: d.description || null,
+    assignedToId: d.assignedToId || null,
+    dueAt: d.dueAt instanceof Date ? d.dueAt : null,
+    status: d.status,
+    priority: d.priority,
+  };
+
+  // Kimliksiz istek (eski sekme / API istemcisi): bugünkü gibi her seferinde yeni görev.
+  if (!d.requestId) {
+    const task = await prisma.task.create({ data: taskData });
+    return jsonOk(withoutDedupeKey(task), 201);
+  }
+
+  // E2 (Codex 11-17): aynı istek kimliği → tek görev; cevabı kaybolmuş başarılı isteğin tekrarı ilk görevi alır (200). Arama işletme
+  // kapsamında (anahtar işletme kimliğini taşır + mülk süzgeci): başka işletmenin aynı kimliği kendi görevini açar.
+  const requestId = d.requestId;
+  const outcome = await prisma.$transaction(
+    (tx) =>
+      findOrCreateManualTask(tx, {
+        organizationId: session.organizationId,
+        requestId,
+        incoming: { propertyId: d.propertyId, type: d.type, title: d.title },
+        find: (dedupeKey) => tx.task.findFirst({ where: { dedupeKey, property: { organizationId: session.organizationId } } }),
+        create: (dedupeKey) => tx.task.create({ data: { ...taskData, dedupeKey } }),
+      }),
+    { maxWait: 15_000, timeout: 30_000 },
+  );
+  // Aynı kimlik, BAŞKA görev (daire / tür / başlık farklı): istemci hatası — var olan doğrulama yolu, görev açılmaz. Arayüz bu duruma
+  // düşmez (form değişince kimlik yenilenir); yeni bir ev sahibi metni yazılmadı (öneri raporda).
+  if (outcome.kind === "mismatch") return badRequest({ requestId: "Geçersiz istek" });
+  return jsonOk(withoutDedupeKey(outcome.task), outcome.kind === "created" ? 201 : 200);
 });

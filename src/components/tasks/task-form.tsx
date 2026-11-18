@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/form-field";
 import { TASK_TYPE, TASK_STATUS, PRIORITY } from "@/lib/constants";
+import { newKbRequestId } from "@/lib/kb/request-id";
 
 export function TaskForm({
   properties,
@@ -32,8 +33,12 @@ export function TaskForm({
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // E2 (Codex 11-17): işlem kimliği FORM başına (KB / söz kartı kalıbı). Cevabı ağda kaybolmuş başarılı isteğin yeniden gönderimi AYNI kimliği
+  // taşır → sunucu ilk görevi döndürür, ikinci görev açılmaz. Form değişirse yeni kimlik (düzenlenmiş form = yeni işlem); hata kimliği korur.
+  const requestId = useRef<string>(newKbRequestId());
 
   function set(key: keyof typeof form, value: string) {
+    requestId.current = newKbRequestId();
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -49,7 +54,7 @@ export function TaskForm({
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestId: requestId.current }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -58,6 +63,7 @@ export function TaskForm({
         return;
       }
       navigating = true;
+      requestId.current = newKbRequestId(); // başarı kesinleşti → sonraki gönderim yeni işlem
       router.push("/tasks");
       router.refresh();
     } catch {
