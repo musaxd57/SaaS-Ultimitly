@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Search, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/form-field";
@@ -57,10 +57,18 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<Generation[] | null>(null);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
-  // İşletme / amaç / süzgeç değişince eski liste ve imleci düşür (başka org'un satırları karışmasın).
+  /**
+   * Codex 11-17 H3: istek sıra numarası (`guest-chat.tsx` `loadSeq` kalıbı). Yanıt yalnız hâlâ en son istekse uygulanır: işletme A için
+   * istek uçuştayken B seçilirse A'nın geç gelen satırları B seçiminin altında görünmez (kartların etiket isteği B kimliğiyle giderdi).
+   */
+  const loadSeq = useRef(0);
+  // İşletme / amaç / süzgeç değişince eski liste ve imleci düşür (başka org'un satırları karışmasın). Uçuştaki istek de geçersiz sayılır
+  // ve düğme hemen açılır — eski isteğin bitişini beklemez.
   const resetList = () => {
+    loadSeq.current += 1;
     setRows(null);
     setNextBefore(null);
+    setBusy(false);
   };
 
   async function load(before: string | null) {
@@ -68,6 +76,7 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
       setError("İnceleme amacını seçin.");
       return;
     }
+    const seq = ++loadSeq.current;
     setBusy(true);
     setError(null);
     try {
@@ -76,6 +85,8 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
       if (before) q.set("before", before);
       const res = await fetch(`/api/admin/ai-quality?${q}`, { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
+      // Sıra denetimi HER daldan önce: eski isteğin hatası da güncel seçimde gösterilmez.
+      if (seq !== loadSeq.current) return;
       if (!res.ok) {
         const fields = data.fields as Record<string, string> | undefined;
         setError((fields ? Object.values(fields)[0] : null) ?? data.error ?? "İzler yüklenemedi.");
@@ -84,9 +95,11 @@ export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
       setRows((prev) => (before && prev ? [...prev, ...(data.generations as Generation[])] : (data.generations as Generation[])));
       setNextBefore(data.nextBefore ?? null);
     } catch {
+      if (seq !== loadSeq.current) return;
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
-      setBusy(false);
+      // Daha yeni bir istek uçuştaysa onun meşgul durumu kapanmaz.
+      if (seq === loadSeq.current) setBusy(false);
     }
   }
 
