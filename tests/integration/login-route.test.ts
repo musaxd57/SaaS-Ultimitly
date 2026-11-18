@@ -474,7 +474,9 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
     const row = await prisma.rateLimitCounter.findFirst({
       where: { key: { startsWith: "login-acct:" } },
     });
-    expect(row).toBeNull(); // hiç sayaç satırı bile yaratılmadı
+    // F1 (Codex 11-17): hak doğrulamadan ÖNCE ayrılır (eşzamanlı istekler de sayılsın) ve doğru parolada İADE edilir → satır VAR
+    // (ayırma gerçekten oldu) ve sayaç 0 (beş başarının hiçbiri tüketmedi). Eskiden satır hiç yaratılmıyordu (`null`).
+    expect(row?.count).toBe(0);
   });
 
   it("BİLİNMEYEN e-posta da sayılır (sayaç hesabın varlığını sızdırmaz)", async () => {

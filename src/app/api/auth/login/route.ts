@@ -17,7 +17,15 @@ import {
   hasJsonContentType,
   unsupportedMediaType,
 } from "@/lib/api";
-import { rateLimit, rateLimitPeek, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
+import {
+  rateLimit,
+  rateLimitPeek,
+  rateLimitReserve,
+  rateLimitReleaseReservation,
+  rateLimitTouch,
+  clientIp,
+  rateLimitClientKey,
+} from "@/lib/rate-limit";
 import { KNOWN_DEVICE_COOKIE, verifyKnownDeviceToken } from "@/lib/auth/known-device";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
@@ -26,7 +34,7 @@ import { writeAudit } from "@/lib/audit";
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 import { normalizeEmail } from "@/lib/email-identity";
 
-/** Hesap başına başarısız PAROLA denemesi (15 dk pencere). Peek ve tüketim AYNI sabiti kullanır. */
+/** Hesap başına başarısız PAROLA denemesi (15 dk pencere). */
 const LOGIN_ACCT_LIMIT = 20;
 const LOGIN_ACCT_WINDOW_MS = 15 * 60 * 1000;
 /** Kullanıcı başına 24 saatte başarısız TOTP kodu tavanı (↓ikinci-faktör dalı). */
@@ -70,7 +78,8 @@ export async function POST(req: NextRequest) {
     // kilitleyebiliyor, kurban DOĞRU parolasıyla bile 429 alıyordu.
     //
     // Doğru sözleşme: doğru parola sahibi hesap kovası yüzünden ASLA
-    // kilitlenmez; kova YALNIZCA başarısız denemeleri sınırlar (↓aşağıda).
+    // kilitlenmez; kova YALNIZCA başarısız denemeleri sınırlar (↓aşağıda — F1'den beri
+    // hak doğrulamadan önce ayrılır ve doğru parolada iade edilir; net etki aynı).
     // IP kovası (yukarıda) değişmedi ve her istekte tüketilmeye devam ediyor.
     //
     // ⚠️ BİLİNÇLİ TAKAS: kapı aşağı indiği için tavanı aşmış bir saldırgan artık
@@ -95,15 +104,24 @@ export async function POST(req: NextRequest) {
     //     şifre sıfırlama (tamamlayan tarayıcı tanınan cihaz olur).
     // ⚠️ SAYIM SIZINTISI YOK: kova doluyken çerezsiz istek — hesap var ya da yok — AYNI hızlı
     // 429'u alır (bilinmeyen e-posta da kovayı doldurur, ↓). Kova dolu değilken akış birebir eski.
-    const acctPeek = await rateLimitPeek(`login-acct:${email}`, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS);
-    if (!acctPeek.ok) {
+    //
+    // 🚨 HAK DOĞRULAMADAN ÖNCE ATOMİK AYRILIR (F1, Codex 11-17). Kapı eskiden yalnız OKUYORDU (sayaç < 20 mi), sayaç yalnız başarısız
+    // bcrypt'ten SONRA artıyordu: "oku → bcrypt (+ parola kapısının kuyruğu, saniyeler) → artır" arasında gelen her istek kapıyı aynı eski
+    // sayaçla geçiyordu — IP döndüren saldırgan bir dalgada sınırın ~2,7 katı tahmin yapabiliyor, sınır dalgasında DOĞRU parola tanınmayan
+    // cihazdan girebiliyordu (↑09-23 kararı delinirdi). Şimdi sayaç = biten hatalar + UÇUŞTAKİ denemeler (tek SQL ifadesi, kopyalar arası
+    // doğru). Hak İADE edilir: doğru parolada (↓ — 08-01: doğru parola sahibini hesap kovası kilitlemez, başarı kova tüketmez) ve doğrulama
+    // hiç YAPILAMADIYSA (parola kapısı doygun / hata — deneme olmadı). İade yalnız ayrıldığı pencereye (`rateLimitReleaseReservation`).
+    // Bilinen / bilinmeyen e-posta AYNI ayırma sorgusunu yapar; ayırma kullanıcı aramasından SONRA kalır (↑08-01 yapısal pini).
+    const acctKey = `login-acct:${email}`;
+    const acct = await rateLimitReserve(acctKey, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS);
+    if (!acct.ok) {
       const known = user
         ? await verifyKnownDeviceToken(req.cookies.get(KNOWN_DEVICE_COOKIE)?.value, user.id, user.sessionEpoch)
         : false;
       if (!known) {
         return NextResponse.json(
           { error: ACCT_LOCKED_MESSAGE },
-          { status: 429, headers: { "Retry-After": String(acctPeek.retryAfter) } },
+          { status: 429, headers: { "Retry-After": String(acct.retryAfter) } },
         );
       }
     }
@@ -116,29 +134,34 @@ export async function POST(req: NextRequest) {
     // ④ Saklanan hash eski maliyette / eski (NFC olmayan) biçimdeyse doğru parolada
     // `needsRehash` gelir; yazma yalnız TAM başarılı girişten sonra (↓).
     let needsRehash = false;
-    if (user) {
-      ({ ok, needsRehash } = await verifyPasswordForLogin(parsed.data.password, user.passwordHash));
-    } else {
-      await dummyVerifyPassword(parsed.data.password);
+    try {
+      if (user) {
+        ({ ok, needsRehash } = await verifyPasswordForLogin(parsed.data.password, user.passwordHash));
+      } else {
+        await dummyVerifyPassword(parsed.data.password);
+      }
+    } catch (err) {
+      // Doğrulama YAPILAMADI (kapı doygun → 503, ya da beklenmeyen hata) → bu bir parola denemesi değil, hak geri verilir. İki yol aynı.
+      await rateLimitReleaseReservation(acct.reservation);
+      throw err;
     }
     if (!user || !ok) {
-      // ⚠️ HESAP KOVASI YALNIZ BURADA — BAŞARISIZ DOĞRULAMADA — TÜKETİLİR.
-      // Böylece kaba kuvvet koruması aynen çalışır ama meşru kullanıcı kendi
-      // hesabından KİLİTLENEMEZ ve üçüncü bir taraf sırf e-postayı bilerek kurbanı
-      // giriş dışı bırakamaz. Bilinmeyen e-posta da sayılır: aksi hâlde sayacın
-      // varlığı hesabın VARLIĞINI sızdırırdı (enumeration).
+      // ⚠️ HESAP KOVASI BURADA İKİNCİ KEZ TÜKETİLMEZ — hak doğrulamadan ÖNCE ayrıldı (↑) ve başarısız denemede TUTULUR. Kaba kuvvet
+      // koruması aynen çalışır ama meşru kullanıcı kendi hesabından KİLİTLENEMEZ (doğru parola hakkını geri alır) ve üçüncü bir taraf sırf
+      // e-postayı bilerek kurbanı giriş dışı bırakamaz. Bilinmeyen e-posta da sayılır: aksi hâlde sayacın varlığı hesabın VARLIĞINI
+      // sızdırırdı (enumeration).
       //
       // ⚠️ KAPSAM: bu kova PAROLA denemelerini sayar. 2FA / kurtarma kodu denemeleri bu dala HİÇ girmez (parola doğru olduğu
       // için); onların sınırı AYRI: hesap başına günlük 20 hatalı ikinci adım tavanı (↓ ikinci adım dalı — dolunca doğru kod da
       // 429, kurtarma kodu muaf; 09-23). (Eski yorum "hesap-bazlı TOTP sınırı YOK" diyordu — 09-23'ten beri yanlış, inceleme b5.)
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
-      // 🚨 PARALEL (09-23 saldırgan turu): denetim yazımı YALNIZ bilinen hesapta vardı ve kova
-      // tüketiminden SONRA sırayla bekleniyordu → bilinen hesabın başarısız girişi fazladan bir
-      // DB turu kadar yavaştı = "bu e-posta kayıtlı" zamanlama sinyali. İki yazım aynı anda
-      // koşunca süre ikisinin EN UZUNU olur (tek tur), bilinmeyen hesabın tek turuna eşitlenir.
-      const [acct] = await Promise.all([
-        rateLimit(`login-acct:${email}`, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS),
+      // 🚨 ZAMANLAMA PARİTESİ (09-23 saldırgan turu; F1'de korunur): denetim yazımı YALNIZ bilinen hesapta var. Bilinmeyen hesabın bu dalda
+      // HİÇ DB işi olmasaydı bilinen hesabın başarısız girişi fazladan bir DB turu kadar yavaş olurdu = "bu e-posta kayıtlı" sinyali. İki
+      // yol da TEK YAZMA turu yapar: kova satırına değeri değiştirmeyen parite yazması (karar ↑ayırmada verildi) denetim yazımıyla AYNI
+      // ANDA koşar, süre ikisinin EN UZUNU olur. Okuma YETMEZ: commit beklemeyen SELECT ile yazma arasındaki fark yine sinyaldir.
+      await Promise.all([
+        rateLimitTouch(acctKey),
         user
           ? writeAudit({
               organizationId: user.organizationId,
@@ -148,8 +171,7 @@ export async function POST(req: NextRequest) {
             })
           : Promise.resolve(),
       ]);
-      // Tavan aşıldıysa YANLIŞ kimlik bilgisi 429 alır — kaba kuvvet koruması
-      // burada duruyor. DOĞRU parola bu dala hiç girmediği için etkilenmez.
+      // Tavan aşıldıysa YANLIŞ kimlik bilgisi 429 alır (buraya yalnız tanınan cihazla gelinir) — kaba kuvvet koruması burada duruyor.
       if (!acct.ok) {
         return NextResponse.json(
           { error: ACCT_LOCKED_MESSAGE },
@@ -158,6 +180,10 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
     }
+
+    // Parola DOĞRU → bu deneme "başarısız parola" değildir: hak HEMEN iade edilir (e-posta doğrulama / 2FA / üyelik dallarından ÖNCE —
+    // onların sonucu ne olursa olsun parola kovası tüketilmez; 08-01 sözleşmesi).
+    await rateLimitReleaseReservation(acct.reservation);
 
     // E-mail verification gate — ONLY for self-serve accounts created at/after the
     // cutoff. Every pre-existing account (the founder, staff, operator-created

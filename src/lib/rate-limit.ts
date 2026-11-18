@@ -138,9 +138,78 @@ type Verdict = { ok: boolean; retryAfter: number };
  * (session timezone would silently shift windows by hours).
  */
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<Verdict> {
+  return (await hit(key, limit, windowMs)).verdict;
+}
+
+/**
+ * Ayrılmış bir hak: İADE yalnız AYNI pencereye yapılır. `windowEndMs` hakkın sayıldığı pencerenin bitişi (epoch ms; DB'de `resetAt`).
+ * `store` hakkın NEREDE sayıldığı: iade oraya gider (DB'de sayılan hak bellek yedeğine, bellekte sayılan DB'ye iade edilmez).
+ */
+export type RateLimitReservation = { key: string; windowEndMs: number; store: "db" | "memory" };
+
+/**
+ * `rateLimit` ile AYNI tek atomik vuruş + vuruşun sayıldığı pencerenin kimliği (F1, Codex 11-17: "önce ayır, sonuç belli olunca iade
+ * et" deseni — login hesap kovası). `reservation` null ise iade edilecek bir şey yoktur (bellek yedeğinde reddedilen vuruş sayılmaz;
+ * paylaşılan taşma yuvasında sayılan hak hiç iade edilmez — "taşma yalnız sıkılaştırır"). DB yolunda reddedilen vuruş da SAYILIR
+ * (sayaç sınırın üstüne çıkar), o yüzden ret dalında da `reservation` doludur.
+ */
+export async function rateLimitReserve(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<Verdict & { reservation: RateLimitReservation | null }> {
+  const { verdict, reservation } = await hit(key, limit, windowMs);
+  return { ...verdict, reservation };
+}
+
+/**
+ * `rateLimitReserve` ile ayrılmış hakkı İADE eder — yalnız hak AYRILDIĞI pencere hâlâ açıksa (açık pencerede sayaç 1 azalır, sıfırın
+ * altına inmez). Pencere arada bitip yeni pencere başladıysa hiçbir şey yapılmaz: düz `rateLimitRelease` o durumda YENİ pencerenin
+ * sayacını düşürür (başka bir isteğin hatasını siler = sınır gevşer). DB hatasında iade edilmez (sıkı yön). Asla fırlatmaz.
+ */
+export async function rateLimitReleaseReservation(reservation: RateLimitReservation | null): Promise<void> {
+  if (!reservation) return;
+  if (reservation.store === "memory") {
+    const own = buckets.get(reservation.key);
+    if (own && own.resetAt === reservation.windowEndMs && own.resetAt > Date.now() && own.count > 0) own.count -= 1;
+    return;
+  }
+  try {
+    await prisma.$executeRaw`
+      UPDATE "RateLimitCounter" SET "count" = GREATEST("count" - 1, 0)
+      WHERE "key" = ${reservation.key}
+        AND "resetAt" > (now() AT TIME ZONE 'utc')
+        AND round(EXTRACT(EPOCH FROM "resetAt") * 1000)::float8 = ${reservation.windowEndMs}::float8
+    `;
+  } catch (err) {
+    warnDbUnavailable(err);
+  }
+}
+
+/**
+ * ZAMANLAMA PARİTESİ YAZMASI (F1, ana oturum eleştirisi C-1): anahtarın satırına DEĞERİ DEĞİŞTİRMEYEN tek ifadelik bir YAZMA. Sayaç ve
+ * pencere aynı kalır; yapılan iş bir yazma işlemidir (PostgreSQL eşit değerde de yeni satır sürümü yazar, commit WAL boşaltmasını bekler).
+ * Neden okuma değil: login'in başarısız dalında bilinen hesap bir denetim YAZMASI yapar; bilinmeyen hesabın turu yalnız SELECT olsaydı fark
+ * bir commit süresi kadar olurdu ("bu e-posta kayıtlı" sinyali). Satır yoksa (yalnız bellek yedeğinde sayılmışsa) yine bir yazma denemesi
+ * olur, 0 satır. DB hatasında hiçbir şey yapılmaz: bellek yedeği kipinde DB turu zaten yok, parite anlamsız. Asla fırlatmaz.
+ */
+export async function rateLimitTouch(key: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`UPDATE "RateLimitCounter" SET "count" = "count" WHERE "key" = ${key}`;
+  } catch (err) {
+    warnDbUnavailable(err);
+  }
+}
+
+/** Tek vuruş (DB otorite, hata olursa bellek yedeği) + sayıldığı pencere. `rateLimit` ve `rateLimitReserve` ORTAK yolu. */
+async function hit(
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<{ verdict: Verdict; reservation: RateLimitReservation | null }> {
   const windowSeconds = windowMs / 1000;
   try {
-    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
+    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number; windowEndMs: number }>>`
       INSERT INTO "RateLimitCounter" AS r ("key", "count", "resetAt")
       VALUES (
         ${key},
@@ -159,15 +228,17 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
         END
       RETURNING
         r."count"::int AS count,
-        CEIL(GREATEST(1, EXTRACT(EPOCH FROM (r."resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry
+        CEIL(GREATEST(1, EXTRACT(EPOCH FROM (r."resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry,
+        round(EXTRACT(EPOCH FROM r."resetAt") * 1000)::float8 AS "windowEndMs"
     `;
     const row = rows[0];
-    if (!row) return memoryRateLimit(key, limit, windowMs); // defensive — RETURNING always yields 1 row
-    if (Number(row.count) <= limit) return { ok: true, retryAfter: 0 };
-    return { ok: false, retryAfter: Math.max(1, Number(row.retry)) };
+    if (!row) return memoryHit(key, limit, windowMs); // defensive — RETURNING always yields 1 row
+    const reservation: RateLimitReservation = { key, windowEndMs: Number(row.windowEndMs), store: "db" };
+    if (Number(row.count) <= limit) return { verdict: { ok: true, retryAfter: 0 }, reservation };
+    return { verdict: { ok: false, retryAfter: Math.max(1, Number(row.retry)) }, reservation };
   } catch (err) {
     warnDbUnavailable(err);
-    return memoryRateLimit(key, limit, windowMs);
+    return memoryHit(key, limit, windowMs);
   }
 }
 
@@ -233,16 +304,23 @@ function warnDbUnavailable(err: unknown) {
   console.error(`[rate-limit] DB sayacına ulaşılamadı, yerel (instance-içi) sayaç devrede :: ${formatErrorForLog(err, 300)}`);
 }
 
-/** The old per-instance limiter, now the DB-error fallback. Same semantics — bounded (↑ `MEMORY_MAX_KEYS`). */
-function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict {
+/**
+ * The old per-instance limiter, now the DB-error fallback. Same semantics — bounded (↑ `MEMORY_MAX_KEYS`). `reservation` yalnız vuruş
+ * anahtarın KENDİ kaydında sayıldıysa dolu (iade edilebilir); reddedilen vuruş sayılmaz, taşma yuvasında sayılan hak iade edilmez.
+ */
+function memoryHit(key: string, limit: number, windowMs: number): { verdict: Verdict; reservation: RateLimitReservation | null } {
   const now = Date.now();
-  const blocked = (b: Bucket): Verdict => ({ ok: false, retryAfter: Math.max(1, Math.ceil((b.resetAt - now) / 1000)) });
+  const blocked = (b: Bucket) => ({
+    verdict: { ok: false, retryAfter: Math.max(1, Math.ceil((b.resetAt - now) / 1000)) },
+    reservation: null,
+  });
+  const own = (b: Bucket) => ({ verdict: { ok: true, retryAfter: 0 }, reservation: { key, windowEndMs: b.resetAt, store: "memory" as const } });
   const bucket = buckets.get(key);
 
   if (bucket && bucket.resetAt > now) {
     if (bucket.count >= limit) return blocked(bucket);
     bucket.count += 1;
-    return { ok: true, retryAfter: 0 };
+    return own(bucket);
   }
 
   // Yeni pencere (anahtar yok ya da süresi doldu): önce sınırlı temizlik (çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret).
@@ -254,7 +332,7 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
     const carried = bucket ? null : activeOverflowFor(key, now, windowMs);
     const start: Bucket = carried ? { count: carried.count + 1, resetAt: now + windowMs } : { count: 1, resetAt: now + windowMs };
     buckets.set(key, start);
-    return start.count > limit ? blocked(start) : { ok: true, retryAfter: 0 };
+    return start.count > limit ? blocked(start) : own(start);
   }
 
   // Tavan etkin kayıtlarla dolu: hiçbir etkin kayıt SİLİNMEZ; yeni anahtar KENDİ pencere sınıfının sabit boyutlu taşma yuvasında sayılır
@@ -268,7 +346,7 @@ function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict 
   }
   if (o.count >= limit) return blocked(o);
   o.count += 1;
-  return { ok: true, retryAfter: 0 };
+  return { verdict: { ok: true, retryAfter: 0 }, reservation: null };
 }
 
 /** Yalnız test: taşma tohumunu sabitle ve bir anahtarın yuvasını oku (çakışan anahtar kurmak için). */

@@ -30,25 +30,41 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
     expect(beforeLookup).not.toMatch(/login-acct:/); // ⬅️ kapı geri gelirse kırmızı
   });
 
-  it("kova YALNIZ başarısız-doğrulama dalında tüketilir", async () => {
+  // F1 (Codex 11-17) — sözleşme "kova yalnız başarısız dalda tüketilir"den "hak doğrulamadan ÖNCE atomik ayrılır, doğru parolada ve
+  // doğrulama yapılamadığında İADE edilir, başarısız dalda İKİNCİ tüketim yok"a döndü. Pinin amacı aynı: doğru parolayı kilitleyen bir ön
+  // kapı yok (net: başarı kova tüketmez — davranışı `login-route.test.ts` + `login-account-budget-race.test.ts` uçtan uca pinler).
+  it("hak doğrulamadan ÖNCE ayrılır, başarıda ve doğrulama yapılamadığında iade edilir; başarısız dalda ikinci tüketim yok", async () => {
     const src = await loginSource();
-    // 🚨 SINIRLARIN BULUNDUĞUNU DOĞRULA (08-06, denetim ajanı uyarısı).
-    // Bu `slice` iki LİTERALLE sınırlanıyor ve ikincisi kullanıcıya görünen bir
-    // METİN. Biri o metni kurumsallaştırırsa `indexOf` **-1** döner, `slice(a,-1)`
-    // dosyanın SONUNA kadar keser ve aşağıdaki üç assertion **YİNE GEÇER** —
-    // yani test kırmızıya dönmez, SESSİZCE boşa düşer ve hesap-kovasının yerini
-    // koruyan güvenlik pini ölür. Bu iki satır o yolu kapatır.
+    // 🚨 SINIRLARIN BULUNDUĞUNU DOĞRULA (08-06): çapa bulunamazsa `indexOf` -1 döner ve `slice` sessizce boşa düşer.
+    const lookup = src.indexOf("const found = await prisma.user.findUnique");
+    const reserve = src.indexOf("await rateLimitReserve(acctKey, LOGIN_ACCT_LIMIT, LOGIN_ACCT_WINDOW_MS)");
+    const verify = src.indexOf("await verifyPasswordForLogin(");
     const from = src.indexOf("if (!user || !ok) {");
     const to = src.indexOf("E-posta veya şifre hatalı");
-    expect(from, "başarısız-doğrulama dalının başı bulunamadı — pin boşa düştü").toBeGreaterThan(-1);
+    const emailGate = src.indexOf("if (needsEmailVerification(user))");
+    expect(lookup, "kullanıcı aramasının çapası bulunamadı — pin boşa düştü").toBeGreaterThan(0);
+    expect(reserve, "hak ayırma (rateLimitReserve) bulunamadı").toBeGreaterThan(lookup);
+    expect(verify, "ayırma doğrulamadan SONRAYA kaydı — eşzamanlı istekler yine kapıyı aynı sayaçla geçer").toBeGreaterThan(reserve);
+    expect(from, "başarısız-doğrulama dalının başı bulunamadı — pin boşa düştü").toBeGreaterThan(verify);
     expect(to, "sınır metni değişmiş — bu testi yeni sınıra taşı, yoksa pin ÖLÜ").toBeGreaterThan(from);
+    expect(emailGate, "e-posta doğrulama kapısının çapası bulunamadı").toBeGreaterThan(to);
+    expect(src.match(/`login-acct:\$\{/g)?.length, "hesap kovası anahtarı TEK yerde kurulmalı (acctKey)").toBe(1);
+
+    // Doğrulama yapılamazsa (kapı doygun / hata) hak geri verilir: ayırma ile başarısız dal arasında, catch içinde iade + yeniden fırlatma.
+    const verifyBlock = src.slice(reserve, from);
+    expect(verifyBlock).toMatch(/catch \(err\) \{[^}]*await rateLimitReleaseReservation\(acct\.reservation\);\s*throw err;/);
+
+    // Başarısız dal: İKİNCİ tüketim yok; yalnız parite yazması (denetimle AYNI ANDA) ve karar ayırmanın sonucundan.
     const failBranch = src.slice(from, to);
-    // (09-23: tüketim, denetim yazımıyla AYNI ANDA `await Promise.all([...])` içinde koşar —
-    // bilinen hesabın başarısız girişi fazladan bir DB turu kadar yavaş kalmasın diye.)
-    expect(failBranch).toMatch(/await Promise\.all\(\[\s*rateLimit\(`login-acct:/);
-    // Ve tavan aşıldığında o dal 429 döndürür (koruma dekoratif değil).
+    expect(failBranch).not.toMatch(/rateLimit\(|rateLimitReserve\(/);
+    expect(failBranch).not.toMatch(/rateLimitReleaseReservation/); // hata hakkı TUTULUR
+    expect(failBranch).toMatch(/await Promise\.all\(\[\s*rateLimitTouch\(acctKey\)/); // parite YAZMASI, denetimle aynı anda
     expect(failBranch).toMatch(/if \(!acct\.ok\)/);
     expect(failBranch).toMatch(/status: 429/);
+
+    // Başarı: iade başarısız daldan HEMEN sonra, e-posta doğrulama / 2FA / üyelik dallarından ÖNCE.
+    const afterFail = src.slice(to, emailGate);
+    expect(afterFail).toMatch(/await rateLimitReleaseReservation\(acct\.reservation\);/);
   });
 
   it("IP kovası HÂLÂ en başta ve koşulsuz (regresyon pini)", async () => {

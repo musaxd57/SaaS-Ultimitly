@@ -22,6 +22,8 @@ import {
   rateLimit,
   rateLimitPeek,
   rateLimitRelease,
+  rateLimitReserve,
+  rateLimitReleaseReservation,
   rateLimitMemoryStats,
   __resetRateLimit,
   __setOverflowSeedForTest,
@@ -198,6 +200,32 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     const release = rateLimitRelease as (key: string, windowMs?: number) => Promise<void>;
     for (let i = 0; i < 20; i++) await release(collider, HOUR);
     expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
+  });
+
+  it("F1: bellek yedeğinde ayrılan hak YALNIZ ayrıldığı pencereye iade edilir; reddedilen ve taşmada sayılan hakkın iadesi yoktur", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    const a = await rateLimitReserve("acct", 3, 1_000);
+    expect(a.ok).toBe(true);
+    expect(a.reservation?.store).toBe("memory");
+    await rateLimitReleaseReservation(a.reservation);
+    for (let i = 0; i < 3; i++) expect((await rateLimit("acct", 3, 1_000)).ok).toBe(true); // iade edildi → 3 hak duruyor
+    const over = await rateLimitReserve("acct", 3, 1_000);
+    expect(over.ok).toBe(false);
+    expect(over.reservation).toBeNull(); // sayılmadı → iade edilecek bir şey yok
+
+    const old = await rateLimitReserve("win", 3, 1_000);
+    vi.setSystemTime(new Date("2026-11-05T12:00:02Z")); // pencere bitti
+    expect((await rateLimit("win", 3, 1_000)).ok).toBe(true); // yeni pencerede 1
+    await rateLimitReleaseReservation(old.reservation); // eski pencerenin iadesi yeni sayacı düşürmez
+    expect((await rateLimit("win", 3, 1_000)).ok).toBe(true); // 2
+    expect((await rateLimit("win", 3, 1_000)).ok).toBe(true); // 3
+    expect((await rateLimit("win", 3, 1_000)).ok).toBe(false);
+
+    await flood("ip", MEMORY_MAX_KEYS); // tavan dolu → yeni anahtar taşma yuvasında sayılır
+    const shared = await rateLimitReserve("overflowed", 5, HOUR);
+    expect(shared.ok).toBe(true);
+    expect(shared.reservation).toBeNull();
   });
 
   it("taşma yuvasının penceresi dolunca yuva sıfırlanır (taşmada kalıcı kilit yok)", async () => {

@@ -146,7 +146,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kod girişi çıkmaz (formda düzelt, rotada DEĞİL).
 - `readJsonCapped` `Content-Type: application/json` ister (öz karşılaştırma; virgül ham değerde).
 - Login: hesap kovası doluyken doğru parolayla da YALNIZ tanınan cihaz girer (09-23; bilinmeyen tarayıcı 429, sahibin yeni
-  cihazı saldırı boyunca bekler — çıkış şifre sıfırlama); 2FA hesap-başına günlük 20 hata tavanı var.
+  cihazı saldırı boyunca bekler — çıkış şifre sıfırlama); 2FA hesap-başına günlük 20 hata tavanı var. Eşzamanlı istekler de sayılır (F1,
+  Codex 11-17): hak bcrypt'ten ÖNCE atomik ayrılır, doğru parolada / doğrulama yapılamadığında yalnız ayrıldığı pencereye iade edilir;
+  başarısız dalda bilinen / bilinmeyen hesap AYNI sınıfta tek yazma turu yapar (denetim ‖ parite yazması).
 - `GET /logout` CSRF'i, per-session `jti`, halka açık sayfada çerez yenileme → açık tasarım kararları.
 
 **Tenant / rotalar**
