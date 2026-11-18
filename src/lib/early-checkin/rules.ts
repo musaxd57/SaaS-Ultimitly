@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
-import { EARLY_CHECKIN_CURRENCIES, EARLY_CHECKIN_MODES, type EarlyCheckinRule } from "./core";
+import { DECISION_LEAD_MAX_MINUTES, EARLY_CHECKIN_CURRENCIES, EARLY_CHECKIN_MODES, type EarlyCheckinRule } from "./core";
 
 export const EARLY_CHECKIN_TRIGGER = "early_checkin_request";
 export const EARLY_CHECKIN_NOTE_MAX = 200;
@@ -100,12 +100,21 @@ export function validateEarlyCheckinRuleInput(
   // Host rızası (kanıt modeli): yalnız açık `true` evet; yok / `null` / `false` HAYIR. Başka tip = bozuk kural → tüm kural
   // reddedilir (öteki alanlarla aynı: fail-closed, kural kapalı sayılır).
   if (r.readyBeforeCheckout !== undefined && r.readyBeforeCheckout !== null && typeof r.readyBeforeCheckout !== "boolean") return null;
+  // Son karar payı (dakika): yok / `null` = pay yok. Tam sayı ve sınır içinde olmalı; başka her değer bozuk kuraldır (fail-closed — öteki
+  // alanlarla aynı). Sessizce "pay yok" saymak ev sahibinin koyduğu sınırı yok sayıp otomatik onay vermek olurdu.
+  let decisionLeadMinutes: number | null = null;
+  if (r.decisionLeadMinutes !== undefined && r.decisionLeadMinutes !== null) {
+    const v = r.decisionLeadMinutes;
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > DECISION_LEAD_MAX_MINUTES) return null;
+    decisionLeadMinutes = v;
+  }
   return {
     mode: r.mode,
     earliest,
     fee,
     note,
     ...(r.readyBeforeCheckout === true ? { readyBeforeCheckout: true } : {}),
+    ...(decisionLeadMinutes !== null ? { decisionLeadMinutes } : {}),
     ...(noteRejected ? { noteRejected: true as const } : {}),
   };
 }

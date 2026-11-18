@@ -150,6 +150,12 @@ export function earlyCheckinPanelLines(d: EarlyCheckinPanelData, audience: Panel
   if (f.has("clock_unknown")) lines.push({ ok: false, text: "Şu anki saat okunamadı; istenen saatin geçip geçmediğini kontrol edin." });
   if (f.has("open_maintenance")) lines.push({ ok: false, text: "Dairede açık bir bakım görevi var; göndermeden önce kontrol edin." });
   if (f.has("cleaning_note")) lines.push({ ok: false, text: "Temizlikçi bugün bir not bıraktı; göndermeden önce okuyun." });
+  // Pilot tutuşları (kurucu 11-18 akşam): onay hazır ama kendiliğinden gitmedi — ev sahibi nedenini görür. Karar kartında gereksiz
+  // (kartı zaten ev sahibi onaylıyor).
+  if (f.has("fee_required") && !decision) lines.push({ ok: false, text: "Erken giriş ücretli; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin." });
+  if (f.has("decision_window_passed") && !decision) {
+    lines.push({ ok: false, text: "İstenen saate çok az kaldı; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin." });
+  }
   if (d.fee) lines.push({ ok: true, text: `Erken giriş ücreti: ${formatEarlyCheckinFee({ amount: d.fee.amount, currency: d.fee.currency as EarlyCheckinCurrency }, "tr")}` });
   if ((d.mode === "off" || f.has("rule_off")) && !decision) lines.push({ ok: false, text: "Erken giriş kuralı kapalı; daire sayfasından açabilirsiniz." });
   // Bekleyen istek: yalnız otomatik kurallı mülkte, varış günü ve devrin temizlik görevi VARKEN temizlik işaretiyle

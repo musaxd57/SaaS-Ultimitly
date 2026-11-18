@@ -50,6 +50,12 @@ export interface EarlyCheckinRule {
    */
   readyBeforeCheckout?: boolean;
   /**
+   * Son karar payı (dakika; kurucu 11-18 akşam, pilot): OTOMATİK onay en geç istenen saatten bu kadar önce verilir. Pay geçtiyse onay
+   * kendiliğinden çıkmaz, hazır cevap ev sahibine gider ("12:30 son karar saatiyse 12:40'ta temizlik bitti diye otomatik 13:00 onayı
+   * çıkmamalı"). Yoksa pay uygulanmaz (bugünkü davranış). Yalnız TUTAR: hiçbir yeni onay doğurmaz.
+   */
+  decisionLeadMinutes?: number;
+  /**
    * Kayıtlı not bugünkü kurallara uymuyor (kayıttan SONRA sıkılaşan çıktı vetosu / ödeme süzgeci; 09-25 inceleme P2) ve
    * KULLANILMIYOR: kural kapanmaz, not düşer; mülk sayfası ev sahibine yeniden yazmasını söyler. Yalnız okumada kurulur.
    */
@@ -147,6 +153,11 @@ export const EARLY_CHECKIN_CHECKS = [
   "clock_unknown",
   "open_maintenance",
   "cleaning_note",
+  // Pilot ("önce yalnız ücretsiz", 11-18 akşam; anahtar kapalıyken üretilmez): kuralda ücret tanımlıysa onay kendiliğinden gitmez — ücreti
+  // bildirmek, misafirin ücreti kabul ettiği ya da ödediği anlamına gelmez; ücretli erken giriş ayrı akış.
+  "fee_required",
+  // Son karar payı geçti (↑`EarlyCheckinRule.decisionLeadMinutes`).
+  "decision_window_passed",
   ...EARLY_CHECKIN_AUTO_BLOCKERS,
 ] as const;
 export type EarlyCheckinCheck = (typeof EARLY_CHECKIN_CHECKS)[number];
@@ -173,6 +184,15 @@ export const EARLY_CHECKIN_PENDING_CHECKS: ReadonlySet<EarlyCheckinCheck> = new 
 /** İstenen saat bu kadar dakikadan fazla geçtiyse onay artık o saati söyleyemez (host'a). */
 export const TIME_PASSED_GRACE_MINUTES = 15;
 
+/** Son karar payının sınırları (dakika). Tam sayı; 0 = istenen saate kadar otomatik onay verilebilir. */
+export const DECISION_LEAD_MAX_MINUTES = 240;
+
+/** Kuraldaki son karar payı: geçerli tam sayıysa o, değilse `null` (pay yok). Saf. */
+export function decisionLeadOf(rule: Pick<EarlyCheckinRule, "decisionLeadMinutes"> | null | undefined): number | null {
+  const v = rule?.decisionLeadMinutes;
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= DECISION_LEAD_MAX_MINUTES ? v : null;
+}
+
 export interface EarlyCheckinDecision {
   status: EarlyCheckinStatus;
   /** Başarısız kontroller (kapalı küme; sıra sabit). */
@@ -194,7 +214,11 @@ export function decideEarlyCheckin(
    * açıyor ve boş kontrol listesini ödünç alıyordu → önceki misafir 11:00'e kadar içerideyken kartta hiç kırmızı satır yoktu, tek
    * dokunuşla "04:00 itibarıyla giriş yapabilirsiniz" gidebiliyordu. `evaluateAll` yalnız kart için; otomatik onay hiç üretilmez.
    */
-  opts: { evaluateAll?: boolean } = {},
+  /**
+   * `freeOnlyAuto` (pilot, kurucu 11-18 akşam; anahtar `EARLY_CHECKIN_FREE_ONLY_ENABLED`, çağıran okur — çekirdek saf kalır): kuralda ücret
+   * tanımlıysa onay kendiliğinden gitmez (`fee_required`), hazır cevap ev sahibine gider.
+   */
+  opts: { evaluateAll?: boolean; freeOnlyAuto?: boolean } = {},
 ): EarlyCheckinDecision {
   const failed: EarlyCheckinCheck[] = [];
   const fee = rule?.fee ?? null;
@@ -256,6 +280,11 @@ export function decideEarlyCheckin(
     if (nowMin === null) autoFailed.push("clock_unknown");
     if (facts.maintenanceOpen) autoFailed.push("open_maintenance");
     if (facts.cleaningNote) autoFailed.push("cleaning_note");
+    if (fee && opts.freeOnlyAuto) autoFailed.push("fee_required");
+    // Sınır anı (12:30) dahil: pay tam dolduğunda onay hâlâ verilebilir, bir dakika sonrası verilemez. Saat bilinmiyorsa `clock_unknown`
+    // zaten tutar. Varış bugün olmadan buraya gelinmez (`not_arrival_day` / `arrival_passed` onaylanabilirliği düşürür).
+    const lead = decisionLeadOf(rule);
+    if (lead !== null && nowMin !== null && requestedMin !== null && nowMin > requestedMin - lead) autoFailed.push("decision_window_passed");
     for (const b of EARLY_CHECKIN_AUTO_BLOCKERS) if (facts.autoBlockers?.includes(b)) autoFailed.push(b);
   }
   const waitable = (c: EarlyCheckinCheck) =>

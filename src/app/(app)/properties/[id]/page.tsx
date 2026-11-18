@@ -40,6 +40,7 @@ import { RATE_STALE_DAYS } from "@/modules/intelligence/money/impact";
 import { NightlyRateForm } from "@/components/properties/nightly-rate-form";
 import { EarlyCheckinRuleForm } from "@/components/properties/early-checkin-rule-form";
 import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
+import { earlyCheckinFreeOnlyAuto } from "@/lib/early-checkin/workflow";
 import { HouseRulesForm } from "@/components/properties/house-rules-form";
 import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
 import { licensesEnabled } from "@/lib/licenses/secret";
@@ -366,6 +367,7 @@ export default async function PropertyDetailPage({
                       canManage={canManage}
                       initial={earlyCheckinRule}
                       autoActive={stayGuardEnabled() && understandingEnabled()}
+                      freeOnlyAuto={earlyCheckinFreeOnlyAuto()}
                     />
                   </div>
                   {houseRules ? (

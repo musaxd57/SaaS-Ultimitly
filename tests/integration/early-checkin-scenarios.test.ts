@@ -769,6 +769,108 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
   });
 
+  // ── PİLOT (kurucu 11-18 akşam, H-3) ─────────────────────────────────────────────────────────────────────────────────────────────────
+  it("P1 · 🚨 pilot anahtarı AÇIK + kuralda ücret → doğrulanmış onay OTOMATİK GİTMEZ (hazır cevap ev sahibine); ücretsiz kuralda gider", async () => {
+    vi.stubEnv("EARLY_CHECKIN_FREE_ONLY_ENABLED", "1");
+    const now = Z("2026-10-14T05:00:00.000"); // 08:00
+    at(now);
+    const v = await vacantNight(now);
+    await saveEarlyCheckinRule(v.orgId, v.propertyId, { ...RULE, earliest: "10:00" }); // ücret 30 EUR
+    openAi({ understanding: nlu("10:00"), guard: guard("10:00") });
+    const id = await conversationFor(v.propertyId, v.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(id)).sent).toBe(false); // ⬅️ anahtar kapalıyken (senaryo 13) true
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await decision(id)).toMatchObject({ finalDecision: "human_review", ec: { s: "approvable", f: ["fee_required"], a: "0" } });
+
+    await fresh();
+    at(now);
+    const free = await vacantNight(now);
+    await saveEarlyCheckinRule(free.orgId, free.propertyId, { ...RULE, earliest: "10:00", fee: null });
+    openAi({ understanding: nlu("10:00"), guard: guard("10:00") });
+    const freeId = await conversationFor(free.propertyId, free.own.id, "Hi! Could we check in at 10:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(freeId)).sent).toBe(true);
+    expect(sentBody()).toMatch(/^You can check in today \(14 October\) from 10:00\./);
+    expect(sentBody()).not.toMatch(/fee/i);
+    expect(await decision(freeId)).toEqual({ finalDecision: "auto_sent", reason: "early_checkin_verified", ec: { s: "approvable", f: [], a: "1" } });
+  });
+
+  /**
+   * Kurucunun örneği: "12:30 son karar saatiyse, 12:40'ta temizlik bitti diye otomatik 13:00 onayı çıkmamalı." Misafir sabah sorar, istek
+   * temizliği bekler; temizlik bitince yeniden bakılır. `doneAt` = temizlikçinin "Daire hazır" anı, `passAt` = yeniden bakış (İstanbul).
+   */
+  async function leadScenario(doneAt: string, passAt: string, opts: { rule?: EarlyCheckinRule; afterHold?: (id: string, asked: Date) => Promise<void>; rechecked?: number } = {}) {
+    const asked = Z("2026-10-14T07:00:00.000"); // 10:00
+    at(new Date(asked.getTime() + 2 * 60_000));
+    const t = await turnover();
+    const task = await cleaning(t, t.departing.id, "2026-10-14", []);
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, opts.rule ?? { ...RULE, decisionLeadMinutes: 30 });
+    openAi({ understanding: nlu("13:00"), guard: guard("13:00") });
+    const id = await conversationFor(t.propertyId, t.own.id, "Hi! Could we check in at 13:00 today?", asked);
+    await runDueChannelAutoReplies(t.orgId);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await decision(id)).ec).toEqual({ s: "pending", f: ["not_ready"], a: "0" });
+    await prisma.riskEvent.updateMany({ where: { conversationId: id }, data: { occurredAt: new Date(asked.getTime() + 2 * 60_000) } });
+    await opts.afterHold?.(id, asked);
+    const done = Z(doneAt);
+    await prisma.taskUpdate.create({ data: { taskId: task.id, userId: t.cleanerId, status: "in_progress", createdAt: new Date(done.getTime() - 25 * 60_000) } });
+    await prisma.task.update({ where: { id: task.id }, data: { status: "done" } });
+    await prisma.taskUpdate.create({ data: { taskId: task.id, userId: t.cleanerId, status: "done", createdAt: done } });
+    const pass = Z(passAt);
+    at(pass);
+    expect(await recheckEarlyCheckinsAfterCleaning(t.orgId, pass)).toBe(opts.rechecked ?? 1);
+    if ((opts.rechecked ?? 1) > 0) await runDueChannelAutoReplies(t.orgId);
+    return { id, t, pass };
+  }
+
+  it("P2 · 🚨 son karar payı 30 dk, 13:00 isteği: temizlik 12:35'te bitti, 12:41'de yeniden bakıldı → otomatik onay ÇIKMAZ (hazır cevap ev sahibine)", async () => {
+    const { t, pass } = await leadScenario("2026-10-14T09:35:00.000", "2026-10-14T09:41:00.000");
+    expect(mockSend).not.toHaveBeenCalled();
+    // Aynı mesajın ikinci "insana" kaydı yazılmaz (tekillik) → tutuşun SEBEBİ aynı olgulardan doğrudan okunur: her şey doğrulanmış
+    // (onaylanabilir), tek engel son karar payı. (Sebep başka olsaydı ↓kontrol senaryosu da gitmezdi.)
+    const loaded = await loadEarlyCheckinFacts({
+      organizationId: t.orgId,
+      propertyId: t.propertyId,
+      reservationId: t.own.id,
+      now: pass,
+      requested: { time: "13:00", sources: 2, conflict: false },
+      singleIntent: true,
+    });
+    expect(decideEarlyCheckin(loaded!.facts, loaded!.rule)).toMatchObject({ status: "approvable", failed: ["decision_window_passed"], autoSend: false, approvedTime: "13:00" });
+  });
+
+  it("P2 KONTROL · aynı kural, temizlik 12:15'te bitti, 12:21'de yeniden bakıldı (son karar saati 12:30'dan önce) → onay gider", async () => {
+    await leadScenario("2026-10-14T09:15:00.000", "2026-10-14T09:21:00.000");
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(sentBody()).toMatch(/from 13:00/);
+    expect(sentBody()).toMatch(APPROVAL);
+  });
+
+  // Pilot şartı "gönderim anında misafirin SON mesajı": temizlik bitince yapılan yeniden bakış yalnız, tutulan istek HÂLÂ konuşmanın son misafir
+  // mesajıysa çalışır. Misafir arada yeniden yazdıysa ("vazgeçtik", "15:00'te geleceğiz") eski istek yeniden açılmaz, onay çıkmaz — yeni
+  // mesajı olağan geçiş okur. (Kod değişmedi; var olan davranışın pini.)
+  it.each([
+    ["olağan geçiş yeni mesajı henüz denemedi", false],
+    ["olağan geçiş yeni mesajı denedi (başka sebeple tuttu / cevapladı)", true],
+  ])("P3 · 🚨 misafir istekten SONRA yeniden yazdı (%s) → temizlik bitince eski istek yeniden AÇILMAZ, 13:00 onayı çıkmaz", async (_name, attempted) => {
+    const { id } = await leadScenario("2026-10-14T09:15:00.000", "2026-10-14T09:21:00.000", {
+      rule: RULE, // pay yok: tek engel misafirin sonradan yazması
+      rechecked: 0,
+      afterHold: async (conversationId, asked) => {
+        const later = new Date(asked.getTime() + 30 * 60_000); // 10:30
+        await prisma.message.create({
+          data: { conversationId, direction: "inbound", senderName: "Alex", body: "Never mind, we will arrive at 15:00 as planned.", createdAt: later },
+        });
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { lastMessageAt: later, ...(attempted ? { autoReplyAttemptedAt: new Date(later.getTime() + 60_000) } : {}) },
+        });
+      },
+    });
+    expect(mockSend).not.toHaveBeenCalled();
+    // Yeniden açılmadı: deneme damgası yerinde (sıfırlanmadı).
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id } })).autoReplyAttemptedAt).not.toBeNull();
+  });
+
   it("13b · 🚨 dil kapısı (09-25): İngilizce misafire modelin TÜRKÇE ertelemesi tutulur, doğrulanmış onay (koddan, misafirin dilinde) YİNE gider", async () => {
     // Dil kontrolü kapının SONUNDA: eskiden iki modelin doğruladığı erteleme kapıyı GEÇİYORDU ve akış koşuyordu; dil
     // tutuşu akışı atlatsaydı host'un kontrol listesi ve doğrulanmış onay kaybolurdu.

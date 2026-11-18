@@ -32,12 +32,20 @@ const CURRENCIES = [
   { code: "GBP", label: "£ GBP" },
 ] as const;
 
+/**
+ * Son karar payı seçenekleri (dakika; "" = sınır yok). Kayıtlı değer listede yoksa (ör. API ile 45 yazılmış) o değer de seçenek olarak
+ * gösterilir — form kaydı ev sahibinin koyduğu sınırı sessizce silmesin.
+ */
+const DECISION_LEADS = [15, 30, 60] as const;
+const decisionLeadLabel = (m: number) => (m === 0 ? "İstenen saate kadar" : `İstenen saatten ${m} dakika öncesine kadar`);
+
 export interface EarlyCheckinRuleInitial {
   mode: string;
   earliest: string;
   fee: { amount: number; currency: string } | null;
   note: string | null;
   readyBeforeCheckout?: boolean;
+  decisionLeadMinutes?: number;
   /** Kayıtlı not bugünkü kurallara uymuyor ve misafire gönderilmiyor (kural açık kalır). */
   noteRejected?: boolean;
 }
@@ -47,12 +55,15 @@ export function EarlyCheckinRuleForm({
   canManage,
   initial,
   autoActive,
+  freeOnlyAuto = false,
 }: {
   propertyId: string;
   canManage: boolean;
   initial: EarlyCheckinRuleInitial | null;
   /** Otomatik gönderim bugün çalışabilir mi (iki yapay zekâ kontrolü açık). Kapalıysa seçenek taslak gibi davranır. */
   autoActive: boolean;
+  /** Pilot anahtarı açık: ücret yazılıyken onay kendiliğinden gitmez (form bunu söyler). */
+  freeOnlyAuto?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState(initial?.mode ?? "off");
@@ -61,6 +72,10 @@ export function EarlyCheckinRuleForm({
   const [currency, setCurrency] = useState(initial?.fee?.currency ?? "TRY");
   const [note, setNote] = useState(initial?.note ?? "");
   const [readyBeforeCheckout, setReadyBeforeCheckout] = useState(initial?.readyBeforeCheckout === true);
+  const [decisionLead, setDecisionLead] = useState(typeof initial?.decisionLeadMinutes === "number" ? String(initial.decisionLeadMinutes) : "");
+  const leadOptions = [...new Set<number>([...DECISION_LEADS, ...(typeof initial?.decisionLeadMinutes === "number" ? [initial.decisionLeadMinutes] : [])])].sort(
+    (a, b) => a - b,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +100,7 @@ export function EarlyCheckinRuleForm({
           fee: parsed === null ? null : { amount: parsed, currency },
           note: note.trim() || null,
           readyBeforeCheckout,
+          decisionLeadMinutes: decisionLead === "" ? null : Number(decisionLead),
         }),
       });
       if (!res.ok) {
@@ -142,6 +158,23 @@ export function EarlyCheckinRuleForm({
       <p className="text-xs text-muted-foreground">
         Bu saatten önceki istekler reddedilmez, size gelir. Misafire bu saat söylenmez.
       </p>
+      {mode === "auto" ? (
+        <Field label="Otomatik onay en geç ne zaman verilsin?" htmlFor="eci-decision-lead">
+          <Select id="eci-decision-lead" value={decisionLead} disabled={!canManage} onChange={(e) => setDecisionLead(e.target.value)}>
+            <option value="">Sınır yok</option>
+            {leadOptions.map((m) => (
+              <option key={m} value={String(m)}>
+                {decisionLeadLabel(m)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      {freeOnlyAuto && mode === "auto" && amount.trim() !== "" ? (
+        <p className="text-xs text-muted-foreground" data-testid="eci-fee-no-auto">
+          Ücret yazılıyken onay kendiliğinden gönderilmez; hazır cevap size gelir, siz gönderirsiniz.
+        </p>
+      ) : null}
       {preview ? (
         <p className="text-xs text-muted-foreground" data-testid="eci-fee-preview">
           Misafire şöyle yazılır: {preview}

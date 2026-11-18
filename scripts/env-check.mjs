@@ -720,6 +720,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "CHANNEL_METADATA_WRITE",
   "DURABLE_OUTBOX_ENABLED",
   "OUTBOX_DELIVERY_PAUSED",
+  // Erken giris pilotu (11-18 aksam, H-3; src/lib/early-checkin/workflow.ts) — varsayilan KAPALI.
+  "EARLY_CHECKIN_FREE_ONLY_ENABLED",
   "EMAIL_OUTBOX_ENABLED",
   "GUEST_CHAT_ENABLED",
   "GUEST_ERASURE_ENABLED",

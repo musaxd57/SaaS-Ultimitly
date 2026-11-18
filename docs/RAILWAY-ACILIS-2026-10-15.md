@@ -18,7 +18,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–97 içeriyor (93–94 üyelik, 95 işletme belgesi, 96 taslak ↔ gönderim bağı, 97 ekip kişisi + personel kanal bağı; 92 numarası boş — tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–98 içeriyor (93–94 üyelik, 95 işletme belgesi, 96 taslak ↔ gönderim bağı, 97 ekip kişisi + personel kanal bağı, 98 yeniden deneme vadesi + teslim yolu + ödeme ↔ abonelik bağı kolonları; 92 numarası boş — tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -314,6 +314,7 @@ kurucu onayıyla §1'e taşındı.)
   geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53/56), yönlendirme 41/41 özel + 15/15 kamu ayrı, 112 temizde 1 (kodun da tuttuğu Rusça
   "хозяева животных"). Rapor `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md`.
 - `AI_HOST_COMMITMENT_READER_ENABLED` (kurucu 11-18 akşam: "kelime bazlı değil … anlamı model güçlerine bırak"; `ai/semantic/host-commitment-reader.ts`): ev sahibinin giden mesajındaki sözü MODEL okur (üstleniyor mu / aktarıyor mu / reddediyor mu), kod alıntıyı ve saati doğrular. Aşama 0 = GÖLGE: yalnız kayıt ve kelime ağıyla kıyas, davranış değişmez; gölge kaydı tablosu gelmeden açmanın etkisi yok. Açmadan önce ölçüm (`docs/TASARIM-2026-11-18-soz-sahipligi-model-okumasi.md` §5).
+- `EARLY_CHECKIN_FREE_ONLY_ENABLED` (kurucu 11-18 akşam H-3 pilotu; `early-checkin/workflow.ts`; VARSAYILAN KAPALI): açıkken kuralında ücret yazılı dairede erken giriş onayı kendiliğinden gitmez, hazır cevap ev sahibine gider (ücreti bildirmek kabul / tahsil değildir). Kapalıyken bugünkü davranış. Açma kararı kurucuda (soru EG-2, `docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md`). Son karar payı ayrı: daire kuralındaki isteğe bağlı alan, anahtarsız.
 - `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
   VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
   soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).

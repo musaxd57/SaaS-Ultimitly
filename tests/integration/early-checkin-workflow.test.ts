@@ -1311,7 +1311,7 @@ describe("PUT/DELETE /api/properties/[id]/early-checkin-rule", () => {
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toMatchObject({ mode: "auto", fee: { amount: 30, currency: "EUR" } });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "property.early_checkin_rule_set" } });
     // TAM eşitlik: rastgele kimlik "30" içerebilir (ilk sürümdeki /30|EUR/ kalıbı bu yüzden aralıklı kırmızıydı).
-    expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note", "readyBeforeCheckout"] });
+    expect(JSON.parse(String(audit.metadataJson))).toEqual({ propertyId, fields: ["mode", "earliest", "fee", "note", "readyBeforeCheckout", "decisionLeadMinutes"] });
     expect((await del(propertyId)).status).toBe(200);
     expect(await loadEarlyCheckinRule(orgId, propertyId)).toBeNull();
   });

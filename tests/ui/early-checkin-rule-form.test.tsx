@@ -49,6 +49,51 @@ describe("EarlyCheckinRuleForm — 'çıkıştan önce hazır' rızası", () => 
     expect(screen.queryByRole("button", { name: /Kaydet/ })).toBeNull();
   });
 
+  // Pilot (kurucu 11-18 akşam, H-3): son karar payı kural alanı + "ücret yazılıyken onay kendiliğinden gitmez" açıklaması.
+  it("son karar payı: yalnız 'otomatik' kipte sorulur; varsayılan 'Sınır yok' → gövdede null; seçilince dakika olarak gider", async () => {
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={RULE} autoActive />);
+    const select = screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[0]).decisionLeadMinutes).toBeNull();
+    fireEvent.change(select, { target: { value: "30" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[1]).decisionLeadMinutes).toBe(30);
+    cleanup();
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...RULE, mode: "draft" }} autoActive />);
+    expect(screen.queryByLabelText("Otomatik onay en geç ne zaman verilsin?")).toBeNull();
+  });
+
+  it("🚨 kayıtlı pay okunur; listede olmayan değer (45) de seçenek olur ve kayıtta SİLİNMEZ", async () => {
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...RULE, decisionLeadMinutes: 45 }} autoActive />);
+    const select = screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement;
+    expect(select.value).toBe("45");
+    expect([...select.options].map((o) => o.value)).toEqual(["", "15", "30", "45", "60"]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[0]).decisionLeadMinutes).toBe(45);
+  });
+
+  it("ücret açıklaması yalnız pilot anahtarı açıkken, otomatik kipte ve ücret yazılıyken görünür", () => {
+    const withFee = { ...RULE, fee: { amount: 30, currency: "EUR" } };
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={withFee} autoActive freeOnlyAuto />);
+    expect(screen.getByTestId("eci-fee-no-auto").textContent).toBe("Ücret yazılıyken onay kendiliğinden gönderilmez; hazır cevap size gelir, siz gönderirsiniz.");
+    cleanup();
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={withFee} autoActive />);
+    expect(screen.queryByTestId("eci-fee-no-auto")).toBeNull(); // anahtar kapalı
+    cleanup();
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={RULE} autoActive freeOnlyAuto />);
+    expect(screen.queryByTestId("eci-fee-no-auto")).toBeNull(); // ücret yok
+    cleanup();
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...withFee, mode: "draft" }} autoActive freeOnlyAuto />);
+    expect(screen.queryByTestId("eci-fee-no-auto")).toBeNull(); // taslak kipinde onay zaten kendiliğinden gitmez
+  });
+
   it("en erken saat 'otomatik onay' eşiği olarak adlandırılır ve daha erken isteğin REDDEDİLMEDİĞİ söylenir", () => {
     render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={RULE} autoActive />);
     expect(screen.getByLabelText("Otomatik onay için en erken saat")).toBeTruthy();

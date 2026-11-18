@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   agreeRequestedTime,
+  DECISION_LEAD_MAX_MINUTES,
   decideEarlyCheckin,
+  decisionLeadOf,
   EARLY_CHECKIN_AUTO_BLOCKERS,
   EARLY_CHECKIN_CHECKS,
   TIME_PASSED_GRACE_MINUTES,
@@ -93,6 +95,9 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
       "clock_unknown",
       "open_maintenance",
       "cleaning_note",
+      // Pilot tutuşları — ↓"pilot — yalnız ücretsiz + son karar payı" bloğunda sınanır.
+      "fee_required",
+      "decision_window_passed",
       ...EARLY_CHECKIN_AUTO_BLOCKERS,
     ]);
     expect([...EARLY_CHECKIN_CHECKS].filter((c) => !covered.has(c))).toEqual([]);
@@ -240,6 +245,115 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
     expect(agreeRequestedTime(["9:30", undefined])).toEqual({ time: "09:30", sources: 1, conflict: false });
     expect(agreeRequestedTime(["12:00", "13:00"])).toEqual({ time: null, sources: 2, conflict: true });
     expect(agreeRequestedTime([null, "saat 12"])).toEqual({ time: null, sources: 0, conflict: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PİLOT TUTUŞLARI (kurucu 11-18 akşam, H-3): "önce yalnız ücretsiz" (anahtar — `freeOnlyAuto`) ve son karar payı (kural alanı). İkisi de
+// yalnız TUTAR: onaylanabilirlik, onaylanan saat ve ücret aynı kalır; değişen tek şey onayın kendiliğinden gidip gitmediği.
+// ---------------------------------------------------------------------------
+describe("pilot — yalnız ücretsiz + son karar payı (yalnız TUTAR)", () => {
+  const FREE: EarlyCheckinRule = { ...RULE, fee: null };
+  /** 13:00 isteği; önceki misafir 11:00'de çıktı, temizlik bitti. `now` gün içi dakika. */
+  const at13 = (now: number): EarlyCheckinFacts => ({ ...OK, nowMinutes: now, requested: { time: "13:00", sources: 2, conflict: false } });
+  const hm = (h: number, m: number) => h * 60 + m;
+
+  it("🚨 anahtar AÇIK + kuralda ücret → onaylanabilir ama OTOMATİK DEĞİL (`fee_required`); saat ve ücret aynı kalır", () => {
+    expect(decideEarlyCheckin(OK, RULE, { freeOnlyAuto: true })).toEqual({
+      status: "approvable",
+      failed: ["fee_required"],
+      approvedTime: "12:00",
+      fee: RULE.fee,
+      autoSend: false,
+    });
+  });
+
+  it("KONTROL: anahtar KAPALI → ücretli kural eskisi gibi otomatik gider; anahtar açık + ÜCRETSİZ kural da gider", () => {
+    expect(decideEarlyCheckin(OK, RULE)).toMatchObject({ autoSend: true, failed: [] });
+    expect(decideEarlyCheckin(OK, RULE, { freeOnlyAuto: false })).toMatchObject({ autoSend: true, failed: [] });
+    expect(decideEarlyCheckin(OK, FREE, { freeOnlyAuto: true })).toMatchObject({ autoSend: true, failed: [], fee: null });
+  });
+
+  it("ücret tutuşu onaylanamayan kararı DEĞİŞTİRMEZ (yalnız onaylanabilir kararda eklenir) ve taslak kipinde de görünür", () => {
+    expect(decideEarlyCheckin({ ...OK, readiness: "not_ready" }, RULE, { freeOnlyAuto: true })).toMatchObject({ status: "pending", failed: ["not_ready"] });
+    expect(decideEarlyCheckin(OK, { ...RULE, mode: "draft" }, { freeOnlyAuto: true })).toMatchObject({ status: "approvable", autoSend: false, failed: ["fee_required"] });
+  });
+
+  it("🚨 son karar payı 30 dk: 13:00 isteği 12:30'a KADAR otomatik onaylanır; 12:31 ve 12:40'ta onay kendiliğinden çıkmaz", () => {
+    const rule = { ...FREE, decisionLeadMinutes: 30 };
+    expect(decideEarlyCheckin(at13(hm(12, 0)), rule)).toMatchObject({ status: "approvable", autoSend: true, failed: [] });
+    expect(decideEarlyCheckin(at13(hm(12, 30)), rule)).toMatchObject({ status: "approvable", autoSend: true, failed: [] }); // sınır anı dahil
+    for (const now of [hm(12, 31), hm(12, 40), hm(12, 59)]) {
+      expect(decideEarlyCheckin(at13(now), rule), String(now)).toEqual({
+        status: "approvable",
+        failed: ["decision_window_passed"],
+        approvedTime: "13:00",
+        fee: null,
+        autoSend: false,
+      });
+    }
+  });
+
+  it("KONTROL: pay YOKSA (alan yok) 12:40'ta 13:00 onayı eskisi gibi otomatik gider; pay 0 = istenen saate kadar", () => {
+    expect(decideEarlyCheckin(at13(hm(12, 40)), FREE)).toMatchObject({ autoSend: true, failed: [] });
+    const zero = { ...FREE, decisionLeadMinutes: 0 };
+    expect(decideEarlyCheckin(at13(hm(13, 0)), zero)).toMatchObject({ autoSend: true, failed: [] });
+    expect(decideEarlyCheckin(at13(hm(13, 1)), zero)).toMatchObject({ autoSend: false, failed: ["decision_window_passed"] });
+  });
+
+  it("pay yalnız OTOMATİK onayı tutar: saat bilinmiyorsa yalnız `clock_unknown`; onaylanamayan kararda eklenmez; iki tutuş birlikte sırayla", () => {
+    const rule = { ...FREE, decisionLeadMinutes: 30 };
+    expect(decideEarlyCheckin({ ...at13(0), nowMinutes: null }, rule)).toMatchObject({ autoSend: false, failed: ["clock_unknown"] });
+    expect(decideEarlyCheckin({ ...at13(hm(12, 40)), readiness: "not_ready" }, rule)).toMatchObject({ status: "pending", failed: ["not_ready"] });
+    expect(decideEarlyCheckin(at13(hm(12, 40)), { ...RULE, decisionLeadMinutes: 30 }, { freeOnlyAuto: true }).failed).toEqual(["fee_required", "decision_window_passed"]);
+  });
+
+  it("`decisionLeadOf`: yalnız 0–240 arası tam sayı; başka her değer 'pay yok'", () => {
+    expect(decisionLeadOf({ decisionLeadMinutes: 30 })).toBe(30);
+    expect(decisionLeadOf({ decisionLeadMinutes: 0 })).toBe(0);
+    expect(decisionLeadOf({ decisionLeadMinutes: DECISION_LEAD_MAX_MINUTES })).toBe(DECISION_LEAD_MAX_MINUTES);
+    for (const bad of [-1, 1.5, DECISION_LEAD_MAX_MINUTES + 1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(decisionLeadOf({ decisionLeadMinutes: bad }), String(bad)).toBeNull();
+    }
+    expect(decisionLeadOf({})).toBeNull();
+    expect(decisionLeadOf(null)).toBeNull();
+  });
+
+  it("kural doğrulama: pay saklanır (0 dahil); yok / null → alan yazılmaz; bozuk değer bütün kuralı reddeder (sessizce 'pay yok' sayılmaz)", () => {
+    const base = { mode: "auto", earliest: "12:00", fee: null, note: null };
+    expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: 30 })).toEqual({ ...base, decisionLeadMinutes: 30 });
+    expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: 0 })).toEqual({ ...base, decisionLeadMinutes: 0 });
+    expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: DECISION_LEAD_MAX_MINUTES })?.decisionLeadMinutes).toBe(DECISION_LEAD_MAX_MINUTES);
+    expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: null })).toEqual(base);
+    expect(validateEarlyCheckinRuleInput(base)).toEqual(base);
+    for (const bad of [-1, 1.5, DECISION_LEAD_MAX_MINUTES + 1, "30", true, {}]) {
+      expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: bad }), JSON.stringify(bad)).toBeNull();
+      // Kayıtlı satır okunurken de aynı: bozuk pay = bozuk kural = kapalı (ev sahibinin sınırı yok sayılıp otomatik onay verilmez).
+      expect(validateEarlyCheckinRuleInput({ ...base, decisionLeadMinutes: bad }, { storedRow: true }), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it("panel: iki tutuş ev sahibine nedenini söyler (hazır cevap ekranında); karar kartında bu satırlar yok", () => {
+    const decision = decideEarlyCheckin(at13(hm(12, 40)), { ...RULE, decisionLeadMinutes: 30 }, { freeOnlyAuto: true });
+    const data: EarlyCheckinPanelData = {
+      status: "approvable",
+      failed: decision.failed,
+      mode: "auto",
+      fee: RULE.fee,
+      facts: {
+        requestedTime: "13:00",
+        arrivalToday: true,
+        previousCheckout: "11:00",
+        otherOverlaps: 0,
+        readiness: "ready",
+        previousNightVerifiedVacant: false,
+      },
+    } as EarlyCheckinPanelData;
+    const texts = earlyCheckinPanelLines(data).filter((l) => !l.ok).map((l) => l.text);
+    expect(texts).toContain("Erken giriş ücretli; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin.");
+    expect(texts).toContain("İstenen saate çok az kaldı; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin.");
+    const card = earlyCheckinPanelLines(data, "decision").map((l) => l.text).join(" | ");
+    expect(card).not.toContain("kendiliğinden gönderilmez");
   });
 });
 

@@ -24,6 +24,15 @@ import { earlyCheckinApprovalText, earlyCheckinLang } from "./reply";
 import { explicitTimeMentions, mentionsAnotherDay, timeMismatchInTexts } from "./text-checks";
 import type { EarlyCheckinAutoBlocker } from "./core";
 
+/**
+ * Pilot anahtarı (kurucu 11-18 akşam, H-3; VARSAYILAN KAPALI, yalnız "1"): açıkken kuralında ücret olan dairede erken giriş onayı
+ * kendiliğinden gitmez — hazır cevap ev sahibine gider ("önce yalnız ücretsiz"; ücreti bildirmek kabul / tahsil değildir). Kapalıyken
+ * bugünkü davranış: ücret onay metninde söylenir ve onay otomatik gidebilir.
+ */
+export function earlyCheckinFreeOnlyAuto(): boolean {
+  return process.env.EARLY_CHECKIN_FREE_ONLY_ENABLED === "1";
+}
+
 /** Uzunluk payı — tek kaynak anlama katmanının pencere tanımı (`understanding-schema.ts`; konuşma öğeleri de kullanır). */
 export { NOT_FULLY_READ_MARGIN };
 
@@ -162,7 +171,7 @@ export async function runEarlyCheckinWorkflow(args: {
       timeZone: loaded.timeZone,
       queuedDelivery: durableOutboxEnabledFor(args.organizationId),
     });
-    const decision = decideEarlyCheckin(loaded.facts, loaded.rule);
+    const decision = decideEarlyCheckin(loaded.facts, loaded.rule, { freeOnlyAuto: earlyCheckinFreeOnlyAuto() });
     const draft = earlyCheckinApprovalText(decision, earlyCheckinLang(args.detectedLanguage), loaded.rule?.note ?? null, loaded.facts.todayKey);
     const trace: EarlyCheckinTrace = {
       referenceId: loaded.referenceId,
