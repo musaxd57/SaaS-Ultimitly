@@ -271,6 +271,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`LIFECYCLE_STATUS_HOLD`, 20 dk; deneme sayılmaz, hata bilgisi yazılmaz): iptal + rezervasyon başına tek anahtar mesajı kalıcı yutardı.
   Sonsuz erteleme yok: giriş / çıkış var olan pencere hükmüyle, karşılama "varış günü geçti ve hâlâ onaylı değil" ile iptal olur. Satırın
   kendi kopyası bekliyorken başka dairedeki onaylı kardeş kopyaya GEÇİLMEZ (başka dairenin metni / kapı kodu giderdi).
+- **Otomatik mesaj aday taraması (11-18, Codex 11-17 D2; `automation.ts prepareLifecycleCandidates`, `lib/lifecycle-scan-cursor.ts`):** bu türde
+  metni olmayan dairenin rezervasyonu aday sorgusuna GİRMEZ (kural `loadAutoMessage` ile aynı). Geçiş başına okuma yine ≤ 200: ilk dört sayfa
+  her geçişte baştan (en erken gelen önce), kalan dört sayfa `SystemLock` satırındaki kalıcı imlecin ardından; imleç kuyruk sayfalarında
+  GERÇEKTEN incelenen son adaya ilerler (baştaki adayların sonucundan bağımsız), sona varınca başa sarar, gönderimden SONRA yazılır ve hız
+  sınırıyla yarıda kalan geçişte yazılmaz. Okuma sınırı arkada aday bırakırsa operatöre geçiş tabanlı alarm (sessiz sınır yok). Çift gönderim
+  koruması değişmedi (gönderildi damgasına koşullu talep / kuyruk anahtarı).
+- **Karar mesajı kuyruk açıkken de DOĞRUDAN gider (11-18, Codex 11-17 G2-02 + K2-01; `decisions/decide.ts`, `host-send.ts sendDirect`):** kart
+  gerçek gönderim sonucuna göre kapanır (kuyruğa kabul "onaylandı" değildir). Kilitten sonra, gönderimden hemen önce rezervasyon TAZE okunur;
+  iptalse gönderim yok, kart yeniden açılır. Operatörün "teslimatı durdur" freni doğrudan yolda da geçerlidir (kuyruk o işletmede açıksa).
+  `sendDirect` YALNIZ karar motorunundur: ev sahibinin genel elle cevabı kuyruk açıkken kuyruğa yazmaya devam eder.
 - **QR'da SÜREN istek "kaydedildi" DEĞİLDİR (11-18, Codex 11-17 E1; `lib/outbound-claim.ts`, `api/chat/[token]`, `guest-chat.tsx`):** misafir
   mesajı yalnız cevabıyla birlikte yazılır; aynı kimlikli istek başka bir bağlantıda hâlâ çalışırken gelen tekrar `deduped` DEĞİL `pending`
   alır (kayıt yok, sayaç tüketilmez). `deduped` yalnız tamamlanmış kayıt (`done:`) içindir. Kilidini canlı bir işçiye kaptıran eski işçi de
