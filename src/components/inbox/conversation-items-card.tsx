@@ -26,8 +26,12 @@ export interface ConversationItemRow {
  * cevapsız mesajlarındaki istekler: açık olanlar üstte; ev sahibi "Tamamlandı" ile kapatır. Kartı yalnız öğe varsa
  * gösteririz (bayrak kapalıyken öğe yazılmadığı için kart da yok). Satır kuralı `itemRowsForCard` (açıkların hepsi; rozet `openTotal`).
  * Okuma düştüyse (`loadFailed`, Codex 11-17 H8) kart KAYBOLMAZ: "açık iş yok" ile "okunamadı" ayırt edilsin. Bu durumun ev sahibi metni
- * kurucu onayında — o gelene kadar kart yalnız başlığı ve `data-load-failed` işaretini taşır.
+ * için YENİ metin yazılmadı: üründe zaten kullanılan genel cümle gösterilir (`history-learn-panel` ile aynı); karta özgü metin kurucu
+ * onayında.
  */
+/** Okuma düştüğünde gösterilen cümle — üründe var olan genel metin (yeni metin değil; `history-learn-panel` aynı cümleyi kullanır). */
+const LOAD_FAILED_TEXT = "Durum okunamadı. Sayfayı yenileyin.";
+
 export function ConversationItemsCard({
   conversationId,
   items,
@@ -72,6 +76,11 @@ export function ConversationItemsCard({
             <ListChecks className="size-4 text-muted-foreground" /> Açık işler
           </CardTitle>
         </CardHeader>
+        <CardContent>
+          <p role="status" className="text-sm text-muted-foreground">
+            {LOAD_FAILED_TEXT}
+          </p>
+        </CardContent>
       </Card>
     );
   }

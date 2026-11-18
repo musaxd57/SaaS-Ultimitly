@@ -30,6 +30,8 @@ describe("ConversationItemsCard", () => {
     render(<ConversationItemsCard conversationId="c1" items={[]} openTotal={0} loadFailed canManage />);
     const card = screen.getByTestId("conversation-items");
     expect(card.getAttribute("data-load-failed")).toBe("true");
+    // "Açık iş yok" ile "okunamadı" ayırt edilir: başlığın altında üründe var olan genel cümle (yeni metin değil).
+    expect(card.textContent).toContain("Durum okunamadı. Sayfayı yenileyin.");
     expect(screen.queryByText("Bitti olarak işaretle")).toBeNull();
   });
 
