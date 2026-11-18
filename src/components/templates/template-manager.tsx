@@ -25,6 +25,8 @@ interface CustomTemplateRow {
   isActive: boolean;
   propertyName: string | null;
   propertyId: string | null;
+  /** Codex 11-17 H1: satırın sürümü (ISO) — düzenleme kaydına ön şart olarak gider. */
+  updatedAt: string;
 }
 
 interface Props {
@@ -60,6 +62,16 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adaptedFrom, setAdaptedFrom] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  /**
+   * Codex 11-17 H1: düzenlenen şablonun formun açıldığı andaki sürümü. Kayıt bunu `expectedUpdatedAt` olarak gönderir; arada başka sekme /
+   * kişi kaydettiyse sunucu 409 der ve form (yazılanla) açık kalır — eski tam form başkasının metnini geri yazamaz.
+   */
+  const [editBase, setEditBase] = useState<string | null>(null);
+  /**
+   * Bu ekrandan kaydedilen şablonların yanıttaki sürümü: kaydettikten sonra liste henüz yenilenmeden aynı şablon yeniden açılırsa
+   * satırın ESKİ sürümü gider ve kişi kendi kaydına çatışma alırdı. Açılışta satırınkiyle bundan hangisi yeniyse o kullanılır.
+   */
+  const savedVersions = useRef(new Map<string, string>());
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
@@ -88,6 +100,8 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
 
   function openEdit(t: CustomTemplateRow) {
     setEditingId(t.id);
+    const saved = savedVersions.current.get(t.id);
+    setEditBase(saved && Date.parse(saved) > Date.parse(t.updatedAt) ? saved : t.updatedAt);
     setAdaptedFrom(null);
     setForm({
       title: t.title,
@@ -119,7 +133,11 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
       const res = await fetch(editingId ? `/api/templates/${editingId}` : "/api/templates", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, propertyId: form.propertyId || null }),
+        body: JSON.stringify({
+          ...form,
+          propertyId: form.propertyId || null,
+          ...(editingId && editBase ? { expectedUpdatedAt: editBase } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -129,6 +147,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
         setError(fieldMsg ?? data.error ?? (editingId ? "Şablon güncellenemedi" : "Şablon oluşturulamadı"));
         return;
       }
+      if (editingId && typeof data.updatedAt === "string") savedVersions.current.set(editingId, data.updatedAt);
       setForm(EMPTY_FORM);
       setShowForm(false);
       setEditingId(null);

@@ -1,8 +1,10 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { badRequest, jsonOk, notFound, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { zodFieldErrors } from "@/lib/validators";
+import { isStorableDate, zodFieldErrors } from "@/lib/validators";
+import { KB_STALE_EDIT_MESSAGE } from "@/lib/kb/stale-edit";
 
 // Bounds mirror templateCreateSchema (templates/route.ts) so an update can't
 // store an unbounded payload the create path would have rejected.
@@ -26,6 +28,10 @@ const templateUpdateSchema = z.object({
   // güncelleyen bir düğme) şablonu sessizce "Tüm mülkler"e taşırdı. Alan ham
   // bırakılır, normalizasyon aşağıda AÇIKÇA yapılır.
   propertyId: z.string().max(50).nullable().optional(),
+  // Codex 11-17 H1: düzenleme formunun açıldığı sürüm (`updatedAt`, ISO). Form TAM gövde gönderir; arada başka sekme / kişi kaydettiyse
+  // eski form onun metnini sessizce GERİ YAZMASIN → 409, form açık kalır. İsteğe bağlı: göndermeyen çağıran (eski istemci) bugünkü gibi
+  // koşulsuz yazar. Yazılmaz, yalnız koşul (bilgi tabanı düzenleyicisiyle aynı sözleşme, `api/kb/[id]`).
+  expectedUpdatedAt: z.string().max(40).optional(),
 });
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -40,7 +46,9 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const parsed = templateUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-  const { propertyId, ...rest } = parsed.data;
+  const { propertyId, expectedUpdatedAt, ...rest } = parsed.data;
+  const expected = expectedUpdatedAt ? new Date(expectedUpdatedAt) : null;
+  if (expectedUpdatedAt && (!expected || !isStorableDate(expected))) return badRequest({ _: "Geçersiz istek." });
   const patch: Record<string, unknown> = { ...rest };
   if (propertyId !== undefined) {
     // 🚨 KİRACI KAPISI: kimlik doğru biçimli ama BAŞKA org'un mülkü olabilir.
@@ -51,6 +59,16 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     patch.propertyId = target;
   }
 
+  if (expected) {
+    // Koşullu yazım: sürüm hâlâ formun açıldığı sürümse yazılır (kapsam koşulu da aynı sorguda) — iki eski form aynı anda gelse de
+    // yalnız biri yazar. Okuma aynı işlemde: yazılan satır kilitli, araya giren silme okumayı boşa düşürüp 500 üretemez.
+    const written = await prisma.$transaction(async (tx) => {
+      const res = await tx.messageTemplate.updateMany({ where: { id, organizationId: session.organizationId, updatedAt: expected }, data: patch });
+      return res.count === 1 ? tx.messageTemplate.findUniqueOrThrow({ where: { id } }) : null;
+    });
+    if (!written) return NextResponse.json({ error: KB_STALE_EDIT_MESSAGE, fields: { _: KB_STALE_EDIT_MESSAGE } }, { status: 409 });
+    return jsonOk(written);
+  }
   const template = await prisma.messageTemplate.update({
     where: { id },
     data: patch,

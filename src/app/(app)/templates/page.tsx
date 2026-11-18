@@ -41,6 +41,7 @@ export default async function TemplatesPage() {
           isActive: t.isActive,
           propertyName: t.property?.name ?? null,
           propertyId: t.propertyId ?? null,
+          updatedAt: t.updatedAt.toISOString(),
         }))}
         defaultTemplates={DEFAULT_TEMPLATES}
       />
