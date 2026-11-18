@@ -2,16 +2,14 @@ import { NextResponse } from "next/server";
 import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { prisma } from "@/lib/db";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
-import { premiumAllowed } from "@/lib/billing/subscription";
-import { translate } from "@/lib/ai/translate";
+import { UNRECOGNIZED_FIELD_MESSAGE } from "@/lib/zod-tr";
 import { sendHostMessage } from "@/lib/host-send";
 import { deliveryOutcomeOfOutboxStatus } from "@/lib/outbox/state";
 import { suggestionOperationKey } from "@/lib/outbox/operation-key";
 import { createHash } from "crypto";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 import { recordReplyDraftLink } from "@/lib/reply-draft/service";
 import { reportError } from "@/lib/report-error";
 
@@ -20,8 +18,8 @@ import { reportError } from "@/lib/report-error";
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
 
-  // Each reply sends to Hospitable (+ optional OpenAI translate). Throttle per
-  // conversation so a stuck client or abuse can't spam the guest / burn quota.
+  // Each reply sends to the channel. Throttle per conversation so a stuck client
+  // or abuse can't spam the guest.
   // 🚨 ANAHTAR ORG KAPSAMLI (09-23, güvenlik ajanı): kota sahiplik kontrolünden ÖNCE
   // tüketiliyor ve anahtar yalnız konuşma kimliğiydi → BAŞKA bir kiracının kullanıcısı bu
   // kimlikle (404 alarak) istek atıp SAHİBİN cevap kotasını tüketebiliyordu. Org öneki
@@ -44,47 +42,21 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const parsed = conversationReplySchema.safeParse(rawData);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-  // Optional: translate the reply before sending/saving. Cap the length — this
-  // value is forwarded to a paid translate call, so never accept an unbounded
-  // string (a valid language name/code is short).
-  const translateRaw = typeof rawData?.translateTo === "string" ? rawData.translateTo.trim() : "";
-  const translateTo: string | undefined =
-    translateRaw && translateRaw.length <= 20 ? translateRaw : undefined;
+  // 🚨 ÇEVİRİYLE GÖNDERİM KALDIRILDI (Codex 11-17 G3). Bu rota eskiden `translateTo` alanını kabul edip ev sahibinin metnini modele
+  // çevirtiyor ve çıktıyı ÖNİZLEMESİZ, ev sahibinin kendi sözü gibi misafire gönderiyordu (çıktıya içerik denetimi yok; satır "ev sahibi
+  // yazdı" diye kaydediliyor, söz algılayıcısı modelin eklediği cümleden görev açabiliyordu). Arayüzde bu alanı gönderen yok. Alan gelirse
+  // istek REDDEDİLİR — sessizce yok saymak yanlış olurdu: istemci çevrildi sanıp çevrilmemiş metni gönderirdi (Codex #30'un fail-closed
+  // ilkesi; 20 karakterden uzun değer eskiden tam da böyle yok sayılıyordu). Değere bakılmaz: alanın VARLIĞI reddedilir. Çeviri ileride
+  // ürün olarak istenirse önizlemeli akışla gelir (çevir → ev sahibine göster → gösterilen metni gönder).
+  if (rawData !== null && typeof rawData === "object" && Object.prototype.hasOwnProperty.call(rawData, "translateTo")) {
+    return badRequest({ translateTo: UNRECOGNIZED_FIELD_MESSAGE });
+  }
 
   // Credit AI-assisted approvals in reports: set by the client when the host
   // clicks "Onayla ve gönder" on an AI draft (vs typing a manual reply).
   const aiAssisted = rawData?.aiAssisted === true;
 
-  let replyBody = parsed.data.body;
-  if (translateTo) {
-    // Translate is a paid AI feature — gate it in the freemium tier so a lapsed
-    // org can't burn OpenAI via the manual reply path. The manual send itself
-    // stays free; only the optional translate add-on is premium.
-    if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
-    // GÜNLÜK ORG BÜTÇESİ — YALNIZ çeviri dalında. Elle gönderimin kendisi ücretsiz
-    // kalır; tavana takılan host çevirisiz göndermeye devam edebilir. Buradaki
-    // dakikalık limitin anahtarı `reply:{conversationId}` olduğu için konuşma
-    // açarak çoğaltılabiliyordu; org bütçesi o boşluğu kapatır.
-    const budget = await consumeDailyAiBudget(session.organizationId);
-    if (!budget.ok) {
-      return tooManyRequests(
-        budget.retryAfter,
-        "Bugünkü AI kullanım sınırınıza ulaştınız. Çeviri olmadan gönderebilir veya yarın tekrar deneyebilirsiniz.",
-      );
-    }
-    // FAIL-CLOSED (Codex #30): a failed translation used to fall through as the
-    // ORIGINAL text — the guest received an untranslated message while the host
-    // believed it went out in their language. No send on translate failure; the
-    // host can retry or deliberately send without translation.
-    const translated = await translate(replyBody, translateTo);
-    if (!translated.ok) {
-      return NextResponse.json(
-        { error: "Çeviri başarısız — mesaj GÖNDERİLMEDİ. Tekrar deneyin veya çeviriyi kapatıp gönderin." },
-        { status: 502 },
-      );
-    }
-    replyBody = translated.text;
-  }
+  const replyBody = parsed.data.body;
 
   // Teslim + kayıt TEK çekirdekten (`host-send.ts`; karar kartı da aynı yolu kullanır). Durum kodları ve metinler burada.
   // Kalıcı kuyruk tekilleştirme (Codex 07-23): istemcinin mesaj başına requestId'si öncelikli — çift tık ya da ağ yeniden
@@ -121,7 +93,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     ...(operation ? { operation } : {}),
   });
   // Taslak ↔ gönderilen metin bağı (kurucu 11-13, GÖLGE): gönderim BAŞARILI olduktan sonra, kendi try/catch'iyle — hatası gönderimin
-  // sonucunu asla değiştirmez. Misafire giden metinle (çeviri varsa çevrilmiş hâli) kıyaslanır; kodun kurduğu cevap ("code") kıyaslanmaz.
+  // sonucunu asla değiştirmez. Misafire giden metinle kıyaslanır; kodun kurduğu cevap ("code") kıyaslanmaz.
   const linkDraft = async (messageId: string | undefined) => {
     if (!messageId || parsed.data.draftUse === "code") return;
     try {

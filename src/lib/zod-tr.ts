@@ -43,6 +43,12 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 /** İnsan diline yakın alan adı: "en fazla 5 karakter" gibi cümleler için (zod 4: `origin`). */
+/**
+ * Tanınmayan alan iletisi — TEK KAYNAK. Zod'un `unrecognized_keys` kuralı da, bir alanı API'den bilerek kaldırıp elle reddeden rota da
+ * (ör. cevap rotasında kaldırılan çeviri alanı) aynı cümleyi buradan okur; müşteriye iki ayrı yazım çıkmaz.
+ */
+export const UNRECOGNIZED_FIELD_MESSAGE = "Tanınmayan alan gönderildi.";
+
 function birim(origin: string): string {
   if (origin === "array" || origin === "set") return "öğe";
   if (origin === "string") return "karakter";
@@ -117,7 +123,7 @@ export const turkishZodErrorMap: z.core.$ZodErrorMap = (issue) => {
     case "not_multiple_of":
       return { message: `Değer ${String(issue.divisor)} katı olmalı.` };
     case "unrecognized_keys":
-      return { message: "Tanınmayan alan gönderildi." };
+      return { message: UNRECOGNIZED_FIELD_MESSAGE };
     default:
       // ⚠️ Bilinmeyen kod: zod'un kendi metnine DÜŞME (İngilizce olurdu).
       return { message: "Geçersiz değer." };

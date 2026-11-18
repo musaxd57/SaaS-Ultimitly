@@ -17,8 +17,13 @@ vi.mock("@/lib/messaging", async (orig) => ({
   sendOnChannel: vi.fn(async () => ({ ok: true, id: "sent-1" })),
 }));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(async () => "tok") }));
+// Çeviri modeli BAŞARILI ve kaynakta olmayan bir şey ekliyor (Codex 11-17 G3 senaryosu): rota bu çıktıyı önizlemesiz gönderiyordu.
+vi.mock("@/lib/ai/translate", () => ({
+  translate: vi.fn(async () => ({ ok: true, text: "Parking costs 900 EUR. I will send a technician tomorrow at 10:00." })),
+}));
 
 import { sendOnChannel } from "@/lib/messaging";
+import { translate } from "@/lib/ai/translate";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
 import { POST as QR_REPLY } from "@/app/api/guest-chats/[id]/reply/route";
@@ -98,18 +103,30 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(count).toBe(1);
   });
 
-  it("FAIL-CLOSED translate (Codex #30): translation failure sends NOTHING (502)", async () => {
-    // OPENAI_API_KEY is empty in the test env → translate() reports failure.
-    // The OLD behavior silently fell through and sent the untranslated Turkish
-    // body to the guest while the host believed it went out in their language.
+  // Codex 11-17 G3: çeviriyle gönderim KALDIRILDI. Arayüzde çağıran yoktu; rota model çıktısını önizlemesiz, ev sahibinin metni gibi
+  // gönderiyordu. Alan gelirse 400 — sessizce yok saymak da yanlış olurdu (istemci çevrildi sanıp Türkçe gönderirdi; Codex #30'un
+  // fail-closed ilkesi). Model hiç çağrılmaz, misafire hiçbir şey gitmez. 21 karakterlik değer eskiden SESSİZCE yok sayılıp çevrilmemiş
+  // metin gönderiliyordu — o da artık 400. Değere BAKILMAZ (boş dizge / null / sayı da 400): kaldırılan alanın varlığı reddedilir, tek
+  // kural "bu alan artık yok"tur.
+  it.each([["en"], ["x".repeat(21)], [""], [null], [5]])("translateTo=%j → 400, model çağrılmaz, hiçbir şey gitmez (Codex 11-17 G3)", async (translateTo) => {
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
-    const res = await POST(req(conversationId, { body: "Merhaba, hoş geldiniz!", translateTo: "ru" }), {
+    const res = await POST(req(conversationId, { body: "Otopark ücretsizdir.", translateTo }), {
       params: Promise.resolve({ id: conversationId }),
     });
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields).toEqual({ translateTo: "Tanınmayan alan gönderildi." });
+    expect(vi.mocked(translate)).not.toHaveBeenCalled();
     expect(mockSend).not.toHaveBeenCalled();
-    const count = await prisma.message.count({ where: { conversationId, direction: "outbound" } });
-    expect(count).toBe(0);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("KONTROL: alan HİÇ yoksa gönderim olağan (201) ve misafire ev sahibinin yazdığı metin AYNEN gider — çeviri modeli çağrılmaz", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    const res = await POST(req(conversationId, { body: "Otopark ücretsizdir." }), { params: Promise.resolve({ id: conversationId }) });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(translate)).not.toHaveBeenCalled();
+    const sent = await prisma.message.findMany({ where: { conversationId, direction: "outbound" }, select: { body: true } });
+    expect(sent.map((m) => m.body)).toEqual(["Otopark ücretsizdir."]);
   });
 
   it("credits an AI-approved send (aiAssisted) in reports, not a manual reply (#8)", async () => {
