@@ -7,6 +7,7 @@ import { alertOnTransition, alertStateActive, clearAlertState } from "@/lib/aler
 import { isRedactedPaddlePayload, NEEDS_REVIEW_PREFIX } from "@/lib/data-retention";
 import { getPaddleWebhookSecret, probePaddleRead, signPaddleWebhook } from "@/lib/payments/paddle";
 import { runAsPaddleReplay } from "@/lib/payments/paddle-replay-context";
+import { nextPaddleReplayAt, PADDLE_REPLAY_THRESHOLDS_MS } from "@/lib/payments/paddle-replay-schedule";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 
 // ---------------------------------------------------------------------------
@@ -18,79 +19,56 @@ import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 //
 // Bu iş, saklı olayı AYNI uç noktanın işleyicisinden yeniden geçirir: saklı ham gövde kendi webhook sırrımızla imzalanıp süreç içinde
 // işleyiciye verilir. Teslim ile yeniden işleme TEK kod yoludur (kopya işleyici yok): kopya denetimi, sıra koruması (daha yeni olay
-// uygulanmışsa eskisi düşer), inceleme kuralları birebir geçerlidir. Yeni tablo / sütun yok.
+// uygulanmışsa eskisi düşer), inceleme kuralları birebir geçerlidir.
 //
 // Kurallar:
 //  · Aday: son 14 günün abonelik / ödeme olayı; "hata" (inceleme bekleyen HARİÇ — insan kararı ister) ya da 15 dakikadan uzun "alındı"
 //    (işlem sırasında süreç çöktü). Küçültülmüş (kişisel verisi silinmiş) yük yeniden işlenmez.
 //  · Sıklık olay başına sınırlı: yaşı eşikleri (15 dk, 1 sa, 2, 4 … 256 sa) geçtikçe birer kez — 14 günde en çok 10. Hep hata veren
 //    olay ötekileri bekletmez.
+//  · 🚨 VADE OLAYIN KENDİ SATIRINDA (kurucu 11-18 akşam, migration 98): `nextAttemptAt` — işleyici ilk vadeyi (alınış + 15 dk) yazar,
+//    işlenince / incelemeye düşünce siler; bu iş her denemeden sonra sayacı (`attemptCount`), son deneme anını (`lastAttemptAt`) ve
+//    SIRADAKİ eşiği yazar (`paddle-replay-schedule.ts`; eşik kalmadıysa boş). Seçim SORGUDA: `nextAttemptAt <= şimdi`, en uzun bekleyen
+//    önce (Codex 11-17 B1: "en eski N'i oku, sonra süz" yok). Eskiden vade `createdAt` + ortak "son tur" işaretinden türetiliyor, tavan
+//    aşımı için ayrı bir "mantıksal tur" makinesi (dondurulmuş an + devam imleci) gerekiyordu. Artık gerek yok: denenen satır vadeden
+//    çıkar, sonraki koşu kendiliğinden kalanla başlar; en uzun bekleyen önce okunduğu için hep hata veren satır ötekileri bekletmez.
+//    Tavan (`PADDLE_REPLAY_MAX_PER_PASS`) ve geçiş tabanlı tavan alarmı kalır.
+//  · Geçiş: vadesi BOŞ eski satır (migration öncesi yazılmış, hiç denenmemiş) her koşunun başında planlanır — eski sürümün son tur
+//    işaretinden SONRA geçilecek ilk eşik (işaret yoksa ilk eşik). Planlanan satır kümeden çıkar; tavanı aşan kısım sonraki koşuya kalır
+//    ve tavan alarmına girer (sessiz tavan yok).
 //  · "Paddle okunamadı / API anahtarı reddedildi" sınıfı önce TEK ucuz okumayla sınanır. Okunamıyorsa o sınıftan hiçbir olay denenmez
-//    ve işletmesiz TEK ortak alarm durumu açılır; düzelince ilk turda o sınıftaki bekleyenlerin HEPSİ geçirilir, alarm kapanır.
-//  · 🚨 Vadesi gelen olay SORGUDA seçilir (Codex 11-17 B1): eskiden en eski 200 aday okunup "vadesi geldi mi" bellekte süzülüyordu ve tur
-//    işareti koşulsuz ilerliyordu → vadesi gelmemiş 200 eski adayın arkasındaki olay o turda hiç okunmuyor, geçtiği eşik de "harcanıyordu"
-//    (en erken bir sonraki eşikte, o da ilk 200'e girerse denenirdi). Artık vade koşulu `where`dedir (`paddleReplayDueWhere`), vadesi gelenler
-//    sayfa sayfa okunur. Tavanı aşan tur birkaç koşuya yayılan TEK MANTIKSAL TURDUR (ana oturum incelemesi, 2. tur): tavanda imleç ve turun
-//    DONDURULMUŞ anı kalıcı yazılır, tur işareti ilerlemez; sonraki koşu AYNI pencereyle (aynı son tur, dondurulmuş an) imleçten sonrasını
-//    okur. Böylece baştaki satırlar kalıcı hata verse de arkadakiler sırayla gelir ve hiçbir satır bir mantıksal turda iki kez denenmez.
-//    Tur bitince tur işareti dondurulmuş ana ilerler (aradaki sürede eşik geçenler sonraki olağan turda bir kez gelir). Tavan aşılınca
-//    operatöre geçiş tabanlı alarm; tur bitince kapanır.
+//    (vadesi de İLERLEMEZ) ve işletmesiz TEK ortak alarm durumu açılır; düzelince ilk turda o sınıftaki bekleyenlerin HEPSİ geçirilir,
+//    alarm kapanır.
 // ---------------------------------------------------------------------------
 
 export const PADDLE_REPLAY_WINDOW_MS = 14 * 86_400_000;
 /**
  * İlk alınışından bu kadar sonra hâlâ "alındı"da duran olay yarıda kalmış sayılır (işleme saniyeler sürer; pay İLK teslimle yarışmamak
- * içindir). Paddle'ın sonraki tekrarıyla aynı anda işlenebilir — satırda "son güncelleme" anı yok; sorun değil: işleyiciler tekrar
- * edilebilir (abonelik yazımı sıra korumalı ve koşullu, fatura sağlayıcı kimliğinde veritabanı düzeyinde tekil).
+ * içindir). Paddle'ın sonraki tekrarıyla aynı anda işlenebilir — sorun değil: işleyiciler tekrar edilebilir (abonelik yazımı sıra
+ * korumalı ve koşullu, fatura sağlayıcı kimliğinde veritabanı düzeyinde tekil).
  */
 export const PADDLE_REPLAY_STUCK_MS = 15 * 60_000;
-const HOUR = 3_600_000;
-/** Olayın yaşı bu eşikleri geçtikçe birer kez yeniden işlenir. */
-export const PADDLE_REPLAY_THRESHOLDS_MS: readonly number[] = [15 * 60_000, HOUR, 2 * HOUR, 4 * HOUR, 8 * HOUR, 16 * HOUR, 32 * HOUR, 64 * HOUR, 128 * HOUR, 256 * HOUR];
-/** Tek sorguda okunan aday sayısı (sayfa boyu; en eskiler önce). */
+export { PADDLE_REPLAY_THRESHOLDS_MS } from "@/lib/payments/paddle-replay-schedule";
+/** Tek sorguda okunan aday sayısı (sayfa boyu; en uzun bekleyen önce). */
 const PADDLE_REPLAY_PAGE = 200;
 /**
- * Bir turda okunan (ve en çok işleyiciye verilen) aday tavanı. Aşılırsa tur işareti ilerlemez. Satırlar tüm tur boyunca bellekte tutulur
- * (sıra koruması: olay zamanına göre TEK sıralama, sayfalar arasında da) — tavan belleği de sınırlar.
+ * Bir koşuda okunan (ve en çok işleyiciye verilen) aday tavanı; geçiş adımında planlanan eski satır tavanı da aynı. Satırlar koşu boyunca
+ * bellekte tutulur (sıra koruması: olay zamanına göre TEK sıralama, sayfalar arasında da) — tavan belleği de sınırlar.
  */
 export const PADDLE_REPLAY_MAX_PER_PASS = 2_000;
-/**
- * Tavanı aşan mantıksal turun devam kaydı (`SystemLock`; şema değişikliği yok, `LAST_PASS_LOCK` emsali): `lockedUntil` = turun DONDURULMUŞ
- * anı, `holder` = son verilen satırın imleci (`{"at": ISO, "id": …}`).
- */
-const RESUME_LOCK = "paddle-webhook-replay:resume";
 /** Tavan aşıldı alarmının durumu (işletmesiz). */
 export const PADDLE_REPLAY_BACKLOG_ALERT = "paddle-webhook-replay:backlog";
-/** Son turun anı (`SystemLock.lockedUntil`) — hangi eşiklerin bu turda geçildiğini bilmek için. */
-const LAST_PASS_LOCK = "paddle-webhook-replay:last";
+/**
+ * Eski sürümün son turunun anı (`SystemLock.lockedUntil`). Artık YAZILMAZ; yalnız geçiş adımı okur (vadesi boş eski satırın hangi
+ * eşiklerinin o sürümde zaten harcandığını bilmek için).
+ */
+const LEGACY_LAST_PASS_LOCK = "paddle-webhook-replay:last";
+/** Eski sürümün tavan aşımı devam kaydı. Okunmaz; geçiş adımında silinir (kalan iş satır vadelerinden kendiliğinden sürer). */
+const LEGACY_RESUME_LOCK = "paddle-webhook-replay:resume";
 /** Ortak alarm durumunun anahtarı (işletmesiz). */
 export const PADDLE_REPLAY_KEY_ALERT = "paddle-webhook-replay:api-read";
 /** İşleyicinin "şu an okunamadı" hatasının kayıtta tanınan parçası (`api/webhooks/paddle/route.ts`; eşleşme testle pinli). */
 export const PADDLE_UNREADABLE_MARKER = "şu an okunamadı";
-
-/**
- * Bu olay bu turda yeniden işlenmeli mi: yaşı, son turdan bu yana bir eşiği geçti mi. Son tur bilinmiyorsa (ilk tur) ilk eşiği geçmiş
- * her olay bir kez işlenir. Uzun bir aradan sonra geçilen birden çok eşik TEK işlemeye iner.
- */
-export function paddleReplayDue(createdAt: Date, lastPassAt: Date | null, now: Date): boolean {
-  const ageNow = now.getTime() - createdAt.getTime();
-  const ageLast = lastPassAt ? lastPassAt.getTime() - createdAt.getTime() : Number.NEGATIVE_INFINITY;
-  return PADDLE_REPLAY_THRESHOLDS_MS.some((t) => ageLast < t && t <= ageNow);
-}
-
-/**
- * `paddleReplayDue`un sorgu karşılığı: her eşik `t` için `ageLast < t <= ageNow` ⟺ `lastPassAt − t < createdAt <= now − t` (son tur
- * bilinmiyorsa alt sınır yok). Eşdeğerlik birim testte kâhinle (sınır eşitlikleri dahil) ve veritabanında pinli.
- */
-export function paddleReplayDueWhere(lastPassAt: Date | null, now: Date): Prisma.WebhookEventWhereInput {
-  return {
-    OR: PADDLE_REPLAY_THRESHOLDS_MS.map((t) => ({
-      createdAt: lastPassAt
-        ? { gt: new Date(lastPassAt.getTime() - t), lte: new Date(now.getTime() - t) }
-        : { lte: new Date(now.getTime() - t) },
-    })),
-  };
-}
 
 /** Kayıttaki hata "Paddle şu an okunamadı / anahtar reddedildi" sınıfı mı. */
 export function isPaddleUnreadableError(error: string | null | undefined): boolean {
@@ -124,45 +102,84 @@ export interface PaddleReplayResult {
 }
 
 /**
+ * Yeniden işlenebilir durum: "alındı" ya da inceleme beklemeyen "hata". Deneme sonrası vade yalnız bu durumdaki satıra yazılır (işlenen /
+ * incelemeye düşen satırın vadesi boş kalır). `error` boş olabilen alan: "şununla başlamayan" koşulu boş değerli satırı da dışarıda
+ * bırakırdı → boş değer açıkça kabul edilir.
+ */
+const PENDING_STATUS_WHERE: Prisma.WebhookEventWhereInput = {
+  OR: [{ status: "received" }, { status: "error", OR: [{ error: null }, { NOT: { error: { startsWith: NEEDS_REVIEW_PREFIX } } }] }],
+};
+
+/**
+ * GEÇİŞ: vadesi boş, hiç denenmemiş aday satırları (migration 98 öncesi yazılmış) planlar — eski sürümün son tur işaretinden SONRA
+ * geçilecek ilk eşik; işaret yoksa ilk eşik (eşiği geçmişse hemen vadeli). Eski kuralla aynı: işarette son eşiği çoktan geçmiş satır o
+ * kuralda da bir daha denenmezdi → sorguda elenir, vadesi boş kalır. Planlanan satır kümeden çıkar (tekrar çalıştırılabilir; ikinci koşu
+ * hiçbir şey değiştirmez). En çok `maxRows` satır; fazlası varsa true döner (çağıran tavan alarmına katar, kalan sonraki koşuda).
+ */
+async function planUnscheduledRows(base: Prisma.WebhookEventWhereInput, maxRows: number): Promise<boolean> {
+  // Eski sürümün tavan aşımı devam kaydı artık okunmaz: o turun kalanı da vadesi boş eski satırdır ve burada planlanır.
+  await prisma.systemLock.deleteMany({ where: { name: LEGACY_RESUME_LOCK } }).catch(() => {});
+  const marker =
+    (await prisma.systemLock.findUnique({ where: { name: LEGACY_LAST_PASS_LOCK }, select: { lockedUntil: true } }).catch(() => null))?.lockedUntil ?? null;
+  const lastThreshold = PADDLE_REPLAY_THRESHOLDS_MS[PADDLE_REPLAY_THRESHOLDS_MS.length - 1];
+  const where: Prisma.WebhookEventWhereInput = {
+    AND: [base, { nextAttemptAt: null, attemptCount: 0 }, ...(marker ? [{ createdAt: { gt: new Date(marker.getTime() - lastThreshold) } }] : [])],
+  };
+  // İmleç: planlanan satır zaten kümeden çıkar; imleç yalnız yazımı başarısız olan satırın aynı koşuda yeniden okunmaması içindir.
+  let cursor: { createdAt: Date; id: string } | null = null;
+  let read = 0;
+  const after = (c: typeof cursor): Prisma.WebhookEventWhereInput =>
+    c ? { AND: [where, { OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] }] } : where;
+  for (;;) {
+    const take = Math.min(PADDLE_REPLAY_PAGE, maxRows - read);
+    const page: { id: string; createdAt: Date }[] = await prisma.webhookEvent.findMany({ where: after(cursor), orderBy: [{ createdAt: "asc" }, { id: "asc" }], take, select: { id: true, createdAt: true } });
+    for (const r of page) {
+      const next = nextPaddleReplayAt(r.createdAt, marker);
+      // Koşullu: okuma ile yazma arasında işleyici satırı planladıysa (Paddle'ın tekrarı) onun vadesi ezilmez.
+      if (next) await prisma.webhookEvent.updateMany({ where: { id: r.id, nextAttemptAt: null }, data: { nextAttemptAt: next } }).catch(() => {});
+    }
+    read += page.length;
+    if (page.length < take) return false;
+    cursor = page[page.length - 1];
+    if (read >= maxRows) return (await prisma.webhookEvent.findFirst({ where: after(cursor), select: { id: true } })) !== null;
+  }
+}
+
+/**
+ * Deneme kaydı: sayaç +1, son deneme = koşunun anı. Satır hâlâ yeniden işlenebilir durumdaysa vade = şimdiki yaştan büyük ilk eşik
+ * (eşik kalmadıysa boş — eski kuralın "son eşikten sonra yok"u); işlendi / incelemeye düştüyse boş.
+ */
+async function recordAttempt(row: { id: string; createdAt: Date }, now: Date): Promise<void> {
+  const counted = { attemptCount: { increment: 1 }, lastAttemptAt: now };
+  // İki koşullu yazım: durum her ikisinde de WHERE'de — arada Paddle'ın tekrarı satırı yeniden "alındı"ya çektiyse (işleyici vadeyi yazdı)
+  // vade boşaltılmaz (boş vade + aday = kalıcı kayıp). Satır iki yazım arasında yine durum değiştirdiyse bir kez daha denenir.
+  for (let i = 0; i < 2; i++) {
+    const pending = await prisma.webhookEvent.updateMany({
+      where: { AND: [{ id: row.id }, PENDING_STATUS_WHERE] },
+      data: { ...counted, nextAttemptAt: nextPaddleReplayAt(row.createdAt, now) },
+    });
+    if (pending.count > 0) return;
+    const settled = await prisma.webhookEvent.updateMany({
+      where: { AND: [{ id: row.id }, { NOT: PENDING_STATUS_WHERE }] },
+      data: { ...counted, nextAttemptAt: null },
+    });
+    if (settled.count > 0) return;
+  }
+}
+
+/**
  * Bekleyen Paddle olaylarını yeniden işler (saatlik zamanlanmış iş çağırır). Asla fırlatmaz — tek olayın hatası ötekileri durdurmaz.
  * Webhook sırrı yoksa (ödeme kurulmamış) hiçbir şey yapmaz.
  */
-type ReplayCursor = { createdAt: Date; id: string };
-
-/**
- * Süren mantıksal turun devam kaydı. Bozuk (imleç okunamıyor), bayat (dondurulmuş an 14 günlük pencereden eski) ya da geleceğe yazılmış
- * kayıt yok sayılır ve silinir — iş takılı kalmaz; o kaydın açtığı tavan alarmı da kapanır (yeni taşma yeniden bildirilir).
- */
-async function readReplayResume(realNow: Date): Promise<{ frozenNow: Date; cursor: ReplayCursor } | null> {
-  const row = await prisma.systemLock.findUnique({ where: { name: RESUME_LOCK } }).catch(() => null);
-  if (!row) return null;
-  let cursor: ReplayCursor | null = null;
-  try {
-    const h = JSON.parse(row.holder ?? "") as { at?: unknown; id?: unknown };
-    const at = typeof h.at === "string" ? new Date(h.at) : null;
-    if (at && !Number.isNaN(at.getTime()) && typeof h.id === "string" && h.id) cursor = { createdAt: at, id: h.id };
-  } catch {
-    cursor = null;
-  }
-  const frozen = row.lockedUntil.getTime();
-  if (cursor && frozen <= realNow.getTime() && frozen >= realNow.getTime() - PADDLE_REPLAY_WINDOW_MS) return { frozenNow: row.lockedUntil, cursor };
-  await prisma.systemLock.deleteMany({ where: { name: RESUME_LOCK } }).catch(() => {});
-  await clearAlertState(PADDLE_REPLAY_BACKLOG_ALERT);
-  return null;
-}
-
 export async function replayPendingPaddleEvents(
-  opts: { now?: Date; deliver?: PaddleRedeliver; /** Yalnız test: tur tavanı (üretimde sabit). */ maxPerPass?: number } = {},
+  opts: { now?: Date; deliver?: PaddleRedeliver; /** Yalnız test: koşu tavanı (üretimde sabit). */ maxPerPass?: number } = {},
 ): Promise<PaddleReplayResult> {
   const result: PaddleReplayResult = { pending: 0, replayed: 0, settled: 0, heldForKey: 0 };
   const secret = getPaddleWebhookSecret();
   if (!secret) return result;
-  const realNow = opts.now ?? new Date();
+  const now = opts.now ?? new Date();
   const deliver = opts.deliver ?? deliverToRoute;
   const maxPerPass = opts.maxPerPass ?? PADDLE_REPLAY_MAX_PER_PASS;
-  // Süren bir mantıksal tur varsa AYNI pencere: turun dondurulmuş anı (pencere, "takılı alındı" eşiği, vade aralıkları ona göre) + imleç.
-  const resume = await readReplayResume(realNow);
-  const now = resume?.frozenNow ?? realNow;
 
   const base: Prisma.WebhookEventWhereInput = {
     provider: "paddle",
@@ -184,6 +201,9 @@ export async function replayPendingPaddleEvents(
     OR: [{ status: { not: "error" } }, { error: null }, { NOT: { error: { contains: PADDLE_UNREADABLE_MARKER } } }],
   };
 
+  // İşin başında: vadesi boş eski satırlar planlanır (seçim aşağıda yalnız vadeye bakar).
+  const planTruncated = await planUnscheduledRows(base, maxPerPass);
+
   // Küçültülmüş (kişisel verisi silinmiş) yük yeniden işlenmez ve bekleyen sayılmaz — gövdenin içeriğine bakar, sorguda tam süzülemez.
   // Sayılar (bekleyen / anahtar yüzünden bekleyen) için yalnız gövdesinde "redactedAt" geçen satırlar okunup bellekte tanınır (pratikte boş
   // küme: kurum silme küçültmesi inceleme önekiyle yazılır, KVKK silme satırı "işlendi" yapar). Seçimin kendisi bu ön süzgece DAYANMAZ.
@@ -198,19 +218,17 @@ export async function replayPendingPaddleEvents(
   result.pending = (await prisma.webhookEvent.count({ where: base })) - redacted.length;
   const keyPending = (await prisma.webhookEvent.count({ where: { AND: [base, keyWhere] } })) - redacted.filter(isKeyRow).length;
 
-  const lastPass = await prisma.systemLock.findUnique({ where: { name: LAST_PASS_LOCK }, select: { lockedUntil: true } }).catch(() => null);
-  const lastPassAt = lastPass?.lockedUntil ?? null;
-  const dueWhere = paddleReplayDueWhere(lastPassAt, now);
+  const dueWhere: Prisma.WebhookEventWhereInput = { nextAttemptAt: { lte: now } };
 
-  // Seçim: olağan durumda vadesi gelen her aday (anahtar sınıfı da olağan sıklıkta). Anahtar okunamıyorsa o sınıf hiç seçilmez; az önce
-  // düzeldiyse o sınıfın HEPSİ (yaş eşiği beklenmez).
+  // Seçim: olağan durumda vadesi gelen her aday (anahtar sınıfı da olağan sıklıkta). Anahtar okunamıyorsa o sınıf hiç seçilmez (vadesi
+  // de ilerlemez — denenmediği için yazılmaz); az önce düzeldiyse o sınıfın HEPSİ (vade beklenmez).
   let selection: Prisma.WebhookEventWhereInput = dueWhere;
   let probeOk = false;
   let keyHealed = false;
   if (keyPending > 0) {
     if ((await probePaddleRead()) === "ok") {
       probeOk = true;
-      // Anahtar az önce düzeldiyse bekleyenlerin HEPSİ (yaş eşiği beklenmez); zaten sağlamsa olağan sıklık.
+      // Anahtar az önce düzeldiyse bekleyenlerin HEPSİ (vade beklenmez); zaten sağlamsa olağan sıklık.
       keyHealed = await alertStateActive(PADDLE_REPLAY_KEY_ALERT);
       if (keyHealed) selection = { OR: [dueWhere, keyWhere] };
     } else {
@@ -230,26 +248,39 @@ export async function replayPendingPaddleEvents(
     await clearAlertState(PADDLE_REPLAY_KEY_ALERT);
   }
 
-  // Seçilenler sayfa sayfa (alınma zamanı + kimlik imleci; sayfa sınırında aynı anda alınmış iki satır atlanmaz / tekrarlanmaz).
-  // Küçültülmüş yük bellekte elenir — sayfa dolu geldikçe okumaya devam edildiği için yer kaplasa da arkasındakileri gizleyemez.
-  type Candidate = { id: string; payloadJson: string; createdAt: Date };
+  // Seçilenler sayfa sayfa, EN UZUN BEKLEYEN ÖNCE (vade, sonra kimlik; düzelme turunda vadesi boş — eşikleri tükenmiş — anahtar satırı da
+  // seçilir, boşlar en önde). Denenen satır vadeden çıktığı için tavanı aşan kısım sonraki koşunun başında gelir; hep hata veren satır
+  // yeni eşiği geçse bile kendisinden uzun bekleyenin önüne geçemez. Küçültülmüş yük bellekte elenir (vadesi yine ilerletilir, aşağıda).
+  type Candidate = { id: string; payloadJson: string; createdAt: Date; nextAttemptAt: Date | null };
+  type Cursor = { nextAttemptAt: Date | null; id: string };
   const chosen: Candidate[] = [];
+  const skipped: Candidate[] = [];
   let read = 0;
-  let cursor: ReplayCursor | null = resume?.cursor ?? null;
+  let cursor: Cursor | null = null;
   let truncated = false;
-  const afterCursor = (c: ReplayCursor | null): Prisma.WebhookEventWhereInput => ({
-    AND: [base, selection, ...(c ? [{ OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] }] : [])],
+  const afterCursor = (c: Cursor | null): Prisma.WebhookEventWhereInput => ({
+    AND: [
+      base,
+      selection,
+      ...(c
+        ? [
+            c.nextAttemptAt
+              ? { OR: [{ nextAttemptAt: { gt: c.nextAttemptAt } }, { nextAttemptAt: c.nextAttemptAt, id: { gt: c.id } }] }
+              : { OR: [{ nextAttemptAt: null, id: { gt: c.id } }, { nextAttemptAt: { not: null } }] },
+          ]
+        : []),
+    ],
   });
   for (;;) {
     const take = Math.min(PADDLE_REPLAY_PAGE, maxPerPass - read);
     const page: Candidate[] = await prisma.webhookEvent.findMany({
       where: afterCursor(cursor),
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      orderBy: [{ nextAttemptAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
       take,
-      select: { id: true, payloadJson: true, createdAt: true },
+      select: { id: true, payloadJson: true, createdAt: true, nextAttemptAt: true },
     });
     read += page.length;
-    for (const r of page) if (!isRedactedPaddlePayload(r.payloadJson)) chosen.push(r);
+    for (const r of page) (isRedactedPaddlePayload(r.payloadJson) ? skipped : chosen).push(r);
     if (page.length < take) break;
     cursor = page[page.length - 1];
     if (read >= maxPerPass) {
@@ -260,6 +291,13 @@ export async function replayPendingPaddleEvents(
   // Anahtar okunabiliyor → durum kapanır. İstisna: düzelme turunda tavan aşıldıysa durum AÇIK kalır — kapansaydı kalan bekleyenler olağan
   // sıklığa düşerdi; açık kalınca sonraki turda da vade beklemeden geçerler.
   if (probeOk && !(keyHealed && truncated)) await clearAlertState(PADDLE_REPLAY_KEY_ALERT);
+
+  // Küçültülmüş yük denenmez ve sayılmaz; vadesi yine sıradaki eşiğe ilerler — yoksa her koşuda en önde okunur, tavanı doldururdu.
+  for (const row of skipped) {
+    await prisma.webhookEvent
+      .updateMany({ where: { id: row.id, nextAttemptAt: row.nextAttemptAt }, data: { nextAttemptAt: nextPaddleReplayAt(row.createdAt, now) } })
+      .catch(() => {});
+  }
 
   // Olay zamanına göre sırayla (bilinmiyorsa alınma zamanı): eski olay yenisinden sonra uygulanmaya çalışılmasın.
   chosen.sort((a, b) => (occurredAtOf(a.payloadJson) ?? a.createdAt.getTime()) - (occurredAtOf(b.payloadJson) ?? b.createdAt.getTime()));
@@ -280,33 +318,22 @@ export async function replayPendingPaddleEvents(
     } catch {
       // İşleyici fırlatmaz (kendi hatasını kayda yazar); yine de tek olay turu düşürmesin.
     }
+    // Teslimden SONRA (fırlatsa da): süreç teslim sırasında çökerse satır vadeli kalır, sonraki koşuda bir kez daha denenir — kayıp yok.
+    // Yazım düşerse de aynı: satır vadeli kalır.
+    await recordAttempt(row, now).catch(() => {});
   }
 
-  if (truncated && cursor) {
-    // Tavan aşıldı: tur işareti İLERLETİLMEZ (ilerleseydi kalanın bu turda geçtiği eşik harcanırdı); kaldığımız yer + dondurulmuş an yazılır,
-    // sonraki koşu oradan sürer. Teslimden SONRA yazılır: süreç teslim sırasında çökerse en kötü bu dilim bir kez daha denenir.
-    const holder = JSON.stringify({ at: cursor.createdAt.toISOString(), id: cursor.id });
-    await prisma.systemLock
-      .upsert({ where: { name: RESUME_LOCK }, create: { name: RESUME_LOCK, lockedUntil: now, holder }, update: { lockedUntil: now, holder } })
-      .catch(() => {});
+  if (truncated || planTruncated) {
     await alertOnTransition(
       PADDLE_REPLAY_BACKLOG_ALERT,
       "paddle-webhook-replay-backlog",
       new Error(
         `${maxPerPass}'den fazla ödeme olayı yeniden işlenmeyi bekliyor — yeniden işleme birkaç saatlik koşuya bölündü (her koşuda en çok ${maxPerPass}). Uzun süren bir genel arıza olabilir; ödeme olayı kayıtlarındaki hataları kontrol edin.`,
       ),
-      { now: realNow },
+      { now },
     );
   } else {
-    // Mantıksal tur bitti: tur işareti turun DONDURULMUŞ anına (devam koşusunda gerçek ana değil — aradaki sürede eşik geçenler sonraki
-    // olağan turda bir kez gelsin), devam kaydı silinir, tavan alarmı kapanır.
-    await prisma.systemLock
-      .upsert({ where: { name: LAST_PASS_LOCK }, create: { name: LAST_PASS_LOCK, lockedUntil: now }, update: { lockedUntil: now } })
-      .catch(() => {});
-    if (resume) {
-      await prisma.systemLock.deleteMany({ where: { name: RESUME_LOCK } }).catch(() => {});
-      await clearAlertState(PADDLE_REPLAY_BACKLOG_ALERT);
-    }
+    await clearAlertState(PADDLE_REPLAY_BACKLOG_ALERT);
   }
   return result;
 }

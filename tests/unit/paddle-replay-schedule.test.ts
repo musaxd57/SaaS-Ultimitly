@@ -3,7 +3,9 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 vi.mock("@/lib/event-log", async (orig) => ({ ...(await orig<typeof import("@/lib/event-log")>()), logEvent: vi.fn(async () => {}) }));
 
-import { paddleReplayDue, paddleReplayDueWhere, PADDLE_REPLAY_THRESHOLDS_MS, PADDLE_REPLAY_STUCK_MS, PADDLE_REPLAY_WINDOW_MS } from "@/lib/payments/paddle-replay";
+import { PADDLE_REPLAY_THRESHOLDS_MS, PADDLE_REPLAY_STUCK_MS, PADDLE_REPLAY_WINDOW_MS } from "@/lib/payments/paddle-replay";
+import { nextPaddleReplayAt, PADDLE_REPLAY_THRESHOLDS_MS as SCHEDULE_THRESHOLDS } from "@/lib/payments/paddle-replay-schedule";
+import { paddleReplayDue, seeded } from "../helpers/paddle-replay-oracle";
 import { probePaddleRead, signPaddleWebhook, verifyPaddleSignature } from "@/lib/payments/paddle";
 
 // ---------------------------------------------------------------------------
@@ -16,7 +18,9 @@ const T0 = new Date("2026-11-11T12:00:00.000Z");
 const createdAgo = (ms: number) => new Date(T0.getTime() - ms);
 const passAgo = (ms: number) => new Date(T0.getTime() - ms);
 
-describe("paddleReplayDue — olay yaşı eşikleri geçtikçe birer kez", () => {
+// `paddleReplayDue` artık KÂHİNDİR (eski kural, `tests/helpers/paddle-replay-oracle.ts`): aşağıdaki pinler kâhinin eski kuralı aynen
+// taşıdığını, sonraki blok yeni satır bazlı çizelgenin onunla aynı kümeyi seçtiğini ölçer.
+describe("paddleReplayDue (kâhin) — olay yaşı eşikleri geçtikçe birer kez", () => {
   it("eşikler artan sırada; ilki 'yarıda kaldı' süresiyle aynı; sonuncusu 14 günlük pencerenin içinde", () => {
     expect([...PADDLE_REPLAY_THRESHOLDS_MS]).toEqual([...PADDLE_REPLAY_THRESHOLDS_MS].sort((a, b) => a - b));
     expect(PADDLE_REPLAY_THRESHOLDS_MS[0]).toBe(PADDLE_REPLAY_STUCK_MS);
@@ -64,103 +68,85 @@ describe("paddleReplayDue — olay yaşı eşikleri geçtikçe birer kez", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Codex 11-17 B1 — vade koşulu SORGUYA iner (`paddleReplayDueWhere`). Seçim artık bu `where` parçasıyla yapılıyor; `paddleReplayDue` ile
-// BİREBİR aynı kümeyi seçmeli (sınır eşitlikleri dahil). Kâhin: `where` parçasını bellekte değerlendiren küçük yorumlayıcı — yalnız
-// `createdAt` üzerindeki gt / gte / lt / lte anahtarlarını tanır, başka bir şekil görürse FIRLATIR (şekil değişirse test sessizce boşa düşmez).
-// Rastgelelik tohumlu (her koşuda aynı girdiler); saat sabit T0 — gerçek saate bağlı değil.
+// Vade OLAYIN SATIRINDA (kurucu 11-18 akşam, migration 98): `nextPaddleReplayAt(createdAt, sonDeneme)`. Eski kural (`paddleReplayDue`,
+// ortak son tur) ile AYNI "bu turda denenir" kümesini vermeli: satır bazlı çizelge = her satırın son denemesinden sonra geçilecek ilk eşik.
+// Kâhin simülasyonu: aynı tur dizisinde eski kural (son tur = önceki tur) ile yeni kural (vade <= şimdi; denenince sıradaki eşik) yan yana.
+// Rastgelelik tohumlu; saat sabit T0 — gerçek saate bağlı değil.
 // ---------------------------------------------------------------------------
-type CreatedAtCond = { gt?: Date; gte?: Date; lt?: Date; lte?: Date };
-function evalDueWhere(where: unknown, createdAt: Date): boolean {
-  const w = where as { OR?: unknown[] };
-  if (!w || !Array.isArray(w.OR) || Object.keys(w).length !== 1) throw new Error(`beklenmeyen şekil: ${JSON.stringify(where)}`);
-  return w.OR.some((clause) => {
-    const c = clause as { createdAt?: CreatedAtCond };
-    if (!c || Object.keys(c).length !== 1 || !c.createdAt) throw new Error(`beklenmeyen şekil: ${JSON.stringify(clause)}`);
-    const x = createdAt.getTime();
-    return Object.entries(c.createdAt).every(([op, v]) => {
-      if (!(v instanceof Date)) throw new Error(`beklenmeyen değer: ${op}`);
-      const y = v.getTime();
-      if (op === "gt") return x > y;
-      if (op === "gte") return x >= y;
-      if (op === "lt") return x < y;
-      if (op === "lte") return x <= y;
-      throw new Error(`beklenmeyen işleç: ${op}`);
-    });
+describe("nextPaddleReplayAt — satır bazlı vade, eski kuralla eşdeğer", () => {
+  it("eşikler tek kaynak (yeniden işleme modülü çizelge modülünü dışa verir)", () => {
+    expect(PADDLE_REPLAY_THRESHOLDS_MS).toBe(SCHEDULE_THRESHOLDS);
   });
-}
-/** Tohumlu, belirlenimci sayı üreteci (mulberry32). */
-function seeded(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
 
-describe("paddleReplayDueWhere — vade koşulunun sorgu parçası (Codex 11-17 B1)", () => {
-  const compare = (createdAt: Date, lastPassAt: Date | null, now: Date) =>
-    expect(evalDueWhere(paddleReplayDueWhere(lastPassAt, now), createdAt), `created=${createdAt.toISOString()} last=${lastPassAt?.toISOString() ?? "yok"}`).toBe(
-      paddleReplayDue(createdAt, lastPassAt, now),
-    );
+  it("hiç denenmemiş olay: ilk eşik; deneme sonrası: o andaki yaştan BÜYÜK ilk eşik (eşitlik harcanmıştır); eşik kalmayınca null", () => {
+    const c = createdAgo(0);
+    expect(nextPaddleReplayAt(c, null)!.getTime()).toBe(c.getTime() + 15 * MIN);
+    expect(nextPaddleReplayAt(c, c)!.getTime()).toBe(c.getTime() + 15 * MIN);
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() + 15 * MIN))!.getTime()).toBe(c.getTime() + HOUR); // tam eşikte denendi → sıradaki
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() + 15 * MIN - 1))!.getTime()).toBe(c.getTime() + 15 * MIN);
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() + 10 * HOUR))!.getTime()).toBe(c.getTime() + 16 * HOUR); // geçilen 2/4/8 tek denemede
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() + 256 * HOUR - 1))!.getTime()).toBe(c.getTime() + 256 * HOUR);
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() + 256 * HOUR))).toBeNull();
+    expect(nextPaddleReplayAt(c, new Date(c.getTime() - HOUR))!.getTime()).toBe(c.getTime() + 15 * MIN); // geçmiş referans → ilk eşik
+  });
 
-  it("🚨 kâhin: sınır değerlerinde (her eşik için tam sınır ve ±1 ms, son turla ve şimdiyle) paddleReplayDue ile BİREBİR aynı", () => {
-    const lasts: (Date | null)[] = [null, passAgo(0), passAgo(1), passAgo(10 * MIN), passAgo(15 * MIN), passAgo(HOUR), passAgo(9 * HOUR), passAgo(300 * HOUR), new Date(T0.getTime() + MIN)];
-    let checked = 0;
-    for (const last of lasts) {
-      for (const t of PADDLE_REPLAY_THRESHOLDS_MS) {
-        const anchors = [T0.getTime() - t, ...(last ? [last.getTime() - t] : [])];
-        for (const a of anchors) {
-          for (const d of [-1, 0, 1]) {
-            compare(new Date(a + d), last, T0);
-            checked++;
-          }
-        }
-      }
+  /** Aynı tur dizisini iki kuralla koşturur; her turda denenen kümeler aynı olmalı. */
+  function simulate(createdAts: Date[], runs: Date[]): { compared: number; nonEmpty: number } {
+    const next = createdAts.map((c) => nextPaddleReplayAt(c, null)); // işleyicinin ilk yazımı
+    let prev: Date | null = null;
+    let nonEmpty = 0;
+    for (const now of runs) {
+      const alive = (i: number) => createdAts[i].getTime() <= now.getTime(); // tur anında alınmış olaylar
+      const oldSet = createdAts.map((c, i) => alive(i) && paddleReplayDue(c, prev, now));
+      const newSet = createdAts.map((_, i) => alive(i) && next[i] !== null && next[i]!.getTime() <= now.getTime());
+      expect(newSet, `run=${now.toISOString()}`).toEqual(oldSet);
+      newSet.forEach((d, i) => {
+        if (d) next[i] = nextPaddleReplayAt(createdAts[i], now);
+      });
+      if (newSet.some(Boolean)) nonEmpty++;
+      prev = now;
     }
-    expect(checked).toBeGreaterThan(400);
-  });
+    return { compared: runs.length, nonEmpty };
+  }
 
-  it("🚨 kâhin: 20.000 tohumlu rastgele (oluşturma, son tur, şimdi) üçlüsünde aynı; iki sonuç da yeterince çıkıyor (kâhin boş değil)", () => {
-    const rnd = seeded(20261117);
-    let due = 0;
-    let notDue = 0;
-    for (let i = 0; i < 20_000; i++) {
-      const now = new Date(T0.getTime() + Math.floor(rnd() * 30 * 24 * HOUR));
-      const created = new Date(now.getTime() - Math.floor(rnd() * 300 * HOUR) + Math.floor(rnd() * HOUR) - HOUR / 2);
-      const last = rnd() < 0.15 ? null : new Date(now.getTime() - Math.floor(rnd() * (rnd() < 0.5 ? 2 * HOUR : 300 * HOUR)));
-      const expected = paddleReplayDue(created, last, now);
-      compare(created, last, now);
-      if (expected) due++;
-      else notDue++;
-    }
-    expect(due).toBeGreaterThan(1_000);
-    expect(notDue).toBeGreaterThan(1_000);
-  });
-
-  it("🚨 kâhin: son tur 'şimdi'den SONRA görünüyorsa (saat geri alınmış / bozuk kayıt) aralıklar boş — paddleReplayDue ile aynı (hiçbiri)", () => {
-    const rnd = seeded(1118);
-    for (const ahead of [1, MIN, HOUR, 300 * HOUR]) {
-      const last = new Date(T0.getTime() + ahead);
-      for (const t of PADDLE_REPLAY_THRESHOLDS_MS) {
-        for (const a of [T0.getTime() - t, last.getTime() - t]) for (const d of [-1, 0, 1]) compare(new Date(a + d), last, T0);
+  it("🚨 kâhin: 400 tohumlu zaman çizelgesinde (alınma anları, düzensiz tur anları) eski kuralla BİREBİR aynı küme", () => {
+    const rnd = seeded(20261118);
+    let nonEmpty = 0;
+    for (let s = 0; s < 400; s++) {
+      const runs: Date[] = [];
+      let t = T0.getTime();
+      const nRuns = 5 + Math.floor(rnd() * 30);
+      for (let r = 0; r < nRuns; r++) {
+        t += 1 + Math.floor(rnd() * (rnd() < 0.5 ? 70 * MIN : rnd() < 0.8 ? 10 * HOUR : 80 * HOUR));
+        runs.push(new Date(t));
       }
-      for (let i = 0; i < 2_000; i++) {
-        const created = new Date(T0.getTime() - Math.floor(rnd() * 300 * HOUR));
-        compare(created, last, T0);
-        expect(paddleReplayDue(created, last, T0)).toBe(false); // geleceğe yazılmış son tur → bu turda hiçbir eşik "geçilmez"
+      const created = Array.from({ length: 12 }, () => new Date(T0.getTime() - 20 * HOUR + Math.floor(rnd() * (t - T0.getTime() + 20 * HOUR))));
+      nonEmpty += simulate(created, runs).nonEmpty;
+    }
+    expect(nonEmpty).toBeGreaterThan(1_000); // kâhin boş değil
+  });
+
+  it("🚨 kâhin: sınır eşitlikleri — tur anı bir eşiğe tam denk / ±1 ms", () => {
+    const c = createdAgo(0);
+    for (const t of PADDLE_REPLAY_THRESHOLDS_MS) {
+      for (const d of [-1, 0, 1]) {
+        simulate([c], [new Date(c.getTime() + 5 * MIN), new Date(c.getTime() + t + d), new Date(c.getTime() + t + d + 1), new Date(c.getTime() + 2 * t + d)]);
       }
     }
   });
 
-  it("son tur bilinmiyorsa (ilk tur) alt sınır yok; biliniyorsa her eşik için tek kapalı-açık aralık", () => {
-    const first = paddleReplayDueWhere(null, T0) as { OR: { createdAt: CreatedAtCond }[] };
-    expect(first.OR).toHaveLength(PADDLE_REPLAY_THRESHOLDS_MS.length);
-    for (const c of first.OR) expect(Object.keys(c.createdAt)).toEqual(["lte"]);
-    const later = paddleReplayDueWhere(passAgo(HOUR), T0) as { OR: { createdAt: CreatedAtCond }[] };
-    for (const c of later.OR) expect(Object.keys(c.createdAt).sort()).toEqual(["gt", "lte"]);
+  it("14 gün boyunca saatlik turlarda bir olay en çok eşik sayısı kadar denenir (yeni çizelgeyle)", () => {
+    const created = createdAgo(0);
+    let next = nextPaddleReplayAt(created, null);
+    let replays = 0;
+    for (let h = 0; h <= 14 * 24; h++) {
+      const now = new Date(T0.getTime() + h * HOUR + 7 * MIN);
+      if (next && next.getTime() <= now.getTime()) {
+        replays++;
+        next = nextPaddleReplayAt(created, now);
+      }
+    }
+    expect(replays).toBe(PADDLE_REPLAY_THRESHOLDS_MS.length - 1); // 15 dk ile 1 sa aynı ilk turda birleşir (kâhin testiyle aynı)
   });
 });
 

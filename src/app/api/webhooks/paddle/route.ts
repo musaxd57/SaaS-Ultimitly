@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { inPaddleReplay } from "@/lib/payments/paddle-replay-context";
+import { nextPaddleReplayAt } from "@/lib/payments/paddle-replay-schedule";
 import { Prisma } from "@prisma/client";
 import { completeCheckoutIntent } from "@/lib/billing/checkout-intent";
 import { fulfilPaidCheckouts, recordPaidCheckout } from "@/lib/billing/checkout-paid";
@@ -751,7 +752,7 @@ async function applyTransactionEvent(
           error: { in: [`${NEEDS_REVIEW_PREFIX} invalid_amount`, `${NEEDS_REVIEW_PREFIX} missing_currency`] },
           payloadJson: { contains: JSON.stringify(providerRef) },
         },
-        data: { status: "processed", processedAt: new Date(), error: "resolved: later event recorded the invoice" },
+        data: { status: "processed", processedAt: new Date(), error: "resolved: later event recorded the invoice", nextAttemptAt: null },
       })
       .catch(() => {});
   } catch (err) {
@@ -959,10 +960,28 @@ export async function POST(req: NextRequest): Promise<Response> {
         return jsonOk({ ok: true, duplicate: true });
       }
       storedMinimized = existing != null && isRedactedPaddlePayload(existing.payloadJson);
+      // Yeniden işleme vadesi (migration 98, `payments/paddle-replay.ts`): satır işlenmeden önce planlanır — süreç işleme sırasında
+      // çökerse ya da işleme düşerse ("hata") satır kendiliğinden vadeli kalır. Yeni olay: alınış + ilk eşik. Var olan satır (Paddle'ın
+      // tekrarı / bizim yeniden işlememiz): planlı vadesi KORUNUR (yeniden işleme bu teslimden sonra sıradakini yazar); vadesi boşsa
+      // (incelemeye düşmüştü, şimdi yeniden işleniyor) şimdiki yaştan büyük ilk eşik — boş vadeyle "hata"ya dönen satır kalıcı kaybolurdu.
+      const receivedAt = new Date();
       await prisma.webhookEvent.upsert({
         where: { providerEventId },
-        create: { provider: "paddle", eventType, providerEventId, payloadJson: storedBody, status: "received" },
-        update: { status: "received", eventType, error: null },
+        create: {
+          provider: "paddle",
+          eventType,
+          providerEventId,
+          payloadJson: storedBody,
+          status: "received",
+          createdAt: receivedAt,
+          nextAttemptAt: nextPaddleReplayAt(receivedAt, null),
+        },
+        update: {
+          status: "received",
+          eventType,
+          error: null,
+          ...(existing && !existing.nextAttemptAt ? { nextAttemptAt: nextPaddleReplayAt(existing.createdAt, receivedAt) } : {}),
+        },
       });
     } else {
       await prisma.webhookEvent.create({
@@ -1010,9 +1029,11 @@ export async function POST(req: NextRequest): Promise<Response> {
             ? {
                 status: "error",
                 error: `${NEEDS_REVIEW_PREFIX} ${reviewReason}`,
+                // İnceleme bekleyen olay yeniden işlenmez (insan kararı ister) → planlı vade silinir.
+                nextAttemptAt: null,
                 ...(reviewReason === "org_deleted" && !storedMinimized ? { payloadJson: redactPaddlePayload(rawBody, "org-deleted") } : {}),
               }
-            : { status: "processed", processedAt: new Date() },
+            : { status: "processed", processedAt: new Date(), nextAttemptAt: null },
         });
       }
       if (reviewReason) await logEvent("billing.webhook.failed", { eventType, reason: reviewReason });
