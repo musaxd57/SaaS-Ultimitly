@@ -17,6 +17,7 @@ import { crossSiteWrite } from "@/lib/route-guard";
 import { claimOutboundSend, newClaimOwner, releaseOutboundSend } from "@/lib/outbound-claim";
 import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 import { hostWriteLimited } from "@/lib/host-write-limit";
+import { DELIVERY_PATH } from "@/lib/delivery-path";
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
 // The reply is stored as an OUTBOUND message with the host's name (so it's shown
@@ -81,6 +82,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           senderName: session.name,
           body: text,
           language: "tr",
+          // Teslim yolu (migration 98): iç QR sohbeti — misafir sohbet sayfasında görür.
+          deliveryPath: DELIVERY_PATH.qr,
         },
       });
       await tx.conversation.update({

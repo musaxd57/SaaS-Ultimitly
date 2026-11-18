@@ -84,9 +84,11 @@ describe("POST /api/guest-chats/[id]/resume-ai (host re-enables the AI)", () => 
     // The marker is a typed SYSTEM event (reliable), not just a senderName string.
     const marker = await prisma.message.findFirst({
       where: { conversationId: id, senderName: AI_RESUME_MARKER },
-      select: { authorType: true, systemEventType: true },
+      select: { authorType: true, systemEventType: true, deliveryPath: true },
     });
     expect(marker?.authorType).toBe("system");
+    // Teslim yolu (migration 98): işaret QR sohbetine yazılır (misafirin sohbet sayfası onu da okur).
+    expect(marker?.deliveryPath).toBe("qr");
     expect(marker?.systemEventType).toBe("guest_chat_ai_resumed");
   });
 

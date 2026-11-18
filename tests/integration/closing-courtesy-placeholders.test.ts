@@ -93,6 +93,9 @@ describe("nezaket cevabı — {isim} / {daire} doldurulur, doldurulamayan GİTME
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
     expect(sentBody()).toContain("Rica ederiz Ayşe, keyifli konaklamalar!");
     expect(sentBody()).not.toContain("{isim}");
+    // Teslim yolu (migration 98): nezaket cevabı kanala doğrudan; seed'deki (eşitlenmiş gibi yazılmış) eski giden satır NULL kalır.
+    const outbound = await prisma.message.findMany({ where: { conversationId, direction: "outbound" }, orderBy: { createdAt: "asc" }, select: { deliveryPath: true } });
+    expect(outbound.map((m) => m.deliveryPath)).toEqual([null, "direct"]);
   });
 
   it("🚨 ad bilinmiyorsa (yer tutucu ad) hitap adsız — 'Rezervasyon' yazılmaz", async () => {

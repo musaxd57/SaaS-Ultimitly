@@ -248,7 +248,8 @@ import {
   DELIVERY_UNVERIFIED_REASON,
   triggerMessageIdOf,
 } from "@/lib/outbox/state";
-import { resolveOrgChannelCredential } from "@/lib/channels";
+import { deliveryOutcomeOfRoute, resolveOrgChannelCredential, resolveOutboundRoute } from "@/lib/channels";
+import { deliveryPathOfLocalOutcome } from "@/lib/delivery-path";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
 import { loadVerifiedAvailability } from "@/lib/ai/verified-availability-load";
@@ -1306,6 +1307,8 @@ async function maybeSendClosingCourtesy(opts: {
           body,
           aiIntent: CLOSING_COURTESY_INTENT, // ALSO the loop guard for the next closing
           ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+          // Teslim yolu (migration 98): kuyruğa girmedi; rota çözümünden (dış kanal "direct", hedef yok "local", iç QR "qr").
+          deliveryPath: deliveryPathOfLocalOutcome(deliveryOutcomeOfRoute(resolveOutboundRoute(opts.conversation))),
           createdAt: claimedAt,
         },
       }),
@@ -4638,6 +4641,8 @@ export async function applyChannelAutoReply(
           // Store the provider's message id so the next sync dedups this AI reply
           // instead of re-importing it as a duplicate "Ev sahibi" message.
           ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+          // Teslim yolu (migration 98): kuyruğa girmedi; rota çözümünden (dış kanal "direct", hedef yok "local", iç QR "qr").
+          deliveryPath: deliveryPathOfLocalOutcome(deliveryOutcomeOfRoute(resolveOutboundRoute(conversation))),
           createdAt: claimedAt, // cevabın yazıldığı an (A25 ↑) — kayıt anı değil
         },
       }),

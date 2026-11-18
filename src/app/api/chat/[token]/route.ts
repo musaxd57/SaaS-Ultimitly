@@ -104,6 +104,7 @@ import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { hostContactOpenWithoutLedger, needsFromUnderstanding } from "@/lib/conversation-items/host-contact-settle";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { QR_SERVER_TEXT } from "@/components/guest-chat/guest-chat-copy";
+import { DELIVERY_PATH } from "@/lib/delivery-path";
 import {
   deviceLaneKey,
   devicePassAvailable,
@@ -367,7 +368,8 @@ async function recordGuestChatExchange(
         ? // 🚨 CEVAP KAYITTA KESİLMEZ (Codex 11-10 Q1): misafire dönen metin bütün kontrollerden geçmiş metindir; kayıt onun AYNISI olmalı.
           // Burada 2.000'de kesiliyordu — misafir tam metni görüp sayfayı yenileyince kesik hâlini okuyordu (kesik cümlede olumsuzluk
           // kaybolabiliyor). Uzunluk sınırı yukarıda, gönderim kararında uygulanır (`replyOverAutosendCap`: tavanı aşan cevap gitmez).
-          [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply, language: "tr", createdAt: botAt }]
+          // Teslim yolu (migration 98): iç QR sohbeti. Misafirin satırı gelen mesajdır (yol yok).
+          [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply, language: "tr", createdAt: botAt, deliveryPath: DELIVERY_PATH.qr }]
         : []),
     ],
     select: { id: true, direction: true },

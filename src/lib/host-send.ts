@@ -22,6 +22,7 @@ import { reportError } from "@/lib/report-error";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { undeliveredOutboundIds } from "@/lib/operator-replies";
 import { operationRetryKey } from "@/lib/outbox/operation-key";
+import { deliveryPathOfLocalOutcome } from "@/lib/delivery-path";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -310,6 +311,8 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
           // Store the provider's message id so the sync re-importing this reply from the channel thread dedups it instead of
           // creating a duplicate row.
           ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
+          // Teslim yolu (migration 98): rota çözümünün yerel sonucundan — dış kanal "direct", iç QR "qr", hedef yok "local" (ek sorgu yok).
+          deliveryPath: deliveryPathOfLocalOutcome(localDelivery),
           // Cevabın "yazıldığı an" = gönder'e basılan an (mesaj A25, Codex 11-10): satır teslimden SONRA yazılıyor, zamanı kayıt anı oluyordu →
           // gönderim sürerken içeri alınan misafir mesajı (ev sahibi onu görmeden yazdı) satır sırasında cevaptan önce düşüp sonraki senkronda
           // "Cevaplandı" sayılıyordu (`lateGuestMessages` içeri alınma anını cevabın zamanıyla kıyaslar).

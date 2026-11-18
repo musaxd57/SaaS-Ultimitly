@@ -45,7 +45,7 @@ const rows = (conversationId: string) =>
   prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
-    select: { direction: true, senderName: true, authorType: true, systemEventType: true },
+    select: { direction: true, senderName: true, authorType: true, systemEventType: true, deliveryPath: true },
   });
 
 describe("POST /api/guest-chats/[id]/reply — handoff identity is authorType, not senderName", () => {
@@ -87,6 +87,8 @@ describe("POST /api/guest-chats/[id]/reply — handoff identity is authorType, n
     await call(id, "Merhaba, yardımcı olayım.");
     const stored = await rows(id);
     expect(stored.find((m) => m.direction === "outbound")?.authorType).toBe("host");
+    // Teslim yolu (migration 98): ev sahibinin QR cevabı iç QR sohbetinde.
+    expect(stored.find((m) => m.direction === "outbound")?.deliveryPath).toBe("qr");
     expect(guestChatAiPausedFromMessages(stored)).toBe(true);
   });
 });

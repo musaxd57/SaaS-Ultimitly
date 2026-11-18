@@ -641,6 +641,8 @@ describe("applyChannelAutoReply", () => {
         (m) => m.direction === "outbound" && m.body === `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}`,
       ),
     ).toBe(true);
+    // Teslim yolu (migration 98): kuyruk kapalı, kanala doğrudan istek.
+    expect(conv?.messages.filter((m) => m.direction === "outbound" && m.authorType === "ai").map((m) => m.deliveryPath)).toEqual(["direct"]);
   });
 
   it("marks the auto-sent body as machine-prepared, but keeps the draft clean", async () => {

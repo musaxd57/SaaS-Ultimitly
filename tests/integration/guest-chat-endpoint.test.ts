@@ -148,6 +148,9 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(msgs[0].body).toBe("Çöp ne zaman toplanıyor?");
     expect(msgs[1].direction).toBe("outbound");
     expect(msgs[1].body).toContain("Çöp");
+    // Teslim yolu (migration 98): botun cevabı iç QR sohbetinde; misafirin satırı gelen mesajdır (yol yok).
+    expect(msgs[1].deliveryPath).toBe("qr");
+    expect(msgs[0].deliveryPath).toBeNull();
   });
 
   it("records an escalated exchange flagged urgent; reuses the same per-guest thread", async () => {

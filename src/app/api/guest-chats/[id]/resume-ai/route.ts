@@ -6,6 +6,7 @@ import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 import { hostWriteLimited } from "@/lib/host-write-limit";
 import { crossSiteWrite } from "@/lib/route-guard";
 import { forgetQrCriticalHistory } from "@/lib/guest-chat-alerts";
+import { DELIVERY_PATH } from "@/lib/delivery-path";
 
 // Owner/manager RE-ENABLES the QR AI for a thread it had handed off to the team.
 // The AI never auto-resumes on a timer (the host may have stepped into a sensitive
@@ -59,6 +60,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         senderName: AI_RESUME_MARKER,
         body: "Lixus AI yeniden etkinleştirildi",
         language: "tr",
+        // Teslim yolu (migration 98): iç QR sohbetine yazılır (misafirin sohbet sayfası işareti de okur).
+        deliveryPath: DELIVERY_PATH.qr,
       },
     }),
     prisma.conversation.update({ where: { id: convo.id }, data: { lastMessageAt: new Date() } }),

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { activeMessagingConnectionId } from "@/lib/channels";
 import { markHandoffExempt } from "./handoff-exempt";
+import { DELIVERY_PATH } from "@/lib/delivery-path";
 
 // ---------------------------------------------------------------------------
 // Durable Outbox — atomic enqueue (#8).
@@ -149,6 +150,9 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
           // YOK — bu bizim çıktımız, ingest değil. Kanıt türü "outbound" (gözlem değil, kuyruklama).
           connectionId,
           connectionEvidence: connectionId ? "outbound" : null,
+          // Teslim yolu (migration 98): satır kuyruk satırıyla AYNI işlemde yazılır — bütün kuyruk yazanları (ev sahibi, otomatik cevap,
+          // nezaket, yaşam döngüsü mesajları) bu tek yerden geçer.
+          deliveryPath: DELIVERY_PATH.queue,
         },
         select: { id: true },
       });
