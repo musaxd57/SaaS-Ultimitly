@@ -43,7 +43,7 @@ yaşayan iki mutant eşdeğer değildi, eksik kollar pinlendi (`8f2fe356`), yeni
 | Karar + kuyruk: kuyruğa kabul = tamamlandı (K2-01) | DOĞRU, belgelenmiş engel; iki anahtar birlikte açılamaz | 📋 dalga 2 |
 | Onay ile gönderim arası rezervasyon iptali (G2-02) | KISMEN — doğrudan yolda ms; asıl açık kuyrukta (ev sahibi satırı vetodan muaf) | 📋 dalga 2 |
 | Kuyrukta son kontrol → gönderim penceresi | KISMEN — pencere Codex'in tarifinden farklı yerde (yanıt satırında varlık vetosu ↔ son talep; otomatik mesajda son talep ↔ gönderim) | 📋 dalga 2 (gerçek PostgreSQL + sahte sağlayıcı testleriyle) |
-| Açık ihtiyaç listesi ilk 500 / konuşma sayfası 20 satır | DOĞRU | 📋 dalga 2 |
+| Açık ihtiyaç listesi ilk 500 / konuşma sayfası 20 satır | DOĞRU | ✅ `0bf2d7a3`, `6b167235` — "ev sahibi yazdı" süzgeci sorguya indi, tavan yalnız adaylara, aşımda alarm (eski ve yeni yol rastgele verilerle aynı kümeyi veriyor); konuşma sayfasında açık işlerin HEPSİ görünür, sayaç toplamdan. Bilinen sınır: aday süzgeci öğenin kayıt anına bakar (15 dk pay) — sağlayıcı saati bundan fazla ilerideyse açık öğe aday dışında kalabilir. ❓ "N kapanmış iş gizlendi" / "Tümünü göster" metni |
 | Görev saati sunucu saat dilimine göre | DOĞRU (sunucu UTC ise 15:00 → 18:00) | ✅ `2bcdf87a` — formun dilimsiz saati İŞLETMENİN diliminde okunur (oluşturma + güncelleme); dilim taşıyan değer bugünkü gibi. Var olan kayıtlar değişmez. Not: tam UTC 00:00 / 12:00'a düşen saat 1 ms ileri alınır ("saatsiz gün" çapasıyla karışmasın) — kalıcı çözüm migration turunda (vade hassasiyeti) |
 | Giriş: hesap başına 20 deneme sınırı eşzamanlı istekte gevşiyor | DOĞRU (~54 / 15 dk; sınır dalgasında doğru parola tanınmayan cihazdan girebiliyor) | ✅ `753aa3b4` — hak bcrypt'ten ÖNCE atomik ayrılır; doğru parolada / doğrulama yapılamadığında yalnız ayrıldığı pencereye iade. İnceleme düzeltmesi: başarısız daldaki zamanlama eşitliği turu okumaya düşmüştü → denetim yazımıyla aynı sınıfta yazma |
 | Bayat oturumun kod isteği yeni kodu eziyor | DOĞRU, etkisi düşük | ✅ `44ca97de` — kod yazması oturum sürümüne koşullu; tutmazsa kod / e-posta yok, 401 |
@@ -53,10 +53,10 @@ yaşayan iki mutant eşdeğer değildi, eksik kollar pinlendi (`8f2fe356`), yeni
 | Alıntılanan misafir sözü ev sahibi sözü sayılıyor | DOĞRU; misafire gitmez, yanlış iç görev açar | 📋 dalga 2 · ❓ önce / sonra örneği |
 | Ev sahibi cevabında değer ↔ hizmet bağı / olumsuzluk | DOĞRU; `HOST_QUESTIONS_ENABLED` kapalı → açılmadan önce şart | 📋 anahtar ön şartı · ❓ |
 | `translateTo` ile önizlemesiz model çıktısı gönderimi | DOĞRU; arayüzde çağıran yok | 📋 dalga 2 (alan 400 döner) |
-| Eski sekme: şablon / mülk formu başkasının değişikliğini eziyor | DOĞRU (23 sürümsüz PATCH / PUT rotası sayıldı) | 📋 dalga 2 (en riskli tam form gönderenler) |
-| Operatör yapay zekâ kalite konsolu geç yanıt | DOĞRU | 📋 dalga 2 |
+| Eski sekme: şablon / mülk formu başkasının değişikliğini eziyor | DOĞRU (23 sürümsüz PATCH / PUT rotası sayıldı) | ✅ `0de0df45` (şablon), `26af4da3` (daire formu) — form açıldığı sürümü yollar; arada değiştiyse kayıt yapılmaz (409), yazılan formda kalır, var olan bilgi tabanı çatışma metni çıkar. Öteki sürümsüz rotalar risk sırasıyla listelendi (en riskli: stok formu) — dokunulmadı. ❓ şablon / daire için ayrı çatışma cümlesi |
+| Operatör yapay zekâ kalite konsolu geç yanıt | DOĞRU | ✅ `4c0f1611` — geç gelen yanıt yalnız hâlâ en son istekse uygulanır |
 | "Ekstra hazırlık gerekmiyor" eksik profile rağmen | DOĞRU (dar) | 📋 dalga 2 · ❓ metin |
-| Yardımcı okuma hatası boş liste gibi | DOĞRU | 📋 dalga 2 |
+| Yardımcı okuma hatası boş liste gibi | DOĞRU | ✅ `6b167235`, `94d8bef3`, `82d5bc0e` — "Açık işler" kartı okuma düşünce kaybolmaz (var olan "Durum okunamadı. Sayfayı yenileyin." cümlesi); karar okuması düşünce hata kaydı düşer (panel hâlâ boş görünür — arayüz durumu ❓ metin onayıyla) |
 | Görev panosu bayat atama | DOĞRU (sunucu koruması hazır, pano göndermiyor) | ✅ `30741ab7` — pano kartın gördüğü atananı ön şart olarak yollar; çatışmada var olan uyarı + yenileme. Başlamış işi panodan yeniden atamak serbest kaldı (pinli karar) |
 | QR okuma konumu | DOĞRU | ✅ `26fdb86a` — misafir geçmişi okurken arka plan sorgusu ekranı aşağı çekmez; kendi gönderiminde ve cevabında sona iner |
 | "AI bu cevaptan emin" rozeti | KISMEN — kod doğru; etiket modelin kendi beyanını doğruluk gibi sunuyor | ❓ metin |
