@@ -4,7 +4,8 @@ import type { Message } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { resolveOrgChannelCredential } from "@/lib/channels";
+import { resolveOrgChannelCredential, resolveOutboundRoute, deliveryOutcomeOfRoute } from "@/lib/channels";
+import type { LocalDeliveryOutcome } from "@/lib/delivery-outcome";
 import {
   claimOutboundSend,
   releaseOutboundSend,
@@ -75,8 +76,17 @@ export type HostSendResult =
   | { status: "failed_definitive"; error: string | undefined }
   /** Sonuç BELİRSİZ (zaman aşımı / ağ / 5xx): mesaj ulaşmış OLABİLİR, kalkan tutulur. */
   | { status: "failed_ambiguous" }
-  /** Teslim edildi ve kaydedildi (`message` yalnız eşzamanlı senkronun satırı bulunamazsa null — teslim yine gerçekleşti). */
-  | { status: "sent"; message: Message | null };
+  /**
+   * Kanal KABUL etti ve kaydedildi (`message` yalnız eşzamanlı senkronun satırı bulunamazsa null — teslim yine gerçekleşti). Yalnız dış
+   * kanala giden gönderim (Codex 11-17 C1: eskiden kanala hiç gitmeyen cevap da "sent" dönüyordu).
+   */
+  | { status: "sent"; message: Message | null }
+  /**
+   * Dış kanal YOK — yalnız kaydedildi (Codex 11-17 C1). `local_only`: hedefi olmayan (elle açılmış) konuşma, misafire hiçbir kanaldan
+   * gitmedi; `qr_visible`: iç QR sohbeti, misafir sohbet sayfasında görür. Kayıt, konuşma durumu ve söz → görev bugünkü "sent" yoluyla
+   * BİREBİR aynı (ürün kararı S-1…S-4 bekliyor); değişen yalnız dışarıya taşınan sonuç.
+   */
+  | { status: "recorded"; message: Message | null; delivery: LocalDeliveryOutcome };
 
 export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSendResult> {
   // S1: işlem kimlikli onayda anahtar, işlemin ŞU ANKİ gönderimine çözülür (önceki gönderim misafire kesinlikle ulaşmadıysa yenisi).
@@ -87,7 +97,10 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
   // Deliver on the guest's channel FIRST — don't persist a reply that never reached the guest (Airbnb/Booking via Hospitable,
   // or WhatsApp). Use this org's own Hospitable token (multi-tenant). Internal QR-concierge threads have no external channel,
   // so they don't need (and must not require) a Hospitable connection — the reply is just recorded.
-  const isInternal = conversation.externalReservationId?.startsWith("qr-chat:") ?? false;
+  // Rota BİR KEZ çözülür (Codex 11-17 C1): dış kanala çıkmayacak gönderimin sonucu ("kaydedildi") buradan belli olur — `sendOnChannel` aynı
+  // saf çözümle `skipped` döner, ama o alan "QR mi, hedef yok mu" ayrımını taşımaz.
+  const localDelivery = deliveryOutcomeOfRoute(resolveOutboundRoute(conversation));
+  const isInternal = localDelivery === "qr_visible";
   const token = (await resolveOrgChannelCredential(input.organizationId))?.token ?? null;
   if (!isInternal && conversation.externalReservationId && !token) return { status: "not_connected" };
   // Bu DENEMENİN jetonu (mesaj M1, Codex 11-10): aldığı talepleri yalnız kendisi bırakır / uzatır — süresi dolmuş eski bir denemenin geç
@@ -234,6 +247,9 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     if (!extended) void reportError("host-send.extend-request-claim", new Error("request claim not extended after confirmed delivery"));
   }
 
+  // Başarılı yolun sonucu: dış kanal kabul ettiyse "sent", hiç kanala çıkmadıysa "recorded" (C1).
+  const deliveredResult = (message: Message | null): HostSendResult =>
+    localDelivery ? { status: "recorded", message, delivery: localDelivery } : { status: "sent", message };
   const now = new Date();
   // Koşullu tamamlama: durum gönderim başındakiyle AYNIYSA ve o andan sonra misafir yazmadıysa "Cevaplandı"; `lastMessageAt` yalnız ileri.
   const completeStatus = () =>
@@ -279,7 +295,7 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     // mesaj, nadir sessiz kayıptan kötüdür"). Hata raporlanır, sonuç "gönderildi" — satır sonraki senkronla sağlayıcıdan gelir.
     if (!isUniqueViolation(err, ["conversationId", "externalId"])) {
       void reportError("host-send.persist-after-delivery", err);
-      return { status: "sent", message: null };
+      return deliveredResult(null);
     }
     // Delivery already succeeded; a dedupe-hit on the new @@unique([conversationId, externalId]) means a concurrent sync
     // imported this very reply first. Adopt the existing row and still mark answered.
@@ -308,7 +324,7 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
   } catch (err) {
     await reportError("commitment-auto-send", err);
   }
-  return { status: "sent", message };
+  return deliveredResult(message);
 }
 
 /**

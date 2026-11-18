@@ -7,6 +7,7 @@ import { stayEndedBefore } from "@/modules/availability/core";
 import { turnoverBandLines, turnoverInPending, turnoverOutPending } from "@/lib/turnover-band";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
+import { deliveryOutcomeOfRoute, resolveOutboundRoute } from "@/lib/channels";
 import { reservationAmountNumber } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -462,6 +463,8 @@ export default async function ConversationPage({
             canReply={canManage(session)}
             defaultTone={replyToneOrWarm(orgRow?.aiReplyTone)}
             initialDraft={preparedDraft}
+            // Codex 11-17 C1: kanala bağlı olmayan konuşmada cevap yalnız kaydedilir — gönderimle AYNI rota çözümünden.
+            localOnly={deliveryOutcomeOfRoute(resolveOutboundRoute(conversation)) === "local_only"}
             headerActions={
               <>
                 <LinkButton

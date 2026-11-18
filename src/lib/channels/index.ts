@@ -27,6 +27,7 @@ export type { MessagingAccess, CredentialRejectionOutcome } from "./access";
 export {
   INTERNAL_THREAD_PREFIX,
   resolveOutboundRoute,
+  deliveryOutcomeOfRoute,
   dispatchOutbound,
   verifyOutboundCredential,
   getOutboundAdapter,

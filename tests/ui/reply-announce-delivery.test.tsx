@@ -24,14 +24,17 @@ const props = {
 
 const QUEUED_NOTE = "Mesaj sıraya alındı — birazdan gönderilecek.";
 
-async function sendWith(status: number, body: unknown) {
+const LOCAL_RECORDED = "Cevabınız kaydedildi. Bu konuşma bir kanala bağlı olmadığı için misafire gönderilmedi.";
+const LOCAL_NOTE = "Bu konuşma bir kanala bağlı değil. Yazdığınız cevap yalnız burada kaydedilir, misafire gönderilmez.";
+
+async function sendWith(status: number, body: unknown, extra: Partial<React.ComponentProps<typeof ConversationThread>> = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) =>
       Promise.resolve(url.endsWith("/reply") ? new Response(JSON.stringify(body), { status }) : new Response("[]", { status: 200 })),
     ),
   );
-  render(<ConversationThread {...props} />);
+  render(<ConversationThread {...props} {...extra} />);
   fireEvent.change(screen.getByPlaceholderText(/Cevabınızı yazın/), { target: { value: "Havlular dolapta" } });
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: /^Gönder$/ }));
@@ -73,5 +76,40 @@ describe("elle cevap duyurusu — açık durumdan", () => {
   it("KONTROL — doğrudan teslim (201, kuyruk yok) → 'Mesaj gönderildi.' (bugünkü gibi)", async () => {
     await sendWith(201, { id: "x" });
     expect(screen.getByText("Mesaj gönderildi.")).toBeTruthy();
+  });
+});
+
+// Codex 11-17 C1: kanala bağlı olmayan konuşmada cevap HİÇBİR kanala gitmez — sunucu bunu `delivery` alanıyla söyler, duyuru ondan seçilir.
+// Alan yoksa (eski yanıt) bugünkü davranış sürer (yukarıdaki KONTROL).
+describe("elle cevap duyurusu — teslim sonucundan (C1)", () => {
+  it("🚨 201 + delivery 'local_only' → 'Mesaj gönderildi.' DENMEZ, 'kaydedildi, gönderilmedi' duyurulur", async () => {
+    await sendWith(201, { id: "x", delivery: "local_only" });
+    expect(screen.queryByText("Mesaj gönderildi.")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain(LOCAL_RECORDED);
+  });
+
+  it("KONTROL — 201 + delivery 'channel_accepted' → 'Mesaj gönderildi.'", async () => {
+    await sendWith(201, { id: "x", delivery: "channel_accepted" });
+    expect(screen.getByText("Mesaj gönderildi.")).toBeTruthy();
+    expect(screen.queryByText(LOCAL_RECORDED)).toBeNull();
+  });
+
+  it("KONTROL — 201 + delivery 'qr_visible' → 'Mesaj gönderildi.' (misafir sohbet sayfasında görür)", async () => {
+    await sendWith(201, { id: "x", delivery: "qr_visible" });
+    expect(screen.getByText("Mesaj gönderildi.")).toBeTruthy();
+  });
+
+  it("KONTROL — 202 kuyruk yanıtı üst alan taşısa da kuyruk notu bugünkü gibi", async () => {
+    await sendWith(202, { id: "x", delivery: "queued", outbox: { status: "queued", deduped: false, delivery: "pending" } });
+    expect(screen.getByText(QUEUED_NOTE)).toBeTruthy();
+    expect(screen.queryByText("Mesaj gönderildi.")).toBeNull();
+  });
+
+  it("🚨 kanala bağlı olmayan konuşmada yazma alanının üstünde kalıcı not var; bağlı konuşmada yok", async () => {
+    render(<ConversationThread {...props} localOnly />);
+    expect(screen.getByText(LOCAL_NOTE)).toBeTruthy();
+    cleanup();
+    render(<ConversationThread {...props} />);
+    expect(screen.queryByText(LOCAL_NOTE)).toBeNull();
   });
 });

@@ -46,6 +46,7 @@ import {
 import { applyTemplateBody } from "@/lib/template-apply";
 import type { PreparedDraft } from "@/lib/conversation-items/prepared-draft";
 import type { AvailabilityVetoReason } from "@/lib/ai/availability-claims";
+import { LOCAL_REPLY_RECORDED_TEXT, LOCAL_THREAD_COMPOSER_NOTE, isDeliveryOutcome } from "@/lib/delivery-outcome";
 
 export interface ThreadMessage {
   id: string;
@@ -175,6 +176,11 @@ interface Props {
    * misafir mesajının taslağı; ondan sonra cevap gittiyse sunucu `null` verir.
    */
   initialDraft?: PreparedDraft | null;
+  /**
+   * Konuşma bir kanala bağlı DEĞİL (hedefi yok; iç QR sohbeti de değil) — cevap yalnız burada kaydedilir, misafire gitmez (Codex 11-17 C1).
+   * Sunucu rota çözümünden verir (`deliveryOutcomeOfRoute` → `local_only`); yazma alanının üstünde kalıcı not gösterilir.
+   */
+  localOnly?: boolean;
 }
 
 export function ConversationThread({
@@ -191,6 +197,7 @@ export function ConversationThread({
   defaultTone = "warm",
   headerActions,
   initialDraft = null,
+  localOnly = false,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -406,7 +413,10 @@ export function ConversationThread({
         // Durable Outbox (flag ON): kuyruğa alınan mesaj henüz TESLİM DEĞİL — dürüstçe söylenir. 🚨 Codex 11-05: karar HTTP kodundan
         // değil AÇIK durumdan: tekilleşen tekrar (aynı istek kimliği) 200 döner ama satır hâlâ sırada / başarısız olabilir — eskiden 200
         // "Mesaj gönderildi." duyuruluyordu. Metinler mevcut olanlar (kuyruk notu + mesaj balonunun durum etiketi).
-        const data = (await res.json().catch(() => null)) as { outbox?: { status?: string; delivery?: string } } | null;
+        const data = (await res.json().catch(() => null)) as { delivery?: unknown; outbox?: { status?: string; delivery?: string } } | null;
+        // Codex 11-17 C1: sunucunun gönderim sonucu (kapalı küme). Yoksa (eski yanıt) bugünkü davranış.
+        const rawOutcome = data?.delivery;
+        const outcome = isDeliveryOutcome(rawOutcome) ? rawOutcome : null;
         const outbox = data?.outbox;
         const delivery = outbox?.status === "queued" ? (outbox.delivery ?? "pending") : null;
         if (delivery === "failed" || delivery === "canceled") {
@@ -425,10 +435,13 @@ export function ConversationThread({
           if (delivery === "sent") announce("Mesaj gönderildi.");
           else if (delivery === "pending" || delivery === "sending") setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
           else announce(OUTBOX_STATUS_UI[delivery]?.label ?? "Mesaj sıraya alındı — birazdan gönderilecek.");
+        } else if (outcome === "local_only") {
+          // Codex 11-17 C1: kanala bağlı olmayan konuşma — cevap yalnız kaydedildi, misafire HİÇBİR kanaldan gitmedi ("gönderildi" denmez).
+          announce(LOCAL_REPLY_RECORDED_TEXT);
         } else {
-          // Doğrudan yol (201) = TESLİM. Eskiden bu dal tamamen sessizdi: yalnız hata
-          // (role="alert") ve 202 kuyruk notu (role="status") duyuluyordu.
-          // Kutu temizlenip balon listeye sessizce ekleniyordu.
+          // Doğrudan yol (201): kanal kabul etti (`channel_accepted`) ya da iç QR sohbeti (`qr_visible` — misafir sohbet sayfasında görür).
+          // Alan yoksa (eski yanıt) bugünkü gibi. Eskiden bu dal tamamen sessizdi: yalnız hata (role="alert") ve 202 kuyruk notu
+          // (role="status") duyuluyordu; kutu temizlenip balon listeye sessizce ekleniyordu.
           announce("Mesaj gönderildi.");
         }
         refresh();
@@ -1339,6 +1352,15 @@ export function ConversationThread({
           <label htmlFor={`conv-composer-${conversationId}`} className="sr-only">
             Misafire cevabınız
           </label>
+          {localOnly ? (
+            <p
+              id={`conv-local-note-${conversationId}`}
+              className="col-span-2 flex items-start gap-2 rounded-md bg-muted px-2.5 py-2 text-xs text-muted-foreground"
+            >
+              <Info className="mt-0.5 size-3.5 shrink-0" />
+              {LOCAL_THREAD_COMPOSER_NOTE}
+            </p>
+          ) : null}
           <Textarea
             ref={composerRef}
             id={`conv-composer-${conversationId}`}
@@ -1356,7 +1378,8 @@ export function ConversationThread({
             // Telefonda 72 px (yapışkan alan ekranın altını az kaplasın); masaüstünde 104 px (aşağıdaki gerekçe).
             className="min-h-[72px] resize-y lg:min-h-[104px]"
             aria-describedby={
-              [sendError ? `conv-send-error-${conversationId}` : null,
+              [localOnly ? `conv-local-note-${conversationId}` : null,
+               sendError ? `conv-send-error-${conversationId}` : null,
                queuedNote ? `conv-send-note-${conversationId}` : null]
                 .filter(Boolean)
                 .join(" ") || undefined
@@ -1383,7 +1406,8 @@ export function ConversationThread({
             </p>
           ) : null}
           {/* Telefonda ızgaranın 1. satırı, 2. sütunu (kutunun yanı); masaüstünde blok akışta en altta sağda (eskisi gibi). */}
-          <div className="col-start-2 row-start-1 flex justify-end">
+          {/* Kanala bağlı olmayan konuşmada üstte not satırı var → düğme kutuyla aynı (2.) satıra iner. */}
+          <div className={cn("col-start-2 flex justify-end", localOnly ? "row-start-2" : "row-start-1")}>
             <Button onClick={() => sendReply(composer, false, "composer", undefined, composerSource ?? undefined)} disabled={sending || !composer.trim()}>
               {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               Gönder

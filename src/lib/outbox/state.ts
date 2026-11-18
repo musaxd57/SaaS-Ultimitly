@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { DeliveryOutcome } from "@/lib/delivery-outcome";
+
 // ---------------------------------------------------------------------------
 // Durable Outbox — state machine (#8).
 //
@@ -62,6 +64,20 @@ export const NOT_DELIVERED_STATUSES: readonly OutboxStatus[] = ["canceled", "fai
  * bilinçli DEĞİL: sonucu birazdan belli olur.
  */
 export const UNRESOLVED_DELIVERY_STATUSES: readonly OutboxStatus[] = ["ambiguous", "reconciling", "review"];
+
+/**
+ * Kuyruk satırının durumu → gönderim sonucu (Codex 11-17 C1; kapalı küme `delivery-outcome.ts`). Yukarıdaki iki listeyle TEK kaynak: kesinlikle
+ * gitmeyen = `NOT_DELIVERED_STATUSES`, belirsiz = `UNRESOLVED_DELIVERY_STATUSES`. Bilinmeyen bir dize (sürüm kayması / bozuk satır) "belirsiz"
+ * sayılır — ne "gitti" ne "gitmedi" denebilir. Saf.
+ */
+export function deliveryOutcomeOfOutboxStatus(status: string): DeliveryOutcome {
+  if (!isOutboxStatus(status)) return "unverified";
+  if (NOT_DELIVERED_STATUSES.includes(status)) return "not_delivered";
+  if (UNRESOLVED_DELIVERY_STATUSES.includes(status)) return "unverified";
+  if (status === "sent") return "channel_accepted";
+  // Kalan: pending · sending (uçuşta). Yeni bir durum eklenirse birim testindeki `Record<OutboxStatus, …>` tablosu derlemeyi durdurur.
+  return "queued";
+}
 
 /** Konuşma notu: "Gönderim sonucu doğrulanamadı — mesaj iletilmiş OLABİLİR…" (`SKIP_REASON_LABELS`). TEK yazım. */
 export const DELIVERY_UNVERIFIED_REASON = "delivery_unverified";

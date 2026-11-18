@@ -64,7 +64,7 @@ export const POST = withManage<{ id: string; decisionId: string }>(async (sessio
     case "dismissed":
       return jsonOk({ status: "dismissed" });
     case "done":
-      return jsonOk({ status: out.status, resultMessageId: out.resultMessageId, queued: out.queued });
+      return jsonOk({ status: out.status, resultMessageId: out.resultMessageId, queued: out.queued, delivery: out.delivery });
     case "unverified":
       return NextResponse.json({ code: "send_unverified", error: out.error }, { status: 502 });
     case "failed":

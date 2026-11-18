@@ -8,6 +8,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { translate } from "@/lib/ai/translate";
 import { sendHostMessage } from "@/lib/host-send";
+import { deliveryOutcomeOfOutboxStatus } from "@/lib/outbox/state";
 import { suggestionOperationKey } from "@/lib/outbox/operation-key";
 import { createHash } from "crypto";
 import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
@@ -135,6 +136,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       void reportError("reply-draft.link", err);
     }
   };
+  // Codex 11-17 C1: her BAŞARILI yanıt `delivery` taşır (kapalı küme `delivery-outcome.ts`) — HTTP kodu teslim demek değildir (kanala bağlı
+  // olmayan konuşmanın kaydı da 201'dir). Arayüz duyuruyu bu alandan seçer; HTTP kodları ve mesaj alanları değişmedi (geriye uyum).
   switch (sent.status) {
     case "not_connected":
       return NextResponse.json(
@@ -153,7 +156,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       // message is already queued/sent). `delivery` = kuyruk satırının ŞU ANKİ durumu (Codex 11-05): tekilleşen 200 "gönderildi"
       // demek DEĞİLDİR — arayüz duyuruyu HTTP kodundan değil bundan seçer.
       return NextResponse.json(
-        { ...sent.message, outbox: { status: "queued", deduped: sent.deduped, delivery: sent.deliveryStatus } },
+        {
+          ...sent.message,
+          delivery: deliveryOutcomeOfOutboxStatus(sent.deliveryStatus),
+          outbox: { status: "queued", deduped: sent.deduped, delivery: sent.deliveryStatus },
+        },
         { status: sent.deduped ? 200 : 202 },
       );
     case "duplicate":
@@ -185,7 +192,15 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       );
     case "sent":
       await linkDraft(sent.message?.id);
-      return jsonOk(sent.message, 201);
+      return jsonOk({ ...sent.message, delivery: "channel_accepted" }, 201);
+    // Kanala çıkmadı, yalnız kaydedildi (hedefsiz konuşma ya da iç QR): kayıt yaratıldığı için 201; "gönderildi" iddiası `delivery`de değil.
+    case "recorded":
+      await linkDraft(sent.message?.id);
+      return jsonOk({ ...sent.message, delivery: sent.delivery }, 201);
+    default: {
+      const unhandled: never = sent;
+      throw new Error(`unhandled host send result: ${JSON.stringify(unhandled)}`);
+    }
   }
 });
 

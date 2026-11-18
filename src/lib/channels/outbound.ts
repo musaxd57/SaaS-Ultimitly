@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SendResultKind } from "@/lib/outbox/state";
 import type { ChannelProviderId } from "./providers";
+import type { LocalDeliveryOutcome } from "@/lib/delivery-outcome";
 
 // ---------------------------------------------------------------------------
 // OUTBOUND DISPATCH SINIRI (V0.1 — Channel Independence, ilk dilim)
@@ -66,6 +67,15 @@ export function resolveOutboundRoute(target: { externalReservationId?: string | 
   if (!ext) return { kind: "local", reason: "no_destination" };
   if (ext.startsWith(INTERNAL_THREAD_PREFIX)) return { kind: "local", reason: "internal_thread" };
   return { kind: "external", destination: { provider: "hospitable", externalReservationId: ext } };
+}
+
+/**
+ * Rota → gönderim sonucu (Codex 11-17 C1; kapalı küme `delivery-outcome.ts`). Yerel rota sonucunu gönderimden ÖNCE belli eder: hedef yok →
+ * `local_only` (misafire hiçbir kanaldan gitmez), iç QR → `qr_visible`. Dış rotada sonuç gönderime bağlıdır → `null`. Saf.
+ */
+export function deliveryOutcomeOfRoute(route: OutboundRoute): LocalDeliveryOutcome | null {
+  if (route.kind === "external") return null;
+  return route.reason === "internal_thread" ? "qr_visible" : "local_only";
 }
 
 export interface OutboundCredential<P extends ChannelProviderId = OutboundProvider> {

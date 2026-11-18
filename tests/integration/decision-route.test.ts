@@ -165,6 +165,8 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     const s = await seed();
     const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
     expect(res.status).toBe(200);
+    // Codex 11-17 C1: yanıt gönderim sonucunu taşır (kanala bağlı konuşma → kanal kabul etti).
+    expect(await res.json()).toMatchObject({ status: "approved", queued: false, delivery: "channel_accepted" });
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSend.mock.calls[0][1]).toBe(APPROVE_TR);
     const d = await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } });
@@ -178,6 +180,15 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(audit.actorUserId).toBe(s.ownerId);
     expect(audit.metadataJson).not.toContain("13:00");
     expect(audit.metadataJson).not.toContain("onaylandı");
+  });
+
+  it("🚨 Codex 11-17 C1: kanal hedefi olmayan konuşmada karar → kart bugünkü gibi onaylanır, yanıt 'local_only' der (misafire gitmedi)", async () => {
+    const s = await seed();
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { externalReservationId: null } });
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "approved", delivery: "local_only" });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("approved");
   });
 
   it("🚨 Tur 5 D3: rezervasyonsuz açılmış kart onaylanınca konuşmanın rezervasyonuna BAĞLANIR (komşu konaklamanın kontrolleri görür)", async () => {

@@ -6,6 +6,8 @@ import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { sendHostMessage } from "@/lib/host-send";
+import { deliveryOutcomeOfOutboxStatus } from "@/lib/outbox/state";
+import type { DeliveryOutcome } from "@/lib/delivery-outcome";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { reportError } from "@/lib/report-error";
 import { hostDecisionsEnabled } from "./flag";
@@ -78,7 +80,8 @@ export type DecideOutcome =
   | { kind: "bad_request"; field: "body" | "time"; error: string }
   | { kind: "conflict"; code: string; error: string; extra?: Record<string, unknown> }
   | { kind: "dismissed" }
-  | { kind: "done"; status: "approved" | "declined"; resultMessageId: string | null; queued: boolean }
+  /** `delivery`: gönderim sonucu (Codex 11-17 C1) — kanal kabulü, kuyruk durumu ya da kanala hiç çıkmayan kayıt. Kart davranışı üçünde AYNI. */
+  | { kind: "done"; status: "approved" | "declined"; resultMessageId: string | null; queued: boolean; delivery: DeliveryOutcome }
   | { kind: "unverified"; error: string }
   | { kind: "failed"; httpStatus: 502 | 503; error: string; version: number | undefined };
 
@@ -362,7 +365,8 @@ export async function decideHostDecision(args: {
   // Bu kilidin kimliğiyle kuyrukta başka bir içerik var: o gönderim sürüyor olabilir.
   if (sent.status === "idempotency_conflict") return unverified("idempotency_conflict");
 
-  if (sent.status === "sent" || sent.status === "queued") {
+  // "recorded" (kanala bağlı olmayan / iç QR konuşma) bugünkü "sent" yoluyla BİREBİR aynı ele alınır (C1: yalnız sonuç dürüstleşti).
+  if (sent.status === "sent" || sent.status === "queued" || sent.status === "recorded") {
     const resultMessageId = sent.message?.id ?? null;
     const fin = await settle(approve ? "approved" : "declined", resultMessageId);
     if (decision.itemId) {
@@ -373,7 +377,9 @@ export async function decideHostDecision(args: {
       ...(fin.count === 1 ? {} : { finalize: "lost" }),
       ...(textCheckOn && input.force === true ? { textCheck: "overridden" } : {}),
     });
-    return { kind: "done", status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued" };
+    const delivery: DeliveryOutcome =
+      sent.status === "queued" ? deliveryOutcomeOfOutboxStatus(sent.deliveryStatus) : sent.status === "recorded" ? sent.delivery : "channel_accepted";
+    return { kind: "done", status: approve ? "approved" : "declined", resultMessageId, queued: sent.status === "queued", delivery };
   }
 
   // Kesin olumsuz sonuçlar: hiçbir şey gitmedi → kart yeniden açılır (ev sahibi düzeltip tekrar dener). Yeni sürüm sonuçta döner:

@@ -895,7 +895,9 @@ async function handleButton(input: {
     return "closed";
   }
   // Gönderimden SONRAKİ kayıtlar en iyi çaba: misafire gitmiş bir cevap, kayıt hatası yüzünden ev sahibine "gitmedi" gibi görünmesin.
-  if (result.status === "sent" || result.status === "queued") {
+  // "recorded" (kanala bağlı olmayan / iç QR konuşma) bugünkü "sent" yoluyla BİREBİR aynı ele alınır (Codex 11-17 C1: yalnız sonuç dürüstleşti;
+  // ev sahibine giden metnin ayrıştırılması kurucu sorusu).
+  if (result.status === "sent" || result.status === "queued" || result.status === "recorded") {
     const resultMessageId = result.message?.id ?? null;
     // Cevap mesajının kimliği durum geçişinden AYRI ve ÖNCE yazılır: geçiş kaybedilse / düşse bile bu mesaj konuşmanın öteki açık işlerini
     // "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2 SM-4).
@@ -909,7 +911,7 @@ async function handleButton(input: {
     await logEvent("host_channel.answer.sent_to_guest", { questionId: q.id }, { organizationId: org }).catch(() => null);
     await reply(result.status === "queued" ? HOST_TEXTS.queued : HOST_TEXTS.sent, event.providerMessageId);
     // Bilgi tabanına ekle teklifi (anahtarlı, en iyi çaba): yalnız misafire GİTMİŞ cevapta, ayrı mesajla. Misafir yolundan hiçbir şey okumaz.
-    if (result.status === "sent" && input.transport) {
+    if ((result.status === "sent" || result.status === "recorded") && input.transport) {
       const transport = input.transport;
       const answer = decryptOrNull(q.answerEnc, answerAad(q.id, org));
       if (answer) {
@@ -934,6 +936,10 @@ async function handleButton(input: {
     await reply(`${HOST_TEXTS.sendFailed} ${link}`, event.providerMessageId);
     return "closed";
   }
+  // Kalan sonuçlar misafire ulaşmış OLABİLİR → "doğrulanamadı". Tip kapalı: gönderim çekirdeğine yeni bir sonuç eklenirse burada derleme durur
+  // (sessizce "doğrulanamadı"ya düşmesin — C1).
+  const unverifiedStatus: "failed_ambiguous" | "duplicate" | "already_answered" | "idempotency_conflict" = result.status;
+  void unverifiedStatus;
   await settle("send_unverified").catch(() => null);
   await reply(`${HOST_TEXTS.unverified} ${link}`, event.providerMessageId);
   return "closed";
