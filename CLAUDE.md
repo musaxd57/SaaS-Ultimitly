@@ -334,6 +334,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 **Mesajlaşma / outbox / sync**
 - 🚨 "KAYDEDİLDİ" ≠ "KANAL KABUL ETTİ" ≠ "İŞ ÇÖZÜLDÜ" (11-18, `lib/delivery-outcome.ts`):
+- QR'da SÜREN istek "kaydedildi" DEĞİLDİR (`pending`, 11-18, `outbound-claim.ts`):
 - 🚨 SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):
 - 🚨 PERİYODİK İŞİN ALARMI GEÇİŞ TABANLIDIR (09-23, `src/lib/alert-state.ts`, migration YOK):
 - Kimlik e-postası kurtarması HER geçişte
@@ -373,6 +374,7 @@ Bu dosyaya token/anahtar/parola yazma.
 - Demo hesabı
 **AI / QR / diğer ürün kararları**
 - 🚨 **HOST KARAR MOTORU (10-02 gece, kurucu: "cevap vermek talebi çözmek değil"; anahtar `HOST_DECISIONS_ENABLED` VARSAYILAN KAPALI; migration 59
+- Görev: vade işletme saat diliminde okunur · elle görev istek kimliğiyle tekrar güvenli · pano atamada gördüğü atananı ön şart yollar (11-18):
 - QR: per-stay device binding; `isOpenNow` simetrik; `chatToken` rotasyonu YOK (bilinçli); PIN DoS tasarımı
 - AI öneri paneli kapatılabilir, tercih KALICI DEĞİL. Bekleyen misafir mesajları dar taranıyor
 - 🚨 K8 / K9 (kurucu kararı 09-30):
@@ -574,3 +576,4 @@ Bu dosyaya token/anahtar/parola yazma.
 **11-13 akşam:** kurucu UX kararları uygulandı (`docs/INCELEME-2026-11-13-ux-denetimi.md` §10) · ödeme onayı üç ayrı kutu (ön bilgi ONAYLANIR · sözleşme KABUL edilir · hemen başlama + cayma kaybı ayrı onay; kartla denemede üçüncü yok; tek kaynak `billing/consent-copy.ts`, özet `LEGAL_TEXT_HASH`'e girer; Gizlilik hiçbir yerde kabul ettirilmez) · AaaS tasarımı `docs/TASARIM-2026-11-13-aaas-yonu.md` (KOD YOK, AAS-1…8). Özet `docs/claude/durum.md`, sorular `docs/claude/acik-isler.md` "11-13 akşam". Kural: onay metninde fiil belgeye göre seçilir (bilgi → onaylıyorum, sözleşme → kabul ediyorum, aydınlatma → yalnız bilgi satırı); istemci ve sunucu hangi kutunun gerektiğine AYNI saf kuraldan karar verir.
 **11-18:** Codex 11-17 raporu (957e91c1 denetimi: ödeme · mesaj doğruluğu · kimlik yarışları · yapay zekâ anlam koruması · arayüz / AaaS tasarım önerileri) + kurucunun orkestrasyon talimatı AYNEN `docs/KURUCU-TALIMATI-2026-11-18-codex-raporu-ve-orkestrasyon.md` — kurucu: "oraya bakıp bakıp ilerle"; bu işte her dilimden ÖNCE o dosyanın ilgili bölümü okunur. Kodda doğrulama + madde madde durum `docs/INCELEME-2026-11-18-codex-bulgulari.md`. Çalışma düzeni (kurucu 11-18): Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude yazar; kontrollerde alt ajan; acele yok.
 **11-18:** Codex 11-17 raporu dalga 1 — ikinci ödeme riski kapandı ("ödeme alındı, abonelik bekleniyor" kaydı süreyle kapanmaz) · yeniden işleme vadesi geleni sorguda seçer · kanala gitmeyen cevap "gönderildi" denmez (teslim sonucu sözlüğü); şema değişmedi. Kayıt `docs/INCELEME-2026-11-18-codex-bulgulari.md`, özet `docs/claude/durum.md` "11-18", sorular (Ö-1…Ö-3, Y-1, Y-2, S-1…S-4, H-1…H-8) `docs/claude/acik-isler.md` "11-18"; ürün yönü önerisi (kod YOK) `docs/TASARIM-2026-11-18-ev-sahibine-nerede-soruyoruz-ve-ilk-akis.md`. Kural: kalıcı gerçek süreli kilitte tutulmaz; kapanış yalnız kanıtla.
+**11-18 (2):** dalga 2a — giriş sınırı eşzamanlı istekte de bütçe (hak bcrypt'ten önce ayrılır; inceleme: süre eşitliği turu okumaya düşmüştü → yazma) · bayat oturumun kod isteği · sıfırlama e-postası kendi kaydına bakar · doğrulama ekranı · elle görev istek kimliği · görev saati işletme diliminde · pano bayat atama · QR'da süren istek `pending` + okuma konumu; şema değişmedi. Arayüz yönü taslağı (kod YOK) `docs/TASARIM-2026-11-18-arayuz-yonu-taslagi.md` (AY-1…AY-5). Özet `docs/claude/durum.md` "11-18 (2)". Kural: süren iş "kaydedildi" diye duyurulmaz; güvenlik sıkılaştırması var olan zamanlama eşitliğini zayıflatmamalı (yazma ↔ yazma).

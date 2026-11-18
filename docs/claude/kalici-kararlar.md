@@ -264,6 +264,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yanıtlar" bağı mesajla AYNI işlemde yazılır (`onRecorded`), kartın durumundan bağımsız; kapanış bağı boşla ezmez. Öğe yeniden kapatma
   teslim etkisinin dördüncü parçasıdır (düşerse damga yok, onarıcı yeniden dener). **Bekleyen ürün kararları (davranış DEĞİŞMEDİ):** yerel
   cevap konuşmayı "Cevaplandı" yapıyor / ihtiyacı kapatıyor / sözden görev üretiyor (S-1, S-4), doğrulanamayan gönderim ihtiyacı kapatıyor (S-2).
+- **QR'da SÜREN istek "kaydedildi" DEĞİLDİR (11-18, Codex 11-17 E1; `lib/outbound-claim.ts`, `api/chat/[token]`, `guest-chat.tsx`):** misafir
+  mesajı yalnız cevabıyla birlikte yazılır; aynı kimlikli istek başka bir bağlantıda hâlâ çalışırken gelen tekrar `deduped` DEĞİL `pending`
+  alır (kayıt yok, sayaç tüketilmez). `deduped` yalnız tamamlanmış kayıt (`done:`) içindir. Kilidini canlı bir işçiye kaptıran eski işçi de
+  `pending` der (yeni işçi bitirdiyse `deduped`). Ekran `pending`de balonu ve kimliği korur, AYNI kimlik + AYNI metinle 3 / 6 / 12 sn arayla
+  yeniden sorar; toplam bekleme çalışan kilidin ömrünü (120 sn) aşar, süre biterse metin geri gelir ve kimlik KORUNUR. Yeni misafir metni
+  yok (var olan "yazıyor" göstergesi + var olan hata metni). Okuma konumu: liste sonu ekranda değilken arka plan sorgusu aşağı kaydırmaz;
+  kendi gönderiminde ve cevabında sona iner (bayrak gönderim başında ve cevabı getiren yenilemeden önce açılır — gönderim durumu bu iş için
+  güvenilmez: cevabın listeye girmesi ile "gönderim bitti" aynı çizimde işlenir).
 - 🚨 **SAĞLAYICI HATASI SARMALA KÖR OKUNMAZ (09-23 olayı):** `err instanceof HospitableError` /
   `err.name === "HospitableError"` YASAK (izinli beş dosya: istemci, adaptör sarmalı, `provider-errors`,
   adaptörsüz iki bağlantı rotası — pin `provider-error-wrapper-pin.test.ts`). Okuma TEK yerden:
@@ -473,6 +481,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   karar verildiyse / veriliyorsa gitmez, bekleyen kart göndermeden önce sahiplenilir (`claimTurnDecisionForPolicy`). Panel ev sahibinin GÖRDÜĞÜ
   değerleri (son misafir mesajı + `factsHash`) düzenleyici açılınca sabitler; arka planda değişirse "Okudum" ister. Karta bağlı öğe "açık iş" rozetinde / panoda / "Açık işler"de İKİNCİ kez sayılmaz. Yalnız sahip / yönetici;
   bürünmede düğme yok, uç 403. Yeni bir karar yüzeyi (WhatsApp, ses) aynı uçtan ve aynı yeniden doğrulamadan geçer.
+- **Görevler (11-18, Codex 11-17 E2 / E5 / H7):** (a) elle görev oluşturma istek kimliğiyle tekrar güvenli — ŞEMASIZ: kimlik var olan
+  `dedupeKey` kolonuna `manual-req:<işletme>:<kimlik>` yazılır (danışma kilidi + tek işlem; `lib/tasks/manual-request.ts`); aynı kimlik →
+  ilk görev (200), aynı kimlik + farklı daire / tür / başlık → açık hata (kurucu 10-15 kuralı); iç anahtar hiçbir görev yanıtında dönmez.
+  Bilinen sınır: kıyas kayıtlı satırladır (başlık sonradan düzenlendiyse aynı isteğin tekrarı uyuşmazlık görür — pinli). (b) görev vadesi:
+  formun dilimsiz saati İŞLETMENİN diliminde okunur (`lib/tasks/due-at.ts`; sunucunun / tarayıcının dilimi değil), dilim taşıyan değer
+  mutlak an. Tam UTC 00:00 / 12:00'a düşen duvar saati 1 ms ileri alınır ("saatsiz takvim günü" çapasıyla karışmasın; kalıcı çözüm vade
+  hassasiyeti sütunu — migration turu). Var olan kayıtlar düzeltilmez. (c) pano atamada kartın GÖRDÜĞÜ atananı ön şart yollar
+  (`expectAssigneeOnly`: yalnız atanan sınanır; başlamış işi panodan yeniden atamak serbest — pinli karar, Girişler'in kuralı değişmedi).
 - QR: per-stay device binding; `isOpenNow` simetrik; `chatToken` rotasyonu YOK (bilinçli); PIN DoS tasarımı
   var uygulanmadı (bütçeyi cihaza taşıma REDDEDİLDİ). QR rotasında hata sınırı `reportError`.
 - AI öneri paneli kapatılabilir, tercih KALICI DEĞİL. Bekleyen misafir mesajları dar taranıyor
