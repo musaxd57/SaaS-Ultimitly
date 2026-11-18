@@ -140,6 +140,21 @@ describe("paddleReplayDueWhere — vade koşulunun sorgu parçası (Codex 11-17 
     expect(notDue).toBeGreaterThan(1_000);
   });
 
+  it("🚨 kâhin: son tur 'şimdi'den SONRA görünüyorsa (saat geri alınmış / bozuk kayıt) aralıklar boş — paddleReplayDue ile aynı (hiçbiri)", () => {
+    const rnd = seeded(1118);
+    for (const ahead of [1, MIN, HOUR, 300 * HOUR]) {
+      const last = new Date(T0.getTime() + ahead);
+      for (const t of PADDLE_REPLAY_THRESHOLDS_MS) {
+        for (const a of [T0.getTime() - t, last.getTime() - t]) for (const d of [-1, 0, 1]) compare(new Date(a + d), last, T0);
+      }
+      for (let i = 0; i < 2_000; i++) {
+        const created = new Date(T0.getTime() - Math.floor(rnd() * 300 * HOUR));
+        compare(created, last, T0);
+        expect(paddleReplayDue(created, last, T0)).toBe(false); // geleceğe yazılmış son tur → bu turda hiçbir eşik "geçilmez"
+      }
+    }
+  });
+
   it("son tur bilinmiyorsa (ilk tur) alt sınır yok; biliniyorsa her eşik için tek kapalı-açık aralık", () => {
     const first = paddleReplayDueWhere(null, T0) as { OR: { createdAt: CreatedAtCond }[] };
     expect(first.OR).toHaveLength(PADDLE_REPLAY_THRESHOLDS_MS.length);

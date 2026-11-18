@@ -30,8 +30,11 @@ import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 //  · 🚨 Vadesi gelen olay SORGUDA seçilir (Codex 11-17 B1): eskiden en eski 200 aday okunup "vadesi geldi mi" bellekte süzülüyordu ve tur
 //    işareti koşulsuz ilerliyordu → vadesi gelmemiş 200 eski adayın arkasındaki olay o turda hiç okunmuyor, geçtiği eşik de "harcanıyordu"
 //    (en erken bir sonraki eşikte, o da ilk 200'e girerse denenirdi). Artık vade koşulu `where`dedir (`paddleReplayDueWhere`), vadesi gelenler
-//    sayfa sayfa okunur; tur tavanı aşılırsa tur işareti İLERLETİLMEZ (kalanlar sonraki turda yine vadesi gelmiş görünür; bu turda işlenenler
-//    "işlendi" olduğundan tekrar edilmez, hata verenler bir kez fazla denenir — işleyici tekrar edilebilir).
+//    sayfa sayfa okunur. Tavanı aşan tur birkaç koşuya yayılan TEK MANTIKSAL TURDUR (ana oturum incelemesi, 2. tur): tavanda imleç ve turun
+//    DONDURULMUŞ anı kalıcı yazılır, tur işareti ilerlemez; sonraki koşu AYNI pencereyle (aynı son tur, dondurulmuş an) imleçten sonrasını
+//    okur. Böylece baştaki satırlar kalıcı hata verse de arkadakiler sırayla gelir ve hiçbir satır bir mantıksal turda iki kez denenmez.
+//    Tur bitince tur işareti dondurulmuş ana ilerler (aradaki sürede eşik geçenler sonraki olağan turda bir kez gelir). Tavan aşılınca
+//    operatöre geçiş tabanlı alarm; tur bitince kapanır.
 // ---------------------------------------------------------------------------
 
 export const PADDLE_REPLAY_WINDOW_MS = 14 * 86_400_000;
@@ -51,6 +54,13 @@ const PADDLE_REPLAY_PAGE = 200;
  * (sıra koruması: olay zamanına göre TEK sıralama, sayfalar arasında da) — tavan belleği de sınırlar.
  */
 export const PADDLE_REPLAY_MAX_PER_PASS = 2_000;
+/**
+ * Tavanı aşan mantıksal turun devam kaydı (`SystemLock`; şema değişikliği yok, `LAST_PASS_LOCK` emsali): `lockedUntil` = turun DONDURULMUŞ
+ * anı, `holder` = son verilen satırın imleci (`{"at": ISO, "id": …}`).
+ */
+const RESUME_LOCK = "paddle-webhook-replay:resume";
+/** Tavan aşıldı alarmının durumu (işletmesiz). */
+export const PADDLE_REPLAY_BACKLOG_ALERT = "paddle-webhook-replay:backlog";
 /** Son turun anı (`SystemLock.lockedUntil`) — hangi eşiklerin bu turda geçildiğini bilmek için. */
 const LAST_PASS_LOCK = "paddle-webhook-replay:last";
 /** Ortak alarm durumunun anahtarı (işletmesiz). */
@@ -117,12 +127,42 @@ export interface PaddleReplayResult {
  * Bekleyen Paddle olaylarını yeniden işler (saatlik zamanlanmış iş çağırır). Asla fırlatmaz — tek olayın hatası ötekileri durdurmaz.
  * Webhook sırrı yoksa (ödeme kurulmamış) hiçbir şey yapmaz.
  */
-export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: PaddleRedeliver } = {}): Promise<PaddleReplayResult> {
+type ReplayCursor = { createdAt: Date; id: string };
+
+/**
+ * Süren mantıksal turun devam kaydı. Bozuk (imleç okunamıyor), bayat (dondurulmuş an 14 günlük pencereden eski) ya da geleceğe yazılmış
+ * kayıt yok sayılır ve silinir — iş takılı kalmaz; o kaydın açtığı tavan alarmı da kapanır (yeni taşma yeniden bildirilir).
+ */
+async function readReplayResume(realNow: Date): Promise<{ frozenNow: Date; cursor: ReplayCursor } | null> {
+  const row = await prisma.systemLock.findUnique({ where: { name: RESUME_LOCK } }).catch(() => null);
+  if (!row) return null;
+  let cursor: ReplayCursor | null = null;
+  try {
+    const h = JSON.parse(row.holder ?? "") as { at?: unknown; id?: unknown };
+    const at = typeof h.at === "string" ? new Date(h.at) : null;
+    if (at && !Number.isNaN(at.getTime()) && typeof h.id === "string" && h.id) cursor = { createdAt: at, id: h.id };
+  } catch {
+    cursor = null;
+  }
+  const frozen = row.lockedUntil.getTime();
+  if (cursor && frozen <= realNow.getTime() && frozen >= realNow.getTime() - PADDLE_REPLAY_WINDOW_MS) return { frozenNow: row.lockedUntil, cursor };
+  await prisma.systemLock.deleteMany({ where: { name: RESUME_LOCK } }).catch(() => {});
+  await clearAlertState(PADDLE_REPLAY_BACKLOG_ALERT);
+  return null;
+}
+
+export async function replayPendingPaddleEvents(
+  opts: { now?: Date; deliver?: PaddleRedeliver; /** Yalnız test: tur tavanı (üretimde sabit). */ maxPerPass?: number } = {},
+): Promise<PaddleReplayResult> {
   const result: PaddleReplayResult = { pending: 0, replayed: 0, settled: 0, heldForKey: 0 };
   const secret = getPaddleWebhookSecret();
   if (!secret) return result;
-  const now = opts.now ?? new Date();
+  const realNow = opts.now ?? new Date();
   const deliver = opts.deliver ?? deliverToRoute;
+  const maxPerPass = opts.maxPerPass ?? PADDLE_REPLAY_MAX_PER_PASS;
+  // Süren bir mantıksal tur varsa AYNI pencere: turun dondurulmuş anı (pencere, "takılı alındı" eşiği, vade aralıkları ona göre) + imleç.
+  const resume = await readReplayResume(realNow);
+  const now = resume?.frozenNow ?? realNow;
 
   const base: Prisma.WebhookEventWhereInput = {
     provider: "paddle",
@@ -150,7 +190,7 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
   const redacted = (
     await prisma.webhookEvent.findMany({
       where: { AND: [base, { payloadJson: { contains: "redactedAt" } }] },
-      take: PADDLE_REPLAY_MAX_PER_PASS,
+      take: maxPerPass,
       select: { status: true, error: true, payloadJson: true },
     })
   ).filter((r) => isRedactedPaddlePayload(r.payloadJson));
@@ -195,13 +235,13 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
   type Candidate = { id: string; payloadJson: string; createdAt: Date };
   const chosen: Candidate[] = [];
   let read = 0;
-  let cursor: Candidate | null = null;
+  let cursor: ReplayCursor | null = resume?.cursor ?? null;
   let truncated = false;
-  const afterCursor = (c: Candidate | null): Prisma.WebhookEventWhereInput => ({
+  const afterCursor = (c: ReplayCursor | null): Prisma.WebhookEventWhereInput => ({
     AND: [base, selection, ...(c ? [{ OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] }] : [])],
   });
   for (;;) {
-    const take = Math.min(PADDLE_REPLAY_PAGE, PADDLE_REPLAY_MAX_PER_PASS - read);
+    const take = Math.min(PADDLE_REPLAY_PAGE, maxPerPass - read);
     const page: Candidate[] = await prisma.webhookEvent.findMany({
       where: afterCursor(cursor),
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -212,7 +252,7 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
     for (const r of page) if (!isRedactedPaddlePayload(r.payloadJson)) chosen.push(r);
     if (page.length < take) break;
     cursor = page[page.length - 1];
-    if (read >= PADDLE_REPLAY_MAX_PER_PASS) {
+    if (read >= maxPerPass) {
       truncated = (await prisma.webhookEvent.findFirst({ where: afterCursor(cursor), select: { id: true } })) !== null;
       break;
     }
@@ -242,11 +282,31 @@ export async function replayPendingPaddleEvents(opts: { now?: Date; deliver?: Pa
     }
   }
 
-  // Tavan aşıldıysa tur işareti İLERLETİLMEZ: ilerleseydi okunamayan kalanın bu turda geçtiği eşik harcanırdı.
-  if (!truncated) {
+  if (truncated && cursor) {
+    // Tavan aşıldı: tur işareti İLERLETİLMEZ (ilerleseydi kalanın bu turda geçtiği eşik harcanırdı); kaldığımız yer + dondurulmuş an yazılır,
+    // sonraki koşu oradan sürer. Teslimden SONRA yazılır: süreç teslim sırasında çökerse en kötü bu dilim bir kez daha denenir.
+    const holder = JSON.stringify({ at: cursor.createdAt.toISOString(), id: cursor.id });
+    await prisma.systemLock
+      .upsert({ where: { name: RESUME_LOCK }, create: { name: RESUME_LOCK, lockedUntil: now, holder }, update: { lockedUntil: now, holder } })
+      .catch(() => {});
+    await alertOnTransition(
+      PADDLE_REPLAY_BACKLOG_ALERT,
+      "paddle-webhook-replay-backlog",
+      new Error(
+        `${maxPerPass}'den fazla ödeme olayı yeniden işlenmeyi bekliyor — yeniden işleme birkaç saatlik koşuya bölündü (her koşuda en çok ${maxPerPass}). Uzun süren bir genel arıza olabilir; ödeme olayı kayıtlarındaki hataları kontrol edin.`,
+      ),
+      { now: realNow },
+    );
+  } else {
+    // Mantıksal tur bitti: tur işareti turun DONDURULMUŞ anına (devam koşusunda gerçek ana değil — aradaki sürede eşik geçenler sonraki
+    // olağan turda bir kez gelsin), devam kaydı silinir, tavan alarmı kapanır.
     await prisma.systemLock
       .upsert({ where: { name: LAST_PASS_LOCK }, create: { name: LAST_PASS_LOCK, lockedUntil: now }, update: { lockedUntil: now } })
       .catch(() => {});
+    if (resume) {
+      await prisma.systemLock.deleteMany({ where: { name: RESUME_LOCK } }).catch(() => {});
+      await clearAlertState(PADDLE_REPLAY_BACKLOG_ALERT);
+    }
   }
   return result;
 }
