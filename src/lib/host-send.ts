@@ -61,6 +61,15 @@ export interface HostSendInput {
    * satırı eşzamanlı senkron yazdıysa aynı kimlikle işlem DIŞINDA en iyi çaba çağrılır.
    */
   onRecorded?: (db: Prisma.TransactionClient, messageId: string) => Promise<unknown>;
+  /**
+   * Codex 11-17 G2-02 / K2-01: kalıcı kuyruk AÇIKKEN de doğrudan yoldan gönder (kuyruğa yeni satır yazma). YALNIZ karar motoru kullanır: karar
+   * mesajı ev sahibinin anlık açık kararıdır ve kart GERÇEK gönderim sonucuna göre kapanmalı — kuyruğa kabul "tamamlandı" değildir, kuyruktaki
+   * ev sahibi satırı da rezervasyon vetosundan geçmez (iptal edilmiş misafire karar mesajı gidebilirdi). Emsal: elle giriş mesajı
+   * (`sendCheckinNow`, Opus 11-13 B1). Çift gönderim kalkanı iki yolda ORTAK kalır: bu kimliğin kuyruk satırı varsa doğrudan gönderilmez
+   * (`queuedRequestResult`), istek talebi (`claimOutboundRequest`) kuyruk denemesiyle aynı anahtarı paylaşır. Ev sahibinin genel elle cevabı
+   * bu seçeneği KULLANMAZ (kuyruk açıkken kuyruğa yazmaya devam eder).
+   */
+  sendDirect?: boolean;
 }
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -118,9 +127,9 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
   const attempt = newClaimOwner();
 
   // ── Durable Outbox (flag ON): record the Message + its send INTENT atomically and let the worker deliver it, instead of the
-  // synchronous deliver-then-persist below. Falls through to the proven claim-then-send when the flag is OFF (default) or the
-  // thread is internal (nothing to deliver). ──
-  if (durableOutboxEnabledFor(input.organizationId) && !isInternal && conversation.externalReservationId) {
+  // synchronous deliver-then-persist below. Falls through to the proven claim-then-send when the flag is OFF (default), the
+  // thread is internal (nothing to deliver) or the caller asked for a direct send (`sendDirect` — decision cards only). ──
+  if (!input.sendDirect && durableOutboxEnabledFor(input.organizationId) && !isInternal && conversation.externalReservationId) {
     // 🚨 Codex 11-05 (43fb93e incelemesi P2): istek kimliği iki yolda da AYNI talebe bağlanır (`claimOutboundRequest`). Bu kimlikle
     // DOĞRUDAN gönderim yapıldıysa / sürüyorsa (anahtar iki deneme arasında açıldı) kuyruğa ikinci kopya yazılmaz. Önceki kuyruk denemesinin
     // talebi engel değildir — kuyruk satırı anahtarla zaten tekilleşir (aşağıdaki içerik denetimi dahil).

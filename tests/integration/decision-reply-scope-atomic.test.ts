@@ -262,16 +262,32 @@ describe("C4 — gönderimden sonraki adımlar düşerse (casuslu, dosyanın son
     expect(await unrelatedEffective(s)).toBe("open");
   });
 
-  it("🚨 kuyruğa yazıldıktan SONRA çekirdek fırlatırsa kart 'doğrulanamadı' olur ama bağ BOŞLA EZİLMEZ — ilgisiz öğe AÇIK kalır", async () => {
+  it("🚨 bu kilidin anahtarıyla kuyrukta ZATEN satır varken çekirdek fırlatırsa kart 'doğrulanamadı' olur ama bağ BOŞLA EZİLMEZ — ilgisiz öğe AÇIK kalır", async () => {
+    // K2-01 (Codex 11-17) sonrası karar mesajı kuyruk açıkken de doğrudan yoldan gider (`sendDirect`); kuyruğa yazılıp ardından çekirdeğin
+    // fırlattığı eski senaryo karar için artık oluşmaz. Kalan yol: bu anahtarın kuyruk satırı önceden var (bu kuraldan önceki kodun yazdığı
+    // satır, bağıyla) — doğrudan yol onu yeniden göndermez, satırın durumunu okur; o okuma düşerse kart "doğrulanamadı" kapanır, bağ silinmez.
     installSpies();
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    vi.stubEnv("OUTBOX_FAST_WAKE", "0");
     const s = await seed();
-    // Kuyruk işlemi COMMIT oldu; çekirdeğin ardından yaptığı mesaj okuması düşer → karar çekirdeği "doğrulanamadı" kapanışına gider.
+    await sendHostMessage({
+      organizationId: s.orgId,
+      conversation: { id: s.conversation.id, channel: "airbnb", guestIdentifier: "Ada", externalReservationId: "res-1" },
+      body: APPROVE_TR,
+      claimBody: APPROVE_TR,
+      senderName: "Ev Sahibi",
+      aiAssisted: false,
+      idempotencyKey: `decision:${s.decisionId}:v1`,
+      strictIdempotency: true,
+      onRecorded: (tx, messageId) => tx.decisionRequest.updateMany({ where: { id: s.decisionId }, data: { resultMessageId: messageId } }),
+    });
+    expect(await prisma.messageOutbox.count()).toBe(1);
     failQueuedMessageRead = true;
     const res = await approve(s);
     failQueuedMessageRead = false;
     expect(res.status).toBe(502);
+    expect(mockSend).not.toHaveBeenCalled();
     const out = await prisma.message.findFirstOrThrow({ where: { conversationId: s.conversation.id, direction: "outbound" } });
     expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).toMatchObject({ status: "send_unverified", resultMessageId: out.id });
     expect(await unrelatedEffective(s)).toBe("open");

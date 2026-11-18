@@ -35,7 +35,7 @@ import { checkDecisionText, decisionTextProblemsTr } from "./text-check";
 // (TOCTOU, Faz 0 §4):
 //  1. kilit: `pending` + sürüm eşleşmeli (CAS) — çift tıklama / eşzamanlı ikinci karar "stale", ikinci mesaj YOK;
 //  2. misafir talepten SONRA yeniden yazdıysa önce okutulur (`guest_wrote_again`; "okudum" = son mesaj kimliğiyle tekrar);
-//  3. rezervasyon iptal / hedef gün geçti → durur (kart kendiliğinden kapanır);
+//  3. rezervasyon iptal / hedef gün geçti → durur (kart kendiliğinden kapanır); iptal kilitten sonra, gönderimden hemen önce TAZE de okunur;
 //  4. kontrol listesi ev sahibi baktıktan sonra değiştiyse (`factsHash`) karar ESKİ bilgiyle gitmez → `facts_changed`.
 // Gönderim belirsizse (zaman aşımı, aynı metin az önce gitti / gidiyor, gönderim sırasında hata) kart "gönderim doğrulanamadı" kalır
 // (mesaj ulaşmış OLABİLİR — kör tekrar yok); YALNIZ hiçbir şeyin gitmediği KESİN hatada kart yeniden açılır. Kilit onayın saatini ve karar
@@ -157,6 +157,12 @@ async function latestGuestMessageAfterRequest(decision: DecisionAnchor): Promise
   });
   return latest?.id ?? null;
 }
+
+/**
+ * Yalnız testler: kilit (CAS) alındıktan HEMEN sonra araya girme noktası — "istek işlenirken rezervasyon iptal edildi" yarışı şansa kalmasın.
+ * Okumalar genel Prisma temsilcisinden yapılsa da casus kurulmaz (sonraki testlere sızar — CLAUDE.md dersi); emsal `__kbCapHooks`.
+ */
+export const __decideHooks: { afterLock: null | ((decisionId: string) => Promise<void>) } = { afterLock: null };
 
 const conflict = (code: string, error: string, extra?: Record<string, unknown>): DecideOutcome =>
   extra ? { kind: "conflict", code, error, extra } : { kind: "conflict", code, error };
@@ -316,6 +322,7 @@ export async function decideHostDecision(args: {
     },
   });
   if (lock.count !== 1) return conflict("stale", DECISION_STALE_TEXT);
+  if (__decideHooks.afterLock) await __decideHooks.afterLock(decision.id);
   const lockedVersion = input.version + 1;
   const reopen = () =>
     prisma.decisionRequest.updateMany({
@@ -339,6 +346,24 @@ export async function decideHostDecision(args: {
     return { kind: "unverified", error: DECISION_UNVERIFIED_TEXT };
   };
 
+  // 🚨 Codex 11-17 G2-02: iptal yukarıda isteğin BAŞINDA okunan kopyadan sınandı; arada (kart yeniden kurma, misafir yeniden yazdı mı, kilit)
+  // işlenen iptal o kopyada görünmez. Kilitten SONRA, gönderimden HEMEN önce konuşmanın rezervasyonu TAZE okunur — konuşma üzerinden: kart
+  // açıldıktan sonra konuşmaya bağlanan rezervasyon da görülsün. İptalse hiçbir şey gönderilmez, kart yeniden açılır (kesin olumsuz dallarıyla
+  // aynı: yeni sürüm döner). Kalan pencere bu okuma → kanal isteği (milisaniyeler; yaşam döngüsü göndericilerinin bilinçli penceresiyle aynı).
+  // İptal yüklemi yukarıdakiyle AYNI yazım (işçideki `=== "cancelled"` ile tek kaynağa taşıma ayrı iş).
+  const freshReservation = await prisma.conversation.findFirst({
+    where: { id, property: { organizationId } },
+    select: { reservation: { select: { status: true } } },
+  });
+  if (/cancel/i.test(freshReservation?.reservation?.status ?? "")) {
+    const reopened = await reopen();
+    return conflict(
+      "reservation_cancelled",
+      "Rezervasyon iptal edilmiş; misafire karar mesajı gönderilmedi.",
+      reopened.count === 1 ? { version: lockedVersion + 1 } : undefined,
+    );
+  }
+
   let sent: Awaited<ReturnType<typeof sendHostMessage>>;
   try {
     sent = await sendHostMessage({
@@ -352,6 +377,10 @@ export async function decideHostDecision(args: {
       aiAssisted: false,
       idempotencyKey: `decision:${decision.id}:v${lockedVersion}`,
       strictIdempotency: true,
+      // 🚨 K2-01 (Codex 11-17): kalıcı kuyruk açıkken de DOĞRUDAN yol — kart gerçek gönderim sonucuna göre kapanır (kuyruğa kabul "onaylandı"
+      // değildir; kuyruktaki ev sahibi satırı rezervasyon vetosundan da geçmez). Emsal elle giriş mesajı (`sendCheckinNow`). Bu kimliğin kuyruk
+      // satırı zaten varsa (bu kuraldan önceki kodun yazdığı satır) çekirdek onu göndermez, durumunu döner (↓ "queued").
+      sendDirect: true,
       // 🚨 C4 (Codex 11-17 G2-01): "bu mesaj yalnız kendi kararını yanıtlar" bağı mesajla AYNI işlemde ve kartın DURUMUNDAN BAĞIMSIZ yazılır.
       // Eskiden gönderimden sonra ayrı, durum + sürüm koşullu bir güncellemeydi: o adım düşerse ya da kart arada değiştiyse (bayat "sending"
       // kapatıldı) mesaj kapsamsız kalıyor, aynı konuşmanın ilgisiz her açık öğesi "ev sahibi yazdı" sayılıyordu. Kart kiracı kapsamlı.
