@@ -627,7 +627,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   // ---------------------------------------------------------------------------
   describe("B2 — PATCH anında kayıtlı abonelik hâlâ önizlenen abonelik", () => {
     const pendingRow = () => prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${orgId}` } });
-    const swapTo = (data: { providerRef?: string; planCode?: string; status?: string }) => prisma.subscription.update({ where: { organizationId: orgId }, data });
+    const swapTo = (data: { providerRef?: string; planCode?: string; status?: string; provider?: string }) => prisma.subscription.update({ where: { organizationId: orgId }, data });
     const supersededAlarm = () => prisma.systemLock.findUnique({ where: { name: `alert-state:billing-plan-change-superseded:${orgId}:sub_1` } });
     const lastAudit = async () => {
       const row = await prisma.auditLog.findFirst({ where: { organizationId: orgId, action: "billing.plan_change" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
@@ -667,7 +667,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     });
 
     it("🚨 fiyat okuması sırasında PLAN ya da DURUM değişti (aynı abonelik) → aynı ret", async () => {
-      for (const change of [{ planCode: "business" }, { status: "paused" }, { status: "canceled" }]) {
+      for (const change of [{ planCode: "business" }, { status: "paused" }, { status: "canceled" }, { provider: "manual" }]) {
         updateMock.mockClear();
         const t = tok("pri_isletme", "upgrade");
         getPriceMock.mockImplementationOnce(async () => {
@@ -677,8 +677,18 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
         const res = await CHANGE(body(t), ctx);
         expect(res.status, JSON.stringify(change)).toBe(400);
         expect(updateMock, JSON.stringify(change)).not.toHaveBeenCalled();
-        await swapTo({ providerRef: "sub_1", planCode: "pro", status: "active" });
+        await swapTo({ providerRef: "sub_1", planCode: "pro", status: "active", provider: "paddle" });
       }
+    });
+
+    it("🚨 fiyat okuması sırasında abonelik satırı SİLİNDİ → aynı ret, PATCH yok", async () => {
+      getPriceMock.mockImplementationOnce(async () => {
+        await prisma.subscription.delete({ where: { organizationId: orgId } });
+        return "pri_pro";
+      });
+      const res = await CHANGE(body(tok("pri_isletme", "upgrade")), ctx);
+      expect(res.status).toBe(400);
+      expect(updateMock).not.toHaveBeenCalled();
     });
 
     it("🚨 PATCH sırasında abonelik B'ye geçti → müşteri yanıtı AYNI (200) ama kayıtta işaret + operatöre geçiş tabanlı alarm (yalnız kimlikler)", async () => {

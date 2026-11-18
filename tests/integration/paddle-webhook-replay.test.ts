@@ -500,6 +500,24 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       expect((await lastPassAt())!.getTime()).toBeGreaterThanOrEqual(before); // tavan aşılmadı → tur işareti ilerledi
     });
 
+    it("🚨 B1: sayfa sınırında AYNI anda alınmış satırlar ne atlanır ne tekrarlanır (imleç alınma zamanı + kimlik)", async () => {
+      const at = new Date(Date.now() - 3 * HOUR);
+      await prisma.webhookEvent.createMany({
+        data: Array.from({ length: 450 }, (_, i) => ({
+          provider: "paddle",
+          eventType: "subscription.updated",
+          providerEventId: `same_${i}`,
+          payloadJson: JSON.stringify({ event_id: `same_${i}`, event_type: "subscription.updated", occurred_at: new Date(at.getTime() + i).toISOString(), data: {} }),
+          status: "error",
+          error: "Error: x",
+          createdAt: at, // hepsi aynı milisaniye
+        })),
+      });
+      const { seen, deliver } = recordingDeliver();
+      expect(await replayPendingPaddleEvents({ deliver })).toMatchObject({ pending: 450, replayed: 450 });
+      expect(new Set(seen).size).toBe(450);
+    });
+
     it("🚨 B1: tur tavanı aşılırsa tavan kadarı verilir ve tur işareti İLERLEMEZ — kalan sonraki turda yine vadesi gelmiş görünür", async () => {
       const old = new Date(Date.now() - 2 * HOUR);
       await setLastPass(old);
@@ -529,6 +547,16 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
       expect(out).toMatchObject({ pending: 1, replayed: 1 }); // küçültülmüş yük bekleyen sayılmaz (eskisiyle aynı anlam)
     });
 
+    it("küçültülmüş yükü olan 'okunamadı' satırı anahtar bekleyeni SAYILMAZ: yoklama yapılmaz, alarm açılmaz (eskisiyle aynı)", async () => {
+      await seedMany(1, "redkey", { ageMs: () => 20 * MIN, error: KEY_ERROR, redacted: true });
+      probe.result = "unreadable";
+      const { seen, deliver } = recordingDeliver();
+      expect(await replayPendingPaddleEvents({ deliver })).toMatchObject({ pending: 0, replayed: 0, heldForKey: 0 });
+      expect(probe.calls).toBe(0);
+      expect(seen).toEqual([]);
+      expect(await alertStateActive(PADDLE_REPLAY_KEY_ALERT)).toBe(false);
+    });
+
     it("🚨 B1: anahtar DÜZELİNCE o sınıfın 200'den fazla bekleyeninin HEPSİ ilk turda (vade beklenmeden) geçer; alarm kapanır", async () => {
       await seedMany(250, "key", { ageMs: (i) => 5 * MIN - i * 100, error: KEY_ERROR }); // 5 dk'lık: olağan vade daha gelmedi
       await alertOnTransition(PADDLE_REPLAY_KEY_ALERT, KEY_ALARM, new Error("x")); // önceki turda anahtar okunamıyordu
@@ -543,12 +571,13 @@ describe("işlenemeyen Paddle olayının yeniden işlenmesi (S7)", () => {
     it("🚨 B1: anahtar okunamıyorken bekleyen sayısı dilimle sınırlı değil (alarm gerçek sayıyı söyler); öteki sınıfın vadesi gelen olayı yine denenir", async () => {
       await seedMany(250, "key", { ageMs: (i) => 3 * HOUR - i * 1_000, error: KEY_ERROR });
       await stored("other"); // başka sebeple hata, 20 dk: 250 anahtar satırının ARKASINDA
+      await stored("stuck", { status: "received", error: null, ageMs: 16 * MIN }); // hata metni BOŞ satır anahtar sınıfının tümleyeninde kalır
       probe.result = "unreadable";
       reportErrorMock.mockClear();
       const { seen, deliver } = recordingDeliver();
       const out = await replayPendingPaddleEvents({ deliver });
-      expect(out).toMatchObject({ pending: 251, replayed: 1, heldForKey: 250 }); // ⬅️ ESKİDE 200 / 0 ("other" okunmuyordu)
-      expect(seen).toEqual(["other"]);
+      expect(out).toMatchObject({ pending: 252, replayed: 2, heldForKey: 250 }); // ⬅️ ESKİDE 200 / 0 ("other" okunmuyordu)
+      expect(seen.sort()).toEqual(["other", "stuck"]);
       expect(String(keyAlarms()[0][1])).toContain("250 ödeme olayı bekliyor");
     });
 
