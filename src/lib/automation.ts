@@ -5701,6 +5701,31 @@ function lifecycleAfterWhere(field: "arrivalDate" | "departureDate", k: Lifecycl
   return { OR: [{ [field]: { gt: k.at } }, { [field]: k.at, id: { gt: k.id } }] };
 }
 
+/**
+ * 🚨 REZERVASYON BAŞINA TEK ADAY = SIRALAMADAKİ İLK SATIR (Codex 11-17 D2 dilim sonu incelemesi). Rezervasyon kaydı (daire, kaynak kimliği)
+ * çiftinde tekildir → aynı kaynak kimliği iki AYRI dairede bulunabilir. Göndericiler eskiden beri o rezervasyonun (tarih, kimlik) sırasındaki
+ * İLK satırına bakar: ilk satır gönderilemiyorsa (dairesinin metni yok / doldurulamıyor) rezervasyona mesaj gitmez; kardeş satırın dairesinin
+ * metni — başka bir dairenin giriş bilgisi olabilir — kullanılmaz. Bu kural eskiden sorgu sırasının yan ürünüydü; aday sorgusuna tür süzgeci
+ * (↑ `lifecycleTemplatedPropertyWhere`) ve kalıcı imleç girince ilk satır sayfaya HİÇ gelmeyebiliyor, kardeş satır "ilk" gibi seçiliyordu.
+ * Bu yüzden ilk satır artık AYRI okunur: rezervasyonun kendi kümesinden (`bookingWhere` — tür süzgeci ve imleç YOK), aynı sıralamayla.
+ * Dönen: kaynak kimliği → ilk satırın kimliği. Sayfa başına tek sorgu (≤ 25 kaynak kimliği; kimlik başına en çok daire sayısı kadar satır).
+ */
+async function lifecycleFirstRowIds(
+  bookingWhere: Prisma.ReservationWhereInput,
+  field: "arrivalDate" | "departureDate",
+  refs: readonly string[],
+): Promise<Map<string, string>> {
+  const first = new Map<string, string>();
+  if (refs.length === 0) return first;
+  const rows = await prisma.reservation.findMany({
+    where: { AND: [bookingWhere, { sourceReference: { in: [...new Set(refs)] } }] },
+    select: { id: true, sourceReference: true },
+    orderBy: field === "arrivalDate" ? [{ arrivalDate: "asc" }, { id: "asc" }] : [{ departureDate: "asc" }, { id: "asc" }],
+  });
+  for (const row of rows) if (row.sourceReference && !first.has(row.sourceReference)) first.set(row.sourceReference, row.id);
+  return first;
+}
+
 /** Bir geçişte bir göndericinin (karşılama / giriş / çıkış) göndereceği en çok mesaj — anahtar açılınca toplu patlama olmasın. */
 const LIFECYCLE_SEND_CAP = 25;
 /** Gönderilebilir aday aranırken bir geçişte okunan en çok sayfa (sayfa = `LIFECYCLE_SEND_CAP` satır) — okuma sınırsız büyümesin. */
@@ -5845,6 +5870,11 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
   /** Kesin gün kararı (sorgunun üst kümesinden komşu günün çapası elenir). */
   eligible: (r: R) => boolean;
   /**
+   * Verilen kaynak kimlikleri için rezervasyonun İLK satırı (↑ `lifecycleFirstRowIds`; tür süzgeci ve imleçten bağımsız). İlk satırı olmayan
+   * aday (kopya / kardeş satır) atlanır — rezervasyonun mesajını ilk satırın dairesi belirler.
+   */
+  firstRows: (refs: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  /**
    * Ön eleme (Opus incelemesi 11-11): sayfadaki adaylardan BU GEÇİŞTE hiçbir koşulda gönderilmeyecek olanların kimlikleri — açıkça
    * silinmiş (KVKK) misafir ya da kuyruğun sahiplendiği rezervasyon. Bunlar da damgalanmadığı için her geçişte en öne geliyor, 25'lik
    * listeyi doldurup arkadaki gönderilebilir rezervasyonu bekletebiliyordu (A26 ile aynı tıkanma, başka sebep). Gönderim döngüsündeki
@@ -5888,6 +5918,7 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
     after = keyOf(rows[rows.length - 1]);
     let unusable: ReadonlySet<string> | null = null; // sayfa başına en çok bir kez, ilk gönderilebilir adayda okunur
     let notDue: ((r: R, body: string) => boolean) | null = null; // aynı kural: sayfa başına en çok bir okuma
+    let firstRows: ReadonlyMap<string, string> | null = null; // aynı kural: sayfa başına en çok bir okuma (ilk uygun adayda)
     for (const r of rows) {
       if (ready.length >= LIFECYCLE_SEND_CAP) break;
       if (inTail) tailLast = keyOf(r); // incelenen (aşağıda elensin ya da seçilsin) — incelenmeyen satırın ötesine geçilmez
@@ -5897,6 +5928,12 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
         seenBookings.add(r.sourceReference);
       }
       if (!opts.eligible(r)) continue;
+      // Rezervasyonun İLK satırı değilse (kopya satır) aday değildir: ilk satır bu sayfaya gelmemiş olabilir (tür süzgecinde elendi ya da
+      // imlecin gerisinde kaldı) — yine de mesajı o belirler. Kayıt arada değiştiyse (ilk satır bulunamadı) güvenli yön: bu geçişte atla.
+      if (r.sourceReference) {
+        firstRows ??= await opts.firstRows(rows.flatMap((x) => (x.sourceReference ? [x.sourceReference] : [])));
+        if (firstRows.get(r.sourceReference) !== r.id) continue;
+      }
       considered++;
       let tpl = templates.get(r.propertyId);
       if (tpl === undefined) {
@@ -6015,7 +6052,7 @@ export async function sendDueWelcomes(
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
-  const candidateWhere: Prisma.ReservationWhereInput = {
+  const bookingWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
     status: lifecycleStatusWhere("welcome"),
     welcomeSentAt: null,
@@ -6026,13 +6063,11 @@ export async function sendDueWelcomes(
     ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
     // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
-    // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
-    AND: [
-      onOrAfterTodayWhere("arrivalDate", now, tz),
-      await lifecycleBaselineWhere(organizationId, baseline),
-      await lifecycleTemplatedPropertyWhere(organizationId, "welcome"),
-    ],
+    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
   };
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
+  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "welcome")] };
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
@@ -6051,6 +6086,7 @@ export async function sendDueWelcomes(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "welcome",
     organizationId,
+    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "arrivalDate", refs),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "welcome", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "welcome", rows, now) : undefined,
     signature,
@@ -6115,7 +6151,7 @@ export async function sendDueWelcomes(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — aday güncel metinle yeniden seçilir (baştaki sayfalardaysa sonraki geçişte, imleçli kuyruk sayfalarındaysa tur başa sarınca). Kalan
       // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, welcome.id, welcome.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
@@ -6239,7 +6275,7 @@ export async function sendDueCheckins(
 
   const tz = orgTimezone(org.timezone);
   const today = todayKey(now, tz);
-  const candidateWhere: Prisma.ReservationWhereInput = {
+  const bookingWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
     status: lifecycleStatusWhere("checkin"),
     checkinSentAt: null,
@@ -6247,13 +6283,11 @@ export async function sendDueCheckins(
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
     arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
     // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
-    // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
-    AND: [
-      onOrAfterTodayWhere("arrivalDate", now, tz),
-      await lifecycleBaselineWhere(organizationId, baseline),
-      await lifecycleTemplatedPropertyWhere(organizationId, "checkin"),
-    ],
+    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
   };
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
+  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "checkin")] };
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
@@ -6272,6 +6306,7 @@ export async function sendDueCheckins(
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "checkin",
     organizationId,
+    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "arrivalDate", refs),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkin", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkin", rows, now) : undefined,
     signature,
@@ -6382,7 +6417,7 @@ async function claimAndSendCheckin(
     // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
     // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
     if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-    // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+    // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — aday güncel metinle yeniden seçilir (baştaki sayfalardaysa sonraki geçişte, imleçli kuyruk sayfalarındaysa tur başa sarınca). Kalan
     // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
     if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
     const c = await tx.reservation.updateMany({
@@ -6818,7 +6853,7 @@ export async function sendDueCheckouts(
   const directPath = !durableOutboxEnabledFor(organizationId);
   if (directPath && lifecycleSendsHeld(organizationId, now)) return { sent: 0, considered: 0 };
 
-  const candidateWhere: Prisma.ReservationWhereInput = {
+  const bookingWhere: Prisma.ReservationWhereInput = {
     property: { organizationId },
     status: lifecycleStatusWhere("checkout"),
     checkoutSentAt: null,
@@ -6831,10 +6866,11 @@ export async function sendDueCheckouts(
     AND: [
       { OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] },
       await lifecycleBaselineWhere(organizationId, baseline),
-      // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
-      await lifecycleTemplatedPropertyWhere(organizationId, "checkout"),
     ],
   };
+  // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere). `bookingWhere` süzgeçsiz kalır:
+  // rezervasyonun ilk satırı ona göre belirlenir (↑lifecycleFirstRowIds).
+  const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "checkout")] };
   // Only when check-out is TODAY (same-day reminder) — kesin gün kararı `calendarDateOf` (üst kümeden komşu günün çapası
   // elenir). (No single-night skip anymore: that guard existed because the old evening-before send collided with the
   // arrival day; a morning-of reminder is exactly as useful for a one-night guest.)
@@ -6856,6 +6892,7 @@ export async function sendDueCheckouts(
   } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
     kind: "checkout",
     organizationId,
+    firstRows: (refs) => lifecycleFirstRowIds(bookingWhere, "departureDate", refs),
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkout", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkout", rows, now) : undefined,
     signature,
@@ -6912,7 +6949,7 @@ export async function sendDueCheckouts(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — aday güncel metinle yeniden seçilir (baştaki sayfalardaysa sonraki geçişte, imleçli kuyruk sayfalarındaysa tur başa sarınca). Kalan
       // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
