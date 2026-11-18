@@ -28,6 +28,7 @@ import { itemOrdinalEnabled } from "./flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { hostQuestionResultMessageIds } from "@/lib/host-channel/scoped-replies";
 import { undeliveredOutboundMessageIds } from "@/lib/outbox/undelivered";
+import { alertOnTransition } from "@/lib/alert-state";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KALICI KAYIT (09-26; migration 56). Karar kuralları `core.ts`te (saf); burası yalnız yazar/okur.
@@ -466,30 +467,47 @@ export async function listConversationItems(db: Db, input: { organizationId: str
 type OpenRow = { conversationId: string; messageId: string; status: string; createdAt: Date };
 
 /**
- * Satırlardan ev sahibinde GERÇEKTEN açık olanlar ("ev sahibi yazdı" düşülür) + mesajın yazıldığı an. Konuşma başına son
- * ev sahibi mesajı tek toplu sorguyla; kiracı kapsamı konuşmanın mülkünden.
+ * Konuşma başına SAYILAN son ev sahibi mesajının anı (kapsamlı / kesin gitmemiş cevaplar düşülür — `hostReplyExclusions`). Ev sahibi hiç
+ * yazmamışsa konuşma haritada yoktur. Kiracı kapsamı konuşmanın mülkünden.
  */
-async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: string, rows: readonly R[]): Promise<(R & { messageAt: Date })[]> {
+async function lastHostReplyAt(db: Db, organizationId: string, convIds: readonly string[]): Promise<Map<string, Date>> {
+  const out = new Map<string, Date>();
+  if (convIds.length === 0) return out;
+  const excluded = await hostReplyExclusions(db, organizationId, convIds);
+  const hosts = await db.message.groupBy({
+    by: ["conversationId"],
+    where: {
+      conversationId: { in: [...convIds] },
+      conversation: { property: { organizationId } },
+      ...HOST_OUTBOUND_WHERE,
+      ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
+    },
+    _max: { createdAt: true },
+  });
+  for (const h of hosts) if (h._max.createdAt) out.set(h.conversationId, h._max.createdAt);
+  return out;
+}
+
+/**
+ * Satırlardan ev sahibinde GERÇEKTEN açık olanlar ("ev sahibi yazdı" düşülür) + mesajın yazıldığı an. Konuşma başına son
+ * ev sahibi mesajı tek toplu sorguyla; kiracı kapsamı konuşmanın mülkünden. `knownHostAt` verilirse (çağıran aday süzgecini aynı
+ * anlarla kurduysa) yeniden okunmaz — süzgeç ile karar AYNI anlara bakar; verilen harita satırların bütün konuşmalarını kapsamalıdır.
+ */
+async function stillOpenForHost<R extends OpenRow>(
+  db: Db,
+  organizationId: string,
+  rows: readonly R[],
+  knownHostAt?: ReadonlyMap<string, Date>,
+): Promise<(R & { messageAt: Date })[]> {
   if (rows.length === 0) return [];
   const convIds = [...new Set(rows.map((r) => r.conversationId))];
-  const excluded = await hostReplyExclusions(db, organizationId, convIds);
-  const [hosts, messages] = await Promise.all([
-    db.message.groupBy({
-      by: ["conversationId"],
-      where: {
-        conversationId: { in: convIds },
-        conversation: { property: { organizationId } },
-        ...HOST_OUTBOUND_WHERE,
-        ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
-      },
-      _max: { createdAt: true },
-    }),
+  const [hostAt, messages] = await Promise.all([
+    knownHostAt ?? lastHostReplyAt(db, organizationId, convIds),
     db.message.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.messageId))] }, conversationId: { in: convIds } },
       select: { id: true, createdAt: true },
     }),
   ]);
-  const hostAt = new Map(hosts.map((h) => [h.conversationId, h._max.createdAt]));
   const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
   const out: (R & { messageAt: Date })[] = [];
   for (const r of rows) {
@@ -542,9 +560,32 @@ export interface HeldRequestSummary {
   oldestAt: Date;
 }
 
+/** "Dikkat" bırakılan istek adaylarının varsayılan tavanı (bellek sınırı; aşılırsa alarm — sessiz kesme yok). */
+export const HELD_REQUEST_CANDIDATE_CAP = 500;
+
+/**
+ * Aday süzgecinin güvenlik payı. Karar öğenin MESAJININ anına bakar (`stillOpenForHost`), aday süzgeci ise öğenin KAYIT anına (öğe ile
+ * mesaj arasında ilişki yok — düz kimlik). Öğe mesajından sonra kaydedildiği için kayıt anı ≥ mesaj anıdır; sağlayıcı saati ileride olursa
+ * (mesaj anı kayıttan biraz sonra görünür) pay bu kaymayı karşılar. Pay yalnız aday kümesini büyütür; kesin karar yine mesaj anıyla.
+ * Pay KISA tutulur: içine düşen (ev sahibinin cevabından hemen önce kaydedilmiş) cevaplanmış öğeler de aday sayılıp tavanı doldurur.
+ */
+const HOST_REPLY_CANDIDATE_MARGIN_MS = 15 * 60 * 1000;
+
+class HeldRequestCapExceeded extends Error {
+  constructor(cap: number) {
+    super(`held request candidates exceed cap ${cap}`);
+    this.name = "HeldRequestCapExceeded";
+  }
+}
+
 /**
  * "Dikkat Gerektirenler" için: mülklerde ev sahibine BIRAKILMIŞ (hassas, açık, ev sahibinin henüz yazmadığı) istekler,
  * konuşma başına tek özet. Pencere öğenin kayıt anına göre (hiç unutmayan liste duvar kâğıdına döner).
+ *
+ * "Ev sahibi sonradan yazdı" SORGUDA süzülür (Codex 11-17 E3): ev sahibinin elle cevabı öğe durumunu yazmaz → cevaplanmış öğe DB'de açık
+ * kalır; eskiden en eski 500 satır okunup SONRA süzülüyordu, cevaplanmış eski öğeler pencereyi doldurunca arkadaki gerçekten açık (en yeni)
+ * istek sessizce kayboluyordu. Şimdi: (1) aday konuşmalar, (2) onların son ev sahibi cevabı, (3) yalnız o cevaptan sonra kaydedilen öğeler
+ * (üst küme, pay ile) — tavan yalnız bu adaylara; kesin karar aynı anlarla `stillOpenForHost`. Aday tavanı aşarsa alarm.
  */
 export async function heldRequestsByConversation(
   db: Db,
@@ -558,17 +599,31 @@ export async function heldRequestsByConversation(
   },
 ): Promise<HeldRequestSummary[]> {
   if (input.propertyIds.length === 0) return [];
-  const rows = await db.conversationItem.findMany({
-    where: {
-      organizationId: input.organizationId,
-      status: { in: OPEN_STATUSES },
-      sensitivity: { in: ["sensitive", "emergency"] },
-      createdAt: { gte: input.since },
-      conversation: { propertyId: { in: [...input.propertyIds] } },
-      ...(input.excludeItemIds && input.excludeItemIds.length > 0 ? { id: { notIn: [...input.excludeItemIds] } } : {}),
-    },
+  const cap = input.cap ?? HELD_REQUEST_CANDIDATE_CAP;
+  const where: Prisma.ConversationItemWhereInput = {
+    organizationId: input.organizationId,
+    status: { in: OPEN_STATUSES },
+    sensitivity: { in: ["sensitive", "emergency"] },
+    createdAt: { gte: input.since },
+    conversation: { propertyId: { in: [...input.propertyIds] } },
+    ...(input.excludeItemIds && input.excludeItemIds.length > 0 ? { id: { notIn: [...input.excludeItemIds] } } : {}),
+  };
+  // (1) Aday konuşmalar — konuşma sayısıyla sınırlı (öğe sayısıyla değil).
+  const groups = await db.conversationItem.groupBy({ by: ["conversationId"], where });
+  if (groups.length === 0) return [];
+  const convIds = groups.map((g) => g.conversationId);
+  // (2) Son SAYILAN ev sahibi cevabı; aynı harita aşağıdaki kesin karara da verilir (süzgeç ile karar aynı anlara bakar).
+  const hostAt = await lastHostReplyAt(db, input.organizationId, convIds);
+  const unreplied = convIds.filter((id) => !hostAt.has(id));
+  const replied = [...hostAt].map(([conversationId, at]): Prisma.ConversationItemWhereInput => ({
+    conversationId,
+    createdAt: { gte: new Date(at.getTime() - HOST_REPLY_CANDIDATE_MARGIN_MS) },
+  }));
+  // (3) Adaylar; tavanın bir fazlası okunur ki aşım SESSİZ kalmasın.
+  const fetched = await db.conversationItem.findMany({
+    where: { AND: [where, { OR: [...(unreplied.length > 0 ? [{ conversationId: { in: unreplied } }] : []), ...replied] }] },
     orderBy: [{ createdAt: "asc" }, { requestIndex: "asc" }, { id: "asc" }],
-    take: input.cap ?? 500,
+    take: cap + 1,
     select: {
       conversationId: true,
       messageId: true,
@@ -580,10 +635,19 @@ export async function heldRequestsByConversation(
       conversation: { select: { propertyId: true, channel: true } },
     },
   });
+  const rows = fetched.length > cap ? fetched.slice(0, cap) : fetched;
+  if (fetched.length > cap) {
+    // Adaylar artık (pay dışında) ev sahibinin cevaplamadığı istekler → aşım gerçek bir birikimdir; en yeniler görünmeyebilir.
+    await alertOnTransition(
+      `attention:held-request-cap:${input.organizationId}`,
+      "attention held_request cap",
+      new HeldRequestCapExceeded(cap),
+    ).catch(() => {});
+  }
   const byConversation = new Map<string, HeldRequestSummary>();
   const urgentRow = (r: { sensitivity: string; riskType: string | null }) =>
     r.sensitivity === "emergency" || (r.riskType !== null && URGENT_RISK_TYPES.has(r.riskType));
-  for (const r of await stillOpenForHost(db, input.organizationId, rows)) {
+  for (const r of await stillOpenForHost(db, input.organizationId, rows, hostAt)) {
     const kind: ItemKind = isItemKind(r.kind) ? r.kind : "other";
     const cur = byConversation.get(r.conversationId);
     if (!cur) {
