@@ -322,10 +322,12 @@ export async function decideHostDecision(args: {
       where: { id: decision.id, organizationId, status: "sending", version: lockedVersion },
       data: { status: "pending", decidedTime: null, decidedById: null, decidedAt: null, version: { increment: 1 } },
     });
+  // Kapsam bağı (`resultMessageId`) mesajla AYNI işlemde yazılır (↓ `onRecorded`, C4); burası onu yalnız teyit eder, BOŞLA EZMEZ — "doğrulanamadı"
+  // kapanışı (null) bağlanmış bir mesajın kapsamını silmesin.
   const settle = (status: "approved" | "declined" | "send_unverified", resultMessageId: string | null) =>
     prisma.decisionRequest.updateMany({
       where: { id: decision.id, organizationId, status: "sending", version: lockedVersion },
-      data: { status, resultMessageId, version: { increment: 1 } },
+      data: { status, ...(resultMessageId ? { resultMessageId } : {}), version: { increment: 1 } },
     });
   // Mesaj misafire ulaşmış OLABİLİR: kart "gönderim doğrulanamadı" (kör tekrar yok — ev sahibi kanaldan bakar).
   const unverified = async (why: string): Promise<DecideOutcome> => {
@@ -350,6 +352,11 @@ export async function decideHostDecision(args: {
       aiAssisted: false,
       idempotencyKey: `decision:${decision.id}:v${lockedVersion}`,
       strictIdempotency: true,
+      // 🚨 C4 (Codex 11-17 G2-01): "bu mesaj yalnız kendi kararını yanıtlar" bağı mesajla AYNI işlemde ve kartın DURUMUNDAN BAĞIMSIZ yazılır.
+      // Eskiden gönderimden sonra ayrı, durum + sürüm koşullu bir güncellemeydi: o adım düşerse ya da kart arada değiştiyse (bayat "sending"
+      // kapatıldı) mesaj kapsamsız kalıyor, aynı konuşmanın ilgisiz her açık öğesi "ev sahibi yazdı" sayılıyordu. Kart kiracı kapsamlı.
+      onRecorded: (tx, messageId) =>
+        tx.decisionRequest.updateMany({ where: { id: decision.id, organizationId }, data: { resultMessageId: messageId } }),
     });
   } catch (err) {
     // Gönderim sırasında hata: teslim olmuş ama kaydedilememiş olabilir (kanal kabul etti, veritabanı yazamadı) → yeniden açmak

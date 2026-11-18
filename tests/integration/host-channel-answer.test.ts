@@ -7,7 +7,19 @@ const { composeMock, sendMock, budgetMock } = vi.hoisted(() => ({
   budgetMock: vi.fn(async () => ({ ok: true, retryAfter: 0, cap: 100 })),
 }));
 vi.mock("@/lib/host-channel/compose", () => ({ composeGuestReplyFromHostAnswer: composeMock }));
-vi.mock("@/lib/host-send", () => ({ sendHostMessage: sendMock }));
+// Gönderim çekirdeğinin sözleşmesi (C4, Codex 11-17): bu çağrıda mesaj KAYDEDİLDİYSE `onRecorded` aynı mesaj kimliğiyle çağrılır (gerçekte
+// mesajla aynı işlemde — o kısım `decision-reply-scope-atomic.test.ts`te gerçek çekirdekle sınanır). Sahte çekirdek aynı sözleşmeyi uygular.
+vi.mock("@/lib/host-send", async () => {
+  const { prisma: db } = await import("../helpers/db");
+  return {
+    sendHostMessage: async (input: { onRecorded?: (tx: unknown, messageId: string) => Promise<unknown> }) => {
+      const r = (await sendMock(input)) as { status?: string; message?: { id?: string } | null } | undefined;
+      const recorded = r?.status === "sent" || r?.status === "queued" || r?.status === "recorded";
+      if (recorded && r?.message?.id && input.onRecorded) await input.onRecorded(db, r.message.id);
+      return r;
+    },
+  };
+});
 vi.mock("@/lib/ai/daily-budget", () => ({ consumeDailyAiBudget: budgetMock }));
 
 import { prisma, resetDb } from "../helpers/db";

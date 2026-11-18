@@ -47,12 +47,15 @@ function req(id: string, body: unknown) {
   });
 }
 
-/** Teslimden SONRAKİ kayıt işlemi (dizi biçimli `$transaction`) düşer; öteki işlemler gerçek. */
+/**
+ * Teslimden SONRAKİ kayıt işlemi düşer; öteki işlemler gerçek. Kayıt C4'ten (Codex 11-17) beri ETKİLEŞİMLİ işlem (mesaj + durum + çağıranın
+ * kapsam bağı birlikte); bu yolda teslimden önce başka etkileşimli işlem yok (kimlik bilgisi sahte).
+ */
 function failPersistOnce() {
   const real = prisma.$transaction.bind(prisma) as (arg: unknown) => Promise<unknown>;
   let armed = true;
   vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown) => {
-    if (armed && Array.isArray(arg)) {
+    if (armed && typeof arg === "function") {
       armed = false;
       return Promise.reject(new Error("db blip (test)"));
     }

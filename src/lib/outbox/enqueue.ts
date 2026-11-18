@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { activeMessagingConnectionId } from "@/lib/channels";
@@ -90,6 +91,11 @@ export interface EnqueueOutboundArgs {
    * `SupersededRowRevivedError`. İki yol aynı satır kilidinde buluşur; aynı öneri iki ayrı satırdan iki kez gidemez.
    */
   supersedes?: string;
+  /**
+   * C4 (Codex 11-17): mesaj + kuyruk satırıyla AYNI işlemde çalışan çağıran kaydı (karar / WhatsApp cevabının "yalnız kendi talebini yanıtlar"
+   * bağı). Fırlatırsa işlem geri alınır: ne mesaj ne satır yazılır, `enqueueOutbound` fırlatır.
+   */
+  onMessageRecorded?: (tx: Prisma.TransactionClient, messageId: string) => Promise<unknown>;
 }
 
 /** `supersedes` ile verilen satır artık "gönderilemedi / iptal" değil (elle yeniden kuyruğa alınmış) — yeni gönderim açılmadı. */
@@ -165,6 +171,9 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
         select: { id: true },
       });
       if (args.handoffHoldExempt) await markHandoffExempt(tx, outbox.id, new Date());
+      // Çağıranın mesaja bağlı kaydı (C4 — karar / WhatsApp cevabının kapsam bağı) AYNI işlemde: düşerse ne mesaj ne satır yazılır.
+      // Tekilleşen tekrarda işlem geri alınır → kanca da geri alınır (ilk kuyruğa alma bağı zaten yazdı).
+      if (args.onMessageRecorded) await args.onMessageRecorded(tx, message.id);
       // NOTE (Codex #6): the conversation is NOT marked "answered" here. The intent is
       // durable, but the guest has NOT received anything yet — "answered/sent" is set
       // by the worker ONLY once the provider confirms delivery. So a queued-but-

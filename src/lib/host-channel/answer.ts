@@ -887,6 +887,10 @@ async function handleButton(input: {
       aiAssisted: true,
       idempotencyKey: `host-q:${q.id}:v${sendingVersion}`,
       strictIdempotency: true,
+      // 🚨 C4 (Codex 11-17): cevap mesajının kimliği mesajla AYNI işlemde ve sorunun durumundan BAĞIMSIZ yazılır — bu mesaj konuşmanın öteki
+      // açık işlerini "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2 SM-4). Eskiden gönderimden sonra ayrı yazılıyor ve hatası
+      // sessizce yutuluyordu (mesaj var, bağ yok).
+      onRecorded: (tx, messageId) => tx.hostQuestion.updateMany({ where: { id: q.id, organizationId: org }, data: { resultMessageId: messageId } }),
     });
   } catch {
     // Teslim olmuş ama kaydedilememiş olabilir → kör tekrar YOK.
@@ -899,12 +903,9 @@ async function handleButton(input: {
   // ev sahibine giden metnin ayrıştırılması kurucu sorusu).
   if (result.status === "sent" || result.status === "queued" || result.status === "recorded") {
     const resultMessageId = result.message?.id ?? null;
-    // Cevap mesajının kimliği durum geçişinden AYRI ve ÖNCE yazılır: geçiş kaybedilse / düşse bile bu mesaj konuşmanın öteki açık işlerini
-    // "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2 SM-4).
-    if (resultMessageId) {
-      await prisma.hostQuestion.updateMany({ where: { id: q.id, organizationId: org }, data: { resultMessageId } }).catch(() => null);
-    }
-    await settle("done", { resultMessageId }).catch(() => null);
+    // Cevap mesajının kimliği mesajla aynı işlemde yazıldı (↑ `onRecorded`); geçiş burada yalnız durumu kapatır. Kimlik yoksa (kayıt düştü)
+    // var olan değer BOŞLA EZİLMEZ.
+    await settle("done", resultMessageId ? { resultMessageId } : {}).catch(() => null);
     await answerTurnItems({ organizationId: org, conversationId: q.conversationId, turnMessageId: q.turnMessageId, resultMessageId, now: input.now }).catch(
       () => null,
     );

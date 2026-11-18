@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Message } from "@prisma/client";
+import type { Message, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
@@ -53,7 +53,17 @@ export interface HostSendInput {
    * anı: ondan SONRA gerçek bir cevap yazılmışsa (başka biri cevapladı, yapay zekâ cevapladı) öneri artık geçersizdir → gönderilmez.
    */
   operation?: { anchorCreatedAt: Date };
+  /**
+   * C4 (Codex 11-17 G2-01): kaydedilen giden mesajla AYNI veritabanı işleminde çalışır — doğrudan yolda mesaj + konuşma durumu işlemi, kuyruk
+   * yolunda mesaj + kuyruk satırı işlemi. "Bu mesaj yalnız kendi kararını yanıtlar" bağı gibi, mesajsız anlamsız ve mesaj onsuz yanlış olan
+   * kayıtlar içindir: kanca düşerse mesaj da yazılmaz (doğrudan yolda teslim kesin olduğu için sonuç yine "gönderildi" — satır sonradan
+   * senkronla gelir, BAĞSIZ; kalan delik raporda). Bu çağrıda mesaj yazılmadıysa (tekilleşen kuyruk tekrarı, belirsiz / kesin hata) çağrılmaz;
+   * satırı eşzamanlı senkron yazdıysa aynı kimlikle işlem DIŞINDA en iyi çaba çağrılır.
+   */
+  onRecorded?: (db: Prisma.TransactionClient, messageId: string) => Promise<unknown>;
 }
+
+type Db = PrismaClient | Prisma.TransactionClient;
 
 export type HostSendResult =
   /** Kanal bağlantısı yok (iç QR konuşması değil). */
@@ -151,6 +161,7 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
         aiAssisted: input.aiAssisted,
         idempotencyKey: input.idempotencyKey,
         ...(resolved?.supersedes ? { supersedes: resolved.supersedes } : {}),
+        ...(input.onRecorded ? { onMessageRecorded: input.onRecorded } : {}),
       });
     } catch (err) {
       // Kuyruğa yazılamadı → hiçbir şey gönderilmeyecek: talep tutulursa (anahtar kapanınca) doğrudan yolun yeniden denemesi 24 sa kilitlenirdi.
@@ -252,8 +263,8 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     localDelivery ? { status: "recorded", message, delivery: localDelivery } : { status: "sent", message };
   const now = new Date();
   // Koşullu tamamlama: durum gönderim başındakiyle AYNIYSA ve o andan sonra misafir yazmadıysa "Cevaplandı"; `lastMessageAt` yalnız ileri.
-  const completeStatus = () =>
-    prisma.conversation.updateMany({
+  const completeStatus = (db: Db = prisma) =>
+    db.conversation.updateMany({
       where: {
         id,
         ...(before ? { status: before.status } : {}),
@@ -263,11 +274,14 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
       },
       data: { status: "answered" },
     });
-  const advanceLastMessageAt = () => prisma.conversation.updateMany({ where: { id, lastMessageAt: { lt: now } }, data: { lastMessageAt: now } });
+  const advanceLastMessageAt = (db: Db = prisma) =>
+    db.conversation.updateMany({ where: { id, lastMessageAt: { lt: now } }, data: { lastMessageAt: now } });
   let message: Message | null;
   try {
-    [message] = await prisma.$transaction([
-      prisma.message.create({
+    // Mesaj + konuşma durumu + çağıranın kaydı (`onRecorded`, C4) TEK etkileşimli işlemde: biri düşerse hiçbiri yazılmaz. Sonuç ADIYLA döner
+    // (dizi biçimli işlemin sonucu konumla okunmaz — 09-24 dersi).
+    message = await prisma.$transaction(async (tx) => {
+      const created = await tx.message.create({
         data: {
           conversationId: id,
           direction: "outbound",
@@ -285,10 +299,12 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
           // "Cevaplandı" sayılıyordu (`lateGuestMessages` içeri alınma anını cevabın zamanıyla kıyaslar).
           createdAt: pressedAt,
         },
-      }),
-      completeStatus(),
-      advanceLastMessageAt(),
-    ]);
+      });
+      await completeStatus(tx);
+      await advanceLastMessageAt(tx);
+      if (input.onRecorded) await input.onRecorded(tx, created.id);
+      return created;
+    });
   } catch (err) {
     // 🚨 Opus 11-05 N5: teslim KESİN — sonraki kayıt hatası "tekrar deneyin" (500) gibi görünmemeli. Ev sahibi aynı kimlikle birkaç dakika
     // sonra yeniden basardı; talepler 2 dk'da düşmüşse (uzatma da aynı arızada yazılamamış olabilir) misafire İKİNCİ mesaj giderdi ("çift
@@ -313,6 +329,14 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     });
     await completeStatus();
     await advanceLastMessageAt();
+    // Satırı senkron yazdı (bizim işlemimiz değil): çağıranın kaydı aynı kimlikle EN İYİ ÇABA — teslim kesin, hata gönderimi etkilemez.
+    if (message && input.onRecorded) {
+      try {
+        await input.onRecorded(prisma, message.id);
+      } catch (hookErr) {
+        void reportError("host-send.on-recorded-adopted", hookErr);
+      }
+    }
   }
   // Söz → görev OTOMATİK (kurucu 10-17 gece): teslim edilmiş ev sahibi mesajındaki söz HEMEN söz + görev olur (senkron turunu beklemez).
   // En iyi çaba: hata gönderimi etkilemez (mesaj zaten misafire ulaştı), sonraki senkron turu yeniden dener. Anahtar kapalıyken sorgusuz.
