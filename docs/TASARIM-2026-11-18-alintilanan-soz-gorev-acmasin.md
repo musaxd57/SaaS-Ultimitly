@@ -1,5 +1,9 @@
 # Tasarım (ÖNERİ) 2026-11-18 — Ev sahibinin mesajındaki ALINTI kendiliğinden göreve dönüşmesin
 
+> 🚨 **GERİ ÇEKİLDİ (kurucu 11-18 akşam).** Bu öneri sözün sahibini tırnak / iki nokta YAPISINDAN çıkarıyordu; kurucu: "kelime bazlı
+> değil … cümledeki anlamı, amacı, niyeti model güçlerine bırak". Yerine geçen tasarım: `docs/TASARIM-2026-11-18-soz-sahipligi-model-okumasi.md`.
+> Aşağıdaki §1 "bugün ne oluyor" ölçümü geçerlidir ve yeni işin ölçüm setine girdi; §2 kuralı ve §6 soruları (G1-a…d) GEÇERSİZDİR.
+
 > **KOD YOK, karar değil.** Kaynak: Codex 11-17 raporu ("alıntılanan misafir sözü ev sahibi sözü sayılıyor"; kurucu mesajı AYNEN
 > `docs/KURUCU-TALIMATI-2026-11-18-codex-raporu-ve-orkestrasyon.md`). Bu davranış "ev sahibinin sözünden görev" özelliğini değiştirir
 > (`HOST_COMMITMENT_AUTO_ENABLED` açılışta AÇIK) → önce örnekli soru. Misafire giden HİÇBİR şey değişmez; değişen yalnız ev sahibinin görev

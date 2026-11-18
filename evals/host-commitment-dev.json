@@ -1,0 +1,271 @@
+{
+  "name": "host-commitment-dev",
+  "version": 1,
+  "purpose": "Ev sahibinin GİDEN mesajında söz sahipliği: görev (auto) · inceleme kartı (card) · hiçbir şey (none). AÇIK geliştirme seti — istem / kod bu sete bakılarak geliştirilebilir; kabul kararı ayrı, mühürlü kör setle verilir. Beklentiler kurucunun 11-18 akşam kurallarından.",
+  "expect_values": [
+    "auto",
+    "card",
+    "none"
+  ],
+  "cases": [
+    {
+      "id": "a01",
+      "lang": "tr",
+      "message": "Teknisyenimiz yarın 10'da gelecek, klimaya bakacak.",
+      "expect": "auto",
+      "note": "düz üstlenme"
+    },
+    {
+      "id": "a02",
+      "lang": "tr",
+      "message": "Randevuyu teyit ettik, teknisyenimiz yarın 10'da gelecek.",
+      "expect": "auto",
+      "note": "kurucu örneği: teyit + üstlenme"
+    },
+    {
+      "id": "a03",
+      "lang": "tr",
+      "message": "Havluları bugün akşam 6'da getiriyoruz.",
+      "expect": "auto",
+      "note": "akşam 6 = 18:00"
+    },
+    {
+      "id": "a04",
+      "lang": "tr",
+      "message": "Temizlik ekibimiz yarın 11:30'da gelecek.",
+      "expect": "auto",
+      "note": "dakikalı saat"
+    },
+    {
+      "id": "a05",
+      "lang": "en",
+      "message": "We will send our technician tomorrow at 10.",
+      "expect": "auto",
+      "note": "İngilizce üstlenme"
+    },
+    {
+      "id": "a06",
+      "lang": "tr",
+      "message": "“Klima çalışmıyor” yazmışsınız, teknisyenimiz yarın 10'da gelecek.",
+      "expect": "auto",
+      "note": "alıntı sözün DIŞINDA; üstlenme tırnaksız"
+    },
+    {
+      "id": "a07",
+      "lang": "tr",
+      "message": "Ustayla konuştum, yarın 14:00'te gelip kombiye bakacak, ben de orada olacağım.",
+      "expect": "auto",
+      "note": "başkası yapacak ama ev sahibi üstleniyor"
+    },
+    {
+      "id": "a08",
+      "lang": "tr",
+      "message": "Evet, dediğiniz gibi yarın sabah 9'da ekibimiz gelip çarşafları değiştirecek.",
+      "expect": "auto",
+      "note": "misafirin önerisini ONAYLIYOR — misafirin sözü değil"
+    },
+    {
+      "id": "a09",
+      "lang": "en",
+      "message": "Our cleaner will come today at 3 pm to bring fresh towels.",
+      "expect": "auto",
+      "note": "3 pm = 15:00"
+    },
+    {
+      "id": "a10",
+      "lang": "tr",
+      "message": "Şampuan ve sabunu bir saat içinde kapınıza bırakıyorum.",
+      "expect": "auto",
+      "note": "saat yok, süre var"
+    },
+    {
+      "id": "a11",
+      "lang": "tr",
+      "message": "Kapıcımız size “yarın 9'da gelirim” demiş, ben de teyit ediyorum: yarın 9'da su arıtma filtresini değiştirecek.",
+      "expect": "auto",
+      "note": "tırnak içi aktarma + tırnak DIŞINDA üstlenme"
+    },
+    {
+      "id": "a12",
+      "lang": "tr",
+      "message": "Ekibimiz yarın 11'de gelecek.\n> Teşekkürler, bekliyorum.",
+      "expect": "auto",
+      "note": "iletilmiş satır misafirin; üstlenme onun dışında"
+    },
+    {
+      "id": "a13",
+      "lang": "de",
+      "message": "Unser Techniker kommt morgen um 10 Uhr.",
+      "expect": "auto",
+      "note": "Almanca üstlenme"
+    },
+    {
+      "id": "a14",
+      "lang": "tr",
+      "message": "Yarın 10'da gelecek olan teknisyenimiz klimayı da kontrol edecek.",
+      "expect": "auto",
+      "note": "sıfat-fiilli üstlenme"
+    },
+    {
+      "id": "c01",
+      "lang": "tr",
+      "message": "Teknisyen yarın 10'da geleceğini yazdı.",
+      "expect": "card",
+      "note": "kurucu örneği: üstlendiği belli değil"
+    },
+    {
+      "id": "c02",
+      "lang": "tr",
+      "message": "Tesisatçı yarın öğleden sonra uğrayabileceğini söyledi, teyit edince size yazacağım.",
+      "expect": "card",
+      "note": "aktarma + teyit bekliyor"
+    },
+    {
+      "id": "c03",
+      "lang": "tr",
+      "message": "Parça gelirse yarın 10'da teknisyenimiz gelecek.",
+      "expect": "card",
+      "note": "koşula bağlı"
+    },
+    {
+      "id": "c04",
+      "lang": "tr",
+      "message": "Yarın sabah gelmeye çalışacağız ama kesin söz veremiyorum.",
+      "expect": "card",
+      "note": "kararsız"
+    },
+    {
+      "id": "c05",
+      "lang": "en",
+      "message": "The plumber wrote that he would come tomorrow at 10.",
+      "expect": "card",
+      "note": "İngilizce aktarma"
+    },
+    {
+      "id": "c06",
+      "lang": "tr",
+      "message": "Bakıp size döneceğim, uygun olursa bugün havlu getiririz.",
+      "expect": "card",
+      "note": "koşullu"
+    },
+    {
+      "id": "c07",
+      "lang": "tr",
+      "message": "Teknisyen şöyle yazdı: yarın 10'da geleceğim.",
+      "expect": "card",
+      "note": "tırnaksız doğrudan aktarma"
+    },
+    {
+      "id": "c08",
+      "lang": "tr",
+      "message": "> Temizlikçi yarın 11'de gelecek.\nEkibimizden gelen not bu şekilde; sizin için de uygunsa böyle planlayalım.",
+      "expect": "card",
+      "note": "iletilmiş not + misafire soruyor"
+    },
+    {
+      "id": "c09",
+      "lang": "en",
+      "message": "We'll try to have someone look at the heater tomorrow, no promises.",
+      "expect": "card",
+      "note": "İngilizce kararsız"
+    },
+    {
+      "id": "n01",
+      "lang": "tr",
+      "message": "Misafir şöyle yazdı: \"Teknisyen yarın gelecek\"",
+      "expect": "none",
+      "note": "Codex / kurucu örneği"
+    },
+    {
+      "id": "n02",
+      "lang": "tr",
+      "message": "Siz şöyle yazmıştınız: “Teknisyen yarın 10'da gelecek” — bizim kayıtlarımızda öyle bir randevu yok, kontrol ediyoruz.",
+      "expect": "none",
+      "note": "misafirin sözü + ret"
+    },
+    {
+      "id": "n03",
+      "lang": "tr",
+      "message": "Havlu yarın getirilecek demişsiniz, öyle bir kaydımız yok.",
+      "expect": "none",
+      "note": "tırnaksız, fiil sonda"
+    },
+    {
+      "id": "n04",
+      "lang": "en",
+      "message": "The guest wrote: \"The technician will come tomorrow at 10.\" We have no such appointment.",
+      "expect": "none",
+      "note": "İngilizce alıntı + ret"
+    },
+    {
+      "id": "n05",
+      "lang": "tr",
+      "message": "Öyle bir randevumuz yok, bugün kimse gelmeyecek.",
+      "expect": "none",
+      "note": "kurucu örneği: ret"
+    },
+    {
+      "id": "n06",
+      "lang": "tr",
+      "message": "Teknisyenin yarın gelmesini ister misiniz?",
+      "expect": "none",
+      "note": "soru"
+    },
+    {
+      "id": "n07",
+      "lang": "tr",
+      "message": "Teknisyen dün geldi ve klimayı onardı.",
+      "expect": "none",
+      "note": "geçmiş"
+    },
+    {
+      "id": "n08",
+      "lang": "tr",
+      "message": "Temizlik her konaklamadan sonra yapılır.",
+      "expect": "none",
+      "note": "genel bilgi"
+    },
+    {
+      "id": "n09",
+      "lang": "tr",
+      "message": "Yarın teknisyen gelecek mi diye sormuşsunuz; henüz planlanmadı.",
+      "expect": "none",
+      "note": "misafirin sorusu + planlanmadı"
+    },
+    {
+      "id": "n10",
+      "lang": "en",
+      "message": "As you mentioned, the cleaner was supposed to come tomorrow, but that booking was cancelled.",
+      "expect": "none",
+      "note": "misafirin sözü + iptal"
+    },
+    {
+      "id": "n11",
+      "lang": "tr",
+      "message": "Giriş saatimiz 15:00, çıkış 11:00'dir.",
+      "expect": "none",
+      "note": "saat var ama söz yok"
+    },
+    {
+      "id": "n12",
+      "lang": "tr",
+      "message": "Bugün teknisyen gönderemiyoruz, yarın için de söz veremem.",
+      "expect": "none",
+      "note": "ret"
+    },
+    {
+      "id": "n13",
+      "lang": "tr",
+      "message": "Misafirimiz yazmış, teknisyen yarın gelecekmiş; öyle bir plan yok.",
+      "expect": "none",
+      "note": "rivayet + ret"
+    },
+    {
+      "id": "n14",
+      "lang": "de",
+      "message": "Sie haben geschrieben, dass der Techniker morgen kommt; bei uns ist kein Termin eingetragen.",
+      "expect": "none",
+      "note": "Almanca misafirin sözü + ret"
+    }
+  ]
+}

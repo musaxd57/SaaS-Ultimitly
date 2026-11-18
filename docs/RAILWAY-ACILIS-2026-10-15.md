@@ -313,6 +313,7 @@ kurucu onayıyla §1'e taşındı.)
   41/42 (kod 4/42), kamu 21/21 ayrıldı (tutulmadı), ev sahibinin kendi hizmeti / yer bilgisi / acil / düz bilgi 77 temiz cevapta 0 yanlış tutuş;
   geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53/56), yönlendirme 41/41 özel + 15/15 kamu ayrı, 112 temizde 1 (kodun da tuttuğu Rusça
   "хозяева животных"). Rapor `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md`.
+- `AI_HOST_COMMITMENT_READER_ENABLED` (kurucu 11-18 akşam: "kelime bazlı değil … anlamı model güçlerine bırak"; `ai/semantic/host-commitment-reader.ts`): ev sahibinin giden mesajındaki sözü MODEL okur (üstleniyor mu / aktarıyor mu / reddediyor mu), kod alıntıyı ve saati doğrular. Aşama 0 = GÖLGE: yalnız kayıt ve kelime ağıyla kıyas, davranış değişmez; gölge kaydı tablosu gelmeden açmanın etkisi yok. Açmadan önce ölçüm (`docs/TASARIM-2026-11-18-soz-sahipligi-model-okumasi.md` §5).
 - `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
   VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
   soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).
