@@ -206,6 +206,20 @@ describe("Paddle yeniden işleme — vade satırda (WebhookEvent.nextAttemptAt)"
       expect((await row("e_0")).attemptCount).toBe(3);
     });
 
+    it("başka bir yazıcı satırı deneme sırasında 'işlendi' yaptıysa (vadesini silmeden) deneme kaydı vadeyi BOŞALTIR", async () => {
+      const t0 = new Date();
+      await seedLegacy(1, "w", () => new Date(t0.getTime() - 20 * MIN));
+      const deliver: PaddleRedeliver = async () => {
+        await prisma.webhookEvent.updateMany({ where: { providerEventId: "w_0" }, data: { status: "processed", processedAt: new Date() } }); // ör. KVKK silme
+        return new Response("{}", { status: 200 });
+      };
+      await replayPendingPaddleEvents({ deliver, now: t0 });
+      const r = await row("w_0");
+      expect(r.status).toBe("processed");
+      expect(r.attemptCount).toBe(1);
+      expect(r.nextAttemptAt).toBeNull();
+    });
+
     it("teslim fırlatsa da sayaç ve vade ilerler (hep fırlatan olay her turda yeniden denenmez)", async () => {
       const t0 = new Date();
       await seedLegacy(1, "boom", () => new Date(t0.getTime() - 20 * MIN));
@@ -307,6 +321,21 @@ describe("Paddle yeniden işleme — vade satırda (WebhookEvent.nextAttemptAt)"
       expect(alarms).toHaveLength(1);
       expect(await alertStateActive("paddle-webhook-replay:backlog")).toBe(false);
       expect(await prisma.webhookEvent.count({ where: { nextAttemptAt: null } })).toBe(0);
+    });
+    it("🚨 (c) eşikleri eski işarette tükenmiş eski satırlar geçiş adımının tavanını kalıcı doldurmaz: arkadaki eski satır planlanır", async () => {
+      const CAP = 5;
+      const now = new Date();
+      await prisma.systemLock.create({ data: { name: LAST_PASS, lockedUntil: new Date(now.getTime() - 10 * MIN) } });
+      await seedLegacy(CAP + 1, "spent", (i) => new Date(now.getTime() - 300 * HOUR + i * 1_000)); // işarette yaşı > 256 sa: eski kuralda bitti
+      await seedLegacy(1, "live", () => new Date(now.getTime() - 20 * MIN));
+      const seen: string[] = [];
+      for (let k = 0; k < 2; k++) {
+        const r = recordingDeliver("all");
+        await replayPendingPaddleEvents({ deliver: r.deliver, now: new Date(now.getTime() + k * MIN), maxPerPass: CAP });
+        seen.push(...r.seen);
+      }
+      expect(seen).toEqual(["live_0"]); // eşiği tükenmiş satırlar denenmez; canlı satır ilk koşuda
+      expect(await alertStateActive("paddle-webhook-replay:backlog")).toBe(false); // tükenmiş satırlar "bekleyen iş" sayılmaz
     });
   });
 
