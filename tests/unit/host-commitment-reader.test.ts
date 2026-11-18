@@ -17,6 +17,7 @@ import {
   hostCommitmentSeenText,
   parseHostCommitmentReading,
   readHostCommitments,
+  normalizeForwardMarkers,
 } from "@/lib/ai/semantic/host-commitment-reader";
 import {
   HOST_COMMITMENT_READINGS,
@@ -112,6 +113,22 @@ describe("hızlı kod doğrulaması — yalnız TUTAR", () => {
     expect(c.statements[0]!.inQuotedSpan).toBe(false);
   });
 
+  it("🚨 Opus 11-18 C-2: iki kat iletme ('>> …') ve boş iletilmiş satırla başlayan blok da iletilmiş satırdır — işaret çit temizliğinde kaybolmaz", () => {
+    expect(normalizeForwardMarkers(">> Yarın 10'da gelirim.")).toBe("> Yarın 10'da gelirim.");
+    expect(normalizeForwardMarkers("Usta yazdı:\n>\n> Yarın 10'da gelirim.\n> > iç alıntı")).toBe("Usta yazdı:\n\n> Yarın 10'da gelirim.\n> iç alıntı");
+    expect(normalizeForwardMarkers("100 > 50 ve a > b")).toBe("100 > 50 ve a > b"); // satır ortasındaki işaret aynen
+    expect(normalizeForwardMarkers("işaret yok")).toBe("işaret yok");
+    for (const message of ["Usta şunu yazdı:\n>\n> Yarın 10'da gelirim.", "Usta şunu yazdı:\n>> Yarın 10'da gelirim."]) {
+      const seen = hostCommitmentSeenText({ message });
+      expect(seen, message).toContain("> Yarın 10'da gelirim."); // ⬅️ ESKİDE işaret silinmişti (" Yarın 10'da gelirim.")
+      const v = verifyHostCommitmentReading(seen, [st({ quote: "Yarın 10'da gelirim" })]);
+      expect(v.statements[0], message).toMatchObject({ grounded: true, inQuotedSpan: true, held: ["quoted_span"] });
+      expect(v.decision, message).toBe("card");
+    }
+    // Çit koruması aynı: işaret sadeleşse de veri bloğunu taklit eden dizi metinde kalmaz.
+    expect(hostCommitmentSeenText({ message: "a >>> b\n>>> c" })).not.toContain(">>");
+  });
+
   it("doğrulama kartı / hiçbir şeyi YÜKSELTMEZ (tırnak dışında, saati doğru bir 'aktarma' yine karttır; 'misafirin sözü' yine hiçbir şey)", () => {
     const text = "Tesisatçı yarın 10'da geleceğini yazdı. Siz teknisyen yarın gelecek demiştiniz.";
     const v = verifyHostCommitmentReading(text, [
@@ -128,6 +145,15 @@ describe("hızlı kod doğrulaması — yalnız TUTAR", () => {
     expect(quotedSpans('55" TV var, 10\'da gelirim')).toEqual([]);
     expect(quotedSpans("ilk satır\n> iletilen satır\nson")).toEqual([[10, 26]]);
     expect(quotedSpans('55" TV\n"tam alıntı"')).toEqual([[8, 18]]); // satır sonu kapanmamış düz tırnağı taşımaz
+    // Opus 11-18 C-1: ölçü işareti cümledeki GERÇEK alıntının açılışıyla eşleşmez (eskiden " TV için usta " aralık oluyordu, asıl alıntı dışarıda).
+    const inch = 'Salondaki 55" TV için usta "yarın 10\'da gelirim" dedi.';
+    expect(quotedSpans(inch).map(([a, b]) => inch.slice(a, b))).toEqual(["yarın 10'da gelirim"]);
+    expect(quotedSpans('saat "10" olur')).toEqual([[6, 8]]); // rakamdan sonraki düz tırnak KAPANIŞ olabilir
+    // Kapanmayan kıvrık tırnak mesajın geri kalanındaki alıntıları yutmaz; aynı türün yeni açılışı eskisinin yerine geçer.
+    const open = 'Not “ kapanmadı. Usta "yarın gelirim" dedi, “tamam” dedim.';
+    expect(quotedSpans(open).map(([a, b]) => open.slice(a, b))).toEqual(["yarın gelirim", "tamam"]);
+    // Almanca alt tırnak iki kapanışı da kabul eder.
+    expect(quotedSpans("„morgen“ und „heute”").map(([a, b]) => "„morgen“ und „heute”".slice(a, b))).toEqual(["morgen", "heute"]);
   });
 
   it("uzun girdide doğrusal: 50.000 karakterlik kapanmayan tırnak / tekrarlanan '>' satırı", () => {

@@ -99,16 +99,25 @@ function squash(text: string): { text: string; map: number[] } {
   return { text: out, map };
 }
 
-const OPENERS: Readonly<Record<string, string>> = { "“": "”", "«": "»", "„": "“" };
+/** Eşli tırnaklar: açılış → kabul edilen kapanış(lar). Almanca „…“ ve „…” ikisi de yazılır. */
+const OPENERS: Readonly<Record<string, string>> = { "“": "”", "«": "»", "„": "“”" };
 
 /**
  * Metindeki ALINTI aralıkları (yarı açık [başlangıç, bitiş) — tırnakların içi) ve iletilmiş satırlar (">" ile başlayan satırın tamamı).
- * Kıvrık / köşeli tırnak eşiyle; düz tırnak (") sırayla açar-kapar. Kapanmayan açılış aralık DEĞİLDİR (inç işareti: 55" TV). Kesme (')
- * alıntı işareti sayılmaz ("10'da"). Doğrusal tek geçiş.
+ * Doğrusal tek geçiş. Kesme (') alıntı işareti sayılmaz ("10'da").
+ *
+ * Her tırnak türü AYRI izlenir (Opus 11-18 C-1): kapanmayan bir açılış öteki türlerin aralığını yutmasın. Kurallar:
+ *  · düz tırnak (") sırayla açar-kapar; rakamdan HEMEN sonra gelen düz tırnak ölçü işaretidir (55" TV), açılış sayılmaz — eskiden o işaret
+ *    cümledeki GERÇEK alıntının açılışıyla eşleşip asıl alıntıyı aralık dışında bırakıyordu; satır sonunda kapanmamış düz tırnak taşınmaz;
+ *  · kıvrık / köşeli tırnak eşiyle kapanır ve satır aşabilir; aynı türün yeni açılışı kapanmamış eskisinin yerine geçer (eski kapanmadı —
+ *    mesajın geri kalanındaki alıntıları yutmasın).
+ * Aralıklar sıralı olmayabilir ve iç içe gelebilir; tüketici yalnız "bu konum bir aralığın içinde mi" diye sorar.
  */
 export function quotedSpans(text: string): Array<[number, number]> {
   const spans: Array<[number, number]> = [];
-  let open: { at: number; close: string } | null = null;
+  let straight = -1;
+  /** Açık eşli tırnaklar: açılış karakteri → konumu (tür başına en çok bir tane). */
+  const paired = new Map<string, number>();
   let lineStart = 0;
   let forwarded = false;
   let sawNonSpace = false;
@@ -116,8 +125,7 @@ export function quotedSpans(text: string): Array<[number, number]> {
     const ch = i < text.length ? text[i]! : "\n";
     if (ch === "\n") {
       if (forwarded) spans.push([lineStart, i]);
-      // Satır sonunda kapanmamış düz tırnak taşınmaz (ölçü işareti bir sonraki satırın tırnağıyla eşleşmesin); kıvrık tırnak satır aşabilir.
-      if (open && open.close === '"') open = null;
+      straight = -1;
       lineStart = i + 1;
       forwarded = false;
       sawNonSpace = false;
@@ -127,15 +135,31 @@ export function quotedSpans(text: string): Array<[number, number]> {
       sawNonSpace = true;
       if (ch === ">") forwarded = true;
     }
-    if (open) {
-      if (ch === open.close) {
-        spans.push([open.at + 1, i]);
-        open = null;
+    if (ch === '"') {
+      if (straight >= 0) {
+        spans.push([straight + 1, i]);
+        straight = -1;
+      } else {
+        const prev = i > 0 ? text[i - 1]! : "";
+        if (!(prev >= "0" && prev <= "9")) straight = i;
       }
       continue;
     }
-    if (OPENERS[ch]) open = { at: i, close: OPENERS[ch]! };
-    else if (ch === '"') open = { at: i, close: '"' };
+    // Önce kapanış: bu karakteri kapanış kabul eden açık bir tırnak var mı (en son açılan). Tür sayısı sabit (üç) → doğrusal.
+    let closedAt = -1;
+    let closedKey = "";
+    for (const [opener, at] of paired) {
+      if (OPENERS[opener]!.includes(ch) && at > closedAt) {
+        closedAt = at;
+        closedKey = opener;
+      }
+    }
+    if (closedAt >= 0) {
+      spans.push([closedAt + 1, i]);
+      paired.delete(closedKey);
+      continue;
+    }
+    if (OPENERS[ch]) paired.set(ch, i);
   }
   return spans;
 }
@@ -206,7 +230,8 @@ export interface HostCommitmentVerdict {
  */
 export function verifyHostCommitmentReading(seenText: string, statements: readonly HostCommitmentStatement[]): HostCommitmentVerdict {
   const seen = squash(seenText);
-  // Alıntı aralıkları ÖZGÜN metinde aranır (satır yapısı orada); alıntının yeri eşlemeyle özgün konuma taşınır.
+  // Alıntı aralıkları modelin gördüğü metnin SATIR YAPISINDA aranır (boşlukları teke inmiş kopyada değil); alıntının yeri eşlemeyle o
+  // konuma taşınır. İletilmiş satır işaretleri bu metne `hostCommitmentSeenText` içinde, çit temizliğinden önce sadeleşip girer.
   const spans = quotedSpans(seenText);
   let decision: HostCommitmentDecision = "none";
   let ungrounded = 0;

@@ -95,7 +95,26 @@ export const HOST_COMMITMENT_MESSAGE_CAP = 4_000;
  */
 export function hostCommitmentSeenText(input: { message: string; names?: readonly (string | null | undefined)[] }): string {
   const names = (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
-  return fenceSafe(redactForSemanticModel(input.message, names, "ours")).slice(0, HOST_COMMITMENT_MESSAGE_CAP);
+  return fenceSafe(normalizeForwardMarkers(redactForSemanticModel(input.message, names, "ours"))).slice(0, HOST_COMMITMENT_MESSAGE_CAP);
+}
+
+/**
+ * İletilmiş satır işaretleri (satır başındaki ">") çit temizliğinden ÖNCE sadeleştirilir (Opus 11-18 C-2): çit temizliği, aralarında yalnız
+ * boşluk / satır sonu olan iki+ ">" karakterini siler — iki kat iletme (">> …") ve boş iletilmiş satırla başlayan blok (">" + alt satırda
+ * "> …") işaretini kaybediyor, satır iletilmiş sayılmıyordu. Satır başındaki işaret dizisi TEK ">" olur; yalnız işaretten oluşan satır
+ * boşalır. Çit temizliği sonra yine koşar (koruma aynı). Saf, doğrusal (satır başına çapalı tek eşleşme).
+ */
+export function normalizeForwardMarkers(text: string): string {
+  if (!text.includes(">")) return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      const m = /^[ \t]*>(?:[ \t]*>)*[ \t]*/.exec(line);
+      if (!m) return line;
+      const rest = line.slice(m[0].length);
+      return rest.length === 0 ? "" : `> ${rest}`;
+    })
+    .join("\n");
 }
 
 /** Mesaj okuyucuya nasıl gider. Konuşmanın geri kalanı GİTMEZ (tek mesaj, tek soru). */
