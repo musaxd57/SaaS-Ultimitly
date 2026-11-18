@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import { toast } from "@/lib/toast";
@@ -22,6 +22,28 @@ export interface PropertyFormData {
   notes: string;
   /** U4: misafire görünen ad (QR başlığı). Boş = başlıkta yalnız marka. */
   guestDisplayName: string;
+  /** Codex 11-17 H2: satırın sürümü (ISO; yalnız düzenleme). Form alanı değil — kayda ön şart olarak gider. */
+  updatedAt?: string;
+}
+
+/** Formun gönderdiği alanlar — sürüm benimseme kuralı yalnız bunları karşılaştırır (aşağıda `PropertyForm`). */
+const FORM_FIELDS = [
+  "name",
+  "address",
+  "city",
+  "country",
+  "checkInTime",
+  "checkOutTime",
+  "cleaningBufferMinutes",
+  "notes",
+  "guestDisplayName",
+] as const;
+
+/** İki satırda formun alanları aynı mı? Sunucu yanıtındaki boş alan `null`, sayfanın verdiği `""` — ikisi aynı sayılır. */
+function sameFormFields(a: object, b: object): boolean {
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  return FORM_FIELDS.every((k) => String(x[k] ?? "") === String(y[k] ?? ""));
 }
 
 const empty: PropertyFormData = {
@@ -51,6 +73,23 @@ export function PropertyForm({
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /**
+   * Codex 11-17 H2: kaydın ön şartı — formun dayandığı sürüm ve o sürümdeki alanlar. Sürüm (`Property.updatedAt`) satırın TAMAMININ
+   * sürümüdür: aynı sayfadaki başka kartlar (malzeme profili, QR sohbet anahtarı, takvim bağlantısı) da onu ilerletir ve sayfayı yeniler.
+   * Yenilemede formun alanları dayandığımız alanlarla AYNIYSA değişen formun göndermediği bir sütundur → yeni sürüm benimsenir (sahte
+   * çatışma yok; yazılan taslak yerinde kalır). Alanlardan biri değişmişse eski sürüm kalır → kayıt 409 alır, başkasının değeri ezilmez.
+   */
+  const base = useRef<{ version: string | null; fields: object | null }>({
+    version: property?.updatedAt ?? null,
+    fields: property ?? null,
+  });
+  useEffect(() => {
+    if (!property?.updatedAt) return;
+    const b = base.current;
+    if (property.updatedAt === b.version || (b.fields && sameFormFields(property, b.fields))) {
+      base.current = { version: property.updatedAt, fields: property };
+    }
+  }, [property]);
 
   function set<K extends keyof PropertyFormData>(key: K, value: PropertyFormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -67,11 +106,15 @@ export function PropertyForm({
     setFields({});
     const endpoint = mode === "create" ? "/api/properties" : `/api/properties/${property?.id}`;
     const method = mode === "create" ? "POST" : "PATCH";
+    // Sürüm form alanı değildir: gövdeye yalnız ön şart olarak girer (yeni dairede yok).
+    const fieldsToSend: Record<string, unknown> = { ...form };
+    delete fieldsToSend.updatedAt;
+    const expectedUpdatedAt = mode === "edit" ? base.current.version : null;
     try {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(expectedUpdatedAt ? { ...fieldsToSend, expectedUpdatedAt } : fieldsToSend),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -79,6 +122,8 @@ export function PropertyForm({
         setError(data.error ?? "İşlem başarısız oldu");
         return;
       }
+      // Kendi kaydımız yeni sürümü üretti: sonraki kayıt (sayfa yenilenmeden de) ona dayanır.
+      if (mode === "edit" && typeof data.updatedAt === "string") base.current = { version: data.updatedAt, fields: data };
       // ⚠️ DÜZENLEME MODUNDA GERİ BİLDİRİM YOKTU: başarı yalnız `router.refresh()`
       // idi ve aynı değerler yeniden çizildiği için EKRANDA HİÇBİR ŞEY
       // DEĞİŞMİYORDU — host "Kaydet"e basıyor, hiçbir şey olmuyor sanıyor ve

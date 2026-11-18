@@ -1,6 +1,8 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { defaultCleanerWhere } from "@/lib/tasks/default-cleaner";
-import { propertyPatchSchema, zodFieldErrors } from "@/lib/validators";
+import { isStorableDate, propertyPatchSchema, zodFieldErrors } from "@/lib/validators";
+import { KB_STALE_EDIT_MESSAGE } from "@/lib/kb/stale-edit";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
@@ -49,7 +51,12 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const data = await readJsonCappedOrNull(req);
   const parsed = propertyPatchSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
-  const d = parsed.data;
+  const { expectedUpdatedAt, ...d } = parsed.data;
+  // Codex 11-17 H2: form TAM gövde gönderir (saatler, adres, notlar…); arada başka sekme / kişi kaydettiyse eski form onun değerini (ör.
+  // yeni çıkış saati) sessizce GERİ YAZMASIN → 409, form açık kalır. Gönderilmezse (tek alan gönderen kartlar, eski istemci) bugünkü
+  // davranış. Sözleşme bilgi tabanı düzenleyicisiyle aynı (`api/kb/[id]`).
+  const expected = expectedUpdatedAt ? new Date(expectedUpdatedAt) : null;
+  if (expectedUpdatedAt && (!expected || !isStorableDate(expected))) return badRequest({ _: "Geçersiz istek." });
 
   // Block renaming onto another property's name in the same org — but ONLY when
   // the name actually changes, so editing other fields on a property that has a
@@ -69,24 +76,30 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     }
   }
 
-  const property = await prisma.property.update({
-    where: { id },
-    data: {
-      name: d.name?.trim(),
-      address: d.address === "" ? null : d.address,
-      city: d.city === "" ? null : d.city,
-      country: d.country === "" ? null : d.country,
-      checkInTime: d.checkInTime,
-      checkOutTime: d.checkOutTime,
-      cleaningBufferMinutes: d.cleaningBufferMinutes,
-      notes: d.notes === "" ? null : d.notes,
-      // U4: misafire görünen ad — gönderilmediyse dokunulmaz, boş → temizlenir (başlık yalnız marka).
-      guestDisplayName: d.guestDisplayName === undefined ? undefined : normalizeGuestDisplayName(d.guestDisplayName),
-      // Only touch the profile when the client actually sent one (partial PATCH).
-      supplyProfileJson:
-        d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
-    },
-  });
+  const changes = {
+    name: d.name?.trim(),
+    address: d.address === "" ? null : d.address,
+    city: d.city === "" ? null : d.city,
+    country: d.country === "" ? null : d.country,
+    checkInTime: d.checkInTime,
+    checkOutTime: d.checkOutTime,
+    cleaningBufferMinutes: d.cleaningBufferMinutes,
+    notes: d.notes === "" ? null : d.notes,
+    // U4: misafire görünen ad — gönderilmediyse dokunulmaz, boş → temizlenir (başlık yalnız marka).
+    guestDisplayName: d.guestDisplayName === undefined ? undefined : normalizeGuestDisplayName(d.guestDisplayName),
+    // Only touch the profile when the client actually sent one (partial PATCH).
+    supplyProfileJson:
+      d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
+  };
+  // Koşullu yazım (sürüm hâlâ formun açıldığı sürümse; kapsam koşulu aynı sorguda) — iki eski form aynı anda gelse de yalnız biri yazar.
+  // Okuma aynı işlemde: yazılan satır kilitli, araya giren silme okumayı boşa düşürüp 500 üretemez. Çatışmada denetim kaydı da yazılmaz.
+  const property = expected
+    ? await prisma.$transaction(async (tx) => {
+        const res = await tx.property.updateMany({ where: { id, organizationId: session.organizationId, updatedAt: expected }, data: changes });
+        return res.count === 1 ? tx.property.findUniqueOrThrow({ where: { id } }) : null;
+      })
+    : await prisma.property.update({ where: { id }, data: changes });
+  if (!property) return NextResponse.json({ error: KB_STALE_EDIT_MESSAGE, fields: { _: KB_STALE_EDIT_MESSAGE } }, { status: 409 });
   // Gece-4 S6-14: kardeş ayar rotaları (gecelik fiyat, ev kuralları…) gibi denetimli — alan ADLARI, değerler değil.
   const fields = Object.keys(d).filter((k) => d[k as keyof typeof d] !== undefined);
   if (fields.length > 0) {

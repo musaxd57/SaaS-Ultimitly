@@ -144,7 +144,9 @@ export const propertySchema = z.object({
 });
 
 /** Mülk düzenleme (PATCH) — gönderilmeyen alan dokunulmaz (`patchSchemaOf`). */
-export const propertyPatchSchema = patchSchemaOf(propertySchema);
+export const propertyPatchSchema = patchSchemaOf(propertySchema)
+  // Codex 11-17 H2: "Daire Ayarları" formunun açıldığı sürüm (isteğe bağlı; gönderilmezse bugünkü davranış). Yazılmaz, yalnız koşul.
+  .extend({ expectedUpdatedAt: z.string().max(40).optional() });
 
 export type PropertyInput = z.infer<typeof propertySchema>;
 

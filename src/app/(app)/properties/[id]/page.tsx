@@ -242,11 +242,15 @@ export default async function PropertyDetailPage({
   // Lazily ensure the property has a calendar feed token (backfill for
   // properties created before the feature existed).
   let icalToken = property.icalToken;
+  // Codex 11-17 H2: "Daire Ayarları" formunun ön şartı (satırın sürümü). Anahtar üretimi aynı satırı yazar ve sürümü ilerletir — yukarıda
+  // okunan sürümle açılan form ilk kaydında kendi sayfasının yazımına çatışma alırdı → anahtar burada üretildiyse sürüm yeniden okunur.
+  let formVersion = property.updatedAt;
   // K8 (kurucu kararı 09-28): destek görünümü (bürünme) salt okunur — sayfa açılışı da YAZMAZ; anahtar sahibin ilk ziyaretinde
   // üretilir, o zamana kadar besleme kartı gösterilmez.
   if (!icalToken && !isImpersonating(session)) {
     // Yalnız boşsa üretilir — iki sekme aynı anda açsa da aynı bağlantı (takvim C4, `ensurePropertyCalendarToken`).
     icalToken = await ensurePropertyCalendarToken(property.id);
+    formVersion = (await prisma.property.findUnique({ where: { id: property.id }, select: { updatedAt: true } }))?.updatedAt ?? formVersion;
   }
 
   // 🚨 HAM `Host` KULLANILMAZ — GERİ ALMA. Bu URL GİZLİ `icalToken`'ı taşıyor ve
@@ -341,6 +345,7 @@ export default async function PropertyDetailPage({
                   cleaningBufferMinutes: property.cleaningBufferMinutes,
                   notes: property.notes ?? "",
                   guestDisplayName: property.guestDisplayName ?? "",
+                  updatedAt: formVersion.toISOString(),
                 }}
               />
               {/* Para içeren ayarlar (gecelik aralık, erken giriş ücreti) YALNIZ yöneticiye görünür — kurucu: temizlik
