@@ -20,11 +20,29 @@ const { paddle } = vi.hoisted(() => ({
     txns: new Map<string, { status: string; subscription_id?: string | null; custom_data?: Record<string, unknown> | null; origin?: string } | null>(),
     subs: new Map<string, { status: string } | null>(),
     reads: [] as string[],
+    /** Paddle'a giden HER çağrının yolu (biçimsiz kimlikle çağrı yapılmadığını göstermek için). */
+    calls: [] as string[],
   },
 }));
+// Onay kapısının "bekleyen ödeme var mı" bakışından hemen SONRA bir kez çalışır (yarış penceresi: kapı geçildi, ödeme o arada tamamlandı).
+const { gate } = vi.hoisted(() => ({ gate: { afterBlockCheck: null as null | (() => Promise<void>) } }));
+vi.mock("@/lib/billing/checkout-paid", async (orig) => {
+  const actual = await orig<typeof import("@/lib/billing/checkout-paid")>();
+  return {
+    ...actual,
+    paidCheckoutBlock: vi.fn(async (...args: Parameters<typeof actual.paidCheckoutBlock>) => {
+      const out = await actual.paidCheckoutBlock(...args);
+      const hook = gate.afterBlockCheck;
+      gate.afterBlockCheck = null;
+      if (hook) await hook();
+      return out;
+    }),
+  };
+});
 vi.mock("@/lib/payments/paddle", async (orig) => {
   const actual = await orig<typeof import("@/lib/payments/paddle")>();
   const request = vi.fn(async (path: string, init?: { method?: string; body?: unknown }) => {
+    paddle.calls.push(path);
     if (path === "/transactions" && init?.method === "POST") {
       paddle.created += 1;
       const id = `txn_${paddle.created}`;
@@ -178,6 +196,8 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
     paddle.txns.clear();
     paddle.subs.clear();
     paddle.reads.length = 0;
+    paddle.calls.length = 0;
+    gate.afterBlockCheck = null;
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
@@ -281,6 +301,36 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       ]);
     });
 
+    it("🚨 YARIŞ: onay kapısı 'bekleyen ödeme yok' gördükten SONRA ödeme tamamlanırsa (kilit de yoksa) yer boşalsa da yeni Paddle işlemi AÇILMAZ", async () => {
+      const first = await openCheckout(); // ilk sekme ödeme ekranında (txn_1)
+      gate.afterBlockCheck = async () => {
+        // İkinci sekmenin isteği kapıdan geçti; tam o anda ilk sekmenin ödemesi tamamlanıyor ve kilit yok (yazılamadı / düştü).
+        paddle.txns.get("txn_1")!.status = "completed";
+        await postEvent("transaction.completed", txnData("txn_1", first.body.consentId!, { origin: "api" }));
+        await prisma.systemLock.deleteMany({ where: { name: checkoutPendingLockName(orgId) } });
+      };
+      const second = await openCheckout();
+      expect(second.status).toBe(400);
+      expect(paddle.created).toBe(1);
+      expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId, status: { in: ["open", "opening"] } } })).toBe(0);
+    });
+
+    it("istemci 'tamamlandı' sinyali: sunucu KENDİ açtığı işlemi Paddle'dan okur (kimlik istemciden gelmez) → ödenmişse kayıt hemen 'ödeme alındı'", async () => {
+      const first = await openCheckout();
+      paddle.txns.get("txn_1")!.status = "completed";
+      expect((await pendingPost(pendingReq({ consentId: first.body.consentId }), ctx)).status).toBe(200);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      await expireLock(orgId);
+      expect((await openCheckout()).status).toBe(400);
+      expect(paddle.created).toBe(1);
+    });
+
+    it("KONTROL: istemci sinyali geldi ama işlem Paddle'da ödenmemiş → niyet açık kalır (kalıcı kayıt yok)", async () => {
+      const first = await openCheckout();
+      await pendingPost(pendingReq({ consentId: first.body.consentId }), ctx);
+      expect((await intentOf(orgId))!.status).toBe("open");
+    });
+
     it("açık işlem iptal EDİLEMİYORSA (ödemesi başlamış olabilir) niyeti açık kalır — yer yanlışlıkla boşaltılmaz", async () => {
       const first = await openCheckout();
       await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { status: "expired", openKey: null, closedAt: new Date() } });
@@ -348,6 +398,17 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect((await intentOf(orgId))!.status).toBe("fulfilled");
     });
 
+    it("abonelik önce → 'ödendi' (abonelik kimliği boş) → 'tamamlandı' (abonelik kimliği dolu): bekleyen kayıt ikinci işlem olayıyla kapanır", async () => {
+      const first = await openCheckout();
+      const consentId = first.body.consentId!;
+      await postEvent("subscription.created", subData("sub_1", "active", consentId));
+      await postEvent("transaction.paid", txnData("txn_c1", consentId, { status: "paid" }));
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      await postEvent("transaction.completed", txnData("txn_c1", consentId, { subscription_id: "sub_1" }));
+      expect((await intentOf(orgId))!.status).toBe("fulfilled");
+      expect(paddle.calls).toEqual([]); // Paddle'a hiç gidilmedi — olaydaki abonelik kimliği yetti
+    });
+
     it("abonelik önce, ardından YALNIZ 'ödendi' olayı (abonelik kimliği boş): kayıt bekler; abonelik iptalinden sonra uzlaştırma kaydı kapatır → yeniden satın alınabilir", async () => {
       const first = await openCheckout();
       const consentId = first.body.consentId!;
@@ -374,19 +435,27 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       });
 
       it.each([
-        ["ödenmemiş işlem", () => paddle.txns.set("txn_c9", { status: "ready", custom_data: null, origin: "web" }), "txn_c9"],
-        ["Paddle okunamıyor", () => paddle.txns.set("txn_c9", null), "txn_c9"],
-        ["Paddle işlemi bulamıyor", () => undefined, "txn_c9"],
-        ["biçimsiz işlem kimliği", () => undefined, "txn_c9; drop"],
-        ["işlem kimliği gönderilmedi", () => undefined, undefined],
+        ["ödenmemiş işlem (kendi onayını taşısa da)", (c: string) => paddle.txns.set("txn_c9", { status: "ready", custom_data: { consentId: c }, origin: "web" }), "txn_c9"],
+        ["Paddle okunamıyor", (_c: string) => paddle.txns.set("txn_c9", null), "txn_c9"],
+        ["Paddle işlemi bulamıyor", (_c: string) => undefined, "txn_c9"],
+        ["işlem onay kimliği taşımıyor", (_c: string) => paddle.txns.set("txn_c9", { status: "completed", custom_data: null, origin: "web" }), "txn_c9"],
+        ["işlem kimliği gönderilmedi", (_c: string) => undefined, undefined],
       ])("%s → kalıcı kayıt YAZILMAZ (yalnız 10 dk kilit); kilit düşünce ekran açılır", async (_label, arrange, transactionId) => {
         const first = await openCheckout();
-        arrange();
+        arrange(first.body.consentId!);
         expect((await pendingPost(pendingReq({ consentId: first.body.consentId, transactionId }), ctx)).status).toBe(200);
         expect(await prisma.checkoutIntent.count()).toBe(0);
         expect((await openCheckout()).status).toBe(400); // kilit geçerli
         await expireLock(orgId);
         expect((await openCheckout()).status).toBe(201);
+      });
+
+      it("biçimi tutmayan işlem kimliği Paddle'a HİÇ sorulmaz (yalnız kilit yazılır)", async () => {
+        const first = await openCheckout();
+        expect((await pendingPost(pendingReq({ consentId: first.body.consentId, transactionId: "txn_c9; drop" }), ctx)).status).toBe(200);
+        expect((await pendingPost(pendingReq({ consentId: first.body.consentId, transactionId: "../subscriptions/sub_1" }), ctx)).status).toBe(200);
+        expect(paddle.calls).toEqual([]);
+        expect(await prisma.checkoutIntent.count()).toBe(0);
       });
 
       it("🚨 BAŞKA işletmenin ödenmiş işlemi bildirilirse bu işletmeye kayıt yazılmaz (işletme, işlemin onay satırından gelir)", async () => {
