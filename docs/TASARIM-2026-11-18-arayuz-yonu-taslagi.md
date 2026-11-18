@@ -50,6 +50,15 @@ cümle + tek ana eylem; (b) "Devir günü": daire başına tek takip satırı (�
 adımda saat + kanıt, takılan adım kırmızı çizgi ve sözcükle; (c) "Sizin yerinize yapılanlar": saat · daire · iş · kanıt. Bu, ürün yönü
 belgesindeki H-2 önerisinin (devir günü tek takip satırı) görsel karşılığıdır.
 
+### 4.1 Kurucu cevabı (11-18 akşam) — masaüstü EVET, mobil yeniden
+
+"Masaüstü yönüne evet, mobil düzenine bu hâliyle hayır": telefonda aynı beş adım her daire için alt alta açılıyor, birkaç dairede sayfa
+uzuyordu. Yeni mobil kural (taslak güncellendi, iki görüntü kurucuya gönderildi):
+- devir satırı kapalı başlar ve yalnız **daire · giriş saati · takılan adım · tek eylem** gösterir (yolunda giden satırda eylem yerine durum);
+- zaman çizelgesi (çıkış → temizlik → erken giriş → giriş mesajı → giriş) satıra **dokununca** açılır, yeniden dokununca kapanır;
+- masaüstünde çizelge hep açık (değişmedi).
+"Sizi bekleyen" ve "Sizin yerinize yapılanlar" bölümleri iki boyutta da aynı.
+
 ## 5. Uygulama sırası önerisi (onaylanırsa; her biri küçük ve geri alınabilir)
 
 | Adım | Ne | Risk |

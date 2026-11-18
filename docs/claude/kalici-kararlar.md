@@ -271,6 +271,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yanlış olurdu: istemci çevrildi sanıp çevrilmemiş metni gönderirdi. Çeviri ileride ürün olarak istenirse ÖNİZLEMELİ gelir (çevir → ev
   sahibine göster → gösterilen metni gönder; kurucu onayı + tasarım). Genel kural: model çıktısı, ev sahibi görmeden "ev sahibi yazdı" diye
   misafire gitmez.
+- **Karar mesajında bağlı ihtiyaç YALNIZ KANITLA kapanır (kurucu 11-18 akşam; `decisions/decide.ts`):** karar kartının bağlı olduğu konuşma
+  öğesi, mesajı misafirin gördüğü kanıtlanınca "tamamlandı" olur — kanal kabul etti · iç QR sohbetinde görünür · ev sahibi kartı / öğeyi
+  kendisi kapattı. Sonucu belirsiz gönderim (kart "gönderim doğrulanamadı"), yalnız yerelde kaydedilen karar ve henüz gitmemiş eski kuyruk
+  satırı öğeyi KAPATMAZ; mesaj yeniden gönderilmez. Eski kuyruk satırının sonucu satırın durumundan okunur (kabul → olağan · kesin gitmedi →
+  kart yeniden açılır · aksi → doğrulanamadı). Sayfada sonuç satırı hâlâ açık olan öğeyi gizlemez.
+- **Giden mesaj satırı TESLİM YOLUNU taşır (11-18 akşam, migration 98; `lib/delivery-path.ts`):** bizim yazdığımız her giden satır `direct` ·
+  `queue` · `qr` · `local` değerlerinden birini taşır (yol, sonuç değil — sonuç `delivery-outcome.ts`). Kanaldan eşitlenen satır, gelen mesaj
+  ve eski kayıt boş kalır. Yazan yerler dizeyi elle yazmaz. Okuyan yer henüz yok.
 - **Otomatik mesajın gönderilebildiği rezervasyon durumu TEK KAYNAK (11-18, Codex 11-17 D1; `lib/lifecycle-status.ts`):** karşılama ve giriş
   yalnız onaylıya, çıkış onaylı + tamamlanmışa. Gönderici sorguları, son talepler, önizlemeler, elle giriş mesajı ve kalıcı kuyruğun işçisi
   aynı kümeyi buradan okur (eskiden işçi yalnız "iptal değil" diyordu → onaylıyken kuyruğa girip "bekliyor"a dönen rezervasyona giriş
@@ -284,12 +292,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   GERÇEKTEN incelenen son adaya ilerler (baştaki adayların sonucundan bağımsız), sona varınca başa sarar, gönderimden SONRA yazılır ve hız
   sınırıyla yarıda kalan geçişte yazılmaz. Okuma sınırı arkada aday bırakırsa operatöre geçiş tabanlı alarm (sessiz sınır yok). Çift gönderim
   koruması değişmedi (gönderildi damgasına koşullu talep / kuyruk anahtarı).
-  🚨 **Rezervasyon başına TEK aday = sıralamadaki İLK satır (`lifecycleFirstRowIds`).** Rezervasyon kaydı (daire, kaynak kimliği) çiftinde
-  tekildir → aynı rezervasyon iki AYRI dairede kayıtlı olabilir. İlk satır gönderilemiyorsa (dairesinin metni yok / doldurulamıyor) mesaj
-  gitmez; kardeş satırın dairesinin metni (başka dairenin giriş bilgisi olabilir) kullanılmaz. Kural eskiden sorgu sırasının yan ürünüydü;
-  tür süzgeci ve imleç onu gevşetmişti (dilim sonu incelemesi yakaladı, yayına girmeden düzeltildi). İlk satır artık AYRI okunur:
-  rezervasyonun kendi kümesinden (`bookingWhere` — tür süzgeci ve imleç yok), sayfa sorgusuyla aynı sırayla. Misafire giden küme 11-18
-  öncesiyle aynıdır. Kuralın kendisi (iki dairede kayıtlı rezervasyonda hangi dairenin metni) kurucu sorusu — `acik-isler.md` "11-18 (6)".
+  🚨 **Aynı rezervasyon iki FARKLI dairede ETKİN kayıtlıysa otomatik mesaj TUTULUR — sistem daire tahmin etmez (kurucu 11-18 akşam;
+  `lib/booking-property-conflict.ts`).** Rezervasyon kaydı (daire, kaynak kimliği) çiftinde tekildir → aynı rezervasyon iki ayrı dairede
+  bulunabilir. "İlk kayıt kazanır" (11-18 gündüz kuralı) ya da "metni olan daire kazanır" doğru daireyi KANITLAMAZ; yanlış dairenin giriş
+  bilgisi gidebilir. Etkin = iptal edilmemiş + konaklaması bitmemiş (bayat kopya canlı rezervasyonu tutmaz). Kural tek kaynak, üç yerde:
+  göndericilerin aday hazırlığı · kuyruk işçisinin gönderim anı kontrolü (iptal değil ERTELEME) · Girişler satırı ("hazır" demez; ev sahibi
+  doğru dairenin satırından elle gönderebilir). Yanlış kayıt kaldırılınca / iptal olunca olağan akış sürer. Ev sahibine tek seferlik uyarı
+  satırı (Dikkat paneli) ayrı dilim.
 - **Karar mesajı kuyruk açıkken de DOĞRUDAN gider (11-18, Codex 11-17 G2-02 + K2-01; `decisions/decide.ts`, `host-send.ts sendDirect`):** kart
   gerçek gönderim sonucuna göre kapanır (kuyruğa kabul "onaylandı" değildir). Kilitten sonra, gönderimden hemen önce rezervasyon TAZE okunur;
   iptalse gönderim yok, kart yeniden açılır. Operatörün "teslimatı durdur" freni doğrudan yolda da geçerlidir (kuyruk o işletmede açıksa).
@@ -451,9 +460,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   işlemi kayıt açmaz (köken `web` / `api` şartı). Saklama süpürgesi "completed" satırı silmez. Web kancasında kayıt adımları hata
   YUTMAZ (olay yeniden gelir) ve yazımdan önceki satıra bağlı alarmlardan SONRA koşar. Kural: **süreyle düşen bir kilit "ödeme alındı"
   gibi kalıcı bir gerçeği taşıyamaz; kalıcı gerçek kalıcı kayıt ister ve yalnız kanıtla açılıp kapanır.**
-- **Yeniden işleme vadesi geleni SORGUDA seçer (11-18, Codex 2. bulgu; `payments/paddle-replay.ts`):** "en eski N kaydı oku, sonra süz"
-  yok — vade koşulu `where`de (`paddleReplayDueWhere`, `paddleReplayDue` ile kâhin eşdeğeri), sayfalı; tur tavanı (2.000) aşılırsa tur
-  birkaç koşuya yayılan TEK mantıksal turdur (imleç + dondurulmuş an `SystemLock`ta), tur işareti dondurulmuş ana ilerler, tavan alarmı.
+- **Yeniden işleme vadesi OLAYIN KENDİ SATIRINDA (11-18 akşam, migration 98; `payments/paddle-replay.ts`, `paddle-replay-schedule.ts`):**
+  "en eski N kaydı oku, sonra süz" yok — aday `nextAttemptAt <= şimdi` ile sorguda seçilir, en uzun bekleyen önce. İşleyici ilk vadeyi
+  yazar (alınış + 15 dk), işlenince / incelemeye düşünce siler; her denemeden sonra sayaç, son deneme anı ve sıradaki eşik yazılır (eşik
+  çizelgesi aynı: 14 günde en çok 10; eşikler tükenince vade boş kalır). Anahtar okunamadığı için DENENMEYEN satırın vadesi harcanmaz.
+  Vadesi boş eski satırlar her koşunun başında eski "son tur" işaretine göre planlanır (tekrar çalıştırılabilir, tavanlı). Eski "mantıksal
+  tur" makinesi (dondurulmuş an + devam imleci) kaldırıldı; koşu tavanı (2.000) ve geçiş tabanlı tavan alarmı duruyor. Eski kural testte
+  kâhin olarak yaşıyor (`tests/helpers/paddle-replay-oracle.ts`).
 - **Dış sisteme yazmadan HEMEN önce yerel satır yeniden okunur (11-18, `plan-change` / `resume`):** istek başında okunan abonelik kimliği
   PATCH anında değişmiş olabilir (yeni abonelik eskisinin yerine geçti). Değiştiyse yazılmaz (var olan ret metni); yazımdan sonra değiştiği
   görülürse müşteri yanıtı aynı kalır, denetim işareti + operatör alarmı gider. Devam belirteci aboneliği bağlar.
@@ -519,6 +532,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   mutlak an. Tam UTC 00:00 / 12:00'a düşen duvar saati 1 ms ileri alınır ("saatsiz takvim günü" çapasıyla karışmasın; kalıcı çözüm vade
   hassasiyeti sütunu — migration turu). Var olan kayıtlar düzeltilmez. (c) pano atamada kartın GÖRDÜĞÜ atananı ön şart yollar
   (`expectAssigneeOnly`: yalnız atanan sınanır; başlamış işi panodan yeniden atamak serbest — pinli karar, Girişler'in kuralı değişmedi).
+  (d) Vade hassasiyeti AÇIK alanda (11-18 akşam, migration 98; `tasks/due-at.ts`): her görev yazımı `dueAtPrecision` (day · minute) yazar
+  (`taskDueWrite`), okuyucular tek yardımcıdan okur (`taskDueReading`: sütun doluysa sütun, boşsa eski çapa kuralı). Yeni kayıtta sütun ile
+  eski kural çelişmez (görünen davranış aynı); 1 ms kaydırma, sütunu okumayan okuyucular (SQL gün süzgeci dahil) taşınana kadar duruyor.
 - QR: per-stay device binding; `isOpenNow` simetrik; `chatToken` rotasyonu YOK (bilinçli); PIN DoS tasarımı
   var uygulanmadı (bütçeyi cihaza taşıma REDDEDİLDİ). QR rotasında hata sınırı `reportError`.
 - AI öneri paneli kapatılabilir, tercih KALICI DEĞİL. Bekleyen misafir mesajları dar taranıyor
