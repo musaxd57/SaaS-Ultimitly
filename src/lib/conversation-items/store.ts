@@ -27,6 +27,7 @@ import type { TurnWithdrawal } from "./extract";
 import { itemOrdinalEnabled } from "./flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { hostQuestionResultMessageIds } from "@/lib/host-channel/scoped-replies";
+import { undeliveredOutboundMessageIds } from "@/lib/outbox/undelivered";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KALICI KAYIT (09-26; migration 56). Karar kuralları `core.ts`te (saf); burası yalnız yazar/okur.
@@ -407,6 +408,19 @@ async function scopedReplyMessageIds(db: Db, organizationId: string, conversatio
   return [...decisions, ...questions];
 }
 
+/**
+ * "Ev sahibi yazdı" türetmesinde SAYILMAYAN giden mesajlar: yalnız kendi talebini yanıtlayan kapsamlı cevaplar (karar kartı + WhatsApp onayı)
+ * ve misafire KESİNLİKLE ulaşmamış cevaplar (kuyrukta başarısız / engellenmiş / iptal — Codex 11-17 C2; kural `outbox/undelivered.ts`).
+ * Belirsiz gönderim ve kanala bağlı olmayan konuşmanın kaydı burada DEĞİL (ürün kararı bekliyor — davranış bugünkü gibi).
+ */
+async function hostReplyExclusions(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
+  const [scoped, undelivered] = await Promise.all([
+    scopedReplyMessageIds(db, organizationId, conversationIds),
+    undeliveredOutboundMessageIds(conversationIds, db),
+  ]);
+  return [...scoped, ...undelivered];
+}
+
 export type ItemView = PersistedItem & {
   effective: EffectiveItemStatus;
   /** Öğenin mesajının yazıldığı an (mesaj bulunamazsa öğenin kendi zamanı). */
@@ -424,14 +438,14 @@ export async function listConversationItems(db: Db, input: { organizationId: str
   });
   if (rows.length === 0) return [];
   const items = rows.map(toPersisted);
-  const decisionMessages = await scopedReplyMessageIds(db, input.organizationId, [input.conversationId]);
+  const excluded = await hostReplyExclusions(db, input.organizationId, [input.conversationId]);
   const [lastHost, messages] = await Promise.all([
     db.message.findFirst({
       where: {
         conversationId: input.conversationId,
         conversation: { property: { organizationId: input.organizationId } },
         ...HOST_OUTBOUND_WHERE,
-        ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+        ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
       },
       orderBy: { createdAt: "desc" },
       select: { createdAt: true, direction: true, senderName: true, authorType: true, systemEventType: true },
@@ -458,7 +472,7 @@ type OpenRow = { conversationId: string; messageId: string; status: string; crea
 async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: string, rows: readonly R[]): Promise<(R & { messageAt: Date })[]> {
   if (rows.length === 0) return [];
   const convIds = [...new Set(rows.map((r) => r.conversationId))];
-  const decisionMessages = await scopedReplyMessageIds(db, organizationId, convIds);
+  const excluded = await hostReplyExclusions(db, organizationId, convIds);
   const [hosts, messages] = await Promise.all([
     db.message.groupBy({
       by: ["conversationId"],
@@ -466,7 +480,7 @@ async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: strin
         conversationId: { in: convIds },
         conversation: { property: { organizationId } },
         ...HOST_OUTBOUND_WHERE,
-        ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+        ...(excluded.length > 0 ? { id: { notIn: excluded } } : {}),
       },
       _max: { createdAt: true },
     }),

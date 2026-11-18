@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
-import { undeliveredFilterActive } from "@/lib/outbox/presence";
-import { NOT_DELIVERED_STATUSES } from "@/lib/outbox/state";
+import { undeliveredOutboundMessageIds } from "@/lib/outbox/undelivered";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { closableAfter } from "@/lib/ai/closing-turn";
 import { deriveConversationPhase, PHASE_UNANSWERED_SCAN, type ConversationPhaseState } from "@/lib/ai/conversation-phase";
@@ -13,17 +12,11 @@ import { deriveConversationPhase, PHASE_UNANSWERED_SCAN, type ConversationPhaseS
 export const PRIOR_OPERATOR_REPLY_WHERE = { direction: "outbound", systemEventType: null, NOT: { body: "" } } as const;
 
 /**
- * Kuyrukta terminal ve misafire KESİNLİKLE ulaşmamış (iptal / başarısız / engellenmiş) giden mesajların kimlikleri (talimat 09-07 §5).
- * Kuyruk kapalıyken tablo boştur → sorgu YOK (bugünkü maliyet). `Message` ile kuyruk satırı arasında ilişki yok; bağ `messageId`.
+ * Kuyrukta terminal ve misafire KESİNLİKLE ulaşmamış (iptal / başarısız / engellenmiş) giden mesajların kimlikleri (talimat 09-07 §5) — tek
+ * konuşma. Kural ve maliyet (kuyruk hiç kullanılmadıysa sorgu YOK) çok konuşmalı tek kaynakta: `outbox/undelivered.ts`.
  */
 export async function undeliveredOutboundIds(conversationId: string): Promise<string[]> {
-  // Anahtar kapatıldıktan sonra da (kuyrukta satır kaldıysa) süzgeç açık kalır (Opus F3, `outbox/presence.ts`).
-  if (!(await undeliveredFilterActive())) return [];
-  const rows = await prisma.messageOutbox.findMany({
-    where: { conversationId, status: { in: [...NOT_DELIVERED_STATUSES] }, messageId: { not: null } },
-    select: { messageId: true },
-  });
-  return rows.map((r) => r.messageId).filter((id): id is string => Boolean(id));
+  return undeliveredOutboundMessageIds([conversationId]);
 }
 
 function deliveredReplyWhere(conversationId: string, excluded: readonly string[]) {

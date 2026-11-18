@@ -88,8 +88,12 @@ describe("O1 liste anahtarı — gönderim kararları işletmeye göre (kaynak p
   });
 
   it("operator-replies.ts: selam sayımı süzgeci de kuyruk varlığına bağlı (anahtar kapatılınca kapanmaz)", () => {
+    // Codex 11-17 C2: kural çok konuşmalı tek kaynağa taşındı (öğe defteri + karar kartı da okur); operator-replies ona devreder.
     const src = read("src/lib/operator-replies.ts");
     expect(globalCalls(src)).toBe(0);
-    expect(src).toMatch(/if \(!\(await undeliveredFilterActive\(\)\)\) return \[\];/);
+    expect(src).toMatch(/undeliveredOutboundMessageIds\(\[conversationId\]\)/);
+    const single = read("src/lib/outbox/undelivered.ts");
+    expect(globalCalls(single)).toBe(0);
+    expect(single).toMatch(/if \(!\(await undeliveredFilterActive\(\)\)\) return \[\];/);
   });
 });

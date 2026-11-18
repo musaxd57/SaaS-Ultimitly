@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-author";
 import { hostQuestionResultMessageIds } from "@/lib/host-channel/scoped-replies";
+import { undeliveredOutboundMessageIds } from "@/lib/outbox/undelivered";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import {
   DECISION_SENDING_STALE_MS,
@@ -426,15 +427,17 @@ async function hostRepliedAfter(db: Db, organizationId: string, conversationId: 
     select: { createdAt: true },
   });
   if (!asked) return true;
-  const [results, whatsAppReplies] = await Promise.all([
+  const [results, whatsAppReplies, undelivered] = await Promise.all([
     db.decisionRequest.findMany({
       where: { organizationId, conversationId, resultMessageId: { not: null } },
       select: { resultMessageId: true },
     }),
     // WhatsApp'tan onaylanıp giden cevap yalnız kendi sorusunu yanıtlar (öğe deposuyla aynı liste).
     hostQuestionResultMessageIds(db, organizationId, [conversationId]),
+    // Misafire KESİNLİKLE ulaşmamış cevap "elle cevapladı" sayılmaz (Codex 11-17 C2; öğe deposuyla aynı kural).
+    undeliveredOutboundMessageIds([conversationId], db),
   ]);
-  const resultIds = [...results.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies];
+  const resultIds = [...results.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies, ...undelivered];
   const reply = await db.message.findFirst({
     where: {
       conversationId,
@@ -471,7 +474,7 @@ async function withEffective(
 ): Promise<DecisionView[]> {
   if (rows.length === 0) return [];
   const conversationIds = [...new Set(rows.map((r) => r.conversationId))];
-  const [messages, conversations, resultIds, whatsAppReplies] = await Promise.all([
+  const [messages, conversations, resultIds, whatsAppReplies, undelivered] = await Promise.all([
     db.message.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.messageId))] }, conversationId: { in: conversationIds } },
       select: { id: true, createdAt: true },
@@ -491,10 +494,12 @@ async function withEffective(
     }),
     // WhatsApp'tan onaylanıp giden cevap kartı "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2; öğe deposuyla aynı liste).
     hostQuestionResultMessageIds(db, organizationId, conversationIds),
+    // Misafire KESİNLİKLE ulaşmamış cevap da kapatmaz (Codex 11-17 C2; öğe deposuyla aynı kural).
+    undeliveredOutboundMessageIds(conversationIds, db),
   ]);
   const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
   const convById = new Map(conversations.map((c) => [c.id, c]));
-  const decisionMessages = [...resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies];
+  const notHostReplies = [...resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies, ...undelivered];
   const pendingConvs = [...new Set(rows.filter((r) => r.status === "pending").map((r) => r.conversationId))].filter((id) => convById.has(id));
   const hosts =
     pendingConvs.length > 0
@@ -504,7 +509,7 @@ async function withEffective(
             conversationId: { in: pendingConvs },
             conversation: { property: { organizationId } },
             ...HOST_OUTBOUND_WHERE,
-            ...(decisionMessages.length > 0 ? { id: { notIn: decisionMessages } } : {}),
+            ...(notHostReplies.length > 0 ? { id: { notIn: notHostReplies } } : {}),
           },
           _max: { createdAt: true },
         })
