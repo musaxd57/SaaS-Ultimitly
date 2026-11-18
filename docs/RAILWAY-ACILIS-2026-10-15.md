@@ -161,8 +161,9 @@ alınmıştır; mühürlü kabul koşuları artık yalnız açılış kipinde ba
    kuyruk" ekranını izleyin) ·
    `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
    `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`;
-   ⚠️ `DURABLE_OUTBOX_ENABLED` denemesi sürerken KAPALI kalsın — karar kartı kuyruğa girer girmez "onaylandı" kapanıyor, teslim düşerse
-   kart yeniden açılmıyor: `docs/TASARIM-2026-10-16-transactional-outbox.md` RİSK) ·
+   11-18'den beri karar mesajı `DURABLE_OUTBOX_ENABLED` açıkken de DOĞRUDAN gider — kart teslim sonucuna göre kapanır, teslim düşerse
+   yeniden açılır; operatörün teslimatı durdurma freni bu yolda da geçerlidir. Eski "kuyruk denemesi sürerken kapalı kalsın" şartı KALKTI.
+   Bilinen fark: karar mesajı aynı konuşmada kuyrukta bekleyen bir cevaptan önce varabilir — `docs/claude/acik-isler.md` "11-18 (5)") ·
    `AI_ACTION_CLAIMS_ENABLED` · `KB_HISTORY_SUGGESTIONS_ENABLED` (Geçmişten öğren gelince gereksiz olabilir).
 9. Kurucu inceleme notu (10-15 / 10-16; KURUCU-SORULARI §H): `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: ev sahibine bırak + tek e-posta)
    · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi olmayan arıza adımı misafire gitmez; kanal + QR)
