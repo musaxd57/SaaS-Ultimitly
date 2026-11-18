@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
+import { LOCAL_REPLY_RECORDED_TEXT } from "@/lib/delivery-outcome";
 import { cn } from "@/lib/utils";
 import {
   DECISION_LANGS,
@@ -300,10 +301,12 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
         latestMessageId?: string;
         version?: number;
         queued?: boolean;
+        /** Gönderim sonucu (Codex 11-17 C1, kapalı küme `delivery-outcome.ts`); eski yanıtta yok. */
+        delivery?: unknown;
         problems?: string[];
       };
       if (typeof json.version === "number") setVersion(json.version);
-      if (res.ok) return { ok: true as const, queued: json.queued === true };
+      if (res.ok) return { ok: true as const, queued: json.queued === true, localOnly: json.delivery === "local_only" };
       return {
         ok: false as const,
         status: res.status,
@@ -334,7 +337,14 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
       ...(seen.later ? { seenMessageId: seen.later } : {}),
     });
     if (r.ok) {
-      toast.success(r.queued ? "Mesajınız sıraya alındı — birazdan gönderilecek." : "Mesajınız misafire gönderildi.");
+      // Kanala bağlı olmayan konuşmada karar mesajı yalnız kaydedildi, misafire gitmedi → "gönderildi" denmez (C1 2. tur). Alan yoksa bugünkü gibi.
+      toast.success(
+        r.localOnly
+          ? LOCAL_REPLY_RECORDED_TEXT
+          : r.queued
+            ? "Mesajınız sıraya alındı — birazdan gönderilecek."
+            : "Mesajınız misafire gönderildi.",
+      );
       setMode(null);
       setSeen(null);
       router.refresh();
