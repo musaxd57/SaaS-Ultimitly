@@ -24,20 +24,28 @@ export interface ConversationItemRow {
 /**
  * KONUŞMA ÖĞELERİ — konuşma sayfasındaki "Açık işler" kartı (kurucu kararı 09-26: "Liste + konuşma + Dikkat"). Misafirin
  * cevapsız mesajlarındaki istekler: açık olanlar üstte; ev sahibi "Tamamlandı" ile kapatır. Kartı yalnız öğe varsa
- * gösteririz (bayrak kapalıyken öğe yazılmadığı için kart da yok).
+ * gösteririz (bayrak kapalıyken öğe yazılmadığı için kart da yok). Satır kuralı `itemRowsForCard` (açıkların hepsi; rozet `openTotal`).
+ * Okuma düştüyse (`loadFailed`, Codex 11-17 H8) kart KAYBOLMAZ: "açık iş yok" ile "okunamadı" ayırt edilsin. Bu durumun ev sahibi metni
+ * kurucu onayında — o gelene kadar kart yalnız başlığı ve `data-load-failed` işaretini taşır.
  */
 export function ConversationItemsCard({
   conversationId,
   items,
+  openTotal,
+  loadFailed = false,
   canManage,
 }: {
   conversationId: string;
   items: ConversationItemRow[];
+  /** Ev sahibinde açık öğelerin TOPLAMI (görünen satırlardan sayılmaz). */
+  openTotal: number;
+  /** Öğeler okunamadı (sayfa ayakta; kart boş görünmesin). */
+  loadFailed?: boolean;
   canManage: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
-  if (items.length === 0) return null;
+  if (items.length === 0 && !loadFailed) return null;
 
   async function done(itemId: string) {
     setBusy(itemId);
@@ -56,13 +64,24 @@ export function ConversationItemsCard({
     }
   }
 
-  const openCount = items.filter((i) => i.open).length;
+  if (loadFailed) {
+    return (
+      <Card data-testid="conversation-items" data-load-failed="true">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ListChecks className="size-4 text-muted-foreground" /> Açık işler
+          </CardTitle>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Card data-testid="conversation-items">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ListChecks className="size-4 text-muted-foreground" /> Açık işler
-          {openCount > 0 ? <Badge tone="warning">{openCount}</Badge> : null}
+          {openTotal > 0 ? <Badge tone="warning">{openTotal}</Badge> : null}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">

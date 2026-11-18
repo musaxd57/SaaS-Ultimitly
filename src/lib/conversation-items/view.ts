@@ -32,3 +32,32 @@ export function itemKindLabel(kind: ItemKind): string {
 export function openItemsBadge(count: number): string | null {
   return count > 0 ? `${count} açık iş` : null;
 }
+
+/** "Açık işler" kartında gösterilen KAPANMIŞ öğe tavanı (kart dar bir rayda). Açık öğeler bu tavana takılmaz. */
+export const ITEM_CARD_ROW_LIMIT = 20;
+
+export interface ItemCardRows<V> {
+  rows: V[];
+  /** Ev sahibinde açık öğelerin TOPLAMI (rozet buradan). */
+  openTotal: number;
+  /** Tavan yüzünden gösterilmeyen kapanmış öğe sayısı. */
+  hiddenClosed: number;
+}
+
+/**
+ * Kart satırları (Codex 11-17 E4): kartı / sonuç satırı olan talebin öğesi (`excludeIds`) düşülür; açıklar üstte, sonra en yeni. AÇIK
+ * öğelerin HEPSİ gösterilir (ev sahibinin işi — kesilirse en eski açık iş görünmez, rozet eksik sayardı); kapanmışlar yalnız `limit`e kadar
+ * kalan yeri doldurur. Açık öğe sayısı konuşma başına sınırlıdır (misafirin istekleri), kart uzarsa sağ ray kendi içinde kayar.
+ */
+export function itemRowsForCard<V extends { id: string; effective: EffectiveItemStatus; messageAt: Date }>(
+  views: readonly V[],
+  excludeIds: ReadonlySet<string>,
+  limit: number = ITEM_CARD_ROW_LIMIT,
+): ItemCardRows<V> {
+  const newestFirst = (a: V, b: V) => b.messageAt.getTime() - a.messageAt.getTime();
+  const shown = views.filter((v) => !excludeIds.has(v.id));
+  const open = shown.filter((v) => isOpenForHost(v.effective)).sort(newestFirst);
+  const closed = shown.filter((v) => !isOpenForHost(v.effective)).sort(newestFirst);
+  const closedRows = closed.slice(0, Math.max(0, limit - open.length));
+  return { rows: [...open, ...closedRows], openTotal: open.length, hiddenClosed: closed.length - closedRows.length };
+}

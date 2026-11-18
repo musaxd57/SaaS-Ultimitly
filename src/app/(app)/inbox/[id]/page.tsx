@@ -24,9 +24,10 @@ import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
 import { CLOSING_HANDLED_REASON, isClosingHandled } from "@/lib/conversation-attention";
 import { getAdjacency } from "@/lib/turnover";
-import { listConversationItems } from "@/lib/conversation-items/store";
+import { listConversationItems, type ItemView } from "@/lib/conversation-items/store";
+import { reportError } from "@/lib/report-error";
 import { isOpenForHost } from "@/lib/conversation-items/core";
-import { ITEM_STATUS_LABELS_TR, itemKindLabel, itemTone } from "@/lib/conversation-items/view";
+import { ITEM_STATUS_LABELS_TR, itemKindLabel, itemRowsForCard, itemTone } from "@/lib/conversation-items/view";
 import { ConversationItemsCard, type ConversationItemRow } from "@/components/inbox/conversation-items-card";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { preparedDraftOf } from "@/lib/conversation-items/prepared-draft";
@@ -136,7 +137,7 @@ export default async function ConversationPage({
   // not "Misafir cevabınızı bekliyor" der. `skippedReason` bilerek aynı kalır (on tüketicisi var) — not, son misafir mesajının
   // karar kaydından TÜRETİLİR (benzersiz anahtar; okuma hatası bugünkü notu gösterir).
   const lastInboundId = [...conversation.messages].reverse().find((m) => m.direction === "inbound")?.id ?? null;
-  const [kb, adjacency, tasks, outboxRows, stayEdges, itemViews, heldEvent] = await Promise.all([
+  const [kb, adjacency, tasks, outboxRows, stayEdges, itemsRead, heldEvent] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -176,8 +177,15 @@ export default async function ConversationPage({
           { timeZone: TZ },
         )
       : null,
-    // Konuşma öğeleri (09-26): misafirin isteklerinden ev sahibinde açık kalanlar. Okuma hatası sayfayı düşürmez.
-    listConversationItems(prisma, { organizationId: session.organizationId, conversationId: conversation.id }).catch(() => []),
+    // Konuşma öğeleri (09-26): misafirin isteklerinden ev sahibinde açık kalanlar. Okuma hatası sayfayı düşürmez; ama kart "açık iş yok"
+    // gibi kaybolmaz (Codex 11-17 H8) — hata kaydedilir, kart "okunamadı" durumunu taşır.
+    listConversationItems(prisma, { organizationId: session.organizationId, conversationId: conversation.id }).then(
+      (views) => ({ ok: true as const, views }),
+      (err: unknown) => {
+        void reportError("inbox.conversation-items", err);
+        return { ok: false as const, views: [] as ItemView[] };
+      },
+    ),
     conversation.skippedReason === "low_confidence_or_risky" && lastInboundId
       ? prisma.riskEvent
           .findUnique({
@@ -211,7 +219,11 @@ export default async function ConversationPage({
           conversationId: conversation.id,
           timeZone: TZ,
           now: new Date(),
-        }).catch(() => [])
+        }).catch((err: unknown) => {
+          // Sayfa ayakta kalır; ama okuma hatası sessiz yutulmaz (Codex 11-17 H8).
+          void reportError("inbox.conversation-decisions", err);
+          return [];
+        })
       : [];
   const shownDecisions = visibleDecisions(decisionViews);
   // Kart bağlamı karar rotasıyla AYNI kurucudan (olgu parmak izi iki yerde aynı girdilerle); sayfanın zaten yüklediği komşu /
@@ -227,30 +239,27 @@ export default async function ConversationPage({
           preloaded: { adjacency, stayEdgeLines: stayEdges?.lines ?? [] },
         })
           .then((ctx) => buildDecisionCards(shownDecisions, ctx))
-          .catch(() => [])
+          .catch((err: unknown) => {
+            void reportError("inbox.decision-cards", err);
+            return [];
+          })
       : [];
   const resolvedRows = resolvedDecisionRows(decisionViews, TZ);
   // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez.
   const decisionItems = decisionLinkedItemIds(decisionViews);
   // Son misafir mesajının tutuşu bir karar kartıyla anlatılıyorsa "AI emin olamadı / misafir cevabınızı bekliyor" bandı tekrar olur.
   const decisionCoversHold = shownDecisions.some((v) => isOpenDecision(v.effective) && v.messageId === lastInboundId);
-  // Açıklar üstte, sonra en yeni. Kart dar bir rayda: en fazla 20 satır.
-  const itemRows: ConversationItemRow[] = [...itemViews]
-    .filter((v) => !decisionItems.has(v.id))
-    .sort(
-      (a, b) =>
-        Number(isOpenForHost(b.effective)) - Number(isOpenForHost(a.effective)) || b.messageAt.getTime() - a.messageAt.getTime(),
-    )
-    .slice(0, 20)
-    .map((v) => ({
-      id: v.id,
-      kindLabel: itemKindLabel(v.kind),
-      topic: v.topic ?? null,
-      statusLabel: ITEM_STATUS_LABELS_TR[v.effective],
-      tone: itemTone(v.effective, v.sensitivity),
-      open: isOpenForHost(v.effective),
-      at: formatDateTime(v.messageAt, TZ),
-    }));
+  // Açıklar üstte (HEPSİ), sonra en yeni kapanmışlar tavana kadar; rozet açıkların toplamından (Codex 11-17 E4, kural `itemRowsForCard`).
+  const itemCard = itemRowsForCard(itemsRead.views, decisionItems);
+  const itemRows: ConversationItemRow[] = itemCard.rows.map((v) => ({
+    id: v.id,
+    kindLabel: itemKindLabel(v.kind),
+    topic: v.topic ?? null,
+    statusLabel: ITEM_STATUS_LABELS_TR[v.effective],
+    tone: itemTone(v.effective, v.sensitivity),
+    open: isOpenForHost(v.effective),
+    at: formatDateTime(v.messageAt, TZ),
+  }));
   const outboxByMessage = new Map(
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
   );
@@ -491,7 +500,13 @@ export default async function ConversationPage({
             AYNI ifadeden gelir; ikisi ayrışırsa satır yüksekliği zıplar —
             ikisi de artık `lg:h-full` (grid satırının kendisi ölçüyü verir). */}
         <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
-          <ConversationItemsCard conversationId={conversation.id} items={itemRows} canManage={canManage(session)} />
+          <ConversationItemsCard
+            conversationId={conversation.id}
+            items={itemRows}
+            openTotal={itemCard.openTotal}
+            loadFailed={!itemsRead.ok}
+            canManage={canManage(session)}
+          />
           <ActionSuggestions items={actionSuggestions} />
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
