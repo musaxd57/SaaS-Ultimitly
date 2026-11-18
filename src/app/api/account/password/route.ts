@@ -90,15 +90,23 @@ export async function POST(req: NextRequest) {
       const codeHash = await hashPassword(code);
       const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
+      // 🚨 KOD YAZMASI OTURUM SÜRÜMÜNE KOŞULLU (F2, Codex 11-17 — onay dalındaki U43 deseniyle simetrik). `requireSession` sürümü isteğin
+      // BAŞINDA denetler; arada bcrypt (+ parola kapısının kuyruğu, saniyeler) var. O arada parola sıfırlandıysa (sürüm arttı) iptal
+      // edilmiş oturumun uçuştaki isteği yeni cihazın istediği kodu EZİP kutuya fazladan bir kod yolluyordu. Şimdi yazma başlangıçta
+      // denetlenen sürümü koşul olarak taşır; tutmazsa hiçbir şey yazılmaz, kuyruk satırı / e-posta ÜRETİLMEZ → 401 (yeniden giriş).
+      // Eşzamanlı sıfırlama satır kilidini tutar; READ COMMITTED altında koşul onun commit'inden SONRA yeniden değerlendirilir → 0 satır.
+      const writeCode = (db: Pick<typeof prisma, "user">) =>
+        db.user.updateMany({
+          where: { id: session.userId, sessionEpoch: session.sessionEpoch },
+          data: { pwChangeCodeHash: codeHash, pwChangeCodeExpiresAt: expiresAt, pwChangeCodeAttempts: 0 },
+        });
+
       // Durable outbox (Tur-4, flag ON): hash + send-intent in ONE transaction;
       // no provider call on the request path. A provider outage becomes a
       // scheduled retry instead of "code e-mail failed, try later".
       if (emailOutboxEnabled()) {
-        await prisma.$transaction(async (tx) => {
-          await tx.user.update({
-            where: { id: session.userId },
-            data: { pwChangeCodeHash: codeHash, pwChangeCodeExpiresAt: expiresAt, pwChangeCodeAttempts: 0 },
-          });
+        const written = await prisma.$transaction(async (tx) => {
+          if ((await writeCode(tx)).count === 0) return false;
           await enqueueIdentityEmail(tx, {
             userId: session.userId,
             kind: "pw_change_code",
@@ -106,20 +114,15 @@ export async function POST(req: NextRequest) {
             recipient: session.email,
             expiresAt,
           });
+          return true;
         });
+        if (!written) return unauthorized(); // oturum arada geçersiz kılındı — yeniden giriş
         kickEmailOutboxDrain();
         return jsonOk({ ok: true });
       }
 
-      // Legacy synchronous path (flag OFF) — unchanged behaviour.
-      await prisma.user.update({
-        where: { id: session.userId },
-        data: {
-          pwChangeCodeHash: codeHash,
-          pwChangeCodeExpiresAt: expiresAt,
-          pwChangeCodeAttempts: 0,
-        },
-      });
+      // Legacy synchronous path (flag OFF) — aynı sürüm koşulu; tutmazsa e-posta GÖNDERİLMEZ.
+      if ((await writeCode(prisma)).count === 0) return unauthorized();
 
       const sent = await emailService.sendReporting(
         session.email,
