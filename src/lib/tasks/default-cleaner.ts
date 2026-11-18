@@ -228,6 +228,8 @@ export interface TransferTask {
   id: string;
   title: string;
   dueAt: Date | null;
+  /** Vade hassasiyeti (migration 98) — gün yazımı `taskDueDayLabel`a gider. */
+  dueAtPrecision: string | null;
   status: string;
   /** Durum "Yapılacak" ama kişi not / fotoğraf / kontrol listesi işareti eklemiş (başlanmış sayılır, aktarılmaz). */
   touched: boolean;
@@ -262,7 +264,7 @@ export async function transferCandidates(
       status: { not: "done" },
       AND: [taskDueDayRangeWhere({ from: todayKey(now, tz), to: null }, tz)],
     },
-    select: { id: true, title: true, dueAt: true, status: true, checklistJson: true },
+    select: { id: true, title: true, dueAt: true, dueAtPrecision: true, status: true, checklistJson: true },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     // Bir fazlası okunur: liste sınıra takıldıysa ekran bunu SÖYLER (sessiz kesme yok — Haiku 11-06).
     take: TRANSFER_LIST_LIMIT + 1,
@@ -276,6 +278,7 @@ export async function transferCandidates(
     id: r.id,
     title: r.title,
     dueAt: r.dueAt,
+    dueAtPrecision: r.dueAtPrecision,
     status: r.status,
     touched: r.status === "todo",
   });

@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
+import { taskDueWrite } from "@/lib/tasks/due-at";
 import {
   commitmentTaskDueAt,
   commitmentTaskTitle,
@@ -219,7 +220,7 @@ export async function createGuestCommitment(input: {
         type: TASK_TYPE_FOR[input.kind],
         origin: "manual",
         title: commitmentTaskTitle(input.kind, topic, precision === "part" ? dayPart : null),
-        dueAt: commitmentTaskDueAt(input.dueAt, precision, input.dayKey ?? null),
+        ...taskDueWrite(commitmentTaskDueAt(input.dueAt, precision, input.dayKey ?? null)),
         status: "todo",
         priority: "standard",
       },

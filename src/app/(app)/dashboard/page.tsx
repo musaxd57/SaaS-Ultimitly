@@ -470,7 +470,7 @@ export default async function DashboardPage() {
               />
             ) : (
               sortedTasksToday.map((t) => {
-                const dueTime = taskDueTimeLabel(t.dueAt, TZ);
+                const dueTime = taskDueTimeLabel(t.dueAt, TZ, t.dueAtPrecision);
                 return (
                   <Link
                     key={t.id}

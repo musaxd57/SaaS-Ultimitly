@@ -3,6 +3,7 @@ import { DEMO_ID_PREFIX, DEMO_LOGIN_EMAIL, DEMO_ORG_ID } from "./constants";
 import { isAutoMessageKind } from "../auto-messages/render";
 import { ALERT_EMAIL_GEN_PREFIX } from "../alert-email-generation-key";
 import type { DemoDataset } from "./dataset";
+import { taskDueWrite } from "../tasks/due-at";
 import { createUserWithMembership, setHomeMembershipRole } from "../membership/write";
 
 // ---------------------------------------------------------------------------
@@ -278,7 +279,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       // Sinyaller mesajlardan ürünün AYNI saf türetmesiyle hesaplandı (dataset.ts); yenilemede
       // yukarıdaki silme onları da temizler. Örüntü hafızasını senkron geçişi üretir.
       if (ds.signals.length > 0) await tx.signal.createMany({ data: ds.signals });
-      await tx.task.createMany({ data: ds.tasks });
+      // Vade hassasiyeti ürünün tek yazım kaynağından (`taskDueWrite`, migration 98) — demo görevleri gerçek görevlerle aynı okunur.
+      await tx.task.createMany({ data: ds.tasks.map((t) => ({ ...t, ...taskDueWrite(t.dueAt) })) });
       await tx.knowledgeBaseItem.createMany({
         data: ds.kbItems.map((k) => ({ ...k, isActive: true, source: "host_manual", reviewState: "approved", approvedAt: now })),
       });

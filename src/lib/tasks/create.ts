@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { detectOperationalTask, buildOperationalTaskData } from "./detect";
+import { taskDueWrite } from "./due-at";
 
 export type CreateOperationalTaskResult =
   | { status: "created"; taskId: string; type: string }
@@ -91,7 +92,7 @@ export async function createOperationalTaskFromMessage(ctx: {
         origin: "ai",
         title: data.title,
         description: data.description,
-        dueAt: data.dueAt,
+        ...taskDueWrite(data.dueAt),
         priority: data.priority,
         status: "todo",
         dedupeKey: data.dedupeKey,

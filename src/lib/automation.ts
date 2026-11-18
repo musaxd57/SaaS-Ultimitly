@@ -272,6 +272,7 @@ import { oldestFirst } from "@/lib/due-order";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE, checklistTouched } from "@/lib/tasks/cancelled-leftovers";
 import { LIFECYCLE_TASK_LITE_SELECT, lifecycleTaskPresent, type LifecycleTaskLite } from "@/lib/tasks/lifecycle-presence";
+import { taskDueWrite } from "@/lib/tasks/due-at";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -1559,7 +1560,7 @@ function reservationTasksToCreate(
       origin: "system",
       title: `${r.guestName} girişi için hazırlık`,
       description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
-      dueAt: r.arrivalDate,
+      ...taskDueWrite(r.arrivalDate),
       status: "todo",
       priority: "standard",
     });
@@ -1572,7 +1573,7 @@ function reservationTasksToCreate(
       origin: "system",
       title: `Çıkış temizliği - ${r.guestName}`,
       description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
-      dueAt: r.departureDate,
+      ...taskDueWrite(r.departureDate),
       status: "todo",
       priority: "standard",
       checklistJson: supplyChecklistJson,

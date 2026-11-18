@@ -81,7 +81,7 @@ export async function notifyAssignmentRemoved(organizationId: string, userId: st
   const where = { id: { in: [...taskIds] }, property: { organizationId }, OR: [{ assignedToId: null }, { assignedToId: { not: userId } }] };
   const tasks = await prisma.task.findMany({
     where,
-    select: { type: true, dueAt: true, property: { select: { name: true } } },
+    select: { type: true, dueAt: true, dueAtPrecision: true, property: { select: { name: true } } },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     take: UNASSIGN_MAIL_LIST_LIMIT,
   });
@@ -94,7 +94,7 @@ export async function notifyAssignmentRemoved(organizationId: string, userId: st
   const items = tasks.map((t) => ({
     propertyName: t.property.name,
     typeLabel: TASK_TYPE.label(t.type),
-    dueLabel: taskDueDayLabel(t.dueAt, tz),
+    dueLabel: taskDueDayLabel(t.dueAt, tz, t.dueAtPrecision),
   }));
   const names = [...new Set(items.map((i) => i.propertyName))];
   const subject = names.length === 1 ? `Görevlendirmeniz değişti: ${names[0]}` : "Görevlendirmeniz değişti";

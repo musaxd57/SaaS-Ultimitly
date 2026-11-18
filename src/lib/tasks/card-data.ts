@@ -6,7 +6,8 @@
 
 import type { TaskCardData } from "@/components/tasks/task-board";
 import { formatDayInTz, formatTime, safeJsonParse } from "@/lib/utils";
-import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
+import { nightsBetween, todayKey } from "@/modules/availability/core";
+import { taskDueReading } from "./due-at";
 import { cleanerTaskTitle } from "./staff-view";
 
 /**
@@ -14,15 +15,16 @@ import { cleanerTaskTitle } from "./staff-view";
  * tarih" çapası (D 00:00Z / D 12:00Z, `calendarDateOf`); saatini göstermek panoda İstanbul'da "Çıkış temizliği · 03:00"
  * (iCal'de 15:00) yazıyordu, sanki temizlik gece üçteymiş gibi. Çapa → null (saat yok); gerçek an → org diliminde saat.
  */
-export function taskDueTimeLabel(dueAt: Date | null, timeZone: string): string | null {
-  if (!dueAt || calendarDateOf(dueAt, timeZone).anchor !== "instant") return null;
+export function taskDueTimeLabel(dueAt: Date | null, timeZone: string, precision?: string | null): string | null {
+  // Saatsiz mi kararı TEK kaynaktan (`taskDueReading`, migration 98): sütun doluysa sütun, boşsa (eski kayıt / sütunu seçmeyen çağıran) eski kural.
+  if (!dueAt || !taskDueReading(dueAt, precision, timeZone).timed) return null;
   return formatTime(dueAt, timeZone);
 }
 
 /** Vadenin GÜNÜ ("07 Kas 2026") tek tarih kuralıyla (`calendarDateOf`) — pano kartı, bildirim e-postaları ve aktarma listesi AYNI yazım. */
-export function taskDueDayLabel(dueAt: Date | null, timeZone: string): string | null {
+export function taskDueDayLabel(dueAt: Date | null, timeZone: string, precision?: string | null): string | null {
   if (!dueAt) return null;
-  return formatDayInTz(new Date(`${calendarDateOf(dueAt, timeZone).key}T12:00:00.000Z`), "UTC");
+  return formatDayInTz(new Date(`${taskDueReading(dueAt, precision, timeZone).key}T12:00:00.000Z`), "UTC");
 }
 
 type ChecklistItem = { label: string; done: boolean };
@@ -35,6 +37,8 @@ export interface TaskCardRow {
   priority: string;
   status: string;
   dueAt: Date | null;
+  /** Vade hassasiyeti (migration 98); verilmezse eski kural (`taskDueReading`). */
+  dueAtPrecision?: string | null;
   checklistJson: string | null;
   property: { name: string };
   assignedTo: { name: string } | null;
@@ -76,7 +80,7 @@ export function taskCardData(
   const cleanerTitle = cleanerTaskTitle(t);
   // Vadenin GÜNÜ tek tarih kuralıyla (`calendarDateOf`, 09-26): yaşam döngüsü vadesi yalnız-tarih çapasıdır. Ham
   // "an → yerel gün" New York'ta kartı ve "Bugün" süzgecini bir gün ERKEN gösteriyordu (İstanbul'da birebir aynı).
-  const due = t.dueAt ? calendarDateOf(t.dueAt, ctx.timeZone) : null;
+  const due = t.dueAt ? taskDueReading(t.dueAt, t.dueAtPrecision, ctx.timeZone) : null;
   return {
     id: t.id,
     title: ctx.canManage ? t.title : cleanerTitle,
@@ -87,7 +91,7 @@ export function taskCardData(
     propertyName: t.property.name,
     assigneeName: t.assignedTo?.name ?? null,
     assigneeId: t.assignedToId ?? null,
-    dueLabel: taskDueDayLabel(t.dueAt, ctx.timeZone),
+    dueLabel: taskDueDayLabel(t.dueAt, ctx.timeZone, t.dueAtPrecision),
     dueDays: due ? nightsBetween(todayKey(ctx.now, ctx.timeZone), due.key) : null,
     checklist: checklist.length > 0 ? { items: checklist } : null,
     latestPhotoUrl: ctx.latestPhotoUrl,
@@ -97,7 +101,7 @@ export function taskCardData(
     // Yalnız ÇIKIŞ GÜNÜNE vadeli temizlikte (devir temizliği — Opus 11-06 N6: konaklama içi "ara temizlik" sözünde temizlikçi misafirin
     // o gün çıkacağını okuyordu). Gün tek tarih kuralıyla.
     checkoutNote:
-      t.type === "cleaning" && ctx.checkout && t.dueAt && calendarDateOf(t.dueAt, ctx.timeZone).key === ctx.checkout.departureKey
+      t.type === "cleaning" && ctx.checkout && due?.key === ctx.checkout.departureKey
         ? `Misafir çıkışı ${ctx.checkout.time}${ctx.checkout.lateApproved ? " · geç çıkış onaylı" : ""}`
         : null,
   };

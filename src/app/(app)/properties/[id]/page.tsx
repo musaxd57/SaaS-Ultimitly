@@ -121,7 +121,7 @@ export default async function PropertyDetailPage({
         const item = (t: TransferTask): TransferItem => ({
           id: t.id,
           title: t.title,
-          dueLabel: taskDueDayLabel(t.dueAt, tz),
+          dueLabel: taskDueDayLabel(t.dueAt, tz, t.dueAtPrecision),
           statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
         });
         return { userId, backupUserId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };

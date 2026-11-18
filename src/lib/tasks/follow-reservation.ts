@@ -12,6 +12,7 @@
 
 import type { ErasureDb } from "@/lib/erasure";
 import { lockReservationTasks } from "./reservation-lock";
+import { taskDueWrite } from "./due-at";
 
 export interface StayDates {
   arrivalDate: Date;
@@ -39,7 +40,8 @@ export async function followReservationDates(
     if (before[field].getTime() === after[field].getTime()) continue;
     const { count } = await db.task.updateMany({
       where: { reservationId, origin: "system", type, status: { not: "done" }, dueAt: before[field] },
-      data: { dueAt: after[field] },
+      // Hassasiyet yeni tarihle birlikte (`taskDueWrite` — tek yazım kaynağı; rezervasyon tarihi çapadaysa "day", gerçek ansa "minute").
+      data: taskDueWrite(after[field]),
     });
     moved += count;
   }

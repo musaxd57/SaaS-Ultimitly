@@ -11,7 +11,7 @@
 //    en iyi hâli "TEMİZLİK HAZIR". Kod DEĞERİ okunmaz / gösterilmez (yalnız giriş talimatı kalemi var / yok).
 // ---------------------------------------------------------------------------
 
-import { calendarDateOf } from "@/modules/availability/core";
+import { taskDueReading } from "@/lib/tasks/due-at";
 
 export type FactorState = "ok" | "blocking" | "unknown" | "info";
 export type FactorKey = "cleaning" | "cleaning_note" | "issue" | "overlap" | "commitment" | "need" | "access" | "timing";
@@ -152,6 +152,8 @@ export interface StayReadinessInput {
     status?: string | null;
     touched?: boolean;
     dueAt: Date | null;
+    /** Vade hassasiyeti (migration 98); verilmezse eski kural (`taskDueReading`). */
+    dueAtPrecision?: string | null;
     /**
      * Görevin bu girişle ilişkisi (kurucu / Codex 11-05 gece: eski konaklamadan kalan bakım bütün girişleri kırmızı yapmasın; açıklamasız
      * kesin hüküm yok): `turnover` = bu devre bağlı (önceki / gelen konaklama ya da devir günü) · `unlinked` = konaklamaya bağsız ·
@@ -255,10 +257,11 @@ function checkoutWhen(c: CleaningInput, arrivalDayKey: string | undefined): stri
  * Vade (Opus 11-05 N2): yalnız-tarih çapası (00:00Z / 12:00Z — `calendarDateOf`, görev panosuyla aynı kural) SAAT UYDURMAZ: "bugün" /
  * "6 Kas", gecikme GÜN bazında (bugün vadeli iş gün bitmeden "gecikti" değildir). Gerçek an → saat + an kıyası.
  */
-function dueText(dueAt: Date, now: Date, tz: string): string {
-  const { key, anchor } = calendarDateOf(dueAt, tz);
+function dueText(dueAt: Date, precision: string | null | undefined, now: Date, tz: string): string {
+  // Saatsiz mi kararı TEK kaynaktan (`taskDueReading`, migration 98): sütun doluysa sütun, boşsa eski kural.
+  const { key, timed } = taskDueReading(dueAt, precision, tz);
   const today = dayKeyOf(now, tz);
-  if (anchor !== "instant") return `${key === today ? "bugün" : dayKeyLabel(key)}${key < today ? " (gecikti)" : ""}`;
+  if (!timed) return `${key === today ? "bugün" : dayKeyLabel(key)}${key < today ? " (gecikti)" : ""}`;
   return `${whenLabel(dueAt, now, tz)}${dueAt.getTime() < now.getTime() ? " (gecikti)" : ""}`;
 }
 
@@ -527,7 +530,7 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
     for (const t of shown) {
       // Listenin kendi kalıbı ("Söz açık: …", "Temizlik açık · …"); tür adı Görevler sayfasındakiyle AYNEN (harf oynatılmaz).
       const who = t.assignee ? `atanan: ${t.assignee}` : "kimseye atanmadı";
-      const due = t.dueAt ? ` · vade ${dueText(t.dueAt, input.now, tz)}` : "";
+      const due = t.dueAt ? ` · vade ${dueText(t.dueAt, t.dueAtPrecision, input.now, tz)}` : "";
       const state = issueStateOf(t);
       if (state === "unknown") {
         // Eski konaklamadan kalan / tarihsiz bakım: kesin hüküm YOK, açıklama var (kurucu / Codex 11-05 gece).

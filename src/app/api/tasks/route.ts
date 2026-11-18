@@ -4,7 +4,7 @@ import { badRequest, jsonOk, propertyInOrg, canManage, readJsonCappedOrNull } fr
 import { withAuth, withManage } from "@/lib/route-guard";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { findOrCreateManualTask, withoutDedupeKey } from "@/lib/tasks/manual-request";
-import { needsOrgTimeZone, resolveTaskDueAt } from "@/lib/tasks/due-at";
+import { needsOrgTimeZone, resolveTaskDue, taskDueWrite } from "@/lib/tasks/due-at";
 import { orgTimezone } from "@/lib/timezone";
 
 export const GET = withAuth(async (session, req) => {
@@ -67,8 +67,9 @@ export const POST = withManage(async (session, req) => {
   // E5 (Codex 11-17): formun dilimsiz saati İŞLETMENİN diliminde okunur (sunucunun / tarayıcının değil). Dilim taşıyan değer bugünkü gibi.
   const tz = needsOrgTimeZone(d.dueAt) ? await orgTimeZoneOf(session.organizationId) : null;
   // `tz` yalnız duvar saatinde okunur; mutlak an dilimden bağımsız döner.
-  const dueAt = d.dueAt === undefined ? null : resolveTaskDueAt(d.dueAt, tz ?? "UTC");
-  if (d.dueAt !== undefined && (!dueAt || !isStorableDate(dueAt))) return badRequest({ dueAt: "Geçersiz tarih" });
+  // Hassasiyet vadeyle birlikte (`Task.dueAtPrecision`, migration 98): formun duvar saati "minute", dilim taşıyan değer bugünkü kuraldan.
+  const due = d.dueAt === undefined ? taskDueWrite(null) : resolveTaskDue(d.dueAt, tz ?? "UTC");
+  if (d.dueAt !== undefined && (!due || !isStorableDate(due.dueAt!))) return badRequest({ dueAt: "Geçersiz tarih" });
 
   const taskData = {
     propertyId: d.propertyId,
@@ -78,7 +79,7 @@ export const POST = withManage(async (session, req) => {
     title: d.title,
     description: d.description || null,
     assignedToId: d.assignedToId || null,
-    dueAt,
+    ...due!,
     status: d.status,
     priority: d.priority,
   };

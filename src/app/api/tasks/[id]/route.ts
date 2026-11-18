@@ -14,7 +14,7 @@ import { enqueueUnreferencedPhotoDeletions, photoStillAttachable } from "@/lib/s
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { withoutDedupeKey } from "@/lib/tasks/manual-request";
-import { needsOrgTimeZone, resolveTaskDueAt } from "@/lib/tasks/due-at";
+import { needsOrgTimeZone, resolveTaskDue, type TaskDuePrecision } from "@/lib/tasks/due-at";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
 import { notifyAssignmentRemoved } from "@/lib/tasks/notify";
 import { assignableTask } from "@/lib/readiness-list/evaluate";
@@ -145,15 +145,18 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
 
   // E5 (Codex 11-17): oluşturmayla AYNI kural — dilimsiz duvar saati işletmenin diliminde, dilim taşıyan değer bugünkü gibi mutlak an.
   let dueAt: Date | undefined;
+  // Hassasiyet vadeyle birlikte yazılır (`Task.dueAtPrecision`, migration 98): saat silinip yalnız tarih gelirse "day".
+  let dueAtPrecision: TaskDuePrecision | undefined;
   if (d.dueAt !== undefined) {
     let tz = "UTC"; // yalnız duvar saatinde okunur
     if (needsOrgTimeZone(d.dueAt)) {
       const org = await prisma.organization.findUnique({ where: { id: session.organizationId }, select: { timezone: true } });
       tz = orgTimezone(org?.timezone);
     }
-    const resolved = resolveTaskDueAt(d.dueAt, tz);
-    if (!resolved || !isStorableDate(resolved)) return badRequest({ dueAt: "Geçersiz tarih" });
-    dueAt = resolved;
+    const resolved = resolveTaskDue(d.dueAt, tz);
+    if (!resolved || !isStorableDate(resolved.dueAt)) return badRequest({ dueAt: "Geçersiz tarih" });
+    dueAt = resolved.dueAt;
+    dueAtPrecision = resolved.dueAtPrecision;
   }
 
   let assigneeMember: { id: string; name: string; email: string; role: string } | null = null;
@@ -224,7 +227,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           ...(d.title !== undefined ? { title: d.title } : {}),
           ...(d.description !== undefined ? { description: d.description } : {}),
           ...(d.priority !== undefined ? { priority: d.priority } : {}),
-          ...(dueAt !== undefined ? { dueAt } : {}),
+          ...(dueAt !== undefined ? { dueAt, dueAtPrecision } : {}),
           // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
           ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
         },

@@ -196,6 +196,7 @@ export async function loadArrivalReadiness(
             title: true,
             type: true,
             dueAt: true,
+            dueAtPrecision: true,
             priority: true,
             reservationId: true,
             reservation: { select: { arrivalDate: true, departureDate: true } },
@@ -466,6 +467,7 @@ export async function loadArrivalReadiness(
             status: t.status,
             touched: taskTouched(t),
             dueAt: t.dueAt,
+            dueAtPrecision: t.dueAtPrecision,
             relation,
             priority: t.priority,
             // Konaklama varıştan ÖNCE bittiyse "eski", varıştan SONRA başlıyorsa "sonraki", yoksa "başka" (Opus 11-06 N4).

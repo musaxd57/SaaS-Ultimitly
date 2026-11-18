@@ -5,6 +5,7 @@ import { writeAuditInTx } from "@/lib/audit";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic, lockCommitmentConversation } from "@/lib/guest-commitments";
 import { commitmentTaskDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-core";
+import { taskDueWrite } from "@/lib/tasks/due-at";
 import type { CommitmentTopic, DayPartCode, DuePrecision } from "@/lib/guest-commitments-core";
 import { shiftZonedDaysKeepingWallClock } from "@/lib/timezone";
 import { orgTimezone } from "@/lib/timezone";
@@ -261,7 +262,7 @@ export async function decideSuggestion(input: {
         const newPart = commitmentPrecision.duePrecision === "part" ? commitmentPrecision.dayPart : null;
         await tx.task.updateMany({
           where: { id: target.taskId },
-          data: { dueAt: commitmentTaskDueAt(commitmentDue, commitmentPrecision.duePrecision, commitmentPrecision.dayKey) },
+          data: taskDueWrite(commitmentTaskDueAt(commitmentDue, commitmentPrecision.duePrecision, commitmentPrecision.dayKey)),
         });
         // Görev başlığı yalnız otomatik başlık duruyorsa (dilim eki değişir); ev sahibinin değiştirdiği başlığa dokunulmaz.
         await tx.task.updateMany({
