@@ -264,6 +264,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yanıtlar" bağı mesajla AYNI işlemde yazılır (`onRecorded`), kartın durumundan bağımsız; kapanış bağı boşla ezmez. Öğe yeniden kapatma
   teslim etkisinin dördüncü parçasıdır (düşerse damga yok, onarıcı yeniden dener). **Bekleyen ürün kararları (davranış DEĞİŞMEDİ):** yerel
   cevap konuşmayı "Cevaplandı" yapıyor / ihtiyacı kapatıyor / sözden görev üretiyor (S-1, S-4), doğrulanamayan gönderim ihtiyacı kapatıyor (S-2).
+- **Otomatik mesajın gönderilebildiği rezervasyon durumu TEK KAYNAK (11-18, Codex 11-17 D1; `lib/lifecycle-status.ts`):** karşılama ve giriş
+  yalnız onaylıya, çıkış onaylı + tamamlanmışa. Gönderici sorguları, son talepler, önizlemeler, elle giriş mesajı ve kalıcı kuyruğun işçisi
+  aynı kümeyi buradan okur (eskiden işçi yalnız "iptal değil" diyordu → onaylıyken kuyruğa girip "bekliyor"a dönen rezervasyona giriş
+  bilgisi gidiyordu). İşçide durum hükmü iptal / silme / tekrar / pencere hükümlerinden SONRA verilir ve İPTAL DEĞİL ERTELEMEDİR
+  (`LIFECYCLE_STATUS_HOLD`, 20 dk; deneme sayılmaz, hata bilgisi yazılmaz): iptal + rezervasyon başına tek anahtar mesajı kalıcı yutardı.
+  Sonsuz erteleme yok: giriş / çıkış var olan pencere hükmüyle, karşılama "varış günü geçti ve hâlâ onaylı değil" ile iptal olur. Satırın
+  kendi kopyası bekliyorken başka dairedeki onaylı kardeş kopyaya GEÇİLMEZ (başka dairenin metni / kapı kodu giderdi).
 - **QR'da SÜREN istek "kaydedildi" DEĞİLDİR (11-18, Codex 11-17 E1; `lib/outbound-claim.ts`, `api/chat/[token]`, `guest-chat.tsx`):** misafir
   mesajı yalnız cevabıyla birlikte yazılır; aynı kimlikli istek başka bir bağlantıda hâlâ çalışırken gelen tekrar `deduped` DEĞİL `pending`
   alır (kayıt yok, sayaç tüketilmez). `deduped` yalnız tamamlanmış kayıt (`done:`) içindir. Kilidini canlı bir işçiye kaptıran eski işçi de
