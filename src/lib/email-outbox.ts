@@ -11,6 +11,7 @@ import { errorWithContext, reportError } from "@/lib/report-error";
 import { runAsNewSystemOperation } from "@/lib/correlation";
 import { alertTracker } from "@/lib/alert-state";
 import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
+import { hashChallengeToken } from "@/lib/auth/password-reset-challenge";
 
 // ---------------------------------------------------------------------------
 // Durable outbox for IDENTITY e-mails (Tur-4; docs/EMAIL-OUTBOX-DESIGN.md).
@@ -431,23 +432,40 @@ interface ClaimedRow {
   expiresAt: Date;
 }
 
-/** CURRENT ⟺ no newer generation AND the user's matching hash is still live. */
+/**
+ * Bileşik sıfırlama sırrının ("{token}.{code}") token parçasının özeti — satırın KENDİ challenge'ını adresler (`tokenHash` eşsiz).
+ * Biçim bozuksa boş token'ın özeti döner: hiçbir challenge'la eşleşmez → satır güncel sayılmaz (bağlantısı zaten çalışmazdı).
+ */
+function ownChallengeTokenHash(secret: string): string {
+  const dot = secret.indexOf(".");
+  return hashChallengeToken(dot > 0 ? secret.slice(0, dot) : "");
+}
+
+/**
+ * CURRENT ⟺ no newer generation AND the user's matching hash is still live.
+ * `challengeTokenHash`: `pw_reset_challenge` satırının KENDİ challenge'ı (yük çözülmüşse). Verilmezse (kurtarma yolu yükü çözmez)
+ * kullanıcı geneli kontrol — orada yalnız "yeniden kuyruğa al / iptal" kararı verilir, gönderim yine kapıdan (yüklü) geçer.
+ */
 async function rowIsCurrent(
   db: Prisma.TransactionClient,
   row: ClaimedRow,
   user: LivenessRow | null,
   now: Date,
+  challengeTokenHash?: string,
 ): Promise<boolean> {
   if (!user || !KINDS.has(row.kind)) return false;
   // ⚠️ CHALLENGE TÜRÜNÜN CANLILIĞI AYRI YERDE. Diğer türlerde "gönderilecek sır
   // hâlâ kullanıcının canlı sırrı mı" sorusu `User` satırındaki hash'e bakılarak
-  // yanıtlanır; challenge'da o hash HİÇ yazılmaz. Bunun yerine kullanıcının
-  // HENÜZ tüketilmemiş, süresi dolmamış bir challenge'ı var mı diye bakılır.
+  // yanıtlanır; challenge'da o hash HİÇ yazılmaz. Bunun yerine challenge satırına bakılır.
   // Yoksa (sıfırlama tamamlandı ya da süre doldu) bayat satır GÖNDERİLMEZ.
+  // 🚨 F3 (Codex 11-17): gönderim kapısı kullanıcının HERHANGİ bir canlı challenge'ına bakıyordu. Yeni sıfırlama isteğinin challenge'ı
+  // kuyruk satırından AYRI (önce) yazıldığı için, aradaki milisaniyelerde iptal edilmiş eski satırın kapısı o YENİ challenge'ı görüp
+  // ölü bağlantılı bir e-posta gönderebiliyordu. Kapı artık satırın KENDİ challenge'ına (token özeti) bakar.
   if (row.kind === "pw_reset_challenge") {
     const live = await db.passwordResetChallenge.count({
       where: {
         userId: row.userId,
+        ...(challengeTokenHash !== undefined ? { tokenHash: challengeTokenHash } : {}),
         consumedAt: null,
         invalidatedAt: null,
         expiresAt: { gt: now },
@@ -618,6 +636,8 @@ async function processClaimedRow(
     await cancelSelf();
     return "undecryptable";
   }
+  // Sıfırlama satırı kapıda KENDİ challenge'ıyla sınanır (↑`rowIsCurrent`, F3). Öteki türlerde kullanılmaz.
+  const ownChallenge = row.kind === "pw_reset_challenge" ? ownChallengeTokenHash(payload.secret) : undefined;
 
   // PRE-SEND GATE (one short locked TX): the row must still be the CURRENT
   // generation, the user's hash still live, and the recipient snapshot must
@@ -630,7 +650,7 @@ async function processClaimedRow(
     // batch must judge liveness/expiry against NOW, not against the past.
     const gateNow = new Date();
     const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
-    const current = await rowIsCurrent(tx, row, user, gateNow);
+    const current = await rowIsCurrent(tx, row, user, gateNow, ownChallenge);
     const recipientOk =
       user != null && user.email.toLowerCase() === payload.recipient.toLowerCase();
     if (!current || !recipientOk || row.expiresAt <= gateNow) {
@@ -681,7 +701,7 @@ async function processClaimedRow(
     // FRESH time again: the provider call itself consumed real seconds.
     const settleNow = new Date();
     const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
-    const current = await rowIsCurrent(tx, row, user, settleNow);
+    const current = await rowIsCurrent(tx, row, user, settleNow, ownChallenge);
     if (!current) {
       const c = await tx.emailOutbox.updateMany({
         where: { id: row.id, claimedBy: claimToken, status: "sending" },
