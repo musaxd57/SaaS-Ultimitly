@@ -59,6 +59,9 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
   "admin/trial-identity-exempt/route.ts": "operatör: deneme istisnası, org id GÖVDEDEN gelir; tek yetki isSuperAdmin (+2FA), bürünmede yasak, denetimli",
   "admin/trial-end/route.ts": "operatör: denemeyi bitir / geri ver (kurucu Q4), org id GÖVDEDEN gelir; tek yetki isSuperAdmin (+2FA), bürünmede yasak, denetimli",
+  "admin/checkout-release/route.ts":
+    "operatör: bekleyen ödeme kaydını serbest bırak (Codex 11-17); kayıt kimliği GÖVDEDEN gelir, işletme kayıttan; tek yetki isSuperAdmin (+2FA), " +
+    "bürünmede yasak, site dışı istek reddi, saatte 30, denetimli",
   "admin/events/route.ts":
     "global: takip numarasıyla TÜM işletmelerin olay günlüğünde arama (destek); tek yetki isSuperAdmin (+2FA), bürünmede yasak, site dışı " +
     "istek reddi, saatte 60, zorunlu denetim kaydı (kayıttaki org = operatörün kendi oturumu)",
@@ -104,6 +107,7 @@ const REQUEST_DERIVED_ORG_ID = new Set([
   "admin/quality-audit/route.ts",
   "admin/trial-identity-exempt/route.ts",
   "admin/trial-end/route.ts",
+  "admin/checkout-release/route.ts",
   "admin/events/route.ts",
   "alert-email/verify/route.ts",
 ]);

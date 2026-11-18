@@ -32,6 +32,8 @@ import { connectionHealth, connectionHealthText } from "@/lib/channels/health";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { cancelNoticeDate } from "@/lib/billing/cancel-notice";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { paidAtOf, paidCheckoutAwaiting } from "@/lib/billing/checkout-paid";
+import { checkoutBlockMessage } from "@/lib/billing/checkout-pending-shared";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 import { TRIAL_END_REASON_OPERATOR, TRIAL_OPERATOR_ENDED_MESSAGE } from "@/lib/billing/trial-operator";
 import { resumeEnabled } from "@/lib/billing/resume";
@@ -185,8 +187,14 @@ export default async function SettingsPage({
     ? ((await prisma.subscription.findUnique({ where: { organizationId: session.organizationId }, select: { trialEndReason: true } }).catch(() => null))
         ?.trialEndReason ?? null)
     : null;
-  const checkoutPendingNow =
+  const checkoutLockNow =
     paddleReady && !canManagePaddleSub && (await checkoutPendingActive(session.organizationId).catch(() => false));
+  // Ödeme alındı, abonelik bekleniyor (Codex 11-17): kilit düşse de bağlanmamış ödeme varken plan kartları kilitli kalır; metin ödemenin
+  // yaşına göre ("işleniyor" → "alındı, henüz tanımlanmadı"). Yalnız veritabanı okunur (Paddle'a sayfa çiziminde gidilmez).
+  const awaitingPayment =
+    paddleReady && !canManagePaddleSub ? await paidCheckoutAwaiting(session.organizationId).catch(() => null) : null;
+  const checkoutPendingNow = checkoutLockNow || awaitingPayment !== null;
+  const checkoutPendingMessage = awaitingPayment ? checkoutBlockMessage(paidAtOf(awaitingPayment)) : null;
 
   // ── İşletme Ayarları › Yapay Zekâ — voice + how the AI answers ───────────────
   const aiView = (
@@ -550,6 +558,7 @@ export default async function SettingsPage({
               locale={appLocale()}
               currency={appBillingCurrency()}
               checkoutPending={checkoutPendingNow}
+              checkoutPendingMessage={checkoutPendingMessage}
               trialNotice={
                 trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED
                   ? TRIAL_IDENTITY_REUSED_MESSAGE

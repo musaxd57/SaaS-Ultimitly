@@ -2,6 +2,8 @@ import { TrialExemptButton } from "@/components/admin/trial-exempt-button";
 import { TRIAL_RISK_LABELS, riskyTrials } from "@/lib/billing/trial-risk";
 import { TRIAL_END_REASON_OPERATOR } from "@/lib/billing/trial-operator";
 import { TrialEndButton } from "@/components/admin/trial-end-button";
+import { CheckoutReleaseButton } from "@/components/admin/checkout-release-button";
+import { paidCheckoutsAwaitingSummary } from "@/lib/billing/checkout-paid";
 import { loadSignupNetworkSignals } from "@/lib/billing/signup-network";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -175,6 +177,8 @@ export default async function AdminPage() {
   };
   // Ödeme incelemesi (kurucu 10-16 ödeme S1/S2, Opus F5): incelemeye düşen ödeme olayları görünür — yalnız kimlik / tür / kod / zaman.
   const paymentReview = await paymentReviewSummary().catch(() => null);
+  // Ödemesi alınmış, aboneliği hesaba bağlanmamış kayıtlar (Codex 11-17): müşteri bu sürede yeniden ödeme yapamaz → operatör görsün.
+  const paidAwaiting = await paidCheckoutsAwaitingSummary().catch(() => null);
   // Paddle API anahtarı uyarısı (kurucu 10-17): ödeme incelemesinden AYRI — son 90 günün en yeni uyarısı (e-posta kısılsa da görünür).
   const apiKeyAlerts = await paddleApiKeyAlerts().catch(() => []);
 
@@ -744,6 +748,32 @@ export default async function AdminPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Ödemesi alınan, aboneliği bağlanmayan</p>
+            <p className="text-xs text-muted-foreground">
+              Paddle ödemeyi almış ama abonelik hesaba henüz bağlanmamış. Müşteri bu sürede yeniden ödeme yapamaz (ikinci tahsilat olmasın
+              diye). Abonelik bağlanınca ya da Paddle&apos;da iptal edilince satır kendiliğinden kapanır; ödemeyi iade ettiyseniz serbest bırakın.
+            </p>
+            {paidAwaiting === null ? (
+              <p className="text-xs text-destructive">Bekleyen ödemeler okunamadı.</p>
+            ) : paidAwaiting.total === 0 ? (
+              <p className="text-xs text-muted-foreground" data-testid="paid-awaiting">Bekleyen ödeme yok.</p>
+            ) : (
+              <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="paid-awaiting">
+                <li className="font-semibold text-destructive">Bekleyen {paidAwaiting.total} ödeme</li>
+                {paidAwaiting.rows.map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-2">
+                    <span>
+                      İşletme <span className="font-mono">{r.organizationId}</span> · işlem{" "}
+                      <span className="font-mono">{r.transactionId ?? "—"}</span> · {r.paidAt.toISOString().slice(0, 16).replace("T", " ")}
+                    </span>
+                    <CheckoutReleaseButton intentId={r.id} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="space-y-1.5">

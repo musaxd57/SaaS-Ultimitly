@@ -949,7 +949,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("paddle-webhook-replay", "scheduled-sync paddle-webhook-replay", () => replayPendingPaddleEvents());
         await hourly("paddle-webhook-minimize", "scheduled-sync paddle-webhook-minimize", () => minimizeOldPaddleWebhooks());
         // Ödeme niyeti (Codex 10-21 P1, migration 82): süresi dolan açık ödeme ekranı kapanır (ödenmemiş işlem Paddle'da iptal), kapananlar
-        // 90 gün sonra silinir. Anahtar kapalıyken tablo boş → iş yok.
+        // 90 gün sonra silinir. Aynı iş "ödeme alındı, abonelik bekleniyor" kayıtlarını da gezer (Codex 11-17; anahtardan bağımsız): önce
+        // Paddle'la uzlaştırır, 15 dakikadır bağlanmayan ödemeyi operatöre bildirir (`billing/checkout-paid.ts`).
         await hourly("checkout-intent-sweep", "scheduled-sync checkout-intent-sweep", () => sweepCheckoutIntents());
         // KB kopyalama işlem kayıtları (migration 81): 30 günü dolan kayıt silinir (Opus 10-21 B7 — rota yalnız yeniden kopyalayan işletmeyi siliyordu).
         await hourly("kb-copy-operation-sweep", "scheduled-sync kb-copy-operation-sweep", () => sweepKbCopyOperations());

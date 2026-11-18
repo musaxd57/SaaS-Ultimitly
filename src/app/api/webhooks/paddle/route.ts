@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { inPaddleReplay } from "@/lib/payments/paddle-replay-context";
 import { Prisma } from "@prisma/client";
 import { completeCheckoutIntent } from "@/lib/billing/checkout-intent";
+import { fulfilPaidCheckouts, recordPaidCheckout } from "@/lib/billing/checkout-paid";
 import { prisma } from "@/lib/db";
 import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
@@ -470,6 +471,9 @@ async function applySubscriptionEventOnce(
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
     // Kartla deneme: kart eklendi (`trialing`) → "Ödemeniz işleniyor" kilidi de kalkar (Haiku 10-17).
     // Yalnız BU olayın ödemesinin kilidi kalkar (ödeme P4 — başka aboneliğin olayı yeni ödemenin kilidini silmesin).
+    // "Ödeme alındı, abonelik bekleniyor" kaydı (Codex 11-17): bu onayın aboneliği hesaba YAZILDI → kayıt kapanır. Durumdan bağımsız (bağ,
+    // satırdaki abonelik kimliğidir); kimlik bu olayla yazılmadıysa (kimliksiz olay) dokunulmaz.
+    if (providerRef && eventConsentId) await fulfilPaidCheckouts(organizationId, eventConsentId);
     if (status === "trialing") await clearCheckoutPending(organizationId, eventConsentId);
     if (status === "active") {
       await clearCheckoutPending(organizationId, eventConsentId);
@@ -652,7 +656,20 @@ async function applyTransactionEvent(
   // Ödeme niyeti (Codex 10-21 P1): tamamlanan / ödenen işlemin açık niyeti kapanır — işletme bağı çözülemese de (alarm aşağıda) aynı işlem
   // ikinci kez "açık" görünmesin. Anahtar kapalıyken tablo boştur, hiçbir şey yapmaz.
   const intentRef = str(data.id);
-  if (intentRef) await completeCheckoutIntent(intentRef);
+  if (intentRef) {
+    await completeCheckoutIntent(intentRef);
+    // ÖDEME ALINDI, ABONELİK BEKLENİYOR (Codex 11-17): ödeme deftere KALICI yazılır — 10 dk kilit düşse de abonelik hesaba bağlanana dek yeni
+    // ödeme ekranı açılmaz. Niyet satırı olmayan (işlemi istemcinin açtığı) ödeme ekranı işlemi burada kayıt bulur; yenileme / plan
+    // değişikliği işlemleri kayıt açmaz; aboneliği zaten bağlı işlem bekleyen kaydı kapatır. Hata yutulmaz: olay işlenmemiş sayılır,
+    // Paddle yeniden gönderir (kayıtsız kalan ödeme ikinci ödemeye kapı açardı).
+    await recordPaidCheckout({
+      transactionId: intentRef,
+      consentId: consentIdFromData(data),
+      subscriptionId: str(data.subscription_id),
+      origin: str(data.origin),
+      paidAt: occurredAt ?? new Date(),
+    });
+  }
   // Transactions skip the price-match (their line items differ from the sub price);
   // the consent freshness (by occurred_at) + org binding still apply.
   const organizationId = await resolveOrgId(data, null, occurredAt);

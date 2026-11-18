@@ -22,6 +22,11 @@ export const OPERATIONAL_EVENTS = {
   "error.reported": "error",
   "billing.consent.created": "info",
   "billing.checkout.pending": "info",
+  // Ödeme alındı, abonelik bekleniyor (Codex 11-17, `lib/billing/checkout-paid.ts`): kayıt açıldı · abonelik bağlandı · ödeme geçersiz sayıldı
+  // (aboneliği iptal edilmiş / operatör bıraktı). Yalnız onay + işlem kimliği ve sebep kodu.
+  "billing.checkout.paid": "info",
+  "billing.checkout.fulfilled": "info",
+  "billing.checkout.released": "warn",
   "billing.webhook.received": "info",
   "billing.webhook.duplicate": "info",
   "billing.webhook.processed": "info",

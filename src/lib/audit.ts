@@ -32,6 +32,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "guest_chat.pin_set": "Misafir sohbet kodu oluşturuldu",
   "guest_chat.pin_clear": "Misafir sohbet kodu kaldırıldı",
   "billing.plan_change": "Abonelik planı değiştirildi",
+  "billing.checkout_released": "Bekleyen ödeme kaydı serbest bırakıldı (operatör)",
   "billing.plan_change_pending": "Abonelik planı değişikliği Paddle onayı bekliyor (tahsilat gerçekleşmiş olabilir)",
   "billing.plan_change_rejected": "Abonelik planı değişikliği Paddle tarafından reddedildi",
   "outbox.manual_retry": "Gönderim yeniden kuyruğa alındı",

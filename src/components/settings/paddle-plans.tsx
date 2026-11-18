@@ -37,7 +37,7 @@ interface PaddleCheckoutOpenOptions {
 }
 interface PaddleGlobal {
   Environment: { set: (env: string) => void };
-  Initialize: (opts: { token: string; eventCallback?: (ev: { name?: string }) => void }) => void;
+  Initialize: (opts: { token: string; eventCallback?: (ev: { name?: string; data?: { transaction_id?: unknown } }) => void }) => void;
   Checkout: { open: (opts: PaddleCheckoutOpenOptions) => void };
 }
 declare global {
@@ -145,6 +145,7 @@ export function PaddlePlans({
   locale,
   currency,
   checkoutPending = false,
+  checkoutPendingMessage = null,
   trialNotice = null,
   subscriptionStatus = null,
   resumeEnabled = false,
@@ -185,6 +186,8 @@ export function PaddlePlans({
   /** "Ödemeniz işleniyor" kilidi sunucuda geçerli mi (kurucu onayı 10-10, `lib/billing/checkout-pending.ts`): az önce tamamlanan ödemenin
    *  aboneliği henüz yazılmadı → yeni ödeme ekranı açılmaz. */
   checkoutPending?: boolean;
+  /** Kilit sürerken gösterilecek metin (sunucu seçer: ödemenin üstünden 10 dakikadan çok geçtiyse "alındı, tanımlanmadı" — Codex 11-17). */
+  checkoutPendingMessage?: string | null;
   /** Deneme erken bittiyse sunucunun hazırladığı sade not (kurucu onayı 10-10, deneme kimliği). */
   trialNotice?: string | null;
   /** Abonelik durumu (erişim kapalıyken sebep etiketi: son ödeme alınamadı / duraklatıldı / iptal edildi — K3, 10-17). */
@@ -319,11 +322,14 @@ export function PaddlePlans({
                 }, CHECKOUT_PENDING_MS);
                 const consentId = lastConsentRef.current;
                 if (consentId) {
+                  // Tamamlanan işlemin kimliği de gider (Codex 11-17): sunucu ödemeyi Paddle'dan kendisi doğrular ve kalıcı kaydı yazar —
+                  // web kancası gecikse de 10 dakikalık kilit düşünce ikinci ödeme açılmaz. Kimlik yoksa bugünkü gibi yalnız kilit.
+                  const paidTransactionId = typeof ev.data?.transaction_id === "string" ? ev.data.transaction_id : undefined;
                   void fetch("/api/billing/checkout-pending", {
                     method: "POST",
                     keepalive: true,
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ consentId }),
+                    body: JSON.stringify({ consentId, ...(paidTransactionId ? { transactionId: paidTransactionId } : {}) }),
                   }).catch(() => {});
                 }
                 refreshAfterBilling(router);
@@ -974,7 +980,9 @@ export function PaddlePlans({
       </div>
 
       {trialNotice && !manageable ? <p className="text-xs text-foreground">{trialNotice}</p> : null}
-      {processing && !manageable ? <p className="text-xs text-muted-foreground">{CHECKOUT_PENDING_MESSAGE}</p> : null}
+      {processing && !manageable ? (
+        <p className="text-xs text-muted-foreground">{(checkoutPending ? checkoutPendingMessage : null) ?? CHECKOUT_PENDING_MESSAGE}</p>
+      ) : null}
       {planChangeEnabled && annual ? <p className="text-xs text-muted-foreground">{BILLING_TEXT.annualChangeViaSupport}</p> : null}
       {notice ? (
         <p className="text-xs text-foreground" role="status">

@@ -107,6 +107,7 @@ import {
   CHECKOUT_INTENT_REUSE_GRACE_MS,
 } from "@/lib/billing/checkout-intent";
 import { checkoutPendingActive, clearCheckoutPending } from "@/lib/billing/checkout-pending";
+import { fulfilPaidCheckouts } from "@/lib/billing/checkout-paid";
 import { reportError } from "@/lib/report-error";
 import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
@@ -216,10 +217,18 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
     expect(paddle.created).toBe(1);
-    // Abonelik webhook'u kilidi kaldırınca (ör. abonelik sonra iptal edildi) yeni ödeme YENİ işlemle açılır.
     // (Kilit YALNIZ kendi ödemesinin olayıyla kalkar — P4: olay, niyetin onay kaydını taşır.)
     const paidConsent = (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).consentId;
     await clearCheckoutPending(orgId, paidConsent);
+    // 🚨 Codex 11-17: kilidin kalkması / düşmesi TEK BAŞINA yeniden ödeme izni DEĞİLDİR — ödeme alındı, abonelik hesaba bağlanmadı.
+    // (Eskiden bu satırda yeni işlem açılıyordu: 10 dakikalık kilit düşünce ikinci ödeme.)
+    const stillPaid = await POST(postReq(), ctx);
+    expect(stillPaid.status).toBe(400);
+    expect(paddle.created).toBe(1);
+    // Abonelik olayı hesaba yazılınca (web kancası: kilit kalkar + ödeme kaydı "bağlandı" olur) ve abonelik sonra iptal edilince yeni ödeme
+    // YENİ işlemle açılır.
+    await fulfilPaidCheckouts(orgId, paidConsent);
+    expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("fulfilled");
     expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
   });
 
@@ -242,21 +251,21 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
       expect(await checkoutPendingActive(orgId)).toBe(true);
     });
 
-    it("🚨 kilit YAZILAMAZSA niyet açık kalır → ikinci tıklama yeni işlem AÇMAZ; olay yeniden gelince kilit yazılır ve niyet kapanır", async () => {
+    // Codex 11-17: asıl koruma artık "ödeme alındı" KAYDI (süreyle kapanmaz) — kilit yalnız 10 dakikalık yardımcı. Kilit yazılamasa da
+    // kayıt yazılır ve ikinci tıklama yeni işlem açmaz. (11-10 → 11-17 arası: kilit yazılamayınca niyet açık bırakılıyordu; ondan önce niyet
+    // kilitsiz kapanıyor ve ikinci tıklama txn_2 açıyordu.)
+    it("🚨 kilit YAZILAMAZSA da kayıt 'ödeme alındı' olur → ikinci tıklama yeni işlem AÇMAZ (kilit olmadan da)", async () => {
       await POST(postReq(), ctx);
       paddle.statuses.set("txn_1", "completed");
       pending.failMark = true;
       await completeCheckoutIntent("txn_1");
-      expect(await intentStatus()).toBe("open"); // ⬅️ ESKİDE "completed" + kilit yok
+      expect(await intentStatus()).toBe("completed");
+      expect(await checkoutPendingActive(orgId)).toBe(false); // kilit yazılamadı
       const res = await POST(postReq(), ctx);
-      expect(res.status).toBe(400); // ⬅️ ESKİDE 201 + txn_2 (çift tahsilat yolu)
+      expect(res.status).toBe(400); // ⬅️ ilk hâlinde 201 + txn_2 (çift tahsilat yolu)
       expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
       expect(paddle.created).toBe(1);
-
-      pending.failMark = false;
-      await completeCheckoutIntent("txn_1"); // Paddle'ın yeniden gönderdiği olay
-      expect(await intentStatus()).toBe("completed");
-      expect(await checkoutPendingActive(orgId)).toBe(true);
+      expect(vi.mocked(reportError).mock.calls.some(([context]) => context === "checkout-intent-pending")).toBe(true);
     });
 
     it("🚨 onay kapıdan geçtikten SONRA ödeme tamamlanıp niyet kapanırsa (yer boşaldı) yeni Paddle işlemi AÇILMAZ", async () => {

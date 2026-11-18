@@ -2,11 +2,19 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { paddleRequest } from "@/lib/payments/paddle";
-import { PADDLE_PAID_STATES, PADDLE_TXN_NOT_FOUND, paddleTransactionStatus } from "@/lib/billing/paddle-transaction-status";
+import { PADDLE_PAID_STATES, PADDLE_TXN_NOT_FOUND, paddleTransactionStatus, readPaddleTransaction } from "@/lib/billing/paddle-transaction-status";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { reportError } from "@/lib/report-error";
 import { checkoutPendingActive, markCheckoutPending } from "@/lib/billing/checkout-pending";
 import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
+import {
+  CHECKOUT_FULFILLED_STATUS,
+  CHECKOUT_PAID_STATUS,
+  CHECKOUT_UNPAID_STATUSES,
+  paidCheckoutAwaiting,
+  recordPaidCheckout,
+  sweepPaidCheckouts,
+} from "@/lib/billing/checkout-paid";
 
 // ---------------------------------------------------------------------------
 // ÖDEME NİYETİ — İŞLETME BAŞINA TEK AÇIK PADDLE İŞLEMİ (Codex 10-21 P1, migration 82; tasarım
@@ -21,7 +29,9 @@ import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
 //    ekran AÇILMAZ ("açık bir ödemeniz var");
 //  · açık niyetin işlemi Paddle'da zaten ödenmişse (webhook henüz gelmedi) yeni ekran açılmaz ("ödemeniz işleniyor");
 //  · "açılıyor" durumundaki niyet (başka sekme Paddle'ı bekliyor) kısa süre bekletir.
-// Kapalı küme durumlar: opening · open · completed · canceled · expired · failed. `openKey` yalnız opening / open iken = işletme kimliği.
+// Kapalı küme durumlar: opening · open · completed · fulfilled · released · canceled · expired · failed. `openKey` yalnız opening / open
+// iken = işletme kimliği. "completed" = ÖDEME ALINDI, ABONELİK BEKLENİYOR (Codex 11-17): süreyle kapanmaz, yeni ödeme ekranı açtırmaz;
+// abonelik hesaba bağlanınca "fulfilled", ödeme geçersiz sayılınca "released" olur — kurallar `checkout-paid.ts`.
 // PADDLE-VARSAYIM (sandbox'ta doğrulanacak): `POST /transactions` "ready" işlem döndürür; ödeme ekranı `Checkout.open({ transactionId })` ile
 // açılır; `PATCH /transactions/{id} { status: "canceled" }` ödenmemiş işlemi iptal eder; `GET /transactions/{id}` `status` alanı "paid" /
 // "completed" ise ödenmiştir.
@@ -73,21 +83,43 @@ const transactionStatus = paddleTransactionStatus;
  * yalnız istemci yazıyordu — sekme kapandıysa ikinci tıklama niyeti boş bulup YENİ işlem açıyordu. Abonelik webhook'u kilidi kaldırır.
  *
  * 🚨 SIRA: ÖNCE KİLİT, SONRA NİYET KAPANIR (ödeme P2, Codex 11-10). Eski sırada (niyet kapanır → kilit yazılır) arada ne açık niyet ne kilit
- * vardı: tam o anda gelen ikinci tıklama yeni işlem açabiliyordu (çift tahsilat). Kilit yazımı hata verirse de niyet kapalı kalıyor, yeniden
- * gelen olay "açık niyet yok" deyip hiçbir şeyi onarmıyordu. Artık kilit yazılamazsa niyet AÇIK KALIR: ödenmiş işlemin açık niyeti yeni işlem
- * açtırmaz (sonraki onay Paddle durumunu okuyup "ödendi" der ve yeniden dener; süpürge de aynı yoldan kapatır). Fırlatmaz.
+ * vardı: tam o anda gelen ikinci tıklama yeni işlem açabiliyordu (çift tahsilat).
+ *
+ * 🚨 ASIL KORUMA ARTIK KAYDIN KENDİSİ (Codex 11-17): "ödeme alındı" durumu süreyle kapanmaz ve yeni ödeme ekranı açtırmaz
+ * (`checkout-paid.ts`); kilit yalnız 10 dakikalık yardımcıdır. Bu yüzden kilit yazılamasa da kayıt "ödeme alındı"ya geçer — eskiden kilit
+ * yazılamayınca niyet olduğu gibi bırakılıyordu; açık niyette bu korumaydı ama KAPANMIŞ (süresi dolmuş) niyetin sonradan ödenen işleminde
+ * hiçbir iz kalmazdı.
  */
 async function settlePaidIntent(intent: { id: string; organizationId: string; consentId: string }, now: Date): Promise<void> {
   try {
     await markCheckoutPending(intent.organizationId, intent.consentId, now);
   } catch (err) {
-    void reportError("checkout-intent-pending", err);
-    return; // kilit yok → niyet açık kalır (koruma sürer)
+    void reportError("checkout-intent-pending", err); // kilit yok; aşağıdaki kayıt yine korur
   }
+  // Kapanmış ama ödenmemiş satır da (süresi dolmuş, iptali doğrulanamamış) "ödeme alındı"ya geçer: Paddle'ın "ödendi"si yerel kapanışa
+  // baskındır (Codex 11-17). Kapanış anı = ödemenin görüldüğü an.
   await prisma.checkoutIntent.updateMany({
-    where: { id: intent.id, status: { in: ["open", "opening"] } },
-    data: { status: "completed", openKey: null, closedAt: now },
+    where: { id: intent.id, status: { in: [...CHECKOUT_UNPAID_STATUSES] } },
+    data: { status: CHECKOUT_PAID_STATUS, openKey: null, closedAt: now },
   });
+  await closeOtherOpenIntent(intent, now);
+}
+
+/**
+ * Ödeme alındı → işletmenin BAŞKA açık işlemi kalmasın (Codex 11-17). Olağan yolda ödenen işlem zaten tek açık niyettir (hiçbir şey yapmaz).
+ * Ama süresi dolup kapanmış bir niyetin işlemi sonradan ödendiyse müşteri bu arada YENİ bir ödeme ekranı açmış olabilir: o ekran açık
+ * kalırsa ikinci ödeme tamamlanabilir. Açık işlem Paddle'da iptal edilir ve niyeti kapanır; iptal edilemiyorsa (ödeme başlamış olabilir)
+ * dokunulmaz — ödenirse o da "ödeme alındı" olur ve ikinci abonelik alarmı doğar. Asla fırlatmaz.
+ */
+async function closeOtherOpenIntent(paid: { id: string; organizationId: string }, now: Date): Promise<void> {
+  try {
+    const other = await prisma.checkoutIntent.findUnique({ where: { openKey: paid.organizationId }, select: { id: true, status: true, providerRef: true } });
+    if (!other || other.id === paid.id || other.status !== "open" || !other.providerRef) return;
+    if (!(await cancelOrConfirmClosed(other.providerRef))) return;
+    await prisma.checkoutIntent.updateMany({ where: { id: other.id, status: "open" }, data: { status: "canceled", openKey: null, closedAt: now } });
+  } catch (err) {
+    void reportError("checkout-intent-close-other", err);
+  }
 }
 
 /**
@@ -97,6 +129,8 @@ async function settlePaidIntent(intent: { id: string; organizationId: string; co
  */
 async function paidWhileWaiting(organizationId: string, now: Date): Promise<boolean> {
   if (await checkoutPendingActive(organizationId, now)) return true;
+  // Kilit düşmüş olsa da ödemesi alınmış, aboneliği bağlanmamış kayıt varsa yeni işlem açılmaz (Codex 11-17 — süreyle kapanmaz).
+  if (await paidCheckoutAwaiting(organizationId)) return true;
   const live = await prisma.subscription.findUnique({ where: { organizationId }, select: { provider: true, providerRef: true, status: true } });
   return isLivePaddleSubscription(live);
 }
@@ -245,7 +279,10 @@ export async function openOrReuseCheckoutIntent(input: {
       await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open", expiresAt: { lt: graceUntil } }, data: { expiresAt: graceUntil } });
       // Okuma ile bu an arasında niyet kapandıysa (webhook ödendi dedi / başka istek iptal etti) ölü işlem VERİLMEZ (Haiku 10-21).
       const still = await prisma.checkoutIntent.findUnique({ where: { id: existing.id }, select: { status: true } });
-      if (still?.status !== "open") return still?.status === "completed" ? { kind: "paid" } : { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
+      if (still?.status !== "open") {
+        const paid = still?.status === CHECKOUT_PAID_STATUS || still?.status === CHECKOUT_FULFILLED_STATUS;
+        return paid ? { kind: "paid" } : { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
+      }
       return { kind: "open", transactionId: existing.providerRef, reused: true };
     }
     // Farklı paket: eski ödenmemiş işlem iptal edilir, sonra yenisi açılır. İptal doğrulanamazsa yeni ekran YOK.
@@ -297,8 +334,10 @@ async function createTransaction(
  */
 export async function completeCheckoutIntent(transactionId: string, now: Date = new Date()): Promise<void> {
   try {
+    // Ödenmeden önceki HER durumdaki satır (kapanmış olanlar dahil — Codex 11-17): süresi dolup iptali doğrulanamadan kapanmış niyetin
+    // işlemi sonradan ödenirse de "ödeme alındı" kaydı oluşur.
     const intent = await prisma.checkoutIntent.findFirst({
-      where: { providerRef: transactionId, status: { in: ["open", "opening"] } },
+      where: { providerRef: transactionId, status: { in: [...CHECKOUT_UNPAID_STATUSES] } },
       select: { id: true, organizationId: true, consentId: true },
     });
     if (!intent) return;
@@ -307,6 +346,37 @@ export async function completeCheckoutIntent(transactionId: string, now: Date = 
     await settlePaidIntent(intent, now);
   } catch (err) {
     void reportError("checkout-intent-complete", err);
+  }
+}
+
+/**
+ * İSTEMCİNİN "ödeme tamamlandı" sinyali SUNUCUDA doğrulanır (Codex 11-17; `api/billing/checkout-pending`). Sinyal tek başına yalnız 10 dk
+ * kilit yazar; ödeme Paddle'dan okunup doğrulanırsa kalıcı kayıt oluşur — web kancası hiç gelmese de ikinci ödeme açılmaz.
+ *  1. İşletmenin açık niyeti varsa (işlemi sunucu açtı) işlem kimliği SATIRDAN alınır; Paddle "ödendi" diyorsa niyet "ödeme alındı" olur.
+ *  2. Yoksa istemcinin bildirdiği işlem okunur: ödenmiş VE taşıdığı onay kaydı BU işletmeninse deftere yazılır. Başkasının işlemi,
+ *     ödenmemiş işlem, okunamayan yanıt → hiçbir şey yazılmaz (kilit yine geçerli).
+ * Asla fırlatmaz (istemci sinyalinin yanıtı bu doğrulamaya bağlı değildir).
+ */
+export async function confirmPaidCheckout(input: { organizationId: string; transactionId: string | null; now?: Date }): Promise<void> {
+  const now = input.now ?? new Date();
+  try {
+    const open = await prisma.checkoutIntent.findUnique({
+      where: { openKey: input.organizationId },
+      select: { id: true, organizationId: true, consentId: true, providerRef: true },
+    });
+    if (open?.providerRef) {
+      const status = await transactionStatus(open.providerRef);
+      if (status && PAID_STATES.has(status)) await settlePaidIntent(open, now);
+      return;
+    }
+    if (!input.transactionId) return;
+    const txn = await readPaddleTransaction(input.transactionId);
+    if (txn === null || txn === NOT_FOUND || !txn.status || !PAID_STATES.has(txn.status) || !txn.consentId) return;
+    const own = await prisma.checkoutConsent.findFirst({ where: { id: txn.consentId, organizationId: input.organizationId }, select: { id: true } });
+    if (!own) return;
+    await recordPaidCheckout({ transactionId: input.transactionId, consentId: own.id, subscriptionId: txn.subscriptionId, origin: txn.origin, paidAt: now });
+  } catch (err) {
+    void reportError("checkout-paid-confirm", err);
   }
 }
 
@@ -324,7 +394,7 @@ export async function openCheckoutIntentExists(organizationId: string, now: Date
 }
 
 /** Saatlik süpürge: süresi dolan açık niyetler (bütün işletmeler) + 90 günden eski kapanmış niyetlerin silinmesi. */
-export async function sweepCheckoutIntents(now: Date = new Date()): Promise<{ expired: number; deleted: number }> {
+export async function sweepCheckoutIntents(now: Date = new Date()): Promise<{ expired: number; deleted: number; paidAwaiting: number }> {
   const orgs = await prisma.checkoutIntent.findMany({
     where: {
       OR: [
@@ -337,8 +407,11 @@ export async function sweepCheckoutIntents(now: Date = new Date()): Promise<{ ex
     take: 200,
   });
   for (const o of orgs) await closeStale(o.organizationId, now);
+  // Bağlanmamış ödemeler: uzlaştır, hâlâ bekliyorsa operatöre haber (Codex 11-17). Saklama süresi "ödeme alındı" kaydını SİLMEZ — kayıt
+  // ancak bağlanınca / bırakılınca kapanır (silinseydi 90 gün sonra ikinci ödeme yine açılırdı).
+  const paid = await sweepPaidCheckouts(now);
   const deleted = await prisma.checkoutIntent.deleteMany({
-    where: { openKey: null, closedAt: { lt: new Date(now.getTime() - CHECKOUT_INTENT_RETENTION_MS) } },
+    where: { openKey: null, status: { not: CHECKOUT_PAID_STATUS }, closedAt: { lt: new Date(now.getTime() - CHECKOUT_INTENT_RETENTION_MS) } },
   });
-  return { expired: orgs.length, deleted: deleted.count };
+  return { expired: orgs.length, deleted: deleted.count, paidAwaiting: paid.checked - paid.closed };
 }

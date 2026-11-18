@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 import { PaddlePlans, PROCESSING_RECHECK_MS } from "@/components/settings/paddle-plans";
 import { CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
-import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { checkAllCheckoutConsents } from "../helpers/checkout-consent-ui";
 
 const plans = [
@@ -30,7 +30,7 @@ const plans = [
   },
 ];
 
-const plansEl = (checkoutPending: boolean) => (
+const plansEl = (checkoutPending: boolean, checkoutPendingMessage: string | null = null) => (
     <PaddlePlans
       clientToken="ctok"
       environment="sandbox"
@@ -45,6 +45,7 @@ const plansEl = (checkoutPending: boolean) => (
       locale="tr-TR"
       currency="TRY"
       checkoutPending={checkoutPending}
+      checkoutPendingMessage={checkoutPendingMessage}
     />
 );
 function renderPlans(checkoutPending = false) {
@@ -52,7 +53,7 @@ function renderPlans(checkoutPending = false) {
 }
 
 describe("PaddlePlans — ödemeniz işleniyor", () => {
-  let eventCallback: ((ev: { name?: string }) => void) | undefined;
+  let eventCallback: ((ev: { name?: string; data?: { transaction_id?: unknown } }) => void) | undefined;
   let open: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -61,7 +62,7 @@ describe("PaddlePlans — ödemeniz işleniyor", () => {
     open = vi.fn();
     (window as unknown as { Paddle: unknown }).Paddle = {
       Environment: { set: vi.fn() },
-      Initialize: vi.fn((opts: { eventCallback?: (ev: { name?: string }) => void }) => {
+      Initialize: vi.fn((opts: { eventCallback?: (ev: { name?: string; data?: { transaction_id?: unknown } }) => void }) => {
         eventCallback = opts.eventCallback;
       }),
       Checkout: { open },
@@ -100,6 +101,30 @@ describe("PaddlePlans — ödemeniz işleniyor", () => {
     const call = vi.mocked(fetch).mock.calls.find(([url]) => url === "/api/billing/checkout-pending");
     expect(call).toBeTruthy();
     expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({ consentId: "cons_1" });
+  });
+
+  // Codex 11-17: tamamlanan işlemin kimliği de gider → sunucu ödemeyi Paddle'dan doğrulayıp kalıcı kaydı yazar (10 dk kilit düşünce de
+  // ikinci ödeme açılmasın). Olay kimlik taşımıyorsa / biçimi metin değilse bugünkü gövde aynen (yalnız onay kaydı).
+  it("🚨 başarı olayı işlem kimliği taşıyorsa sinyal onu da taşır; taşımıyorsa / metin değilse yalnız onay kaydı", async () => {
+    await payOnce();
+    act(() => eventCallback?.({ name: "checkout.completed", data: { transaction_id: "txn_01abc" } }));
+    act(() => eventCallback?.({ name: "checkout.completed", data: { transaction_id: 42 } }));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === "/api/billing/checkout-pending")).toHaveLength(2));
+    const bodies = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => url === "/api/billing/checkout-pending")
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+    expect(bodies).toEqual([{ consentId: "cons_1", transactionId: "txn_01abc" }, { consentId: "cons_1" }]);
+  });
+
+  it("sunucu 'ödeme alındı, henüz tanımlanmadı' metnini verdiyse (kilit süresi geçti, abonelik bağlanmadı) o metin görünür, düğme kilitli", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    render(plansEl(true, CHECKOUT_PAID_AWAITING_MESSAGE));
+    await checkAllCheckoutConsents();
+    const btn = await screen.findByRole("button", { name: /bu planı seç/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(CHECKOUT_PAID_AWAITING_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(CHECKOUT_PENDING_MESSAGE)).toBeNull();
   });
 
   it("KONTROL: ödeme ekranı kapatıldı / vazgeçildi (başarı olayı yok) → kilit YOK, sinyal YOK", async () => {

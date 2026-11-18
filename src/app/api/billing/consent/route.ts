@@ -11,7 +11,8 @@ import { isLivePaddleSubscription } from "@/lib/billing/live-subscription";
 import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
 import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor } from "@/lib/billing/consent-copy";
 import { getEntitlement, planFitsPropertyCount } from "@/lib/billing/subscription";
-import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { CHECKOUT_PENDING_MESSAGE, checkoutBlockMessage } from "@/lib/billing/checkout-pending-shared";
+import { paidCheckoutBlock } from "@/lib/billing/checkout-paid";
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import { NextResponse } from "next/server";
@@ -112,6 +113,15 @@ export const POST = withOwner(async (session, req) => {
   // yukarıdaki canlı abonelik kontrolü yalnız webhook'un yazdığı satırı görür (ikinci sekmede ikinci abonelik penceresi).
   if (await checkoutPendingActive(session.organizationId)) {
     return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+  }
+
+  // 🚨 ÖDEME ALINDI, ABONELİK BEKLENİYOR (Codex 11-17): yukarıdaki kilit 10 dakikada düşer; abonelik olayı o sürede hesaba bağlanmadıysa
+  // (gecikme / arıza / "bağlanamadı") eskiden yeni ödeme ekranı açılıyordu. Sunucunun gördüğü ödeme kalıcı kayıttır: abonelik bağlanana
+  // (ya da ödeme geçersiz sayılana) dek yeni ekran yok — süre sınırı olmadan. Kayıt önce Paddle'la uzlaştırılır (bağlanmış / iptal edilmiş
+  // ödeme müşteriyi boşuna engellemesin). Onay kaydı YAZILMAZ (açılmayan ekranın delili olmaz).
+  const awaitingPayment = await paidCheckoutBlock(session.organizationId);
+  if (awaitingPayment) {
+    return badRequest({ _: checkoutBlockMessage(awaitingPayment.paidAt) });
   }
 
   // Anahtar kapalıyken açık ödeme niyeti kalmışsa (anahtar açılıp geri kapatıldı): ikinci ödeme ekranı açılmaz.

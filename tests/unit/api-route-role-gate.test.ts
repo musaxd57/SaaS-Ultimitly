@@ -153,6 +153,7 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "admin/reset-2fa POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
   "admin/trial-identity-exempt POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (deneme istisnası; bürünmede yasak)" },
   "admin/trial-end POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (denemeyi bitir / geri ver — kurucu Q4; bürünmede yasak)" },
+  "admin/checkout-release POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (bekleyen ödeme kaydını serbest bırak — Codex 11-17; bürünmede yasak)" },
   "admin/licenses GET": { gate: [SESSION, SUPERADMIN], reason: "operatör (işletme belgesi kuyruğu, Faz 1a; bürünmede yasak)" },
   "admin/licenses/[id]/reading POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (resmî kayıt okuması; bürünmede / site dışı yazma yok)" },
   "admin/licenses/[id]/proof POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (hak sahipliği kanıtı; belge dosyası saklanmaz)" },
