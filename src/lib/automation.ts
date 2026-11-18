@@ -145,6 +145,14 @@ import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { apartmentResolvable, fillGuestPlaceholders, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { buildGuestMessageBody, hasUnfilledPlaceholders, type AutoMessageKind } from "@/lib/auto-messages/render";
 import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip, type LoadedAutoMessage } from "@/lib/auto-messages/store";
+import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
+import {
+  dropLifecycleScanCursor,
+  lifecycleScanCursorName,
+  readLifecycleScanCursor,
+  writeLifecycleScanCursor,
+  type LifecycleScanKey,
+} from "@/lib/lifecycle-scan-cursor";
 import { isGreetingOnly, modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { foldPartText, partTextKey } from "@/lib/ai/answer-parts";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
@@ -5672,10 +5680,36 @@ export async function lifecycleBaselineWhere(organizationId: string, baseline: D
   };
 }
 
+/**
+ * 🚨 DAİRE DÜZEYİNDEKİ ENGEL SORGUDA (Codex 11-17 D2, katman 1). Bu türde metni olmayan (ya da metni boşluktan ibaret) dairenin
+ * rezervasyonu hiçbir koşulda gönderilmez (`loadAutoMessage` null) — eskiden yine aday olarak okunup döngüde eleniyor, okuma sınırını
+ * (↓ `LIFECYCLE_SCAN_PAGES`) doldurup arkadaki gönderilebilir rezervasyonu bekletiyordu. Artık o daireler aday sorgusuna hiç girmez.
+ * Kural `loadAutoMessage` ile AYNI (satır var + `body.trim()` boş değil); gönderim anındaki kontroller (metin okuma, `autoMessageStillAt`)
+ * AYNEN durur — küme geçiş başında okunur, arada yazılan metin sonraki geçişte görülür. Doldurulamayan metin burada ELENMEZ: sonuç misafir
+ * adına ve kanal imzasına da bağlıdır (rezervasyon düzeyi), ön elemede kalır.
+ */
+async function lifecycleTemplatedPropertyWhere(organizationId: string, kind: AutoMessageKind): Promise<Prisma.ReservationWhereInput> {
+  const rows = await prisma.autoMessageTemplate.findMany({
+    where: { kind, property: { organizationId }, NOT: { body: "" } },
+    select: { propertyId: true, body: true },
+  });
+  return { propertyId: { in: rows.filter((t) => t.body.trim() !== "").map((t) => t.propertyId) } };
+}
+
+/** Aday taramasının sıralama anahtarından SONRAKİ adaylar ((tarih, kimlik) artan; sayfa / imleç sınırı). */
+function lifecycleAfterWhere(field: "arrivalDate" | "departureDate", k: LifecycleScanKey): Prisma.ReservationWhereInput {
+  return { OR: [{ [field]: { gt: k.at } }, { [field]: k.at, id: { gt: k.id } }] };
+}
+
 /** Bir geçişte bir göndericinin (karşılama / giriş / çıkış) göndereceği en çok mesaj — anahtar açılınca toplu patlama olmasın. */
 const LIFECYCLE_SEND_CAP = 25;
 /** Gönderilebilir aday aranırken bir geçişte okunan en çok sayfa (sayfa = `LIFECYCLE_SEND_CAP` satır) — okuma sınırsız büyümesin. */
 const LIFECYCLE_SCAN_PAGES = 8;
+/**
+ * Bunların ilk kaçı HER geçişte en erken adaydan okunur (D2 katman 2): "en erken gelen önce" sözleşmesi korunur, kalan sayfalar kalıcı
+ * imlecin ardından okunur (↓ `prepareLifecycleCandidates`).
+ */
+const LIFECYCLE_HEAD_PAGES = 4;
 
 /** Aday satırının ortak alanları (geliş / çıkış tarihi göndericiye göre eklenir). */
 const LIFECYCLE_CANDIDATE_SELECT = {
@@ -5783,12 +5817,31 @@ export function __resetLifecycleRateHold(): void {
  * gitmiyordu). Adaylar artık sayfa sayfa okunur; gönderilemeyenler (metin yok · doldurulamadı) atlanıp okumaya devam edilir, 25 GÖNDERİLEBİLİR
  * aday toplanınca ya da okuma sınırına (`LIFECYCLE_SCAN_PAGES`) varınca durulur. Bir geçişte en çok 25 mesaj kuralı AYNI.
  * Metin daire başına bir kez okunur (gönderim anında sürüm yeniden doğrulanır — `autoMessageStillAt`).
+ *
+ * 🚨 OKUMA SINIRININ ARKASI KALICI AÇ KALMAZ (Codex 11-17 D2, katman 2). Okuma her geçişte en erken adaydan başlıyordu: önde
+ * `LIFECYCLE_SCAN_PAGES` × 25 = 200 gönderilemeyen aday varsa (silinmiş misafir · kuyruğun sahiplendiği satır · doldurulamayan metin · S8
+ * bekleme — sorguda elenemeyenler) 201. adaya HİÇBİR geçişte sıra gelmiyordu. Şimdi:
+ *  · ilk `LIFECYCLE_HEAD_PAGES` sayfa HER geçişte baştan okunur (en erken gelen önce);
+ *  · kalan sayfalar kalıcı imlecin ardından okunur (`lifecycle-scan-cursor.ts`; şema yok). İmleç, kuyruk sayfalarında GERÇEKTEN İNCELENEN
+ *    son adaya ilerler — baştaki adayların sonucundan bağımsız; sona varınca başa sarar. Önde N gönderilemeyen aday varsa arkadakine
+ *    (gönderilebilir adaylar listeyi baştaki sayfalarda doldurmadıkça) en geç ⌈N / 100⌉ geçişte sıra gelir; geçiş başına okuma yine
+ *    ≤ 200 satır (+ sınır dolunca arkada aday kaldı mı diye tek satırlık yoklama);
+ *  · imleç gönderimden SONRA yazılır (`finishScan`) ve 429 ile yarıda kalan geçişte yazılmaz: denenmemiş aday atlanmaz, yeniden okunur;
+ *  · okuma sınırı dolduğu hâlde arkada aday kaldıysa operatöre geçiş tabanlı alarm (`alertOnTransition`); küme yeniden TEK geçişe
+ *    sığınca kapanır (çok geçişli bir turun bitişi kapatmaz — her turda aç / kapa gürültüsü olmasın).
+ * Çift gönderime karşı koruma DEĞİŞMEDİ: aynı aday yeniden seçilse de gönderildi damgası (`*SentAt: null` koşullu talep) ya da kuyruğun
+ * belirlenimci anahtarı (`<tür>:<işletme>:<rezervasyon>`) ikinci gönderimi engeller.
  */
 async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts: {
   kind: AutoMessageKind;
+  organizationId: string;
   signature: string | undefined;
-  /** Bir sayfa aday; `after` önceki sayfanın son satırı (ilk sayfada null). Sıra (tarih, kimlik) ARTAN olmalı. */
-  fetchPage: (after: R | null, take: number) => Promise<R[]>;
+  /** Adayın sıralama tarihi (geliş ya da çıkış — `fetchPage`in sıraladığı alan). */
+  keyOf: (r: R) => Date;
+  /**
+   * Bir sayfa aday: verilen HER anahtardan sonrakiler (boş liste = baştan). Sıra (tarih, kimlik) ARTAN olmalı (↑ `lifecycleAfterWhere`).
+   */
+  fetchPage: (after: readonly LifecycleScanKey[], take: number) => Promise<R[]>;
   /** Kesin gün kararı (sorgunun üst kümesinden komşu günün çapası elenir). */
   eligible: (r: R) => boolean;
   /**
@@ -5803,21 +5856,41 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
    * metni düzeltince hemen denenir) → `unusable`dan ayrı; o da 25 sınırından ÖNCE elenir.
    */
   notDue?: (rows: readonly R[]) => Promise<(r: R, body: string) => boolean>;
-}): Promise<{ ready: { r: R; tpl: LoadedAutoMessage; body: string }[]; considered: number; unfilled: number }> {
+}): Promise<{
+  ready: { r: R; tpl: LoadedAutoMessage; body: string }[];
+  considered: number;
+  unfilled: number;
+  /** Gönderim döngüsünden SONRA çağrılır (429 ile yarıda kaldıysa çağrılmaz): imleci ve tavan alarmını günceller. Asla fırlatmaz. */
+  finishScan: () => Promise<void>;
+}> {
   const ready: { r: R; tpl: LoadedAutoMessage; body: string }[] = [];
   let considered = 0;
   let unfilled = 0;
   const seenBookings = new Set<string>();
   const templates = new Map<string, LoadedAutoMessage | null>();
-  let after: R | null = null;
-  for (let page = 0; page < LIFECYCLE_SCAN_PAGES && ready.length < LIFECYCLE_SEND_CAP; page++) {
-    const rows: R[] = await opts.fetchPage(after, LIFECYCLE_SEND_CAP);
-    if (rows.length === 0) break;
-    after = rows[rows.length - 1];
+  const now = new Date();
+  const cursorName = lifecycleScanCursorName(opts.kind, opts.organizationId);
+  const stored = await readLifecycleScanCursor(cursorName, now);
+  const keyOf = (r: R): LifecycleScanKey => ({ at: opts.keyOf(r), id: r.id });
+  let after: LifecycleScanKey | null = null; // önceki sayfanın son satırı
+  let tailLast: LifecycleScanKey | null = null; // kuyruk sayfalarında incelenen son aday (yeni imleç)
+  let reachedEnd = false; // aday kümesinin sonu görüldü
+  let page = 0;
+  for (; page < LIFECYCLE_SCAN_PAGES && ready.length < LIFECYCLE_SEND_CAP; page++) {
+    const inTail = page >= LIFECYCLE_HEAD_PAGES;
+    // Kuyruk sayfaları: baştaki sayfaların sonundan VE kalıcı imleçten sonrası (ikisi de sorguda; hangisi ilerideyse o geçerli olur).
+    const bounds = [...(after ? [after] : []), ...(inTail && stored.cursor ? [stored.cursor] : [])];
+    const rows: R[] = await opts.fetchPage(bounds, LIFECYCLE_SEND_CAP);
+    if (rows.length === 0) {
+      reachedEnd = true;
+      break;
+    }
+    after = keyOf(rows[rows.length - 1]);
     let unusable: ReadonlySet<string> | null = null; // sayfa başına en çok bir kez, ilk gönderilebilir adayda okunur
     let notDue: ((r: R, body: string) => boolean) | null = null; // aynı kural: sayfa başına en çok bir okuma
     for (const r of rows) {
       if (ready.length >= LIFECYCLE_SEND_CAP) break;
+      if (inTail) tailLast = keyOf(r); // incelenen (aşağıda elensin ya da seçilsin) — incelenmeyen satırın ötesine geçilmez
       // Rezervasyon başına tek mesaj: aynı rezervasyonun kopya satırı başka sayfada yeniden gelebilir.
       if (r.sourceReference) {
         if (seenBookings.has(r.sourceReference)) continue;
@@ -5854,7 +5927,44 @@ async function prepareLifecycleCandidates<R extends LifecycleCandidateRow>(opts:
     // (Sayfa dolu gelmedi diye durulmaz — yalnız BOŞ sayfada: tekilleştirme sayfa satırından sonra uygulanıyorsa dolu olmayan sayfanın
     // ardında yine aday olabilir; Haiku incelemesi 11-11.)
   }
-  return { ready, considered, unfilled };
+  // Okuma sınırı doldu (liste dolmadan): arkada aday kaldı mı — tek satırlık yoklama. Kalmadıysa tur bitmiştir (sahte birikim alarmı yok).
+  const budgetSpent = !reachedEnd && page >= LIFECYCLE_SCAN_PAGES && ready.length < LIFECYCLE_SEND_CAP;
+  const truncated = budgetSpent && after !== null && (await opts.fetchPage([after], 1)).length > 0;
+  if (budgetSpent && !truncated) reachedEnd = true;
+
+  const finishScan = async (): Promise<void> => {
+    try {
+      const alarmKey = `lifecycle-scan-backlog:${opts.kind}:${opts.organizationId}`;
+      if (reachedEnd) {
+        // Küme bu geçişte sona kadar okundu. Kayıt yoksa (sağlıklı işletme) hiçbir şey yazılmaz.
+        if (!stored.present) return;
+        if (stored.cursor) {
+          // Çok geçişli tur az önce bitti: imleç başa sarar; kayıt "birikim görüldü" işareti olarak kalır, alarm açık kalır.
+          await writeLifecycleScanCursor(cursorName, null, new Date());
+        } else {
+          // Küme baştan sona TEK geçişe sığdı: birikim yok → kayıt silinir, alarm kapanır.
+          await dropLifecycleScanCursor(cursorName);
+          await clearAlertState(alarmKey);
+        }
+        return;
+      }
+      // Liste kuyruk sayfalarında doldu ya da okuma sınırı arkada aday bırakarak doldu: kaldığımız yer yazılır. Liste baştaki sayfalarda
+      // dolduysa kuyruğa hiç bakılmadı — imleç olduğu gibi kalır.
+      if (tailLast) await writeLifecycleScanCursor(cursorName, tailLast, new Date());
+      if (truncated) {
+        await alertOnTransition(
+          alarmKey,
+          "lifecycle-scan-backlog",
+          new Error(
+            `Otomatik mesaj (${opts.kind}) org=${opts.organizationId}: gönderilemeyen aday sayısı bir geçişte okunabilenden (${LIFECYCLE_SCAN_PAGES * LIFECYCLE_SEND_CAP}) fazla — tarama birkaç geçişe yayıldı. Doldurulamayan metin, silinmiş misafir ya da kuyrukta bekleyen satırlar olabilir.`,
+          ),
+        );
+      }
+    } catch {
+      // İmleç / alarm en iyi çaba: gönderim akışını düşürmez (imleç yazılamazsa sonraki geçiş aynı yeri yeniden okur).
+    }
+  };
+  return { ready, considered, unfilled, finishScan };
 }
 
 /**
@@ -5916,7 +6026,12 @@ export async function sendDueWelcomes(
     ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
     // Org gününe göre bugün ya da sonrası (not server UTC) so today's arrival isn't dropped — TEK TARİH KURALI.
-    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
+    // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
+    AND: [
+      onOrAfterTodayWhere("arrivalDate", now, tz),
+      await lifecycleBaselineWhere(organizationId, baseline),
+      await lifecycleTemplatedPropertyWhere(organizationId, "welcome"),
+    ],
   };
 
   const signature = org.aiSignature?.trim();
@@ -5932,17 +6047,18 @@ export async function sendDueWelcomes(
     ready,
     considered,
     unfilled,
+    finishScan,
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "welcome",
+    organizationId,
     unusable: (rows) => lifecycleUnusableIds(organizationId, "welcome", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "welcome", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
+    keyOf: (r) => r.arrivalDate,
     fetchPage: (after, take) =>
       prisma.reservation.findMany({
-        where: after
-          ? { AND: [candidateWhere, { OR: [{ arrivalDate: { gt: after.arrivalDate } }, { arrivalDate: after.arrivalDate, id: { gt: after.id } }] }] }
-          : candidateWhere,
+        where: { AND: [candidateWhere, ...after.map((k) => lifecycleAfterWhere("arrivalDate", k))] },
         select: LIFECYCLE_ARRIVAL_SELECT,
         distinct: ["sourceReference"], // one message per booking, even if rows duplicated
         orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
@@ -6072,6 +6188,8 @@ export async function sendDueWelcomes(
     sent++;
   }
 
+  // 429 ile yarıda kalan geçişte imleç ilerlemez (denenmemiş adaylar sonraki geçişte yeniden okunur).
+  if (!failures.includes("rate_limited")) await finishScan();
   await reportLifecycleSendFailures("welcome", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }
@@ -6129,7 +6247,12 @@ export async function sendDueCheckins(
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
     arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
     // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
-    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
+    // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
+    AND: [
+      onOrAfterTodayWhere("arrivalDate", now, tz),
+      await lifecycleBaselineWhere(organizationId, baseline),
+      await lifecycleTemplatedPropertyWhere(organizationId, "checkin"),
+    ],
   };
 
   const signature = org.aiSignature?.trim();
@@ -6145,17 +6268,18 @@ export async function sendDueCheckins(
     ready,
     considered,
     unfilled,
+    finishScan,
   } = await prepareLifecycleCandidates<LifecycleArrivalRow>({
     kind: "checkin",
+    organizationId,
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkin", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkin", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.arrivalDate, tz).key >= today,
+    keyOf: (r) => r.arrivalDate,
     fetchPage: (after, take) =>
       prisma.reservation.findMany({
-        where: after
-          ? { AND: [candidateWhere, { OR: [{ arrivalDate: { gt: after.arrivalDate } }, { arrivalDate: after.arrivalDate, id: { gt: after.id } }] }] }
-          : candidateWhere,
+        where: { AND: [candidateWhere, ...after.map((k) => lifecycleAfterWhere("arrivalDate", k))] },
         select: LIFECYCLE_ARRIVAL_SELECT,
         distinct: ["sourceReference"], // one message per booking, even if rows duplicated
         orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
@@ -6219,6 +6343,8 @@ export async function sendDueCheckins(
     if (outcome.kind === "rate_limited") break; // sıradaki adaylar da aynı cevabı alırdı — bu tur burada biter (bekleme yardımcıda kuruldu)
   }
 
+  // 429 ile yarıda kalan geçişte imleç ilerlemez (denenmemiş adaylar sonraki geçişte yeniden okunur).
+  if (!failures.includes("rate_limited")) await finishScan();
   await reportLifecycleSendFailures("checkin", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }
@@ -6705,6 +6831,8 @@ export async function sendDueCheckouts(
     AND: [
       { OR: [{ departureDate: { gte: day.start, lte: day.end } }, { departureDate: { in: todayDateAnchors(now, tz) } }] },
       await lifecycleBaselineWhere(organizationId, baseline),
+      // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
+      await lifecycleTemplatedPropertyWhere(organizationId, "checkout"),
     ],
   };
   // Only when check-out is TODAY (same-day reminder) — kesin gün kararı `calendarDateOf` (üst kümeden komşu günün çapası
@@ -6724,17 +6852,18 @@ export async function sendDueCheckouts(
     ready,
     considered,
     unfilled,
+    finishScan,
   } = await prepareLifecycleCandidates<LifecycleDepartureRow>({
     kind: "checkout",
+    organizationId,
     unusable: (rows) => lifecycleUnusableIds(organizationId, "checkout", rows, runErasureGuard),
     notDue: directPath ? (rows) => lifecycleRetryNotDue(organizationId, "checkout", rows, now) : undefined,
     signature,
     eligible: (r) => calendarDateOf(r.departureDate, tz).key === today,
+    keyOf: (r) => r.departureDate,
     fetchPage: (after, take) =>
       prisma.reservation.findMany({
-        where: after
-          ? { AND: [candidateWhere, { OR: [{ departureDate: { gt: after.departureDate } }, { departureDate: after.departureDate, id: { gt: after.id } }] }] }
-          : candidateWhere,
+        where: { AND: [candidateWhere, ...after.map((k) => lifecycleAfterWhere("departureDate", k))] },
         select: LIFECYCLE_DEPARTURE_SELECT,
         distinct: ["sourceReference"], // one message per booking, even if rows duplicated
         orderBy: [{ departureDate: "asc" }, { id: "asc" }],
@@ -6856,6 +6985,8 @@ export async function sendDueCheckouts(
     sent++;
   }
 
+  // 429 ile yarıda kalan geçişte imleç ilerlemez (denenmemiş adaylar sonraki geçişte yeniden okunur).
+  if (!failures.includes("rate_limited")) await finishScan();
   await reportLifecycleSendFailures("checkout", organizationId, failures, ready.length);
   return { sent, considered, unfilled };
 }

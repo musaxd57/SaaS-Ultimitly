@@ -85,7 +85,8 @@ describe("yaşam döngüsü göndericileri — gönderilemeyen adaylar sırayı 
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(String(mockSend.mock.calls[0][1])).toContain("teşekkürler");
     expect(await prisma.reservation.count({ where: { propertyId: goodId, welcomeSentAt: { not: null } } })).toBe(1);
-    expect(out.considered).toBe(31);
+    // Codex 11-17 D2: metni olmayan dairenin rezervasyonu artık aday bile değildir (sorguda elenir) — eskiden 31.
+    expect(out.considered).toBe(1);
   });
 
   it("🚨 karşılama: metni DOLDURULAMAYAN dairenin 30 erken rezervasyonu da engellemez; atlananlar sayılır, hiçbiri gönderilmez", async () => {
@@ -116,18 +117,23 @@ describe("yaşam döngüsü göndericileri — gönderilemeyen adaylar sırayı 
     expect((await sendDueWelcomes(orgId)).sent).toBe(0); // hepsi damgalı — yeniden gönderim yok
   });
 
-  it("okuma SINIRLI: gönderilemeyen aday sayısı okuma sınırını (8 sayfa × 25) aşarsa arkadaki aday bu geçişte beklemeye devam eder (sınırsız tarama yok)", async () => {
+  // Codex 11-17 D2: bu test eskiden "okuma SINIRLI — 205 metinsiz aday + 1 → sent 0, considered 200" diyordu; o sınır her geçişte aynı
+  // 200 adayı okuduğu için arkadaki rezervasyona HİÇ sıra gelmiyordu. Metinsiz daire artık aday değildir (sorguda elenir); "geçiş başına
+  // ≤ 200 okuma" sözleşmesi ve sorguda elenemeyen engellerin kalıcı imleci `lifecycle-scan-cursor.test.ts`te pinli.
+  it("metni OLMAYAN dairenin 205 erken rezervasyonu aday sayılmaz — arkadaki gönderilebilir rezervasyon ilk geçişte gider", async () => {
     const { orgId, blockedId, goodId } = await seedOrg();
     await seedReservations(blockedId, "blk", 205, upcoming(1));
     await seedAutoMessage(goodId, "welcome", "Merhaba {isim}, rezervasyonunuz için teşekkürler.");
     await seedReservations(goodId, "ok", 1, upcoming(5));
     const out = await sendDueWelcomes(orgId);
-    expect(out.sent).toBe(0);
-    expect(out.considered).toBe(200);
+    expect(out.sent).toBe(1);
+    expect(out.considered).toBe(1);
   });
 
   it("aynı rezervasyonun kopya satırları (aynı kaynak kimliği) sayfalar arasında da TEK mesaj üretir", async () => {
     const { orgId, blockedId, goodId } = await seedOrg();
+    // Öndeki 26 aday metni DOLDURULAMAYAN daireden (metinsiz daire D2'den beri aday değildir — kopya yine ikinci sayfaya düşsün).
+    await seedAutoMessage(blockedId, "welcome", "Merhaba {isim}, kapı kodu [KOD] olacak.");
     await seedReservations(blockedId, "blk", 26, upcoming(1));
     await seedAutoMessage(goodId, "welcome", "Merhaba {isim}, rezervasyonunuz için teşekkürler.");
     // Aynı rezervasyon iki dairede kayıtlı (kopya): ikisinin de metni var, yine TEK mesaj gider.
