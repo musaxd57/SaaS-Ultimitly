@@ -318,17 +318,8 @@ export function zonelessWallClockToUtc(v: string, tz: string): Date | null {
   if (!m) return null;
   const [y, mo, d, h, mi, s] = [m[1], m[2], m[3], m[4], m[5], m[6] ?? "0"].map(Number);
   const probe = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
-  // Date.UTC taşmayı sessizce devirir (31 Şubat → 3 Mart): bileşenler geri okunamıyorsa değer takvimde yok. Yıl 0–99 Date.UTC'de 1900'e
-  // kayar → yıl da karşılaştırılır.
-  if (
-    probe.getUTCFullYear() !== y ||
-    probe.getUTCMonth() !== mo - 1 ||
-    probe.getUTCDate() !== d ||
-    probe.getUTCHours() !== h ||
-    probe.getUTCMinutes() !== mi ||
-    probe.getUTCSeconds() !== s
-  ) {
-    return null;
-  }
+  // Date.UTC taşmayı sessizce devirir (31 Şubat → 3 Mart, 24:00 → ertesi gün, yıl 0–99 → 1900'ler): bileşenler geri okununca AYNI metni
+  // vermiyorsa değer takvimde yok. Tek karşılaştırma — alan alan sınamak fazlalık doğuruyordu (gün taşması ayı da değiştirir).
+  if (probe.toISOString().slice(0, 19) !== `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? "00"}`) return null;
   return zonedWallClockToUtc(y, mo, d, h, mi, s, tz);
 }

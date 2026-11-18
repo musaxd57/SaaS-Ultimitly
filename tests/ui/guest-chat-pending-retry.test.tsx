@@ -215,8 +215,11 @@ describe("QR sohbeti — okuma konumu korunur (H6)", () => {
     setup([{ escalated: false, reply: "Çöp salı günü." }], { initial: [{ id: "a1", role: "ai", text: "Hoş geldiniz." }], postDelayMs: 1_000 });
     render(<GuestChat token="t" />);
     await advance(0);
+    notify(false); // misafir yukarıda, geçmişi okuyor
+    scroll.mockClear();
     typeAndSend("Çöp ne zaman?");
-    await advance(0);
+    await advance(0); // cevap henüz gelmedi (1 sn gecikmeli) — yalnız kendi balonu eklendi
+    expect(scroll).toHaveBeenCalled(); // kendi mesajını HEMEN görür (cevabı beklemeden; bekleme 2 dakikayı bulabilir)
     notify(false); // yumuşak kayma sürüyor: liste sonu henüz ekranda değil
     scroll.mockClear();
     await advance(1_000); // cevap geldi, geçmiş yenilendi — gönderim bayrağı hâlâ açık

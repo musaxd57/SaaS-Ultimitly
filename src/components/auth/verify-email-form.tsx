@@ -126,7 +126,6 @@ export function VerifyEmailForm() {
         setState("failed");
       } else {
         setToken(token);
-        setReason(null);
         setState("form");
       }
     }
