@@ -25,6 +25,15 @@ vi.mock("@/lib/conversation-items/store", async (orig) => {
       failItems.on ? Promise.reject(new Error("items read down")) : actual.listConversationItems(...a),
   };
 });
+const failDecisions = { on: false };
+vi.mock("@/lib/decisions/store", async (orig) => {
+  const actual = await orig<typeof import("@/lib/decisions/store")>();
+  return {
+    ...actual,
+    listConversationDecisions: (...a: Parameters<typeof actual.listConversationDecisions>) =>
+      failDecisions.on ? Promise.reject(new Error("decisions read down")) : actual.listConversationDecisions(...a),
+  };
+});
 const reportSpy = vi.fn(async (..._a: unknown[]) => ({ configured: false, notified: false }));
 vi.mock("@/lib/report-error", async (orig) => ({
   ...(await orig<typeof import("@/lib/report-error")>()),
@@ -88,7 +97,9 @@ describe("konuşma sayfası — Açık işler kartı", () => {
   beforeEach(async () => {
     await resetDb();
     failItems.on = false;
+    failDecisions.on = false;
     reportSpy.mockClear();
+    vi.unstubAllEnvs();
   });
 
   it("🚨 öğe okuması düştü → sayfa ayakta, kart loadFailed alır, hata reportError'a gider", async () => {
@@ -114,5 +125,14 @@ describe("konuşma sayfası — Açık işler kartı", () => {
     expect(card!.items).toHaveLength(20);
     expect(card!.items.slice(0, 2).every((r) => r.open)).toBe(true);
     expect(card!.openTotal).toBe(2);
+  });
+
+  it("karar kartı okuması düştü (bayrak açık) → sayfa ayakta, hata reportError'a gider; Açık işler kartı etkilenmez", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    failDecisions.on = true;
+    const card = await renderPage(1, 0);
+    expect(reportSpy.mock.calls.map((c) => c[0])).toContain("inbox.conversation-decisions");
+    expect(card!.loadFailed).toBe(false);
+    expect(card!.openTotal).toBe(1);
   });
 });
