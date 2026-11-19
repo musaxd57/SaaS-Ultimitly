@@ -235,3 +235,47 @@ Bugün zaten içerik anahtarlı yeniden kullanım var: dizin önbelleği (bilgi 
 soru ikinci kez sağlayıcıya gitmez — ölçüldü) · parça vektörleri (metin özeti). Misafir mesajı başına anlamsal yolun gömme isteği 1 (ölçüldü),
 tekrarında 0. Seçimin kendisi milisaniyedir; "bilgi tabanı sürümü + mesaj" anahtarlı bir sonuç önbelleği kayda değer kazanç getirmez, önerilmez.
 Bir mesajdaki veritabanı sorgu sayısı bu belgede ÖLÇÜLMEDİ. Yeni bir önbellek eklenirse anahtarı içerik parmak izi olmalı (`max(updatedAt)` değil).
+
+---
+
+## 8. Uygulanan (tur 2) — D1, D2, D3 (şemasız, misafire dokunmaz, üçü de varsayılan KAPALI)
+
+Anahtarlar yalnız tam `"1"` ile açılır (`scripts/env-check.mjs` STRICT_ONE_FLAGS, açılış belgesi §5). Kapalıyken davranış birebir eski: tur 1
+testleri (EMB-1 / EMB-2) değişmeden yeşil. Değerler kurucu sorusu (E-1, E-2, E-5) olduğu için koda gömülmedi; ortam değişkeninden okunur,
+geçersiz değer varsayılana düşer.
+
+| Dilim | Anahtar | Değer değişkenleri (varsayılan) | Yer |
+|---|---|---|---|
+| D1 kova ayrımı | `KB_EMBED_ORG_BUDGET_ENABLED` | `KB_EMBED_ORG_PER_HOUR` (600) · `KB_EMBED_BG_PER_HOUR` (2.000) | `rate-limit.ts rateLimitTakeIfFits`, `embeddings/embed-budget.ts`, `semantic-retrieval.ts takeBackgroundBudget` |
+| D2 gecikmeli ısıtma | `KB_EMBED_DEBOUNCE_ENABLED` | `KB_EMBED_DEBOUNCE_SECONDS` (20) | `embeddings/kb-warm.ts` |
+| D3 parça özeti temizliği | `KB_VECTOR_PURGE_BY_HASH_ENABLED` (yalnız `KB_VECTOR_STORE_ENABLED` açıkken etkili) | — | `embeddings/kb-warm-texts.ts`, `vector-store.ts purgeStaleVectors(keep)` |
+
+**D1.** Isıtma işi önce `kb-embed-org:<orgId>`, sonra `kb-embed-bg` kovasından alınır; ikisi `RateLimitCounter` satırı, DB saatiyle, saatlik.
+Yeni tek ifade `rateLimitTakeIfFits`: "n al; sığmıyorsa sayacı artırmadan reddet" (reddedilen alımın satırı değişmez; eşzamanlı 6 + 6 /
+tavan 10 → tam biri, 15 denemede). Boş pencere tavandan büyük TEK işi alır ve pencereyi doldurur (bilgi tabanı başına 1.000 parçaya kadar
+iş hepsi-ya-hiç alındığından aksi hâlde hiç alınamazdı). İki kova aynı işlemde: işletme taşarsa ortak kovaya dokunulmaz, ortak taşarsa işletme
+alımı geri sarılır. İşletme verilmezse (sıcak yolun soğuk dalı) kalemlerden bulunur; kalem yoksa iş reddedilir. DB arızasında bugünkü süreç
+içi sayaç (fail-soft). Sıcak yol (sorgu gömmesi) kovaya bakmaz: iki kova doluyken soru `ok`, tek istek, satırlar değişmez (pin).
+Ölçüm: A tek başına 600'de durdu (bugün 1.860); A doluyken B'nin yeni ~200 parçalık bilgi tabanı hemen ısındı; yeniden başlatmada A'nın kovası
+DB'de dolu kaldı (bugün 170 parça yeniden gömüyordu).
+
+**D2.** Kanca daireyi kirli işaretler; ısıtma son kayıttan D sn sonra o anki hâli okur. Ölçüm (sahte saat): 5 sn arayla 5 kayıt → TEK gömme,
+yalnız son sürüm (bugün 5). Bütçe reddederse pencere açılınca kendiliğinden yeniden dener (bugün kayboluyordu); daire başına tek zamanlayıcı,
+en çok 24 yeniden deneme (kalıcı retle ölçüldü: 1 + 24 koşu, sonra zamanlayıcı yok), `unref`. Süreç içi: yeniden başlatmada bekleyen iş
+kaybolur (açılış ısıtması karşılar). Gecikme süresince soru `cold`, istemde yeni şifre, eski yok (test).
+
+**D3.** Kanca, değişen dairelerin bugünkü parça özetlerini ısıtmayla AYNI kaynaktan hesaplar (`propertyWarmSets`: ham + QR'ın nötr hitaplı
+biçimi); silmeden önce özeti hâlâ geçen satırların damgasını yeniler — yalnız kalem temizliğin okuduğu sürümdeyse. Ölçüm: düzenleyen süreçte
+bellek boşken 5/5 → 1/5. Sürüm kuralı aynen: eski sürümle başlamış ısıtma (depo okumasında bekletildi, bu sırada düzenleme + temizlik bitti)
+eski satırı yazamadı. Liste hesaplanamazsa bugünkü kalem düzeyinde silme (fail-soft). Kalıcı depo kapalıyken veritabanına dokunulmaz.
+
+**§4 testi** (`tests/integration/kb-embed-neighbor-flow.test.ts`, kalıcı depo + D1 + D2 + D3 açık) adım 1–7 yeşil: A 300/dk sınırında 4 turda
+600 parçayla kovasını bitirdi; her 10 A düzenlemesinde B sorusu `ok` + tek istek; A ikinci turdayken B'nin şifre değişikliği gecikme + ısıtma
+içinde `ok` ve istemde yeni şifre; başka kopya → A gömülmedi, ortak sayaç artmadı, B depodan `ok`; ortak kova doluyken B'nin sorgusu gömüldü;
+A'nın son sürümü `cold`, eski tur istemde yok.
+
+**Not (ölçüldü, kusur değil):** tur 1 testlerinin bir kısmı "bütçe dolu" durumunu yalnız süreç içi sayaçla (`__exhaustWarmBudgetForTests`)
+kurar; anahtarlar AÇIK koşulursa DB kovası boş olduğu için yeni metin ısınır ve "cold bekleniyor" iddiaları düşer (hiçbiri eski içerikle
+düşmedi). Anahtarlar açıkken eski içerik iddiası ayrı testlerde DB kovası doluyken sınandı (D1, D2, D3 dosyaları).
+
+**Yapılmadı (kurucu sorusu / migration):** D4 günlük tavan + misafir payı, D5 soğuk pencere kuralı, D6 kalıcı kuyruk.
