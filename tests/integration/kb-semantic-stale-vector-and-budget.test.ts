@@ -279,6 +279,10 @@ describe("EMB-1 maliyet ölçümü — değişmeyen parça, ara sürümler (doğ
     const partsOf = async () => chunkItems((await kbOf(propertyId)).filter((i) => i.id === guide.id)).length;
     const total = await partsOf();
     const edit = async (data: { content?: string; title?: string }) => {
+      // Sağlayıcının süreç önbelleği (LRU 256) bu küçük kümede yeniden gömmeyi MASKELER — büyük bilgi tabanında ya da çok kiracıda
+      // tutmaz. Ölçülen şey ısıtmanın kendi "zaten var" süzgeci olsun diye her düzenlemeden önce boşaltılır (mutasyon 11-19: süzgeci
+      // kaldıran mutant önbellek yüzünden yaşıyordu).
+      clearEmbeddingCache();
       calls.length = 0;
       await prisma.knowledgeBaseItem.update({ where: { id: guide.id }, data });
       await afterKbItemsChanged({ organizationId: orgId, propertyIds: [propertyId] });
@@ -301,6 +305,17 @@ describe("EMB-1 maliyet ölçümü — değişmeyen parça, ara sürümler (doğ
     expect(leadSmall).toBe(1);
     expect(leadLarge).toBeGreaterThan(1);
     expect(titleOnly).toBe(finalParts); // başlık gömme metninin önekinde → kalemin bütün parçaları
+  });
+
+  it("ısınmış dairede yeniden ısıtma (kanca / açılış yolu, bütün parçaları verir) hiçbir parçayı yeniden gömmez — sağlayıcı önbelleği boşken de", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await seedNeutral(propertyId, 35);
+    await createItem(propertyId, "general", "Ev rehberi", wifiGuide(OLD));
+    await warmAndWait(propertyId);
+    clearEmbeddingCache();
+    calls.length = 0;
+    expect(await warmAndWait(propertyId)).toBe(0);
+    expect(calls.length).toBe(0);
   });
 
   it("kalıcı depo AÇIK + düzenleyen süreçte vektörler bellekte YOK (tahliye / soğuk kopya): kanca kalemin BÜTÜN satırlarını siler → değişmeyen parçalar da yeniden gömülür", async () => {
@@ -328,6 +343,7 @@ describe("EMB-1 maliyet ölçümü — değişmeyen parça, ara sürümler (doğ
     await warmAndWait(propertyId);
     calls.length = 0;
     for (let v = 0; v < 5; v++) {
+      clearEmbeddingCache(); // ↑ aynı gerekçe: önbellek ısıtmanın süzgecini maskelemesin
       await prisma.knowledgeBaseItem.update({ where: { id: wifi.id }, data: { content: wifiText(`YENI-73${v}0`) } });
       await afterKbItemsChanged({ organizationId: orgId, propertyIds: [propertyId] });
       await warmAndWait(propertyId);
