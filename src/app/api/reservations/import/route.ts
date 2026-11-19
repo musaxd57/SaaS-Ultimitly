@@ -11,6 +11,7 @@ import { normalizeSourceReference } from "@/lib/import/source-ref";
 import { reconcileLegacySourceReferences } from "@/lib/import/legacy-source-ref";
 import { isOwnExportUid, OWN_FILE_IMPORT_TEXT } from "@/lib/export/own-feed";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
+import { toStorableText } from "@/lib/storable-text";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { recordIngestEvent } from "@/lib/ingest/events";
@@ -220,7 +221,9 @@ export const POST = withManage(async (session, req) => {
     );
   }
 
-  const text = await file.text();
+  // Dosya metninden saklanamayan karakter (NUL) sessizce silinir (G2 11-19: CSV referans sütunundaki NUL sorgu hatası → 500 + uyarı kovası).
+  // Çözümleyici (UTF-8) eşsiz vekil üretmez; kural yine aynı tek yardımcıdan.
+  const text = toStorableText(await file.text());
 
   let rows: ParsedRow[] = [];
   // F16 (09-26): dosya EKSİK okunduysa (yarım dosya, tekrarlayan etkinlik, tarihi okunamayan kayıt…) önizleme

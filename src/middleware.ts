@@ -35,8 +35,18 @@ import { classifyPath } from "@/lib/private-routes";
  */
 const SIGNED_IN_REDIRECT_PATHS = ["/login", "/register"];
 
+/**
+ * Yolda ya da sorgu dizesinde NUL (G2 11-19, 11-14 A-1 sınıfı): sayfanın dinamik parçası ya da sorgu parametresi sorguya girip veritabanı
+ * hatası doğuruyordu (yakalanmayan istek → 500 + ortak uyarı kovası; sahte 500'lerle gerçek alarmlar bastırılabilir). Hiçbir panel yolu ya
+ * da parametresi NUL taşımaz → istek sayfaya ulaşmadan 400. Ham (`%00`) ve çözülmüş biçim ikisi de yakalanır.
+ */
+function urlCarriesNul(pathname: string, search: string): boolean {
+  return pathname.includes("\0") || search.includes("\0") || /%00/i.test(pathname) || /%00/i.test(search);
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  if (urlCarriesNul(pathname, req.nextUrl.search)) return new NextResponse(null, { status: 400 });
   const token = readSessionCookie((name) => req.cookies.get(name)?.value);
   const session = await verifySession(token);
   // K8 (kurucu kararı 09-28): süresi dolan bürünme (en çok 2 saat) hiçbir sayfayı görmez → çıkış rotası çerezleri temizler ve

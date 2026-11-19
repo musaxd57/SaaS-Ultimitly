@@ -28,7 +28,8 @@ export const GET = withManage<{ id: string }>(async (session, _req, ctx) => {
 });
 
 // `digest`: onay penceresinde gösterilen metnin özeti (Opus B2) — gönderim anında kurulan metin farklıysa gitmez.
-const bodySchema = z.object({ revision: z.number().int().nonnegative(), digest: z.string().regex(/^[0-9a-f]{64}$/) });
+// `revision` sütunu int4: taşan sayı 400 (G2 11-19).
+const bodySchema = z.object({ revision: z.number().int().nonnegative().max(2_147_483_647), digest: z.string().regex(/^[0-9a-f]{64}$/) });
 
 export const POST = withManage<{ id: string }>(async (session, req, ctx) => {
   const { id } = await ctx.params;

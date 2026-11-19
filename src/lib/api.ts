@@ -8,6 +8,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { isChannelSubscriptionInactive, SUBSCRIPTION_INACTIVE_MESSAGE } from "@/lib/provider-errors";
 import { PasswordHashBusyError } from "@/lib/auth/password";
 import { correlationShownToUser, currentCorrelationId, shortCorrelationId } from "@/lib/correlation";
+import { hasUnstorableChars, toStorableText } from "@/lib/storable-text";
 
 export type { SessionPayload };
 
@@ -394,12 +395,23 @@ export async function readFormDataCapped(req: Request, maxBytes: number): Promis
     duplex: "half",
   } as RequestInit & { duplex: "half" });
 
+  let parsed: FormData;
   try {
-    return await cappedReq.formData();
+    parsed = await cappedReq.formData();
   } catch (err) {
     if (overflowed || err instanceof BodyTooLargeError) throw new BodyTooLargeError();
     throw err; // malformed multipart → caller maps to 400
   }
+  // Metin alanlarından saklanamayan karakter (NUL, eşsiz vekil) sessizce silinir — JSON gövdesiyle AYNI kural (G2 11-19: içe aktarmanın
+  // `propertyId`'si, yüklemenin `taskId`'si sorgu hatası → 500 + ortak uyarı kovası). Adı saklanamayan alan hiçbir beklenen alana
+  // eşleşmez → atlanır (silmek iki adı birleştirebilirdi). Dosya alanları dokunulmadan geçer.
+  const cleaned = new FormData();
+  for (const [name, value] of parsed.entries()) {
+    if (hasUnstorableChars(name)) continue;
+    if (typeof value === "string") cleaned.append(name, toStorableText(value));
+    else cleaned.append(name, value);
+  }
+  return cleaned;
 }
 
 // Webhook bodies (Paddle) are raw TEXT verified by an HMAC signature, so they can't
@@ -519,11 +531,13 @@ export async function readJsonCapped<T = unknown>(
  *  · Dize DEĞERİNDEN NUL sessizce silinir — sağlayıcı dizesi kuralı (`canonicalStr`) ve QR mesajının pinli sözleşmesi ("denetim karakteri
  *    sessizce silinir, mesaj 500 de 400 de vermez") ile AYNI. İlk sürüm (54c7dc31) 400 veriyordu; o sözleşmeyi bozduğu tam kapıda görüldü.
  *  · ANAHTARDA NUL → SyntaxError (çağıranın "bozuk gövde" dalı): silmek iki anahtarı birleştirebilirdi ("ro" + NUL + "le" → "role").
+ *  · (G2 11-19) EŞSİZ VEKİL de aynı sınıf: Prisma okumada da yazmada da reddeder → değerden sessizce silinir, anahtarda bozuk gövde
+ *    (`lib/storable-text.ts`). Geçerli vekil çifti (emoji) korunur.
  */
 export function parseJsonWithoutNul<T>(text: string): T {
   return JSON.parse(text, (key, value) => {
-    if (key.includes("\0")) throw new SyntaxError("JSON anahtarında NUL karakteri");
-    return typeof value === "string" && value.includes("\0") ? value.replaceAll("\0", "") : value;
+    if (hasUnstorableChars(key)) throw new SyntaxError("JSON anahtarında saklanamayan karakter");
+    return typeof value === "string" ? toStorableText(value) : value;
   }) as T;
 }
 

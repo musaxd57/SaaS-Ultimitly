@@ -1,6 +1,7 @@
 import type { OutboundProvider } from "./outbound";
 import type { ChannelProviderId } from "./providers";
 import type { ChannelSenderRole } from "@/lib/message-author";
+import { toStorableText } from "@/lib/storable-text";
 
 // ---------------------------------------------------------------------------
 // INGEST CONTRACT — Channel Layer'ın OKUMA yönü (V0.6)
@@ -183,7 +184,8 @@ export function __setIngestAdapterForTest(provider: OutboundProvider, adapter: I
  */
 export function canonicalStr(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const v = value.includes("\u0000") ? value.replaceAll("\u0000", "") : value;
+  // NUL ve eşsiz vekil sessizce silinir (G2 11-19: eşsiz vekil de yazımı düşürür) — tek kural `lib/storable-text.ts`.
+  const v = toStorableText(value);
   return v.length ? v : null;
 }
 

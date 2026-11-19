@@ -17,7 +17,8 @@ import { decideHostDecision } from "@/lib/decisions/decide";
 
 const bodySchema = z.object({
   action: z.enum(["approve", "decline", "dismiss"]),
-  version: z.number().int().min(0),
+  // Sütun int4: taşan sayı sorgu hatası (500 + uyarı kovası) değil, gövde hatası (400) olur (G2 11-19, 11-14 M-1 komşusu).
+  version: z.number().int().min(0).max(2_147_483_647),
   time: z.string().max(5).optional(),
   body: z.string().max(10000).optional(),
   seenMessageId: z.string().max(64).optional(),
