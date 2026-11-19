@@ -30,6 +30,7 @@ vi.mock("next/navigation", () => ({
 import { requireAuth } from "@/lib/auth";
 import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
 import ConversationPage from "@/app/(app)/inbox/[id]/page";
+import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 
 const DELAY_MS = 12;
 const sp = <T,>(v: T) => Promise.resolve(v);
@@ -79,5 +80,20 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
     const f = await seedRequestPathOrg({ properties: 1 });
     vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
     await expect(ConversationPage({ params: sp({ id: "yok" }), searchParams: sp({}) })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("findAttentionItems (pano 'Dikkat'): işletme saat dilimi bir kez, bacaklar aynı turda (12 → 7); sorgu sayısı daire sayısına bağlı değil", async () => {
+    const measure = async (n: number) => {
+      await resetDb();
+      const f = await seedRequestPathOrg({ properties: n });
+      return probeQueries(() => findAttentionItems(f.orgId), { delayMs: DELAY_MS });
+    };
+    const three = await measure(3);
+    const six = await measure(6);
+    expect(three.result.length, probeSummary(three)).toBeGreaterThan(0);
+    // Çıkış günü + söz saati AYNI satırı okurdu (eskiden 2 okuma); öteki okuma müsaitlik bacağının kendi okuması.
+    expect(three.byOp["Organization.findUnique"], probeSummary(three)).toBe(2);
+    expect(three.depth, probeSummary(three)).toBeLessThanOrEqual(7);
+    expect(six.sql, `${probeSummary(three)}\n${probeSummary(six)}`).toBe(three.sql);
   });
 });

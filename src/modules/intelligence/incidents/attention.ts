@@ -309,11 +309,22 @@ export async function findAttentionItems(
   const windowStart = new Date(now.getTime() - ATTENTION_WINDOW_DAYS * 24 * HOUR);
   const recurringSince = new Date(now.getTime() - RECURRING_FRESH_DAYS * 24 * HOUR);
 
+  // İşletmenin saat dilimi (optimizasyon turu 11-19): yine YALNIZ gerektiğinde okunur (sakin günde ek sorgu yok), ama bir istekte en çok BİR
+  // kez — eskiden her tüketici (karar, çıkış günü, söz saati, boşluk, iki daire, yeniden etkinleşme) aynı satırı yeniden okuyordu (ölçüldü:
+  // üç-beş okuma). Başarısız okuma saklanmaz: sonraki tüketici bugünkü gibi yeniden dener (bacakların arıza yalıtımı aynı kalır).
+  let tzRead: Promise<string | null | undefined> | null = null;
+  const storedTimezone = (): Promise<string | null | undefined> =>
+    (tzRead ??= prisma.organization
+      .findUnique({ where: { id: organizationId }, select: { timezone: true } })
+      .then((o) => o?.timezone)
+      .catch((err: unknown) => {
+        tzRead = null;
+        throw err;
+      }));
+
   // Karar kartları yalnız bayrak açıkken (kapalıyken sorgu yok). Org dilimi: "gün geçti" türetmesi için. Öğe özetinden ÖNCE
   // okunur: açık karta bağlı öğe "bırakılan istek" satırında İKİNCİ kez sayılmaz (aynı talep, karar satırı daha özgül).
-  const decisionTz = hostDecisionsEnabled()
-    ? orgTimezone((await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone)
-    : null;
+  const decisionTz = hostDecisionsEnabled() ? orgTimezone(await storedTimezone()) : null;
   const decisions = decisionTz
     ? await openDecisionsForOrg(prisma, { organizationId, timeZone: decisionTz, now }).catch((err): DecisionView[] => {
         void alertOnTransition("attention:decision-pending", "attention decision_pending", err).catch(() => {});
@@ -321,7 +332,11 @@ export async function findAttentionItems(
       })
     : [];
   const decisionItemIds = decisions.map((d) => d.itemId).filter((v): v is string => v !== null);
-  const [brokenFeeds, conversations, patterns, calendarScan, commitments, held] = await Promise.all([
+  // 🚀 Bütün bacaklar aynı turda (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`): bağlantı sağlığı,
+  // sağlayıcı arızası, iki dairede kayıt ve yeniden etkinleşme okumaları eskiden bu turdan SONRA tek tek bekleniyordu — hiçbiri bu turun
+  // sonucuna bakmıyor. Her bacağın kendi `.catch`i ve alarmı aynen (biri düşerse yalnız o satır türü yok); satırlar aşağıda AYNI SIRAYLA
+  // eklenir (eşit önem + eşit anda sıralama ekleme sırasını korur).
+  const [brokenFeeds, conversations, patterns, calendarScan, commitments, held, connections, outageCount, twoProperties, reactivated] = await Promise.all([
     prisma.calendarSource.findMany({
       where: { propertyId: { in: propertyIds }, lastStatus: "error" },
       // 🚨 `url` ve `urlEnc` BİLEREK SEÇİLMİYOR: besleme adresi sorgu dizesinde
@@ -438,6 +453,57 @@ export async function findAttentionItems(
         return [];
       },
     ),
+    // KANAL BAĞLANTISI SAĞLIĞI (↓ satırları): işletme düzeyi — mülke daraltılmış çağrıda okunmaz.
+    options.propertyId
+      ? []
+      : prisma.channelConnection
+          .findMany({
+            // Sağlayıcının REDDETTİĞİ bağlantı (`revoked`) da: mesaj akışı durmuştur, ev sahibinin yeniden bağlanması gerekir.
+            where: { organizationId, status: { in: ["active", "revoked"] } },
+            orderBy: { createdAt: "asc" },
+            select: { status: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, createdAt: true, updatedAt: true },
+          })
+          .catch((err) => {
+            void alertOnTransition("attention:connection-health", "attention connection_unhealthy", err).catch(() => {});
+            return [];
+          }),
+    // SAĞLAYICI ARIZASI sayımı (↓ satırı): işletme düzeyi — mülke daraltılmış çağrıda okunmaz.
+    options.propertyId
+      ? 0
+      : prisma.conversation
+          .findMany({
+            where: {
+              propertyId: { in: propertyIds },
+              skippedReason: PROVIDER_OUTAGE_REASON,
+              updatedAt: { gte: new Date(now.getTime() - PROVIDER_OUTAGE_WINDOW_HOURS * HOUR) },
+            },
+            // En yeni önce: aday tavanı aşılırsa eski arızalar düşer, sayı güncel kalır (3. inceleme).
+            orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+            take: CONVERSATION_CANDIDATE_CAP,
+            select: {
+              messages: {
+                where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
+                orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+                take: 1,
+                select: { direction: true },
+              },
+            },
+          })
+          .then((rows) => rows.filter((r) => r.messages[0]?.direction === "inbound").length)
+          .catch((err) => {
+            void alertOnTransition("attention:provider-outage", "attention provider_outage", err).catch(() => {});
+            return 0;
+          }),
+    // AYNI REZERVASYON İKİ FARKLI DAİREDE KAYITLI (↓ satırları). Arıza öteki satırları düşürmez.
+    activeBookingConflicts(prisma, { organizationId, now }).catch((err): { conflicts: ActiveBookingConflict[]; capped: boolean } => {
+      void alertOnTransition("attention:booking-two-properties", "attention booking_two_properties", err).catch(() => {});
+      return { conflicts: [], capped: false };
+    }),
+    // KANAL İPTALLİ REZERVASYONU YENİDEN ETKİN GÖSTERİYOR (↓ satırları). Arıza öteki satırları düşürmez.
+    findChannelReactivations(organizationId, propertyIds, now, storedTimezone).catch((err) => {
+      void alertOnTransition("attention:channel-reactivation", "attention channel_reactivation", err).catch(() => {});
+      return [];
+    }),
   ]);
   const { conflicts, gaps } = calendarScan;
   const inScope = new Set(propertyIds);
@@ -450,17 +516,6 @@ export async function findAttentionItems(
   // KANAL BAĞLANTISI SAĞLIĞI (V0 §2f; sağlayıcıdan bağımsız — bağlantı satırının okuma kaydı). İşletme düzeyi satır: mülke daraltılmış
   // çağrıda gösterilmez. Ölçüm yoksa (yazıcı anahtarı kapalı) satır yok. Kalıcı hata hemen; geçici hata / bayat okuma yalnız bayatsa.
   if (!options.propertyId) {
-    const connections = await prisma.channelConnection
-      .findMany({
-        // Sağlayıcının REDDETTİĞİ bağlantı (`revoked`) da: mesaj akışı durmuştur, ev sahibinin yeniden bağlanması gerekir.
-        where: { organizationId, status: { in: ["active", "revoked"] } },
-        orderBy: { createdAt: "asc" },
-        select: { status: true, lastReadOkAt: true, lastReadErrorAt: true, lastReadErrorKind: true, createdAt: true, updatedAt: true },
-      })
-      .catch((err) => {
-        void alertOnTransition("attention:connection-health", "attention connection_unhealthy", err).catch(() => {});
-        return [];
-      });
     for (const c of connections) {
       const measured = connectionHealth(c, now);
       // Reddedilmiş bağlantı = yetki düştü. İSTİSNA kurucu hesabı: kendi bağlantısı reddedilse de sistemin ortak bağlantısıyla senkron
@@ -488,31 +543,7 @@ export async function findAttentionItems(
     // tutulur, kör tekrar yok); eskiden her konuşma ayrı "doğrulanamadı" satırıydı. Burada son PROVIDER_OUTAGE_WINDOW_HOURS saatte bu
     // sebeple bekleyen konuşmalar SAYILIR → işletme düzeyinde tek satır. Okuma arızası öteki satırları düşürmez.
     // Yalnız misafirin HÂLÂ beklediği konuşmalar (son görünür mesaj misafirden): ev sahibi elle cevap verdiyse sebep kolonu kalsa da
-    // konuşma sayılmaz (Haiku incelemesi 10-13 — yoksa satır 48 saat "bekliyor" derdi).
-    const outageCount = await prisma.conversation
-      .findMany({
-        where: {
-          propertyId: { in: propertyIds },
-          skippedReason: PROVIDER_OUTAGE_REASON,
-          updatedAt: { gte: new Date(now.getTime() - PROVIDER_OUTAGE_WINDOW_HOURS * HOUR) },
-        },
-        // En yeni önce: aday tavanı aşılırsa eski arızalar düşer, sayı güncel kalır (3. inceleme).
-        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-        take: CONVERSATION_CANDIDATE_CAP,
-        select: {
-          messages: {
-            where: { systemEventType: null, NOT: { body: "" }, ...notAutomationMessageWhere() },
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            take: 1,
-            select: { direction: true },
-          },
-        },
-      })
-      .then((rows) => rows.filter((r) => r.messages[0]?.direction === "inbound").length)
-      .catch((err) => {
-        void alertOnTransition("attention:provider-outage", "attention provider_outage", err).catch(() => {});
-        return 0;
-      });
+    // konuşma sayılmaz (Haiku incelemesi 10-13 — yoksa satır 48 saat "bekliyor" derdi). Sayım yukarıdaki turda.
     if (outageCount > 0) {
       items.push({
         kind: "provider_outage",
@@ -542,9 +573,7 @@ export async function findAttentionItems(
   }
 
   // Çıkış günü işletmenin takviminden okunur (tek tarih kuralı) — yalnız çıkışı olan aday varsa org dilimi okunur.
-  const departureTz = conversations.some((c) => c.reservation?.departureDate)
-    ? orgTimezone(decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone)
-    : null;
+  const departureTz = conversations.some((c) => c.reservation?.departureDate) ? orgTimezone(decisionTz ?? (await storedTimezone())) : null;
   for (const convo of conversations) {
     const last = convo.messages[0];
     // Görünür mesajı olmayan ya da son sözü BİZDE olan konuşma cevapsız değildir.
@@ -613,9 +642,7 @@ export async function findAttentionItems(
 
   // Söz satırları: saat işletmenin diliminde gösterilir (yalnız söz varsa okunur — sakin günde ek sorgu yok).
   if (commitments.length > 0) {
-    const tz = orgTimezone(
-      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
-    );
+    const tz = orgTimezone(decisionTz ?? (await storedTimezone()));
     const todayKey = dateKeyInTimeZone(now, tz);
     const tomorrowKey = dateKeyInTimeZone(addZonedDays(now, 1, tz), tz);
     const yesterdayKey = dateKeyInTimeZone(addZonedDays(now, -1, tz), tz);
@@ -783,9 +810,7 @@ export async function findAttentionItems(
   // "Yakın" sınırı işletmenin takvim gününden (yalnız boşluk varsa okunur — sakin günde ek sorgu yok).
   let soonLimit = "";
   if (nearestGapByProperty.size > 0) {
-    const tz = orgTimezone(
-      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
-    );
+    const tz = orgTimezone(decisionTz ?? (await storedTimezone()));
     soonLimit = dateKeyInTimeZone(addZonedDays(now, GAP_SOON_DAYS, tz), tz);
   }
   for (const { g, count } of nearestGapByProperty.values()) {
@@ -809,12 +834,7 @@ export async function findAttentionItems(
   // AYNI REZERVASYON İKİ FARKLI DAİREDE KAYITLI (kurucu 11-18 akşam: "hosta bir kez eşleştirme uyarısı çıkmalı"). Tutma kuralıyla AYNI
   // yüklem (`booking-property-conflict.ts`): gönderici bu rezervasyonun otomatik mesajını tutuyor; satır ev sahibinin yanlış kaydı kaldırması
   // için. Rezervasyon başına TEK satır, en yakın varış önce, tavanlı (aşım sessiz kalmaz: geçiş tabanlı alarm). Arıza öteki satırları düşürmez.
-  const twoProperties = await activeBookingConflicts(prisma, { organizationId, now }).catch(
-    (err): { conflicts: ActiveBookingConflict[]; capped: boolean } => {
-      void alertOnTransition("attention:booking-two-properties", "attention booking_two_properties", err).catch(() => {});
-      return { conflicts: [], capped: false };
-    },
-  );
+  // Okuma yukarıdaki turda.
   if (twoProperties.capped) {
     void alertOnTransition(
       `attention:booking-two-properties-cap:${organizationId}`,
@@ -828,9 +848,7 @@ export async function findAttentionItems(
   const twoPropertyMore = twoPropertyAll.length - twoPropertyRows.length;
   if (twoPropertyRows.length > 0) {
     // Varış günü işletmenin takviminden (tek tarih kuralı) — yalnız satır varsa okunur (sakin günde ek sorgu yok).
-    const tz = orgTimezone(
-      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
-    );
+    const tz = orgTimezone(decisionTz ?? (await storedTimezone()));
     for (const [index, c] of twoPropertyRows.entries()) {
       const arrivalDay = calendarDateOf(c.arrivalDate, tz).key;
       const [y, m, d] = arrivalDay.split("-").map(Number);
@@ -858,10 +876,7 @@ export async function findAttentionItems(
   // KANAL İPTALLİ REZERVASYONU YENİDEN ETKİN GÖSTERİYOR (G9, kurucu kararı 10-13 "Kanal açmasın, iCal aynı"). Yazma servisi satırı
   // iptal TUTAR ve günde en çok bir olay düşer; burada son REACTIVATION_ATTENTION_DAYS günün olayından, hâlâ iptal olan ve konaklaması
   // bitmemiş rezervasyon başına TEK satır. Kanal etkin göstermeyi bırakınca satır kendiliğinden kalkar. Arıza öteki satırları düşürmez.
-  const reactivated = await findChannelReactivations(organizationId, propertyIds, now, decisionTz).catch((err) => {
-    void alertOnTransition("attention:channel-reactivation", "attention channel_reactivation", err).catch(() => {});
-    return [];
-  });
+  // Okuma yukarıdaki turda.
   for (const r of reactivated) {
     items.push({
       kind: "channel_reactivation",
@@ -901,7 +916,8 @@ async function findChannelReactivations(
   organizationId: string,
   propertyIds: readonly string[],
   now: Date,
-  tzHint: string | null | undefined,
+  /** İşletmenin saklı saat dilimi — çağıranın tek okuması (yalnız olay varsa beklenir). */
+  storedTimezone: () => Promise<string | null | undefined>,
 ): Promise<{ reservationId: string; propertyId: string; lastSeenAt: Date; conversation: { id: string; channel: string } | null }[]> {
   const events = await prisma.ingestEvent.findMany({
     where: {
@@ -918,7 +934,7 @@ async function findChannelReactivations(
   if (events.length === 0) return [];
   const lastSeen = new Map<string, Date>();
   for (const e of events) if (!lastSeen.has(e.entityId)) lastSeen.set(e.entityId, e.occurredAt);
-  const tz = orgTimezone(tzHint ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone);
+  const tz = orgTimezone(await storedTimezone());
   const reservations = await prisma.reservation.findMany({
     where: {
       id: { in: [...lastSeen.keys()] },
