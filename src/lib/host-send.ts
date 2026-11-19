@@ -23,6 +23,8 @@ import { notAutomationMessageWhere } from "@/lib/message-author";
 import { undeliveredOutboundIds } from "@/lib/operator-replies";
 import { operationRetryKey } from "@/lib/outbox/operation-key";
 import { deliveryPathOfLocalOutcome } from "@/lib/delivery-path";
+import { channelSendReconcileEnabled, reconcileSendFromChannel } from "@/lib/outbox/reconcile-channel";
+import { logEvent } from "@/lib/event-log";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -250,7 +252,24 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
     return { status: "already_answered" };
   }
   // Fırlatılan hata / çöken süreç BELİRSİZDİR: iki talep de doğduğu 2 dk'da kalır (uzatma yalnız kesin başarıda).
-  const outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
+  let outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
+  // 🚨 BELİRSİZ SONUÇTA LİXUS KANALA KENDİSİ BAKAR (kurucu 11-19 AK-1, anahtar `CHANNEL_SEND_RECONCILE_ENABLED`): yanıt yolda koptuysa
+  // mesaj kanala ulaşmış olabilir. Ev sahibine "konuşmayı kontrol edin" demeden önce kanal konuşması bir kez okunur; aynı metin gönder'e
+  // basıldıktan SONRA kanalda görünüyor ve başka hiçbir kayda ait değilse misafire ULAŞMIŞTIR → başarı yolu (mesaj kanal kimliğiyle yazılır,
+  // senkron onu ikinci kez içeri almaz). Görünmüyorsa bugünkü belirsiz yol AYNEN — yeniden gönderim YOK. Kesin ret bu bakışa girmez.
+  if (!outcome.ok && !isDefinitiveSendFailure(outcome.error) && !localDelivery && channelSendReconcileEnabled()) {
+    const seen = await reconcileSendFromChannel({
+      organizationId: input.organizationId,
+      externalReservationId: conversation.externalReservationId ?? null,
+      body: input.body,
+      anchor: pressedAt,
+      token: token ?? undefined,
+    });
+    if (seen.found) {
+      void logEvent("outbound.reconciled_in_channel", { evidence: seen.evidence, path: "direct" }, { organizationId: input.organizationId });
+      outcome = { ...outcome, ok: true, error: undefined, providerMessageId: seen.providerMessageId };
+    }
+  }
   if (!outcome.ok) {
     // DEFINITIVE provider rejection (HTTP 4xx incl. 429; not 408) → nothing was delivered → release so the same text is
     // retryable now. Anything else (timeout / network / 5xx) is AMBIGUOUS — the message MAY have reached the guest despite the

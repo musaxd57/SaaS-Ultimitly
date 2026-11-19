@@ -1,4 +1,4 @@
-import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult } from "@/lib/channels";
+import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult, OutboundThreadMessage, OutboundThreadRead } from "@/lib/channels";
 
 // ---------------------------------------------------------------------------
 // ORTAK SAĞLAYICI FAKE'İ — Channel Layer için (V0.2)
@@ -41,6 +41,8 @@ export interface FakeDelivery {
   body: string;
   token: string;
   providerMessageId: string;
+  /** Sağlayıcının mesaja yazdığı zaman (kanal okumasında `createdAt`). */
+  at: Date;
 }
 
 export interface FakeAttempt {
@@ -75,7 +77,17 @@ export class FakeOutboundProvider {
   /** Gece-4 S3-06: kimlik bilgisi okuma doğrulamasının cevabı (`null` = bilinmiyor — eski karar; varsayılan). */
   credentialCheck: boolean | null = null;
 
+  /** Kanal konuşmasında, bizim gönderimlerimiz DIŞINDA görünen mesajlar (misafir · ev sahibinin kanaldan elle yazdığı) — hedef başına. */
+  readonly threadExtra = new Map<string, OutboundThreadMessage[]>();
+  /** true → kanal okuması başarısız (sağlayıcı arızası). */
+  threadDown = false;
+  /** Kanal okuması sayısı (uzlaştırmanın baktığını göstermek için). */
+  threadReads = 0;
+
   reset(): void {
+    this.threadExtra.clear();
+    this.threadDown = false;
+    this.threadReads = 0;
     this.credentialCheck = null;
     this.owners.clear();
     this.perDestination.clear();
@@ -92,7 +104,7 @@ export class FakeOutboundProvider {
 
   private deliver(destination: string, body: string, token: string): string {
     const providerMessageId = `fake-msg-${++this.seq}`;
-    this.deliveries.push({ destination, body, token, providerMessageId });
+    this.deliveries.push({ destination, body, token, providerMessageId, at: new Date() });
     return providerMessageId;
   }
 
@@ -145,6 +157,17 @@ export class FakeOutboundProvider {
         return this.handle(destination.externalReservationId, body, credential.token);
       },
       verifyCredential: async (credential: OutboundCredential): Promise<boolean | null> => (credential.token ? this.credentialCheck : null),
+      // Kanal konuşması (kurucu 11-19 AK-1): teslim edilen mesajlarımız (giden) + elle eklenen öteki mesajlar. Kiracı sınırı gönderimle aynı:
+      // başka hesabın / bilinmeyen rezervasyonu okunamaz (gerçek sağlayıcıda 404 → okuma başarısız).
+      readThread: async (destination: OutboundDestination, credential: OutboundCredential): Promise<OutboundThreadRead> => {
+        this.threadReads++;
+        const id = destination.externalReservationId;
+        if (this.threadDown || !credential.token || this.owners.get(id) !== credential.token) return { ok: false };
+        const ours = this.deliveries
+          .filter((d) => d.destination === id)
+          .map((d): OutboundThreadMessage => ({ externalId: d.providerMessageId, direction: "outbound", body: d.body, createdAt: d.at }));
+        return { ok: true, messages: [...ours, ...(this.threadExtra.get(id) ?? [])] };
+      },
     };
   }
 }

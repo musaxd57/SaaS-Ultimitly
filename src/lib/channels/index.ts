@@ -30,6 +30,7 @@ export {
   deliveryOutcomeOfRoute,
   dispatchOutbound,
   verifyOutboundCredential,
+  readOutboundThread,
   getOutboundAdapter,
   registerOutboundAdapter,
   __setOutboundAdapterForTest,
@@ -42,6 +43,8 @@ export type {
   OutboundCapability,
   OutboundSendResult,
   OutboundAdapter,
+  OutboundThreadMessage,
+  OutboundThreadRead,
 } from "./outbound";
 export {
   NON_MESSAGING_CHANNELS,

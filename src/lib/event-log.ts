@@ -29,6 +29,9 @@ export const OPERATIONAL_EVENTS = {
   "billing.checkout.released": "warn",
   // Ödeme Paddle'dan OKUNARAK doğrulandı ve abonelik bildirim beklenmeden hesaba bağlandı (kurucu 11-18 akşam, `lib/billing/checkout-verify.ts`).
   "billing.checkout.instant_linked": "info",
+  // Belirsiz gönderimden sonra Lixus kanal konuşmasını okudu ve mesajı kanalda gördü (kurucu 11-19 AK-1, `outbox/reconcile-channel.ts`).
+  // Yalnız kanıt türü ve yol; metin / kimlik yok.
+  "outbound.reconciled_in_channel": "info",
   "billing.webhook.received": "info",
   "billing.webhook.duplicate": "info",
   "billing.webhook.processed": "info",

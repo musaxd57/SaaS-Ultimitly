@@ -325,3 +325,12 @@ export const hospitableIngestAdapter: IngestAdapter = {
     }
   },
 };
+
+/**
+ * Bir rezervasyonun kanal mesajlarını OKU ve sağlayıcıdan bağımsız biçime çevir (kurucu 11-19 AK-1: belirsiz gönderimden sonra Lixus kanala
+ * kendisi bakar). Sağlayıcının liste okuması yalnız bu ingest adaptöründe yaşar (sınır pini `core-channel-independence.test.ts` V0.6); giden
+ * adaptör (`hospitable-outbound.ts readThread`) bunu çağırır. Hata fırlatır — çağıran yakalar.
+ */
+export async function readReservationThread(reservationId: string, token: string): Promise<CanonicalMessage[]> {
+  return (await hospitableListMessages(reservationId, token)).map(normalizeMessage);
+}

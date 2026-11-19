@@ -1,9 +1,10 @@
 import "server-only";
 
 import { probeToken, sendMessage, type SendResult } from "@/lib/hospitable";
+import { readReservationThread } from "./hospitable-ingest";
 import { providerErrorStatus } from "@/lib/provider-errors";
 import { classifySendResult, type SendResultKind } from "@/lib/outbox/state";
-import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult } from "./outbound";
+import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult, OutboundThreadRead } from "./outbound";
 
 // ---------------------------------------------------------------------------
 // HOSPITABLE GİDEN-MESAJ ADAPTÖRÜ (V0.1) — geçici köprü sağlayıcısı.
@@ -68,6 +69,17 @@ export const hospitableOutboundAdapter: OutboundAdapter = {
       // G10: yalnız rapor (tür `ambiguous` kalır, tekrar davranışı aynı). Ağ hatası / zaman aşımı sağlayıcı arızası SAYILMAZ (bizim tarafımız olabilir).
       ...(!r.ok && typeof r.status === "number" && r.status >= 500 && r.status <= 599 ? { providerOutage: true } : {}),
     };
+  },
+  // Kurucu 11-19 AK-1: belirsiz gönderimden sonra konuşmanın mesaj listesi (senkronun okuduğu uç + aynı normalleştirici). Belirteç yoksa
+  // okunmaz (gönderimdeki env yedeği okuma için kullanılmaz — yalnız işletmenin kendi belirteci).
+  async readThread(destination: OutboundDestination, credential: OutboundCredential): Promise<OutboundThreadRead> {
+    if (!credential.token) return { ok: false };
+    try {
+      const messages = await readReservationThread(destination.externalReservationId, credential.token);
+      return { ok: true, messages: messages.map((c) => ({ externalId: c.externalId, direction: c.direction, body: c.body, createdAt: c.createdAt })) };
+    } catch {
+      return { ok: false };
+    }
   },
   // Gece-4 S3-06: tek sayfalık mülk listesi — belirteç okuyabiliyorsa gönderimdeki 401 / 403 bu rezervasyona özgüdür.
   async verifyCredential(credential: OutboundCredential): Promise<boolean | null> {

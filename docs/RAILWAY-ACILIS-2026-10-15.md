@@ -321,6 +321,11 @@ kurucu onayıyla §1'e taşındı.)
   kalmayalım"; `billing/checkout-verify.ts paidSweepLinkEnabled`; VARSAYILAN KAPALI): açıkken saatlik süpürge, abonelik bildirimi hiç gelmeyen
   ödemeyi Paddle'dan okuyup AYNI çekirdekle bağlar (müşteri sekmeyi kapatmış olsa da). Ekran doğrulamasının anahtarından
   (`BILLING_INSTANT_LINK_ENABLED`) bağımsız; ikisi aynı anda koşsa da plan bir kez yazılır. Açılışta sandbox denemesiyle birlikte.
+- `CHANNEL_SEND_RECONCILE_ENABLED` (kurucu 11-19 AK-1 / KU-1: "adamların mesajlarını görebiliyoruz ki … varsa gitmiştir" — `outbox/reconcile-channel.ts`,
+  tasarım `docs/TASARIM-2026-11-19-belirsiz-gonderimi-lixus-kendisi-dogrular.md`; VARSAYILAN KAPALI): açıkken belirsiz gönderimden sonra Lixus
+  kanal konuşmasını KENDİSİ okur — doğrudan yolda belirsiz sonuçtan hemen sonra bir kez, kuyrukta ~31 dakika aralıklı. Aynı metin gönderim
+  başlangıcından sonra kanalda görünürse "misafire ulaştı" (kanıt kodu `reconciled_seen_in_channel`); görünmezse ASLA yeniden gönderilmez,
+  inceleme sebebi "kanalda görünmüyor" ya da "kanal okunamadı" olarak ayrılır. Kapalıyken bugünkü davranış (kanal okunmaz).
 - `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
   VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
   soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).

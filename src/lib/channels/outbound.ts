@@ -117,7 +117,22 @@ export interface OutboundAdapter<P extends ChannelProviderId = OutboundProvider>
    * rezervasyona özgü), `false` okuma da reddedildi (kimlik bilgisi ölü), `null` bilinmiyor. Asla fırlatmaz. Yoksa çekirdek eski kararı verir.
    */
   verifyCredential?(credential: OutboundCredential<P>): Promise<boolean | null>;
+  /**
+   * İSTEĞE BAĞLI (kurucu 11-19 AK-1): hedefin kanal konuşmasını OKU — belirsiz gönderimden sonra Lixus mesajın kanala ulaşıp ulaşmadığına
+   * kendisi bakar (`outbox/reconcile-match.ts`). Okunamazsa `{ ok: false }`. Asla fırlatmaz. Yoksa çekirdek bakamaz (bugünkü davranış).
+   */
+  readThread?(destination: OutboundDestination<P>, credential: OutboundCredential<P>): Promise<OutboundThreadRead>;
 }
+
+/** Kanal konuşmasından okunan mesaj (sağlayıcıdan bağımsız biçim). */
+export interface OutboundThreadMessage {
+  externalId: string | null;
+  direction: "inbound" | "outbound";
+  body: string | null;
+  createdAt: Date | null;
+}
+
+export type OutboundThreadRead = { ok: true; messages: OutboundThreadMessage[] } | { ok: false };
 
 const registered = new Map<OutboundProvider, OutboundAdapter>();
 const overrides = new Map<OutboundProvider, OutboundAdapter>();
@@ -142,6 +157,20 @@ export async function verifyOutboundCredential(credential: OutboundCredential): 
 }
 
 /** Test kancası: kayıtlı adaptörün ÜSTÜNE geçici bir sahte koy (null = kaldır). */
+/**
+ * Hedefin kanal konuşmasını oku (adaptör destekliyorsa). Belirteç yok / adaptör desteklemiyor → null (bakılamadı); okuma hatası →
+ * `{ ok: false }`. Kimlik bilgisi başka sağlayıcıya ASLA taşınmaz. Asla fırlatmaz.
+ */
+export async function readOutboundThread(destination: OutboundDestination, credential: OutboundCredential): Promise<OutboundThreadRead | null> {
+  const adapter = getOutboundAdapter(destination.provider);
+  if (!adapter?.readThread || credential.provider !== destination.provider) return null;
+  try {
+    return await adapter.readThread(destination, credential);
+  } catch {
+    return { ok: false };
+  }
+}
+
 export function __setOutboundAdapterForTest(provider: OutboundProvider, adapter: OutboundAdapter | null): void {
   if (adapter) overrides.set(provider, adapter);
   else overrides.delete(provider);

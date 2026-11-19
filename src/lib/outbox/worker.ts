@@ -5,6 +5,8 @@ import { Prisma } from "@prisma/client";
 import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
 import { DISPATCH_AWARE_TOKEN_PREFIX, OUTBOX_ERASED_REASON, cancelFlaggedUnclaimed, markDispatchStarted } from "./dispatch";
+import { RECONCILE_CODES } from "./reconcile-match";
+import { channelSendReconcileEnabled, reconcileSendFromChannel } from "./reconcile-channel";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
@@ -109,6 +111,8 @@ export interface OutboxRow {
   connectionId: string | null;
   /** Kuyruğa giriş anı (N1 bayatlık: abonelik kapalı dönemi kapsayan satır). Elle kurulan test satırlarında olmayabilir. */
   createdAt?: Date | null;
+  /** "Dış gönderim başladı" işareti (11-19 K1) — uzlaştırmanın zaman çapası. Elle kurulan test satırlarında olmayabilir. */
+  dispatchStartedAt?: Date | null;
 }
 
 export interface OutboxSendOutcome {
@@ -129,7 +133,15 @@ export type OutboxSendFn = (row: OutboxRow, token: string | undefined) => Promis
 export type OutboxReconcileFn = (
   row: OutboxRow,
   token: string | undefined,
-) => Promise<{ found: boolean; providerMessageId?: string | null }>;
+) => Promise<{
+  found: boolean;
+  providerMessageId?: string | null;
+  /**
+   * Kanıt (kurucu 11-19 AK-1, `reconcile-match.ts`): "id" kesin · "content" kanalda aynı metin görüldü (misafire ulaştı) · "not_seen" Lixus
+   * baktı, görünmüyor · "unreadable" kanal okunamadı. Eski / test uzlaştırıcıları vermeyebilir (bugünkü davranış).
+   */
+  evidence?: "id" | "content" | "not_seen" | "unreadable";
+}>;
 
 export interface DrainDeps {
   now?: () => Date;
@@ -197,18 +209,28 @@ const defaultVerifyCredential = async (row: OutboxRow, token: string | undefined
   return verifyOutboundCredential({ provider: route.destination.provider, token });
 };
 
-// PRODUCTION reconcile — deliberately CONSERVATIVE (Codex #4). Hospitable exposes NO
-// idempotency key, and an ambiguous send never captured a providerMessageId (the HTTP
-// response was lost), so there is NO reliable way to confirm delivery from the
-// provider's history: a matching body could be a DIFFERENT message, or a genuine
-// duplicate. We therefore do NOT auto-mark "sent" on body+time similarity — the row
-// stays ambiguous and, once attempts are exhausted, is parked for MANUAL review.
-// Internal (no external destination) rows are trivially delivered. This is injectable
-// so a FUTURE reliable signal (a provider idempotency key, or a providerMessageId we
-// actually captured) can confirm delivery here without changing the state machine.
-const defaultReconcile: OutboxReconcileFn = async (row) => {
-  if (!row.externalReservationId) return { found: true };
-  return { found: false }; // no reliable provider match → do NOT auto-confirm; → review
+// PRODUCTION reconcile — LİXUS KANALI KENDİSİ OKUR (kurucu 11-19 AK-1 / KU-1: "adamların mesajlarını görebiliyoruz ki … varsa gitmiştir";
+// tasarım `docs/TASARIM-2026-11-19-belirsiz-gonderimi-lixus-kendisi-dogrular.md`). Eskiden (Codex #4) kanal hiç okunmuyor, satır 6 bakıştan
+// sonra "inceleme"ye düşüp ev sahibine "konuşmayı kontrol edin" deniyordu. Sağlayıcıda tekrar-güvenlik anahtarı hâlâ YOK ve yanıt kopunca
+// kimlik elde değil — bu yüzden metin + saat tek başına "bizim isteğimiz başarılı" demez: kanıt "content" ayrı kaydedilir (misafir bu
+// metni almıştır; kim gönderdiği iddia edilmez), aday gönderim başlangıcından SONRA yazılmış ve başka hiçbir kayda ait olmayan mesaj olmalı.
+// Görünmemesi ASLA yeniden gönderim sebebi değildir (aşağıdaki durum makinesi yeniden göndermez; bakış ~31 dk aralıklı sürer).
+const defaultReconcile: OutboxReconcileFn = async (row, token) => {
+  if (resolveOutboundRoute(row).kind !== "external") return { found: true };
+  // Anahtar kapalı → bugünkü davranış (kanal okunmaz; 6 bakıştan sonra inceleme, kanıt kodu yazılmaz).
+  if (!channelSendReconcileEnabled()) return { found: false };
+  const anchor = row.dispatchStartedAt ?? row.createdAt ?? null;
+  if (!anchor) return { found: false, evidence: "not_seen" };
+  const match = await reconcileSendFromChannel({
+    organizationId: row.organizationId,
+    externalReservationId: row.externalReservationId,
+    body: row.body,
+    anchor,
+    token,
+    ownMessageId: row.messageId,
+    ownOutboxId: row.id,
+  });
+  return match.found ? { found: true, providerMessageId: match.providerMessageId, evidence: match.evidence } : { found: false, evidence: match.evidence };
 };
 
 /**
@@ -412,7 +434,7 @@ async function claimBatchLocked(
     )
     RETURNING o."id", o."organizationId", o."conversationId", o."messageId",
               o."reservationId", o."channel", o."externalReservationId", o."messageType",
-              o."body", o."status", o."attemptCount", o."connectionId", o."createdAt"
+              o."body", o."status", o."attemptCount", o."connectionId", o."createdAt", o."dispatchStartedAt"
   `);
   return rows;
 }
@@ -1346,15 +1368,19 @@ async function processOne(
   }
 
   if (row.status === "reconciling") {
-    const { found, providerMessageId } = await deps.reconcile(row, providerToken);
+    const { found, providerMessageId, evidence } = await deps.reconcile(row, providerToken);
     if (found) {
-      const done = await settle(row, token, "reconciling", { status: "sent", providerMessageId: providerMessageId ?? null, reconciledAt: now, sentAt: now, claimedBy: null, claimExpiresAt: null }, providerMessageId);
+      // Kanıt kodu kayda (teşhis / görünüm): "content" = kanalda aynı metin görüldü — misafire ulaştı, bizim isteğimizin başarısı iddia edilmez.
+      const done = await settle(row, token, "reconciling", { status: "sent", providerMessageId: providerMessageId ?? null, reconciledAt: now, sentAt: now, claimedBy: null, claimExpiresAt: null, lastErrorKind: null, lastErrorCode: evidence === "content" ? RECONCILE_CODES.seenByContent : null }, providerMessageId);
       if (done) await applyDeliveryEffect(row, now);
       acc.reconciled++;
       return;
     }
     if (attemptsExhausted(row.attemptCount)) {
-      const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
+      // Sebep kayda: Lixus baktı ve görmedi ("not_seen") ↔ bakamadı ("unreadable"). Yalnız ikincisinde "ulaşmış olabilir" dürüst bir cümledir
+      // (kurucu KU-1). Kanıt vermeyen (eski / test) uzlaştırıcıda kod yazılmaz (bugünkü davranış).
+      const reviewCode = evidence === "not_seen" ? RECONCILE_CODES.notSeen : evidence === "unreadable" ? RECONCILE_CODES.unreadable : undefined;
+      const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null, ...(reviewCode ? { lastErrorCode: reviewCode } : {}) });
       // AMBIGUOUS → parked for review; *SentAt is NOT stamped (unverified — never a false "sent").
       // The flag-OFF sender won't re-send it because it fences on this outbox row (see automation.ts).
       if (done) {
