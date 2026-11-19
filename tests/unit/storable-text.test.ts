@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hasUnstorableChars, toStorableText } from "@/lib/storable-text";
+import { parseJsonWithoutNul } from "@/lib/api";
 
 // Saklanamayan karakter: NUL ve EŞSİZ vekil sessizce silinir, geçerli vekil çifti (emoji) korunur (G2 11-19). Metinler kaçışsız kurulur.
 const NUL = String.fromCharCode(0);
@@ -28,5 +29,14 @@ describe("saklanabilir metin", () => {
     for (const s of ["", "a", NUL, HIGH, LOW, `${HIGH}${LOW}`, `x${LOW}${HIGH}y`, EMOJI, `${EMOJI}${HIGH}`]) {
       expect(hasUnstorableChars(s), JSON.stringify(s)).toBe(toStorableText(s) !== s);
     }
+  });
+
+  it("🚨 JSON okuyucu: değerde NUL / eşsiz vekil silinir (iç içe dahil), ANAHTARDA olursa bozuk gövde (SyntaxError)", () => {
+    const out = parseJsonWithoutNul<{ a: string; n: { b: string[] } }>('{"a":"x\\ud800y","n":{"b":["p\\u0000q","\\ud83d\\ude00"]}}');
+    expect(out).toEqual({ a: "xy", n: { b: ["pq", EMOJI] } });
+    expect(() => parseJsonWithoutNul('{"ro\\ud800le":"owner"}')).toThrow(SyntaxError);
+    expect(() => parseJsonWithoutNul('{"ro\\u0000le":"owner"}')).toThrow(SyntaxError);
+    // KONTROL: emojili anahtar geçer.
+    expect(parseJsonWithoutNul('{"\\ud83d\\ude00":1}')).toEqual({ [EMOJI]: 1 });
   });
 });

@@ -16,6 +16,13 @@ describe("canonicalStr — NUL silinir, başka hiçbir şey değişmez", () => {
     expect(canonicalStr("\u0000")).toBeNull(); // yalnız NUL = boş
   });
 
+  it("🚨 (G2 11-19) eşsiz vekil de silinir (Prisma onu da reddeder); geçerli vekil çifti (emoji) korunur", () => {
+    const lone = String.fromCharCode(0xd800);
+    expect(canonicalStr(`Ay${lone}şe`)).toBe("Ayşe");
+    expect(canonicalStr(lone)).toBeNull();
+    expect(canonicalStr(`${String.fromCodePoint(0x1f600)}${lone}`)).toBe(String.fromCodePoint(0x1f600));
+  });
+
   it("KONTROL — NUL dışı içerik bayt bayt aynı (boşluk, sekme, satır sonu, emoji)", () => {
     for (const s of ["Ayşe Yılmaz", " başta boşluk ", "a\tb\nc", "👋 Merhaba", "​görünmez"]) {
       expect(canonicalStr(s)).toBe(s);

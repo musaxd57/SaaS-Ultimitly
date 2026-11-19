@@ -435,6 +435,8 @@ describe("Girişler — giriş mesajı rotası", () => {
     expect((await post(s.reservationId, {})).status).toBe(400);
     expect((await post(s.reservationId, { revision: s.revision })).status).toBe(400);
     expect((await post(s.reservationId, { revision: s.revision, digest: "kısa" })).status).toBe(400);
+    // (G2 11-19) int4 sütunu taşan sürüm: sorgu hatası (500 + uyarı kovası) değil gövde hatası.
+    expect((await post(s.reservationId, { revision: 2 ** 31, digest: "a".repeat(64) })).status).toBe(400);
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
