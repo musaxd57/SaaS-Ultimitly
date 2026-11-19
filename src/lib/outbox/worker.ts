@@ -1193,6 +1193,12 @@ export const CHANNEL_PAUSED_STALE_MARK = "reactivated_after_block";
 export const CHANNEL_PAUSED_REASON = "channel_paused";
 
 export async function reactivateBlockedOutbox(organizationId: string, now: Date = new Date()): Promise<number> {
+  // Ön okuma (O1, 11-19): zamanlanmış geçiş bunu her başarılı senkrondan sonra işletme başına çağırır; `blocked` satır olağan hâlde YOK
+  // ama iki yazma her seferinde koşuyordu (Prisma her birini BEGIN / UPDATE / COMMIT ile sarar → işletme başına 6 deyim). Okuma aşağıdaki
+  // iki WHERE'in ÜST KÜMESİ (aynı işletme + `blocked`; `organizationId, status` dizini) → boş diyorsa yazmalar o anda da hiçbir satıra
+  // dokunmazdı. Pin + kâhin: `tests/integration/outbox-reactivate-query-count.test.ts`.
+  const anyBlocked = await prisma.messageOutbox.findFirst({ where: { organizationId, status: "blocked" }, select: { id: true } });
+  if (anyBlocked === null) return 0;
   const stale = await prisma.messageOutbox.updateMany({
     // İptal isteği taşıyan satır dirilmez (`dispatch.ts`): süpürge onu `canceled` yapar; arada kalan pencerede de bekleyene dönmesin.
     where: { organizationId, status: "blocked", cancelRequestedAt: null, body: { not: ANON_BODY }, messageType: { in: ["ai", "holding_ack"] } },
