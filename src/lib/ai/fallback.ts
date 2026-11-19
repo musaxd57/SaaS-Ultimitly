@@ -1541,16 +1541,14 @@ function reportedNotConditional(hay: string, needle: string): boolean {
  * düzelmezse otele geçeceğiz" BİLDİRİMDİR. Fark kalıbın hemen ardındaki ekte (↑ `CONDITIONAL_TAIL`).
  */
 function hasNegativeVerbComplaint(message: string): boolean {
-  for (const cand of candidatesOf(message)) {
-    const std = foldTurkishLower(cand);
-    const tr = foldTurkishLowerTr(cand);
-    const ascii = foldTurkishAscii(cand);
-    for (const w of NEGATIVE_VERB_COMPLAINTS) {
-      if (
-        reportedNotConditional(std, w) ||
-        reportedNotConditional(tr, w) ||
-        reportedNotConditional(ascii, foldTurkishAscii(w))
-      ) {
+  // Aday biçimler ve listenin ASCII katlaması ↑önbelleklerden (O3 11-19, ölçüldü: sınıflandırma süresinin ~%30'u bu fonksiyonun yeniden
+  // katlamasıydı — her çağrıda aday başına üç katlama + listenin HER sözcüğü). Değerler aynı saf fonksiyonların çıktısı; iş sayacı
+  // `fallback-fold-work.test.ts`.
+  const asciiWords = asciiFoldedWords(NEGATIVE_VERB_COMPLAINTS);
+  for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
+    for (let k = 0; k < NEGATIVE_VERB_COMPLAINTS.length; k++) {
+      const w = NEGATIVE_VERB_COMPLAINTS[k];
+      if (reportedNotConditional(std, w) || reportedNotConditional(tr, w) || reportedNotConditional(ascii, asciiWords[k])) {
         return true;
       }
     }
