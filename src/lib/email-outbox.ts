@@ -711,6 +711,24 @@ async function processClaimedRow(
       return;
     }
     const attempts = row.attemptCount + 1;
+    // Alıcı e-posta ALAMAZ (`.invalid` — gönderici sağlayıcıya hiç gitmedi; G2 tur 3 T3-B11): sonuç kalıcı → yeniden deneme yok, operatör
+    // alarmı yok (kayıt formu bu alan adını kabul ediyor; kimliksiz biri ~81 dk süren 5 denemeyle alarm tetikleyebiliyordu). Satır
+    // `canceled`: yapılacak bir şey kalmadı; neden `lastError`da. Kuyruk sağlığındaki "son 24 saatte başarısız" sayısına girmez.
+    if (outcome.undeliverable) {
+      const c = await tx.emailOutbox.updateMany({
+        where: { id: row.id, claimedBy: claimToken, status: "sending" },
+        data: {
+          status: "canceled",
+          attemptCount: attempts,
+          payloadEnc: null,
+          claimedBy: null,
+          claimExpiresAt: null,
+          lastError: scrubErr(outcome.error),
+        },
+      });
+      if (c.count === 1) result.canceled++;
+      return;
+    }
     const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
     const nextAt = new Date(settleNow.getTime() + backoff);
     // Sağlayıcı "bu anahtar başka içerikle kullanıldı" dedi (Opus F9): ilk denemenin sonucu BELİRSİZ, aynı anahtarla yeniden denemek boşuna,
