@@ -39,6 +39,13 @@ export function InternalNotesCard({
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // İK-3 (kurucu 11-19): not KALICI silinir → satırdaki "Sil" önce AYNI satırda kısa onay açar, istek yalnız onaydaki "Sil" ile gider.
+  // Tek durum = aynı anda tek satırda onay açık (başka satırın "Sil"i onayı oraya taşır). Odak düzeni öteki satır içi onaylarla aynı
+  // (erişilebilirlik 10-22): onay açılınca odak "Vazgeç"e iner; kapanınca açan "Sil"e döner — yoksa açan düğme kalkıp odak sayfanın
+  // başına düşüyordu.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const deleteTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const focusTriggerLater = (id: string) => requestAnimationFrame(() => deleteTriggers.current.get(id)?.focus());
   // İstek kimliği METİN başına: çift tık / kopan bağlantıdan sonra aynı metinle yeniden deneme AYNI kimliği taşır (sunucu var olan notu
   // döndürür, ikinci not açılmaz); metin değişince ya da kayıt kesinleşince yeni kimlik.
   const requestId = useRef<string>(newKbRequestId());
@@ -75,11 +82,17 @@ export function InternalNotesCard({
       const res = await fetch(`/api/internal-notes/${encodeURIComponent(id)}`, { method: "DELETE" });
       // 404 = not zaten silinmiş (başka sekmede) → hata değil, liste yenilenir.
       if (res.ok || res.status === 404) router.refresh();
-      else toast.error("Silinemedi. Sayfayı yenileyip tekrar deneyin.");
+      else {
+        toast.error("Silinemedi. Sayfayı yenileyip tekrar deneyin.");
+        focusTriggerLater(id);
+      }
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
+      focusTriggerLater(id);
     } finally {
       setBusy(null);
+      // Yalnız BU notun onayı kapanır: istek sürerken başka satırda açılan onay yerinde kalır.
+      setConfirmId((cur) => (cur === id ? null : cur));
     }
   }
 
@@ -102,16 +115,48 @@ export function InternalNotesCard({
                   <div className="min-w-0 text-xs text-muted-foreground">
                     {n.authorName} · {n.createdLabel}
                   </div>
-                  {readOnly || !n.canDelete ? null : (
+                  {readOnly || !n.canDelete ? null : confirmId === n.id ? (
+                    <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-xs">
+                      <span>Bu not silinsin mi?</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs text-destructive"
+                        disabled={busy === n.id}
+                        onClick={() => void remove(n.id)}
+                      >
+                        {busy === n.id ? <Loader2 className="size-3 animate-spin" /> : null}
+                        Sil
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        autoFocus
+                        disabled={busy === n.id}
+                        onClick={() => {
+                          setConfirmId(null);
+                          focusTriggerLater(n.id);
+                        }}
+                      >
+                        Vazgeç
+                      </Button>
+                    </span>
+                  ) : (
                     <Button
+                      ref={(el) => {
+                        if (el) deleteTriggers.current.set(n.id, el);
+                        else deleteTriggers.current.delete(n.id);
+                      }}
                       type="button"
                       size="sm"
                       variant="ghost"
                       className="h-7 shrink-0 px-2 text-xs"
                       disabled={busy === n.id}
-                      onClick={() => void remove(n.id)}
+                      onClick={() => setConfirmId(n.id)}
                     >
-                      {busy === n.id ? <Loader2 className="size-3 animate-spin" /> : null}
                       Sil
                     </Button>
                   )}

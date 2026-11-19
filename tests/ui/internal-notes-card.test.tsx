@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, act, cleanup, within, waitFor } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // "İç notlar" kartı (dilim D1): ekle → istek (konuşma kimliği + metin + istek kimliği) → liste yenilenir, metin temizlenir; yeniden deneme
 // AYNI kimliği taşır, metin değişince yeni kimlik; "Sil" yalnız yetkili satırda; bürünmede ekleme / silme yok. Metinler AYNEN görev metnidir.
+// İK-3 (kurucu 11-19): not KALICI silinir → ilk "Sil" aynı satırda kısa onay açar ("Bu not silinsin mi?" + "Sil" / "Vazgeç"); istek
+// yalnız onaydaki "Sil" ile gider; aynı anda tek satırda onay açık olur.
 // ---------------------------------------------------------------------------
 
 const router = { push: vi.fn(), refresh: vi.fn() };
@@ -123,17 +125,20 @@ describe("InternalNotesCard", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sil → DELETE, liste yenilenir; 404 (zaten silinmiş) hata değil; başka hata söylenir", async () => {
+  it("sil (onaylı) → DELETE, liste yenilenir; 404 (zaten silinmiş) hata değil; başka hata söylenir", async () => {
     const fetchMock = stubFetch([
       { ok: true, status: 200 },
       { ok: false, status: 404 },
       { ok: false, status: 403 },
     ]);
     render(<InternalNotesCard conversationId="c1" notes={[mine]} readOnly={false} />);
-    const click = () =>
-      act(async () => {
+    // Satırdaki "Sil" onayı açar, onaydaki "Sil" siler (her iki basışta da ekranda TEK "Sil" düğmesi vardır).
+    const click = async () => {
+      fireEvent.click(screen.getByText("Sil"));
+      await act(async () => {
         fireEvent.click(screen.getByText("Sil"));
       });
+    };
     await click();
     expect(fetchMock.mock.calls[0]![0]).toBe("/api/internal-notes/n1");
     expect(fetchMock.mock.calls[0]![1]!.method).toBe("DELETE");
@@ -143,6 +148,71 @@ describe("InternalNotesCard", () => {
     await click();
     expect(toastError).toHaveBeenCalledWith("Silinemedi. Sayfayı yenileyip tekrar deneyin.");
     expect(router.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("🚨 İK-3: ilk 'Sil' SİLMEZ — aynı satırda 'Bu not silinsin mi?' + 'Sil' / 'Vazgeç' açılır; 'Vazgeç' kapatır, istek gitmez", async () => {
+    const fetchMock = stubFetch([]);
+    render(<InternalNotesCard conversationId="c1" notes={[mine]} readOnly={false} />);
+    fireEvent.click(screen.getByText("Sil"));
+    expect(fetchMock).not.toHaveBeenCalled();
+    const row = screen.getByTestId("internal-note");
+    expect(within(row).getByText("Bu not silinsin mi?")).toBeTruthy();
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["Sil", "Vazgeç"]);
+    // Klavye odağı onay açılınca "Vazgeç"e iner (yanlışlıkla Enter silmesin).
+    expect(document.activeElement?.textContent).toBe("Vazgeç");
+    await act(async () => {
+      fireEvent.click(within(row).getByText("Vazgeç"));
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Bu not silinsin mi?")).toBeNull();
+    expect(within(row).getAllByRole("button").map((b) => b.textContent)).toEqual(["Sil"]);
+    // Vazgeçince odak açan "Sil"e döner (sayfanın başına düşmez).
+    await waitFor(() => expect(document.activeElement).toBe(within(row).getByRole("button", { name: "Sil" })));
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("🚨 İK-3: onaydaki 'Sil' DELETE gönderir (tek istek, doğru not)", async () => {
+    const fetchMock = stubFetch([{ ok: true, status: 200 }]);
+    render(<InternalNotesCard conversationId="c1" notes={[mine]} readOnly={false} />);
+    fireEvent.click(screen.getByText("Sil"));
+    await act(async () => {
+      fireEvent.click(within(screen.getByTestId("internal-note")).getByText("Sil"));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/internal-notes/n1");
+    expect(fetchMock.mock.calls[0]![1]!.method).toBe("DELETE");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("İK-3: aynı anda TEK satırda onay açık — ikinci satırın 'Sil'i birincinin onayını kapatır", () => {
+    const mine2: InternalNoteRow = { ...mine, id: "n3", body: "İkinci not." };
+    const fetchMock = stubFetch([]);
+    render(<InternalNotesCard conversationId="c1" notes={[mine, mine2]} readOnly={false} />);
+    const [a, b] = screen.getAllByTestId("internal-note");
+    fireEvent.click(within(a!).getByText("Sil"));
+    expect(within(a!).queryByText("Bu not silinsin mi?")).not.toBeNull();
+    fireEvent.click(within(b!).getByText("Sil"));
+    expect(within(a!).queryByText("Bu not silinsin mi?")).toBeNull();
+    expect(within(b!).queryByText("Bu not silinsin mi?")).not.toBeNull();
+    expect(screen.getAllByText("Bu not silinsin mi?")).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("İK-3: silme isteği sürerken başka satırda açılan onay, ilk isteğin bitişiyle KAPANMAZ", async () => {
+    const mine2: InternalNoteRow = { ...mine, id: "n3", body: "İkinci not." };
+    let finish: (r: { ok: boolean; status: number; json: () => Promise<unknown> }) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((resolve) => (finish = resolve))));
+    render(<InternalNotesCard conversationId="c1" notes={[mine, mine2]} readOnly={false} />);
+    const [a, b] = screen.getAllByTestId("internal-note");
+    fireEvent.click(within(a!).getByText("Sil"));
+    fireEvent.click(within(a!).getByText("Sil")); // onaydaki "Sil": istek gider, cevap bekleniyor
+    fireEvent.click(within(b!).getByText("Sil")); // bu arada ikinci satırda onay açılır
+    expect(within(b!).queryByText("Bu not silinsin mi?")).not.toBeNull();
+    await act(async () => {
+      finish({ ok: false, status: 500, json: async () => ({}) });
+    });
+    expect(toastError).toHaveBeenCalledWith("Silinemedi. Sayfayı yenileyip tekrar deneyin.");
+    expect(within(b!).queryByText("Bu not silinsin mi?")).not.toBeNull();
   });
 
   it("bürünme (salt okunur): notlar görünür; ekleme alanı ve 'Sil' YOK", () => {
