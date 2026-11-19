@@ -803,8 +803,14 @@ function includesAnyFold(
     return whole ? whole.test(hay) : hay.includes(needle);
   };
   for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
+    // Aynı samanlık + aynı iğne aynı hükmü verir (`hit` saf; O3 11-19): Türkçe-yerelli katlama standart katlamayla aynıysa (metinde I / İ
+    // yok — açık derlemde metinlerin %91'i) ikinci tarama, ASCII katlama da aynıysa ve sözcüğün ASCII biçimi kendisiyse üçüncü tarama
+    // ilk taramanın tekrarıdır → atlanır. Hüküm birebir; iş sayacı `fallback-fold-work.test.ts`.
+    const trDiffers = tr !== std;
+    const asciiDiffers = ascii !== std;
     for (let k = 0; k < words.length; k++) {
-      if (hit(std, words[k]) || hit(tr, words[k]) || hit(ascii, asciiWords[k])) return true;
+      const w = words[k];
+      if (hit(std, w) || (trDiffers && hit(tr, w)) || ((asciiDiffers || asciiWords[k] !== w) && hit(ascii, asciiWords[k]))) return true;
     }
   }
   return false;

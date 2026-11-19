@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classifyFallback, detectPromptInjection, reportsDeviceFault } from "@/lib/ai/fallback";
+import { classifyFallback, detectPromptInjection, matchesIntentKeywords, reportsDeviceFault } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
 // KATLAMA İŞİ SAYACI (O3 optimizasyon turu, 11-19). Kelime ağlarının katlamaları (`foldTurkishLower` / `foldTurkishLowerTr` /
@@ -54,6 +54,35 @@ describe("kelime ağlarında katlama işi kalıp / sözcük listesi uzunluğuna 
     // Aynı mesaj art arda (kapı ve sınıflandırıcı aynı mesajı birkaç kez okur): aday biçimleri tek girişli önbellekten.
     const warm = lowerCalls(() => expect(reportsDeviceFault("Merhaba")).toBe(false));
     expect(warm).toBeLessThanOrEqual(3);
+  });
+
+  it("includesAnyFold: katlamaları aynı olan metinde her sözcük bir kez taranır (aynı samanlıkta ikinci / üçüncü tarama yok)", () => {
+    // Alt dize taraması sayılır (`hay.includes(needle)`). Önbellek ısınır (aday kurulumundaki boşluk dizisi denetimi sayıma girmesin).
+    const scans = (m: string) => {
+      matchesIntentKeywords(m, "refund");
+      const spy = vi.spyOn(String.prototype, "includes");
+      try {
+        expect(matchesIntentKeywords(m, "refund")).toBe(false);
+        return spy.mock.calls.length;
+      } finally {
+        spy.mockRestore();
+      }
+    };
+    // "merhaba": tek aday, üç katlama aynı → sözcük başına 1 tarama (+ ASCII biçimi farklı Türkçe sözcükler için 1).
+    // "KAPI ılık": tek aday (ayrışan birleştirici işaret yok), üç katlama ikişer ikişer FARKLI ("kapi ılık" / "kapı ılık" / "kapi ilik")
+    // → sözcük başına 3 tarama — bugün de eskiden de. Eskiden "merhaba" da 3 taramaydı (oran 1); şimdi oran 3'e yakın.
+    const same = scans("merhaba");
+    const diff = scans("KAPI ılık");
+    expect(diff).toBeGreaterThan(0);
+    expect(same * 3).toBeLessThan(diff * 2);
+  });
+
+  it("includesAnyFold hükmü aynı: I / İ / Türkçe harf / ASCII yazım", () => {
+    expect(matchesIntentKeywords("İade istiyorum", "refund")).toBe(true);
+    expect(matchesIntentKeywords("IADE ISTIYORUM", "refund")).toBe(true);
+    expect(matchesIntentKeywords("iade istiyorum", "refund")).toBe(true);
+    expect(matchesIntentKeywords("I want a refund", "refund")).toBe(true);
+    expect(matchesIntentKeywords("Wi-Fi şifresi nedir?", "refund")).toBe(false);
   });
 
   it("olumsuz fiil şikâyeti ve koşul eki hükmü aynı (önbellekli biçimlerle)", () => {
