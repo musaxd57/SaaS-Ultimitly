@@ -35,6 +35,7 @@ import DashboardPage from "@/app/(app)/dashboard/page";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import TasksPage from "@/app/(app)/tasks/page";
 import InboxPage from "@/app/(app)/inbox/page";
+import ReportsPage from "@/app/(app)/reports/page";
 
 // Gecikme, kritik yol boyunca biriken sorgu süresi farkından büyük olmalı: 12 ms'de pano ölçümü 10 / 11 arasında oynuyordu (dallar arası
 // kayma sahte bağımlılık üretiyordu); 30-50 ms'de sekiz tekrarda sabit. Yük altında (dört çekirdeğin üçü dolu) pano yine nadiren +1 →
@@ -160,6 +161,19 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
       expect(r.byOp["Subscription.findUnique"], probeSummary(r)).toBe(1);
       expect(r.byOp["Conversation.findMany"], probeSummary(r)).toBe(2);
       expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(4);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("/reports: risk kayıtları, risk türleri ve rapor bölümleri tek turda (11 → 9)", async () => {
+    const f = await seedRequestPathOrg({ properties: 3 });
+    vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
+    vi.stubEnv("PRIMARY_ORG_ID", "rp-baska-isletme");
+    try {
+      const r = await probeQueries(() => (ReportsPage as () => Promise<unknown>)(), { delayMs: DELAY_MS });
+      expect(r.byOp["RiskEvent.groupBy"], probeSummary(r)).toBe(3);
+      expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(9);
     } finally {
       vi.unstubAllEnvs();
     }

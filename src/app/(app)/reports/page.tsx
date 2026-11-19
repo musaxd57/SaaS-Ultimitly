@@ -101,7 +101,9 @@ export default async function ReportsPage() {
     // K10 (kurucu kararı 09-30): cevap konuyu size bırakıyordu ("mesajınız kaydedildi" gibi) — misafire bir şey gitmedi.
     "handoff_notice",
   ];
-  const [riskRows, heldRows, heldResolved] = await Promise.all([
+  // 🚀 Üç tur tek turda (optimizasyon turu 11-19): risk kayıtları, risk türleri ve rapor bölümleri birbirine bakmıyor — eskiden sırayla
+  // bekleniyordu.
+  const [riskRows, heldRows, heldResolved, riskTypeRows, ai, topics, score, occupancy, channelConnected] = await Promise.all([
     prisma.riskEvent.groupBy({
       by: ["riskLevel"],
       where: { organizationId, occurredAt: { gte: since30 }, riskLevel: { not: null } },
@@ -127,27 +129,24 @@ export default async function ReportsPage() {
         status: "answered",
       },
     }),
-  ]);
-  const riskCount = (lvl: string) =>
-    riskRows.find((r) => r.riskLevel === lvl)?._count._all ?? 0;
-  const heldCount = (reason: string) =>
-    heldRows.find((r) => r.reason === reason)?._count._all ?? 0;
-  const heldTotal = heldRows.reduce((sum, r) => sum + r._count._all, 0);
-  const riskTypeRows = await prisma.riskEvent.groupBy({
-    by: ["riskType"],
-    where: { organizationId, occurredAt: { gte: since30 }, riskType: { not: null } },
-    _count: { _all: true },
-    orderBy: { _count: { riskType: "desc" } },
-    take: 5,
-  });
-
-  const [ai, topics, score, occupancy, channelConnected] = await Promise.all([
+    prisma.riskEvent.groupBy({
+      by: ["riskType"],
+      where: { organizationId, occurredAt: { gte: since30 }, riskType: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { riskType: "desc" } },
+      take: 5,
+    }),
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
     hasMessagingConnection(organizationId),
   ]);
+  const riskCount = (lvl: string) =>
+    riskRows.find((r) => r.riskLevel === lvl)?._count._all ?? 0;
+  const heldCount = (reason: string) =>
+    heldRows.find((r) => r.reason === reason)?._count._all ?? 0;
+  const heldTotal = heldRows.reduce((sum, r) => sum + r._count._all, 0);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
   // A felt "value delivered" line: how many messages the AI handled and a rough
