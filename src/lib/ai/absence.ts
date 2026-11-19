@@ -601,7 +601,7 @@ const INTERJECTION_BETWEEN_COMMAS =
 
 /**
  * Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. İki katlama AYNIYSA (metinde I / İ yok — açık derlemde
- * cevapların %91'i) ikinci biçim birincinin tekrarıdır ve yalnız bir biçim döner (O3 11-19): her tüketici biçimleri `some` / `map` ile okur ve
+ * cevapların %87'si, misafir mesajlarının %93'ü) ikinci biçim birincinin tekrarıdır ve yalnız bir biçim döner (O3 11-19): her tüketici biçimleri `some` / `map` ile okur ve
  * yüklemleri saftır → hüküm aynı, kalıp taraması yarıya iner. Biçim sayısına göre karar veren tüketici YOKTUR (yan cümle bölmesinin iki
  * biçimde denkliği aynı biçimde kendiliğinden sağlanır).
  */
