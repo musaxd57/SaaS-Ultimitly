@@ -43,6 +43,7 @@ export const PANEL_PATH_PREFIXES = [
   "/knowledge",
   "/properties",
   "/reports",
+  "/reservations",
   "/sent",
   "/settings",
   "/tasks",

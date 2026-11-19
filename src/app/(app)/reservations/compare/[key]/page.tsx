@@ -36,7 +36,7 @@ function sourceLabel(row: ComparedBookingRow): string {
   }
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function RecordFact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-2">
       <dt className="shrink-0 text-xs text-muted-foreground sm:w-28">{label}</dt>
@@ -80,14 +80,14 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
             </CardHeader>
             <CardContent className="space-y-3">
               <dl className="space-y-1.5">
-                <Field label="Daire">{row.propertyName}</Field>
-                <Field label="Kaynak">{sourceLabel(row)}</Field>
-                <Field label="Giriş → çıkış">
+                <RecordFact label="Daire">{row.propertyName}</RecordFact>
+                <RecordFact label="Kaynak">{sourceLabel(row)}</RecordFact>
+                <RecordFact label="Giriş → çıkış">
                   {formatDate(row.arrivalDate)} → {formatDate(row.departureDate)}
-                </Field>
-                <Field label="Misafir">{row.guestName}</Field>
-                <Field label="Durum">{RESERVATION_STATUS.label(row.status)}</Field>
-                <Field label="Son güncelleme">{formatDateTime(row.updatedAt, tz)}</Field>
+                </RecordFact>
+                <RecordFact label="Misafir">{row.guestName}</RecordFact>
+                <RecordFact label="Durum">{RESERVATION_STATUS.label(row.status)}</RecordFact>
+                <RecordFact label="Son güncelleme">{formatDateTime(row.updatedAt, tz)}</RecordFact>
               </dl>
               {/* Etkin olmayan satır çakışmayı oluşturmuyor: eylem / açıklama yok. */}
               {!row.active ? null : row.sourceClass === "calendar" ? (

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, Reservation } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // REZERVASYON SATIRININ KAYNAK SINIFI — TEK KURAL (UA-1, kurucu 11-19; tasarım `docs/TASARIM-2026-11-19-ua1-kayitlari-karsilastir.md` §2).
@@ -24,12 +24,8 @@ import type { Prisma } from "@prisma/client";
 
 export type BookingRowSourceClass = "manual" | "file" | "calendar" | "channel";
 
-export interface BookingRowSourceFacts {
-  calendarSourceId: string | null;
-  connectionId: string | null;
-  channel: string;
-  guestNameSource: string | null;
-}
+/** Satırın sınıfı belirleyen alanları (şemadan türetilir — yalnız okuma). */
+export type BookingRowSourceFacts = Pick<Reservation, "calendarSourceId" | "connectionId" | "channel" | "guestNameSource">;
 
 /** Saf: satırın kaynak sınıfı. Belirsiz / eksik → takvim ya da kanal (silinemez). */
 export function bookingRowSourceClass(row: BookingRowSourceFacts): BookingRowSourceClass {

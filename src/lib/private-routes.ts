@@ -25,6 +25,7 @@ export const PRIVATE_APP_PREFIXES = [
   "/knowledge",
   "/properties",
   "/reports",
+  "/reservations",
   "/sent",
   "/settings",
   "/tasks",
