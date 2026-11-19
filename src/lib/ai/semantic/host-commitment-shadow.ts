@@ -74,6 +74,9 @@ interface Candidate {
   conversationId: string;
   organizationId: string;
   guestIdentifier: string | null;
+  /** Konuşmanın rezervasyonundaki misafir adları (yalnız aynı işletmenin rezervasyonu; yoksa null) — ad maskesi için. */
+  guestName: string | null;
+  guestGivenName: string | null;
 }
 
 type Reader = (input: { message: string; names?: readonly (string | null | undefined)[] }) => Promise<HostCommitmentReaderResult>;
@@ -86,12 +89,17 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
     promptId: hostCommitmentPromptId(),
     // "Henüz okunmamış" süzgeci SORGUDA (sınırlı okuma + bellekte süzme, okunmuşların arkasındaki mesajı kalıcı aç bırakırdı). Yalnız ev
     // sahibinin kendi yazdığı giden mesajlar (otomasyon / yapay zekâ satırı söz değildir); demo işletmesi hariç.
+    // Misafir adı maskesi öteki anlam katmanlarıyla AYNI üç kaynaktan (G1 T2-B7): konuşmanın görünen adı + rezervasyonun iki adı. Görünen
+    // ad rezervasyon kodu olabilir ("Rezervasyon <kod>"); yalnız onunla maskelenen metinde misafirin adı modele açık giderdi. Rezervasyon
+    // yalnız AYNI işletmenin dairesindeyse okunur (kiracı kapsamı); rezervasyonsuz konuşma aday olmaya devam eder (LEFT JOIN).
     candidates: ({ since, now, limit }) =>
       prisma.$queryRaw<Candidate[]>(Prisma.sql`
-        SELECT m."id", m."body", m."conversationId", p."organizationId", c."guestIdentifier"
+        SELECT m."id", m."body", m."conversationId", p."organizationId", c."guestIdentifier", r."guestName", r."guestGivenName"
         FROM "Message" m
         JOIN "Conversation" c ON c."id" = m."conversationId"
         JOIN "Property" p ON p."id" = c."propertyId"
+        LEFT JOIN "Reservation" r ON r."id" = c."reservationId"
+          AND EXISTS (SELECT 1 FROM "Property" rp WHERE rp."id" = r."propertyId" AND rp."organizationId" = p."organizationId")
         WHERE m."direction" = 'outbound'
           AND m."authorType" = 'host'
           AND m."createdAt" >= ${since}
@@ -103,7 +111,7 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
       `),
     currentDecision: lexicalOf,
     read: async (c) => {
-      const res = await reader({ message: c.body, names: [c.guestIdentifier] });
+      const res = await reader({ message: c.body, names: [c.guestIdentifier, c.guestName, c.guestGivenName] });
       if (!res.ok) return res;
       return {
         ok: true,

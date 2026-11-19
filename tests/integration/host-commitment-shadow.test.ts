@@ -95,7 +95,9 @@ describe("söz okuyucusu — gölge okuma turu", () => {
     const m = await w.hostMessage(RELAYED);
     const reader = vi.fn(async () => okFor(RELAYED, [st()]));
     expect(await sweepHostCommitmentShadow(new Date(), { reader })).toEqual({ read: 1, budget: 0, stoppedOnTransient: false });
-    expect(reader).toHaveBeenCalledWith({ message: RELAYED, names: ["Ada"] });
+    // Ad maskesi üç kaynaktan (görünen ad + rezervasyonun iki adı; bu konuşmada rezervasyon yok → boş kaynak null). Ayrıntı:
+    // `shadow-readers-guest-name-mask.test.ts`.
+    expect(reader).toHaveBeenCalledWith({ message: RELAYED, names: ["Ada", null, null] });
     const [row] = await rows();
     expect(row).toMatchObject({
       organizationId: w.orgId,

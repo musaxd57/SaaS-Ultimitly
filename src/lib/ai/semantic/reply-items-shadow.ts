@@ -54,6 +54,9 @@ interface Candidate {
   conversationId: string;
   organizationId: string;
   guestIdentifier: string | null;
+  /** Konuşmanın rezervasyonundaki misafir adları (yalnız aynı işletmenin rezervasyonu; yoksa null) — ad maskesi için. */
+  guestName: string | null;
+  guestGivenName: string | null;
 }
 
 type Reader = (input: { message: string; items: readonly ReplyItemRef[]; names?: readonly (string | null | undefined)[] }) => Promise<ReplyItemsReaderResult>;
@@ -73,12 +76,15 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
   return {
     layer: LAYER,
     promptId: replyItemsPromptId(),
+    // Misafir adı maskesi üç kaynaktan, kiracı kapsamlı (söz turuyla aynı birleştirme — `host-commitment-shadow.ts`, G1 T2-B7).
     candidates: ({ since, now, limit }) =>
       prisma.$queryRaw<Candidate[]>(Prisma.sql`
-        SELECT m."id", m."body", m."createdAt", m."conversationId", p."organizationId", c."guestIdentifier"
+        SELECT m."id", m."body", m."createdAt", m."conversationId", p."organizationId", c."guestIdentifier", r."guestName", r."guestGivenName"
         FROM "Message" m
         JOIN "Conversation" c ON c."id" = m."conversationId"
         JOIN "Property" p ON p."id" = c."propertyId"
+        LEFT JOIN "Reservation" r ON r."id" = c."reservationId"
+          AND EXISTS (SELECT 1 FROM "Property" rp WHERE rp."id" = r."propertyId" AND rp."organizationId" = p."organizationId")
         WHERE m."direction" = 'outbound'
           AND m."authorType" = 'host'
           AND m."createdAt" >= ${since}
@@ -101,7 +107,7 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
       const items = await openItemsFor(c);
       // Aday seçildikten sonra istekler kapandıysa okunacak bir şey kalmadı: kalıcı sonuç olarak yazılır (aday yeniden seçilmesin).
       if (items.length === 0) return { ok: false, error: "no_input", model: null, ms: 0 };
-      const res = await reader({ message: c.body, items, names: [c.guestIdentifier] });
+      const res = await reader({ message: c.body, items, names: [c.guestIdentifier, c.guestName, c.guestGivenName] });
       if (!res.ok) return res;
       return {
         ok: true,

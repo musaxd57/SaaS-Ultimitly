@@ -97,8 +97,9 @@ describe("cevap ↔ istek — gölge okuma turu", () => {
       ]),
     );
     expect(await sweepReplyItemsShadow(new Date(), { reader })).toEqual({ read: 1, budget: 0, stoppedOnTransient: false });
-    // Modele yalnız kısa kimlik + tür gider (en eski istek önce); misafir adı maskeleme için ayrıca.
-    expect(reader).toHaveBeenCalledWith({ message: TOWELS, items: [{ ref: "i1", kind: "complaint_issue" }, { ref: "i2", kind: "cleaning_linen" }], names: ["Ada"] });
+    // Modele yalnız kısa kimlik + tür gider (en eski istek önce); misafir adı maskeleme için ayrıca (üç kaynak: görünen ad + rezervasyonun
+    // iki adı; rezervasyonsuz konuşmada boş kaynak null — `shadow-readers-guest-name-mask.test.ts`).
+    expect(reader).toHaveBeenCalledWith({ message: TOWELS, items: [{ ref: "i1", kind: "complaint_issue" }, { ref: "i2", kind: "cleaning_linen" }], names: ["Ada", null, null] });
     const [row] = await rows();
     expect(row).toMatchObject({
       organizationId: w.orgId,
