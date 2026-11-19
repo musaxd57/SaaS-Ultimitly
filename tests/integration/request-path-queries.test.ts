@@ -8,8 +8,8 @@ import { seedRequestPathOrg, ownerSession } from "../helpers/request-path-fixtur
 // gittiği ve en uzun ARDIŞIK bekleme zinciri (`tests/helpers/query-probe.ts`: her Prisma çağrısına sabit gecikme; derinlik = birbirini
 // bekleyen çağrı zinciri — makine yükünden bağımsız). Bağımsız okumalar aynı anda koşar; bir değişiklik onları yeniden sıraya dizerse ya
 // da daire / rezervasyon sayısıyla büyüyen sorgu eklerse burası kırmızıya döner. Sınırlar ÖLÇÜLEN değer (pay yok — tek bir fazladan
-// ardışık bekleme de yakalansın; derinlik saat değil çağrı sırası olduğundan kararlıdır): sınırı büyütmeden önce yeni beklemenin gerçekten
-// öncekine BAĞLI olduğunu doğrulayın.
+// ardışık bekleme de yakalansın); yalnız çok dallı yüzeylerde bir basamak pay (↓ `DELAY_MS`). Sınırı büyütmeden önce yeni beklemenin
+// gerçekten öncekine BAĞLI olduğunu doğrulayın.
 // Sayfa, entegrasyon testlerinin deseniyle çağrılır (gerçek test veritabanı, oturum taklit).
 // ---------------------------------------------------------------------------
 
@@ -32,8 +32,12 @@ import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
 import ConversationPage from "@/app/(app)/inbox/[id]/page";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import DashboardPage from "@/app/(app)/dashboard/page";
+import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 
-const DELAY_MS = 12;
+// Gecikme, kritik yol boyunca biriken sorgu süresi farkından büyük olmalı: 12 ms'de pano ölçümü 10 / 11 arasında oynuyordu (dallar arası
+// kayma sahte bağımlılık üretiyordu); 30-50 ms'de sekiz tekrarda sabit. Yük altında (dört çekirdeğin üçü dolu) pano yine nadiren +1 →
+// çok dallı yüzeylerde (pano, Girişler) sınır ölçülenin bir üstü.
+const DELAY_MS = 40;
 const sp = <T,>(v: T) => Promise.resolve(v);
 
 describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
@@ -98,11 +102,33 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
     expect(six.sql, `${probeSummary(three)}\n${probeSummary(six)}`).toBe(three.sql);
   });
 
-  it("/dashboard: kurulum + Dikkat + Bugün + özet turu işletme satırını ve ilk turu beklemez (n=3: 14 → 12)", async () => {
+  it("/dashboard: kurulum + Dikkat + Bugün + özet turu işletme satırını ve ilk turu beklemez", async () => {
     const f = await seedRequestPathOrg({ properties: 3 });
     vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
     const r = await probeQueries(() => DashboardPage(), { delayMs: DELAY_MS });
     expect(r.ops, probeSummary(r)).toBeGreaterThanOrEqual(60);
-    expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(12);
+    // Ölçülen 10 (Girişler'in olgu havuzu kritik yol); bir basamak pay (↑ `DELAY_MS`).
+    expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(11);
+  });
+
+  it("Girişler (loadArrivalReadiness), otomatik giriş açık: bağlantı + silme kaydı bir kez; gönderim zinciri olgu havuzunu beklemez", async () => {
+    const f = await seedRequestPathOrg({ properties: 3 });
+    await prisma.organization.update({ where: { id: f.orgId }, data: { autoCheckin: true, autoCheckinEnabledAt: new Date(Date.now() - 25 * 86_400_000) } });
+    for (const p of f.propertyIds) await prisma.autoMessageTemplate.create({ data: { organizationId: f.orgId, propertyId: p, kind: "checkin", body: "Hoş geldiniz." } });
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("PRIMARY_ORG_ID", f.orgId);
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "test-token");
+    try {
+      const r = await probeQueries(() => loadArrivalReadiness(f.orgId, new Date()), { delayMs: DELAY_MS });
+      expect(r.result.rows, probeSummary(r)).toHaveLength(3);
+      // Otomatik giriş ve elle gönderim düğmesi AYNI bağlantı okumasını paylaşır (eskiden iki kez).
+      expect(r.byOp["ChannelConnection.findUnique"], probeSummary(r)).toBe(1);
+      expect(r.byOp["ErasureTombstone.findMany"], probeSummary(r)).toBe(1);
+      expect(r.byOp["MessageOutbox.findMany"], probeSummary(r)).toBe(1);
+      // Ölçülen 10 (eskiden 18: gönderim zinciri olgu havuzunu bekliyordu); bir basamak pay (↑ `DELAY_MS`).
+      expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(11);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

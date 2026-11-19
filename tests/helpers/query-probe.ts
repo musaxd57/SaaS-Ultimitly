@@ -8,7 +8,9 @@ import { prisma } from "@/lib/db";
 //    (sessiz sıfır = sahte kazanç olurdu).
 //  · Prisma çağrısı + derinlik: `$use` ara katmanı her çağrının başlangıç / bitiş anını yazar ve başlangıçta sabit gecikme ekler.
 //    Derinlik(çağrı) = 1 + max(derinlik(ö) : ö.bitiş <= çağrı.başlangıç). Gecikme yüzünden aynı `Promise.all` içindeki çağrılar
-//    birbirinin bitişini göremez; ardışık çağrı öncekinin bitişinden sonra başlar → sonuç makine yükünden bağımsızdır.
+//    birbirinin bitişini göremez; ardışık çağrı öncekinin bitişinden sonra başlar. Gecikme, kritik yol boyunca biriken gerçek sorgu /
+//    işlem süresi farkından BÜYÜK seçilmeli: küçükse dallar arası kayma sahte bir bağımlılık (+1) üretir (ölçüldü: pano 12 ms'de 10 / 11
+//    arasında oynuyor, 30-50 ms'de sabit; ağır yük altında çok dallı yüzeyde yine nadiren +1).
 // Ara katman ve dinleyici süreç başına BİR kez kurulur (Prisma kaldırma yolu vermez); ölçüm dışında hiçbir şey yapmaz.
 // ---------------------------------------------------------------------------
 
