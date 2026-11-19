@@ -82,6 +82,9 @@ describe("kelime ağlarında katlama işi kalıp / sözcük listesi uzunluğuna 
     expect(matchesIntentKeywords("IADE ISTIYORUM", "refund")).toBe(true);
     expect(matchesIntentKeywords("iade istiyorum", "refund")).toBe(true);
     expect(matchesIntentKeywords("I want a refund", "refund")).toBe(true);
+    // Listede yalnız Türkçe yazımı olan sözcük ("paramı geri"), ASCII yazan misafirde: katlamalar aynı ("parami geri istiyorum") ama sözcüğün
+    // ASCII biçimi farklı → üçüncü tarama ATLANMAMALI (atlama yalnız sözcüğün ASCII biçimi kendisiyken).
+    expect(matchesIntentKeywords("parami geri istiyorum", "refund")).toBe(true);
     expect(matchesIntentKeywords("Wi-Fi şifresi nedir?", "refund")).toBe(false);
   });
 
