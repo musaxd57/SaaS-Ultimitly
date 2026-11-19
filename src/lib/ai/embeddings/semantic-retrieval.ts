@@ -25,6 +25,7 @@
  *  · BİLİNEN SINIRLAR: depo ve ısıtma tavanı TÜM kiracılarda ORTAK (vektör metnin saf fonksiyonu,
  *    kiracı taşımaz; ama büyük bir kiracı saatlik ısıtma tavanını tüketebilir) · toplam parça depo
  *    tavanını aşarsa KB'ler birbirini tahliye eder (tavanla sınırlı yeniden ısıtma). Kalıcı çözüm E2.
+ *    `KB_EMBED_ORG_BUDGET_ENABLED` açıkken ısıtma bütçesi DB'de işletme kovası → ortak kova (`embed-budget.ts`, EMB tur 2 D1).
  *  · Vektörler SÜREÇ BELLEĞİNDE (Float32Array, LRU). Kalıcı depo (migration 87, `vector-store.ts`, anahtar
  *    `KB_VECTOR_STORE_ENABLED`) açıkken ısıtma önce depoya bakar, yalnız eksikleri gömer ve üreteni depoya yazar; sıcak yol bellekte
  *    eksik parça görürse depodan zaman sınırlı okur. Kapalıyken bedel her yeniden başlatmada KB başına tek seferlik ~0,1 sent.
@@ -43,6 +44,7 @@ import { retrievalNeeded, retrievalQueries, type ExtraQuery } from "@/lib/ai/ret
 import { semanticThresholdFor, thresholdTransform } from "@/lib/ai/retrieval/semantic";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { embedTexts, embeddingModel, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
+import { orgEmbedBudgetEnabled, takeEmbedBudget } from "@/lib/ai/embeddings/embed-budget";
 import {
   inputHashOf,
   loadChunkVectors,
@@ -134,6 +136,38 @@ function takeWarmBudget(n: number, now: number): boolean {
   return true;
 }
 
+/** Süreç içi sayaç reddettiğinde pencerenin bitişine kalan süre; iş saatlik tavandan büyükse `null` (hiç sığmaz). */
+function inProcessRetryAfterMs(n: number, now: number): number | null {
+  if (n > WARM_TEXTS_PER_HOUR) return null;
+  return Math.max(1_000, warmWindowStart + 3_600_000 - now);
+}
+
+/** Isıtma isteğinin seçenekleri (yalnız arka plan ısıtması; sıcak yol bunları hiç kullanmaz). */
+export interface WarmOptions {
+  /** İşletme kovası için (D1). Verilmezse ve kovalar açıksa işletme kalemlerden bulunur. */
+  organizationId?: string;
+  /** Bütçe reddederse çağrılır (D2 yeniden planlama): pencerenin bitişine kalan süre; `null` = yeniden denemenin anlamı yok. */
+  onBudgetRefused?: (retryAfterMs: number | null) => void;
+}
+
+/**
+ * Arka plan bütçesi (hepsi-ya-hiç). Kovalar açıksa (`KB_EMBED_ORG_BUDGET_ENABLED`) DB'deki işletme → ortak kova; DB'ye ulaşılamazsa bugünkü
+ * süreç içi sayaç (fail-soft). Kapalıyken yalnız süreç içi sayaç (bugünkü davranış). Reddedince `onBudgetRefused`.
+ */
+async function takeBackgroundBudget(n: number, kbItemIds: readonly string[], opts: WarmOptions): Promise<boolean> {
+  if (orgEmbedBudgetEnabled()) {
+    const verdict = await takeEmbedBudget({ n, organizationId: opts.organizationId, kbItemIds });
+    if (verdict) {
+      if (!verdict.granted) opts.onBudgetRefused?.(verdict.retryAfterMs);
+      return verdict.granted;
+    }
+  }
+  const now = Date.now();
+  if (takeWarmBudget(n, now)) return true;
+  opts.onBudgetRefused?.(inProcessRetryAfterMs(n, now));
+  return false;
+}
+
 /** Isıtma girdisi: gömülecek metin + o metni taşıyan kalem ve ısıtmanın gördüğü kalem sürümü (kalıcı depo satırı kaleme bağlanır). */
 interface WarmEntry {
   text: string;
@@ -165,9 +199,11 @@ function pushOwner(map: Map<string, ChunkOwner[]>, text: string, owner: ChunkOwn
  * Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). Kuyruğa GERÇEKTEN alınan metin sayısını döner.
  * Kalıcı depo açıkken: önce depodan okur (bulunanlar gömülmez), saatlik bütçe YALNIZ gerçekten gömülecek metne sayılır (depodan okuma
  * bütçe doluyken de yapılır), üretilen vektör ve bellekte olup kalemin kendi satırı olmayan vektör depoya yazılır.
+ * Depo ya da kovalar açıkken bütçe kararı işin İÇİNDE verilir (depo okuması / DB kovası async) → dönüş "kuyruğa alınan", gömülen değil.
  */
-function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
+function scheduleWarm(model: string, entries: readonly WarmEntry[], opts: WarmOptions = {}): number {
   const storeOn = vectorStoreEnabled();
+  const deferBudget = storeOn || orgEmbedBudgetEnabled();
   const owners = new Map<string, ChunkOwner[]>();
   const persistOnly = new Map<string, ChunkOwner[]>();
   for (const e of entries) {
@@ -181,10 +217,16 @@ function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
     pushOwner(owners, e.text, owner);
   }
   const todo = [...owners.keys()];
-  if (storeOn) {
+  if (deferBudget) {
     if (todo.length === 0 && persistOnly.size === 0) return 0;
-  } else if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) {
+  } else if (todo.length === 0) {
     return 0;
+  } else {
+    const now = Date.now();
+    if (!takeWarmBudget(todo.length, now)) {
+      opts.onBudgetRefused?.(inProcessRetryAfterMs(todo.length, now));
+      return 0;
+    }
   }
   const keys = todo.map((t) => storeKey(model, t));
   for (const k of keys) warming.add(k);
@@ -211,8 +253,11 @@ function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
           });
           if (ownless.length > 0) markPersisted(await persistChunkVectors(model, ownless));
           remaining = todo.filter((t) => !vectors.has(t));
-          if (remaining.length > 0 && !takeWarmBudget(remaining.length, Date.now())) remaining = [];
         }
+      }
+      if (deferBudget && remaining.length > 0) {
+        const ids = [...new Set(remaining.flatMap((t) => (owners.get(t) ?? []).map((o) => o.kbItemId)))];
+        if (!(await takeBackgroundBudget(remaining.length, ids, opts))) remaining = [];
       }
       for (let i = 0; i < remaining.length; i += EMBEDDING_BATCH_MAX) {
         const batch = remaining.slice(i, i + EMBEDDING_BATCH_MAX);
@@ -340,7 +385,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
  * o an kullanılan başka bir kiracının dizinini tahliye edebiliyordu. Parçalar dizinin parçalarıyla aynı fonksiyondan
  * (`chunkItems`) → gömülen metinler birebir aynı (pinli).
  */
-export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): number {
+export function warmKbVectors<T extends KbChunkSource>(items: readonly T[], opts: WarmOptions = {}): number {
   try {
     if (!semanticRetrievalInfo().enabled) return 0;
     if (!retrievalNeeded(items)) return 0;
@@ -352,6 +397,7 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
     return scheduleWarm(
       model,
       chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id, updatedAt: c.updatedAt })),
+      opts,
     );
   } catch (err) {
     void reportError("kb-semantic-warm-items", err);

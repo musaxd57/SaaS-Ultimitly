@@ -30,16 +30,18 @@ function warmingOn(): boolean {
 export async function warmPropertyKbVectors(propertyId: string): Promise<number> {
   if (!warmingOn()) return 0;
   try {
-    const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { name: true } });
+    const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { name: true, organizationId: true } });
     if (!property) return 0;
     const kb = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
-    let queued = warmKbVectors(kb.items);
+    // İşletme kovası (D1, anahtar açıkken) için işletme burada bilinir; kapalıyken seçenek okunmaz.
+    const opts = { organizationId: property.organizationId };
+    let queued = warmKbVectors(kb.items, opts);
     // QR: `checkin` kategorisi hiç çekilmez (`wifi` 10-11'den beri kalem bazında süzülür — ısıtma yalnız vektör üretir, metin
     // misafire gitmez), yer tutucular nötr hitapla doldurulur → yer tutuculu kalemin metni farklıdır; yalnız o zaman ikinci biçim
     // ısıtılır (aynı metin zaten depoda).
     const qr = kb.items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category));
     const qrFilled = fillGuestPlaceholdersInItems(qr, { guestFirstName: GUEST_NAME_FALLBACK, propertyName: property.name });
-    if (qrFilled.some((it, i) => it.content !== qr[i].content || it.title !== qr[i].title)) queued += warmKbVectors(qrFilled);
+    if (qrFilled.some((it, i) => it.content !== qr[i].content || it.title !== qr[i].title)) queued += warmKbVectors(qrFilled, opts);
     return queued;
   } catch (err) {
     void reportError("kb-semantic-warm-property", err);

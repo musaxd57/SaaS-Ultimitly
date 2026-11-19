@@ -7,6 +7,7 @@
 
 import { isIP } from "node:net";
 import { randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { formatErrorForLog } from "@/lib/redact";
 import { expandIpv6 } from "@/lib/net/ipv6";
@@ -292,6 +293,58 @@ export async function rateLimitRelease(key: string): Promise<void> {
     const own = buckets.get(key);
     if (own && own.resetAt > now && own.count > 0) own.count -= 1;
   }
+}
+
+/** Ham sorgu çalıştırabilen istemci: genel Prisma ya da etkileşimli işlemin `tx`'i (iki kovayı aynı işlemde almak için). */
+export type RateLimitRawClient = Pick<Prisma.TransactionClient, "$queryRaw">;
+
+/**
+ * "n AL — SIĞMIYORSA SAYACI ARTIRMADAN REDDET" (EMB tur 2 D1, kurucu 11-19 akşam madde 2). `rateLimit` her vuruşu (reddedileni de) +1 sayar;
+ * bütçe kovası için bu yanlış yöndür: reddedilen iş sayacı yerse taşan işletme ortak kovayı da tüketir (`daily-budget.ts` QR açıklaması).
+ *
+ * TEK İFADE, DB saati, `hit` ile aynı pencere kuralı: satır yoksa ya da pencere dolmuşsa sayaç `n`, pencere başlar; açık pencerede yalnız
+ * `count + n <= cap` ise artar. Koşul tutmazsa ON CONFLICT güncellemesi HİÇ yapılmaz → satır (sayaç ve pencere) değişmez. Çakışan satır
+ * kilitlenir; eşzamanlı iki alım sırayla değerlendirilir, ikisi birlikte tavanı aşamaz.
+ * Boş pencere tek büyük işi (`n > cap`) alabilir ve pencereyi doldurur: hepsi-ya-hiç alınan bir iş tavandan büyükse aksi hâlde hiç
+ * alınamazdı (pencere başına en çok bir büyük iş).
+ *
+ * 🚨 FIRLATIR: DB hatası çağırana gider (işlem içinde kullanılır; çağıran kendi yedeğine düşer). Bellek yedeği YOK — `rateLimit`ten farkı bu.
+ * Reddedilince `retryAfterMs` pencerenin bitişine kalan süredir (en az 1 sn).
+ */
+export async function rateLimitTakeIfFits(
+  key: string,
+  n: number,
+  cap: number,
+  windowMs: number,
+  client: RateLimitRawClient = prisma,
+): Promise<{ granted: boolean; retryAfterMs: number }> {
+  if (!Number.isInteger(n) || n <= 0) return { granted: true, retryAfterMs: 0 };
+  const windowSeconds = windowMs / 1000;
+  const rows = await client.$queryRaw<Array<{ count: number }>>`
+    INSERT INTO "RateLimitCounter" AS r ("key", "count", "resetAt")
+    VALUES (
+      ${key},
+      ${n}::int,
+      (now() AT TIME ZONE 'utc') + make_interval(secs => ${windowSeconds}::float8)
+    )
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE
+        WHEN r."resetAt" <= (now() AT TIME ZONE 'utc') THEN EXCLUDED."count"
+        ELSE r."count" + EXCLUDED."count"
+      END,
+      "resetAt" = CASE
+        WHEN r."resetAt" <= (now() AT TIME ZONE 'utc') THEN EXCLUDED."resetAt"
+        ELSE r."resetAt"
+      END
+    WHERE r."resetAt" <= (now() AT TIME ZONE 'utc') OR r."count" + EXCLUDED."count" <= ${cap}::int
+    RETURNING r."count"::int AS count
+  `;
+  if (rows.length > 0) return { granted: true, retryAfterMs: 0 };
+  const left = await client.$queryRaw<Array<{ ms: number }>>`
+    SELECT round(EXTRACT(EPOCH FROM ("resetAt" - (now() AT TIME ZONE 'utc'))) * 1000)::float8 AS ms
+    FROM "RateLimitCounter" WHERE "key" = ${key}
+  `;
+  return { granted: false, retryAfterMs: Math.max(1_000, Number(left[0]?.ms ?? windowMs)) };
 }
 
 // Throttled operational warning — a DB outage would otherwise log per request.
