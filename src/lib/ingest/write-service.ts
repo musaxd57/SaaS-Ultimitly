@@ -123,10 +123,6 @@ export async function upsertCanonicalReservation(
   // konaklamadır; satır YAZILMAZ, var olan kayıt korunur (sayaç `reservationsUnwritable`).
   if (r.departureDate.getTime() <= r.arrivalDate.getTime()) return null;
 
-  // FK safety: only write if the property genuinely exists.
-  const propertyExists = await db.property.findUnique({ where: { id: propertyId }, select: { id: true } });
-  if (!propertyExists) return null;
-
   // Resolve the real name separately from the placeholder fallback: on UPDATE we
   // only overwrite guestName when a real name is present, so a later sync where
   // the channel has masked the guest can't regress a stored name to "Misafir".
@@ -168,6 +164,15 @@ export async function upsertCanonicalReservation(
       guestPets: party !== null,
     },
   });
+
+  // FK safety: only CREATE when the property genuinely exists. Var olan satırda bu okuma yapılmaz (O1, 11-19): `Reservation.propertyId`
+  // yabancı anahtar ve mülk silinince rezervasyon aynı deyimde silinir (cascade) → görülen satırın mülkü bu anlık görüntüde vardır. Senkron
+  // her 2 dakikada penceredeki her rezervasyonu buradan geçirdiği için olağan hâlde (değişmeyen satır) bir okuma eksik. Mülk aynı anda
+  // siliniyorsa sonuç eski sıranın "silme önce geldi" hâliyle aynı (null). Pin: `tests/integration/ingest-upsert-query-count.test.ts`.
+  if (!existing) {
+    const propertyExists = await db.property.findUnique({ where: { id: propertyId }, select: { id: true } });
+    if (!propertyExists) return null;
+  }
 
   if (existing) {
     // KVKK resurrection guard: once the retention sweep has anonymized this row
