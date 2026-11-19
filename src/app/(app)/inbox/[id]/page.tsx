@@ -243,7 +243,7 @@ export default async function ConversationPage({
           take: 20,
           select: { id: true, kind: true, topic: true, dueAt: true, duePrecision: true, dayPart: true, source: true },
         })
-      : [],
+      : null,
     // İÇ NOTLAR (dilim D1, `lib/internal-notes/service.ts`): konaklamanın notları (konaklamasız konuşmada bu konuşmadan yazılanlar), yeniden
     // eskiye, en çok 50. Yalnız sahip + yönetici (sayfa zaten yönetici kapılı; koşul personel görünümü eklenirse de kapalı kalsın diye açık).
     canManageHere
@@ -312,7 +312,8 @@ export default async function ConversationPage({
 
   // Açık sözlerin kart satırları (okuma yukarıdaki turda).
   const commitmentNow = new Date();
-  const commitmentRows: CommitmentRow[] = canManage(session)
+  const commitmentRows: CommitmentRow[] =
+    canManage(session) && commitmentRowsRaw
     ? commitmentRowsRaw
         .filter((c): c is typeof c & { kind: CommitmentKind } => isCommitmentKind(c.kind))
         .map((c) => {
