@@ -385,6 +385,7 @@ describe("EMB-2 bütçe doluyken B'nin güncel ve hazır vektörleri", () => {
     const spree = await attackerSpree(a.orgId, a.propertyId, ids);
     console.log(`EMB2 A tur=${spree.rounds} gömülen=${spree.embedded}`);
     expect(spree.rounds).toBeLessThan(60); // bütçe gerçekten doldu
+    __exhaustWarmBudgetForTests(); // turdan küçük kalan pay da dolu: B'nin sorusu TAMAMEN dolu bütçeyle sınanır
 
     calls.length = 0;
     const bNow = await retrieve(b.propertyId, B_QUESTION);
