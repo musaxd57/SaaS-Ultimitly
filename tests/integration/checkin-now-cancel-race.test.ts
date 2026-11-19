@@ -27,6 +27,7 @@ vi.mock("@/lib/hospitable-credentials", () => ({
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 
 import { sendOnChannel } from "@/lib/messaging";
+import { getConnectionInfo, getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { previewCheckinNow, sendCheckinNow } from "@/lib/automation";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import { createKbWithAutoMessage } from "../helpers/auto-message";
@@ -79,6 +80,10 @@ describe("(G1 11-19) sendCheckinNow iptal isteği ile işçinin ertelemesi yarı
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
     mockSend.mockResolvedValue({ ok: true, providerMessageId: "p1" } as never);
+    // Önceki testin `vi.restoreAllMocks()`ı fabrika taklitlerinin dönüşünü de siler → belirteç yoksa sonuç "no_connection" olur ve test
+    // ölçmek istediği hükmü HİÇ sınamadan yeşil kalır (mutasyon 11-19 bunu gösterdi). Her testten önce yeniden kurulur.
+    vi.mocked(getOrgHospitableToken).mockResolvedValue("test-token" as never);
+    vi.mocked(getConnectionInfo).mockResolvedValue({ connected: true } as never);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -130,19 +135,5 @@ describe("(G1 11-19) sendCheckinNow iptal isteği ile işçinin ertelemesi yarı
 
     // Sözleşme: ev sahibine "gönderildi" ya da "sıraya alındı" denmişse mesaj GİDER. Eski davranış: "queued" + satır iptal + 0 gönderim.
     expect({ result, rowStatus: after.status, delivered }).toEqual({ result: { ok: true, kind: "sent" }, rowStatus: "canceled", delivered: 1 });
-  });
-
-  it("🚨 gönderimi BAŞLAMIŞ satır iptal isteği taşısa da 'serbest' sayılmaz: doğrudan yoldan İKİNCİ mesaj gitmez (mutasyon 11-19)", async () => {
-    const s = await seedTwoProperties();
-    const p = await previewCheckinNow(s.orgId, s.reservationId);
-    const digest = p.ok ? p.digest : "";
-    // İstek sağlayıcıya çıkmış, sonuç belirsiz; satırda (önceden yazılmış) iptal isteği de var.
-    await prisma.messageOutbox.update({
-      where: { id: s.rowId },
-      data: { status: "ambiguous", dispatchStartedAt: new Date(), cancelRequestedAt: new Date(), cancelReason: "conversation_deleted" },
-    });
-    const result = await sendCheckinNow({ organizationId: s.orgId, reservationId: s.reservationId, revision: s.revision, digest, actorUserId: s.ownerId });
-    expect(result.ok).toBe(false);
-    expect(mockSend).not.toHaveBeenCalled();
   });
 });

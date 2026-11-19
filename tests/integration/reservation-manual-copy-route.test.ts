@@ -145,6 +145,20 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
     expect(await prisma.reservation.findUnique({ where: { id: manual.id } })).not.toBeNull();
   });
 
+  it("kilitlenme DIŞINDAKİ hata yeniden denenmez: tek deneme, hata aynen fırlar (G1 11-19 T2-B6; mutasyon)", async () => {
+    const w = await world();
+    const manual = await booking(w.a, "HM-1", { channel: "manual", guestNameSource: "host" });
+    await channelCopy(w.b, "HM-1");
+    let calls = 0;
+    __manualCopyHooks.afterClassRead = async () => {
+      calls++;
+      throw new Error("beklenmeyen arıza");
+    };
+    await expect(removeManualBookingCopy({ organizationId: w.orgId, reservationId: manual.id })).rejects.toThrow("beklenmeyen arıza");
+    expect(calls).toBe(1);
+    expect(await prisma.reservation.findUnique({ where: { id: manual.id } })).not.toBeNull();
+  });
+
   it("yarış: sınıf okunduktan sonra satır başka yoldan silindiyse 404", async () => {
     const w = await world();
     const manual = await booking(w.a, "HM-1", { channel: "manual" });
