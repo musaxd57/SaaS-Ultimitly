@@ -46,6 +46,29 @@ export default async function DashboardPage() {
   const session = await requireManagerSession();
   const orgId = session.organizationId;
   const now = new Date();
+
+  // "Başlarken" onboarding: compute setup progress. The card only renders until
+  // every step is done, then disappears for established accounts.
+  // 🚀 Bu tur işletme satırını ve aşağıdaki ilk turu BEKLEMEZ (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`):
+  // hiçbiri saat dilimine ya da ilk turun sonucuna bakmıyor → ilk okumayla aynı anda başlar, sonucu eskiden olduğu yerde beklenir. İşletme
+  // okuması ya da ilk tur düşerse sayfa bugünkü gibi o hatayla düşer; bu turun olası hatası o durumda yutulur (işlenmemiş ret kalmaz).
+  const secondWave = Promise.all([
+    hasMessagingConnection(orgId),
+    prisma.calendarSource.count({ where: { property: { organizationId: orgId } } }),
+    prisma.conversation.count({ where: { property: { organizationId: orgId } } }),
+    prisma.knowledgeBaseItem.count({ where: { isActive: true, property: { organizationId: orgId } } }),
+    premiumAllowed(orgId),
+    // 🚨 INTELLIGENCE BOZULSA PMS ÇALIŞIR (bounded context kuralı): bu okuma
+    // panelin GİRİŞ SAYFASINI 500'e düşüremez. Hata → satır yok, kart basılmaz.
+    findAttentionItems(orgId).catch(() => []),
+    // AaaS "Bugün" ekranı (kurucu 11-13: "olabilir, kontrol ederek görerek yap"; tasarım `docs/TASARIM-2026-11-13-bugun-ekrani-ve-aaas-akisi.md`
+    // §1): bugünkü girişlerin hazırlığı Girişler'in KENDİ değerlendirmesinden (yalnız "HAZIR DEĞİL" satırlar) ve son 24 saatte sistemin ev
+    // sahibi yerine yaptıkları (kalıcı kayıtlar). İkisi de salt okuma; arızası Panel'i düşürmez.
+    loadArrivalReadiness(orgId, now, { days: 1 }).catch(() => null),
+    getAutomationDigest(orgId, now).catch(() => null),
+  ]);
+  void secondWave.catch(() => undefined);
+
   // "Today" is the host's local calendar day (org timezone), not the server's
   // UTC day — otherwise arrivals/departures can land on the wrong date.
   const org = await prisma.organization.findUnique({
@@ -101,23 +124,8 @@ export default async function DashboardPage() {
   const arrivals = dedupeBookings(arrivalsRaw);
   const departures = dedupeBookings(departuresRaw);
 
-  // "Başlarken" onboarding: compute setup progress. The card only renders until
-  // every step is done, then disappears for established accounts.
-  const [channelConnected, calendarSourceCount, conversationCount, kbCount, premiumOk, attention, todayReadiness, digest] = await Promise.all([
-    hasMessagingConnection(orgId),
-    prisma.calendarSource.count({ where: { property: { organizationId: orgId } } }),
-    prisma.conversation.count({ where: scope }),
-    prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
-    premiumAllowed(orgId),
-    // 🚨 INTELLIGENCE BOZULSA PMS ÇALIŞIR (bounded context kuralı): bu okuma
-    // panelin GİRİŞ SAYFASINI 500'e düşüremez. Hata → satır yok, kart basılmaz.
-    findAttentionItems(orgId).catch(() => []),
-    // AaaS "Bugün" ekranı (kurucu 11-13: "olabilir, kontrol ederek görerek yap"; tasarım `docs/TASARIM-2026-11-13-bugun-ekrani-ve-aaas-akisi.md`
-    // §1): bugünkü girişlerin hazırlığı Girişler'in KENDİ değerlendirmesinden (yalnız "HAZIR DEĞİL" satırlar) ve son 24 saatte sistemin ev
-    // sahibi yerine yaptıkları (kalıcı kayıtlar). İkisi de salt okuma; arızası Panel'i düşürmez.
-    loadArrivalReadiness(orgId, now, { days: 1 }).catch(() => null),
-    getAutomationDigest(orgId, now).catch(() => null),
-  ]);
+  // Kurulum adımları + "Dikkat" + "Bugün" + özet (yukarıda başlayan tur).
+  const [channelConnected, calendarSourceCount, conversationCount, kbCount, premiumOk, attention, todayReadiness, digest] = await secondWave;
   const notReadyToday = notReadyArrivals(todayReadiness?.rows ?? []);
   const onboardingSteps: OnboardingStep[] = [
     {

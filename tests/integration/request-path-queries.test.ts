@@ -31,6 +31,7 @@ import { requireAuth } from "@/lib/auth";
 import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
 import ConversationPage from "@/app/(app)/inbox/[id]/page";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
+import DashboardPage from "@/app/(app)/dashboard/page";
 
 const DELAY_MS = 12;
 const sp = <T,>(v: T) => Promise.resolve(v);
@@ -95,5 +96,13 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
     expect(three.byOp["Organization.findUnique"], probeSummary(three)).toBe(2);
     expect(three.depth, probeSummary(three)).toBeLessThanOrEqual(7);
     expect(six.sql, `${probeSummary(three)}\n${probeSummary(six)}`).toBe(three.sql);
+  });
+
+  it("/dashboard: kurulum + Dikkat + Bugün + özet turu işletme satırını ve ilk turu beklemez (n=3: 14 → 12)", async () => {
+    const f = await seedRequestPathOrg({ properties: 3 });
+    vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
+    const r = await probeQueries(() => DashboardPage(), { delayMs: DELAY_MS });
+    expect(r.ops, probeSummary(r)).toBeGreaterThanOrEqual(60);
+    expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(12);
   });
 });
