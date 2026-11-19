@@ -1440,8 +1440,18 @@ export async function createReservationTasks(reservationId: string, opts: { reop
   // O1): iptal temizliği kilit altında "iptal" okuyup eski görevleri silmek üzereyken (henüz commit edilmemiş) kilitsiz okuma o görevleri
   // "var" görüp çıkardı → onaylı rezervasyon görevsiz kalırdı. Kilitli yol temizliği bekler, silinenleri görür, yeniden açar. Seyrek olay.
   if (!opts.reopened) {
-    const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
-    if (!r0 || r0.status === "cancelled") return 0;
+    // Önce YALNIZ rezervasyonun kendi kolonları (O1, 11-19): iç içe mülk + işletme seçimi 3 ayrı SQL'dir; iptal edilmiş ya da her saat
+    // diliminde çoktan bitmiş konaklama (senkron penceresinin geçmiş kısmı — saatlik derin geçişte çoğunluk) için gerekmez. Kalan durumda
+    // okuma sırası ve sayısı eskisiyle aynı (rezervasyon · mülk · işletme · görev). Pin + kilitli yol kâhini:
+    // `tests/integration/reservation-tasks-fastpath-query-count.test.ts`.
+    const head = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_HEAD_SELECT });
+    if (!head || head.status === "cancelled") return 0;
+    if (lifecycleDatesPastInEveryTimeZone(head, now)) return 0;
+    const property = await prisma.property.findUnique({ where: { id: head.propertyId }, select: RESERVATION_TASKS_SELECT.property.select });
+    // Mülk satırı yoksa (rezervasyonla birlikte o anda siliniyor): eski iç içe okuma zorunlu ilişkide aynı yarışta hata fırlatırdı —
+    // çağıranın görev yan etkisi sayacı aynı kalsın diye burada da fırlatılır.
+    if (!property) throw new Error("createReservationTasks: rezervasyonun mülkü okunamadı");
+    const r0 = { ...head, property };
     const quick = await prisma.task.findMany({ where: lifecycleTasksWhere(r0), select: LIFECYCLE_TASK_LITE_SELECT });
     if (reservationTasksToCreate(r0, quick, now).length === 0) return 0;
   }
@@ -1509,15 +1519,32 @@ export const __reservationTaskHooks: {
   afterDeleteCandidatesRead: null | (() => Promise<void>);
 } = { afterExistingRead: null, afterCleanupLockedRead: null, afterDeleteCandidatesRead: null };
 
-const RESERVATION_TASKS_SELECT = {
+const RESERVATION_TASKS_HEAD_SELECT = {
   id: true,
   propertyId: true,
   guestName: true,
   arrivalDate: true,
   departureDate: true,
   status: true,
+} satisfies Prisma.ReservationSelect;
+
+const RESERVATION_TASKS_SELECT = {
+  ...RESERVATION_TASKS_HEAD_SELECT,
   property: { select: { supplyProfileJson: true, organizationId: true, organization: { select: { timezone: true } } } },
 } satisfies Prisma.ReservationSelect;
+
+/** Saat dilimi ofsetlerinin dışına taşan pay: UTC−12…+14 (tarihsel yerel saat ±16 sa) + gün çapası (00:00Z / 12:00Z) + bir gün. */
+const PAST_IN_EVERY_TIME_ZONE_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Saf: giriş de çıkış da HANGİ saat diliminde okunursa okunsun bugünden ÖNCE mi (→ `reservationTasksToCreate` boş döner, görev
+ * yazılmaz). `onOrAfterToday` gün çapasını UTC tarihiyle, gerçek anı işletme diliminde okur; ikisi de şimdiden 72 saat (ve daha) önceki
+ * bir an için hiçbir dilimde "bugün ya da sonrası" olamaz. Yalnız hızlı yolun ön elemesidir (dilim okunmadan); "hayır" demesi bir şey
+ * söylemez — o durumda bugünkü tam kural koşar. Bütün IANA dilimleri üzerinde pinli.
+ */
+export function lifecycleDatesPastInEveryTimeZone(r: { arrivalDate: Date; departureDate: Date }, now: Date): boolean {
+  return Math.max(r.arrivalDate.getTime(), r.departureDate.getTime()) <= now.getTime() - PAST_IN_EVERY_TIME_ZONE_MS;
+}
 
 /**
  * "Zaten var mı?" okumasının kapsamı: rezervasyona bağlı görevler + aynı MÜLKTE rezervasyona BAĞLANMAMIŞ elle temizlik görevleri (çıkış günü
