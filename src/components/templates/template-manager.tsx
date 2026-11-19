@@ -98,6 +98,12 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
    */
   const [editBase, setEditBase] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Form açılış kuşağı (11-19 gece): "Düzenle" tam metni beklerken kullanıcı "Yeni Şablon" / "Kendime uyarla" açar ya da formu kapatırsa,
+   * geç dönen okuma formu EZMEMELİ (yazılan kaybolur, kip sessizce başka şablonun düzenlemesine döner, kayıt o şablona gider). Her açma /
+   * kapama kuşağı artırır; okuma yalnız başladığı kuşak hâlâ geçerliyse formu doldurur.
+   */
+  const openSeq = useRef(0);
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -117,6 +123,7 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
   }
 
   function openNew() {
+    openSeq.current++;
     setEditingId(null);
     setAdaptedFrom(null);
     setForm(EMPTY_FORM);
@@ -131,9 +138,12 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
   async function openEdit(t: CustomTemplateRow) {
     if (openingId) return;
     setOpeningId(t.id);
+    const seq = ++openSeq.current;
     try {
       const res = await fetch(`/api/templates/${encodeURIComponent(t.id)}`);
       const d = (await res.json().catch(() => null)) as TemplateDetailResponse | null;
+      // Bu arada başka bir form açıldı / form kapandı: geç dönen okuma hiçbir şeyi değiştirmez (hata da duyurulmaz).
+      if (seq !== openSeq.current) return;
       if (!res.ok || !d || typeof d.body !== "string" || typeof d.updatedAt !== "string") {
         toast.error(typeof d?.error === "string" ? d.error : "Şablon yüklenemedi. Lütfen tekrar deneyin.");
         if (res.status === 404) refresh();
@@ -151,7 +161,7 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
       });
       openForm();
     } catch {
-      toast.error("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
+      if (seq === openSeq.current) toast.error("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setOpeningId(null);
     }
@@ -163,6 +173,7 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
    * host istediği gibi değiştirir ve KAYDEDİNCE kendi şablonu olur.
    */
   function openAdapt(t: MessageTemplate) {
+    openSeq.current++;
     setEditingId(null);
     setAdaptedFrom(t.title);
     setForm({ title: t.title, body: t.body, category: t.category, language: t.language, propertyId: "" });
@@ -263,7 +274,12 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold">Özel Şablonlar ({allCount})</h2>
         {canManage ? (
-          <Button size="sm" onClick={() => (showForm && !editingId && !adaptedFrom ? setShowForm(false) : openNew())}>
+          <Button size="sm" onClick={() => {
+            if (showForm && !editingId && !adaptedFrom) {
+              openSeq.current++;
+              setShowForm(false);
+            } else openNew();
+          }}>
             <Plus className="size-4" />
             Yeni Şablon
           </Button>
@@ -358,6 +374,7 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
                     type="button"
                     variant="outline"
                     onClick={() => {
+                      openSeq.current++;
                       setShowForm(false);
                       setEditingId(null);
                       setAdaptedFrom(null);

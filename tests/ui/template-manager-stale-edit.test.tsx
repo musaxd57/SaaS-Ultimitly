@@ -171,3 +171,53 @@ describe("şablon düzenleme — tam metin ayrı okumadan, sürüm ön şartı (
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("şablon düzenleme — geç dönen tam metin okuması sonradan açılan formu ezmez (11-19 gece, Haiku bulgusu)", () => {
+  /** "Düzenle"nin GET [id] isteği elle çözülene kadar bekler (yavaş ağ). */
+  function deferDetail() {
+    let resolve!: (r: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((r) => (resolve = r))),
+    );
+    return async () => {
+      await act(async () => {
+        resolve(new Response(JSON.stringify(detail()), { status: 200 }));
+        for (let i = 0; i < 12; i++) await Promise.resolve();
+      });
+    };
+  }
+
+  it("🚨 'Düzenle' beklerken 'Yeni Şablon' açılıp yazılırsa geç gelen yanıt formu DOLDURMAZ, kip yeni kayıt kalır", async () => {
+    const finish = deferDetail();
+    renderManager();
+    await click("Düzenle");
+    expect(screen.queryByLabelText("Şablon metni")).toBeNull();
+    await click("Yeni Şablon");
+    fireEvent.change(screen.getByLabelText("Başlık"), { target: { value: "Benim yeni şablonum" } });
+    await finish();
+    expect((screen.getByLabelText("Başlık") as HTMLInputElement).value).toBe("Benim yeni şablonum");
+    expect((screen.getByLabelText("Şablon metni") as HTMLTextAreaElement).value).toBe("");
+    expect(screen.queryByText("Şablonu Düzenle")).toBeNull();
+    expect(screen.getByText("Yeni Şablon Oluştur")).toBeTruthy();
+  });
+
+  it("🚨 'Düzenle' beklerken form 'İptal' ile kapatılırsa geç gelen yanıt formu yeniden AÇMAZ", async () => {
+    const finish = deferDetail();
+    renderManager();
+    await click("Düzenle");
+    await click("Yeni Şablon");
+    await click("İptal");
+    await finish();
+    expect(screen.queryByLabelText("Şablon metni")).toBeNull();
+  });
+
+  it("KONTROL: araya bir şey girmezse geç gelen yanıt formu tam metinle açar", async () => {
+    const finish = deferDetail();
+    renderManager();
+    await click("Düzenle");
+    await finish();
+    expect((screen.getByLabelText("Şablon metni") as HTMLTextAreaElement).value).toBe("Hoş geldiniz! Bu TAM metindir, önizlemede yoktu.");
+    expect(screen.getByText("Şablonu Düzenle")).toBeTruthy();
+  });
+});
