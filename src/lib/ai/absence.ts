@@ -599,8 +599,13 @@ function narratesInternalSource(folded: string): boolean {
 const INTERJECTION_BETWEEN_COMMAS =
   /\s?,\s?(?:maalesef|ne yaz[ıi]k ki|[üu]zg[üu]n[üu]m|unfortunately|sadly|i'?m afraid|regrettably|leider|malheureusement|h[ée]las|lamentablemente|desafortunadamente|por desgracia|к сожалению|للأسف)\s?,\s?/giu;
 
-/** Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. */
-function foldedForms(text: string | null | undefined): [string, string] {
+/**
+ * Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. İki katlama AYNIYSA (metinde I / İ yok — açık derlemde
+ * cevapların %91'i) ikinci biçim birincinin tekrarıdır ve yalnız bir biçim döner (O3 11-19): her tüketici biçimleri `some` / `map` ile okur ve
+ * yüklemleri saftır → hüküm aynı, kalıp taraması yarıya iner. Biçim sayısına göre karar veren tüketici YOKTUR (yan cümle bölmesinin iki
+ * biçimde denkliği aynı biçimde kendiliğinden sağlanır).
+ */
+function foldedForms(text: string | null | undefined): readonly string[] {
   // Görünmez karakter (ZWSP, yumuşak tire, biçim karakteri, boş braille) yalnız EŞLEŞME kopyasından silinir — "bilgim\u200B yok" kuralı
   // atlatmasın (gece-4 S4-07: KB'den yapıştırılan ya da QR misafirince modele yazdırılan görünmez karakter "bilgim yok"u gizliyordu).
   const normalized = (text ?? "")
@@ -613,13 +618,15 @@ function foldedForms(text: string | null | undefined): [string, string] {
     // yok" / "I don't have, unfortunately, any information" kalıbı virgül yüzünden kaçıyordu. Tutucu yön (yalnız tutma artar).
     .replace(INTERJECTION_BETWEEN_COMMAS, " ");
   const marked = normalized.replace(SENTENCE_END, `$1${SEP}$2`);
-  return [foldTurkishLower(marked), foldTurkishLowerTr(marked)];
+  const plain = foldTurkishLower(marked);
+  const turkish = foldTurkishLowerTr(marked);
+  return plain === turkish ? [plain] : [plain, turkish];
 }
 
 /** Metin (bir yan cümle) silinebilir "talimat yok" kalıbı taşıyor mu (↑`NO_INSTRUCTION_CLAUSE_PATTERNS`). */
 export function matchesNoInstructionClause(text: string | null | undefined): boolean {
-  const [plain, turkish] = foldedForms(text);
-  return NO_INSTRUCTION_CLAUSE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
+  const forms = foldedForms(text);
+  return NO_INSTRUCTION_CLAUSE_PATTERNS.some((re) => forms.some((f) => re.test(f)));
 }
 
 /**
@@ -1004,14 +1011,18 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
   // Yalnız YENİ madde / cümle başlatan satır sonu sınırdır (madde işareti, rakam, büyük harf) — cümle ortasında kırılan satır ("Please contact\n
   // your host …") boşluk olur (Haiku 10-23 akşam). `\s*\n` boşluk dizisinde karesel (50.000 boşluk 3,3 sn ölçüldü) → ileri bakış satır
   // sonunu GEÇMEZ (`[^\S\n]*`), toplam doğrusal.
-  const [plain, turkish] = foldedForms(joinLines(reply ?? ""));
+  const folded = foldedForms(joinLines(reply ?? ""));
+  const plain = folded[0];
+  const turkish: string | undefined = folded[1];
   // İki katlamanın AYNI cümlesi birlikte okunur (SEP katlamadan önce konur → cümle sayısı eşit): Türkçe katlamada "If" → "ıf" olur ve
-  // koşul görünmez; yalnız biri yetmez.
+  // koşul görünmez; yalnız biri yetmez. İki katlama aynıysa (↑`foldedForms` tek biçim döndü) ya da bu cümlede aynıysa tek biçim okunur.
   const ps = plain.split(SEP);
-  const ts = turkish.split(SEP);
+  const ts = turkish === undefined ? null : turkish.split(SEP);
   for (let i = 0; i < ps.length; i++) {
     const bizBefore = i > 0 && HC_BUSINESS.test(ps[i - 1]);
-    const forms = [ps[i], ts[i] ?? ps[i]].map((f) => neutralizeBusinessOwner(f.replace(FIRST_PERSON_REFERRAL, " "), bizBefore));
+    const t = ts?.[i];
+    const sentenceForms = t === undefined || t === ps[i] ? [ps[i]] : [ps[i], t];
+    const forms = sentenceForms.map((f) => neutralizeBusinessOwner(f.replace(FIRST_PERSON_REFERRAL, " "), bizBefore));
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => contactValueInReferralClause(f))) continue;
     // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
@@ -1484,11 +1495,10 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
   // 10-01 (15 ajan A05): biçim kalıbı deliyordu — "**don't have**" (kalın), "`…`", çift boşluk / sekme / satır sonu ("I do not\nhave that
   // information"). Vurgu işaretleri silinir, her boşluk dizisi TEK boşluk olur (sınıflandırıcının `normalizeForMatch`iyle aynı; yalnız
   // EŞLEŞME EKLER — kısıtlayıcı kapı).
-  const [plain, turkish] = foldedForms(reply);
+  const forms = foldedForms(reply);
   return (
-    ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish)) ||
-    narratesInternalSource(plain) ||
-    narratesInternalSource(turkish) ||
+    ALL_ABSENCE_PATTERNS.some((re) => forms.some((f) => re.test(f))) ||
+    forms.some((f) => narratesInternalSource(f)) ||
     refersGuestToHost(reply)
   );
 }
@@ -1562,8 +1572,8 @@ const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
  * metin misafire gitmez (kanal `reply_internal_source`, QR aynı sebep); okuyucu açıksa bir kez yeniden yazdırılır. Saf, doğrusal.
  */
 export function namesInternalSource(reply: string | null | undefined): boolean {
-  const [plain, turkish] = foldedForms(reply);
-  return INTERNAL_SOURCE_NAMED.some((re) => re.test(plain) || re.test(turkish));
+  const forms = foldedForms(reply);
+  return INTERNAL_SOURCE_NAMED.some((re) => forms.some((f) => re.test(f)));
 }
 
 /** Rapor/hata metninde gösterilecek insan-okur özet (uydurma liste basma). */
