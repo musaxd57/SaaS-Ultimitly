@@ -391,6 +391,11 @@ kurucu onayıyla §1'e taşındı.)
   parça / saat), sonra ortak arka plan kovasından (`KB_EMBED_BG_PER_HOUR`, varsayılan 2.000 / saat, BÜTÜN kopyalar için) alınır; taşan işletme
   ortak kovaya dokunamaz, kopyalar ve yeniden başlatma sayacı sıfırlamaz. Değerler kurucu sorusu (E-1, E-2). Misafir sorgusunun gömmesi
   kovalara hiç bakmaz. Müşteriye giden metne dokunmaz. Tasarım `docs/TASARIM-2026-11-19-anlamsal-arama-butcesi.md` §8.
+- `KB_EMBED_DEBOUNCE_ENABLED` (EMB tur 2 D2, kurucu 11-19 akşam madde 2 "art arda düzenlemede ara sürümlere para harcamayalım"; migration YOK)
+  — bilgi tabanı kaydından sonra vektör ısıtması SON kayıttan `KB_EMBED_DEBOUNCE_SECONDS` (varsayılan 20, kurucu sorusu E-5) sonra koşar ve
+  o anki hâli okur (art arda 5 kayıt = tek gömme); bütçe reddederse iş pencere açılınca kendiliğinden yeniden denenir (en çok 24 kez). Süreç
+  içidir (yeniden başlatmada açılış ısıtması karşılar). Bekleme süresince bilgi tabanı güncel kayıtta sözcüksel çalışır. Müşteriye giden
+  metne dokunmaz.
 - `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED` (kurucu 11-04: "şu anki arızayı kullanım sorusundan ayır ama her zaman şikâyet sabit sözcük kuralına dönüşmesin") — anlama isteminde arıza ↔ kullanım BAĞLAM kuralı (varsayımsal / olumsuzlanan / çözülmüş / konuşma geçmişi / tehlike). Önce / sonra kanıtı `docs/olcum/ARIZA-KULLANIM-ONCE-SONRA-2026-11-04.md` (5.1 canlı kip 65/74 → 73/74). Misafire giden davranışı değiştirir ("düzeldi" diyen misafire arıza işi açılmaz) → ✅ KURUCU ONAYLADI (11-04 akşam: "Açılsın") — açılışta `"1"`.
 - `CONVERSATION_CONTROL_SHADOW_ENABLED` (kurucu 11-04 K-1..K-6 "önerin gibi", migration onayı K-6; migration 90 `ConversationBlock` — Railway açılmadan önce TAZE YEDEK, migration bununla gider) — konuşma kontrolünün G0 GÖLGE ölçümü: bugün "Sorunlu" yazan yollar bir engel kaydı da açar, iki karar noktasında yeni model bugünküyle kıyaslanır, ayrışma yalnız sayılır (`conversation_control.shadow_mismatch`). Misafire giden metne ve kararlara DOKUNMAZ. Tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §11. ✅ KURUCU ONAYLADI (11-04 akşam: "Açılsın anahtarı") — açılışta `"1"`.
 - `AI_HELD_PET_SPLIT_ENABLED` (kurucu kararı 11-11 S3: "Wi-Fi gitsin, evcil hayvan sorusu ev sahibinde kalsın") — 🚨 **AÇILIŞTA AÇILMAZ**
