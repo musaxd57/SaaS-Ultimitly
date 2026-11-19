@@ -481,8 +481,9 @@ describe("para içeren formlar yalnız yöneticiye (kurucu: temizlik ücreti gö
       expect(at, tag).toBeLessThan(end);
       expect(src.split(tag).length - 1, tag).toBe(1);
     }
-    expect(src).toContain("const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(");
-    expect(src).toContain("const nightlyRate = canManage ? await getNightlyRate(");
+    // Okumalar sayfanın ortak `Promise.all`ında (optimizasyon turu 11-19) — kapı aynı: yönetici değilse okuma HİÇ başlamaz.
+    expect(src).toContain("canManage ? loadEarlyCheckinRule(session.organizationId, property.id)");
+    expect(src).toContain("canManage ? getNightlyRate(session.organizationId, property.id)");
   });
 });
 

@@ -85,80 +85,10 @@ export default async function PropertyDetailPage({
   });
   if (!property) notFound();
 
-  // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
-  // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
-  const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
-  // İşletme belgesi "eşleşti" işareti (Faz 1a): her gösterimde belgelerden HESAPLANIR (askıdaki / 30 günden eski okumalı belge görünmez).
-  const licenseMarks = licensesEnabled() ? await propertyLicenseMarkTexts(session.organizationId, property.id).catch(() => []) : [];
-  // Değişmez 13 (kurucu 10-11): olası çelişki uyarıları — yalnız yönetici; okunamazsa uyarı yok (sayfanın geri kalanı etkilenmez).
-  // Destek görünümünde (bürünme, salt-okunur — K8) gösterilmez: "Bilerek böyle" yazması reddedilir (Haiku 4. tur).
-  const contradictions =
-    canManage && !isImpersonating(session) ? await getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [];
-  // Yapay zekâ EYLEM ÖNERİSİ (⑤ ilk dilim, kurucu 10-12): misafire yazılan Wi-Fi bilgisi bilgi tabanındakinden farklıysa "güncelle". Yalnız
-  // yönetici, destek görünümünde yok, anahtar kapalıyken üretilmez.
-  const wifiSuggestions =
-    aiActionSuggestionsEnabled() && canManage && !isImpersonating(session)
-      ? await getPropertyWifiSuggestions(session.organizationId, property.id).catch(() => [])
-      : [];
-  // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
-  const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
-  const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
-  // Dairenin temizlikçisi (kurucu 11-05 gece): kural + işletmenin kişileri + şu anki temizlikçide duran gelecekteki temizlikler — kişi
-  // değişirken ekranda SEÇEREK aktarma listesi (kurucu / Codex 11-06 K-1): aktarılabilirler ve başlanmış (aktarılmayan) işler ayrı.
-  const defaultCleaner = canManage
-    ? await (async () => {
-        const tz = orgTimezone(property.organization?.timezone);
-        const userId = await loadDefaultCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
-        const backupUserId = await loadBackupCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
-        const members = await prisma.user.findMany({
-          where: { organizationId: session.organizationId },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        });
-        const empty = { movable: [], started: [], truncated: false };
-        const lists = userId
-          ? await transferCandidates(prisma, session.organizationId, property.id, userId, new Date()).catch(() => empty)
-          : empty;
-        const item = (t: TransferTask): TransferItem => ({
-          id: t.id,
-          title: t.title,
-          dueLabel: taskDueDayLabel(t.dueAt, tz, t.dueAtPrecision),
-          statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
-        });
-        return { userId, backupUserId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };
-      })()
-    : null;
-  // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
-  const houseRules =
-    canManage && houseRulesCardEnabled()
-      ? houseRuleFormValues(await loadHouseRules(session.organizationId, property.id).catch(() => []))
-      : null;
-  // Kurucu T4 (10-21): otomatik mesajlar (karşılama / giriş / çıkış) — giriş mesajı kapı kodu taşıyabilir → yalnız yönetici. Okunamazsa
-  // kart çıkmaz (sayfanın geri kalanı etkilenmez).
-  const autoMessages = canManage
-    ? await loadAutoMessagesView(session.organizationId, property, property.organization.aiSignature?.trim() || undefined).catch(() => null)
-    : null;
-  const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
-  // B1 (kurucu 10-11): mülkte "Yerel Tavsiye" kalemi yokken son 30 günde çevre önerisi soran misafir sayısı — yalnız yönetici.
-  // Okunamazsa hatırlatma çıkmaz (sayfanın geri kalanı etkilenmez).
-  const localTipsAsked =
-    canManage && !property.knowledgeBase.some((k) => k.category === "local_tips")
-      ? await localTipsDemand(session.organizationId, property.id).catch(() => 0)
-      : 0;
-
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
   const pinFeatureEnabled = process.env.QR_PIN_ENABLED === "1";
   const showPinControls = canManage && process.env.GUEST_CHAT_ENABLED === "1" && pinFeatureEnabled && property.chatEnabled;
-
-  // For PIN management the "last 5 by arrival desc" list is WRONG (Codex 3): a
-  // fully-booked apartment pushes the CURRENTLY-STAYING guest out behind future
-  // bookings, so the host couldn't reach it to set a PIN. When the controls are
-  // shown, list ACTIVE + UPCOMING stays instead (soonest first, generous window)
-  // so every stay that can need a PIN is reachable. Otherwise keep the recent list.
-  const reservationList = showPinControls
-    ? await listReservationsForPinManagement(property.id)
-    : property.reservations;
 
   // KVKK explicit-erasure (m40): the "already erased" state is decided by an actual
   // TOMBSTONE, not merely a masked name — a retention-anonymized row (no tombstone)
@@ -172,40 +102,149 @@ export default async function PropertyDetailPage({
   // every reservation reachable without changing anyone else's default view. Always
   // server-side paginated — never an unbounded render.
   const HISTORY_PAGE_SIZE = 25;
-  const rawHistPage = (await searchParams)?.gecmis;
-  const parsedHistPage = Number.parseInt(
-    (Array.isArray(rawHistPage) ? rawHistPage[0] : rawHistPage) ?? "",
-    10,
-  );
-  const historyPage =
-    Number.isFinite(parsedHistPage) && parsedHistPage >= 1 ? Math.min(parsedHistPage, 10_000) : 1;
-  const historyRows = showErasure
-    ? await prisma.reservation.findMany({
-        where: { propertyId: property.id },
-        orderBy: [{ arrivalDate: "desc" }, { id: "desc" }], // deterministic across equal dates
-        skip: (historyPage - 1) * HISTORY_PAGE_SIZE,
-        take: HISTORY_PAGE_SIZE + 1, // +1 row = "has a next page" probe
-        select: {
-          id: true,
-          guestName: true,
-          arrivalDate: true,
-          departureDate: true,
-          status: true,
-          sourceReference: true,
-        },
-      })
-    : [];
-  const historyHasNext = historyRows.length > HISTORY_PAGE_SIZE;
-  const historyList = historyRows.slice(0, HISTORY_PAGE_SIZE);
 
-  // Erasure state computed over EVERY rendered row (audit fix precedent): the main
-  // list AND the history page — an id appearing in both gets one consistent answer.
-  const erasedIds = showErasure
-    ? await reservationsWithSourceTombstone(session.organizationId, [
-        ...reservationList,
-        ...historyList,
-      ])
-    : new Set<string>();
+  // 🚀 BAĞIMSIZ OKUMALAR AYNI ANDA (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`): aşağıdaki bölümler
+  // yalnız `property` + oturuma bağlı, hiçbiri yazmaz ve hepsi ortak istemciyle (işlem yok) okur — eskiden her biri öncekini bekliyordu
+  // (ölçüldü: ardışık 12 Prisma beklemesi, bütün anahtarlar açıkken 26 → şimdi 3 / 7). Her okumanın kendi `.catch`i ve koşulu AYNEN: biri düşerse yalnız o bölüm boş kalır, koşulu tutmayan
+  // okuma yine hiç koşmaz. Sayfanın tek yazması (takvim anahtarı, ↓) bütün okumalardan SONRA kalır.
+  const [
+    memory,
+    licenseMarks,
+    contradictions,
+    wifiSuggestions,
+    nightlyRate,
+    earlyCheckinRule,
+    defaultCleaner,
+    houseRules,
+    autoMessages,
+    localTipsAsked,
+    stays,
+    apartmentKbRows,
+    siblings,
+  ] = await Promise.all([
+    // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
+    // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
+    getPropertyMemory(session.organizationId, property.id, 8).catch(() => null),
+    // İşletme belgesi "eşleşti" işareti (Faz 1a): her gösterimde belgelerden HESAPLANIR (askıdaki / 30 günden eski okumalı belge görünmez).
+    licensesEnabled() ? propertyLicenseMarkTexts(session.organizationId, property.id).catch(() => []) : [],
+    // Değişmez 13 (kurucu 10-11): olası çelişki uyarıları — yalnız yönetici; okunamazsa uyarı yok (sayfanın geri kalanı etkilenmez).
+    // Destek görünümünde (bürünme, salt-okunur — K8) gösterilmez: "Bilerek böyle" yazması reddedilir (Haiku 4. tur).
+    canManage && !isImpersonating(session) ? getMemoryContradictions(session.organizationId, property.id).catch(() => []) : [],
+    // Yapay zekâ EYLEM ÖNERİSİ (⑤ ilk dilim, kurucu 10-12): misafire yazılan Wi-Fi bilgisi bilgi tabanındakinden farklıysa "güncelle". Yalnız
+    // yönetici, destek görünümünde yok, anahtar kapalıyken üretilmez.
+    aiActionSuggestionsEnabled() && canManage && !isImpersonating(session)
+      ? getPropertyWifiSuggestions(session.organizationId, property.id).catch(() => [])
+      : [],
+    // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
+    canManage ? getNightlyRate(session.organizationId, property.id).catch(() => null) : null,
+    canManage ? loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null,
+    // Dairenin temizlikçisi (kurucu 11-05 gece): kural + işletmenin kişileri + şu anki temizlikçide duran gelecekteki temizlikler — kişi
+    // değişirken ekranda SEÇEREK aktarma listesi (kurucu / Codex 11-06 K-1): aktarılabilirler ve başlanmış (aktarılmayan) işler ayrı.
+    canManage
+      ? (async () => {
+          const tz = orgTimezone(property.organization?.timezone);
+          // Kural, yedek ve kişi listesi birbirinden bağımsız; aktarma listesi asıl temizlikçiye bağlı (onu bekler).
+          const [userId, backupUserId, members] = await Promise.all([
+            loadDefaultCleanerUserId(prisma, session.organizationId, property.id).catch(() => null),
+            loadBackupCleanerUserId(prisma, session.organizationId, property.id).catch(() => null),
+            prisma.user.findMany({
+              where: { organizationId: session.organizationId },
+              select: { id: true, name: true },
+              orderBy: { name: "asc" },
+            }),
+          ]);
+          const empty = { movable: [], started: [], truncated: false };
+          const lists = userId
+            ? await transferCandidates(prisma, session.organizationId, property.id, userId, new Date()).catch(() => empty)
+            : empty;
+          const item = (t: TransferTask): TransferItem => ({
+            id: t.id,
+            title: t.title,
+            dueLabel: taskDueDayLabel(t.dueAt, tz, t.dueAtPrecision),
+            statusLabel: t.touched ? "Not ya da işaret eklenmiş" : TASK_STATUS.label(t.status),
+          });
+          return { userId, backupUserId, members, movable: lists.movable.map(item), started: lists.started.map(item), truncated: lists.truncated };
+        })()
+      : null,
+    // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
+    canManage && houseRulesCardEnabled()
+      ? loadHouseRules(session.organizationId, property.id)
+          .catch(() => [])
+          .then(houseRuleFormValues)
+      : null,
+    // Kurucu T4 (10-21): otomatik mesajlar (karşılama / giriş / çıkış) — giriş mesajı kapı kodu taşıyabilir → yalnız yönetici. Okunamazsa
+    // kart çıkmaz (sayfanın geri kalanı etkilenmez).
+    canManage
+      ? loadAutoMessagesView(session.organizationId, property, property.organization.aiSignature?.trim() || undefined).catch(() => null)
+      : null,
+    // B1 (kurucu 10-11): mülkte "Yerel Tavsiye" kalemi yokken son 30 günde çevre önerisi soran misafir sayısı — yalnız yönetici.
+    // Okunamazsa hatırlatma çıkmaz (sayfanın geri kalanı etkilenmez).
+    canManage && !property.knowledgeBase.some((k) => k.category === "local_tips")
+      ? localTipsDemand(session.organizationId, property.id).catch(() => 0)
+      : 0,
+    // Rezervasyon listeleri + silinmiş işareti (kendi içinde sıralı: işaret iki listenin satırlarına bakar).
+    (async () => {
+      // For PIN management the "last 5 by arrival desc" list is WRONG (Codex 3): a
+      // fully-booked apartment pushes the CURRENTLY-STAYING guest out behind future
+      // bookings, so the host couldn't reach it to set a PIN. When the controls are
+      // shown, list ACTIVE + UPCOMING stays instead (soonest first, generous window)
+      // so every stay that can need a PIN is reachable. Otherwise keep the recent list.
+      const rawHistPage = (await searchParams)?.gecmis;
+      const parsedHistPage = Number.parseInt(
+        (Array.isArray(rawHistPage) ? rawHistPage[0] : rawHistPage) ?? "",
+        10,
+      );
+      const historyPage =
+        Number.isFinite(parsedHistPage) && parsedHistPage >= 1 ? Math.min(parsedHistPage, 10_000) : 1;
+      const [reservationList, historyRows] = await Promise.all([
+        showPinControls ? listReservationsForPinManagement(property.id) : property.reservations,
+        showErasure
+          ? prisma.reservation.findMany({
+              where: { propertyId: property.id },
+              orderBy: [{ arrivalDate: "desc" }, { id: "desc" }], // deterministic across equal dates
+              skip: (historyPage - 1) * HISTORY_PAGE_SIZE,
+              take: HISTORY_PAGE_SIZE + 1, // +1 row = "has a next page" probe
+              select: {
+                id: true,
+                guestName: true,
+                arrivalDate: true,
+                departureDate: true,
+                status: true,
+                sourceReference: true,
+              },
+            })
+          : [],
+      ]);
+      const historyHasNext = historyRows.length > HISTORY_PAGE_SIZE;
+      const historyList = historyRows.slice(0, HISTORY_PAGE_SIZE);
+      // Erasure state computed over EVERY rendered row (audit fix precedent): the main
+      // list AND the history page — an id appearing in both gets one consistent answer.
+      const erasedIds = showErasure
+        ? await reservationsWithSourceTombstone(session.organizationId, [
+            ...reservationList,
+            ...historyList,
+          ])
+        : new Set<string>();
+      return { reservationList, historyPage, historyHasNext, historyList, erasedIds };
+    })(),
+    // `{daire}` uyarısının bilgi tabanı kalemleri (↓ `apartmentBlocked`): numara okunabiliyorsa sorgu bile yapılmaz.
+    canManage && !apartmentResolvable(property.name)
+      ? prisma.knowledgeBaseItem.findMany({
+          where: { propertyId: property.id, ...GUEST_DELIVERABLE_KB_WHERE },
+          select: { id: true, title: true, content: true },
+          orderBy: { updatedAt: "desc" },
+          take: 400,
+        })
+      : [],
+    // Sibling properties (for "copy supply profile to selected apartments").
+    prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
+  const { reservationList, historyPage, historyHasNext, historyList, erasedIds } = stays;
   // Strict mode with PIN-less active/upcoming stays = those chats are locked until
   // the host generates a code — surface a clear warning on the toggle.
   const pinlessActiveUpcoming = showPinControls
@@ -222,23 +261,9 @@ export default async function PropertyDetailPage({
           ...(autoMessages ?? [])
             .filter((m) => usesApartmentToken(m.body))
             .map((m) => ({ id: `auto-message-${m.kind}`, title: AUTO_MESSAGE_LABEL[m.kind] })),
-          ...(
-            await prisma.knowledgeBaseItem.findMany({
-              where: { propertyId: property.id, ...GUEST_DELIVERABLE_KB_WHERE },
-              select: { id: true, title: true, content: true },
-              orderBy: { updatedAt: "desc" },
-              take: 400,
-            })
-          ).filter((k) => usesApartmentToken(k.title) || usesApartmentToken(k.content)),
+          ...apartmentKbRows.filter((k) => usesApartmentToken(k.title) || usesApartmentToken(k.content)),
         ]
       : [];
-
-  // Sibling properties (for "copy supply profile to selected apartments").
-  const siblings = await prisma.property.findMany({
-    where: { organizationId: session.organizationId },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
 
   // Lazily ensure the property has a calendar feed token (backfill for
   // properties created before the feature existed).
