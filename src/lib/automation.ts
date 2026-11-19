@@ -1664,14 +1664,21 @@ export async function removeAutoTasksForCancelledReservation(
  * kanıtıdır, bağsız kalır (Haiku gece-4: önceki biçim başlanmış görevi fotoğraflarıyla siliyordu). Görev açmayla AYNI rezervasyon kilidi
  * (görev açan işlem ya önce biter → görevini burada sileriz, ya sonra koşar → rezervasyonu bulamaz, açmaz). Silinen rezervasyon sayısını döner.
  *
- * `opts.onlyWhere` (UA-1, 11-19): yalnız bu süzgeci de karşılayan satırlar silinir — süzgeç işlemin İÇİNDE, satırlar kilitlenerek okunur
+ * `opts.guard` (G1 11-19): işlemin içinde ön şart (aşağıda). `opts.onlyWhere` (UA-1, 11-19): yalnız bu süzgeci de karşılayan satırlar silinir — süzgeç işlemin İÇİNDE, satırlar kilitlenerek okunur
  * (karşılaştırma sayfasının kaldırma ucu: okuma ile silme arasında bir besleme satırı benimseyip kaynağa bağlarsa silinmez). Verilmezse
  * davranış eskisiyle aynı (sorgu da aynı).
  */
 export async function deleteReservationsWithAutoTasks(
   ids: string[],
   organizationId: string,
-  opts: { onlyWhere?: Prisma.ReservationWhereInput } = {},
+  opts: {
+    onlyWhere?: Prisma.ReservationWhereInput;
+    /**
+     * (UA-1 / G1 11-19) Kilitlerden SONRA, silmeden ÖNCE işlemin içinde koşan ön şart; `false` → hiçbir şey silinmez (0). Kendi okuduğu
+     * satırları kilitlemesi çağıranın işidir (ör. aynı rezervasyonun kardeş satırları, kimlik sırasıyla `FOR UPDATE`).
+     */
+    guard?: (tx: Prisma.TransactionClient) => Promise<boolean>;
+  } = {},
 ): Promise<number> {
   const unique = [...new Set(ids)].sort();
   if (unique.length === 0) return 0;
@@ -1679,6 +1686,7 @@ export async function deleteReservationsWithAutoTasks(
     for (const id of unique) {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${id}))`);
     }
+    if (opts.guard && !(await opts.guard(tx))) return 0;
     if (opts.onlyWhere) {
       // Süzgeçli silme: satırlar KİLİTLENİR (senkronun satır güncellemesi bu işlem bitene kadar bekler), süzgeç kilitten SONRA okunur.
       await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Reservation" WHERE "id" IN (${Prisma.join(unique)}) ORDER BY "id" FOR UPDATE`);
@@ -6616,9 +6624,18 @@ export async function sendCheckinNow(input: {
       (await bookingRefsInMultipleProperties(prisma, { organizationId, refs: [r.sourceReference], now })).has(r.sourceReference);
     // İptal atomik kuralla istenir (`outbox/dispatch.ts`): bekleyen satır hemen iptal olur; işçi satırı almış ama isteği atmamışsa iptal
     // isteği yazılır ve işçi isteği ATMAZ. İsteği sağlayıcıya çıkmış satır iptal edilemez → aşağıdaki eski hüküm ("zaten gönderim sırasında").
-    const cancel =
-      conflicted && existing ? await requestOutboxCancel({ organizationId, id: existing.id }, "manual_send_two_properties", now) : null;
-    const released = cancel !== null && cancel.dispatching === 0 && cancel.canceled + cancel.requested > 0;
+    if (conflicted && existing) await requestOutboxCancel({ organizationId, id: existing.id }, "manual_send_two_properties", now);
+    // Hüküm SATIRIN KENDİSİNDEN (G1 11-19 B2): iptal isteği satırda kalıcıdır ve gönderim başlangıcı onu atomik olarak reddeder
+    // (`markDispatchStarted`) → gönderimi başlamamış ve isteği taşıyan satır ASLA gitmez. İptal çağrısının anlık sayımı, işçinin satırı tam o
+    // arada geri bırakmasını kaçırıyordu (sayım "hiçbiri" görünce satır "sıraya alındı" sayılıyor, sonraki geçiş onu iptal ediyordu → kapı
+    // kodu hiç gitmiyordu). Aynı kural, bu çağrıdan önce başka bir sebeple (silme vb.) iptal istenmiş satırı da kapsar.
+    const live = existing
+      ? await prisma.messageOutbox.findFirst({
+          where: { id: existing.id, organizationId },
+          select: { status: true, cancelRequestedAt: true, dispatchStartedAt: true },
+        })
+      : null;
+    const released = live === null || (live.dispatchStartedAt === null && (live.status === "canceled" || live.cancelRequestedAt !== null));
     if (existing && !released) {
       const verdict = await existingCheckinOutboxVerdict(organizationId, existing.id);
       if (verdict === "queued") {
@@ -6656,7 +6673,8 @@ export async function sendCheckinNow(input: {
  */
 async function existingCheckinOutboxVerdict(organizationId: string, outboxId: string): Promise<"queued" | "already_sent" | "ambiguous" | "queue_owns"> {
   const pulled = await prisma.messageOutbox.updateMany({
-    where: { id: outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null },
+    // İptal isteği taşıyan satır gitmeyecek: vadesi öne çekilip "sıraya alındı" denmez (G1 11-19 B2 — savunma).
+    where: { id: outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null, cancelRequestedAt: null },
     data: { availableAt: new Date() },
   });
   if (pulled.count > 0) return "queued";

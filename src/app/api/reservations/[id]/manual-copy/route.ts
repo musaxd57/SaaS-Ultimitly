@@ -1,7 +1,7 @@
 import { jsonOk, notFound } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { auditActor, writeAudit } from "@/lib/audit";
-import { MANUAL_COPY_SOURCE_BOUND_ERROR, removeManualBookingCopy } from "@/lib/reservations/remove-manual-copy";
+import { MANUAL_COPY_LAST_ERROR, MANUAL_COPY_SOURCE_BOUND_ERROR, removeManualBookingCopy } from "@/lib/reservations/remove-manual-copy";
 
 // ---------------------------------------------------------------------------
 // "Kayıtları karşılaştır" → elle girilen kopyayı kaldır (UA-1, kurucu 11-19). Sahip / yönetici (`withManage`; personel 403, bürünme
@@ -14,6 +14,8 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   const result = await removeManualBookingCopy({ organizationId: session.organizationId, reservationId: id });
   if (result.kind === "not_found") return notFound();
   if (result.kind === "source_bound") return Response.json({ error: MANUAL_COPY_SOURCE_BOUND_ERROR }, { status: 409 });
+  // Başka dairede etkin kayıt kalmadı: kalan satır rezervasyonun kendisidir, bu uçtan silinmez (G1 11-19 E1).
+  if (result.kind === "last_copy") return Response.json({ error: MANUAL_COPY_LAST_ERROR }, { status: 409 });
   // Denetim kaydı kimlik + sınıf taşır (misafir adı / kaynak kimliği yazılmaz).
   await writeAudit({
     organizationId: session.organizationId,

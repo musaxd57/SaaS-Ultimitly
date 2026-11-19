@@ -1,4 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isActiveBookingRow } from "@/lib/booking-property-conflict";
 import { deleteReservationsWithAutoTasks } from "@/lib/automation";
 import {
   bookingRowSourceClass,
@@ -19,29 +21,75 @@ import {
 /** 409 metni — tasarımdaki cümle AYNEN (kurucu onayı bekliyor, UA-a). */
 export const MANUAL_COPY_SOURCE_BOUND_ERROR = "Bu kayıt kaynağından geliyor; silinirse geri gelir.";
 
+/**
+ * Son kopya (G1 11-19 E1): bu sayfa iki dairede görünen rezervasyonun YANLIŞ kopyasını kaldırmak içindir. Başka dairede etkin bir kayıt
+ * kalmadıysa çakışma zaten çözülmüştür; kalan satırı silmek rezervasyonun kendisini (ve ona bağlı görevleri) silerdi. Metin kurucu onayı
+ * bekliyor (UA-a) — ekranda düğme bu durumda çizilmez, cümle yalnız eski bir sekmeden gelen istekte görünür.
+ */
+export const MANUAL_COPY_LAST_ERROR = "Bu rezervasyonun başka dairede kaydı kalmadı; bu kayıt kaldırılamaz.";
+
 export type RemoveManualCopyResult =
   | { kind: "removed"; propertyId: string; sourceClass: BookingRowSourceClass }
   | { kind: "not_found" }
-  | { kind: "source_bound" };
+  | { kind: "source_bound" }
+  | { kind: "last_copy" };
+
+type SiblingRow = { id: string; propertyId: string; status: string; departureDate: Date };
+
+/** Saf: kaldırılacak satırdan BAŞKA bir dairede etkin kayıt var mı (çakışma sürüyor mu). */
+function hasActiveCopyElsewhere(rows: readonly SiblingRow[], self: { id: string; propertyId: string }, now: Date): boolean {
+  return rows.some((r) => r.id !== self.id && r.propertyId !== self.propertyId && isActiveBookingRow(r, now));
+}
 
 /** Test kancası: sınıf okunduktan SONRA, silme işleminden ÖNCE (yarış testi — arada satır kaynağa bağlanır). */
 export const __manualCopyHooks: { afterClassRead: null | (() => Promise<void>) } = { afterClassRead: null };
 
-export async function removeManualBookingCopy(input: { organizationId: string; reservationId: string }): Promise<RemoveManualCopyResult> {
+export async function removeManualBookingCopy(input: {
+  organizationId: string;
+  reservationId: string;
+  /** Etkinlik kuralının saati (testler sabitler). */
+  now?: Date;
+}): Promise<RemoveManualCopyResult> {
   const scope = { id: input.reservationId, property: { organizationId: input.organizationId } };
   const row = await prisma.reservation.findFirst({
     where: scope,
-    select: { propertyId: true, calendarSourceId: true, connectionId: true, channel: true, guestNameSource: true },
+    select: { propertyId: true, sourceReference: true, calendarSourceId: true, connectionId: true, channel: true, guestNameSource: true },
   });
   if (!row) return { kind: "not_found" };
   const sourceClass = bookingRowSourceClass(row);
   if (!isRemovableBookingRowClass(sourceClass)) return { kind: "source_bound" };
+  const ref = row.sourceReference;
+  const self = { id: input.reservationId, propertyId: row.propertyId };
+  // Hızlı yol (kilitsiz): çakışma yoksa işleme hiç girilmez. Asıl karar aşağıda, işlemin içinde kilitli okumayla.
+  const siblings = ref
+    ? await prisma.reservation.findMany({
+        where: { sourceReference: ref, property: { organizationId: input.organizationId } },
+        select: { id: true, propertyId: true, status: true, departureDate: true },
+      })
+    : [];
+  if (!hasActiveCopyElsewhere(siblings, self, input.now ?? new Date())) return { kind: "last_copy" };
   if (__manualCopyHooks.afterClassRead) await __manualCopyHooks.afterClassRead();
   const deleted = await deleteReservationsWithAutoTasks([input.reservationId], input.organizationId, {
     onlyWhere: REMOVABLE_BOOKING_ROW_WHERE,
+    // İki sekme iki elle kopyayı AYNI ANDA kaldırırsa ikisi de "öteki var" görüp rezervasyonu tümden silmesin: aynı rezervasyonun bütün
+    // satırları kimlik sırasıyla kilitlenir (sıralı kilit → kilitlenme yok), karar kilitli okumayla verilir; ikinci işlem birincinin
+    // silmesini görür.
+    guard: async (tx) => {
+      const locked = await tx.$queryRaw<SiblingRow[]>(Prisma.sql`
+        SELECT r."id", r."propertyId", r."status", r."departureDate"
+        FROM "Reservation" r JOIN "Property" p ON p."id" = r."propertyId"
+        WHERE r."sourceReference" = ${ref} AND p."organizationId" = ${input.organizationId}
+        ORDER BY r."id"
+        FOR UPDATE OF r`);
+      return hasActiveCopyElsewhere(locked, self, input.now ?? new Date());
+    },
   });
   if (deleted === 1) return { kind: "removed", propertyId: row.propertyId, sourceClass };
-  // Silinmediyse sebebi yeniden okunur: arada kaynağa bağlandı (satır yerinde → 409) ya da başka yoldan silindi (404).
-  const still = await prisma.reservation.findFirst({ where: scope, select: { id: true } });
-  return still ? { kind: "source_bound" } : { kind: "not_found" };
+  // Silinmediyse sebebi yeniden okunur: başka yoldan silindi (404) · arada kaynağa bağlandı (409) · kardeş kopya bu arada gitti (son kopya).
+  const still = await prisma.reservation.findFirst({
+    where: scope,
+    select: { calendarSourceId: true, connectionId: true, channel: true, guestNameSource: true },
+  });
+  if (!still) return { kind: "not_found" };
+  return isRemovableBookingRowClass(bookingRowSourceClass(still)) ? { kind: "last_copy" } : { kind: "source_bound" };
 }

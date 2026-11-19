@@ -20,7 +20,7 @@ import { stayDay } from "../helpers/stay-dates";
 import { DELETE as manualCopyDelete } from "@/app/api/reservations/[id]/manual-copy/route";
 import { DELETE as reservationDelete } from "@/app/api/reservations/[id]/route";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
-import { __manualCopyHooks, MANUAL_COPY_SOURCE_BOUND_ERROR } from "@/lib/reservations/remove-manual-copy";
+import { __manualCopyHooks, MANUAL_COPY_LAST_ERROR, MANUAL_COPY_SOURCE_BOUND_ERROR, removeManualBookingCopy } from "@/lib/reservations/remove-manual-copy";
 
 const del = (id: string) =>
   manualCopyDelete(new NextRequest(`http://localhost/api/reservations/${id}/manual-copy`, { method: "DELETE" }), {
@@ -56,6 +56,9 @@ async function booking(propertyId: string, ref: string, row: Row) {
     select: { id: true },
   });
 }
+
+/** Öteki dairede kanaldan gelen etkin kopya — elle kopyanın kaldırılabilmesi için çakışmanın sürmesi gerekir (G1 11-19 E1). */
+const channelCopy = (propertyId: string, ref: string) => booking(propertyId, ref, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
 
 const conflicted = async (orgId: string, ref: string) =>
   (await bookingRefsInMultipleProperties(prisma, { organizationId: orgId, refs: [ref], now: new Date() })).has(ref);
@@ -100,6 +103,8 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
     const w = await world();
     const csv = await booking(w.a, "HM-1", { channel: "manual", guestNameSource: "file" });
     const ics = await booking(w.a, "HM-2", { channel: "ics", guestNameSource: "file" });
+    await channelCopy(w.b, "HM-1");
+    await channelCopy(w.b, "HM-2");
     expect((await del(csv.id)).status).toBe(200);
     expect((await del(ics.id)).status).toBe(200);
     expect(await prisma.reservation.count({ where: { id: { in: [csv.id, ics.id] } } })).toBe(0);
@@ -131,6 +136,7 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
   it("🚨 yarış: sınıf okunduktan SONRA satır bir beslemeye bağlanırsa silinmez (409, satır yerinde) — süzgeç silme işleminin içinde", async () => {
     const w = await world();
     const manual = await booking(w.a, "HM-1", { channel: "manual", guestNameSource: "host" });
+    await channelCopy(w.b, "HM-1");
     __manualCopyHooks.afterClassRead = async () => {
       await prisma.reservation.update({ where: { id: manual.id }, data: { calendarSourceId: w.sourceId, channel: "airbnb" } });
     };
@@ -142,6 +148,7 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
   it("yarış: sınıf okunduktan sonra satır başka yoldan silindiyse 404", async () => {
     const w = await world();
     const manual = await booking(w.a, "HM-1", { channel: "manual" });
+    await channelCopy(w.b, "HM-1");
     __manualCopyHooks.afterClassRead = async () => {
       await prisma.reservation.delete({ where: { id: manual.id } });
     };
@@ -165,6 +172,7 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
   it("🚨 personel 403; bürünme (destek görünümü) 403 — satır yerinde; yönetici silebilir", async () => {
     const w = await world();
     const manual = await booking(w.a, "HM-1", { channel: "manual" });
+    await channelCopy(w.b, "HM-1");
     const owner = session;
     session = { ...owner, role: "staff" };
     expect((await del(manual.id)).status).toBe(403);
@@ -173,6 +181,45 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
     expect(await prisma.reservation.findUnique({ where: { id: manual.id } })).not.toBeNull();
     session = { ...owner, role: "manager" };
     expect((await del(manual.id)).status).toBe(200);
+  });
+
+  it("🚨 son kopya (G1 11-19 E1): başka dairede etkin kayıt yoksa elle kopya da kaldırılmaz — 409 + cümle, satır YERİNDE, kayıt yok", async () => {
+    const w = await world();
+    // Çakışma çözülmüş: öteki dairedeki kopya iptal (etkin değil) — kalan elle satır rezervasyonun kendisi.
+    const manual = await booking(w.a, "HM-1", { channel: "manual", guestNameSource: "host" });
+    const other = await channelCopy(w.b, "HM-1");
+    await prisma.reservation.update({ where: { id: other.id }, data: { status: "cancelled" } });
+    // Kaynak kimliği hiç olmayan elle satır da çakışmaya giremez.
+    const lone = await prisma.reservation.create({
+      data: { propertyId: w.a, guestName: "Ada Lale", arrivalDate: stayDay(4), departureDate: stayDay(7), status: "confirmed", channel: "manual" },
+      select: { id: true },
+    });
+    for (const id of [manual.id, lone.id]) {
+      const res = await del(id);
+      expect(res.status, id).toBe(409);
+      expect(await res.json()).toEqual({ error: MANUAL_COPY_LAST_ERROR });
+      expect(await prisma.reservation.findUnique({ where: { id } }), id).not.toBeNull();
+    }
+    expect(await prisma.auditLog.count({ where: { action: "reservation.manual_copy_removed" } })).toBe(0);
+    // KONTROL: öteki kopya yeniden etkinleşince aynı satır kaldırılır.
+    await prisma.reservation.update({ where: { id: other.id }, data: { status: "confirmed" } });
+    expect((await del(manual.id)).status).toBe(200);
+  });
+
+  it("🚨 yarış (G1 11-19 E1): iki elle kopya AYNI ANDA kaldırılırsa yalnız biri silinir — rezervasyon tümden gitmez", async () => {
+    const w = await world();
+    const c = await prisma.property.create({ data: { organizationId: w.orgId, name: "Lale 7" } });
+    for (let round = 0; round < 5; round++) {
+      const ref = `RACE-${round}`;
+      const one = await booking(w.a, ref, { channel: "manual", guestNameSource: "host" });
+      const two = await booking(c.id, ref, { channel: "manual", guestNameSource: "host" });
+      const [r1, r2] = await Promise.all([
+        removeManualBookingCopy({ organizationId: w.orgId, reservationId: one.id }),
+        removeManualBookingCopy({ organizationId: w.orgId, reservationId: two.id }),
+      ]);
+      expect([r1.kind, r2.kind].sort(), ref).toEqual(["last_copy", "removed"]);
+      expect(await prisma.reservation.count({ where: { sourceReference: ref } }), ref).toBe(1);
+    }
   });
 
   it("KONTROL: genel silme ucu DEĞİŞMEDİ — takvim satırını da siler (kaynağa bakmaz; değiştirmek ayrı karar)", async () => {

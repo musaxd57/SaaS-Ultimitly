@@ -27,7 +27,7 @@ export interface ComparedBookingRow {
   updatedAt: Date;
   /** Etkin mi (iptal değil + konaklaması bitmemiş) — etkin olmayan satır çakışmayı oluşturmaz, eylemsiz gösterilir. */
   active: boolean;
-  /** Karşılaştırma sayfasından kaldırılabilir mi: etkin VE elle / dosya sınıfı. */
+  /** Karşılaştırma sayfasından kaldırılabilir mi: etkin VE elle / dosya sınıfı VE çakışma sürüyor (başka dairede etkin kayıt var). */
   removable: boolean;
 }
 
@@ -75,6 +75,8 @@ export async function loadBookingComparison(
         });
   const labelOf = new Map(sources.map((s) => [s.id, s.label]));
 
+  const activeIds = activePropertyIdsOf(found, input.now);
+  const resolved = activeIds.length < 2;
   const rows: ComparedBookingRow[] = found.map((r) => {
     const sourceClass = bookingRowSourceClass(r);
     const active = isActiveBookingRow(r, input.now);
@@ -90,7 +92,8 @@ export async function loadBookingComparison(
       status: r.status,
       updatedAt: r.updatedAt,
       active,
-      removable: active && isRemovableBookingRowClass(sourceClass),
+      // Çakışma çözüldüyse (başka dairede etkin kayıt kalmadı) kalan satır rezervasyonun kendisidir — kaldırılamaz (G1 11-19 E1).
+      removable: active && !resolved && isRemovableBookingRowClass(sourceClass),
     };
   });
   // Etkin satırlar önce, sonra daire adı, sonra kimlik (kararlı).
@@ -100,8 +103,7 @@ export async function loadBookingComparison(
       a.propertyName.localeCompare(b.propertyName, "tr") ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
-  const activeIds = activePropertyIdsOf(found, input.now);
   const nameOf = new Map(found.map((r) => [r.propertyId, r.property.name]));
   const activePropertyNames = activeIds.map((id) => nameOf.get(id) ?? "").sort((a, b) => a.localeCompare(b, "tr"));
-  return { rows, activePropertyNames, resolved: activeIds.length < 2 };
+  return { rows, activePropertyNames, resolved };
 }

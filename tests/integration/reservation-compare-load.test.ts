@@ -124,6 +124,17 @@ describe("loadBookingComparison (gerçek PostgreSQL)", () => {
     expect(afterDelete.rows.map((r) => r.id)).toEqual([channel.id]);
   });
 
+  it("🚨 (G1 11-19 E1) çakışma çözülünce kalan ELLE satır da kaldırılabilir GÖSTERİLMEZ (rezervasyonun kendisi); sürerken gösterilir", async () => {
+    const w = await world();
+    const channel = await booking(w.ids[0], "HM-1", { channel: "airbnb", connectionId: "c1" });
+    const manual = await booking(w.ids[1], "HM-1");
+    expect((await load(w.orgId, manual.id))!.rows.find((r) => r.id === manual.id)!.removable).toBe(true);
+    await prisma.reservation.update({ where: { id: channel.id }, data: { status: "cancelled" } });
+    const after = (await load(w.orgId, manual.id))!;
+    expect(after.resolved).toBe(true);
+    expect(after.rows.find((r) => r.id === manual.id)).toMatchObject({ active: true, removable: false });
+  });
+
   it("başka işletmenin beslemesine işaret eden takvim kimliği adını sızdırmaz (ad null)", async () => {
     const a = await world();
     const b = await world(["Lale 9"]);
