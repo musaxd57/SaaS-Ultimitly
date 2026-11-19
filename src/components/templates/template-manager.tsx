@@ -5,47 +5,76 @@ import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Globe, Building2, ChevronDown, ChevronRight, Pencil, Copy } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Loader2, Plus, Trash2, Globe, Building2, ChevronDown, ChevronRight, Pencil, Copy, Search, X } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
+import { Pager } from "@/components/pager";
 import { TEMPLATE_CATEGORY } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import type { MessageTemplate } from "@/lib/templates";
 
+/** Liste satırı: tam gövde YOK, kısa önizleme var (kurucu 11-19 akşam madde 1) — düzenleme tam metni `GET /api/templates/[id]`den alır. */
 interface CustomTemplateRow {
   id: string;
   title: string;
-  body: string;
+  preview: string;
   category: string;
   language: string;
   isActive: boolean;
   propertyName: string | null;
   propertyId: string | null;
-  /** Codex 11-17 H1: satırın sürümü (ISO) — düzenleme kaydına ön şart olarak gider. */
-  updatedAt: string;
+}
+
+/** Sunucu sayfasının durumu (arama + sayfa) — liste en çok `pageSize` satır taşır, `matchCount` aramaya uyan toplamdır. */
+interface Listing {
+  query: string;
+  page: number;
+  pageSize: number;
+  matchCount: number;
 }
 
 interface Props {
   properties: { id: string; name: string }[];
   customTemplates: CustomTemplateRow[];
+  /** İşletmenin TOPLAM özel şablon sayısı (aramadan bağımsız). Verilmezse listedeki satır sayısı. */
+  totalCount?: number;
+  /** Verilmezse tek sayfa, arama yok. */
+  listing?: Listing;
   defaultTemplates: MessageTemplate[];
   /** Owner/manager may add/edit/delete templates; staff get a read-only view. */
   canManage?: boolean;
+}
+
+/** `GET /api/templates/[id]` yanıtının düzenleme formunun okuduğu alanları. */
+interface TemplateDetailResponse {
+  title?: unknown;
+  body?: unknown;
+  category?: unknown;
+  language?: unknown;
+  propertyId?: unknown;
+  updatedAt?: unknown;
+  error?: unknown;
 }
 
 const LANG_LABELS: Record<string, string> = { tr: "Türkçe", en: "İngilizce", de: "Almanca", fr: "Fransızca", ar: "Arapça" };
 
 const EMPTY_FORM = { title: "", body: "", category: "general", language: "tr", propertyId: "" };
 
-export function TemplateManager({ properties, customTemplates, defaultTemplates, canManage = true }: Props) {
+export function TemplateManager({ properties, customTemplates, totalCount, listing, defaultTemplates, canManage = true }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const allCount = totalCount ?? customTemplates.length;
+  const view: Listing = listing ?? { query: "", page: 1, pageSize: Math.max(1, customTemplates.length), matchCount: customTemplates.length };
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** "Düzenle"ye basılan şablonun tam metni okunurken (çift tıklama ikinci okuma başlatmasın). */
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   /**
@@ -53,7 +82,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
    * dedi — kapalı bir ok tuşunun arkasındaki içerik, yeni host için yok
    * hükmündeydi. Kendi şablonu olan host için kapalı kalır (gürültü olmasın).
    */
-  const [expandedDefaults, setExpandedDefaults] = useState(customTemplates.length === 0);
+  const [expandedDefaults, setExpandedDefaults] = useState(allCount === 0);
   /**
    * 🚨 Dolu = DÜZENLEME (PATCH), boş = YENİ KAYIT (POST). Varsayılan şablondan
    * "uyarla" da YENİ kayıttır: varsayılanlar koddaki sabitlerdir, DB satırı
@@ -64,14 +93,10 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
   const [form, setForm] = useState(EMPTY_FORM);
   /**
    * Codex 11-17 H1: düzenlenen şablonun formun açıldığı andaki sürümü. Kayıt bunu `expectedUpdatedAt` olarak gönderir; arada başka sekme /
-   * kişi kaydettiyse sunucu 409 der ve form (yazılanla) açık kalır — eski tam form başkasının metnini geri yazamaz.
+   * kişi kaydettiyse sunucu 409 der ve form (yazılanla) açık kalır — eski tam form başkasının metnini geri yazamaz. Sürüm, formun
+   * doldurulduğu TAM metinle aynı okumadan (`GET /api/templates/[id]`) gelir.
    */
   const [editBase, setEditBase] = useState<string | null>(null);
-  /**
-   * Bu ekrandan kaydedilen şablonların yanıttaki sürümü: kaydettikten sonra liste henüz yenilenmeden aynı şablon yeniden açılırsa
-   * satırın ESKİ sürümü gider ve kişi kendi kaydına çatışma alırdı. Açılışta satırınkiyle bundan hangisi yeniyse o kullanılır.
-   */
-  const savedVersions = useRef(new Map<string, string>());
   const formRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
@@ -98,19 +123,38 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
     openForm();
   }
 
-  function openEdit(t: CustomTemplateRow) {
-    setEditingId(t.id);
-    const saved = savedVersions.current.get(t.id);
-    setEditBase(saved && Date.parse(saved) > Date.parse(t.updatedAt) ? saved : t.updatedAt);
-    setAdaptedFrom(null);
-    setForm({
-      title: t.title,
-      body: t.body,
-      category: t.category,
-      language: t.language,
-      propertyId: t.propertyId ?? "",
-    });
-    openForm();
+  /**
+   * Liste yalnız kısa önizleme taşır (kurucu 11-19 akşam madde 1): form TAM metni ve sürümü `GET /api/templates/[id]`den alır. Her açılış
+   * taze okuma — kaydettikten sonra liste henüz yenilenmeden yeniden açılsa da en son sürüm gider (eskiden bunun için ayrı bir "bu ekrandan
+   * kaydedilen sürüm" belleği vardı). Okunamazsa form açılmaz; şablon arada silindiyse (404) liste yenilenir.
+   */
+  async function openEdit(t: CustomTemplateRow) {
+    if (openingId) return;
+    setOpeningId(t.id);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(t.id)}`);
+      const d = (await res.json().catch(() => null)) as TemplateDetailResponse | null;
+      if (!res.ok || !d || typeof d.body !== "string" || typeof d.updatedAt !== "string") {
+        toast.error(typeof d?.error === "string" ? d.error : "Şablon yüklenemedi. Lütfen tekrar deneyin.");
+        if (res.status === 404) refresh();
+        return;
+      }
+      setEditingId(t.id);
+      setEditBase(d.updatedAt);
+      setAdaptedFrom(null);
+      setForm({
+        title: typeof d.title === "string" ? d.title : t.title,
+        body: d.body,
+        category: typeof d.category === "string" ? d.category : t.category,
+        language: typeof d.language === "string" ? d.language : t.language,
+        propertyId: typeof d.propertyId === "string" ? d.propertyId : "",
+      });
+      openForm();
+    } catch {
+      toast.error("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
+    } finally {
+      setOpeningId(null);
+    }
   }
 
   /**
@@ -147,7 +191,6 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
         setError(fieldMsg ?? data.error ?? (editingId ? "Şablon güncellenemedi" : "Şablon oluşturulamadı"));
         return;
       }
-      if (editingId && typeof data.updatedAt === "string") savedVersions.current.set(editingId, data.updatedAt);
       setForm(EMPTY_FORM);
       setShowForm(false);
       setEditingId(null);
@@ -188,11 +231,37 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
     }
   }
 
+  // Sunucu sayfası (kurucu 11-19 akşam madde 1): liste en çok `pageSize` satır; arama ve sayfa adreste (`?q=…&sayfa=N`, gelen kutusu kalıbı).
+  const totalPages = Math.max(1, Math.ceil(view.matchCount / view.pageSize));
+  const from = customTemplates.length === 0 ? 0 : (view.page - 1) * view.pageSize + 1;
+  const to = customTemplates.length === 0 ? 0 : (view.page - 1) * view.pageSize + customTemplates.length;
+  const hrefFor = (page: number) => {
+    const qs = new URLSearchParams();
+    if (view.query) qs.set("q", view.query);
+    if (page > 1) qs.set("sayfa", String(page));
+    const s = qs.toString();
+    return s ? `/templates?${s}` : "/templates";
+  };
+  const showPager = totalPages > 1 || (view.query !== "" && view.matchCount > 0);
+  const pagerBar = (position: "üst" | "alt") => (
+    <Pager
+      page={view.page}
+      totalPages={totalPages}
+      summary={
+        totalPages > 1
+          ? `${view.matchCount} şablondan ${from}–${to} arası · Sayfa ${view.page} / ${totalPages}`
+          : `${view.matchCount} şablon`
+      }
+      hrefFor={hrefFor}
+      position={position}
+    />
+  );
+
   return (
     <div className="space-y-6">
       {/* Custom Templates Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Özel Şablonlar ({customTemplates.length})</h2>
+        <h2 className="text-base font-semibold">Özel Şablonlar ({allCount})</h2>
         {canManage ? (
           <Button size="sm" onClick={() => (showForm && !editingId && !adaptedFrom ? setShowForm(false) : openNew())}>
             <Plus className="size-4" />
@@ -307,16 +376,61 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
         ) : null}
       </div>
 
+      {/* Arama — sunucuda, işletmenin BÜTÜN şablonlarında (liste yalnız bir sayfa taşır). Gelen kutusu arama formunun kalıbı: GET formu,
+          gizli etiket (yer tutucu ad değildir), "Ara" düğmesi, arama varken temizle bağlantısı. */}
+      {allCount > 0 ? (
+        <form method="GET" action="/templates" role="search" className="flex flex-nowrap items-center gap-1.5">
+          <label htmlFor="tmpl-search" className="sr-only">
+            Şablonlarda ara
+          </label>
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <input
+              id="tmpl-search"
+              name="q"
+              type="search"
+              defaultValue={view.query}
+              maxLength={100}
+              placeholder="Başlıkta veya metinde ara…"
+              className="h-10 w-full rounded-md border border-border bg-card pl-8 pr-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background sm:h-8"
+            />
+          </div>
+          <button type="submit" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>
+            Ara
+          </button>
+          {view.query ? (
+            <Link
+              href="/templates"
+              aria-label="Aramayı temizle"
+              title="Aramayı temizle"
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0 px-2 text-muted-foreground")}
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </Link>
+          ) : null}
+        </form>
+      ) : null}
+
       {/* Custom Template List */}
-      {customTemplates.length === 0 && !showForm ? (
+      {allCount === 0 && !showForm ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             Henüz özel şablon oluşturulmadı.
             {canManage ? " Yukarıdaki butonla sıfırdan yazabilir ya da aşağıdaki varsayılanlardan birini kendinize uyarlayabilirsiniz." : ""}
           </CardContent>
         </Card>
+      ) : customTemplates.length === 0 && view.query ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            “{view.query}” ile eşleşen şablon bulunamadı.
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
+          {showPager && totalPages > 1 ? pagerBar("üst") : null}
           {customTemplates.map((t) => (
             <Card key={t.id}>
               <CardContent className="p-4">
@@ -340,17 +454,19 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                         </span>
                       )}
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-sm text-foreground/80 line-clamp-3">{t.body}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm text-foreground/80 line-clamp-3">{t.preview}</p>
                   </div>
                   {canManage ? (
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => openEdit(t)}
-                        className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => void openEdit(t)}
+                        disabled={openingId !== null}
+                        aria-busy={openingId === t.id}
+                        className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
                         aria-label="Düzenle"
                       >
-                        <Pencil className="size-4" />
+                        {openingId === t.id ? <Loader2 className="size-4 animate-spin" /> : <Pencil className="size-4" />}
                       </button>
                       <button
                         type="button"
@@ -371,6 +487,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
               </CardContent>
             </Card>
           ))}
+          {showPager ? pagerBar("alt") : null}
         </div>
       )}
 
