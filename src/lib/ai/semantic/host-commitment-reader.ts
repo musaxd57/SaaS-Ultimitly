@@ -145,7 +145,8 @@ export function parseHostCommitmentReading(data: unknown): HostCommitmentStateme
 
 export type HostCommitmentReaderResult =
   | { ok: true; verdict: HostCommitmentVerdict; model: string; ms: number }
-  | { ok: false; error: string; model: string | null; ms: number };
+  /** `transient`: sağlayıcının geçici arızası (ağ / 5xx / hız sınırı) — aynı mesaj sonra yeniden denenebilir. */
+  | { ok: false; error: string; model: string | null; ms: number; transient?: true };
 
 /** Okumayı koştur ve doğrula. Asla fırlatmaz; anahtar yok / arıza / bozuk cevap → `ok: false` (çağıran bugünkü davranışla sürer). */
 export async function readHostCommitments(input: {
@@ -172,7 +173,7 @@ export async function readHostCommitments(input: {
       reasoningEffort: semanticReasoningEffort("understanding"),
       fetchImpl: input.fetchImpl,
     });
-    if (!res.ok) return { ok: false, error: res.error, model, ms: Date.now() - started };
+    if (!res.ok) return { ok: false, error: res.error, model, ms: Date.now() - started, ...(res.transient ? { transient: true as const } : {}) };
     const statements = parseHostCommitmentReading(res.data);
     if (!statements) return { ok: false, error: "bad_shape", model, ms: Date.now() - started };
     // Hızlı kod doğrulaması (alıntı metinde mi, saat alıntıdan mı, tırnak / iletilmiş satır mı) — yalnız tutar.

@@ -205,6 +205,11 @@ export function timeGroundedInQuote(time: string, quote: string): boolean {
 export interface VerifiedStatement extends HostCommitmentStatement {
   /** Alıntı modelin gördüğü metinde geçiyor mu. Geçmiyorsa ifade karara GİRMEZ. */
   grounded: boolean;
+  /**
+   * Alıntının modelin gördüğü metindeki KONUMU (yarı açık [başlangıç, bitiş)); dayanaksızsa `null`. Gölge kaydı alıntı metnini değil bu
+   * konumu saklar (metin mesaj satırında).
+   */
+  span: [number, number] | null;
   /** Alıntı tırnak içinde ya da iletilmiş satırda mı. */
   inQuotedSpan: boolean;
   /** Saat alıntıdan mı. */
@@ -240,7 +245,7 @@ export function verifyHostCommitmentReading(seenText: string, statements: readon
     const { at, needle } = locate(seen.text, s.quote);
     if (at < 0) {
       ungrounded++;
-      return { ...s, grounded: false, inQuotedSpan: false, timeGrounded: false, raw, decision: "none", held: [] };
+      return { ...s, grounded: false, span: null, inQuotedSpan: false, timeGrounded: false, raw, decision: "none", held: [] };
     }
     const from = seen.map[at]!;
     const to = seen.map[at + needle.length - 1]! + 1;
@@ -254,7 +259,7 @@ export function verifyHostCommitmentReading(seenText: string, statements: readon
       if (held.length > 0) out = "card";
     }
     decision = stronger(decision, out);
-    return { ...s, grounded: true, inQuotedSpan, timeGrounded, raw, decision: out, held };
+    return { ...s, grounded: true, span: [from, to], inQuotedSpan, timeGrounded, raw, decision: out, held };
   });
   return { decision, statements: verified, ungrounded };
 }

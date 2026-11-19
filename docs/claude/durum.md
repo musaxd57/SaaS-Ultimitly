@@ -771,3 +771,10 @@ adımı; ekran / rota sıradaki dilim) + `SemanticReading` (anlam okumasının g
 karşıladı" için ortak). İkisi de saklama süresi, misafir silme talebi, konuşma birleştirme ve demo sıfırlama kurallarına bağlandı; not dışa
 aktarımda. Davranış testleri `tests/integration/internal-note-semantic-reading-lifecycle.test.ts` (13). Son iki haneli numara: sonraki
 migration `99a_…`.
+(5) **Söz okuyucusunun gölge kancası (11-19):** `ai/semantic/host-commitment-shadow.ts` + tek yazıcı `semantic-reading/store.ts`. Zamanlanmış
+işte, söz turundan sonra: ev sahibinin giden mesajını model okur, kod doğrular, sözcük ağının kararıyla kıyaslayıp kaydeder (alıntı metni
+yok; konum + neden). Davranış değişmez (testli); anahtar kapalıyken sorgusuz. Açlık yok (okunmamış süzgeci sorguda; kalıcı hata satır
+yazar, geçici arıza satır yazmadan durur), tur başına 8 okuma / 30 sn, işletme başına günde 200. Ölçüm kredi gelince.
+(6) **Mutasyon (dalga B + migration 99):** 55 mutantın 52'si ilk koşuda öldü; yaşayan üçü eksik sınır testiydi (tutulan mesaj varış GÜNÜNDE
+iptal edilmez · kapanmamış düz tırnak sonraki satıra taşınmaz · konaklamaya bağlı notun yaşı konaklamanın bitişinden sayılır) — üç test
+eklendi, mutantlar yeniden koşuldu.

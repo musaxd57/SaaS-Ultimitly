@@ -20,6 +20,7 @@ import { anonymizeOldGuestData, minimizeOldPaddleWebhooks, purgeOldLeads, retent
 import { replayPendingPaddleEvents } from "@/lib/payments/paddle-replay";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { SWEEP_CATCHUP_MINUTES, closeStayEndedCommitments, sweepHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
+import { sweepHostCommitmentShadow } from "@/lib/ai/semantic/host-commitment-shadow";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
@@ -896,6 +897,11 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       } catch (err) {
         await opsAlarm.fail("commitment-auto", "scheduled-sync commitment-auto", err);
       }
+
+      // Söz okuyucusu GÖLGE turu (kurucu 11-18 akşam: "anlamı model güçlerine bırak … anlama şekli ve nedeni tutulsun"): ev sahibinin giden
+      // mesajını model okur, sonuç sözcük ağının kararıyla kıyaslanıp kaydedilir. Hiçbir davranışı değiştirmez; anahtar
+      // `AI_HOST_COMMITMENT_READER_ENABLED` kapalıyken sorgusuz no-op; asla fırlatmaz; süre ve günlük sınırı kendi içinde.
+      await sweepHostCommitmentShadow(new Date());
 
       // Deneme kimliği (kurucu onayı 10-10): anahtar açıldığında açılış ANI ve BİR KEZ geri doldurma — HER geçişte (saatlik değil: açılış
       // anından önce eklenen takvim muaf sayılır, gecikme o pencereyi bir saate kadar açardı). İşaret varken tek indeksli okuma; anahtar

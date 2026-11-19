@@ -62,6 +62,20 @@ Sahiplik, aktarma, ret, koşul sözcük sorusu değil anlam sorusudur. Kelime k�
 
 Model düşerse (anahtar yok, zaman aşımı, bozuk cevap) her aşamada bugünkü sözcük ağı davranışı sürer — söz kaybolmaz.
 
+### 3.1 Aşama 0 nasıl çalışıyor (11-19 — kanca yazıldı; `ai/semantic/host-commitment-shadow.ts`)
+
+- Zamanlanmış işte, söz turundan hemen sonra koşar; ev sahibinin "Gönder"i model çağrısını BEKLEMEZ. Anahtar kapalıyken ya da model anahtarı
+  yokken sorgusuz çıkar.
+- Okunan: ev sahibinin kendi yazdığı, son 48 saatteki giden mesajlar (otomasyon / yapay zekâ satırı ve demo işletmesi hariç); her mesaj bir kez.
+- Kayıt (mesaj başına bir satır): bugünkü sözcük ağının kararı · modelin doğrulanmış kararı · kıyas (aynı / model daha temkinli / model daha
+  ileri) · her ifade için okuma, konu, gün, saat, alıntının metindeki KONUMU, doğrulama sonucu ve modelin tek cümlelik nedeni · model adı,
+  istem kimliği, süre. Alıntının metni kayıtta yok.
+- Açlık ve maliyet: "henüz okunmamış" süzgeci sorguda, eskiden yeniye; tur başına en çok 8 okuma ve 30 saniye; işletme başına günde en çok
+  200 okuma (aşan mesaj model çağrılmadan "sınır" satırı alır, sözcük ağının kararı yine yazılır). Sağlayıcının geçici arızasında satır
+  yazılmaz, tur durur ve aynı mesaj sonraki turda yeniden denenir; kalıcı hata (bozuk cevap, çok uzun mesaj) satır yazar ve mesaj bir daha
+  seçilmez.
+- Davranış değişmediği testle sabit: tur söz / görev / mesaj / konuşma durumuna dokunmaz.
+
 ## 4. Kayıt ve gizlilik
 
 **Durum (11-18 gece): tablo YAZILDI** — `SemanticReading` (migration 99), katman adıyla genel (ev sahibinin sözü + ileride "cevap hangi
