@@ -107,11 +107,22 @@ function asciiDigit(d: string): string {
   return d;
 }
 
+/** Yalnız ASCII metin (↓ hızlı yol). */
+const ASCII_ONLY = /^[\x00-\x7F]*$/;
+/** ASCII dışı ondalık rakam: ASCII dışı karakterlerden YALNIZ bunlar değişir (öteki her biri aynen kalırdı). */
+const NON_ASCII_DIGIT = /(?=\p{Nd})[^\x00-\x7F]/gu;
+
 /** NFKC + Türkçe küçük harf + ASCII katlama; yaygın yazılardaki ondalık rakamlar ASCII'ye çevrilir. */
 export function foldForClaims(s: string): string {
+  // ASCII HIZLI YOLU (O3 11-19, ölçüldü: belirteç dizini — `rawTokenIndex` — belirteçlerin %70'i ASCII; denetim süresinin yarısı
+  // buradaydı). ASCII metinde NFKC özdeştir, ASCII dışı rakam / Türkçe harf / tipografik işaret yoktur; "I" → "ı" → küçük harf → "i"
+  // zinciri `toLowerCase`in "I" → "i"siyle aynıdır, Türk yerelinin öteki özel durumları (İ, birleştirici nokta) ASCII'de geçmez. Tek
+  // ASCII dönüşümü ters tırnak → kesme. Eski zincirle eşdeğerlik kâhin testinde (`claim-fold-equivalence.test.ts`).
+  if (ASCII_ONLY.test(s)) return s.includes("`") ? s.toLowerCase().replace(/`/g, "'") : s.toLowerCase();
   return s
     .normalize("NFKC")
-    .replace(/[^\x00-\x7F]/gu, (ch) => (/\p{Nd}/u.test(ch) ? asciiDigit(ch) : ch))
+    // Eskiden ASCII dışı HER karakter için geri çağrı + `\p{Nd}` sınaması; yalnız rakamları eşlemek aynı sonucu verir.
+    .replace(NON_ASCII_DIGIT, asciiDigit)
     .replace(/İ/g, "i")
     .replace(/I/g, "ı")
     .toLocaleLowerCase("tr")
