@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { refreshAfterBilling } from "@/components/settings/refresh-after-billing";
 import Link from "next/link";
-import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_VERSION, SELLER } from "@/lib/legal-entity";
 import { CHECKOUT_CONSENT_COPY, checkoutConsentKeysFor, type CheckoutConsentKey } from "@/lib/billing/consent-copy";
 
 /** Sunucunun onay alanı adı → ekrandaki kutu (`checkoutConsentSchema`). */
@@ -17,6 +17,14 @@ import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/che
 import { formatMinor } from "@/lib/utils";
 import { BILLING_TEXT, billingReason, lapsedLabel } from "@/lib/billing/billing-ui-text";
 import { TrackingNumberCopy } from "@/components/tracking-number-copy";
+import {
+  CHECKOUT_VERIFY_ACTIVE_MESSAGE,
+  CHECKOUT_VERIFY_AWAITING_MESSAGE,
+  CHECKOUT_VERIFY_DASHBOARD_LABEL,
+  CHECKOUT_VERIFY_SUPPORT_AFTER_MS,
+  checkoutVerifyDelay,
+  checkoutVerifyStep,
+} from "@/components/settings/checkout-verify-poll";
 import { ResumeSubscription } from "@/components/settings/resume-subscription";
 import {
   BillingPeriodToggle,
@@ -151,6 +159,7 @@ export function PaddlePlans({
   resumeEnabled = false,
   cardTrialNotice = null,
   cancelScheduledUntil = null,
+  instantCheckoutLink = false,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -201,6 +210,12 @@ export function PaddlePlans({
    * eden kullanıcı o tarihe kadar paketini kullanır ve bunu ekranda görür.
    */
   cancelScheduledUntil?: string | null;
+  /**
+   * Anında doğrulama (kurucu 11-18 akşam; sunucu anahtarı `BILLING_INSTANT_LINK_ENABLED`, sayfa `instantCheckoutLinkEnabled()` ile verir):
+   * ödeme ekranı tamamlanınca `POST /api/billing/checkout-verify` sorulur, plan açılınca ekran kendiliğinden güncellenir. Kapalıyken
+   * (varsayılan) ekran bugünküyle birebir aynı.
+   */
+  instantCheckoutLink?: boolean;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -275,6 +290,16 @@ export function PaddlePlans({
       clearTimeout(stop);
     };
   }, [checkoutPending, router]);
+  // ANINDA DOĞRULAMA (anahtar açıkken): ödeme ekranı tamamlandı, plan açılana kadar uç yeniden sorulur. `instantCheckoutLinkRef` Paddle'ın
+  // olay işleyicisi içinden okunur (anahtar değişince ödeme bileşeni yeniden başlatılmaz).
+  const instantCheckoutLinkRef = useRef(instantCheckoutLink);
+  instantCheckoutLinkRef.current = instantCheckoutLink;
+  const [verifyTarget, setVerifyTarget] = useState<{ consentId: string; transactionId: string; startedAt: number } | null>(null);
+  // `awaiting`: plan henüz açılmadı (bekleyen cevap ya da ilk cevap gelmedi) · `active`: plan açıldı · null: doğrulama yok / bugünkü akış.
+  const [verifyState, setVerifyState] = useState<"awaiting" | "active" | null>(null);
+  // Gecikme uzadı → destek bağlantısı + takip numarası (ucun yanıt başlığındaki ödeme zinciri numarası).
+  const [verifySlow, setVerifySlow] = useState(false);
+  const [verifyTrackingId, setVerifyTrackingId] = useState<string | null>(null);
   // Son açılan ödeme ekranının onay kaydı — tamamlanma sinyali sunucuya bununla gider (kilit yalnız kendi işletmesinin yeni onayıyla yazılır).
   const lastConsentRef = useRef<string | null>(null);
   // Onay paneli plan kartlarının ÜSTÜNDE açılır (Codex 11-10 "plan onayında klavye odağı"): klavye / ekran okuyucu kullanıcısı düğmeye
@@ -295,6 +320,110 @@ export function PaddlePlans({
     if (trigger?.isConnected) trigger.focus();
   }, [panelToken]);
 
+  // BUGÜNKÜ tamamlanma akışı (anahtar kapalıyken TEK yol; anahtar açıkken uç yoksa / kimlik yoksa buraya düşülür — eski yol silinmez).
+  const legacyCompleted = (consentId: string | null, paidTransactionId: string | undefined) => {
+    setProcessing(true);
+    // Sunucu kilidiyle aynı süre: webhook hiç gelmezse kart bu sayfada da kendiliğinden açılır (Haiku incelemesi).
+    // Sunucu kilidi o anda hâlâ geçerliyse (prop) kart AÇILMAZ — sunucu "bitti" diyene kadar bekler (Haiku incelemesi 11-11).
+    setTimeout(() => {
+      if (!checkoutPendingRef.current) setProcessing(false);
+    }, CHECKOUT_PENDING_MS);
+    if (consentId) {
+      // Tamamlanan işlemin kimliği de gider (Codex 11-17): sunucu ödemeyi Paddle'dan kendisi doğrular ve kalıcı kaydı yazar —
+      // web kancası gecikse de 10 dakikalık kilit düşünce ikinci ödeme açılmaz. Kimlik yoksa bugünkü gibi yalnız kilit.
+      void fetch("/api/billing/checkout-pending", {
+        method: "POST",
+        keepalive: true,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ consentId, ...(paidTransactionId ? { transactionId: paidTransactionId } : {}) }),
+      }).catch(() => {});
+    }
+    refreshAfterBilling(router);
+  };
+  // Paddle'ın olay işleyicisi bir kez kurulur; en güncel işlev ref'ten okunur.
+  const legacyCompletedRef = useRef(legacyCompleted);
+  legacyCompletedRef.current = legacyCompleted;
+
+  // ANINDA DOĞRULAMA DÖNGÜSÜ. Tek döngü: istek biter → sonraki istek planlanır (aralık değil), aynı anda tek istek. Sekme gizliyken
+  // sorulmaz; görünür olunca hemen bir kez sorulur. Bileşen kaldırılınca zamanlayıcılar temizlenir.
+  useEffect(() => {
+    if (!verifyTarget) return;
+    const { consentId, transactionId, startedAt } = verifyTarget;
+    const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
+    let stopped = false;
+    let running = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onVisibility = () => {
+      if (visible()) void run();
+    };
+    const slowTimer = setTimeout(() => {
+      if (!stopped) setVerifySlow(true);
+    }, Math.max(0, CHECKOUT_VERIFY_SUPPORT_AFTER_MS - (Date.now() - startedAt)));
+    const finish = () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      timer = null;
+      clearTimeout(slowTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    const run = async () => {
+      if (stopped || running) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      // Gizli sekmede sorulmaz ve yeni tur planlanmaz: görünürlük olayı turu başlatır.
+      if (!visible()) return;
+      running = true;
+      let status: number | null = null;
+      let state: unknown = undefined;
+      let retryAfterMs = 0;
+      try {
+        const res = await fetch("/api/billing/checkout-verify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ consentId, transactionId }),
+        });
+        status = res.status;
+        // Takip numarası (kurucu kararı 10-10): ödeme uçlarının yanıt başlığı ödeme zincirinin numarasını taşır (`route-guard.ts`
+        // `CORRELATION_HEADER` — sunucu modülü, istemciye alınmaz).
+        const trackingId = res.headers?.get?.("X-Correlation-ID") ?? null;
+        if (trackingId && !stopped) setVerifyTrackingId(trackingId);
+        if (status === 429) retryAfterMs = (Number(res.headers?.get?.("Retry-After")) || 0) * 1000;
+        const body = (await res.json().catch(() => null)) as { state?: unknown } | null;
+        state = body?.state;
+      } catch {
+        status = null; // ağ hatası
+      } finally {
+        running = false;
+      }
+      if (stopped) return;
+      const step = checkoutVerifyStep({ firstAttempt: attempt === 0, status, state });
+      if (step === "active") {
+        finish();
+        setVerifyState("active");
+        setVerifySlow(false);
+        // Plan kartı ve abonelik yönetimi sunucudan yeniden okunsun — BİR kez (sorma burada biter).
+        router.refresh();
+        return;
+      }
+      if (step === "legacy") {
+        finish();
+        setVerifyState(null);
+        setVerifySlow(false);
+        legacyCompletedRef.current(consentId, transactionId);
+        return;
+      }
+      const delay = checkoutVerifyDelay(attempt, Date.now() - startedAt, retryAfterMs);
+      attempt += 1;
+      timer = setTimeout(() => void run(), delay);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    void run();
+    return finish;
+  }, [verifyTarget, router]);
+
   useEffect(() => {
     let cancelled = false;
     loadPaddle()
@@ -314,25 +443,18 @@ export function PaddlePlans({
                 setConsentMissing(null);
               }
               if (ev?.name === "checkout.completed") {
-                setProcessing(true);
-                // Sunucu kilidiyle aynı süre: webhook hiç gelmezse kart bu sayfada da kendiliğinden açılır (Haiku incelemesi).
-                // Sunucu kilidi o anda hâlâ geçerliyse (prop) kart AÇILMAZ — sunucu "bitti" diyene kadar bekler (Haiku incelemesi 11-11).
-                setTimeout(() => {
-                  if (!checkoutPendingRef.current) setProcessing(false);
-                }, CHECKOUT_PENDING_MS);
                 const consentId = lastConsentRef.current;
-                if (consentId) {
-                  // Tamamlanan işlemin kimliği de gider (Codex 11-17): sunucu ödemeyi Paddle'dan kendisi doğrular ve kalıcı kaydı yazar —
-                  // web kancası gecikse de 10 dakikalık kilit düşünce ikinci ödeme açılmaz. Kimlik yoksa bugünkü gibi yalnız kilit.
-                  const paidTransactionId = typeof ev.data?.transaction_id === "string" ? ev.data.transaction_id : undefined;
-                  void fetch("/api/billing/checkout-pending", {
-                    method: "POST",
-                    keepalive: true,
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ consentId, ...(paidTransactionId ? { transactionId: paidTransactionId } : {}) }),
-                  }).catch(() => {});
+                const paidTransactionId = typeof ev.data?.transaction_id === "string" ? ev.data.transaction_id : undefined;
+                // Anahtar açık + onay kaydı + işlem kimliği → anında doğrulama (↓ `verifyTarget` etkisi). Biri yoksa bugünkü akış AYNEN.
+                if (instantCheckoutLinkRef.current && consentId && paidTransactionId) {
+                  setProcessing(true);
+                  setVerifyState("awaiting");
+                  setVerifySlow(false);
+                  setVerifyTrackingId(null);
+                  setVerifyTarget({ consentId, transactionId: paidTransactionId, startedAt: Date.now() });
+                  return;
                 }
-                refreshAfterBilling(router);
+                legacyCompletedRef.current(consentId, paidTransactionId);
               }
             },
           });
@@ -980,7 +1102,31 @@ export function PaddlePlans({
       </div>
 
       {trialNotice && !manageable ? <p className="text-xs text-foreground">{trialNotice}</p> : null}
-      {processing && !manageable ? (
+      {verifyState === "active" ? (
+        <div className="space-y-2" role="status">
+          <p className="text-sm text-foreground">{CHECKOUT_VERIFY_ACTIVE_MESSAGE}</p>
+          <Link
+            href="/dashboard"
+            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            {CHECKOUT_VERIFY_DASHBOARD_LABEL}
+          </Link>
+        </div>
+      ) : verifyState === "awaiting" ? (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground" role="status">
+            {CHECKOUT_VERIFY_AWAITING_MESSAGE}
+          </p>
+          {verifySlow ? (
+            <div className="flex flex-wrap items-center gap-3" data-testid="checkout-verify-support">
+              <a href={`mailto:${SELLER.eposta}`} className="text-xs text-primary underline hover:no-underline">
+                {SELLER.eposta}
+              </a>
+              {verifyTrackingId ? <TrackingNumberCopy id={verifyTrackingId} /> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : processing && !manageable ? (
         <p className="text-xs text-muted-foreground">{(checkoutPending ? checkoutPendingMessage : null) ?? CHECKOUT_PENDING_MESSAGE}</p>
       ) : null}
       {planChangeEnabled && annual ? <p className="text-xs text-muted-foreground">{BILLING_TEXT.annualChangeViaSupport}</p> : null}

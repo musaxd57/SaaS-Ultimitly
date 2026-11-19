@@ -32,6 +32,7 @@ import { connectionHealth, connectionHealthText } from "@/lib/channels/health";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { cancelNoticeDate } from "@/lib/billing/cancel-notice";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { instantCheckoutLinkEnabled } from "@/lib/billing/checkout-verify";
 import { paidAtOf, paidCheckoutAwaiting } from "@/lib/billing/checkout-paid";
 import { checkoutBlockMessage } from "@/lib/billing/checkout-pending-shared";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
@@ -559,6 +560,8 @@ export default async function SettingsPage({
               currency={appBillingCurrency()}
               checkoutPending={checkoutPendingNow}
               checkoutPendingMessage={checkoutPendingMessage}
+              // Anında doğrulama (kurucu 11-18 akşam; anahtar `BILLING_INSTANT_LINK_ENABLED`, kapalıyken ekran bugünküyle aynı).
+              instantCheckoutLink={instantCheckoutLinkEnabled()}
               trialNotice={
                 trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED
                   ? TRIAL_IDENTITY_REUSED_MESSAGE
