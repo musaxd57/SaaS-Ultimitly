@@ -23,10 +23,11 @@ export const MANUAL_COPY_SOURCE_BOUND_ERROR = "Bu kayıt kaynağından geliyor; 
 
 /**
  * Son kopya (G1 11-19 E1): bu sayfa iki dairede görünen rezervasyonun YANLIŞ kopyasını kaldırmak içindir. Başka dairede etkin bir kayıt
- * kalmadıysa çakışma zaten çözülmüştür; kalan satırı silmek rezervasyonun kendisini (ve ona bağlı görevleri) silerdi. Metin kurucu onayı
- * bekliyor (UA-a) — ekranda düğme bu durumda çizilmez, cümle yalnız eski bir sekmeden gelen istekte görünür.
+ * kalmadıysa çakışma zaten çözülmüştür; kalan satırı silmek rezervasyonun kendisini (ve ona bağlı görevleri) silerdi. Metin kurucunun
+ * (11-19 akşam, madde 4) AYNEN: "kaldırılamaz" yerine neden + ne yapılmadığı. Ekranda düğme bu durumda çizilmez; cümle eski bir ekrandan
+ * gelen istekte görünür (ör. öteki yönetici öteki kopyayı az önce kaldırdı) — ekran ardından listeyi yeniler ve "Rezervasyonu aç" gösterir.
  */
-export const MANUAL_COPY_LAST_ERROR = "Bu rezervasyonun başka dairede kaydı kalmadı; bu kayıt kaldırılamaz.";
+export const MANUAL_COPY_LAST_ERROR = "Bu rezervasyon artık yalnızca bir dairede görünüyor. Son kaydı bu ekrandan kaldırmadık.";
 
 export type RemoveManualCopyResult =
   | { kind: "removed"; propertyId: string; sourceClass: BookingRowSourceClass }

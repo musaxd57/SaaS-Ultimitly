@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import React from "react";
 import { prisma, resetDb } from "../helpers/db";
 import { stayDay } from "../helpers/stay-dates";
 import { treeText } from "../helpers/tree-text";
@@ -35,6 +36,36 @@ function sessionFor(orgId: string) {
     name: "Owner",
     sessionEpoch: 0,
   } as unknown as Awaited<ReturnType<typeof requireAuth>>;
+}
+
+/** Ağaçtaki bağlantılar ve görünen metinleri (saf alt bileşenler açılır; `tree-hrefs.ts` ile aynı yürüyüş). */
+function treeLinks(root: unknown): { href: string; text: string }[] {
+  const found: { href: string; text: string }[] = [];
+  const walk = (node: unknown): void => {
+    if (node == null || typeof node === "boolean") return;
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (React.isValidElement(node)) {
+      if (typeof node.type === "function") {
+        try {
+          const out = (node.type as (p: unknown) => unknown)(node.props);
+          if (out && typeof (out as { then?: unknown }).then !== "function") {
+            walk(out);
+            return;
+          }
+        } catch {
+          /* açılamadı → prop'lardan oku */
+        }
+      }
+      const props = node.props as { href?: unknown; children?: unknown };
+      if (typeof props.href === "string") found.push({ href: props.href, text: treeText(props.children) });
+      walk(props.children);
+    }
+  };
+  walk(root);
+  return found;
 }
 
 async function world() {
@@ -85,5 +116,43 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     expect(text).not.toMatch(/Evi'(n?d|t)[ae]|3'(t|d)[ae]/);
     expect(text).not.toContain("Kayıtlar artık tek dairede.");
     expect(text).not.toContain("Rezervasyonu aç");
+  });
+
+  it("🚨 çakışma çözülünce (öteki kopya gitti): çözüldü cümlesi + 'Rezervasyonu aç' → kalan kaydın dairesi, varış ayı takvimi (tek bağlantı)", async () => {
+    const w = await world();
+    const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host" });
+    const other = await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
+    await prisma.reservation.delete({ where: { id: other.id } });
+
+    const tree = await render(manual.id);
+    const text = treeText(tree);
+
+    expect(text).toContain("Kayıtlar artık tek dairede. Otomatik mesajlar olağan akışa döndü.");
+    expect(text).not.toContain("Aynı rezervasyon birden fazla dairede görünüyor");
+    const open = treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç");
+    // Varış yalnız tarih (00:00Z) → takvimin kendi gün kuralıyla UTC tarihi; ay bağımsız hesaplanır.
+    expect(open.map((l) => l.href)).toEqual([`/calendar?property=${w.lale}&month=${stayDay(4).toISOString().slice(0, 7)}`]);
+  });
+
+  it("çözülmüş ama kalan kayıt iptal edilmiş (etkin kayıt yok): 'Rezervasyonu aç' YOK", async () => {
+    const w = await world();
+    const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host", status: "cancelled" });
+    await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel", status: "cancelled" });
+
+    const tree = await render(manual.id);
+
+    expect(treeText(tree)).toContain("Kayıtlar artık tek dairede.");
+    expect(treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç")).toEqual([]);
+  });
+
+  it("KONTROL: çözülmüş sayfada iptal edilmiş satır açılmaz — bağlantı ETKİN kalan kaydın dairesine gider", async () => {
+    const w = await world();
+    await booking(w.lale, { channel: "manual", guestNameSource: "host", status: "cancelled" });
+    const live = await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
+
+    const tree = await render(live.id);
+
+    const open = treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç");
+    expect(open.map((l) => l.href)).toEqual([`/calendar?property=${w.sahil}&month=${stayDay(4).toISOString().slice(0, 7)}`]);
   });
 });

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { BOOKING_SPAN_HEADLINE, bookingSpanPropertiesLine } from "@/components/attention-panel";
 import { RemoveManualCopyButton } from "@/components/reservations/remove-manual-copy-button";
-import { loadBookingComparison, type ComparedBookingRow } from "@/lib/reservations/compare";
+import { loadBookingComparison, reservationCalendarHref, type ComparedBookingRow } from "@/lib/reservations/compare";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +55,9 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
   // Destek görünümü (bürünme) salt okunur: kaldırma düğmesi çizilmez (sunucu da reddeder).
   const readOnly = isImpersonating(session);
   const remainingAfter = (id: string) => comparison.rows.find((r) => r.id !== id)?.id ?? null;
+  // Çakışma çözüldüyse (etkin kayıt tek dairede) kalan rezervasyon açılabilir (kurucu 11-19 akşam, madde 4: son kopya yanıtından sonra
+  // liste yenilenince "Rezervasyonu aç"). Çakışma sürerken yok — hangisinin açılacağı sorunun kendisi; etkin kayıt kalmadıysa da yok.
+  const openRow = comparison.resolved ? comparison.rows.find((r) => r.active) : undefined;
 
   return (
     <div className="space-y-6">
@@ -71,7 +74,13 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
             </>
           )
         }
-      />
+      >
+        {openRow ? (
+          <LinkButton href={reservationCalendarHref(openRow, tz)} size="sm" data-testid="compare-open-reservation">
+            Rezervasyonu aç
+          </LinkButton>
+        ) : null}
+      </PageHeader>
       <div className="grid gap-4 md:grid-cols-2" data-testid="compare-rows">
         {comparison.rows.map((row) => (
           <Card

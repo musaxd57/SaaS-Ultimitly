@@ -125,7 +125,7 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
     for (const id of [cal.id, linked.id, unlinked.id, calManual.id]) {
       const res = await del(id);
       expect(res.status, id).toBe(409);
-      expect(await res.json()).toEqual({ error: MANUAL_COPY_SOURCE_BOUND_ERROR });
+      expect(await res.json()).toEqual({ error: MANUAL_COPY_SOURCE_BOUND_ERROR, code: "source_bound" });
       expect(await prisma.reservation.findUnique({ where: { id } }), id).not.toBeNull();
     }
     expect(MANUAL_COPY_SOURCE_BOUND_ERROR).toBe("Bu kayıt kaynağından geliyor; silinirse geri gelir.");
@@ -211,9 +211,11 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
     for (const id of [manual.id, lone.id]) {
       const res = await del(id);
       expect(res.status, id).toBe(409);
-      expect(await res.json()).toEqual({ error: MANUAL_COPY_LAST_ERROR });
+      expect(await res.json()).toEqual({ error: MANUAL_COPY_LAST_ERROR, code: "last_copy" });
       expect(await prisma.reservation.findUnique({ where: { id } }), id).not.toBeNull();
     }
+    // Kurucu 11-19 akşam madde 4, metin AYNEN: "kaldırılamaz" yerine neden ("artık yalnızca bir dairede") + ne yapılmadığı.
+    expect(MANUAL_COPY_LAST_ERROR).toBe("Bu rezervasyon artık yalnızca bir dairede görünüyor. Son kaydı bu ekrandan kaldırmadık.");
     expect(await prisma.auditLog.count({ where: { action: "reservation.manual_copy_removed" } })).toBe(0);
     // KONTROL: öteki kopya yeniden etkinleşince aynı satır kaldırılır.
     await prisma.reservation.update({ where: { id: other.id }, data: { status: "confirmed" } });

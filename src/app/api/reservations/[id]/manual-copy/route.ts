@@ -13,9 +13,10 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   const { id } = await params;
   const result = await removeManualBookingCopy({ organizationId: session.organizationId, reservationId: id });
   if (result.kind === "not_found") return notFound();
-  if (result.kind === "source_bound") return Response.json({ error: MANUAL_COPY_SOURCE_BOUND_ERROR }, { status: 409 });
+  // `code`: ekran iki 409'u metne bakmadan ayırır (son kopya bilgi bildirimi, kaynağa bağlı kayıt hata bildirimi; ikisinde de satır yerinde).
+  if (result.kind === "source_bound") return Response.json({ error: MANUAL_COPY_SOURCE_BOUND_ERROR, code: "source_bound" }, { status: 409 });
   // Başka dairede etkin kayıt kalmadı: kalan satır rezervasyonun kendisidir, bu uçtan silinmez (G1 11-19 E1).
-  if (result.kind === "last_copy") return Response.json({ error: MANUAL_COPY_LAST_ERROR }, { status: 409 });
+  if (result.kind === "last_copy") return Response.json({ error: MANUAL_COPY_LAST_ERROR, code: "last_copy" }, { status: 409 });
   // Denetim kaydı kimlik + sınıf taşır (misafir adı / kaynak kimliği yazılmaz).
   await writeAudit({
     organizationId: session.organizationId,
