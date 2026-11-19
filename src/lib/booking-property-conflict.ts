@@ -70,3 +70,95 @@ export async function bookingRefsInMultipleProperties(
   for (const [ref, list] of byRef) if (spansMultipleProperties(list, input.now)) conflicted.add(ref);
   return conflicted;
 }
+
+// ---------------------------------------------------------------------------
+// EV SAHİBİNE "BİR KEZ" UYARI (kurucu 11-18 akşam: "hosta bir kez eşleştirme uyarısı çıkmalı") — Panel › Dikkat Gerektirenler satırı.
+// Tutma kuralıyla AYNI yüklem: gönderici bir rezervasyonu tutuyorsa (ve yalnız o zaman) burada da görünür.
+// ---------------------------------------------------------------------------
+
+/** Saf: rezervasyonun ETKİN satırlarının daireleri (tekil, ilk görülme sırasıyla). `spansMultipleProperties` ≡ uzunluk > 1. */
+export function activePropertyIdsOf(rows: readonly BookingRowFacts[], now: Date): string[] {
+  const out: string[] = [];
+  for (const row of rows) if (isActiveBookingRow(row, now) && !out.includes(row.propertyId)) out.push(row.propertyId);
+  return out;
+}
+
+/**
+ * `isActiveBookingRow`un SORGU ikizi (aday süzgeci): iptal yazımı içermeyen durum + çıkışı pay içinde. Kesin karar yine bellekte saf
+ * yüklemle verilir (`activePropertyIdsOf`); süzgeç onunla aynı sınırı çizer (`/cancel/i` ≡ büyük-küçük harf duyarsız "cancel" içerir —
+ * "cancel" ASCII, dil kuralı farkı yok · çıkış ≥ şimdi − pay).
+ */
+function activeBookingRowWhere(now: Date): Prisma.ReservationWhereInput {
+  return {
+    departureDate: { gte: new Date(now.getTime() - BOOKING_ENDED_SLACK_MS) },
+    NOT: { status: { contains: "cancel", mode: "insensitive" } },
+  };
+}
+
+/** Panel satırı tavanı: en yakın varışlı bu kadar rezervasyon okunur; fazlası varsa çağırana `capped` (sessiz kesme yok). */
+export const BOOKING_CONFLICT_ROW_CAP = 20;
+
+export interface ActiveBookingConflict {
+  sourceReference: string;
+  /** Etkin kaydı olan daireler (en az iki), ada göre sıralı. */
+  properties: { id: string; name: string }[];
+  /** Etkin satırların en erken varışı (misafirin varış günü — satırlar farklı tarih taşıyabilir). */
+  arrivalDate: Date;
+  /** Kararlı satır anahtarı: etkin satırların en küçük kimliği (ekranda gösterilmez; kaynak kimliği taşınmaz). */
+  rowKey: string;
+}
+
+/**
+ * Bu işletmede iki (ya da daha çok) FARKLI dairede ETKİN kaydı olan rezervasyonlar, en yakın varış önce, en çok `cap` tane.
+ *
+ * İki sorgu: (1) kaynak kimliği başına ETKİN satır sayısı > 1 olanlar (kayıt (daire, kaynak kimliği) çiftinde tekil → satır sayısı = daire
+ * sayısı), tavanın bir fazlası okunur ki aşım görülsün; (2) yalnız o kimliklerin satırları + daire adları. Kesin karar saf yüklemle.
+ * Daire kapsamı İŞLETMEDİR (tek daireye daraltma çağıranın işi): öteki daire başka bir sayfanın kapsamındaysa çakışma yine çakışmadır.
+ */
+export async function activeBookingConflicts(
+  db: Db,
+  input: { organizationId: string; now: Date; cap?: number },
+): Promise<{ conflicts: ActiveBookingConflict[]; capped: boolean }> {
+  const cap = input.cap ?? BOOKING_CONFLICT_ROW_CAP;
+  const where: Prisma.ReservationWhereInput = {
+    sourceReference: { not: null },
+    property: { organizationId: input.organizationId },
+    ...activeBookingRowWhere(input.now),
+  };
+  const groups = await db.reservation.groupBy({
+    by: ["sourceReference"],
+    where,
+    having: { sourceReference: { _count: { gt: 1 } } },
+    orderBy: [{ _min: { arrivalDate: "asc" } }, { sourceReference: "asc" }],
+    take: cap + 1,
+  });
+  const capped = groups.length > cap;
+  const refs = groups
+    .slice(0, cap)
+    .map((g) => g.sourceReference)
+    .filter((r): r is string => r !== null);
+  if (refs.length === 0) return { conflicts: [], capped };
+  const rows = await db.reservation.findMany({
+    where: { sourceReference: { in: refs }, property: { organizationId: input.organizationId } },
+    select: { id: true, sourceReference: true, propertyId: true, status: true, arrivalDate: true, departureDate: true, property: { select: { name: true } } },
+  });
+  const conflicts: ActiveBookingConflict[] = [];
+  for (const ref of refs) {
+    const list = rows.filter((r) => r.sourceReference === ref);
+    const propertyIds = activePropertyIdsOf(list, input.now);
+    // Sorgular arasında satır iptal / silinmiş olabilir: kesin karar bellekte.
+    if (propertyIds.length < 2) continue;
+    const active = list.filter((r) => isActiveBookingRow(r, input.now));
+    const nameOf = new Map(active.map((r) => [r.propertyId, r.property.name]));
+    conflicts.push({
+      sourceReference: ref,
+      properties: propertyIds
+        .map((id) => ({ id, name: nameOf.get(id) ?? "" }))
+        .sort((a, b) => a.name.localeCompare(b.name, "tr") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+      arrivalDate: new Date(Math.min(...active.map((r) => r.arrivalDate.getTime()))),
+      rowKey: active.map((r) => r.id).sort()[0],
+    });
+  }
+  conflicts.sort((a, b) => a.arrivalDate.getTime() - b.arrivalDate.getTime() || (a.rowKey < b.rowKey ? -1 : 1));
+  return { conflicts, capped };
+}

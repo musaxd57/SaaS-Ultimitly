@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarPlus, CalendarRange, CalendarX2, Clock, DoorOpen, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Sparkles, Unplug } from "lucide-react";
+import { AlertTriangle, Building2, CalendarPlus, CalendarRange, CalendarX2, Clock, DoorOpen, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Sparkles, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
@@ -45,6 +45,7 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   booking_gap: CalendarPlus,
   channel_reactivation: RotateCcw,
   provider_outage: ServerCrash,
+  booking_two_properties: Building2,
 };
 
 /** Satırın React anahtarı: tür + hedef + an (+ aynı ana düşebilen satırlarda kararlı kimlik — gece-4 S1-15). */
@@ -63,6 +64,12 @@ function nightsLabel(from: string, to: string): string {
   const last = dayLabel(to, -1);
   const first = dayLabel(from);
   return first === last ? `${first} gecesi` : `${first} – ${last} geceleri`;
+}
+
+/** "A ve B" · "A, B ve C" — Türkçe liste birleştirme (ikiden çok adda virgül, sonuncusu "ve" ile). */
+export function joinNamesTr(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} ve ${names[names.length - 1]}`;
 }
 
 /** Yarı açık [from, to) aralığındaki gece sayısı (takvim günü anahtarları). */
@@ -111,6 +118,9 @@ function headline(item: AttentionItem): string {
       return "Kanal, iptal edilmiş bir rezervasyonu yeniden etkin gösteriyor";
     case "provider_outage":
       return `Kanal sağlayıcısında arıza — ${item.waitingCount ?? 0} mesaj bekliyor`;
+    case "booking_two_properties":
+      // Metin kurucu onayı bekliyor (11-18 akşam) — görevdeki metin AYNEN.
+      return `Aynı rezervasyon iki dairede kayıtlı: ${joinNamesTr(item.bookingPropertyNames ?? [item.propertyName])}`;
   }
 }
 
@@ -169,6 +179,9 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
     case "provider_outage":
       // G10: mesajlar iletilmiş OLABİLİR (sağlayıcı alıp hata vermiş olabilir) → elle yanıtlamadan önce kontrol (çift mesaj riski).
       return "Tüm daireler · mesajlar iletilmiş olabilir · elle yanıtlamadan önce konuşmaları kanaldan kontrol edin";
+    case "booking_two_properties":
+      // Varış günü + kurucu onayı bekleyen metin AYNEN.
+      return `${item.arrivalDay ? `${dayLabel(item.arrivalDay)} · ` : ""}Otomatik mesajlar bekletiliyor. Yanlış kaydı kaldırın.`;
   }
 }
 

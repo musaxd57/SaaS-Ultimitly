@@ -28,6 +28,7 @@ import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
 import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
 import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
+import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingConflict } from "@/lib/booking-property-conflict";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -55,6 +56,9 @@ import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 //                           konuşmanın "cevapsız" satırının yerini alır.
 //  · channel_reactivation — (10-13, G9) kanal İPTALLİ bir rezervasyonu yeniden etkin gösterdi; satır iptal tutuldu (kendiliğinden
 //                           geri açılmaz), ev sahibi kanaldan kontrol eder.
+//  · booking_two_properties — (kurucu 11-18 akşam) aynı kanal rezervasyonu iki FARKLI dairede etkin kayıtlı: otomatik mesajlar
+//                           tutuluyor (`booking-property-conflict.ts`, sistem daire tahmin etmez); ev sahibi yanlış kaydı kaldırır.
+//                           Rezervasyon başına TEK satır; tutma ile AYNI yüklem.
 //  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
 //                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
 //                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
@@ -87,6 +91,7 @@ export const ATTENTION_KINDS = [
   "booking_gap",
   "channel_reactivation",
   "provider_outage",
+  "booking_two_properties",
 ] as const;
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
@@ -246,6 +251,10 @@ export interface AttentionItem {
   waitingCount?: number;
   /** Yalnız `channel_reactivation`: "yeniden aç" düğmesinin hedefi (H2). */
   reservationId?: string;
+  /** Yalnız `booking_two_properties`: etkin kaydı olan dairelerin adları (en az iki, ada göre sıralı). */
+  bookingPropertyNames?: string[];
+  /** Yalnız `booking_two_properties`: misafirin varış günü, işletmenin takviminde (YYYY-AA-GG). */
+  arrivalDay?: string;
 }
 
 export interface FindAttentionOptions {
@@ -780,6 +789,51 @@ export async function findAttentionItems(
     });
   }
 
+  // AYNI REZERVASYON İKİ FARKLI DAİREDE KAYITLI (kurucu 11-18 akşam: "hosta bir kez eşleştirme uyarısı çıkmalı"). Tutma kuralıyla AYNI
+  // yüklem (`booking-property-conflict.ts`): gönderici bu rezervasyonun otomatik mesajını tutuyor; satır ev sahibinin yanlış kaydı kaldırması
+  // için. Rezervasyon başına TEK satır, en yakın varış önce, tavanlı (aşım sessiz kalmaz: geçiş tabanlı alarm). Arıza öteki satırları düşürmez.
+  const twoProperties = await activeBookingConflicts(prisma, { organizationId, now }).catch(
+    (err): { conflicts: ActiveBookingConflict[]; capped: boolean } => {
+      void alertOnTransition("attention:booking-two-properties", "attention booking_two_properties", err).catch(() => {});
+      return { conflicts: [], capped: false };
+    },
+  );
+  if (twoProperties.capped) {
+    void alertOnTransition(
+      `attention:booking-two-properties-cap:${organizationId}`,
+      "attention booking_two_properties cap",
+      new BookingTwoPropertiesCapExceeded(BOOKING_CONFLICT_ROW_CAP),
+    ).catch(() => {});
+  }
+  // Tek daireye daraltılmış çağrıda yalnız o daireyi içeren çakışma (öteki daire kapsam dışında olsa da çakışma çakışmadır).
+  const twoPropertyRows = twoProperties.conflicts.filter((c) => c.properties.some((p) => inScope.has(p.id)));
+  if (twoPropertyRows.length > 0) {
+    // Varış günü işletmenin takviminden (tek tarih kuralı) — yalnız satır varsa okunur (sakin günde ek sorgu yok).
+    const tz = orgTimezone(
+      decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
+    );
+    for (const c of twoPropertyRows) {
+      const arrivalDay = calendarDateOf(c.arrivalDate, tz).key;
+      const [y, m, d] = arrivalDay.split("-").map(Number);
+      const own = c.properties.find((p) => inScope.has(p.id)) ?? c.properties[0];
+      items.push({
+        kind: "booking_two_properties",
+        // GÖZLEM: iki kayıt da bizim kayıtlarımız; yorum yok.
+        certainty: "observed",
+        propertyId: own.id,
+        propertyName: own.name,
+        // Sonucu `channel_reactivation` ile aynı (misafir otomatik karşılama / giriş bilgisi almaz) → aynı sıra.
+        severity: 85,
+        occurredAt: new Date(Date.UTC(y, m - 1, d)),
+        // İki daireyi birlikte gösteren yüzey: varış ayının takvimi (daire süzgeçsiz).
+        href: `/calendar?month=${arrivalDay.slice(0, 7)}`,
+        rowKey: c.rowKey,
+        bookingPropertyNames: c.properties.map((p) => p.name),
+        arrivalDay,
+      });
+    }
+  }
+
   // KANAL İPTALLİ REZERVASYONU YENİDEN ETKİN GÖSTERİYOR (G9, kurucu kararı 10-13 "Kanal açmasın, iCal aynı"). Yazma servisi satırı
   // iptal TUTAR ve günde en çok bir olay düşer; burada son REACTIVATION_ATTENTION_DAYS günün olayından, hâlâ iptal olan ve konaklaması
   // bitmemiş rezervasyon başına TEK satır. Kanal etkin göstermeyi bırakınca satır kendiliğinden kalkar. Arıza öteki satırları düşürmez.
@@ -808,6 +862,13 @@ export async function findAttentionItems(
     return a.occurredAt.getTime() - b.occurredAt.getTime();
   });
   return items.slice(0, ATTENTION_MAX_ITEMS);
+}
+
+class BookingTwoPropertiesCapExceeded extends Error {
+  constructor(cap: number) {
+    super(`booking_two_properties rows exceed cap ${cap}`);
+    this.name = "BookingTwoPropertiesCapExceeded";
+  }
 }
 
 /**
