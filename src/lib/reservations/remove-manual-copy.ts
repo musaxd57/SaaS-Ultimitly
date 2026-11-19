@@ -44,12 +44,40 @@ function hasActiveCopyElsewhere(rows: readonly SiblingRow[], self: { id: string;
 /** Test kancası: sınıf okunduktan SONRA, silme işleminden ÖNCE (yarış testi — arada satır kaynağa bağlanır). */
 export const __manualCopyHooks: { afterClassRead: null | (() => Promise<void>) } = { afterClassRead: null };
 
-export async function removeManualBookingCopy(input: {
+type RemoveInput = {
   organizationId: string;
   reservationId: string;
   /** Etkinlik kuralının saati (testler sabitler). */
   now?: Date;
-}): Promise<RemoveManualCopyResult> {
+};
+
+/** Veritabanı kilitlenmesi (PostgreSQL 40P01; Prisma işlem çakışması P2034): işlem bütünüyle geri alınmıştır, yeniden denemek güvenlidir. */
+function isDeadlock(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  return e?.code === "P2034" || (typeof e?.message === "string" && /\b40P01\b|deadlock detected/i.test(e.message));
+}
+
+/** Kilitlenme olursa en çok bu kadar deneme (ilki dahil). */
+const DEADLOCK_ATTEMPTS = 3;
+
+/**
+ * (G1 11-19 T2-B6) Senkron tarih yazımı rezervasyon SATIRINI kilitleyip sonra rezervasyon (görev) kilidini ister; silme yolu tersini yapar
+ * (rezervasyon kilidi → satır) — sıra silmede çevrilemez, çünkü görev açma da önce rezervasyon kilidini alıp sonra görev ekleyerek satıra
+ * anahtar kilidi koyar (çevirmek onunla yeni bir kilitlenme doğururdu). İkisi aynı anda koşarsa PostgreSQL birini geri alır: geri alınan
+ * kaldırma isteği bütünüyle geri alınmıştır ve baştan (sınıf + son kopya kontrolü yeniden okunarak) denenir; senkron kurban seçilirse bir
+ * sonraki geçişte yeniden dener. Başka hata aynen fırlatılır.
+ */
+export async function removeManualBookingCopy(input: RemoveInput): Promise<RemoveManualCopyResult> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await removeOnce(input);
+    } catch (err) {
+      if (!isDeadlock(err) || attempt >= DEADLOCK_ATTEMPTS) throw err;
+    }
+  }
+}
+
+async function removeOnce(input: RemoveInput): Promise<RemoveManualCopyResult> {
   const scope = { id: input.reservationId, property: { organizationId: input.organizationId } };
   const row = await prisma.reservation.findFirst({
     where: scope,
