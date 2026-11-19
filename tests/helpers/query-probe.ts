@@ -6,19 +6,22 @@ import { prisma } from "@/lib/db";
 //  · SQL sayısı: Prisma'nın sorgu olayı (`$on("query")`). Test ortamında `src/lib/db.ts` olayı zaten açar (`DB_SLOW_QUERY_MS`
 //    varsayılanı 1000 > 0 → `{ emit: "event", level: "query" }`); kapalı bulunursa ölçüm boş kalır ve `probeQueries` FIRLATIR
 //    (sessiz sıfır = sahte kazanç olurdu).
-//  · Prisma çağrısı + derinlik: `$use` ara katmanı her çağrının başlangıç / bitiş anını yazar ve başlangıçta sabit gecikme ekler.
-//    Derinlik(çağrı) = 1 + max(derinlik(ö) : ö.bitiş <= çağrı.başlangıç). Gecikme yüzünden aynı `Promise.all` içindeki çağrılar
-//    birbirinin bitişini göremez; ardışık çağrı öncekinin bitişinden sonra başlar. Gecikme, kritik yol boyunca biriken gerçek sorgu /
-//    işlem süresi farkından BÜYÜK seçilmeli: küçükse dallar arası kayma sahte bir bağımlılık (+1) üretir (ölçüldü: pano 12 ms'de 10 / 11
-//    arasında oynuyor, 30-50 ms'de sabit; ağır yük altında çok dallı yüzeyde yine nadiren +1).
-// Ara katman ve dinleyici süreç başına BİR kez kurulur (Prisma kaldırma yolu vermez); ölçüm dışında hiçbir şey yapmaz.
+//  · Prisma çağrısı + derinlik (`depth: true`): `$use` ara katmanı çağrıları TURLARA böler. Bir tur ancak önceki turun bütün çağrıları
+//    bittikten ve iş `quietMs` boyunca yeni çağrı yapmadıktan sonra salıverilir; çağrının turu = verildiği andaki tur + 1. Böylece
+//    birbirinden bağımsız çağrılar aynı tura düşer, bir sonuca BAĞLI çağrı bir sonraki tura. Derinlik = tur sayısı. Ölçüm saate bağlı
+//    DEĞİLDİR: yük altındaki duraklama yalnız turu geciktirir, çağrıyı yanlış tura koymaz (ilk sürüm sabit gecikme + zaman sırası
+//    kullanıyordu; yükte dallar arası kayma sahte +1 üretiyordu — ölçüldü).
+//    Sınır: bir çağrı, sonucunu beklediği çağrıdan `quietMs`ten uzun süre sonra (veritabanı dışı bir beklemeyle) verilirse ayrı tura
+//    düşebilir; istek yolunda böyle bir bekleme yok.
+// Ara katman ve dinleyici süreç başına BİR kez kurulur (Prisma kaldırma yolu vermez); ölçüm dışında çağrıyı olduğu gibi geçirir.
 // ---------------------------------------------------------------------------
 
 export interface ProbeOp {
   op: string;
+  /** Çağrının turu (1 = iş başlarken verilen çağrılar). `depth: true` değilse hep 1. */
+  round: number;
   start: number;
   end: number;
-  depth: number;
 }
 
 export interface ProbeResult<T> {
@@ -27,7 +30,7 @@ export interface ProbeResult<T> {
   sql: number;
   /** Prisma istemci çağrısı sayısı (iç içe `include` tek çağrıdır, birden çok SQL olabilir). */
   ops: number;
-  /** En uzun ardışık Prisma çağrısı zinciri. */
+  /** En uzun ardışık Prisma çağrısı zinciri (tur sayısı); `depth: true` değilse 0. */
   depth: number;
   /** "model.işlem" → sayı. */
   byOp: Record<string, number>;
@@ -35,14 +38,79 @@ export interface ProbeResult<T> {
   timeline: ProbeOp[];
 }
 
+interface Gate {
+  op: string;
+  round: number;
+  run: () => Promise<unknown>;
+  resolve: (v: unknown) => void;
+  reject: (e: unknown) => void;
+}
+
 interface ActiveProbe {
   sql: string[];
-  ops: { op: string; start: number; end: number }[];
-  delayMs: number;
+  ops: ProbeOp[];
+  rounds: boolean;
+  quietMs: number;
+  released: number;
+  inFlight: number;
+  queue: Gate[];
+  lastIssue: number;
+  timer: ReturnType<typeof setTimeout> | null;
 }
 
 let installed = false;
 let active: ActiveProbe | null = null;
+
+function schedule(p: ActiveProbe): void {
+  if (p.timer) return;
+  p.timer = setTimeout(() => {
+    p.timer = null;
+    if (p.inFlight > 0 || p.queue.length === 0) return;
+    const quietFor = performance.now() - p.lastIssue;
+    if (quietFor < p.quietMs) {
+      p.timer = setTimeout(() => {
+        p.timer = null;
+        schedule(p);
+      }, p.quietMs - quietFor);
+      return;
+    }
+    release(p);
+  }, p.quietMs);
+}
+
+function release(p: ActiveProbe): void {
+  p.released++;
+  const batch = p.queue;
+  p.queue = [];
+  for (const g of batch) {
+    p.inFlight++;
+    const rec: ProbeOp = { op: g.op, round: g.round, start: performance.now(), end: 0 };
+    p.ops.push(rec);
+    g.run().then(
+      (v) => {
+        rec.end = performance.now();
+        p.inFlight--;
+        g.resolve(v);
+        schedule(p);
+      },
+      (e) => {
+        rec.end = performance.now();
+        p.inFlight--;
+        g.reject(e);
+        schedule(p);
+      },
+    );
+  }
+}
+
+/** Ölçüm bitince bekleyen çağrılar olduğu gibi salıverilir (iş takılı kalmasın). */
+function drain(p: ActiveProbe): void {
+  if (p.timer) clearTimeout(p.timer);
+  p.timer = null;
+  const batch = p.queue;
+  p.queue = [];
+  for (const g of batch) g.run().then(g.resolve, g.reject);
+}
 
 function install(): void {
   if (installed) return;
@@ -57,35 +125,42 @@ function install(): void {
   client.$use(async (params, next) => {
     const probe = active;
     if (!probe) return next(params);
-    const start = performance.now();
-    if (probe.delayMs > 0) await new Promise((r) => setTimeout(r, probe.delayMs));
-    try {
-      return await next(params);
-    } finally {
-      probe.ops.push({ op: `${params.model ?? "$raw"}.${params.action}`, start, end: performance.now() });
+    const op = `${params.model ?? "$raw"}.${params.action}`;
+    if (!probe.rounds) {
+      const rec: ProbeOp = { op, round: 1, start: performance.now(), end: 0 };
+      probe.ops.push(rec);
+      try {
+        return await next(params);
+      } finally {
+        rec.end = performance.now();
+      }
     }
+    return new Promise((resolve, reject) => {
+      probe.queue.push({ op, round: probe.released + 1, run: () => next(params), resolve, reject });
+      probe.lastIssue = performance.now();
+      schedule(probe);
+    });
   });
 }
 
-function depthOf(ops: { op: string; start: number; end: number }[]): ProbeOp[] {
-  const sorted = [...ops].sort((a, b) => a.start - b.start);
-  const out: ProbeOp[] = [];
-  for (const o of sorted) {
-    let d = 1;
-    for (const p of out) if (p.end <= o.start && p.depth + 1 > d) d = p.depth + 1;
-    out.push({ ...o, depth: d });
-  }
-  return out;
-}
-
 /**
- * `fn`i sonda altında koşturur. `delayMs` > 0: her Prisma çağrısına gecikme (derinlik ölçümü için; sayım için 0 yeter).
+ * `fn`i sonda altında koşturur. `depth: true`: çağrılar turlara bölünür (derinlik ölçümü; her tur ≈ `quietMs` gecikir). Sayım için gerekmez.
  * Aynı anda tek sonda (iç içe çağrı fırlatır).
  */
-export async function probeQueries<T>(fn: () => Promise<T>, opts: { delayMs?: number } = {}): Promise<ProbeResult<T>> {
+export async function probeQueries<T>(fn: () => Promise<T>, opts: { depth?: boolean; quietMs?: number } = {}): Promise<ProbeResult<T>> {
   install();
   if (active) throw new Error("probeQueries: iç içe sonda desteklenmez");
-  const probe: ActiveProbe = { sql: [], ops: [], delayMs: opts.delayMs ?? 0 };
+  const probe: ActiveProbe = {
+    sql: [],
+    ops: [],
+    rounds: opts.depth === true,
+    quietMs: opts.quietMs ?? 15,
+    released: 0,
+    inFlight: 0,
+    queue: [],
+    lastIssue: 0,
+    timer: null,
+  };
   active = probe;
   let result: T;
   try {
@@ -94,21 +169,21 @@ export async function probeQueries<T>(fn: () => Promise<T>, opts: { delayMs?: nu
     await new Promise((r) => setTimeout(r, 20));
   } finally {
     active = null;
+    drain(probe);
   }
   if (probe.ops.length > 0 && probe.sql.length === 0) {
     throw new Error("probeQueries: Prisma sorgu olayı kapalı — SQL sayımı yapılamaz (DB_SLOW_QUERY_MS=0?)");
   }
-  const timeline = depthOf(probe.ops);
   const byOp: Record<string, number> = {};
   for (const o of probe.ops) byOp[o.op] = (byOp[o.op] ?? 0) + 1;
   return {
     result,
     sql: probe.sql.length,
     ops: probe.ops.length,
-    depth: timeline.reduce((m, o) => Math.max(m, o.depth), 0),
+    depth: probe.rounds ? probe.ops.reduce((m, o) => Math.max(m, o.round), 0) : 0,
     byOp,
     sqlTexts: probe.sql,
-    timeline,
+    timeline: [...probe.ops].sort((a, b) => a.start - b.start),
   };
 }
 
