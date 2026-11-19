@@ -63,7 +63,9 @@ export default async function InboxPage({
     ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" as const } } : {}),
   };
 
-  const [total, conversations, org, channelConnected] = await Promise.all([
+  // 🚀 Plan kapısı ve (Sorunlu sekmesinde) triyaj satırları da bu turda (optimizasyon turu 11-19; sayfa 30 sn'de bir yenilenir; ölçüm
+  // `tests/integration/request-path-queries.test.ts`): ikisi de yalnız oturum + süzgece bakar, listeyi beklemeleri gerekmiyordu.
+  const [total, conversations, org, channelConnected, premiumOk, triageRows] = await Promise.all([
     prisma.conversation.count({ where }),
     prisma.conversation.findMany({
       where,
@@ -97,11 +99,42 @@ export default async function InboxPage({
       },
     }),
     hasMessagingConnection(session.organizationId),
+    premiumAllowed(session.organizationId),
+    // ── m48: "Açık sorunlar — triyaj" (yalnız Sorunlu sekmesinde) ─────────────
+    // 🚨 MODEL ÇAĞRISI YOK: escalation ANINDA yazılmış analiz okunuyor.
+    // ⚠️ Sorgu YALNIZ `status === "problem"` iken koşar — diğer sekmelerde tek
+    // bir DB turu bile harcanmaz. Kolonlar konuşma "problem"den çıkarken
+    // SİLİNMİYOR (tarihsel kayıt); görünürlüğü sağlayan şey tam da bu filtre.
+    status === "problem"
+      ? prisma.conversation.findMany({
+          where: { ...where, aiTriagedAt: { not: null } },
+          select: {
+            id: true,
+            lastMessageAt: true,
+            lastRiskType: true,
+            aiActionSuggestion: true,
+            aiMissingInfoJson: true,
+            aiTriageSource: true,
+            aiTriageTriggerMessageId: true,
+            aiTriagedAt: true,
+            property: { select: { name: true } },
+            // Bayatlık ölçüsü: tetikleyici mesaj ile SON inbound mesaj aynı mı.
+            messages: {
+              where: { direction: "inbound" },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: 1,
+              select: { id: true },
+            },
+          },
+          orderBy: [{ lastMessageAt: "asc" }], // en uzun bekleyen ÜSTTE
+          take: 20,
+        })
+      : [],
   ]);
 
   // Free/expired tier: automation is suppressed server-side — render the
   // controls inert so they don't misleadingly read "Açık".
-  const automationLocked = !(await premiumAllowed(session.organizationId));
+  const automationLocked = !premiumOk;
   const demo = isDemoOrg(session.organizationId);
 
 
@@ -130,38 +163,6 @@ export default async function InboxPage({
     conversationIds: conversations.map((c) => c.id),
     excludeItemIds: decisionSummary.itemIds,
   }).catch(() => new Map<string, number>());
-
-  // ── m48: "Açık sorunlar — triyaj" (yalnız Sorunlu sekmesinde) ─────────────
-  // 🚨 MODEL ÇAĞRISI YOK: escalation ANINDA yazılmış analiz okunuyor.
-  // ⚠️ Sorgu YALNIZ `status === "problem"` iken koşar — diğer sekmelerde tek
-  // bir DB turu bile harcanmaz. Kolonlar konuşma "problem"den çıkarken
-  // SİLİNMİYOR (tarihsel kayıt); görünürlüğü sağlayan şey tam da bu filtre.
-  const triageRows =
-    status === "problem"
-      ? await prisma.conversation.findMany({
-          where: { ...where, aiTriagedAt: { not: null } },
-          select: {
-            id: true,
-            lastMessageAt: true,
-            lastRiskType: true,
-            aiActionSuggestion: true,
-            aiMissingInfoJson: true,
-            aiTriageSource: true,
-            aiTriageTriggerMessageId: true,
-            aiTriagedAt: true,
-            property: { select: { name: true } },
-            // Bayatlık ölçüsü: tetikleyici mesaj ile SON inbound mesaj aynı mı.
-            messages: {
-              where: { direction: "inbound" },
-              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-              take: 1,
-              select: { id: true },
-            },
-          },
-          orderBy: [{ lastMessageAt: "asc" }], // en uzun bekleyen ÜSTTE
-          take: 20,
-        })
-      : [];
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
   // Boş-durum başlığı seçili sekmenin ADIYLA konuşsun, soyut "filtre" diliyle
