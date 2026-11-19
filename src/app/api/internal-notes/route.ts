@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { auditActor } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { KB_REQUEST_ID_RE, zodFieldErrors } from "@/lib/validators";
 import { KB_IDEMPOTENCY_CONFLICT } from "@/lib/kb/request-id";
@@ -44,7 +45,7 @@ export const GET = withManage(async (session, req) => {
   const rawLimit = Number(sp.get("limit") ?? INTERNAL_NOTE_PAGE_MAX);
   const result = await listInternalNotes({
     organizationId: session.organizationId,
-    viewer: { userId: session.userId, role: session.role },
+    viewer: { userId: session.userId, role: session.role, auditActorId: auditActor(session) },
     target,
     limit: Number.isFinite(rawLimit) ? rawLimit : INTERNAL_NOTE_PAGE_MAX,
     cursor: pick("cursor"),
@@ -64,7 +65,7 @@ export const POST = withManage(async (session, req) => {
 
   const result = await createInternalNote({
     organizationId: session.organizationId,
-    viewer: { userId: session.userId, role: session.role },
+    viewer: { userId: session.userId, role: session.role, auditActorId: auditActor(session) },
     sessionName: session.name,
     target: { conversationId: d.conversationId, reservationId: d.reservationId, propertyId: d.propertyId },
     body: d.body,

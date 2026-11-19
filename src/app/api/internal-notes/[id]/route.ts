@@ -1,5 +1,6 @@
 import { forbidden, jsonOk, notFound } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { auditActor } from "@/lib/audit";
 import { deleteInternalNote } from "@/lib/internal-notes/service";
 
 // ---------------------------------------------------------------------------
@@ -11,7 +12,7 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   const { id } = await params;
   const result = await deleteInternalNote({
     organizationId: session.organizationId,
-    viewer: { userId: session.userId, role: session.role },
+    viewer: { userId: session.userId, role: session.role, auditActorId: auditActor(session) },
     noteId: id,
   });
   if (result.kind === "not_found") return notFound();

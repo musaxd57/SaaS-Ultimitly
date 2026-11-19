@@ -185,6 +185,11 @@ describe("iç not (gerçek PostgreSQL)", () => {
     expect((await list(`propertyId=${b.propertyId}`)).status).toBe(404);
     expect((await del(bNote.note.id)).status).toBe(404);
     expect(await prisma.internalNote.count({ where: { id: bNote.note.id } })).toBe(1);
+    // 🚨 YÖNETİCİ de 404 alır, 403 DEĞİL: başka işletmenin notu "yazarı değilsiniz" diye reddedilseydi notun VARLIĞI sızardı.
+    session = await member(a.orgId, "manager", "A Yönetici");
+    expect((await del(bNote.note.id)).status).toBe(404);
+    expect(await prisma.internalNote.count({ where: { id: bNote.note.id } })).toBe(1);
+    session = await member(a.orgId, "owner", "A Sahip 2");
     // Başka işletmenin notunu imleç yapmak da onun sayfasını açmaz.
     const own = (await (await list(`conversationId=${a.conversationId}&cursor=${bNote.note.id}`)).json()) as { notes: NoteJson[] };
     expect(own.notes).toEqual([]);
@@ -277,6 +282,11 @@ describe("iç not (gerçek PostgreSQL)", () => {
     expect(r.status).toBe(409);
     expect(((await r.json()) as { code: string }).code).toBe("idempotency_conflict");
     expect((await post({ conversationId: w.bareId, body: "ilk", requestId: RID("e") })).status).toBe(409);
+    // Yalnız KONUŞMA bağlamı farklı (aynı daire + aynı konaklama — konaklamanın ikinci konuşması): yine başka istek → 409.
+    const twin = await prisma.conversation.create({
+      data: { propertyId: w.propertyId, reservationId: w.reservationId, channel: "airbnb", guestIdentifier: "Ada", status: "waiting" },
+    });
+    expect((await post({ conversationId: twin.id, body: "ilk", requestId: RID("e") })).status).toBe(409);
     expect(await prisma.internalNote.findMany({ select: { body: true } })).toEqual([{ body: "ilk" }]);
     // Aynı metin baş / son boşlukla gelirse aynı istektir (temizlenmiş metin kıyaslanır).
     expect((await post({ conversationId: w.conversationId, body: " ilk ", requestId: RID("e") })).status).toBe(200);

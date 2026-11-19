@@ -47,6 +47,11 @@ export interface InternalNoteView {
 export interface InternalNoteViewer {
   userId: string;
   role: string;
+  /**
+   * Denetim kaydının faili (`auditActor(session)` — bürünmede operatör; kural `tests/unit/audit-actor-scoping.test.ts`). Verilmezse
+   * `userId` (oturum öncesi / iç çağrılar). Silme yetkisi ve yazan kişi yine `userId`'den.
+   */
+  auditActorId?: string;
 }
 
 /** Bağı işletme kapsamında çözer; bulunamazsa (yok ya da başka işletmenin) `null`. */
@@ -214,7 +219,7 @@ export async function createInternalNote(input: {
       // Denetim kaydı: kim, hangi bağa — METİN YOK (ayar denetim kalıbı: alan adları / kimlikler, değerler değil).
       await writeAuditInTx(tx, {
         organizationId: input.organizationId,
-        actorUserId: input.viewer.userId,
+        actorUserId: input.viewer.auditActorId ?? input.viewer.userId, // fail: çağıranın `auditActor(session)`ı (bürünmede operatör)
         action: "internal_note.create",
         metadata: {
           noteId: note.id,
@@ -257,7 +262,7 @@ export async function deleteInternalNote(input: {
     if (removed.count === 0) return { kind: "not_found" } as const;
     await writeAuditInTx(tx, {
       organizationId: input.organizationId,
-      actorUserId: input.viewer.userId,
+      actorUserId: input.viewer.auditActorId ?? input.viewer.userId, // fail: çağıranın `auditActor(session)`ı (bürünmede operatör)
       action: "internal_note.delete",
       metadata: {
         noteId: note.id,
