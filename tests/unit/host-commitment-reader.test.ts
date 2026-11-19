@@ -149,6 +149,10 @@ describe("hızlı kod doğrulaması — yalnız TUTAR", () => {
     const inch = 'Salondaki 55" TV için usta "yarın 10\'da gelirim" dedi.';
     expect(quotedSpans(inch).map(([a, b]) => inch.slice(a, b))).toEqual(["yarın 10'da gelirim"]);
     expect(quotedSpans('saat "10" olur')).toEqual([[6, 8]]); // rakamdan sonraki düz tırnak KAPANIŞ olabilir
+    // Satır sonunda kapanmamış düz tırnak sonraki satıra TAŞINMAZ (mutasyon c1-straight-across-lines yaşadı → eksik pin): taşınsaydı ilk
+    // satırın açılışı ikinci satırın ilk tırnağıyla eşleşir, gerçek alıntı aralık dışında kalırdı.
+    const carried = 'Not: "kapanmadı\nUsta "yarın gelirim" dedi.';
+    expect(quotedSpans(carried).map(([a, b]) => carried.slice(a, b))).toEqual(["yarın gelirim"]);
     // Kapanmayan kıvrık tırnak mesajın geri kalanındaki alıntıları yutmaz; aynı türün yeni açılışı eskisinin yerine geçer.
     const open = 'Not “ kapanmadı. Usta "yarın gelirim" dedi, “tamam” dedim.';
     expect(quotedSpans(open).map(([a, b]) => open.slice(a, b))).toEqual(["yarın gelirim", "tamam"]);

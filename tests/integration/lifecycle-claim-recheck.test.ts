@@ -557,6 +557,32 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     },
   );
 
+  // Sınır (mutasyon b1-stale-on-arrival-day yaşadı → eksik pin): bayatlık varış günü GEÇİNCE başlar; varış GÜNÜNDE tutulan satır iptal
+  // edilmez — ev sahibi o gün yanlış kaydı kaldırırsa mesaj hâlâ işe yarar ve gider.
+  it.each(["welcome", "checkin"] as const)(
+    "🚨 iki daire (%s): varış GÜNÜNDE tutulan satır iptal EDİLMEZ (bekler); yanlış kayıt o gün kaldırılınca gider",
+    async (kind) => {
+      const { orgId, drain, row, posts } = await holdSetup(kind);
+      const a = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-a" } });
+      const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: orgId, name: "Başka Daire" } });
+      const sibling = await prisma.reservation.create({
+        data: { propertyId: other.id, guestName: a.guestName, arrivalDate: a.arrivalDate, departureDate: a.departureDate, channel: "airbnb", status: "confirmed", sourceReference: "res-a" },
+      });
+      // Varış ŞU AN (bugün), çıkış iki gün sonra — iki kayıt da aynı tarihte.
+      await prisma.reservation.updateMany({ where: { sourceReference: "res-a" }, data: { arrivalDate: new Date(), departureDate: new Date(Date.now() + 2 * DAY) } });
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+      await drain();
+      expect(posts()).toBe(0);
+      expect((await row()).status).toBe("pending"); // iptal DEĞİL
+
+      await prisma.reservation.delete({ where: { id: sibling.id } });
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { availableAt: new Date(Date.now() - 1_000) } });
+      await drain();
+      expect(posts()).toBe(1);
+      expect((await row()).status).toBe("sent");
+    },
+  );
+
   it.each(["welcome", "checkin"] as const)(
     "KONTROL (%s): çakışma YOKKEN varışı geçmiş kuyruk satırı eskisi gibi gider (yeni hüküm yalnız iki dairede kayıtlı rezervasyonda)",
     async (kind) => {

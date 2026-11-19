@@ -98,6 +98,17 @@ describe("migration 99 — iç not + anlam okuması gölge kaydı: yaşam döng�
       expect((await prisma.internalNote.findMany()).map((n) => n.id)).toEqual([fresh.id]);
     });
 
+    // Mutasyon m99-ret-note-any-age yaşadı → eksik pin: konaklamaya bağlı notun yaşı KONAKLAMANIN bitişinden sayılır, notun yazılma anından
+    // değil. Rezervasyon aylar önce yapılmış, not o gün yazılmış olabilir; konaklama henüz saklama süresini doldurmadıysa not durur.
+    it("konaklamaya bağlı ESKİ not, konaklamanın süresi dolmadıysa KALIR (yaş konaklamanın bitişinden sayılır)", async () => {
+      vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+      const w = await world();
+      const recent = await w.stay({ arrivalDate: subMonths(new Date(), 23), departureDate: subMonths(new Date(), 22) });
+      const kept = await w.note({ reservationId: recent.id, createdAt: AGED() });
+      await anonymizeOldGuestData();
+      expect((await prisma.internalNote.findMany()).map((n) => n.id)).toEqual([kept.id]);
+    });
+
     it("🚨 konaklamaya bağlı olmayan konuşmanın ESKİ okuması yaşıyla silinir; yenisi kalır", async () => {
       vi.stubEnv("DATA_RETENTION_MONTHS", "24");
       const w = await world();
