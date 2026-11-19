@@ -4545,11 +4545,29 @@ export async function applyChannelAutoReply(
   // zamanı artık talebin alındığı an: bu andan sonra içeri alınan her misafir mesajı ya talebi durdurur (↓ `unseenInbound`) ya da cevaptan
   // SONRA sayılır (yeniden değerlendirilir / "Yeni" kalır).
   const claimedAt = new Date();
+  // 🚨 SON KONTROL — REZERVASYON İPTAL EDİLMEDİ (ÖLÇ 11-19 gece; kurucu 11-19 akşam: "rezervasyon ve erişim gibi değişken bilgilerin son
+  // kontrolünü koru"). Tur başındaki iptal kontrolü model çağrılarından ÖNCE; model düşünürken (2–10 sn) senkron rezervasyonu iptal ederse
+  // Wi-Fi şifresi / giriş bilgisi yine gidiyordu (ölçüldü). Şart talebin KENDİSİNDE (ilişki süzgeci, ek sorgu yok): kontrol ile talep
+  // arasına iptal giremez. Kuyruk yolunun gönderim anı kuralıyla aynı (`outbox/worker.ts` "reservation_cancelled", Codex 11-04 P1).
+  // Bağlı rezervasyonu olmayan konuşma (rezervasyon öncesi soru) bugünkü gibi geçer.
+  const reservationLive: Prisma.ConversationWhereInput = conversation.reservation
+    ? { reservation: { is: { status: { not: "cancelled" } } } }
+    : {};
   const claim = await prisma.conversation.updateMany({
-    where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound } },
+    where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound }, ...reservationLive },
     data: { status: "answered" },
   });
   if (claim.count === 0) {
+    // Talep iptal yüzünden düştüyse sonuç tur başındaki iptal kontrolüyle AYNI (gönderim yok, sebep görünür).
+    if (conversation.reservation) {
+      const cancelled = await prisma.reservation
+        .count({ where: { id: conversation.reservation.id, status: "cancelled" } })
+        .catch(() => 0);
+      if (cancelled > 0) {
+        if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
+        return { sent: false, skippedReason: "reservation_ended", draft, ...meta };
+      }
+    }
     const unseen = await prisma.message
       .count({ where: { conversationId: conversation.id, ...unseenInbound } })
       .catch(() => 0);
