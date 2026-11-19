@@ -40,16 +40,28 @@ class LostRace extends Error {}
 
 const addressAad = (bindingId: string, organizationId: string) => `staff-channel-address:v1:${bindingId}:${organizationId}`;
 
-export type CreateTeamContactResult = { ok: true; userId: string; name: string } | { ok: false; reason: "bad_name" };
+/** İşletme başına en çok ekip kişisi (giriş yapamayan personel; kayıt seli freni, plan sınırı değil). */
+export const TEAM_CONTACTS_MAX_PER_ORG = 50;
+/** Ekip kişisi sınırı danışma kilidi ad alanı (diğerleri: 23 · 40–50). İşletme başına. */
+const TEAM_CONTACT_CAP_LOCK_NS = 51;
+
+export type CreateTeamContactResult = { ok: true; userId: string; name: string } | { ok: false; reason: "bad_name" | "limit" };
 
 export async function createTeamContact(input: { organizationId: string; name: unknown; now?: Date }): Promise<CreateTeamContactResult> {
   const name = normalizeTeamContactName(input.name);
   if (!name) return { ok: false, reason: "bad_name" };
   const now = input.now ?? new Date();
   // Rastgele, hiçbir yerde saklanmayan parolanın özeti: `passwordHash` zorunlu kolon; `loginDisabled` zaten girişi kapatır, bu ikinci kemer.
+  // Özet kilidin DIŞINDA hesaplanır (yavaş; kilit yalnız say + yaz süresince tutulur).
   const passwordHash = await hashPassword(randomBytes(32).toString("hex"));
-  const user = await prisma.$transaction((tx) =>
-    createUserWithMembership(
+  // Sayım + oluşturma TEK işlemde, işletme başına danışma kilidi altında (G2 T2-B9; bilgi tabanı sınırının kalıbı, `kb/cap-lock.ts`).
+  // Eskiden rota kilitsiz sayıp sonra yazıyordu: 48 kişi varken 15 eşzamanlı istek 60–63 kişi üretti. Kilit işlem sonunda (commit'ten
+  // sonra) bırakılır → sıradaki istek öncekinin satırını sayar; sınırdaki istek hiç yazmaz (silme / geri alma ara durumu yok).
+  const user = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${TEAM_CONTACT_CAP_LOCK_NS}::int4, hashtext(${input.organizationId}))`);
+    const count = await tx.user.count({ where: { organizationId: input.organizationId, loginDisabled: true } });
+    if (count >= TEAM_CONTACTS_MAX_PER_ORG) return null;
+    return createUserWithMembership(
       tx,
       {
         organizationId: input.organizationId,
@@ -61,8 +73,9 @@ export async function createTeamContact(input: { organizationId: string; name: u
         emailVerifiedAt: now,
       },
       "team",
-    ),
-  );
+    );
+  });
+  if (!user) return { ok: false, reason: "limit" };
   return { ok: true, userId: user.id, name: user.name };
 }
 
