@@ -1993,7 +1993,9 @@ export function detectPromptInjection(message: string): boolean {
   // Her aday biçimde (homoglif / ayraçlı yazım dahil — "S.İ.S.T.E.M"); çizgi + başlık penceresi satır sonundan bağımsız.
   for (const cand of candidatesOf(message)) {
     if (INJECTION_PATTERNS.some((re) => re.test(cand))) return true;
-    if (INJECTION_PATTERNS_ASCII.some((re) => re.test(foldTurkishAscii(cand)))) return true;
+    // Aday başına BİR katlama (O3 11-19): eskiden `.some` içinde her ASCII kalıp için yeniden katlanıyordu.
+    const ascii = foldTurkishAscii(cand);
+    if (INJECTION_PATTERNS_ASCII.some((re) => re.test(ascii))) return true;
     if (hasDividerHeaderSpoof(cand)) return true;
   }
   return false;
