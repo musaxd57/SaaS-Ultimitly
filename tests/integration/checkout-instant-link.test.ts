@@ -289,6 +289,24 @@ describe("ödeme anında doğrulama + kendiliğinden bağlama", () => {
     expect(await prisma.webhookEvent.count()).toBe(1); // yalnız gerçek bildirim
   });
 
+  it("🚨 hesapta BAŞKA bir abonelik kayıtlıysa 'zaten bağlı' sayılmaz: yeni ödemenin aboneliği okunur, 'açık' yalnız O abonelik bağlıysa denir", async () => {
+    const c = await openCheckout();
+    // Ödeme ekranı açıldıktan sonra hesapta başka (eski) bir Paddle aboneliği kayıtlı görünüyor.
+    await prisma.subscription.upsert({
+      where: { organizationId: orgId },
+      create: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_old" },
+      update: { planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_old" },
+    });
+    paid(c.transactionId, "sub_new", sub("sub_new", c.consentId));
+    paddle.reads.length = 0;
+    const res = await verify({ consentId: c.consentId, transactionId: c.transactionId });
+    // ⬅️ Kısa yol ("zaten bağlı") yalnız AYNI abonelik için: eski aboneliğin "etkin" durumu yeni ödemeyi doğrulanmış saydıramaz.
+    expect(paddle.reads).toEqual([c.transactionId, "sub_new"]);
+    const local = await localSub(orgId);
+    if (res.json.state === "active") expect(local?.providerRef).toBe("sub_new");
+    else expect(res.json.state).toBe("awaiting");
+  });
+
   it("🚨 plan BİR KEZ etkinleşir: okuma iki kez + aynı anda iki okuma + ardından Paddle'ın (daha eski zamanlı) gerçek bildirimi → tek abonelik, durum aynı", async () => {
     const c = await openCheckout();
     paid(c.transactionId, "sub_1", sub("sub_1", c.consentId));

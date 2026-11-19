@@ -13,7 +13,7 @@ vi.mock("@/lib/report-error", async (orig) => ({
 }));
 
 import { reportError } from "@/lib/report-error";
-import { replyItemsDetail, replyItemsPromptId, sweepReplyItemsShadow } from "@/lib/ai/semantic/reply-items-shadow";
+import { REPLY_ITEMS_SHADOW_DAILY_CAP_PER_ORG, replyItemsDetail, replyItemsPromptId, sweepReplyItemsShadow } from "@/lib/ai/semantic/reply-items-shadow";
 import { REPLY_ITEMS_MAX, type ReplyItemsReaderResult } from "@/lib/ai/semantic/reply-items-reader";
 import { verifyReplyItemsReading, type ReplyItemRef, type ReplyItemStatement } from "@/lib/ai/semantic/reply-items-verdict";
 import { hostCommitmentSeenText } from "@/lib/ai/semantic/host-commitment-reader";
@@ -124,12 +124,13 @@ describe("cevap ↔ istek — gölge okuma turu", () => {
 
   it("🚨 açık isteği OLMAYAN mesaj aday değildir (satır yazılmaz); mesajdan SONRA açılan ve kapanmış istek sayılmaz", async () => {
     const w = await world();
-    await w.hostMessage("İyi tatiller.", 30); // hiç istek yokken yazılmış
-    await w.item("wifi", 20, { status: "answered" }); // yapay zekâ cevaplamış (kapalı)
+    await w.item("wifi", 40, { status: "answered" }); // mesajdan ÖNCE açılmış ama yapay zekâ cevaplamış (kapalı) → aday yapmaz
+    await w.hostMessage("İyi tatiller.", 30); // açık isteği yokken yazılmış
     await w.item("parking", 5); // mesajdan SONRA açıldı
     const other = await world();
     await other.item("cleaning_linen", 40, { status: "pending_host" }); // ev sahibine bırakılmış → açık iş
     const read = await other.hostMessage(TOWELS, 10);
+    await other.item("parking", 5); // mesajdan SONRA açılan istek modele GİTMEZ (mesaj ona cevap olamaz)
     const reader = vi.fn(async (input: { message: string; items: readonly ReplyItemRef[] }) => okFor(input.message, input.items, []));
     expect((await sweepReplyItemsShadow(new Date(), { reader })).read).toBe(1);
     expect((await rows()).map((r) => r.messageId)).toEqual([read.id]);
@@ -139,6 +140,7 @@ describe("cevap ↔ istek — gölge okuma turu", () => {
 
   it(`modele en çok ${REPLY_ITEMS_MAX} istek gider (en eskiler); otomasyon / yapay zekâ satırı ve gelen mesaj aday değildir`, async () => {
     const w = await world();
+    await w.item("other", 60 * 50); // pencere dışındaki mesajdan da ESKİ bir açık istek: o mesajı yalnız 48 saat kuralı eler
     for (let i = 0; i < REPLY_ITEMS_MAX + 2; i++) await w.item("other", 100 - i);
     await w.hostMessage("Giriş bilgileriniz…", 3, { authorType: "automation" });
     await w.hostMessage("Havluları getireceğiz.", 2, { authorType: "ai" });
@@ -176,6 +178,29 @@ describe("cevap ↔ istek — gölge okuma turu", () => {
     expect(reader).toHaveBeenCalledTimes(1);
   });
 
+  it("günlük sınır AYNI tur içinde de sayılır: sınıra bir okuma kalmışken iki aday → biri okunur, öteki model çağrılmadan 'budget'", async () => {
+    const w = await world();
+    await w.item("cleaning_linen", 60);
+    const first = await w.hostMessage(TOWELS, 20);
+    const second = await w.hostMessage("Havluları kapıya bıraktık.", 10);
+    const now = new Date();
+    await prisma.semanticReading.createMany({
+      data: Array.from({ length: REPLY_ITEMS_SHADOW_DAILY_CAP_PER_ORG - 1 }, (_, i) => ({
+        organizationId: w.orgId,
+        conversationId: w.conversationId,
+        messageId: `eski-${i}`,
+        layer: "reply_items",
+        outcome: "ok",
+        createdAt: now,
+      })),
+    });
+    const reader = vi.fn(async (input: { message: string; items: readonly ReplyItemRef[] }) => okFor(input.message, input.items, []));
+    expect(await sweepReplyItemsShadow(now, { reader })).toEqual({ read: 1, budget: 1, stoppedOnTransient: false });
+    expect(reader).toHaveBeenCalledTimes(1);
+    expect((await prisma.semanticReading.findFirstOrThrow({ where: { messageId: first.id } })).outcome).toBe("ok");
+    expect((await prisma.semanticReading.findFirstOrThrow({ where: { messageId: second.id } })).outcome).toBe("budget");
+  });
+
   it("🚨 HİÇBİR davranış değişmez: öğelerin durumu, konuşma ve mesajlar turdan sonra birebir aynı", async () => {
     const w = await world();
     await w.item("complaint_issue", 20);
@@ -200,9 +225,18 @@ describe("cevap ↔ istek — gölge okuma turu", () => {
     const w = await world();
     await w.item("cleaning_linen", 10);
     const m = await w.hostMessage(TOWELS);
-    await sweepReplyItemsShadow(new Date(), { reader: async (input) => okFor(input.message, input.items, []) });
-    await sweepHostCommitmentShadow(new Date(), { reader: async () => ({ ok: false, error: "bad_shape", model: "test-model", ms: 1 }) });
-    expect((await rows()).filter((r) => r.messageId === m.id).map((r) => r.layer).sort()).toEqual(["host_commitment", "reply_items"]);
+    const replyReader = async (input: { message: string; items: readonly ReplyItemRef[] }) => okFor(input.message, input.items, []);
+    const commitmentReader = async () => ({ ok: false as const, error: "bad_shape", model: "test-model", ms: 1 });
+    await sweepReplyItemsShadow(new Date(), { reader: replyReader });
+    // İkinci mesajı ÖNCE öteki katman okur: onun satırı bu katmanın "henüz okunmamış" süzgecini kapatmamalı.
+    const w2 = await world();
+    await w2.item("wifi", 10);
+    const m2 = await w2.hostMessage(TOWELS);
+    await sweepHostCommitmentShadow(new Date(), { reader: commitmentReader });
+    await sweepReplyItemsShadow(new Date(), { reader: replyReader });
+    for (const id of [m.id, m2.id]) {
+      expect((await rows()).filter((r) => r.messageId === id).map((r) => r.layer).sort(), id).toEqual(["host_commitment", "reply_items"]);
+    }
   });
 
   it("`replyItemsDetail` alıntı metnini ve çağrıya özgü kimliği taşımaz", () => {

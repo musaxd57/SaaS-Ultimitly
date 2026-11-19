@@ -143,6 +143,9 @@ describe("konuşma silme → kuyruk iptal edilir, sağlayıcı ÇAĞRILMAZ", () 
 
     expect((await outbox(rowB.outboxId)).status).toBe("pending"); // yabancı kiracı — dokunulmadı
     expect((await outbox(rowOther.outboxId)).status).toBe("pending"); // aynı org, başka konuşma — dokunulmadı
+    // İptal İSTEĞİ de yalnız silinen konuşmanın satırlarına yazılır: istek başka satıra yazılsaydı o satır bir sonraki geçişte iptal olurdu.
+    expect((await outbox(rowB.outboxId)).cancelRequestedAt).toBeNull();
+    expect((await outbox(rowOther.outboxId)).cancelRequestedAt).toBeNull();
   });
 
   it("KONTROL: silinmemiş konuşmanın satırı normal TESLİM edilir (aşırı-uygulama değil)", async () => {

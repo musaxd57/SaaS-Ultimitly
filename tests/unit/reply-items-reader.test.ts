@@ -25,6 +25,7 @@ import {
   type ReplyItemStatement,
 } from "@/lib/ai/semantic/reply-items-verdict";
 import { quoteSpanIn } from "@/lib/ai/semantic/host-commitment-verdict";
+import { hostCommitmentSeenText } from "@/lib/ai/semantic/host-commitment-reader";
 import { ALL_UNDERSTANDING_INTENTS } from "@/lib/ai/semantic/understanding-schema";
 
 afterEach(() => {
@@ -179,6 +180,36 @@ describe("okuyucu — anahtar, istem, şema, ayrıştırma", () => {
     expect((await readReplyItems({ message: TEXT, items: GIVEN })).ok).toBe(false);
     vi.stubGlobal("fetch", vi.fn(async () => modelReply({ items: [{ ref: "i1", relation: "solved", quote: "", why: "" }] })));
     expect(await readReplyItems({ message: TEXT, items: GIVEN })).toMatchObject({ ok: false, error: "bad_shape" });
+  });
+});
+
+describe("okuyucu — sınır durumları (mutasyonda yaşayanlar için)", () => {
+  it("istek listesi BOŞSA kapsam 'none'dur ('all' değil: karşılanan bir şey yok)", () => {
+    expect(verifyReplyItemsReading(TEXT, [], []).coverage).toBe("none");
+    expect(verifyReplyItemsReading(TEXT, [], [st({ ref: "ix", relation: "answers", quote: "Çıkış saatimiz 11:00" })])).toMatchObject({ coverage: "none", invented: 1 });
+  });
+
+  it("🚨 sağlayıcının GEÇİCİ arızası 'transient' işaretiyle döner (tur satır yazmaz, sonra yeniden dener); kalıcı hata işaretsiz", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("down", { status: 503 })));
+    const down = await readReplyItems({ message: TEXT, items: GIVEN });
+    expect(down).toMatchObject({ ok: false, transient: true });
+    vi.stubGlobal("fetch", vi.fn(async () => modelReply({ items: "bozuk" })));
+    const bad = await readReplyItems({ message: TEXT, items: GIVEN });
+    expect(bad).toMatchObject({ ok: false, error: "bad_shape" });
+    expect("transient" in bad).toBe(false);
+  });
+
+  it("🚨 alıntı modelin GÖRDÜĞÜ metne göre doğrulanır (adı maskelenmiş metin), ham mesaja göre değil", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const message = "Ada Hanım, havluları getiriyoruz.";
+    const seen = hostCommitmentSeenText({ message, names: ["Ada"] });
+    expect(seen).not.toBe(message); // ad maskelendi → model başka bir metin görüyor
+    // Model gördüğü metnin TAMAMINI alıntılıyor: ham mesajda bu dize geçmez.
+    vi.stubGlobal("fetch", vi.fn(async () => modelReply({ items: [st({ ref: "i2", relation: "undertakes", quote: seen })] })));
+    const res = await readReplyItems({ message, items: GIVEN, names: ["Ada"] });
+    expect(res.ok && res.verdict.items[1]).toMatchObject({ relation: "undertakes" });
+    expect(res.ok && res.verdict.ungrounded).toBe(0);
   });
 });
 

@@ -135,10 +135,13 @@ describe("kuyruk — gönderim başlangıcı ile iptal aynı satırda karar veri
     expect(await requestOutboxCancel({ organizationId: s.orgId, id: s.rowId }, "host_took_over")).toEqual({ canceled: 0, requested: 1, dispatching: 0 });
     // İşçi satırı gönderim başlangıcına varmadan geri bırakır (ör. rezervasyon bekletmesi).
     await prisma.messageOutbox.update({ where: { id: s.rowId }, data: { status: "pending", claimedBy: null, claimExpiresAt: null, availableAt: new Date(Date.now() - 1_000) } });
+    const attemptsBefore = (await rowOf(s.rowId)).attemptCount;
     const send = vi.fn<OutboxSendFn>(ok);
-    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    const out = await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(send).not.toHaveBeenCalled();
-    expect(await rowOf(s.rowId)).toMatchObject({ status: "canceled", lastErrorCode: "host_took_over" });
+    // TALEP EDİLMEDEN kapanır (geçiş başı temizliği): satır işçinin gönderim öncesi kontrollerine hiç girmez, deneme sayılmaz.
+    expect(out.claimed).toBe(0);
+    expect(await rowOf(s.rowId)).toMatchObject({ status: "canceled", lastErrorCode: "host_took_over", attemptCount: attemptsBefore });
   });
 
   it("geçiş başı temizliği yapılamasa da (iptal isteği taşıyan satır talep edilirse) gönderim başlangıcı reddeder", async () => {
@@ -154,6 +157,11 @@ describe("kuyruk — gönderim başlangıcı ile iptal aynı satırda karar veri
     await prisma.messageOutbox.update({ where: { id: s.rowId }, data: { status: "sending", claimedBy: "w2", claimExpiresAt: new Date(Date.now() + 60_000) } });
     expect(await markDispatchStarted({ id: s.rowId, token: "w1", now: new Date() })).toEqual({ kind: "lost" }); // başkasının talebi
     expect((await rowOf(s.rowId)).dispatchStartedAt).toBeNull();
+    // Kendi talebinde ama UZLAŞTIRMADA olan satır (isteği önceki denemede çıkmış, sonucu aranıyor): yeni gönderim başlangıcı yazılmaz.
+    await prisma.messageOutbox.update({ where: { id: s.rowId }, data: { status: "reconciling" } });
+    expect(await markDispatchStarted({ id: s.rowId, token: "w2", now: new Date() })).toEqual({ kind: "lost" });
+    expect((await rowOf(s.rowId)).dispatchStartedAt).toBeNull();
+    await prisma.messageOutbox.update({ where: { id: s.rowId }, data: { status: "sending" } });
     expect(await markDispatchStarted({ id: s.rowId, token: "w2", now: new Date() })).toEqual({ kind: "started" });
   });
 
