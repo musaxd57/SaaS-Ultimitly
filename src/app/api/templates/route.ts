@@ -1,10 +1,10 @@
-import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { zodFieldErrors } from "@/lib/validators";
-import { DEFAULT_TEMPLATES } from "@/lib/templates";
+import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { createTemplateWithinCap, messageTemplateCapMessage } from "@/lib/template-cap";
+import { listTemplatePage } from "@/lib/template-list";
 
 const templateCreateSchema = z.object({
   // "Tüm mülkler" (org-wide template) arrives as null from the form — nullish
@@ -18,26 +18,22 @@ const templateCreateSchema = z.object({
   language: z.string().max(10).default("tr"),
 });
 
+// Mesaj yazarken açılan şablon seçicisinin listesi (kurucu 11-19 akşam madde 1). Eskiden işletmenin BÜTÜN etkin şablonlarını tam gövdeyle
+// tek yanıtta döküyordu (T2-B8: 3.000 şablonda 284 MB yığın). Artık yönetim sayfasıyla AYNI sınırlı sorgu (`lib/template-list.ts`): sayfa
+// başına en çok 30 kalem, kısa önizleme; tam metin seçilince `GET /api/templates/[id]`. `q` işletmenin bütün şablonlarında arar; `page` 1'den.
+// Yanıt `{ items, total, page, pageSize, hasMore }` (eskiden dizi; tek çağıran seçici).
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
-  const propertyId = searchParams.get("propertyId") ?? undefined;
-  const includeDefaults = searchParams.get("includeDefaults") !== "false";
-
-  const dbTemplates = await prisma.messageTemplate.findMany({
-    where: {
-      organizationId: session.organizationId,
-      isActive: true,
-      ...(propertyId ? { OR: [{ propertyId }, { propertyId: null }] } : {}),
+  const page = await listTemplatePage(session.organizationId, {
+    scope: {
+      kind: "compose",
+      propertyId: searchParams.get("propertyId") || null,
+      includeDefaults: searchParams.get("includeDefaults") !== "false",
     },
-    orderBy: { createdAt: "asc" },
+    query: searchParams.get("q") ?? "",
+    page: clampPage(searchParams.get("page") ?? undefined, MAX_LIST_PAGE),
   });
-
-  const result = [
-    ...dbTemplates.map((t) => ({ ...t, isDefault: false })),
-    ...(includeDefaults ? DEFAULT_TEMPLATES : []),
-  ];
-
-  return jsonOk(result);
+  return jsonOk(page);
 });
 
 export const POST = withManage(async (session, req) => {

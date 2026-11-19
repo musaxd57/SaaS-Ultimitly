@@ -89,13 +89,27 @@ const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
  */
 const BLOCKED_AI_LABEL = "Abonelik pasif — bu cevap gönderilmeyecek";
 
+/** Seçici listesindeki kalem: tam gövde YOK, kısa önizleme var (tam metin seçilince `GET /api/templates/[id]`). */
 interface TemplateItem {
   id: string;
   title: string;
-  body: string;
+  preview: string;
   category: string;
   language: string;
   isDefault?: boolean;
+}
+
+/** Tam şablon okunamadığında (sunucu iletisi yoksa) panelde gösterilen metin. */
+const TEMPLATE_LOAD_FAILED_TEXT = "Şablon yüklenemedi. Lütfen tekrar deneyin.";
+
+/** `GET /api/templates` yanıtı — biçim dışı gövde boş sayfa sayılır (eski dizi biçimi dahil). */
+function readTemplatePage(data: unknown): { items: TemplateItem[]; page: number; hasMore: boolean } {
+  const d = (data && typeof data === "object" ? data : {}) as { items?: unknown; page?: unknown; hasMore?: unknown };
+  return {
+    items: Array.isArray(d.items) ? (d.items as TemplateItem[]) : [],
+    page: typeof d.page === "number" ? d.page : 1,
+    hasMore: d.hasMore === true,
+  };
 }
 
 interface Suggestion {
@@ -323,6 +337,25 @@ export function ConversationThread({
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState(false);
+  // Kurucu 11-19 akşam madde 1: liste sunucuda sayfalı (en çok 30) + arama sunucuda + tam metin seçilince ayrı istekle.
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [templatesPage, setTemplatesPage] = useState(1);
+  const [templatesHasMore, setTemplatesHasMore] = useState(false);
+  const [templatesMoreLoading, setTemplatesMoreLoading] = useState(false);
+  const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null);
+  /** Liste görünürken çıkan hata (devamı / tam metin okunamadı) — listeyi silmeden panelde duyurulur. */
+  const [templatesNotice, setTemplatesNotice] = useState<string | null>(null);
+  /** Son başlatılan liste isteğinin sırası: yavaş dönen eski arama yenisinin sonucunu ezmesin. */
+  const templatesRequestSeq = useRef(0);
+  /** Ekrandaki listeyi üreten arama ("Daha fazla göster" aynı aramanın sonraki sayfasını ister; kutuda yazılan henüz aranmamış olabilir). */
+  const [templatesListQuery, setTemplatesListQuery] = useState("");
+  const templateSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (templateSearchTimer.current) clearTimeout(templateSearchTimer.current);
+    },
+    [],
+  );
 
   // Translate state: messageId -> translated text
   const [translations, setTranslations] = useState<Record<string, string>>({});
@@ -621,36 +654,107 @@ export function ConversationThread({
       return;
     }
     if (templates.length > 0) {
+      setTemplatesNotice(null);
       setShowTemplates(true);
       return;
     }
+    setShowTemplates(true);
+    await searchTemplates(templateQuery.trim());
+  }
+
+  /** Şablon listesinin bir sayfası (sunucu en çok 30 kalem döner; arama sunucuda, işletmenin bütün şablonlarında). */
+  async function fetchTemplatePage(query: string, page: number) {
+    const params = new URLSearchParams();
+    if (propertyId) params.set("propertyId", propertyId);
+    if (query) params.set("q", query);
+    if (page > 1) params.set("page", String(page));
+    const qs = params.toString();
+    const res = await fetch(qs ? `/api/templates?${qs}` : "/api/templates");
+    return res.ok ? readTemplatePage(await res.json()) : null;
+  }
+
+  /** Listeyi verilen aramanın ilk sayfasıyla değiştirir. */
+  async function searchTemplates(query: string) {
+    const seq = ++templatesRequestSeq.current;
     setTemplatesLoading(true);
     setTemplatesError(false);
-    setShowTemplates(true);
+    setTemplatesNotice(null);
     try {
-      const url = propertyId
-        ? `/api/templates?propertyId=${propertyId}`
-        : "/api/templates";
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(Array.isArray(data) ? data : []);
-      } else {
+      const page = await fetchTemplatePage(query, 1);
+      if (seq !== templatesRequestSeq.current) return;
+      if (!page) {
         setTemplatesError(true);
+        return;
       }
+      setTemplatesListQuery(query);
+      setTemplates(page.items);
+      setTemplatesPage(page.page);
+      setTemplatesHasMore(page.hasMore);
     } catch {
-      setTemplatesError(true);
+      if (seq === templatesRequestSeq.current) setTemplatesError(true);
     } finally {
-      setTemplatesLoading(false);
+      if (seq === templatesRequestSeq.current) setTemplatesLoading(false);
     }
   }
 
-  function applyTemplate(t: TemplateItem) {
-    // Kural + gerekçeler `@/lib/template-apply` içinde (saf ve test edilebilir;
-    // bu bileşenin içindeyken tek geçiş/belirteç sözleşmesi pinlenemiyordu).
-    setComposer(applyTemplateBody(t.body, templateVars));
-    setComposerSource(null);
-    setShowTemplates(false);
+  /** Arama kutusu: yazmayı bitirince (300 ms) sunucuya sorar. */
+  function onTemplateQueryChange(value: string) {
+    setTemplateQuery(value);
+    if (templateSearchTimer.current) clearTimeout(templateSearchTimer.current);
+    templateSearchTimer.current = setTimeout(() => void searchTemplates(value.trim()), 300);
+  }
+
+  /** Aynı aramanın sonraki sayfası listeye eklenir (arada eklenen şablon iki kez görünmesin diye kimlikle tekilleştirilir). */
+  async function loadMoreTemplates() {
+    const seq = templatesRequestSeq.current;
+    setTemplatesMoreLoading(true);
+    setTemplatesNotice(null);
+    try {
+      const next = await fetchTemplatePage(templatesListQuery, templatesPage + 1);
+      if (seq !== templatesRequestSeq.current) return;
+      if (!next) {
+        setTemplatesNotice("Şablonlar yüklenemedi. Lütfen tekrar deneyin.");
+        return;
+      }
+      setTemplates((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        return [...prev, ...next.items.filter((t) => !seen.has(t.id))];
+      });
+      setTemplatesPage(next.page);
+      setTemplatesHasMore(next.hasMore);
+    } catch {
+      if (seq === templatesRequestSeq.current) setTemplatesNotice("Şablonlar yüklenemedi. Lütfen tekrar deneyin.");
+    } finally {
+      setTemplatesMoreLoading(false);
+    }
+  }
+
+  /**
+   * Liste yalnız önizleme taşır; TAM metin seçilince ayrı istekle alınır (kurucu 11-19 akşam madde 1). Okunamazsa mesaj kutusuna dokunulmaz,
+   * panel açık kalır ve sebep duyurulur; şablon arada silindiyse (404) listeden de düşer.
+   */
+  async function applyTemplate(item: TemplateItem) {
+    if (applyingTemplateId) return;
+    setApplyingTemplateId(item.id);
+    setTemplatesNotice(null);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(item.id)}`);
+      const t = (await res.json().catch(() => null)) as { body?: unknown; error?: unknown } | null;
+      if (!res.ok || typeof t?.body !== "string") {
+        if (res.status === 404) setTemplates((prev) => prev.filter((x) => x.id !== item.id));
+        setTemplatesNotice(typeof t?.error === "string" ? t.error : TEMPLATE_LOAD_FAILED_TEXT);
+        return;
+      }
+      // Kural + gerekçeler `@/lib/template-apply` içinde (saf ve test edilebilir;
+      // bu bileşenin içindeyken tek geçiş/belirteç sözleşmesi pinlenemiyordu).
+      setComposer(applyTemplateBody(t.body, templateVars));
+      setComposerSource(null);
+      setShowTemplates(false);
+    } catch {
+      setTemplatesNotice(TEMPLATE_LOAD_FAILED_TEXT);
+    } finally {
+      setApplyingTemplateId(null);
+    }
   }
 
   async function translateMessage(messageId: string) {
@@ -1039,6 +1143,26 @@ export function ConversationThread({
                     <X className="size-3.5" />
                   </button>
                 </div>
+                {/* Arama sunucuda, işletmenin BÜTÜN şablonlarında (liste yalnız ilk 30'u taşır — kurucu 11-19 akşam madde 1). */}
+                <div className="px-1 pb-1">
+                  <label htmlFor={`conv-templates-search-${conversationId}`} className="sr-only">
+                    Şablonlarda ara
+                  </label>
+                  <input
+                    id={`conv-templates-search-${conversationId}`}
+                    type="search"
+                    value={templateQuery}
+                    onChange={(e) => onTemplateQueryChange(e.target.value)}
+                    maxLength={100}
+                    placeholder="Şablonlarda ara…"
+                    className="h-10 w-full rounded-md border border-border bg-background px-2.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8"
+                  />
+                </div>
+                {templatesNotice ? (
+                  <p role="alert" className="px-2.5 py-1.5 text-xs text-destructive">
+                    {templatesNotice}
+                  </p>
+                ) : null}
                 {/* YÜKLENİYOR dalı önce gelmeli: panel fetch'ten ÖNCE açılıyor
                     (loadTemplates önce setShowTemplates(true) yapıyor), dolayısıyla
                     bu dal olmadan `templates` hâlâ [] iken ekrana "Şablon
@@ -1056,27 +1180,46 @@ export function ConversationThread({
                   </p>
                 ) : templates.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">
-                    Şablon bulunamadı. Şablonlar sayfasından ekleyebilirsiniz.
+                    {/* Aramada "sayfadan ekleyebilirsiniz" yanıltır: şablon var, yalnız aranan ifadeyle eşleşmiyor. */}
+                    {templatesListQuery
+                      ? "Şablon bulunamadı."
+                      : "Şablon bulunamadı. Şablonlar sayfasından ekleyebilirsiniz."}
                   </p>
                 ) : (
-                  templates.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => applyTemplate(t)}
-                      className="block w-full rounded-md px-2.5 py-2 text-left hover:bg-muted"
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{t.title}</span>
-                        <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
-                          {t.language}
+                  <>
+                    {templates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => applyTemplate(t)}
+                        disabled={applyingTemplateId !== null}
+                        aria-busy={applyingTemplateId === t.id}
+                        className="block w-full rounded-md px-2.5 py-2 text-left hover:bg-muted disabled:opacity-60"
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{t.title}</span>
+                          <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase text-muted-foreground">
+                            {applyingTemplateId === t.id ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : null}
+                            {t.language}
+                          </span>
                         </span>
-                      </span>
-                      <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                        {t.body}
-                      </span>
-                    </button>
-                  ))
+                        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+                          {t.preview}
+                        </span>
+                      </button>
+                    ))}
+                    {templatesHasMore ? (
+                      <button
+                        type="button"
+                        onClick={() => void loadMoreTemplates()}
+                        disabled={templatesMoreLoading}
+                        className="mt-1 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 sm:min-h-8"
+                      >
+                        {templatesMoreLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
+                        Daha fazla göster
+                      </button>
+                    ) : null}
+                  </>
                 )}
               </div>
             ) : null}

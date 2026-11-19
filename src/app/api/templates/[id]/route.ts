@@ -5,6 +5,7 @@ import { badRequest, jsonOk, notFound, propertyInOrg, readJsonCappedOrNull } fro
 import { withManage } from "@/lib/route-guard";
 import { isStorableDate, zodFieldErrors } from "@/lib/validators";
 import { KB_STALE_EDIT_MESSAGE } from "@/lib/kb/stale-edit";
+import { getTemplateDetail } from "@/lib/template-list";
 
 // Bounds mirror templateCreateSchema (templates/route.ts) so an update can't
 // store an unbounded payload the create path would have rejected.
@@ -32,6 +33,16 @@ const templateUpdateSchema = z.object({
   // eski form onun metnini sessizce GERİ YAZMASIN → 409, form açık kalır. İsteğe bağlı: göndermeyen çağıran (eski istemci) bugünkü gibi
   // koşulsuz yazar. Yazılmaz, yalnız koşul (bilgi tabanı düzenleyicisiyle aynı sözleşme, `api/kb/[id]`).
   expectedUpdatedAt: z.string().max(40).optional(),
+});
+
+// Seçilen şablonun TAM metni (kurucu 11-19 akşam madde 1): liste yalnız kısa önizleme taşır; mesaj yazarken seçicide seçim ve yönetim
+// sayfasında "Düzenle" gövdeyi buradan alır. İşletme kapsamında (başka işletmenin kimliği 404); `default-…` kimliği koddaki hazır şablon.
+// Pasif şablon da okunur (yönetim sayfası düzenler; seçici listesi zaten yalnız etkinleri gösterir).
+export const GET = withManage<{ id: string }>(async (session, _req, { params }) => {
+  const { id } = await params;
+  const template = await getTemplateDetail(session.organizationId, id);
+  if (!template) return notFound();
+  return jsonOk(template);
 });
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
