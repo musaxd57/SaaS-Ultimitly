@@ -51,6 +51,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "property.bulk_supply_profile_set": "Malzeme profili dairelere uygulandı",
   "calendar_source.added": "Takvim bağlantısı eklendi",
   "calendar_source.removed": "Takvim bağlantısı silindi",
+  "reservation.manual_copy_removed": "İki dairede görünen rezervasyonun elle girilen kopyası kaldırıldı",
   "decision.approved": "Karar kartı: misafirin talebi onaylandı",
   "decision.declined": "Karar kartı: misafirin talebi reddedildi",
   "decision.dismissed": "Karar kartı kapatıldı",

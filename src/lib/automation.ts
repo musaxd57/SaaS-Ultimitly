@@ -1663,16 +1663,31 @@ export async function removeAutoTasksForCancelledReservation(
  * BAŞLANMAMIŞ ve DOKUNULMAMIŞ (güncelleme / fotoğraf / kontrol listesi işareti yok) — başlanmış görev ve temizlikçinin fotoğrafı iş
  * kanıtıdır, bağsız kalır (Haiku gece-4: önceki biçim başlanmış görevi fotoğraflarıyla siliyordu). Görev açmayla AYNI rezervasyon kilidi
  * (görev açan işlem ya önce biter → görevini burada sileriz, ya sonra koşar → rezervasyonu bulamaz, açmaz). Silinen rezervasyon sayısını döner.
+ *
+ * `opts.onlyWhere` (UA-1, 11-19): yalnız bu süzgeci de karşılayan satırlar silinir — süzgeç işlemin İÇİNDE, satırlar kilitlenerek okunur
+ * (karşılaştırma sayfasının kaldırma ucu: okuma ile silme arasında bir besleme satırı benimseyip kaynağa bağlarsa silinmez). Verilmezse
+ * davranış eskisiyle aynı (sorgu da aynı).
  */
-export async function deleteReservationsWithAutoTasks(ids: string[], organizationId: string): Promise<number> {
+export async function deleteReservationsWithAutoTasks(
+  ids: string[],
+  organizationId: string,
+  opts: { onlyWhere?: Prisma.ReservationWhereInput } = {},
+): Promise<number> {
   const unique = [...new Set(ids)].sort();
   if (unique.length === 0) return 0;
   return prisma.$transaction(async (tx) => {
     for (const id of unique) {
       await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${id}))`);
     }
+    if (opts.onlyWhere) {
+      // Süzgeçli silme: satırlar KİLİTLENİR (senkronun satır güncellemesi bu işlem bitene kadar bekler), süzgeç kilitten SONRA okunur.
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Reservation" WHERE "id" IN (${Prisma.join(unique)}) ORDER BY "id" FOR UPDATE`);
+    }
     const owned = (
-      await tx.reservation.findMany({ where: { id: { in: unique }, property: { organizationId } }, select: { id: true } })
+      await tx.reservation.findMany({
+        where: { id: { in: unique }, property: { organizationId }, ...(opts.onlyWhere ? { AND: [opts.onlyWhere] } : {}) },
+        select: { id: true },
+      })
     ).map((r) => r.id);
     if (owned.length === 0) return 0;
     const candidates = (

@@ -71,6 +71,8 @@ const COVERAGE: Record<string, Record<string, string>> = {
   "reservations/[id]/erase": { GET: "tests/integration/reservation-erase-route.test.ts", POST: "tests/integration/reservation-erase-route.test.ts" },
   "reservations/[id]/checkin-message": { GET: "tests/integration/checkin-now.test.ts", POST: "tests/integration/checkin-now.test.ts" },
   "reservations/[id]/reactivate": { POST: "tests/integration/reservation-reactivate-route.test.ts" },
+  // UA-1 (11-19): başka işletmenin elle girilen kopyası 404, satır yerinde (sahip de yönetici de).
+  "reservations/[id]/manual-copy": { DELETE: "tests/integration/reservation-manual-copy-route.test.ts" },
   "storage/photo/[...key]": { GET: "tests/integration/storage-wiring.test.ts" },
   "tasks/[id]": { PATCH: "tests/integration/tasks-route.test.ts", DELETE: "tests/integration/tasks-route.test.ts" },
   "templates/[id]": { PATCH: "tests/integration/templates-route.test.ts", DELETE: "tests/integration/cross-tenant-handlers-more.test.ts" },
