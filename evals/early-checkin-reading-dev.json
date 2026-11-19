@@ -1,0 +1,42 @@
+{
+  "name": "early-checkin-reading-dev",
+  "version": 1,
+  "purpose": "Erken giriş İSTEĞİNİ okuma (kurucu 11-18 akşam, H-3: 'bunu testlerle yapalım … modeli örneklerle beslemeliyiz'; tasarım docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md §4). Etiketler bugünkü okumanın sözlüğüyle: requested (misafir erken giriş İSTİYOR mu — bilgi sorusu değil), kind (early_checkin / late_checkout / luggage / other), time (istenen saat HH:MM; açık değilse null — saat yalnız iki okuma aynıysa sayılır, belirsiz saat ev sahibine kalır). İki küme: 'train' isteme örnek olarak girebilir / ince ayar verisi olabilir; 'measure' ASLA eğitime ya da isteme girmez. Kör kabul seti ayrıca mühürlenir. Örneklerin hepsi elle yazıldı (gerçek mesaj kullanımı EG-3 sorusunda).",
+  "labels": {
+    "kind": ["early_checkin", "late_checkout", "luggage", "other"],
+    "split": ["train", "measure"]
+  },
+  "cases": [
+    { "id": "t01", "split": "train", "lang": "tr", "message": "Merhaba, yarın saat 12:00'de giriş yapabilir miyiz?", "requested": true, "kind": "early_checkin", "time": "12:00", "note": "düz istek, açık saat" },
+    { "id": "t02", "split": "train", "lang": "tr", "message": "Uçağımız sabah iniyor, biraz erken gelsek sorun olur mu?", "requested": true, "kind": "early_checkin", "time": null, "note": "istek var, saat yok → ev sahibine" },
+    { "id": "t03", "split": "train", "lang": "tr", "message": "Giriş saati kaçta acaba?", "requested": false, "kind": "other", "time": null, "note": "bilgi sorusu, istek değil" },
+    { "id": "t04", "split": "train", "lang": "tr", "message": "13 gibi orada oluruz, odaya girebilir miyiz?", "requested": true, "kind": "early_checkin", "time": "13:00", "note": "'13 gibi' = 13:00" },
+    { "id": "t05", "split": "train", "lang": "tr", "message": "Erken giriş ücretli mi?", "requested": false, "kind": "other", "time": null, "note": "ücret sorusu; istek açık değil" },
+    { "id": "t06", "split": "train", "lang": "tr", "message": "Vazgeçtik, normal saatte geleceğiz, teşekkürler.", "requested": false, "kind": "early_checkin", "time": null, "note": "geri çekme: istek YOK" },
+    { "id": "t07", "split": "train", "lang": "tr", "message": "Çıkışı biraz geç yapabilir miyiz, 13:00 gibi?", "requested": false, "kind": "late_checkout", "time": null, "note": "geç çıkış, erken giriş değil" },
+    { "id": "t08", "split": "train", "lang": "tr", "message": "Erken gelirsek bavullarımızı bırakabilir miyiz?", "requested": false, "kind": "luggage", "time": null, "note": "bavul bırakma erken giriş onayıyla cevaplanmaz" },
+    { "id": "t09", "split": "train", "lang": "tr", "message": "Öğlen gibi girebilir miyiz? Ücreti neyse öderiz.", "requested": true, "kind": "early_checkin", "time": null, "note": "'öğlen gibi' kesin saat değil; ücret kabulü bilgi olarak not" },
+    { "id": "t10", "split": "train", "lang": "tr", "message": "Saat 11:30'da daireye girebilirsek çok iyi olur.", "requested": true, "kind": "early_checkin", "time": "11:30", "note": "dolaylı istek, dakikalı saat" },
+    { "id": "t11", "split": "train", "lang": "en", "message": "Hi! Any chance we could check in around 1pm tomorrow?", "requested": true, "kind": "early_checkin", "time": "13:00", "note": "1pm = 13:00" },
+    { "id": "t12", "split": "train", "lang": "en", "message": "What time is check-in?", "requested": false, "kind": "other", "time": null, "note": "info question" },
+    { "id": "t13", "split": "train", "lang": "en", "message": "Our flight lands at 9am. Is an early check-in possible?", "requested": true, "kind": "early_checkin", "time": null, "note": "uçuş saati istenen giriş saati DEĞİLDİR" },
+    { "id": "t14", "split": "train", "lang": "en", "message": "Never mind the early check-in, we'll arrive at 3 as planned.", "requested": false, "kind": "early_checkin", "time": null, "note": "withdrawal" },
+    { "id": "t15", "split": "train", "lang": "de", "message": "Hallo, können wir morgen schon um 12 Uhr einchecken?", "requested": true, "kind": "early_checkin", "time": "12:00", "note": "12 Uhr" },
+    { "id": "t16", "split": "train", "lang": "de", "message": "Ist ein früher Check-in kostenpflichtig?", "requested": false, "kind": "other", "time": null, "note": "Preisfrage" },
+    { "id": "t17", "split": "train", "lang": "tr", "message": "Daire hazırsa 14:00'te gelelim, değilse 15'i bekleriz, sorun değil.", "requested": true, "kind": "early_checkin", "time": "14:00", "note": "koşullu ama açık istek" },
+    { "id": "t18", "split": "train", "lang": "tr", "message": "Yarın 12'de mi 13'te mi gelsek daha uygun olur?", "requested": true, "kind": "early_checkin", "time": null, "note": "iki saat → tek saat değil, ev sahibine" },
+
+    { "id": "m01", "split": "measure", "lang": "tr", "message": "Yarın 12:30'da girmemiz mümkün mü?", "requested": true, "kind": "early_checkin", "time": "12:30", "note": "düz istek" },
+    { "id": "m02", "split": "measure", "lang": "tr", "message": "Kaçta girebiliyoruz?", "requested": false, "kind": "other", "time": null, "note": "bilgi sorusu" },
+    { "id": "m03", "split": "measure", "lang": "tr", "message": "Sabah 10'da gelsek odaya geçebilir miyiz, yoksa bavulları mı bırakalım?", "requested": true, "kind": "early_checkin", "time": "10:00", "note": "istek + bavul seçeneği" },
+    { "id": "m04", "split": "measure", "lang": "tr", "message": "Erken girişten vazgeçiyoruz, akşam geleceğiz.", "requested": false, "kind": "early_checkin", "time": null, "note": "geri çekme" },
+    { "id": "m05", "split": "measure", "lang": "tr", "message": "Son gün çıkışı 14:00'e uzatabilir miyiz?", "requested": false, "kind": "late_checkout", "time": null, "note": "geç çıkış" },
+    { "id": "m06", "split": "measure", "lang": "tr", "message": "Biraz erken gelmemiz gerekebilir, öğleden sonra ilk iş girebilir miyiz?", "requested": true, "kind": "early_checkin", "time": null, "note": "belirsiz saat" },
+    { "id": "m07", "split": "measure", "lang": "en", "message": "Could we drop our bags at 11 and come back later?", "requested": false, "kind": "luggage", "time": null, "note": "luggage only" },
+    { "id": "m08", "split": "measure", "lang": "en", "message": "Would 12:15 work for check-in?", "requested": true, "kind": "early_checkin", "time": "12:15", "note": "minute time" },
+    { "id": "m09", "split": "measure", "lang": "en", "message": "Is early check-in free or is there a fee?", "requested": false, "kind": "other", "time": null, "note": "fee question" },
+    { "id": "m10", "split": "measure", "lang": "de", "message": "Wir kommen gegen 13 Uhr an – dürfen wir dann schon rein?", "requested": true, "kind": "early_checkin", "time": "13:00", "note": "gegen 13 Uhr" },
+    { "id": "m11", "split": "measure", "lang": "tr", "message": "Arkadaşımız 12'de gelebilir mi diye sordu, biz 15'te geleceğiz.", "requested": true, "kind": "early_checkin", "time": "12:00", "note": "üçüncü kişi adına istek — sınır vakası; ev sahibine kalması da kabul" },
+    { "id": "m12", "split": "measure", "lang": "tr", "message": "Dün sorduğum erken giriş için bir şey diyebildiniz mi?", "requested": true, "kind": "early_checkin", "time": null, "note": "takip mesajı; saat önceki mesajda" }
+  ]
+}
