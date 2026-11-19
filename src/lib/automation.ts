@@ -7107,6 +7107,42 @@ export async function sendDueCheckouts(
  * feature is off unless ALERT_EMAIL is set. Never throws: e-mail failures are
  * swallowed by the email service and the status write is guarded.
  */
+/** Uyarı geçişinin mesaj penceresinde okunan alanlar — kararın okuduğu kolonlar (yazar / yön / an / içeri alınma anı / metin). */
+export type MessageWindowRow = {
+  id: string;
+  direction: string;
+  body: string;
+  createdAt: Date;
+  authorType: string | null;
+  ingestedAt: Date | null;
+};
+
+/**
+ * Konuşma başına EN YENİ `cap` mesaj, `createdAt` azalan — TEK sorgu (O1, 11-19). Prisma'nın iç içe `take`i (`select: { messages:
+ * { take } }`) birden çok konuşmada SQL'e İNMEZ: aday konuşmaların BÜTÜN mesajlarını bütün kolonlarıyla okuyup bellekte keser — uzun
+ * thread'lerde her 2 dakikalık geçişte sınırsız okuma. Burada konuşma başına `LIMIT` (`(conversationId, createdAt)` dizini). Sıra kuralı
+ * eskisiyle aynı: yalnız `createdAt` azalan; eşit anlar arasındaki sıra iki yolda da tanımsız (ikinci anahtar eklenmedi). Mesajı olmayan
+ * konuşma haritada yer almaz. Kâhin (eski iç içe okuma) ile pinli: `tests/integration/alerts-message-window-bounded.test.ts`.
+ */
+export async function latestMessagesByConversation(ids: readonly string[], cap: number): Promise<Map<string, MessageWindowRow[]>> {
+  const out = new Map<string, MessageWindowRow[]>();
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return out;
+  const rows = await prisma.$queryRaw<(MessageWindowRow & { conversationId: string })[]>(Prisma.sql`
+    SELECT m."id", m."conversationId", m."direction", m."body", m."createdAt", m."authorType", m."ingestedAt"
+    FROM unnest(${unique}::text[]) AS c("id")
+    CROSS JOIN LATERAL (
+      SELECT * FROM "Message" WHERE "conversationId" = c."id" ORDER BY "createdAt" DESC LIMIT ${cap}
+    ) m
+    ORDER BY m."conversationId", m."createdAt" DESC`);
+  for (const { conversationId, ...m } of rows) {
+    const list = out.get(conversationId);
+    if (list) list.push(m);
+    else out.set(conversationId, [m]);
+  }
+  return out;
+}
+
 /** Uyarı yolunun kelime ağı hükmü: şikâyet ya da iade isteği. */
 function isAlertClass(k: ClassifyResult): boolean {
   return k.isComplaint || k.intent === "refund";
@@ -7162,18 +7198,26 @@ export async function sendDueAlerts(
   // Sorunlu konuşmada yeni tehlike talebi geri alınırken eski değerler geri konur (kurucu 10-31).
   lastRiskType: true,
     property: { select: { name: true, address: true, city: true } },
-    // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
-    // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
-    // getiriyordu, `classifyFallback` onu şikayet saymıyordu ve uyarı HİÇ
-    // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
-    // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
-    // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
-    // 🚨 Y6 (10-14 dış inceleme): 6 YETMEDİ — misafirin altı takip mesajı (ya da araya giren otomatik şablonlar; filtre okumadan
-    // SONRA) cevapsız şikâyeti pencereden itiyordu. Cevap modelinin geçmiş tavanıyla aynı derinlik (`HISTORY_MESSAGE_CAP`).
-    messages: { orderBy: { createdAt: "desc" }, take: HISTORY_MESSAGE_CAP },
   } as const;
+  // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
+  // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
+  // getiriyordu, `classifyFallback` onu şikayet saymıyordu ve uyarı HİÇ
+  // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
+  // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
+  // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
+  // 🚨 Y6 (10-14 dış inceleme): 6 YETMEDİ — misafirin altı takip mesajı (ya da araya giren otomatik şablonlar; filtre okumadan
+  // SONRA) cevapsız şikâyeti pencereden itiyordu. Cevap modelinin geçmiş tavanıyla aynı derinlik (`HISTORY_MESSAGE_CAP`).
+  // Pencere konuşma okumasının HEMEN ardından, konuşma başına LIMIT'le okunur (O1 — ↓`latestMessagesByConversation`; eskiden iç içe
+  // `take` birden çok konuşmada bütün thread'leri okuyordu).
+  const withMessageWindow = async <C extends { id: string }>(rows: C[]) => {
+    const windows = await latestMessagesByConversation(
+      rows.map((c) => c.id),
+      HISTORY_MESSAGE_CAP,
+    );
+    return rows.map((c) => ({ ...c, messages: windows.get(c.id) ?? [] }));
+  };
   // Unanswered conversations where the guest spoke last and that aren't flagged.
-  const candidates = await prisma.conversation.findMany({
+  const candidates = await withMessageWindow(await prisma.conversation.findMany({
     where: {
       property: { organizationId },
       // Kurucu T2: "olası tehlike" ile Sorunlu yapılmış konuşmada YENİ ve kelime ağının yakaladığı tehlike önceki olayın tekrarı DEĞİL —
@@ -7195,11 +7239,11 @@ export async function sendDueAlerts(
     // doğru yön "en yeni önce"dir: bayat yığın yeni şikayeti ezmemeli.
     orderBy: { lastMessageAt: "desc" },
     take: 50,
-  });
+  }));
   // 🚨 YENİ TEHLİKE ESKİ BİLDİRİMLE BASTIRILMAZ (kurucu 10-31, `docs/TASARIM-2026-10-31-devam-eden-tehlike-uyarisi.md` §6): şikâyetle / model
   // yoluyla / elle Sorunlu yapılmış konuşmada yeni bir tehlike mesajı hiçbir yoldan uyarılmıyordu (model yolu Sorunlu görünce erken döner).
   // Ayrı sorgu + ayrı tavan: Sorunlu satırlar yeni konuşmaları aç bırakmasın (↑ yaş penceresi notu).
-  const flagged = await prisma.conversation.findMany({
+  const flagged = await withMessageWindow(await prisma.conversation.findMany({
     where: {
       property: { organizationId },
       status: "problem",
@@ -7209,7 +7253,7 @@ export async function sendDueAlerts(
     select: CANDIDATE_SELECT,
     orderBy: { lastMessageAt: "desc" },
     take: 50,
-  });
+  }));
 
   let alerted = 0;
   let escalationEmailFailures = 0;
