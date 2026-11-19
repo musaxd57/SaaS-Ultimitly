@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
+import { toStorableText } from "@/lib/storable-text";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { clearBadSignatureThrottle, noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
 import { clearCheckoutPending, clearCheckoutPendingOnFailure } from "@/lib/billing/checkout-pending";
@@ -765,6 +766,19 @@ async function applyTransactionEvent(
 }
 
 /**
+ * İmzası DOĞRULANMIŞ gövdenin çözümlemesi (G2 E1, 11-19; A-1 sınıfının ödeme kolu). `custom_data` ödeme ekranını açan tarayıcıda kurulur:
+ * dize değerinde NUL ya da eşsiz vekil gelebilir (JSON'da kaçışla) ve o değer onay kaydı sorgusuna gidince olay HER teslimatta 500 +
+ * "paddle-webhook" uyarısı alıyordu. Kural `lib/storable-text.ts` ile aynı: dize DEĞERİNDEN bu karakterler sessizce silinir. İmza bunu
+ * etkilemez (ham gövdede, çözümlemeden ÖNCE doğrulanır); saklanan gövde de ham metindir (kaçışlı, saklanabilir).
+ * Anahtarlara DOKUNULMAZ — `parseJsonWithoutNul`un "anahtarda saklanamayan karakter → bozuk gövde" kuralı burada uygulanmaz: bu rotada
+ * bozuk gövde olayı İŞLEMEDEN 200 ile kapatır, istemcinin kurduğu tek bir `custom_data` anahtarı imzalı GERÇEK bir ödemeyi sessizce
+ * düşürürdü. Bu rotada hiçbir anahtar sorguya / kolona değer olarak gitmez.
+ */
+function parseVerifiedPaddleBody(rawBody: string): PaddleEvent {
+  return JSON.parse(rawBody, (_key, value: unknown) => (typeof value === "string" ? toStorableText(value) : value)) as PaddleEvent;
+}
+
+/**
  * Başlık GERÇEK bir Paddle teslimatının ŞEKLİNİ taşıyor mu?
  *
  * Amaç bir güvenlik kararı DEĞİL (kabul/ret kararını `verifyPaddleSignature`
@@ -923,7 +937,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   let event: PaddleEvent | null = null;
   try {
-    event = JSON.parse(rawBody) as PaddleEvent;
+    event = parseVerifiedPaddleBody(rawBody);
   } catch {
     event = null;
   }
