@@ -29,6 +29,7 @@ vi.mock("next/navigation", () => ({
 
 import { requireAuth } from "@/lib/auth";
 import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
+import ConversationPage from "@/app/(app)/inbox/[id]/page";
 
 const DELAY_MS = 12;
 const sp = <T,>(v: T) => Promise.resolve(v);
@@ -62,5 +63,21 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
     expect(reads.length).toBeGreaterThanOrEqual(14);
     expect(reads.every((o) => o.end <= writes[0].start)).toBe(true);
     expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(6);
+  });
+
+  it("/inbox/[id] (30 sn'de bir yenilenir): işletme okuması konuşmayı, sözler / iç notlar / dönen misafir ana turu beklemez (7 → 3)", async () => {
+    const f = await seedRequestPathOrg({ properties: 2 });
+    vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
+    const r = await probeQueries(() => ConversationPage({ params: sp({ id: f.arrivalConversationIds[0] }), searchParams: sp({}) }), { delayMs: DELAY_MS });
+    expect(r.byOp["GuestCommitment.findMany"], probeSummary(r)).toBe(1);
+    expect(r.byOp["InternalNote.findMany"], probeSummary(r)).toBe(1);
+    expect(r.ops, probeSummary(r)).toBeGreaterThanOrEqual(15);
+    expect(r.depth, probeSummary(r)).toBeLessThanOrEqual(3);
+  });
+
+  it("/inbox/[id] başka işletmenin / olmayan konuşma: 404 (işletme okuması öne alındı ama sonuç beklenmez)", async () => {
+    const f = await seedRequestPathOrg({ properties: 1 });
+    vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
+    await expect(ConversationPage({ params: sp({ id: "yok" }), searchParams: sp({}) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

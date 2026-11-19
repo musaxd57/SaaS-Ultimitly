@@ -82,6 +82,16 @@ export default async function ConversationPage({
   const rawFrom = Array.isArray(sp.from) ? sp.from[0] : sp.from;
   const backHref = rawFrom === "/inbox" || (rawFrom?.startsWith("/inbox?") ?? false) ? rawFrom! : "/inbox";
 
+  // 🚀 İşletme satırı konuşmayı beklemez (optimizasyon turu 11-19; sayfa 30 sn'de bir yenilenir): okuma konuşmayla AYNI ANDA başlar
+  // (`.then` Prisma'nın tembel sözünü hemen başlatır). Konuşma yoksa sonucu hiç beklenmez ve olası hatası yutulur → bulunamadı yolu bugünkü
+  // gibi 404 (işletme okuması düşse de); konuşma varsa hata bugünkü gibi sayfaya çıkar.
+  const orgRowRead = prisma.organization
+    .findUnique({
+      where: { id: session.organizationId },
+      select: { timezone: true, lateCheckoutOfferText: true, aiReplyTone: true },
+    })
+    .then((row) => row);
+  void orgRowRead.catch(() => undefined);
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
     include: {
@@ -109,26 +119,8 @@ export default async function ConversationPage({
 
   // Message stamps are real instants → render on the host's wall clock, not the
   // server's. Date-only reservation values below keep using formatDate (UTC).
-  const orgRow = await prisma.organization.findUnique({
-    where: { id: session.organizationId },
-    select: { timezone: true, lateCheckoutOfferText: true, aiReplyTone: true },
-  });
+  const orgRow = await orgRowRead;
   const TZ = orgTimezone(orgRow?.timezone);
-
-  // Returning-guest context — matched only by the reliable Hospitable guest id
-  // (never name/email), so there are no false "welcome back" positives.
-  const returning = conversation.reservation
-    ? await getReturningGuestInfo(session.organizationId, {
-        id: conversation.reservation.id,
-        guestExternalId: conversation.reservation.guestExternalId,
-        // Ölçüt: "bu konaklamadan ÖNCE gelenler" (takvimdeki şu an DEĞİL).
-        arrivalDate: conversation.reservation.arrivalDate,
-      })
-    : null;
-  // Liste bilinçli kısa (kart dar bir kenar çubuğunda). Gizlenen satır sayısı
-  // YAZILIR: "26. konaklama" rozetinin altında 5 satır görüp gerisini yok
-  // sanmak, kırpmayı sessiz veri kaybına çevirirdi.
-  const hiddenStays = returning ? returning.stayCount - 1 - returning.pastStays.length : 0;
 
   // Konaklama bitti mi — aşağıdaki kenar/devir bloklarının kapısı. Oto-yanıtın "konaklama bitti" kuralıyla AYNI
   // fonksiyon (TEK TARİH KURALI; eski ham kıyas New York'ta çıkış günü boyunca blokları gizliyordu).
@@ -140,7 +132,13 @@ export default async function ConversationPage({
   // not "Misafir cevabınızı bekliyor" der. `skippedReason` bilerek aynı kalır (on tüketicisi var) — not, son misafir mesajının
   // karar kaydından TÜRETİLİR (benzersiz anahtar; okuma hatası bugünkü notu gösterir).
   const lastInboundId = [...conversation.messages].reverse().find((m) => m.direction === "inbound")?.id ?? null;
-  const [kb, adjacency, tasks, outboxRows, stayEdges, itemsRead, heldEvent] = await Promise.all([
+  // 🚀 Konuşmaya + saat dilimine bağlı bütün bölümler tek turda (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`):
+  // dönen misafir, karar kartları, öneriler, açık sözler ve iç notlar eskiden bu turdan SONRA tek tek bekleniyordu — hiçbiri bu turun
+  // sonucuna bakmıyor, hiçbiri yazmıyor (hepsi ortak istemci). Koşullar ve `.catch`ler aynen; kart bağlamı ve komşu saatleri (bu turun
+  // komşu / gece özetini kullanır) aşağıda kalır.
+  const canManageHere = canManage(session);
+  const suggestionsOn = aiActionSuggestionsEnabled();
+  const [kb, adjacency, tasks, outboxRows, stayEdges, itemsRead, heldEvent, returning, decisionViews, actionSuggestions, commitmentRowsRaw, internalNotes] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -204,20 +202,20 @@ export default async function ConversationPage({
           })
           .catch(() => null)
       : null,
-  ]);
-  const skipNoteReason = skipNoteReasonFor({
-    skippedReason: conversation.skippedReason,
-    heldReason: heldEvent?.reason ?? null,
-    reservationStatus: conversation.reservation?.status ?? null,
-  });
-  // Plan bağlantısı yalnız Faturalandırma sekmesi gerçekten varken (sahip + Paddle yapılandırılmış).
-  const bandAction = skipReasonActionFor(skipNoteReason ?? conversation.skippedReason, billingTabAvailable(session.role));
-
-  // HOST KARAR MOTORU (Faz 1, `HOST_DECISIONS_ENABLED`): ev sahibinin kararını bekleyen konaklama istekleri sayfanın EN ÜSTÜNDE
-  // (telefonda da ilk görünen). Yalnız sahip / yönetici (kart misafir mesajının türevi — personel görmez). Okuma hatası sayfayı düşürmez.
-  const decisionViews =
-    hostDecisionsEnabled() && canManage(session)
-      ? await listConversationDecisions(prisma, {
+    // Returning-guest context — matched only by the reliable Hospitable guest id
+    // (never name/email), so there are no false "welcome back" positives.
+    conversation.reservation
+      ? getReturningGuestInfo(session.organizationId, {
+          id: conversation.reservation.id,
+          guestExternalId: conversation.reservation.guestExternalId,
+          // Ölçüt: "bu konaklamadan ÖNCE gelenler" (takvimdeki şu an DEĞİL).
+          arrivalDate: conversation.reservation.arrivalDate,
+        })
+      : null,
+    // HOST KARAR MOTORU (Faz 1, `HOST_DECISIONS_ENABLED`): ev sahibinin kararını bekleyen konaklama istekleri sayfanın EN ÜSTÜNDE
+    // (telefonda da ilk görünen). Yalnız sahip / yönetici (kart misafir mesajının türevi — personel görmez). Okuma hatası sayfayı düşürmez.
+    hostDecisionsEnabled() && canManageHere
+      ? listConversationDecisions(prisma, {
           organizationId: session.organizationId,
           conversationId: conversation.id,
           timeZone: TZ,
@@ -227,7 +225,47 @@ export default async function ConversationPage({
           void reportError("inbox.conversation-decisions", err);
           return [];
         })
-      : [];
+      : [],
+    // Yapay zekâ EYLEM ÖNERİLERİ (⑤ ilk dilim, kurucu 10-12: "öner + tek tıkla onay"): görev + söz. Yalnız yönetici, destek görünümünde YOK
+    // (yazma kapalı — K8), anahtar kapalıyken veri hiç ÜRETİLMEZ. Okunamazsa öneri yok (sayfa etkilenmez).
+    // Söz → görev otomatik açıkken (öneri anahtarı kapalı olsa da) SÖZ kartları görünür: belirsiz saat / hangi söz seçimi ve günlük sınır
+    // aşımı ancak buradan çözülür (kurucu 10-17 gece). Görev / Wi-Fi önerisi yine öneri anahtarına bağlı.
+    (suggestionsOn || hostCommitmentAutoEnabled()) && canManageHere && !isImpersonating(session)
+      ? getConversationSuggestions(session.organizationId, conversation.id)
+          .catch(() => [])
+          .then((list) => list.filter((s) => suggestionsOn || s.kind === "commitment"))
+      : [],
+    // Misafire verilen AÇIK sözler (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62) — yalnız yönetici görür / işaretler.
+    canManageHere
+      ? prisma.guestCommitment.findMany({
+          where: { conversationId: conversation.id, organizationId: session.organizationId, status: "open" },
+          orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+          take: 20,
+          select: { id: true, kind: true, topic: true, dueAt: true, duePrecision: true, dayPart: true, source: true },
+        })
+      : [],
+    // İÇ NOTLAR (dilim D1, `lib/internal-notes/service.ts`): konaklamanın notları (konaklamasız konuşmada bu konuşmadan yazılanlar), yeniden
+    // eskiye, en çok 50. Yalnız sahip + yönetici (sayfa zaten yönetici kapılı; koşul personel görünümü eklenirse de kapalı kalsın diye açık).
+    canManageHere
+      ? listInternalNotes({
+          organizationId: session.organizationId,
+          viewer: { userId: session.userId, role: session.role },
+          target: { conversationId: conversation.id },
+        })
+      : null,
+  ]);
+  // Liste bilinçli kısa (kart dar bir kenar çubuğunda). Gizlenen satır sayısı
+  // YAZILIR: "26. konaklama" rozetinin altında 5 satır görüp gerisini yok
+  // sanmak, kırpmayı sessiz veri kaybına çevirirdi.
+  const hiddenStays = returning ? returning.stayCount - 1 - returning.pastStays.length : 0;
+  const skipNoteReason = skipNoteReasonFor({
+    skippedReason: conversation.skippedReason,
+    heldReason: heldEvent?.reason ?? null,
+    reservationStatus: conversation.reservation?.status ?? null,
+  });
+  // Plan bağlantısı yalnız Faturalandırma sekmesi gerçekten varken (sahip + Paddle yapılandırılmış).
+  const bandAction = skipReasonActionFor(skipNoteReason ?? conversation.skippedReason, billingTabAvailable(session.role));
+
   const shownDecisions = visibleDecisions(decisionViews);
   // Kart bağlamı karar rotasıyla AYNI kurucudan (olgu parmak izi iki yerde aynı girdilerle); sayfanın zaten yüklediği komşu /
   // gece özeti verilir (ikinci sorgu yok).
@@ -272,29 +310,10 @@ export default async function ConversationPage({
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
   );
 
-  // Yapay zekâ EYLEM ÖNERİLERİ (⑤ ilk dilim, kurucu 10-12: "öner + tek tıkla onay"): görev + söz. Yalnız yönetici, destek görünümünde YOK
-  // (yazma kapalı — K8), anahtar kapalıyken veri hiç ÜRETİLMEZ. Okunamazsa öneri yok (sayfa etkilenmez).
-  // Söz → görev otomatik açıkken (öneri anahtarı kapalı olsa da) SÖZ kartları görünür: belirsiz saat / hangi söz seçimi ve günlük sınır
-  // aşımı ancak buradan çözülür (kurucu 10-17 gece). Görev / Wi-Fi önerisi yine öneri anahtarına bağlı.
-  const suggestionsOn = aiActionSuggestionsEnabled();
-  const actionSuggestions =
-    (suggestionsOn || hostCommitmentAutoEnabled()) && canManage(session) && !isImpersonating(session)
-      ? (await getConversationSuggestions(session.organizationId, conversation.id).catch(() => [])).filter(
-          (s) => suggestionsOn || s.kind === "commitment",
-        )
-      : [];
-
-  // Misafire verilen AÇIK sözler (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62) — yalnız yönetici görür / işaretler.
+  // Açık sözlerin kart satırları (okuma yukarıdaki turda).
   const commitmentNow = new Date();
   const commitmentRows: CommitmentRow[] = canManage(session)
-    ? (
-        await prisma.guestCommitment.findMany({
-          where: { conversationId: conversation.id, organizationId: session.organizationId, status: "open" },
-          orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-          take: 20,
-          select: { id: true, kind: true, topic: true, dueAt: true, duePrecision: true, dayPart: true, source: true },
-        })
-      )
+    ? commitmentRowsRaw
         .filter((c): c is typeof c & { kind: CommitmentKind } => isCommitmentKind(c.kind))
         .map((c) => {
           // Saat UYDURULMAZ (kurucu 10-17 gece): dilim / gün sözünde "yarın akşam", "bugün (saat belirtilmedi)"; açık saatte 30 dk pay
@@ -314,25 +333,17 @@ export default async function ConversationPage({
         })
     : [];
 
-  // İÇ NOTLAR (dilim D1, `lib/internal-notes/service.ts`): konaklamanın notları (konaklamasız konuşmada bu konuşmadan yazılanlar), yeniden
-  // eskiye, en çok 50. Yalnız sahip + yönetici (sayfa zaten yönetici kapılı; koşul personel görünümü eklenirse de kapalı kalsın diye açık).
-  const internalNoteRows: InternalNoteRow[] = canManage(session)
-    ? await listInternalNotes({
-        organizationId: session.organizationId,
-        viewer: { userId: session.userId, role: session.role },
-        target: { conversationId: conversation.id },
-      }).then((r) =>
-        r.kind === "ok"
-          ? r.notes.map((n) => ({
-              id: n.id,
-              body: n.body,
-              authorName: n.authorName,
-              createdLabel: formatDateTime(n.createdAt, TZ),
-              canDelete: n.canDelete,
-            }))
-          : [],
-      )
-    : [];
+  // İç notların kart satırları (okuma yukarıdaki turda).
+  const internalNoteRows: InternalNoteRow[] =
+    canManage(session) && internalNotes?.kind === "ok"
+      ? internalNotes.notes.map((n) => ({
+          id: n.id,
+          body: n.body,
+          authorName: n.authorName,
+          createdLabel: formatDateTime(n.createdAt, TZ),
+          canDelete: n.canDelete,
+        }))
+      : [];
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
   // calendar day (property timezone) as this stay's arrival/departure — decided
