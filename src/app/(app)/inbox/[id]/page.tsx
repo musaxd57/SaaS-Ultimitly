@@ -53,6 +53,8 @@ import { isImpersonating } from "@/lib/auth/impersonation";
 import { isOpenDecision } from "@/lib/decisions/core";
 import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
+import { InternalNotesCard, type InternalNoteRow } from "@/components/inbox/internal-notes";
+import { listInternalNotes } from "@/lib/internal-notes/service";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
 import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
@@ -307,6 +309,26 @@ export default async function ConversationPage({
             auto: c.source === "auto",
           };
         })
+    : [];
+
+  // İÇ NOTLAR (dilim D1, `lib/internal-notes/service.ts`): konaklamanın notları (konaklamasız konuşmada bu konuşmadan yazılanlar), yeniden
+  // eskiye, en çok 50. Yalnız sahip + yönetici (sayfa zaten yönetici kapılı; koşul personel görünümü eklenirse de kapalı kalsın diye açık).
+  const internalNoteRows: InternalNoteRow[] = canManage(session)
+    ? await listInternalNotes({
+        organizationId: session.organizationId,
+        viewer: { userId: session.userId, role: session.role },
+        target: { conversationId: conversation.id },
+      }).then((r) =>
+        r.kind === "ok"
+          ? r.notes.map((n) => ({
+              id: n.id,
+              body: n.body,
+              authorName: n.authorName,
+              createdLabel: formatDateTime(n.createdAt, TZ),
+              canDelete: n.canDelete,
+            }))
+          : [],
+      )
     : [];
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
@@ -610,6 +632,10 @@ export default async function ConversationPage({
               )}
             </CardContent>
           </Card>
+          {/* İç notlar (dilim D1): rezervasyon kartının hemen altında (konaklamanın notları), mesaj akışının DIŞINDA — misafire gitmez. */}
+          {canManage(session) ? (
+            <InternalNotesCard conversationId={conversation.id} notes={internalNoteRows} readOnly={isImpersonating(session)} />
+          ) : null}
           {/* Görsel inceleme 10-21 #5: rezervasyon (tarihler, devir günü uyarısı) cevabı değiştirir → söz formundan ÖNCE. */}
           {canManage(session) ? (
             <CommitmentsCard conversationId={conversation.id} commitments={commitmentRows} readOnly={isImpersonating(session)} />
