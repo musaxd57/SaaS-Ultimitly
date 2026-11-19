@@ -11,9 +11,13 @@ export const CHECKOUT_VERIFY_AWAITING_MESSAGE = "Ödeme tamamlandı. Planınız 
 
 /** Bekleyen cevaptan sonra yeniden sorma: 3 sn, 6 sn, sonra 12 sn (QR sohbetindeki bekleme kalıbı — `guestChatPendingDelay`). */
 const VERIFY_RETRY_DELAYS_MS = [3_000, 6_000, 12_000] as const;
-/** Bu süreden sonra aralık seyrekleşir: toplam süre sınırı yok, istek sayısı sınırlı (sunucu kovası kişi başına saatte 120). */
+/**
+ * Bu süreden sonra aralık seyrekleşir: toplam süre sınırı yok, istek sayısı sınırlı. Sunucu kovası saatte 120: ilk 10 dakika ~50 istek
+ * (3 / 6 / 12 sn), sonrası dakikada 1 → ilk saat ~100 (30 sn aralık ilk saatte ~150 isteğe çıkıp 40. dakika civarında kovayı dolduruyordu —
+ * ana oturum incelemesi 11-19).
+ */
 export const CHECKOUT_VERIFY_SLOW_AFTER_MS = 10 * 60_000;
-export const CHECKOUT_VERIFY_SLOW_DELAY_MS = 30_000;
+export const CHECKOUT_VERIFY_SLOW_DELAY_MS = 60_000;
 /** Gecikme uzadı (tasarım ÖD-1 önerisi): aynı cümlenin altında destek bağlantısı + takip numarası görünür; süre sözü verilmez. */
 export const CHECKOUT_VERIFY_SUPPORT_AFTER_MS = 2 * 60_000;
 

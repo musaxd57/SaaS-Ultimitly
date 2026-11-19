@@ -334,6 +334,14 @@ describe("checkoutVerifyDelay / checkoutVerifyStep (saf kurallar)", () => {
     expect([0, 1, 2, 3, 9].map((a) => checkoutVerifyDelay(a, 0))).toEqual([3_000, 6_000, 12_000, 12_000, 12_000]);
     expect(checkoutVerifyDelay(40, CHECKOUT_VERIFY_SLOW_AFTER_MS - 1)).toBe(12_000);
     expect(checkoutVerifyDelay(40, CHECKOUT_VERIFY_SLOW_AFTER_MS)).toBe(CHECKOUT_VERIFY_SLOW_DELAY_MS);
+    // Bütçe: ilk saatte sunucu kovasının (saatte 120) altında kalır.
+    let t = 0;
+    let n = 0;
+    while (t < 3_600_000) {
+      t += checkoutVerifyDelay(n, t);
+      n += 1;
+    }
+    expect(n).toBeLessThan(120);
     expect(checkoutVerifyDelay(0, 0, 90_000)).toBe(90_000);
     expect(checkoutVerifyDelay(0, 0, 1_000)).toBe(3_000);
   });
