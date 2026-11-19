@@ -131,4 +131,18 @@ describe("(G1 11-19) sendCheckinNow iptal isteği ile işçinin ertelemesi yarı
     // Sözleşme: ev sahibine "gönderildi" ya da "sıraya alındı" denmişse mesaj GİDER. Eski davranış: "queued" + satır iptal + 0 gönderim.
     expect({ result, rowStatus: after.status, delivered }).toEqual({ result: { ok: true, kind: "sent" }, rowStatus: "canceled", delivered: 1 });
   });
+
+  it("🚨 gönderimi BAŞLAMIŞ satır iptal isteği taşısa da 'serbest' sayılmaz: doğrudan yoldan İKİNCİ mesaj gitmez (mutasyon 11-19)", async () => {
+    const s = await seedTwoProperties();
+    const p = await previewCheckinNow(s.orgId, s.reservationId);
+    const digest = p.ok ? p.digest : "";
+    // İstek sağlayıcıya çıkmış, sonuç belirsiz; satırda (önceden yazılmış) iptal isteği de var.
+    await prisma.messageOutbox.update({
+      where: { id: s.rowId },
+      data: { status: "ambiguous", dispatchStartedAt: new Date(), cancelRequestedAt: new Date(), cancelReason: "conversation_deleted" },
+    });
+    const result = await sendCheckinNow({ organizationId: s.orgId, reservationId: s.reservationId, revision: s.revision, digest, actorUserId: s.ownerId });
+    expect(result.ok).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
 });
