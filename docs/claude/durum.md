@@ -778,3 +778,10 @@ yazar, geçici arıza satır yazmadan durur), tur başına 8 okuma / 30 sn, işl
 (6) **Mutasyon (dalga B + migration 99):** 55 mutantın 52'si ilk koşuda öldü; yaşayan üçü eksik sınır testiydi (tutulan mesaj varış GÜNÜNDE
 iptal edilmez · kapanmamış düz tırnak sonraki satıra taşınmaz · konaklamaya bağlı notun yaşı konaklamanın bitişinden sayılır) — üç test
 eklendi, mutantlar yeniden koşuldu.
+(7) **Kuyruk — "hazırlanıyor / dış gönderim başladı / sonuç belirsiz" (11-19, kalıcı kuyruk anahtarı kapalı → açılışa kadar etkisiz):**
+gönderim başlangıcı işareti + atomik iptal (`outbox/dispatch.ts`); işçi isteği atmadan önce işareti yazar, iptal isteği varsa atmaz;
+hazırlıkta çöken satır "ulaşmış olabilir" incelemesine düşmeden yeniden denenir (geçiş kuralı: talep belirteci öneki). Girişler'den elle
+gönderim kuyruk satırını artık bu kuralla bırakıyor. Sırada: öteki dış iptal yolları, karar mesajının kuyruğa alınması.
+(8) **Ödeme — doğrulanır doğrulanmaz plan açılır (11-19, anahtar `BILLING_INSTANT_LINK_ENABLED` KAPALI):** çekirdek + uç + saatlik
+süpürgenin kendiliğinden bağlaması + sahte Paddle ile uçtan uca testler. Plan yine yalnız bildirim işleyicisinden açılır; okunan abonelik ona
+süreç içinde verilir. Ekran (yeniden sorma, "Planınız etkin." / "Ödeme tamamlandı…") sırada. Sandbox denemesi açılışta kurucuyla.

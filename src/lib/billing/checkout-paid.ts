@@ -285,6 +285,21 @@ export async function sweepPaidCheckouts(
         result.closed++;
         continue;
       }
+      // KENDİLİĞİNDEN BAĞLAMA (kurucu 11-18 akşam, Ö-2: "aynı işletme ve aynı satın alma doğrulanabiliyorsa Paddle'dan otomatik bağlansın;
+      // belirsizse operatöre"): bildirim hiç gelmediyse abonelik Paddle'dan okunup aynı bildirim işleyicisine verilir. Kimlik bekleyen kaydın
+      // KENDİ işletmesi + onay kaydı + işlemidir. Bağlanamayan / belirsiz kayıt aşağıdaki operatör alarmına düşer (bugünkü davranış). Anahtar
+      // kapalıyken hiç denenmez. (Dinamik içe aktarma: çekirdek bu modülü kullanıyor — döngü olmasın.)
+      if (row.providerRef) {
+        const { instantCheckoutLinkEnabled, verifyAndLinkCheckout } = await import("@/lib/billing/checkout-verify");
+        if (instantCheckoutLinkEnabled()) {
+          const linked = await verifyAndLinkCheckout({ organizationId: row.organizationId, consentId: row.consentId, transactionId: row.providerRef, now });
+          // Bağlanan kaydı bildirim işleyicisi kapatır (alarm durumu da orada temizlenir).
+          if (linked.state === "active") {
+            result.closed++;
+            continue;
+          }
+        }
+      }
       const minutes = Math.max(1, Math.round((now.getTime() - paidAtOf(row).getTime()) / 60_000));
       const alerted = await alertOnTransition(
         paidCheckoutAlertKey(row.id),

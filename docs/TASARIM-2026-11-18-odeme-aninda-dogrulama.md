@@ -3,8 +3,11 @@
 > Kurucu 11-18 akşam (AYNEN `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md`, "Ödeme" + "Ö-2"): "doğrulanır doğrulanmaz plan
 > açılmalı. 10 dakika bir bekleme kuralı olmamalı. Ödeme ekranı tamamlanınca Lixus işlem kimliğini alıp Paddle'dan hemen kontrol etmeli …
 > plan bir kez etkinleşir, ikinci ödeme ekranı açılmaz." Önceki tasarım: `docs/TASARIM-2026-11-18-odeme-alindi-abonelik-bekleniyor.md`
-> (kalıcı "ödeme alındı" kaydı — duruyor, bu belge onun üstüne kurulur). KOD HENÜZ YOK. Para akışı: kod + sahte Paddle testleri önce; canlı
+> (kalıcı "ödeme alındı" kaydı — duruyor, bu belge onun üstüne kurulur). Para akışı: kod + sahte Paddle testleri önce; canlı
 > deneme kurucuyla birlikte, açılışta (sandbox: iki sekme · olay gecikmesi · kayıp olay).
+> **Durum (11-19):** P1 (çekirdek `lib/billing/checkout-verify.ts`) + P2 (uç `POST /api/billing/checkout-verify` + saatlik süpürgenin aynı
+> çekirdekle kendiliğinden bağlaması) + P4 (sahte Paddle ile uçtan uca testler) YAZILDI; hepsi tek anahtarın arkasında
+> (`BILLING_INSTANT_LINK_ENABLED`, VARSAYILAN KAPALI — sandbox denemesiyle birlikte açılır). P3 (ekran: yeniden sorma + üç durum metni) sırada.
 
 ## 1. Bugün
 
@@ -76,5 +79,6 @@ kimliğinin (özel veri) gerçekten taşındığı. Sonuncusu bu tasarımın day
 ## 7. Kurucuya sorular
 
 - **ÖD-1:** "Gecikme uzadı" eşiği 2 dakika olsun mu (destek bağlantısı + takip numarası o zaman görünür)?
-- **ÖD-2:** Süpürgenin kendiliğinden bağlaması (Ö-2) hemen açık mı gelsin, yoksa ilk sandbox denemesine kadar bir anahtarın arkasında mı
-  dursun? Önerim: anahtarın arkasında (`BILLING_AUTO_LINK_ENABLED`), sandbox denemesinden sonra açılır.
+- **ÖD-2:** Anında doğrulama ve süpürgenin kendiliğinden bağlaması tek anahtarın arkasında yazıldı (`BILLING_INSTANT_LINK_ENABLED`, kapalı):
+  ikisi de aynı çekirdek, aynı varsayım (Paddle'ın abonelik nesnesi / "ödendi" anındaki abonelik kimliği) — sandbox denemesinde birlikte
+  doğrulanıp birlikte açılsın. Uygun mu, yoksa ekran doğrulaması açık, süpürge ayrı anahtarda mı olsun?

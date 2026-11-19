@@ -107,6 +107,7 @@ const STAFF_REACHABLE: Record<string, { reason: string; scope: RegExp }> = {
 const OWNER_ONLY: Record<string, string> = {
   "billing/consent POST": "ödeme onayı (hukuki kayıt)",
   "billing/checkout-pending POST": "\"ödemeniz işleniyor\" kilidi (ödeme ekranı yalnız sahibe açılır)",
+  "billing/checkout-verify POST": "ödemeyi Paddle'dan doğrula ve aboneliği hesaba bağla (ödeme ekranı yalnız sahibe açılır; plan açar)",
   "billing/plan-change POST": "plan değişikliği (para)",
   "billing/plan-preview POST": "plan değişikliği ön hesabı (tek kullanımlık fiyat belirteci üretir)",
   "billing/portal POST": "ödeme portalı oturumu",

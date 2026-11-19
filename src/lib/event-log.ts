@@ -27,6 +27,8 @@ export const OPERATIONAL_EVENTS = {
   "billing.checkout.paid": "info",
   "billing.checkout.fulfilled": "info",
   "billing.checkout.released": "warn",
+  // Ödeme Paddle'dan OKUNARAK doğrulandı ve abonelik bildirim beklenmeden hesaba bağlandı (kurucu 11-18 akşam, `lib/billing/checkout-verify.ts`).
+  "billing.checkout.instant_linked": "info",
   "billing.webhook.received": "info",
   "billing.webhook.duplicate": "info",
   "billing.webhook.processed": "info",

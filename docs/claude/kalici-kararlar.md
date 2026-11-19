@@ -643,3 +643,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ait. Misafir silmesinde konaklamanın + konuşmalarının notları ve okumaları silinir; daireye yazılmış bağsız not kalır. Not dökümde,
   okuma dökümde değil. Konuşma birleştirmede ikisi de korunan konuşmayı izler. 🚨 Kanarya dersi: şema kolon sayacı tip adından sonra
   sözcük sınırı ister — `internalNotes InternalNote[]` ilişki alanı "Int…" diye kolon sayılıyordu (model adı skaler tip adıyla başlıyor).
+- **Kuyrukta gönderim başlangıcı ile iptal AYNI SATIRDA karar verir (kurucu 11-18 akşam; `outbox/dispatch.ts`, 11-19):** işçi isteği atmadan
+  hemen önce `dispatchStartedAt` yazar (yalnız iptal istenmemişse); iptal isteyen `cancelRequestedAt` yazar (yalnız gönderim başlamamışsa).
+  İki koşullu yazım satır kilidiyle sıralanır: tam biri kazanır. İptal kazandıysa istek ATILMAZ; gönderim başladıysa iptal isteyen
+  "gönderim başladı" cevabını alır ve mesajı "iptal edildi" SAYAMAZ. Dış iptal yolu yeni yazılacaksa `requestOutboxCancel` kullanılır (ham
+  `status: "pending" → canceled` yazımı işçinin elindeki satırı kaçırır). Talep süresi dolan satır: işaret yoksa ve talep bu sürümün
+  (`d1:` önekli belirteç) ise mesaj KESİN gitmemiştir → bekleyene döner (deneme sayılmaz); işaret varsa ya da talep eski sürümünse
+  eskisi gibi "belirsiz". Her yeni gönderim denemesi işareti sıfırlar; uzlaştırma talebi korur.
+- **Plan yalnız bildirim işleyicisinden açılır — bizim okumamız da ona verilir (kurucu 11-18 akşam; `billing/checkout-verify.ts`, 11-19;
+  anahtar `BILLING_INSTANT_LINK_ENABLED` KAPALI):** ödeme ekranı tamamlanınca (ve bildirimi gelmeyen ödemede saatlik süpürgede) işlem ve
+  abonelik Paddle'dan OKUNUR, okunan abonelik kendi imzamızla süreç içinde AYNI işleyiciye verilir (kopya plan yazıcısı YOK; sıra
+  koruması, fiyat denetimi, bekleyen kaydın kapanması aynı). Kimlik üç bağ: onay kaydı çağıranın işletmesinin · Paddle'daki işlem o onayı
+  taşıyor · okunan abonelik o işlemin aboneliği ve başka onay taşımıyor. Biri tutmazsa hiçbir şey yazılmaz ("bekliyor"; operatöre alarm
+  süpürgeden). İstemcinin gönderdiği işlem kimliği yalnız okuma anahtarıdır. Uç yanıtında yalnız durum döner (teşhis kodu müşteriye gitmez).
