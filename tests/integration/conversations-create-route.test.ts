@@ -61,7 +61,8 @@ describe("POST /api/conversations — kaldırıldı (D2)", () => {
     const res = await post({ ...base, propertyId: a.propertyId, reservationId: a.reservationId, channel: "airbnb", priority: "standard" });
     expect(res.status).toBe(405);
     expect(res.headers.get("allow")).toBe("GET");
-    expect(await res.json()).toEqual({ error: "Konuşma oluşturulamadı" });
+    // Ret metni kurucudan AYNEN (11-19, İK-1): eski sekmedeki form bu metni gösterir.
+    expect(await res.json()).toEqual({ error: "Bu ekrandan artık konuşma oluşturulamıyor." });
     await expectNothingWritten();
   });
 

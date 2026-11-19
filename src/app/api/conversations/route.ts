@@ -29,9 +29,10 @@ export const GET = withManage(async (session, req) => {
  * + misafirden gelmiş gibi bir mesaj yazıyordu; kanal kimliği yazılmadığı için konuşmanın gideceği yer yoktu. Formu ve girişi kaldırıldı.
  * İstek sessizce yok sayılmaz: eski sekmeden gelen istek açık bir ret alır (405 + `Allow: GET`) ve HİÇBİR şey yazılmaz. Rol kapısı
  * (`withManage`) yerinde kalır — personel / oturumsuz istek eskisi gibi 403 / 401 alır, bürünme yazma reddi de aynı.
- * İleti, eski formun ret yanıtında gösterdiği kendi varsayılan metnidir (yeni metin yazılmadı; daha açıklayıcı bir metin kurucu onayına bağlı).
+ * İleti kurucudan AYNEN (11-19, İK-1): eski sekmedeki form ret yanıtının `error` alanını gösterir; eski formun "Konuşma oluşturulamadı"
+ * metni neden başarısız olduğunu söylemiyordu.
  */
-const CREATE_REMOVED_MESSAGE = "Konuşma oluşturulamadı";
+const CREATE_REMOVED_MESSAGE = "Bu ekrandan artık konuşma oluşturulamıyor.";
 
 export const POST = withManage(async () =>
   NextResponse.json({ error: CREATE_REMOVED_MESSAGE }, { status: 405, headers: { Allow: "GET" } }),
