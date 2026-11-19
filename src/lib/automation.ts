@@ -1336,6 +1336,13 @@ async function maybeSendClosingCourtesy(opts: {
             data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI", aiIntent: CLOSING_COURTESY_INTENT },
           })
           .catch(() => {});
+        // Benimsenen satırın teslim yolu (yalnız boşsa; G1 11-19 T2-B5).
+        await prisma.message
+          .updateMany({
+            where: { conversationId: opts.conversation.id, externalId: delivery.providerMessageId, deliveryPath: null },
+            data: { deliveryPath: deliveryPathOfLocalOutcome(deliveryOutcomeOfRoute(resolveOutboundRoute(opts.conversation))) },
+          })
+          .catch(() => {});
         // İşlemin konuşma güncellemesi de düştü (aynı işlem) → ayrıca yazılır (Opus 10-17 Q2-D).
         await prisma.conversation
           .update({ where: { id: opts.conversation.id }, data: { lastMessageAt: new Date(), skippedReason: null } })
@@ -4687,6 +4694,11 @@ export async function applyChannelAutoReply(
         // "host" da: senkron bizim cevabımızı rol vermeyen kanaldan ev sahibi diye almış olabilir (Q2 öncesi de böyleydi).
         where: { conversationId: conversation.id, externalId: delivery.providerMessageId, authorType: { in: ["automation", "host"] } },
         data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI" },
+      });
+      // Benimsenen satırın teslim yolu (yalnız boşsa; G1 11-19 T2-B5 — kanal uzlaştırması Lixus kaydını teslim yolundan tanır).
+      await prisma.message.updateMany({
+        where: { conversationId: conversation.id, externalId: delivery.providerMessageId, deliveryPath: null },
+        data: { deliveryPath: deliveryPathOfLocalOutcome(deliveryOutcomeOfRoute(resolveOutboundRoute(conversation))) },
       });
     }
     // Sert inceleme 11-04 (P3): senkron bizim cevabımızı "otomasyon" sanıp konuşmayı "new"e çevirmiş olabilir (yazar yukarıda düzeltildi) —

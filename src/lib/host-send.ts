@@ -371,6 +371,12 @@ export async function sendHostMessage(rawInput: HostSendInput): Promise<HostSend
         where: { conversationId: id, externalId: outcome.providerMessageId, authorType: "automation" },
         data: { authorType: "host", channelSenderRole: null, senderName: input.senderName, aiAssisted: input.aiAssisted },
       });
+      // Benimsenen satır artık BİZİM gönderimimizdir: teslim yolu yazılır (yalnız boşsa). Kanal uzlaştırması "başka Lixus kaydı"nı teslim
+      // yolundan tanır (`reconcile-channel.ts`; G1 11-19 T2-B5) — senkronun yazdığı satır yolsuz kalınca bu dayanak delinirdi.
+      await prisma.message.updateMany({
+        where: { conversationId: id, externalId: outcome.providerMessageId, deliveryPath: null },
+        data: { deliveryPath: deliveryPathOfLocalOutcome(localDelivery) },
+      });
     }
     message = await prisma.message.findFirst({
       where: { conversationId: id, externalId: outcome.providerMessageId ?? undefined },
