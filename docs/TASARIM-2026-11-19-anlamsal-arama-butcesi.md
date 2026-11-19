@@ -43,8 +43,8 @@ Kapsam dışı ama aynı sonuç ("misafire eski şifre"), vektörle İLGİSİZ, 
 
 ### 1.2 "Sınır dolunca hazır ve güncel vektörler kullanılamaz hâle gelmiyor" — KURUCUNUN GÖZLEMİ DOĞRU (iki koşulla)
 
-- A işletmesi GERÇEK düzenlemelerle (rotaların kancası `afterKbItemsChanged`) süreç bütçesini 13 turda tüketti (1.860 parça metni). B'nin önceden
-  ısınmış bilgi tabanı `ok` kaldı; B'nin misafir mesajı başına **tek gömme isteği** (yalnız sorgu metinleri), aynı soru ikinci kez **sıfır istek**
+- A işletmesi GERÇEK düzenlemelerle (rotaların kancası `afterKbItemsChanged`) süreç bütçesini 13 turda tüketti (1.860 parça metni; kalan küçük pay da dolduruldu). Bütçe TAMAMEN doluyken
+  B'nin önceden ısınmış bilgi tabanı `ok` kaldı; B'nin misafir mesajı başına **tek gömme isteği** (yalnız sorgu metinleri), aynı soru ikinci kez **sıfır istek**
   (sorgu vektörü süreç önbelleğinden). Sebep: bütçe yalnız arka plan ısıtmasında okunur (`semantic-retrieval.ts:186, :214`), sıcak yol yalnız
   sorguyu gömer (`:306-307`) ve bütçeye bakmaz.
 - **Koşul 1 (G2'nin bulgusu, bugünkü açık):** bütçe doluyken B KENDİ kaydını düzenlerse B `cold` kalır, ısıtma reddedilir. Reddedilen iş kuyrukta
