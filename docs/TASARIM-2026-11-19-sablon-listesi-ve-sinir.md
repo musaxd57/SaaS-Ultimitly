@@ -82,12 +82,28 @@ Yüzey davranışı:
 - Yeni bir yazıcı (kopyalama / içe aktarma) sessizce kapıyı atlamasın diye kaynak pini: `messageTemplate.create / createMany / upsert`
   yalnız `template-cap.ts` ve demo sıfırlamasında; tavansız `messageTemplate.findMany` yalnız bilinen okuyucularda (§1 tablosu).
 
+- Ölü ve tavansız `getTemplatesForProperty` (`src/lib/templates.ts`, çağıranı yoktu) kaldırıldı — ilk yeni çağıran benimsemesin.
+
 ## 5. Testler
 
-Eşzamanlı veritabanı testi: 499 şablon varken aynı anda 10 ekleme → tam 1 kabul, 9 sınır (400), toplam 500, kilitli bölgede aynı anda tek
-istek. Sınırı aşmış işletmede düzenleme / liste / tam okuma / silme çalışır, ekleme 400, satır sayısı değişmez. Liste: en çok 30, önizleme
-(tam gövde yanıtta yok — 20.000 karakterlik gövdelerle yanıt boyu pini), ilk 30'un dışındaki şablon aramayla bulunur, eşit `createdAt`'te
-sayfalar ayrık ve eksiksiz, kiracı yalıtımı, daire kapsamı, hazır şablonların sırası ve sayımı.
+- `tests/integration/template-cap-race.test.ts` — 499 şablon varken aynı anda 10 ekleme → tam 1 kabul, 9 sınır (400), toplam 500, kilitli
+  bölgede aynı anda tek istek (ilk giren 1 sn eş bekler; kilitsiz "say → yaz"da hepsi 499 sayıp geçer).
+- `tests/integration/template-cap.test.ts` — başlangıç 500 plandan, sınır dahil değil, pasif sayılır, işletme geneli bir kez, hazır şablon
+  sayılmaz / uyarlanan kopya sayılır, başka işletme sayılmaz, ortam freni doğrulaması; sınırı aşmış işletmede düzenleme / pasife alma /
+  yeniden etkinleştirme / silme çalışır, yalnız ekleme 400.
+- `tests/integration/template-list.test.ts` — en çok 30, önizleme (20.000 karakterlik gövdelerle yanıt boyu pini), eşit `createdAt`'te
+  sayfalar ayrık ve eksiksiz, ilk 30'un dışındaki şablon aramayla bulunur, `%` `_` düz karakter, kiracı yalıtımı, seçici kapsamı, hazır
+  şablonların sayfa sınırını aşan sırası, `GET [id]` (başka işletme 404 — kiracılar arası kapsama pinine eşli), sınırı aşmış işletmede hiçbir
+  şey gizlenmez.
+- `tests/integration/templates-page.test.ts` — sayfa 30 satır + toplam, ikinci sayfa, arama, aralık dışı sayfa yönlendirmesi.
+- `tests/ui/template-picker-paged.test.tsx` · `template-manager-stale-edit.test.tsx` · `template-manager-listing.test.tsx` — seçici
+  (önizleme, seçimde tam metin, devamı + tekilleştirme, sunucu araması, eski aramanın sonucu yenisini ezmez, okunamazsa mesaj kutusu
+  korunur), düzenleme formu (tam metin + sürüm aynı okumadan; 409; okunamazsa form açılmaz), sayfalama / arama / boş arama.
+- `tests/unit/message-template-access.test.ts` — şablon ekleyen ve liste okuyan yollar kapalı listede.
+
+H1 notu: "Düzenle" artık her açılışta taze okur; bu yüzden eski "bu ekrandan kaydedilen sürüm" belleği kalktı. Sonuç: sayfa açıldıktan sonra
+başkası şablonu düzenlediyse, "Düzenle" onun metnini ve sürümünü getirir (eskiden satırın eski sürümüyle 409 alınırdı); form açıkken
+başkası kaydederse 409 aynen sürer.
 
 ## 6. Müşteriye (ev sahibine) görünen yeni metinler — kurucu onayına
 
