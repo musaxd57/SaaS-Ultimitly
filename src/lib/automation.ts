@@ -106,7 +106,7 @@ import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 // kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
-import { requestOutboxCancel } from "@/lib/outbox/dispatch";
+import { outboxPhase, requestOutboxCancel } from "@/lib/outbox/dispatch";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -6635,7 +6635,12 @@ export async function sendCheckinNow(input: {
           select: { status: true, cancelRequestedAt: true, dispatchStartedAt: true },
         })
       : null;
-    const released = live === null || (live.dispatchStartedAt === null && (live.status === "canceled" || live.cancelRequestedAt !== null));
+    // Evre tek sözlükten (`outboxPhase`): "dış gönderim başladı" işareti YALNIZ "gönderiliyor" satırında anlamlıdır — işçi satırı talep ederken
+    // işareti sıfırlar; kesin retten sonra beklemeye dönen satırda önceki denemenin işareti KALIR (G1 11-19 T2-B4: o eski işareti "uçuşta"
+    // sanan ilk hüküm satırı iptal ettirip mesajı hiç göndermiyordu). İptal edilmiş satır hiç gitmez → serbest.
+    const phase = live ? outboxPhase(live) : null;
+    const released =
+      live === null || phase === "canceled" || (live.cancelRequestedAt !== null && (phase === "queued" || phase === "preparing"));
     if (existing && !released) {
       const verdict = await existingCheckinOutboxVerdict(organizationId, existing.id);
       if (verdict === "queued") {
