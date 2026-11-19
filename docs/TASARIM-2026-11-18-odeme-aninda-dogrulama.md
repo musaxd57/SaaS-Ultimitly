@@ -7,7 +7,10 @@
 > deneme kurucuyla birlikte, açılışta (sandbox: iki sekme · olay gecikmesi · kayıp olay).
 > **Durum (11-19):** P1 (çekirdek `lib/billing/checkout-verify.ts`) + P2 (uç `POST /api/billing/checkout-verify` + saatlik süpürgenin aynı
 > çekirdekle kendiliğinden bağlaması) + P4 (sahte Paddle ile uçtan uca testler) YAZILDI; hepsi tek anahtarın arkasında
-> (`BILLING_INSTANT_LINK_ENABLED`, VARSAYILAN KAPALI — sandbox denemesiyle birlikte açılır). P3 (ekran: yeniden sorma + üç durum metni) sırada.
+> (`BILLING_INSTANT_LINK_ENABLED`, VARSAYILAN KAPALI — sandbox denemesiyle birlikte açılır). P3 (ekran) de YAZILDI (Opus, ana oturum
+> incelemesi): anahtar kapalıyken ekran birebir eski; açıkken üç durum, 3 / 6 / 12 sn, 10 dakikadan sonra 60 sn (30 sn ilk saatte sunucu
+> kovasını — saatte 120 — aşıyordu), gizli sekmede sorulmaz, aynı anda tek istek; 2 dakikadan sonra destek e-postası + "Takip numarasını
+> kopyala". Gerçek tarayıcı ve sandbox denemesi açılışta.
 
 ## 1. Bugün
 
@@ -82,3 +85,8 @@ kimliğinin (özel veri) gerçekten taşındığı. Sonuncusu bu tasarımın day
 - **ÖD-2:** Anında doğrulama ve süpürgenin kendiliğinden bağlaması tek anahtarın arkasında yazıldı (`BILLING_INSTANT_LINK_ENABLED`, kapalı):
   ikisi de aynı çekirdek, aynı varsayım (Paddle'ın abonelik nesnesi / "ödendi" anındaki abonelik kimliği) — sandbox denemesinde birlikte
   doğrulanıp birlikte açılsın. Uygun mu, yoksa ekran doğrulaması açık, süpürge ayrı anahtarda mı olsun?
+- **ÖD-3 (ekran, 11-19):** destek bağlantısı için tekrar kullanılabilir bir bileşen yok; ödeme ekranında e-posta adresinin kendisi bağlantı
+  metni (Ayarlar'daki kalıp). Kısa takip numarası ekranda yazılı değil, yalnız "Takip numarasını kopyala" düğmesi var (numarayı yazdırmak yeni
+  metin ister). Önce: "Ödemeniz işleniyor. Planınız birkaç dakika içinde görünecek." (8 sn'de bir sayfa yenilenir, 10 dakika sonra metin
+  değişir). Sonra: "Ödeme tamamlandı. Planınız hazır olduğunda bu ekran otomatik güncellenecek." → plan açılınca "Planınız etkin." + [Panele
+  dön]; 2 dakika geçerse altında adres bağlantısı + [Takip numarasını kopyala]. Böyle uygun mu?

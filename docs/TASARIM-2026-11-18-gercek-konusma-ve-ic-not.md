@@ -81,6 +81,15 @@ güncellenir (kanarya testleri bunu zaten zorunlu kılıyor).
 
 ## 5. Dilimler (her biri küçük, geri alınabilir; sıra bağımlılığa göre)
 
+**Durum (11-19):** D1 (iç not: tek yazıcı, rotalar, konuşma sayfasında "İç notlar" — Opus, ana oturum incelemesi; denetim faili
+`auditActor(session)`'a bağlandı), D2 (form, giriş ve `POST /api/conversations` kalktı; uç 405 + hiçbir şey yazmaz; `/inbox/new` Gelen
+Kutusu'na yönlenir) ve D3 (iç kayıt: tek kural `lib/internal-record.ts`; sayfada yazma kutusu / öneri / karar kartı yok, başlıkta "İç kayıt",
+kartı gizlenen kararın öğesi "Açık işler"de kalır; Gelen Kutusu satırında etiket; cevap rotası ve karar çekirdeği 409 `internal_record`;
+demo hesabı muaf) YAZILDI. **D3b (sırada):** "cevap bekleyen" sayaçları, Dikkat paneli cevapsız satırları ve uyarı e-postası sorguları
+(envanter: 19 sorgu yeri) iç kaydı henüz saymaya devam ediyor — sorgu düzeyinde süzgeç ayrı dilim. Demo hesabında yerel yol için var olan
+"Cevabınız kaydedildi…" metinleri kodda kalır (demo yazma akışı onları kullanıyor).
+
+
 | Dilim | Ne | Kim | Not |
 |---|---|---|---|
 | D1 | `InternalNote` tablosu + tek yazıcı + rota (ekle / listele / sil) + konuşma sayfasında "İç notlar" bölümü | Opus (orta) + ana oturum incelemesi | gizlilik envanterleri dahil |

@@ -285,3 +285,12 @@ anahtarı açılsın mı (ücretli + otomatik kuralda onay hazır cevaba döner)
 şart olsun mu · yeni ev sahibi metinleri: "Erken giriş ücretli; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin." · "İstenen saate
 çok az kaldı; onay kendiliğinden gönderilmez, hazır cevabı siz gönderin." · "Ücret yazılıyken onay kendiliğinden gönderilmez; hazır cevap size
 gelir, siz gönderirsiniz." Örnekli hâlleri `docs/TASARIM-2026-11-18-otomatik-erken-giris-pilotu.md` §5.
+
+**11-19 — dalga C sonrası yeni sorular:** **ÖD-3** ödeme ekranında destek bağlantısının etiketi (e-posta adresinin kendisi) ve kısa takip
+numarasının ekranda yazılı olmaması (önce / sonra `docs/TASARIM-2026-11-18-odeme-aninda-dogrulama.md` §7) · **İK-1** eski formun 405
+iletisi bugün "Konuşma oluşturulamadı" (yalnız eski sekmede görünür) — öneri: "Konuşmalar artık yalnız kanaldan ya da QR sohbetinden gelir.
+Ekip içi kayıt için konuşmada 'İç not' kullanın." · **İK-2** iç kayda gönderim reddinin metni: "Bu kayıt bir kanala bağlı değil. Misafire
+buradan mesaj gönderilemez." (yalnız eski sekmede) · **İK-3** iç not kartı: silme onayı ("Bu not silinsin mi?"), "Daha eski notlar",
+"Notlar okunamadı." metinleri eklensin mi · **UA-1** "Aynı rezervasyon iki dairede kayıtlı: A ve B" · "<gün> · Otomatik mesajlar
+bekletiliyor. Yanlış kaydı kaldırın." metni + ev sahibinin yanlış kaydı kaldıracağı bir yer bugün yok (rezervasyon silme / iptal ucu var,
+arayüzü yok) + kart dolarsa gösterim tavanı (öneri en çok 3).

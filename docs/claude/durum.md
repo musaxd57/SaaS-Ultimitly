@@ -785,3 +785,10 @@ gönderim kuyruk satırını artık bu kuralla bırakıyor. Sırada: öteki dı�
 (8) **Ödeme — doğrulanır doğrulanmaz plan açılır (11-19, anahtar `BILLING_INSTANT_LINK_ENABLED` KAPALI):** çekirdek + uç + saatlik
 süpürgenin kendiliğinden bağlaması + sahte Paddle ile uçtan uca testler. Plan yine yalnız bildirim işleyicisinden açılır; okunan abonelik ona
 süreç içinde verilir. Ekran (yeniden sorma, "Planınız etkin." / "Ödeme tamamlandı…") sırada. Sandbox denemesi açılışta kurucuyla.
+(9) **Dalga C (11-19, hepsi anahtar arkasında ya da davranışı yalnız alıcısı olmayan kayıtta değiştirir):** kuyrukta K3 — konuşma / daire
+silme, misafir silme talebi ve saklama süpürgesinin iki dalı iptal isteğini kendi işleminde yazar; işçinin elindeki, isteği atılmamış satır
+artık gönderilmez · iptal istenmiş satır dirilmez · "bu cevap hangi isteğe?" gölge okuyucusu (`AI_REPLY_ITEMS_READER_ENABLED` KAPALI;
+geliştirme seti: bugünkü kural 44 isteğin 18'ini karşılanmadığı hâlde kapatıyor) ve iki gölge katmanının ortak koşucusu · ödeme ekranı
+(anında doğrulama, `BILLING_INSTANT_LINK_ENABLED` KAPALI) · Y-1 D1 iç not + D2 form kalktı + D3 iç kayıt · Dikkat panelinde "iki dairede
+kayıtlı" satırı. Mutasyon kampanya 12: 179 mutant, 160 öldü; yaşayan 19'un 14'ü için test eklendi, 5'i eşdeğer (gerekçeler listelerde).
+Denetim pini iç not paketinde bir kural ihlali yakaladı (denetim faili bürünmede operatör olmalı) — düzeltildi.
