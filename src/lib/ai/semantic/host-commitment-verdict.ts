@@ -175,6 +175,18 @@ function locate(seenSquashed: string, quote: string): { at: number; needle: stri
 }
 
 /**
+ * Alıntının modelin gördüğü metindeki konumu (yarı açık [başlangıç, bitiş)); metinde geçmiyorsa `null`. Boşluk / satır sonu farkı ve
+ * çevreleyen tırnaklar hoş görülür (↑`squash`, `locate`). Öteki anlam okuyucuları da (ör. "cevap hangi isteğe") aynı doğrulamayı kullanır.
+ * Saf, doğrusal.
+ */
+export function quoteSpanIn(seenText: string, quote: string): [number, number] | null {
+  const seen = squash(seenText);
+  const { at, needle } = locate(seen.text, quote);
+  if (at < 0) return null;
+  return [seen.map[at]!, seen.map[at + needle.length - 1]! + 1];
+}
+
+/**
  * Modelin saati alıntıdaki bir rakamdan mı geliyor. Saat ANLAMINI model verir ("akşam 6" → 18:00); kod yalnız "uydurulmadı"yı doğrular:
  * alıntıda saatin rakamı (12 saatlik karşılığı dahil) tek başına duran bir sayı olarak geçmeli; dakika 00 değilse o da geçmeli.
  * Boş saat her zaman geçerlidir (iddia yok).

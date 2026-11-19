@@ -1,0 +1,325 @@
+{
+ "description": "Açık geliştirme seti (mühürlü DEĞİL): ev sahibinin cevabı konuşmanın hangi açık isteğine değiniyor. Beklenen ilişki elle etiketlendi. Kör kabul seti ayrıdır.",
+ "cases": [
+  {
+   "id": "k01",
+   "message": "Havluları getiriyoruz.",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "undertakes"
+    }
+   ]
+  },
+  {
+   "id": "k02",
+   "message": "Havluları birazdan getiriyoruz, klima için de teknisyenimiz yarın 10'da gelecek.",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "undertakes"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "undertakes"
+    }
+   ]
+  },
+  {
+   "id": "k03",
+   "message": "Çıkış saatimiz 11:00.",
+   "items": [
+    {
+     "kind": "checkout_time",
+     "expect": "answers"
+    },
+    {
+     "kind": "parking",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k04",
+   "message": "Çıkış 11:00'de, aracınızı binanın önüne park edebilirsiniz.",
+   "items": [
+    {
+     "kind": "checkout_time",
+     "expect": "answers"
+    },
+    {
+     "kind": "parking",
+     "expect": "answers"
+    }
+   ]
+  },
+  {
+   "id": "k05",
+   "message": "Merhaba, teşekkürler, iyi tatiller dileriz.",
+   "items": [
+    {
+     "kind": "wifi",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k06",
+   "message": "Wi-Fi şifresi buzdolabının üstündeki kartta yazıyor.",
+   "items": [
+    {
+     "kind": "wifi",
+     "expect": "answers"
+    }
+   ]
+  },
+  {
+   "id": "k07",
+   "message": "Temizlikçimize sorup size dönüş yapacağım.",
+   "items": [
+    {
+     "kind": "cleaning_linen",
+     "expect": "defers"
+    }
+   ]
+  },
+  {
+   "id": "k08",
+   "message": "Klima hangi odada çalışmıyor, salonda mı yatak odasında mı?",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "defers"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k09",
+   "message": "Erken giriş için önceki misafirin çıkışını beklememiz gerekiyor, yarın sabah netleşir.",
+   "items": [
+    {
+     "kind": "early_checkin",
+     "expect": "defers"
+    },
+    {
+     "kind": "luggage",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k10",
+   "message": "Valizlerinizi 10'dan itibaren bırakabilirsiniz.",
+   "items": [
+    {
+     "kind": "early_checkin",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "luggage",
+     "expect": "answers"
+    }
+   ]
+  },
+  {
+   "id": "k11",
+   "message": "Evcil hayvan kabul edemiyoruz, kusura bakmayın.",
+   "items": [
+    {
+     "kind": "pets",
+     "expect": "answers"
+    },
+    {
+     "kind": "parking",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k12",
+   "message": "Her şeyle ilgileneceğiz, merak etmeyin.",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "wifi",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k13",
+   "message": "The check-in is from 3 pm. I will ask the cleaner about the extra blanket.",
+   "items": [
+    {
+     "kind": "checkin_time",
+     "expect": "answers"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "defers"
+    }
+   ]
+  },
+  {
+   "id": "k14",
+   "message": "We are sending someone to fix the shower today.",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "undertakes"
+    },
+    {
+     "kind": "wifi",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k15",
+   "message": "Siz 'klima çalışmıyor' yazmıştınız; havluları şimdi gönderiyorum.",
+   "items": [
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    },
+    {
+     "kind": "cleaning_linen",
+     "expect": "undertakes"
+    }
+   ]
+  },
+  {
+   "id": "k16",
+   "message": "Faturanızı yarın e-posta ile göndereceğim.",
+   "items": [
+    {
+     "kind": "payment_invoice",
+     "expect": "undertakes"
+    },
+    {
+     "kind": "checkout_time",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k17",
+   "message": "İade konusunu Airbnb üzerinden değerlendireceğiz.",
+   "items": [
+    {
+     "kind": "cancellation_refund",
+     "expect": "defers"
+    },
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k18",
+   "message": "Otoparkımız yok ama sokakta ücretsiz park yeri bulunuyor. Çöpleri kapının önündeki konteynere bırakabilirsiniz.",
+   "items": [
+    {
+     "kind": "parking",
+     "expect": "answers"
+    },
+    {
+     "kind": "trash",
+     "expect": "answers"
+    }
+   ]
+  },
+  {
+   "id": "k19",
+   "message": "Kombi ayarını telefonda anlatayım, müsait olduğunuzda arayın.",
+   "items": [
+    {
+     "kind": "appliance_help",
+     "expect": "defers"
+    }
+   ]
+  },
+  {
+   "id": "k20",
+   "message": "Die Handtücher bringen wir heute Abend vorbei.",
+   "items": [
+    {
+     "kind": "cleaning_linen",
+     "expect": "undertakes"
+    },
+    {
+     "kind": "complaint_issue",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k21",
+   "message": "Anahtarı kutuya bıraktım, kod 4 haneli ve giriş mesajında yazıyor.",
+   "items": [
+    {
+     "kind": "access_keys",
+     "expect": "answers"
+    },
+    {
+     "kind": "checkin_time",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k22",
+   "message": "Tamam.",
+   "items": [
+    {
+     "kind": "extend_stay",
+     "expect": "not_addressed"
+    }
+   ]
+  },
+  {
+   "id": "k23",
+   "message": "Bir gece uzatma mümkün, aynı fiyattan ekliyorum.",
+   "items": [
+    {
+     "kind": "extend_stay",
+     "expect": "answers"
+    }
+   ]
+  },
+  {
+   "id": "k24",
+   "message": "Geç çıkış maalesef olmuyor çünkü aynı gün yeni misafirimiz var; valizlerinizi ise bırakabilirsiniz.",
+   "items": [
+    {
+     "kind": "late_checkout",
+     "expect": "answers"
+    },
+    {
+     "kind": "luggage",
+     "expect": "answers"
+    }
+   ]
+  }
+ ]
+}

@@ -654,6 +654,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_GENERATION_TRACE_ENABLED",
   "AI_HELD_PET_SPLIT_ENABLED",
   "AI_HOST_COMMITMENT_READER_ENABLED",
+  "AI_REPLY_ITEMS_READER_ENABLED",
   "AI_HOST_DECISION_HOLD_ENABLED",
   "AI_HOUSE_RULES_SHADOW",
   "AI_KB_FEE_RULE_ENABLED",
@@ -720,6 +721,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "CHANNEL_METADATA_WRITE",
   "DURABLE_OUTBOX_ENABLED",
   "OUTBOX_DELIVERY_PAUSED",
+  // Odeme aninda dogrulama + kendiliginden baglama (11-18 aksam; src/lib/billing/checkout-verify.ts) — varsayilan KAPALI.
+  "BILLING_INSTANT_LINK_ENABLED",
   // Erken giris pilotu (11-18 aksam, H-3; src/lib/early-checkin/workflow.ts) — varsayilan KAPALI.
   "EARLY_CHECKIN_FREE_ONLY_ENABLED",
   "EMAIL_OUTBOX_ENABLED",

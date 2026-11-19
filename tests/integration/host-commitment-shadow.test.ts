@@ -155,6 +155,8 @@ describe("söz okuyucusu — gölge okuma turu", () => {
     const w = await world();
     const read = await w.hostMessage(OWN);
     await prisma.message.create({ data: { conversationId: w.conversationId, direction: "inbound", authorType: "guest", senderName: "Ada", body: "Teknisyen yarın gelecek mi?" } });
+    // Yön süzgeci (mutasyon g-any-direction yaşadı → eksik pin): yazar alanı "host" görünse de GELEN satır ev sahibinin sözü değildir.
+    await w.hostMessage("Yarın 10'da geleceğiz.", { direction: "inbound" });
     await w.hostMessage("Giriş bilgileriniz…", { authorType: "automation" });
     await w.hostMessage("Havluları getireceğiz.", { authorType: "ai" });
     await w.hostMessage("Eski söz: yarın geleceğiz.", { createdAt: new Date(Date.now() - 49 * HOUR) });

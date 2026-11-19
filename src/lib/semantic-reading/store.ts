@@ -21,6 +21,8 @@ export type SemanticLayerName = (typeof SEMANTIC_LAYERS)[number];
 export const SEMANTIC_OUTCOMES = [
   "ok",
   "budget",
+  // Aday seçildikten sonra okunacak girdi kalmadı (ör. açık istekler kapandı): model çağrılmadı, aday yeniden seçilmesin diye yazılır.
+  "no_input",
   "no_key",
   "too_long",
   "timeout",

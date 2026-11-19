@@ -21,6 +21,7 @@ import { replayPendingPaddleEvents } from "@/lib/payments/paddle-replay";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { SWEEP_CATCHUP_MINUTES, closeStayEndedCommitments, sweepHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
 import { sweepHostCommitmentShadow } from "@/lib/ai/semantic/host-commitment-shadow";
+import { sweepReplyItemsShadow } from "@/lib/ai/semantic/reply-items-shadow";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
@@ -902,6 +903,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // mesajını model okur, sonuç sözcük ağının kararıyla kıyaslanıp kaydedilir. Hiçbir davranışı değiştirmez; anahtar
       // `AI_HOST_COMMITMENT_READER_ENABLED` kapalıyken sorgusuz no-op; asla fırlatmaz; süre ve günlük sınırı kendi içinde.
       await sweepHostCommitmentShadow(new Date());
+      // "Bu cevap hangi isteğe?" gölge turu (kurucu 11-18 akşam, H-1): aynı kurallar; anahtar `AI_REPLY_ITEMS_READER_ENABLED` kapalıyken
+      // sorgusuz no-op; öğelerin durumunu ve "Yanıtladınız" görünümünü DEĞİŞTİRMEZ.
+      await sweepReplyItemsShadow(new Date());
 
       // Deneme kimliği (kurucu onayı 10-10): anahtar açıldığında açılış ANI ve BİR KEZ geri doldurma — HER geçişte (saatlik değil: açılış
       // anından önce eklenen takvim muaf sayılır, gecikme o pencereyi bir saate kadar açardı). İşaret varken tek indeksli okuma; anahtar

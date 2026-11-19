@@ -148,6 +148,8 @@ export const PIPELINE_FLAGS = [
   "AI_TURN_MESSAGES_ENABLED",
   // Söz okuyucusu (11-18 akşam): ev sahibi mesajındaki sözü model okur — cevap hattını değiştirmez, koşu kimliğinde görünür (her AI_* bayrağı).
   "AI_HOST_COMMITMENT_READER_ENABLED",
+  // "Bu cevap hangi isteğe?" gölge okuyucusu (11-19, H-1): cevap hattını değiştirmez, koşu kimliğinde görünür.
+  "AI_REPLY_ITEMS_READER_ENABLED",
   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
   "AI_COURTESY_RULE_ENABLED",
   // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
