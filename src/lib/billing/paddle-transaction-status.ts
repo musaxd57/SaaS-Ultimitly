@@ -56,3 +56,38 @@ export async function paddleTransactionStatus(transactionId: string): Promise<st
   const facts = await readPaddleTransaction(transactionId);
   return facts === null ? null : facts === PADDLE_TXN_NOT_FOUND ? PADDLE_TXN_NOT_FOUND : facts.status;
 }
+
+// ---------------------------------------------------------------------------
+// İADE ≠ İPTAL (Codex / kurucu 11-19: "Para alınmış ve plan hiç bağlanmamışsa yeni ödeme, aynı işlemin tam iadesi Paddle tarafından
+// onaylanana veya operatör kanıtla sorunu çözene kadar açılmasın. Bekleyen ya da kısmi iade yeterli olmasın."). Paddle Billing'de iade
+// işlemden AYRI bir kayıttır (adjustment): "refund" eylemi, "pending_approval" doğar, "approved" / "rejected" son durumdur, sonradan
+// "reversed" olabilir; tam iade `type: "full"` taşır. Abonelik iptali paranın geri verildiğini SÖYLEMEZ.
+// ---------------------------------------------------------------------------
+
+/** Onaylı TAM iade var mı. */
+export type PaddleRefundState = "full_refund_approved" | "no_full_refund";
+
+/**
+ * İşlemin iade kayıtlarını Paddle'dan okur. Yalnız AYNI işleme ait, eylemi "refund", durumu "approved" ve türü "full" olan kayıt tam iade
+ * sayılır — bekleyen, reddedilen, geri çevrilen ve kısmi iadeler sayılmaz (kısmi iadelerin toplamı da: tam iadeyi Paddle `full` olarak
+ * kaydeder; kısmi parçalarla kapanan durum operatörün kanıtla elle bırakmasına kalır). Okunamazsa null (karar verilmez). Asla fırlatmaz.
+ * Yalnız ilk sayfa (50 kayıt) okunur: tam iade daha sonraki bir sayfada kalırsa sonuç "yok" olur — GÜVENLİ yön (engel kalır, operatör
+ * elle bırakır); tek işlemde 50'den çok iade kaydı beklenmez.
+ */
+export async function readTransactionRefund(transactionId: string): Promise<PaddleRefundState | null> {
+  try {
+    const qs = new URLSearchParams({ transaction_id: transactionId, action: "refund", per_page: "50" });
+    const body = (await paddleRequest(`/adjustments?${qs.toString()}`)) as { data?: unknown } | null;
+    if (!body || !Array.isArray(body.data)) return null;
+    for (const raw of body.data) {
+      if (!raw || typeof raw !== "object") continue;
+      const a = raw as Record<string, unknown>;
+      if (a.transaction_id === transactionId && a.action === "refund" && a.status === "approved" && a.type === "full") {
+        return "full_refund_approved";
+      }
+    }
+    return "no_full_refund";
+  } catch {
+    return null;
+  }
+}

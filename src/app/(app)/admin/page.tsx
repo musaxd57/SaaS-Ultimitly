@@ -754,7 +754,8 @@ export default async function AdminPage() {
             <p className="text-sm font-medium">Ödemesi alınan, aboneliği bağlanmayan</p>
             <p className="text-xs text-muted-foreground">
               Paddle ödemeyi almış ama abonelik hesaba henüz bağlanmamış. Müşteri bu sürede yeniden ödeme yapamaz (ikinci tahsilat olmasın
-              diye). Abonelik bağlanınca ya da Paddle&apos;da iptal edilince satır kendiliğinden kapanır; ödemeyi iade ettiyseniz serbest bırakın.
+              diye). Abonelik bağlanınca ya da Paddle&apos;da ödemenin tam iadesi onaylanıp abonelik iptal edilince satır kendiliğinden kapanır
+              (iptal tek başına yetmez). İadeyi başka yoldan yaptıysanız kanıtını kontrol edip serbest bırakın.
             </p>
             {paidAwaiting === null ? (
               <p className="text-xs text-destructive">Bekleyen ödemeler okunamadı.</p>

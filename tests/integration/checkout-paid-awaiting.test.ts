@@ -19,6 +19,8 @@ const { paddle } = vi.hoisted(() => ({
     /** `null` değerli kayıt = Paddle okunamıyor (500); tabloda olmayan kimlik = bulunamadı (404). */
     txns: new Map<string, { status: string; subscription_id?: string | null; custom_data?: Record<string, unknown> | null; origin?: string } | null>(),
     subs: new Map<string, { status: string } | null>(),
+    /** İşlem başına Paddle iade kayıtları (adjustment). `null` = iade listesi okunamıyor (500). */
+    adjustments: new Map<string, Array<Record<string, unknown>> | null>(),
     reads: [] as string[],
     /** Paddle'a giden HER çağrının yolu (biçimsiz kimlikle çağrı yapılmadığını göstermek için). */
     calls: [] as string[],
@@ -90,6 +92,15 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
       }
       paddle.reads.push(id);
       return { data: { id, ...row } };
+    }
+    const adj = path.match(/^\/adjustments\?(.*)$/);
+    if (adj) {
+      const q = new URLSearchParams(adj[1]);
+      const txnId = q.get("transaction_id") ?? "";
+      const list = paddle.adjustments.get(txnId);
+      if (list === null) throw new Error("Paddle HTTP 500 (internal) env=sandbox resource=adjustments");
+      // Gerçek Paddle gibi: süzgeç sunucuda (işlem + eylem); taklit süzgeci uygulamaz → kod kendi kontrolünü yapmalı (yabancı satır da döner).
+      return { data: list ?? [] };
     }
     const s = path.match(/^\/subscriptions\/(sub_[A-Za-z0-9]+)$/);
     if (s) {
@@ -229,6 +240,7 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
     paddle.created = 0;
     paddle.txns.clear();
     paddle.subs.clear();
+    paddle.adjustments.clear();
     paddle.reads.length = 0;
     paddle.calls.length = 0;
     paddle.onCreate = null;
@@ -567,12 +579,104 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       return first.body.consentId!;
     }
 
-    it("işlemin Paddle'daki aboneliği İPTAL edilmiş (operatör iptal + iade etti) → kayıt 'geçersiz', yeni ödeme açılır", async () => {
+    /** Paddle iade kaydı (adjustment). */
+    const refund = (txn: string, over: Record<string, unknown> = {}) => ({
+      id: `adj_${txn}`,
+      transaction_id: txn,
+      action: "refund",
+      type: "full",
+      status: "approved",
+      ...over,
+    });
+
+    it("🚨 işlemin TAM iadesi Paddle'da ONAYLI ve aboneliği İPTAL → kayıt 'geçersiz', yeni ödeme açılır", async () => {
       const consentId = await awaiting();
       paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_x", custom_data: { consentId }, origin: "web" });
       paddle.subs.set("sub_x", { status: "canceled" });
+      paddle.adjustments.set("txn_c1", [refund("txn_c1")]);
       expect((await openCheckout()).status).toBe(201);
       expect((await intentOf(orgId))!.status).toBe("released");
+    });
+
+    it("abonelik hiç kurulmadan TAM iade edilmiş (onaylı) ödeme → kayıt 'geçersiz' (etkin abonelik yok)", async () => {
+      const consentId = await awaiting();
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: null, custom_data: { consentId }, origin: "web" });
+      paddle.adjustments.set("txn_c1", [refund("txn_c1")]);
+      expect((await openCheckout()).status).toBe(201);
+      expect((await intentOf(orgId))!.status).toBe("released");
+    });
+
+    it.each([
+      ["abonelik iptal ama İADE YOK (iptal ≠ iade)", [] as Array<Record<string, unknown>>],
+      ["iade ONAY BEKLİYOR", [refund("txn_c1", { status: "pending_approval" })]],
+      ["iade REDDEDİLDİ", [refund("txn_c1", { status: "rejected" })]],
+      ["iade GERİ ÇEVRİLDİ", [refund("txn_c1", { status: "reversed" })]],
+      ["yalnız KISMİ iade (onaylı)", [refund("txn_c1", { type: "partial" })]],
+      ["onaylı tam kayıt ama eylemi iade değil (alacak)", [refund("txn_c1", { action: "credit" })]],
+      ["onaylı tam iade BAŞKA bir işlemin", [refund("txn_baska")]],
+    ])("🚨 %s → kayıt BEKLER, yeni ödeme açılmaz", async (_label, adjustments) => {
+      const consentId = await awaiting();
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_x", custom_data: { consentId }, origin: "web" });
+      paddle.subs.set("sub_x", { status: "canceled" });
+      paddle.adjustments.set("txn_c1", adjustments);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+    });
+
+    it("önce reddedilmiş, sonra onaylanmış TAM iade (aynı işlem) → serbest; abonelik okunamıyorsa (tam iade onaylı olsa da) BEKLER", async () => {
+      const consentId = await awaiting();
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_x", custom_data: { consentId }, origin: "web" });
+      paddle.subs.set("sub_x", null);
+      paddle.adjustments.set("txn_c1", [refund("txn_c1", { id: "adj_1", status: "rejected" }), refund("txn_c1", { id: "adj_2" })]);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      paddle.subs.set("sub_x", { status: "canceled" });
+      expect((await openCheckout()).status).toBe(201);
+      expect((await intentOf(orgId))!.status).toBe("released");
+    });
+
+    it("🚨 abonelik kimliği yokken: iade listesi okunamıyor → BEKLER; iade onaylı ama ikinci okumada abonelik kurulmuş → BEKLER (Haiku 11-19)", async () => {
+      const consentId = await awaiting();
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: null, custom_data: { consentId }, origin: "web" });
+      paddle.adjustments.set("txn_c1", null);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      // İade okunurken abonelik kuruldu: ilk işlem okuması kimliksiz, iade okumasından sonraki okumada kimlik var.
+      paddle.adjustments.set("txn_c1", [refund("txn_c1")]);
+      const reads = paddle.reads.length;
+      const realGet = paddle.txns.get.bind(paddle.txns);
+      let calls = 0;
+      paddle.txns.get = ((id: string) => {
+        const row = realGet(id);
+        if (id !== "txn_c1" || !row) return row;
+        calls++;
+        return calls === 1 ? row : { ...row, subscription_id: "sub_late" };
+      }) as typeof paddle.txns.get;
+      try {
+        expect((await openCheckout()).status).toBe(400);
+      } finally {
+        paddle.txns.get = realGet;
+      }
+      expect(paddle.reads.length).toBeGreaterThan(reads);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+    });
+
+    it("🚨 iade listesi okunamıyor → kayıt BEKLER; TAM iade onaylı ama abonelik hâlâ ETKİN → kayıt BEKLER (ikinci abonelik açılmasın)", async () => {
+      const consentId = await awaiting();
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_x", custom_data: { consentId }, origin: "web" });
+      paddle.subs.set("sub_x", { status: "canceled" });
+      paddle.adjustments.set("txn_c1", null);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      paddle.subs.set("sub_x", { status: "active" });
+      paddle.adjustments.set("txn_c1", [refund("txn_c1")]);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      // KONTROL: abonelik hiç yokken onaylı olmayan iade de yetmez.
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: null, custom_data: { consentId }, origin: "web" });
+      paddle.adjustments.set("txn_c1", [refund("txn_c1", { status: "pending_approval" })]);
+      expect((await openCheckout()).status).toBe(400);
+      expect((await intentOf(orgId))!.status).toBe("completed");
     });
 
     it.each([
@@ -752,10 +856,11 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(alarms()).toHaveLength(0);
     });
 
-    it("süpürge önce uzlaştırır: Paddle'da aboneliği iptal edilmiş ödeme alarm ÜRETMEZ, kayıt kapanır", async () => {
+    it("süpürge önce uzlaştırır: Paddle'da TAM iadesi onaylı + aboneliği iptal edilmiş ödeme alarm ÜRETMEZ, kayıt kapanır", async () => {
       const { id, consentId } = await awaitingSince(16, "txn_c1");
       paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_x", custom_data: { consentId }, origin: "web" });
       paddle.subs.set("sub_x", { status: "canceled" });
+      paddle.adjustments.set("txn_c1", [{ transaction_id: "txn_c1", action: "refund", type: "full", status: "approved" }]);
       await sweepCheckoutIntents();
       expect(alarms()).toHaveLength(0);
       expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id } })).status).toBe("released");

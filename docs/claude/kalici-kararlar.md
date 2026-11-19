@@ -458,8 +458,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   istemci sinyali) `CheckoutIntent` "completed" kaydıdır; kayıt varken o işletmeye yeni ödeme ekranı / işlem AÇILMAZ, süre sınırı yok.
   10 dakikalık kilit yalnız yardımcıdır (istemci sinyali köprüsü + ilk metin); asıl koruma kayıttır — kilit yazılamasa da kayıt yazılır.
   Kayıt yalnız KANITLA kapanır: abonelik hesaba yazıldı (`fulfilled`: aynı onay kimliğini taşıyan abonelik olayı · işlem olayındaki
-  abonelik kimliği yereldekiyle aynı · uzlaştırmada aynı) ya da ödeme geçersiz (`released`: Paddle'da aboneliği iptal edilmiş · operatör
-  bıraktı). Paddle okunamıyor / bulamıyor → durum DEĞİŞMEZ. İstemcinin sözü tek başına kalıcı kayıt yazmaz. Yenileme / plan değişikliği
+  abonelik kimliği yereldekiyle aynı · uzlaştırmada aynı) ya da ödeme geçersiz (`released`: aynı işlemin Paddle'da ONAYLANMIŞ TAM iadesi
+  VE abonelik etkin değil (iptal / hiç kurulmamış — kurulmamışsa iade okumasından sonra yeniden doğrulanır) · operatör kanıtla bıraktı).
+  🚨 **İPTAL ≠ İADE (Codex / kurucu 11-19):** abonelik iptali tek başına serbest bırakmaz; bekleyen / kısmi / reddedilen / geri çevrilen
+  iade yetmez (`paddle-transaction-status.ts readTransactionRefund`). Normal kullanılıp sonradan iptal edilmiş abonelik bu kuralın konusu
+  değildir (o kayıt zaten `fulfilled`). Paddle okunamıyor / bulamıyor → durum DEĞİŞMEZ. İstemcinin sözü tek başına kalıcı kayıt yazmaz. Yenileme / plan değişikliği
   işlemi kayıt açmaz (köken `web` / `api` şartı). Saklama süpürgesi "completed" satırı silmez. Web kancasında kayıt adımları hata
   YUTMAZ (olay yeniden gelir) ve yazımdan önceki satıra bağlı alarmlardan SONRA koşar. Kural: **süreyle düşen bir kilit "ödeme alındı"
   gibi kalıcı bir gerçeği taşıyamaz; kalıcı gerçek kalıcı kayıt ister ve yalnız kanıtla açılıp kapanır.**

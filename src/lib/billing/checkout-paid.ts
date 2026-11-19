@@ -6,7 +6,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { logEvent } from "@/lib/event-log";
 import { getSubscriptionStatus } from "@/lib/payments/paddle";
-import { PADDLE_TXN_NOT_FOUND, readPaddleTransaction } from "@/lib/billing/paddle-transaction-status";
+import { PADDLE_TXN_NOT_FOUND, readPaddleTransaction, readTransactionRefund } from "@/lib/billing/paddle-transaction-status";
 
 // ---------------------------------------------------------------------------
 // "ÖDEME ALINDI, ABONELİK BEKLENİYOR" — KALICI DURUM (Codex 11-17, 1. bulgu; tasarım
@@ -21,7 +21,9 @@ import { PADDLE_TXN_NOT_FOUND, readPaddleTransaction } from "@/lib/billing/paddl
 //  · bağlandı ("fulfilled"): aynı onay kimliğini taşıyan abonelik olayı yazıldı · işlem olayının abonelik kimliği yereldekiyle aynı ·
 //    uzlaştırmada Paddle'daki işlemin abonelik kimliği yereldekiyle aynı (aboneliğin durumu aranmaz: sonradan iptal edilmiş abonelik
 //    eski kaydı "bekliyor" bırakıp yeni satın almayı kilitlemesin);
-//  · geçersiz ("released"): uzlaştırmada işlemin Paddle'daki aboneliği İPTAL edilmiş (operatör iptal + iade etti) · operatör elle bıraktı.
+//  · geçersiz ("released"): uzlaştırmada aynı işlemin Paddle'da onaylanmış TAM iadesi var VE aboneliği etkin değil (iptal edilmiş ya da hiç
+//    kurulmamış) · operatör kanıtla elle bıraktı. 🚨 İPTAL ≠ İADE (Codex / kurucu 11-19): eskiden abonelik iptali tek başına serbest
+//    bırakıyordu — para geri verilmeden ikinci ödeme açılabiliyordu. Bekleyen / kısmi / geri çevrilen iade yetmez.
 // Paddle okunamıyor / işlemi bulamıyor → durum DEĞİŞMEZ (ödeme kanıtı elde; belirsizlikte ikinci ödeme açılmaz).
 // İstemcinin "tamamlandı" sözü TEK BAŞINA kalıcı kayıt yazmaz (hatalı sinyal müşteriyi kalıcı kilitlemesin) — o yalnız 10 dk kilidi yazar.
 // ---------------------------------------------------------------------------
@@ -30,7 +32,7 @@ import { PADDLE_TXN_NOT_FOUND, readPaddleTransaction } from "@/lib/billing/paddl
 export const CHECKOUT_PAID_STATUS = "completed";
 /** Ödemenin aboneliği hesaba bağlandı. */
 export const CHECKOUT_FULFILLED_STATUS = "fulfilled";
-/** Ödeme geçersiz sayıldı (aboneliği Paddle'da iptal edilmiş / operatör bıraktı): yeni ödeme açılabilir. */
+/** Ödeme geçersiz sayıldı (tam iadesi Paddle'da onaylı + abonelik etkin değil / operatör bıraktı): yeni ödeme açılabilir. */
 export const CHECKOUT_RELEASED_STATUS = "released";
 
 /**
@@ -223,16 +225,39 @@ export async function reconcilePaidCheckout(row: PaidCheckoutRow): Promise<PaidC
   if (txn === PADDLE_TXN_NOT_FOUND) return { outcome: "awaiting", paddle: "Paddle bu işlemi bulamıyor" };
   // İşlem başka bir onayın (beklenmez — satır bu işlemden yazıldı): karar verilmez.
   if (txn.consentId !== null && txn.consentId !== row.consentId) return { outcome: "awaiting", paddle: "işlemin onay kaydı uyuşmuyor" };
-  if (!txn.subscriptionId) return { outcome: "awaiting", paddle: `işlem durumu ${txn.status ?? "bilinmiyor"}, abonelik kimliği yok` };
+  if (!txn.subscriptionId) {
+    // Abonelik hiç kurulmadan iade edilmiş ödeme: onaylı TAM iade + abonelik HÂLÂ yok → serbest. İade okumasından SONRA işlem yeniden okunur
+    // (Haiku incelemesi 11-19): ilk okumayla iade okuması arasında abonelik kurulduysa bu dal karar vermez — kayıt bekler, sonraki
+    // uzlaştırma abonelik dalından (iptal + iade) karar verir. Yoksa iade edilmiş ama aboneliği sonradan etkinleşmiş ödemede ikinci ödeme
+    // açılır, işletmede iki etkin abonelik olurdu.
+    if ((await readTransactionRefund(row.providerRef)) === "full_refund_approved") {
+      const again = await readPaddleTransaction(row.providerRef);
+      if (again !== null && again !== PADDLE_TXN_NOT_FOUND && !again.subscriptionId) {
+        await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded");
+        return { outcome: "released", paddle: `işlem ${row.providerRef} tam iade edilmiş (onaylı), abonelik yok` };
+      }
+      return { outcome: "awaiting", paddle: `işlem ${row.providerRef} tam iade edilmiş ama abonelik durumu yeniden doğrulanamadı` };
+    }
+    return { outcome: "awaiting", paddle: `işlem durumu ${txn.status ?? "bilinmiyor"}, abonelik kimliği yok` };
+  }
   const local = await prisma.subscription.findUnique({ where: { organizationId: row.organizationId }, select: { provider: true, providerRef: true } });
   if (local?.provider === "paddle" && local.providerRef === txn.subscriptionId) {
     await closePaidCheckout(row, CHECKOUT_FULFILLED_STATUS, "reconciled_linked");
     return { outcome: "fulfilled", paddle: `abonelik ${txn.subscriptionId} hesaba bağlı` };
   }
   const sub = await getSubscriptionStatus(txn.subscriptionId);
+  // İki kanıt BİRLİKTE: para geri verildi (onaylı tam iade) VE abonelik etkin değil (iptal). Biri eksikse kayıt bekler — iade edilmiş ama
+  // aboneliği hâlâ etkin ödeme yeni ödemeyle ikinci abonelik açardı; iptal edilmiş ama iade edilmemiş ödeme müşterinin parasını tutar.
   if (sub?.status === "canceled") {
-    await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "subscription_canceled");
-    return { outcome: "released", paddle: `abonelik ${txn.subscriptionId} iptal edilmiş` };
+    const refund = await readTransactionRefund(row.providerRef);
+    if (refund === "full_refund_approved") {
+      await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded_and_canceled");
+      return { outcome: "released", paddle: `abonelik ${txn.subscriptionId} iptal, işlem tam iade edilmiş (onaylı)` };
+    }
+    return {
+      outcome: "awaiting",
+      paddle: `abonelik ${txn.subscriptionId} iptal ama işlemin onaylı TAM iadesi ${refund === null ? "okunamadı" : "yok"} (iptal ≠ iade)`,
+    };
   }
   return {
     outcome: "awaiting",
@@ -307,8 +332,9 @@ export async function sweepPaidCheckouts(
         new Error(
           `İşletme ${row.organizationId}: Paddle işlemi ${row.providerRef ?? "?"} ödendi (${minutes} dk önce) ama abonelik hesaba bağlanmadı — ` +
             `müşteri yeniden ödeme yapamaz (bilerek engelli). Paddle: ${verdict.paddle}. Yapılacak: abonelik olayını Paddle'dan yeniden gönderin. ` +
-            `Olay yine bağlanamıyorsa (ör. Ödeme incelemesi'nde "bağlanamadı" görünüyor) Paddle'da aboneliği HEMEN iptal edip ödemeyi iade edin — ` +
-            `iptal gerçekleşince engel kendiliğinden kalkar (dönem sonuna planlanan iptalde abonelik etkin kalır, engel de kalır) — ya da ` +
+            `Olay yine bağlanamıyorsa (ör. Ödeme incelemesi'nde "bağlanamadı" görünüyor) Paddle'da aboneliği HEMEN iptal edip ödemeyi TAM iade edin — ` +
+            `iade Paddle'da onaylanınca ve abonelik iptal olunca engel kendiliğinden kalkar (iptal tek başına yetmez; bekleyen ya da kısmi iade ` +
+            `yetmez; dönem sonuna planlanan iptalde abonelik etkin kalır, engel de kalır) — ya da ` +
             `Operasyon Teşhisi'nden kaydı serbest bırakın.`,
         ),
         { now },
