@@ -4,6 +4,7 @@ import { subMonths, startOfDay } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { OUTBOX_ERASED_REASON, cancelRequestWrite } from "@/lib/outbox/dispatch";
 import { redactNameInCodeGreetingLine } from "@/lib/ai/code-greeting";
 import { nameSource } from "@/lib/name-source";
 // G7-a (kurucu kararı 10-13): süpürülen metinlerde ad maskesinden SONRA telefon + e-posta maskesi (yaprak modül).
@@ -428,6 +429,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       // 08-01). `blocked`/`failed`/`review` de teslim EDİLMEMİŞ ve diriltme yolu
       // olan durumlar; listede olmadıkları için 2 yıllık bir satır abonelik
       // yenilenince ya da ops ekranından tek tıkla gönderilebiliyordu.
+      // İşçinin elindeki, isteği henüz atılmamış satır aşağıdaki iptalden kaçar (talebi ezilmez) → ona iptal İSTEĞİ yazılır; işçi isteği
+      // atmadan hemen önce bunu görür ve göndermez (`outbox/dispatch.ts`; açık silmeyle BİREBİR — parite kuralı).
+      prisma.messageOutbox.updateMany(
+        cancelRequestWrite(
+          { OR: [{ reservationId: { in: resIds } }, ...(convIds.length ? [{ conversationId: { in: convIds } }] : [])] },
+          OUTBOX_ERASED_REASON,
+          now,
+        ),
+      ),
       prisma.messageOutbox.updateMany({
         where: {
           OR: [
@@ -660,6 +670,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       // gidecek TAM METİN (adı dahil). `reactivateBlockedOutbox`'ın WHERE'inde
       // YAŞ FİLTRESİ YOK → abonelik yenilendiğinde 2 yıllık bir mesaj gerçekten
       // gönderilebiliyordu. Kapsam ve sıra rezervasyon dalıyla BİREBİR aynı.
+      // İşçinin elindeki satıra iptal isteği (kardeş dalla BİREBİR; parite kuralı).
+      prisma.messageOutbox.updateMany(cancelRequestWrite({ conversationId: { in: orphanIds } }, OUTBOX_ERASED_REASON, now)),
       prisma.messageOutbox.updateMany({
         where: {
           conversationId: { in: orphanIds },

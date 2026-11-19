@@ -106,6 +106,7 @@ import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 // kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
+import { requestOutboxCancel } from "@/lib/outbox/dispatch";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -6598,15 +6599,11 @@ export async function sendCheckinNow(input: {
     const conflicted =
       existing !== null &&
       (await bookingRefsInMultipleProperties(prisma, { organizationId, refs: [r.sourceReference], now })).has(r.sourceReference);
-    const released =
-      conflicted && existing
-        ? (
-            await prisma.messageOutbox.updateMany({
-              where: { id: existing.id, organizationId, status: "pending" },
-              data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "manual_send_two_properties" },
-            })
-          ).count > 0
-        : false;
+    // İptal atomik kuralla istenir (`outbox/dispatch.ts`): bekleyen satır hemen iptal olur; işçi satırı almış ama isteği atmamışsa iptal
+    // isteği yazılır ve işçi isteği ATMAZ. İsteği sağlayıcıya çıkmış satır iptal edilemez → aşağıdaki eski hüküm ("zaten gönderim sırasında").
+    const cancel =
+      conflicted && existing ? await requestOutboxCancel({ organizationId, id: existing.id }, "manual_send_two_properties", now) : null;
+    const released = cancel !== null && cancel.dispatching === 0 && cancel.canceled + cancel.requested > 0;
     if (existing && !released) {
       const verdict = await existingCheckinOutboxVerdict(organizationId, existing.id);
       if (verdict === "queued") {

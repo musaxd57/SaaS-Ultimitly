@@ -31,6 +31,7 @@ vi.mock("@/lib/api", async (orig) => {
 
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { markDispatchStarted } from "@/lib/outbox/dispatch";
 import { DELETE as deleteConversation } from "@/app/api/conversations/[id]/route";
 import { DELETE as deleteProperty } from "@/app/api/properties/[id]/route";
 
@@ -288,5 +289,85 @@ describe("worker — hedef varlığı/kiracı vetosu (braces: rota katmanı olma
     await drainOutboxOnce({ send, tokenFor: async () => "tok" });
     expect(send).toHaveBeenCalledTimes(1); // gitti — geri alınamaz
     expect((await outbox(outboxId)).status).toBe("sent"); // ve DÜRÜSTÇE 'sent' (canceled DEĞİL)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11-18 akşam (`outbox/dispatch.ts`): silme, işçinin HAZIRLIĞINDAKİ satırı da durdurur. Rota işçinin talebini yine ezmez; ama isteği henüz
+// sağlayıcıya çıkmamış satıra aynı işlemde iptal isteği yazar ve işçi isteği atmadan HEMEN önce satırı koşullu işaretlediği için o satırı
+// göndermez. Yukarıdaki "bilinen sınır" böylece yalnız isteği gerçekten çıkmış satıra iner (o test aynen geçerli).
+// ---------------------------------------------------------------------------
+describe("silme → işçinin hazırlığındaki satır da gönderilmez", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** İşçi satırı almış, gönderim öncesi kontrollerini bitirmiş, isteği henüz atmamış. */
+  const claimInPreparation = (id: string, token: string) =>
+    prisma.messageOutbox.update({
+      where: { id },
+      data: { status: "sending", claimedBy: token, claimedAt: new Date(), claimExpiresAt: new Date(Date.now() + 60_000), attemptCount: 1 },
+    });
+
+  it("🚨 konuşma silme: hazırlıktaki satıra iptal isteği yazılır (talep ezilmez) → gönderim başlangıcı reddedilir", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId } = await enqueueReply(orgId, conversationId, "manual", "k-prep");
+    await claimInPreparation(outboxId, "d1:w1");
+
+    const res = await deleteConversation(req(`/api/conversations/${conversationId}`), ctx(conversationId));
+    expect(res.status).toBe(200);
+
+    const row = await outbox(outboxId);
+    expect(row).toMatchObject({ status: "sending", claimedBy: "d1:w1", cancelReason: "conversation_deleted" });
+    expect(row.cancelRequestedAt).not.toBeNull();
+    // ⬅️ ESKİDE: rota bu satırı atlıyordu ve işçi (varlık kontrolünü geçtiyse) isteği atıyordu.
+    expect(await markDispatchStarted({ id: outboxId, token: "d1:w1", now: new Date() })).toEqual({ kind: "cancel_requested", reason: "conversation_deleted" });
+  });
+
+  it("🚨 daire silme: hazırlıktaki cevap VE yaşam döngüsü satırına iptal isteği yazılır; başka dairenin satırına yazılmaz", async () => {
+    const { orgId, propertyId, reservationId, conversationId } = await seed();
+    const reply = await enqueueReply(orgId, conversationId, "ai", "k-ai-prep");
+    const welcome = await enqueueProactive({
+      organizationId: orgId,
+      externalReservationId: "res-uuid-del",
+      reservationId,
+      channel: "airbnb",
+      messageType: "welcome",
+      body: "Hoş geldiniz!",
+      idempotencyKey: "welcome:res-uuid-del",
+    });
+    // Aynı işletmenin BAŞKA dairesi: dokunulmaz.
+    const otherProperty = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 2" } });
+    const otherConv = await prisma.conversation.create({
+      data: { propertyId: otherProperty.id, channel: "airbnb", guestIdentifier: "Diğer", status: "new", externalReservationId: "res-other" },
+    });
+    const other = await enqueueOutbound({
+      organizationId: orgId, conversationId: otherConv.id, channel: "airbnb", externalReservationId: "res-other",
+      reservationId: null, body: "O", senderName: "Host", authorType: "host", messageType: "manual", idempotencyKey: "ko-prep",
+    });
+    for (const id of [reply.outboxId, welcome.outboxId, other.outboxId]) await claimInPreparation(id, "d1:w2");
+
+    const res = await deleteProperty(req(`/api/properties/${propertyId}`), ctx(propertyId));
+    expect(res.status).toBe(200);
+
+    for (const id of [reply.outboxId, welcome.outboxId]) {
+      expect(await outbox(id)).toMatchObject({ status: "sending", claimedBy: "d1:w2", cancelReason: "property_deleted" });
+      expect(await markDispatchStarted({ id, token: "d1:w2", now: new Date() })).toEqual({ kind: "cancel_requested", reason: "property_deleted" });
+    }
+    expect((await outbox(other.outboxId)).cancelRequestedAt).toBeNull();
+    expect(await markDispatchStarted({ id: other.outboxId, token: "d1:w2", now: new Date() })).toEqual({ kind: "started" });
+  });
+
+  it("isteği ÇIKMIŞ satıra iptal isteği yazılmaz (iptal edilemez — sonucu gönderim belirler)", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId } = await enqueueReply(orgId, conversationId, "manual", "k-out");
+    await claimInPreparation(outboxId, "d1:w3");
+    expect(await markDispatchStarted({ id: outboxId, token: "d1:w3", now: new Date() })).toEqual({ kind: "started" });
+
+    await deleteConversation(req(`/api/conversations/${conversationId}`), ctx(conversationId));
+    expect(await outbox(outboxId)).toMatchObject({ status: "sending", claimedBy: "d1:w3", cancelRequestedAt: null });
   });
 });

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
+import { DISPATCH_AWARE_TOKEN_PREFIX, OUTBOX_ERASED_REASON, cancelFlaggedUnclaimed, markDispatchStarted } from "./dispatch";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
@@ -230,8 +231,32 @@ export async function hasDrainableOutbox(): Promise<boolean> {
  * lapsed (the worker crashed mid-attempt) is moved to `ambiguous` — we DON'T know
  * if the send landed, so it must be reconciled, never blind-resent. Returns the
  * number recovered.
+ *
+ * 🚨 HAZIRLIKTA ÇÖKEN SATIR "BELİRSİZ" DEĞİLDİR (kurucu 11-18 akşam: "hazırlanıyor / dış gönderim başladı / sonuç belirsiz ayrımı"; K2):
+ * `sending` satırın isteği sağlayıcıya çıkmadıysa (gönderim başlangıcı işareti YOK) mesajın gitmediği KESİNDİR → satır bekleyene geri
+ * bırakılır ve yeniden denenir; ev sahibine yanlış bir "misafire ulaşmış olabilir" incelemesi doğmaz. Hüküm yalnız işareti YAZAN sürümün
+ * talebine verilir (belirteç öneki `DISPATCH_AWARE_TOKEN_PREFIX`); öneksiz talepte işaretin yokluğu kanıt değildir → eskisi gibi belirsiz.
+ * Yarış güvenli: bu yazım ile işçinin gönderim başlangıcı yazımı aynı satırda koşulludur — kurtarma önce yazarsa işçi talebini kaybeder ve
+ * isteği ATMAZ; işçi önce yazarsa satır bu koşula uymaz ve aşağıda belirsize gider. Deneme sayılmaz (istek atılmadı). İptal isteği taşıyan
+ * satır da bekleyene döner; geçişin hemen ardından gelen temizlik onu talep edilmeden kapatır.
  */
 async function recoverStaleClaims(now: Date): Promise<number> {
+  const notDispatched = await prisma.messageOutbox.updateMany({
+    where: {
+      status: "sending",
+      claimExpiresAt: { not: null, lte: now },
+      dispatchStartedAt: null,
+      claimedBy: { startsWith: DISPATCH_AWARE_TOKEN_PREFIX },
+    },
+    data: {
+      status: "pending",
+      claimedBy: null,
+      claimExpiresAt: null,
+      claimedAt: null,
+      availableAt: now,
+      attemptCount: { decrement: 1 },
+    },
+  });
   const res = await prisma.messageOutbox.updateMany({
     where: {
       status: { in: ["sending", "reconciling"] },
@@ -246,7 +271,7 @@ async function recoverStaleClaims(now: Date): Promise<number> {
       availableAt: now,
     },
   });
-  return res.count;
+  return notDispatched.count + res.count;
 }
 
 /** Talep işleminin veritabanı tarafı tavanı (ms; işlem zaman aşımı 15 sn'den KISA). Yalnız testler değiştirir. */
@@ -329,6 +354,9 @@ async function claimBatchLocked(
         "claimedBy" = ${token},
         "claimedAt" = ${now},
         "claimExpiresAt" = ${expiry},
+        -- Yeni GÖNDERİM denemesi "hazırlanıyor" evresinden başlar: önceki denemenin "dış gönderim başladı" işareti taşınmaz (o denemenin
+        -- sonucu zaten yazıldı). Uzlaştırma talebi (belirsiz satır) işareti KORUR — o satırın isteği gerçekten çıkmıştı.
+        "dispatchStartedAt" = CASE WHEN o."status" = 'pending' THEN NULL ELSE o."dispatchStartedAt" END,
         "updatedAt" = now()
     WHERE o."id" IN (
       SELECT ranked."id" FROM (
@@ -1140,7 +1168,8 @@ export const CHANNEL_PAUSED_REASON = "channel_paused";
 
 export async function reactivateBlockedOutbox(organizationId: string, now: Date = new Date()): Promise<number> {
   const stale = await prisma.messageOutbox.updateMany({
-    where: { organizationId, status: "blocked", body: { not: ANON_BODY }, messageType: { in: ["ai", "holding_ack"] } },
+    // İptal isteği taşıyan satır dirilmez (`dispatch.ts`): süpürge onu `canceled` yapar; arada kalan pencerede de bekleyene dönmesin.
+    where: { organizationId, status: "blocked", cancelRequestedAt: null, body: { not: ANON_BODY }, messageType: { in: ["ai", "holding_ack"] } },
     data: {
       status: "pending",
       attemptCount: 0,
@@ -1158,7 +1187,7 @@ export async function reactivateBlockedOutbox(organizationId: string, now: Date 
     // hâlinde bile (ör. konuşma/rezervasyon bağı kopmuş yetim satır) silinmiş
     // misafire sentinel metnin gitmesini engeller. Zaten anlamsız olan bir
     // gövdeyi göndermenin hiçbir faydası yok — kaybedilen bir şey yok.
-    where: { organizationId, status: "blocked", body: { not: ANON_BODY } },
+    where: { organizationId, status: "blocked", cancelRequestedAt: null, body: { not: ANON_BODY } },
     data: {
       status: "pending",
       attemptCount: 0,
@@ -1190,7 +1219,7 @@ async function cancelRow(row: OutboxRow, token: string, reason: string): Promise
     claimExpiresAt: null,
   });
   // İptal edilen yapay zekâ cevabı hiç gitmedi → onunla kapanan öğeler ev sahibinde yeniden açık (silme talebinde öğeler zaten temizlenir).
-  if (done && row.messageType === "ai" && row.messageId && reason !== "erased") await reopenAnsweredItems(row);
+  if (done && row.messageType === "ai" && row.messageId && reason !== OUTBOX_ERASED_REASON) await reopenAnsweredItems(row);
   return done;
 }
 
@@ -1509,6 +1538,18 @@ async function processOne(
       return;
     }
     row = { ...row, body: fresh.body };
+  }
+
+  // 🚨 GÖNDERİM BAŞLANGICI (kurucu 11-18 akşam, `dispatch.ts`): isteği atmadan HEMEN önce satıra "dış gönderim başladı" işareti yazılır —
+  // yalnız bu satır için iptal İSTENMEMİŞSE. İptal isteyen de işaret yokken yazabildiği için ikisi aynı satırda yarışır ve tam biri kazanır:
+  // iptal kazandıysa istek ATILMAZ, satır iptal edilir; işaret yazıldıysa dışarıdan iptal artık "gönderim başladı" cevabını alır.
+  // Bundan sonraki her çıkış sağlayıcı çağrısının sonucudur.
+  const start = await markDispatchStarted({ id: row.id, token, now: deps.now() });
+  if (start.kind === "lost") return; // talep bu işçide değil: hiçbir şey göndermez
+  if (start.kind === "cancel_requested") {
+    await cancelRow(row, token, start.reason ?? "cancel_requested");
+    acc.canceled++;
+    return;
   }
 
   // K7 (09-30): yaşam döngüsü satırının GÖNDERİM İZİ — POST'tan ÖNCE (`automated-sends.ts`), sonuçla kapanır: senkron aynı
@@ -1940,7 +1981,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
       ((orgId: string, provider?: OutboundProvider) => resolveOrgChannelCredential(orgId, provider).then((c) => c?.token ?? undefined)),
   };
   const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0, blocked: 0 };
-  const token = randomUUID();
+  const token = `${DISPATCH_AWARE_TOKEN_PREFIX}${randomUUID()}`;
   const nowDate = now();
   const expiry = new Date(nowDate.getTime() + CLAIM_TTL_MS);
 
@@ -1951,6 +1992,14 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     } catch (err) {
       await reportError("outbox-recover", err);
     }
+  }
+
+  // İptal isteği taşıyan ve hiçbir işçide olmayan satırlar talep edilmeden kapanır (`dispatch.ts`): istek, satır işçideyken yazılıp satır
+  // sonra geri bırakıldıysa (erteleme) bir sonraki gönderim denemesini beklemesin. En iyi çaba — kaçan satır gönderim başlangıcında reddedilir.
+  try {
+    await cancelFlaggedUnclaimed();
+  } catch (err) {
+    await reportError("outbox-cancel-flagged", err);
   }
 
   let rows: OutboxRow[];

@@ -41,6 +41,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { eraseReservationData } from "@/lib/erasure";
 import { reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { requeueFailedOutbox } from "@/lib/outbox/ops";
+import { markDispatchStarted } from "@/lib/outbox/dispatch";
 import { OUTBOX_STATUSES, ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 const DAY = 86_400_000;
@@ -158,6 +159,65 @@ describe("silinen misafirin outbox satırı yeniden canlanamaz", () => {
     for (const k of ["ob-sent", "ob-sending", "ob-reconciling"]) {
       expect((await byKey(k)).body).toBe(ANON_BODY);
     }
+  });
+
+  // 11-18 akşam (`outbox/dispatch.ts`): "uçuştaki satır" istisnası daraldı. İşçinin elindeki satırın DURUMU yine işçiye bırakılır (talebi
+  // ezilmez) — ama isteği henüz sağlayıcıya ÇIKMAMIŞSA satıra iptal isteği yazılır ve işçi isteği atmadan hemen önce bunu görüp GÖNDERMEZ.
+  // Yalnız isteği gerçekten çıkmış satır (gönderim başladı) olduğu gibi kalır.
+  for (const [name, run] of [
+    ["AÇIK SİLME", async (orgId: string, reservationId: string) => void (await eraseReservationData(orgId, reservationId))],
+    ["SÜRE BAZLI süpürge", async () => void (await anonymizeOldGuestData())],
+  ] as const) {
+    it(`🚨 ${name}: işçinin HAZIRLIĞINDAKİ satır gönderilmez (iptal isteği yazılır); isteği çıkmış satıra dokunulmaz`, async () => {
+      const { orgId, reservationId } = await seedStayWithOutbox({ ageDays: 40 * 30 });
+      const prepared = await byKey("ob-sending"); // işçide, isteği henüz atılmadı
+      const dispatched = await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId,
+          conversationId: prepared.conversationId,
+          reservationId,
+          channel: "airbnb",
+          body: GUEST_TEXT,
+          idempotencyKey: "ob-dispatched",
+          status: "sending",
+          claimedBy: "worker-2",
+          claimExpiresAt: new Date(Date.now() + 60_000),
+          dispatchStartedAt: new Date(),
+        },
+      });
+      await run(orgId, reservationId);
+
+      const after = await byKey("ob-sending");
+      expect(after).toMatchObject({ status: "sending", claimedBy: "worker-1", cancelReason: "erased" }); // talep ezilmedi, istek yazıldı
+      expect(after.cancelRequestedAt).not.toBeNull();
+      // İşçi isteği atmadan hemen önce satırı işaretlemeye çalışır → reddedilir, istek ATILMAZ.
+      expect(await markDispatchStarted({ id: after.id, token: "worker-1", now: new Date() })).toEqual({ kind: "cancel_requested", reason: "erased" });
+      // İsteği çıkmış satır: iptal isteği YOK (iptal edilemez; sonucu gönderim belirler).
+      expect((await byKey("ob-dispatched")).cancelRequestedAt).toBeNull();
+      expect(dispatched.status).toBe("sending");
+      // Uzlaştırmadaki satır (isteği çıkmış, sonucu aranıyor) da iptal isteği almaz.
+      expect((await byKey("ob-reconciling")).cancelRequestedAt).toBeNull();
+    });
+  }
+
+  it("🚨 SÜRE BAZLI süpürge, SAHİPSİZ konuşma dalı: hazırlıktaki satıra da iptal isteği yazılır (dal düzeyinde parite)", async () => {
+    // Rezervasyonu silinmiş (sahipsiz) eski konuşma: kardeş dalla aynı kural. Dosya düzeyindeki parite testi dalı GÖREMEZ → ayrı test.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const old = new Date(Date.now() - 40 * 30 * DAY);
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Ada Lovelace", status: "answered", lastMessageAt: old, externalReservationId: "res-orphan" },
+    });
+    const mk = (key: string, extra: Record<string, unknown>) =>
+      prisma.messageOutbox.create({
+        data: { organizationId: orgId, conversationId: conversation.id, channel: "airbnb", body: GUEST_TEXT, idempotencyKey: key, status: "sending", claimExpiresAt: new Date(Date.now() + 60_000), ...extra },
+      });
+    const prepared = await mk("ob-orphan-prepared", { claimedBy: "worker-1" });
+    await mk("ob-orphan-dispatched", { claimedBy: "worker-2", dispatchStartedAt: new Date() });
+    await anonymizeOldGuestData();
+
+    expect(await byKey("ob-orphan-prepared")).toMatchObject({ status: "sending", claimedBy: "worker-1", cancelReason: "erased", body: ANON_BODY });
+    expect(await markDispatchStarted({ id: prepared.id, token: "worker-1", now: new Date() })).toEqual({ kind: "cancel_requested", reason: "erased" });
+    expect((await byKey("ob-orphan-dispatched")).cancelRequestedAt).toBeNull();
   });
 
   it("SÜRE BAZLI süpürge de aynı kapsamı uygular (iki süpürge paritesi)", async () => {

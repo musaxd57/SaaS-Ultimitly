@@ -8,6 +8,7 @@ import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import { serializeSupplyProfile } from "@/lib/supply";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { cancelRequestWrite } from "@/lib/outbox/dispatch";
 import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
 import { houseRulesWhere } from "@/lib/house-rules/store";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
@@ -145,6 +146,15 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     // Kilit sırası kural kaydıyla AYNI: önce mülk satırı (`saveEarlyCheckinRule` de önce onu kilitler) — ters sıra
     // eşzamanlı kural kaydı + silmede kilitlenme (deadlock) ya da silinmiş mülke sahipsiz kural bırakabilirdi.
     await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${id} AND "organizationId" = ${session.organizationId} FOR UPDATE`;
+    // İşçinin elindeki, isteği henüz atılmamış satır aşağıdaki iptalden kaçar (talebi ezilmez) → ona iptal İSTEĞİ yazılır; işçi isteği
+    // atmadan hemen önce bunu görür ve göndermez (`outbox/dispatch.ts`, konuşma silmeyle aynı kural).
+    await tx.messageOutbox.updateMany(
+      cancelRequestWrite(
+        { organizationId: session.organizationId, ...(targets.length ? { OR: targets } : { id: "__none__" }) },
+        "property_deleted",
+        new Date(),
+      ),
+    );
     await tx.messageOutbox.updateMany({
       where: {
         organizationId: session.organizationId,

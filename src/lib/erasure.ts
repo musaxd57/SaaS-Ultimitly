@@ -8,6 +8,7 @@ import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody, scrubStyleProfile } 
 // G7-a (kurucu kararı 10-13): silinen misafirin metinlerinde ad maskesinden SONRA telefon + e-posta maskesi — saklama süpürgesiyle parite.
 import { redactContactsFromText } from "@/lib/contact-redact";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { OUTBOX_ERASED_REASON, cancelRequestWrite } from "@/lib/outbox/dispatch";
 
 // ---------------------------------------------------------------------------
 // KVKK EXPLICIT-erasure (m40/m41) — guest-level "silme talebi" (Law 6698 art. 11
@@ -583,6 +584,10 @@ async function maskReservationRows(
       ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
     ],
   };
+  // İşçinin elindeki, isteği henüz atılmamış satır aşağıdaki iptalden kaçar (talebi ezilmez) → ona iptal İSTEĞİ yazılır (`outbox/dispatch.ts`):
+  // işçi isteği atmadan hemen önce bunu görür ve GÖNDERMEZ. Yukarıdaki "milisaniyelik" pencere böylece yalnız isteği gerçekten çıkmış satıra
+  // iner. Sebep "erased": işçi iptal ederken kapanmış öğeleri yeniden AÇMAZ (silinen misafirin öğeleri zaten temizlendi).
+  await db.messageOutbox.updateMany(cancelRequestWrite(outboxLink, OUTBOX_ERASED_REASON, new Date()));
   await db.messageOutbox.updateMany({
     where: {
       ...outboxLink,

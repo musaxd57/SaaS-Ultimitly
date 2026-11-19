@@ -340,14 +340,34 @@ describe("Girişler — elle gönderim: geri alma alarmı ve kalıcı kuyruk", (
     expect(await stamp(sibling.id)).toBeInstanceOf(Date);
   });
 
-  it("iki dairede kayıtlı ama satır UÇUŞTA / gönderilmiş: dokunulmaz, eski hüküm (çift gönderim yok)", async () => {
+  it("iki dairede kayıtlı ama satırın isteği sağlayıcıya ÇIKMIŞ / gönderilmiş: dokunulmaz, eski hüküm (çift gönderim yok)", async () => {
     const { s, row } = await twoPropertySetup();
-    for (const [status, kind] of [["sending", "queue_owns"], ["sent", "already_sent"], ["review", "ambiguous"]] as const) {
-      await prisma.messageOutbox.update({ where: { id: row.id }, data: { status } });
-      expect(await sendCheckinNow(await args(s)), status).toEqual({ ok: false, kind });
-      expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(status);
+    const cases = [
+      // İşçi isteği attı, cevap bekleniyor: iptal edilemez.
+      [{ status: "sending", claimedBy: "w1", dispatchStartedAt: new Date() }, "queue_owns"],
+      [{ status: "sent" }, "already_sent"],
+      [{ status: "review" }, "ambiguous"],
+    ] as const;
+    for (const [data, kind] of cases) {
+      await prisma.messageOutbox.update({ where: { id: row.id }, data });
+      expect(await sendCheckinNow(await args(s)), data.status).toEqual({ ok: false, kind });
+      const after = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } });
+      expect(after.status).toBe(data.status);
+      expect(after.cancelRequestedAt, data.status).toBeNull();
     }
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 iki dairede kayıtlı + işçi satırı ALMIŞ ama isteği henüz atmamış: iptal İSTENİR (işçi isteği atmayacak) ve mesaj doğrudan gider — tek gönderim", async () => {
+    const { s, row } = await twoPropertySetup();
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "sending", claimedBy: "w1", claimExpiresAt: new Date(Date.now() + 60_000) } });
+    expect(await sendCheckinNow(await args(s))).toEqual({ ok: true, kind: "sent" });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const after = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } });
+    // Satır hâlâ işçide; iptal isteği yazılı → işçi gönderim başlangıcında reddedilir (`outbox-dispatch-cancel` testi).
+    expect(after).toMatchObject({ status: "sending", cancelReason: "manual_send_two_properties" });
+    expect(after.cancelRequestedAt).not.toBeNull();
+    expect(after.dispatchStartedAt).toBeNull();
   });
 
   it("KONTROL: tek dairede kayıtlı rezervasyonda ertelenmiş satır eskisi gibi öne çekilir ('sıraya alındı'), iptal edilmez", async () => {

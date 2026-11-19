@@ -198,6 +198,9 @@ export async function requeueFailedOutbox(organizationId: string, outboxId: stri
           // (yetim satır) silinmiş misafire sentinel metnin tek tıkla gitmesini
           // engeller. `reactivateBlockedOutbox` ile aynı kural.
           body: { not: ANON_BODY },
+          // İptal İSTENMİŞ satır yeniden kuyruğa alınmaz (`dispatch.ts`): istek satırda kalıcıdır — alınsaydı ilk geçişte yine iptal edilirdi
+          // ve ev sahibi "yeniden denendi" sanırdı. Böyle bir satır "yeniden denenemedi" cevabını alır.
+          cancelRequestedAt: null,
         },
         data: {
           status: "pending",

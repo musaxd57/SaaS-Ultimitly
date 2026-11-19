@@ -3,6 +3,7 @@ import { conversationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { cancelRequestWrite } from "@/lib/outbox/dispatch";
 
 // Guest conversations are owner/manager-only (staff must not read guest messages or
 // re-triage threads): both PATCH (status/priority) and DELETE are withManage.
@@ -44,6 +45,10 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     // ezmek worker'ın settle'ını bozar ve satır "canceled" görünürken mesaj
     // gitmiş olurdu. O pencereyi worker'ın kendi varlık vetosu kapatır (POST'tan
     // hemen önce); veto→POST arası ms'lik kalıntı belgeli sınırdır.
+    // 🚨 11-18 akşam (`outbox/dispatch.ts`): o kalıntı da kapandı — işçinin elindeki, isteği henüz ATILMAMIŞ satıra aynı işlemde iptal
+    // isteği yazılır; işçi isteği atmadan hemen önce satırı koşullu işaretler ve iptal isteği taşıyan satırı GÖNDERMEZ. Yalnız isteği
+    // gerçekten sağlayıcıya çıkmış satır (gönderim başladı) dokunulmadan kalır.
+    prisma.messageOutbox.updateMany(cancelRequestWrite({ organizationId: session.organizationId, conversationId: id }, "conversation_deleted", new Date())),
     prisma.messageOutbox.updateMany({
       where: {
         organizationId: session.organizationId,

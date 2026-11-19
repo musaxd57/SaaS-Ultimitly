@@ -3,8 +3,13 @@
 > Kurucu 11-18 akşam (AYNEN `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md`, "Ödeme ve migration"): öncelik "outbox'ta
 > hazırlanıyor / dış gönderim başladı / sonuç belirsiz ayrımı … `cancelRequestedAt` tek başına yarışı kapatmaz — iptal ile gönderim
 > başlangıcı aynı satırda atomik karar vermeli." Kolonlar migration 98 ile hazır (`dispatchStartedAt`, `cancelRequestedAt`, `cancelReason`,
-> `decisionRequestId`). Bu belge kodun planıdır; KOD HENÜZ YOK. Kalıcı kuyruk anahtarı (`DURABLE_OUTBOX_ENABLED`) kapalı olduğu için
-> değişiklik açılışa kadar hiçbir gönderimi etkilemez; testler anahtar açıkken koşar.
+> `decisionRequestId`). Kalıcı kuyruk anahtarı (`DURABLE_OUTBOX_ENABLED`) kapalı olduğu için değişiklik açılışa kadar hiçbir gönderimi
+> etkilemez; testler anahtar açıkken koşar.
+> **Durum (11-19):** K1 (gönderim başlangıcı işareti + atomik iptal), K2 (talep süresi dolan satırın ayrımı) ve K3 (dış iptal yolları:
+> Girişler'den elle gönderim · konuşma silme · daire silme · misafir silme talebi · saklama süpürgesinin iki dalı) YAZILDI
+> (`src/lib/outbox/dispatch.ts`, `worker.ts`). Silme yolları iptal isteğini KENDİ işlemlerinin içinde yazar (`cancelRequestWrite`); işçinin
+> talebi ezilmez, satır gönderim başlangıcında reddedilir. İptal isteği taşıyan satır dirilmez (elle "tekrar dene" ve abonelik dönüşü
+> onu bekleyene almaz). K4 (karar mesajı kuyruğa) sırada.
 
 ## 1. Bugün
 
@@ -77,10 +82,11 @@ Bu adım ayrı dilimdir (kararın yeniden doğrulanması karar çekirdeğine dok
 | K3 | Dış iptal yolları tek girişe: konuşma / daire silme, silme talebi, elle gönderimin satırı bırakması | bugün "sending" satır bu yollardan kaçıyor |
 | K4 | Karar mesajı kuyruğa (§4) | karar çekirdeği |
 
-**Geçiş kuralı (K2):** bu kod yayına girmeden önce talep edilmiş bir satırın `dispatchStartedAt`'ı boştur ama isteği atılmış olabilir.
-Kalıcı kuyruk bugün kapalı olduğu için canlıda böyle satır yok; yine de güvenli taraf: "hazırlıkta çöktü" hükmü yalnız, talebi bu sürümün
-işaretini taşıyan satıra verilir (talep anında yazılan bir sürüm damgası yerine basit kural: `claimedAt` bu sürümün devreye girdiği andan
-SONRA olan satır — sabit, kodda). Ayrıntı K2'de testle sabitlenir.
+**Geçiş kuralı (K2 — yazıldığı hâliyle):** bu kod yayına girmeden önce talep edilmiş bir satırın `dispatchStartedAt`'ı boştur ama isteği
+atılmış olabilir. Satır kendini tanıtır: işareti YAZAN sürümün işçisi talep belirtecine bir önek koyar (`d1:`); "hazırlıkta çöktü → yeniden
+dene" hükmü yalnız önekli talebe verilir. Öneksiz (eski sürümün) talepte işaretin yokluğu kanıt sayılmaz, satır eskisi gibi "belirsiz"e gider.
+Kurtarma ile yavaş kalmış işçi de aynı satırda yarışır: kurtarma satırı geri bıraktıysa işçi talebini kaybeder ve isteği atamaz; işçi işareti
+önce yazdıysa satır "belirsiz" yoluna gider.
 
 ## 6. Kurucuya sorular
 
