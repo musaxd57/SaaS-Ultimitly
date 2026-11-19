@@ -6,7 +6,8 @@ import type { SessionPayload } from "@/lib/auth";
 // UA-1 (kurucu 11-19): "Kayıtları karşılaştır" → elle girilen kopyayı kaldır. Gerçek PostgreSQL.
 // Sabitlenen: elle / dosya satırı silinir ve tutma kalkar (gönderici ile AYNI yüklem) · takvim / kanal satırı 409, satır yerinde ·
 // okuma ile silme arasında kaynağa bağlanan satır silinmez · personel 403 · bürünme 403 · başka işletme 404 · bağlı görev temizliği var olan
-// silme yolundan · denetim kaydı (fail `auditActor`, misafir adı / kaynak kimliği yok) · genel silme ucu DEĞİŞMEDİ.
+// silme yolundan · denetim kaydı (fail `auditActor`, misafir adı / kaynak kimliği yok) · genel silme ucu DEĞİŞMEDİ · (kurucu 11-19 akşam
+// madde 4) eşzamanlı kaldırmalar ROTA üzerinden, ayrı oturumlarla: en az bir kayıt kalır; sunucu ekranın gösterdiği sayıya güvenmez.
 // ---------------------------------------------------------------------------
 
 let session: SessionPayload;
@@ -15,11 +16,13 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
+import { requireSession } from "@/lib/api";
 import { prisma, resetDb } from "../helpers/db";
 import { stayDay } from "../helpers/stay-dates";
 import { DELETE as manualCopyDelete } from "@/app/api/reservations/[id]/manual-copy/route";
 import { DELETE as reservationDelete } from "@/app/api/reservations/[id]/route";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
+import { loadBookingComparison } from "@/lib/reservations/compare";
 import { __manualCopyHooks, MANUAL_COPY_LAST_ERROR, MANUAL_COPY_SOURCE_BOUND_ERROR, removeManualBookingCopy } from "@/lib/reservations/remove-manual-copy";
 
 const del = (id: string) =>
@@ -62,6 +65,33 @@ const channelCopy = (propertyId: string, ref: string) => booking(propertyId, ref
 
 const conflicted = async (orgId: string, ref: string) =>
   (await bookingRefsInMultipleProperties(prisma, { organizationId: orgId, refs: [ref], now: new Date() })).has(ref);
+
+/** Aynı işletmede `count` ayrı yönetici (sahipten ayrı kişiler) ve oturumları. */
+async function managers(orgId: string, count: number): Promise<SessionPayload[]> {
+  const out: SessionPayload[] = [];
+  for (let i = 0; i < count; i++) {
+    const u = await prisma.user.create({
+      data: { organizationId: orgId, name: `Yönetici ${i + 1}`, email: `m${i}-${orgId}@x.com`, passwordHash: "x", role: "manager" },
+    });
+    out.push({ userId: u.id, organizationId: orgId, role: "manager", email: u.email, name: u.name, sessionEpoch: 0 });
+  }
+  return out;
+}
+
+/**
+ * İstekleri AYNI ANDA, her biri KENDİ oturumuyla rotaya gönderir. Rota oturumu isteğin başında, ilk beklemeden önce okur (`withAuth`) →
+ * sıradaki oturum sıradaki isteğe gider. Sonuç istek sırasıyla: durum, gövde, kaldırılmak istenen satır, isteği atan kişi.
+ */
+async function concurrently(requests: [SessionPayload, string][]) {
+  for (const [who] of requests) vi.mocked(requireSession).mockResolvedValueOnce(who);
+  const responses = await Promise.all(requests.map(([, id]) => del(id)));
+  return Promise.all(
+    responses.map(async (res, i) => ({ status: res.status, body: await res.json(), id: requests[i][1], actor: requests[i][0].userId })),
+  );
+}
+
+const remainingIds = async (ref: string) =>
+  (await prisma.reservation.findMany({ where: { sourceReference: ref }, select: { id: true } })).map((r) => r.id);
 
 describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () => {
   beforeEach(async () => {
@@ -236,6 +266,113 @@ describe("DELETE /api/reservations/[id]/manual-copy (gerçek PostgreSQL)", () =>
       expect([r1.kind, r2.kind].sort(), ref).toEqual(["last_copy", "removed"]);
       expect(await prisma.reservation.count({ where: { sourceReference: ref } }), ref).toBe(1);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // ATOMİKLİK (kurucu 11-19 akşam madde 4 — "en önemli test"): iki yönetici eski ekranlardan AYNI ANDA FARKLI kopyaları kaldırmaya çalışırsa
+  // en az bir kayıt kalır. Sunucu güncel çakışmayı kaldırma işlemiyle birlikte, kilitli okumayla denetler; ekranın gösterdiği sayıya
+  // güvenmez. Burada ROTA üzerinden, her istek kendi oturumuyla (ayrı yöneticiler) ve üç daireli durumlarda.
+  // -------------------------------------------------------------------------
+
+  it("🚨 iki yönetici, iki ayrı oturum, eski ekranlardan AYNI ANDA farklı kopyalar (rota): biri silinir, öteki 409 son kopya — bir kayıt KALIR", async () => {
+    const w = await world();
+    const [m1, m2] = await managers(w.orgId, 2);
+    for (let round = 0; round < 5; round++) {
+      const ref = `ROUTE-RACE-${round}`;
+      const one = await booking(w.a, ref, { channel: "manual", guestNameSource: "host" });
+      const two = await booking(w.b, ref, { channel: "manual", guestNameSource: "host" });
+      // İki ekran da iki kopya gösteriyor: ikisinde de iki satır kaldırılabilir (eski görünüm).
+      const view = await loadBookingComparison(prisma, { organizationId: w.orgId, key: one.id, now: new Date() });
+      expect(view!.rows.map((r) => r.removable), ref).toEqual([true, true]);
+
+      const results = await concurrently([
+        [m1, one.id],
+        [m2, two.id],
+      ]);
+
+      expect(results.map((r) => r.status).sort(), ref).toEqual([200, 409]);
+      const loser = results.find((r) => r.status === 409)!;
+      const winner = results.find((r) => r.status === 200)!;
+      expect(loser.body, ref).toEqual({ error: MANUAL_COPY_LAST_ERROR, code: "last_copy" });
+      // Kalan kayıt, isteği reddedilen yöneticinin kaldırmaya çalıştığı kopyadır; silinen, kazananınki.
+      expect(await remainingIds(ref), ref).toEqual([loser.id]);
+      // Denetim kaydı yalnız kazanan için, kazananın kimliğiyle.
+      const audits = await prisma.auditLog.findMany({ where: { action: "reservation.manual_copy_removed", metadataJson: { contains: winner.id } } });
+      expect(audits.map((a) => a.actorUserId), ref).toEqual([winner.actor]);
+      expect(await prisma.auditLog.count({ where: { action: "reservation.manual_copy_removed", metadataJson: { contains: loser.id } } }), ref).toBe(0);
+    }
+  });
+
+  it("🚨 üç daire, iki elle + bir kanal: iki elle kopya AYNI ANDA kaldırılır (iki oturum) → ikisi de gider, kanal kaydı kalır, tutma kalkar", async () => {
+    const w = await world();
+    const c = await prisma.property.create({ data: { organizationId: w.orgId, name: "Lale 7" } });
+    const [m1, m2] = await managers(w.orgId, 2);
+    for (let round = 0; round < 5; round++) {
+      const ref = `TRIO-CH-${round}`;
+      const one = await booking(w.a, ref, { channel: "manual", guestNameSource: "host" });
+      const two = await booking(c.id, ref, { channel: "manual", guestNameSource: "host" });
+      const channel = await channelCopy(w.b, ref);
+
+      const results = await concurrently([
+        [m1, one.id],
+        [m2, two.id],
+      ]);
+
+      expect(results.map((r) => r.status), ref).toEqual([200, 200]);
+      expect(await remainingIds(ref), ref).toEqual([channel.id]);
+      expect(await conflicted(w.orgId, ref), ref).toBe(false);
+    }
+  });
+
+  it("🚨 üç daire, üç elle kopya AYNI ANDA kaldırılır (üç oturum) → ikisi gider, biri 409 son kopya — en az bir kayıt KALIR", async () => {
+    const w = await world();
+    const c = await prisma.property.create({ data: { organizationId: w.orgId, name: "Lale 7" } });
+    const [m1, m2] = await managers(w.orgId, 2);
+    const owner = session;
+    for (let round = 0; round < 5; round++) {
+      const ref = `TRIO-${round}`;
+      const ids = [
+        (await booking(w.a, ref, { channel: "manual", guestNameSource: "host" })).id,
+        (await booking(w.b, ref, { channel: "manual", guestNameSource: "host" })).id,
+        (await booking(c.id, ref, { channel: "manual", guestNameSource: "host" })).id,
+      ];
+
+      const results = await concurrently([
+        [owner, ids[0]],
+        [m1, ids[1]],
+        [m2, ids[2]],
+      ]);
+
+      expect(results.map((r) => r.status).sort(), ref).toEqual([200, 200, 409]);
+      const loser = results.find((r) => r.status === 409)!;
+      expect(loser.body, ref).toEqual({ error: MANUAL_COPY_LAST_ERROR, code: "last_copy" });
+      expect(await remainingIds(ref), ref).toEqual([loser.id]);
+    }
+  });
+
+  it("🚨 sunucu ekranın gösterdiği sayıya güvenmez: eski ekran iki kopya gösterirken öteki kopya kaldırıldıysa istek 409 son kopya, kayıt YERİNDE", async () => {
+    const w = await world();
+    const [m1] = await managers(w.orgId, 1);
+    const owner = session;
+    const one = await booking(w.a, "HM-1", { channel: "manual", guestNameSource: "host" });
+    const two = await booking(w.b, "HM-1", { channel: "manual", guestNameSource: "host" });
+    // Sahibin ekranı (eski görünüm): iki daire, iki kaldırılabilir kopya.
+    const staleScreen = await loadBookingComparison(prisma, { organizationId: w.orgId, key: one.id, now: new Date() });
+    expect(staleScreen!.resolved).toBe(false);
+    expect(staleScreen!.rows.filter((r) => r.removable).map((r) => r.id).sort()).toEqual([one.id, two.id].sort());
+
+    // Yönetici kendi ekranından birini kaldırır.
+    const [first] = await concurrently([[m1, one.id]]);
+    expect(first.status).toBe(200);
+    // Sahip eski ekrandan ötekini kaldırmaya çalışır: sunucu güncel durumu okur.
+    const [second] = await concurrently([[owner, two.id]]);
+    expect(second.status).toBe(409);
+    expect(second.body).toEqual({ error: MANUAL_COPY_LAST_ERROR, code: "last_copy" });
+    expect(await prisma.reservation.findUnique({ where: { id: two.id } })).not.toBeNull();
+    // Yenilenen ekran artık çözülmüş durumu gösterir; kalan kayıt kaldırılamaz.
+    const fresh = await loadBookingComparison(prisma, { organizationId: w.orgId, key: two.id, now: new Date() });
+    expect(fresh!.resolved).toBe(true);
+    expect(fresh!.rows.map((r) => [r.id, r.removable])).toEqual([[two.id, false]]);
   });
 
   it("KONTROL: genel silme ucu DEĞİŞMEDİ — takvim satırını da siler (kaynağa bakmaz; değiştirmek ayrı karar)", async () => {
