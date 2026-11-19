@@ -50,7 +50,7 @@ describe("EarlyCheckinRuleForm — 'çıkıştan önce hazır' rızası", () => 
   });
 
   // Pilot (kurucu 11-18 akşam, H-3): son karar payı kural alanı + "ücret yazılıyken onay kendiliğinden gitmez" açıklaması.
-  it("son karar payı: yalnız 'otomatik' kipte sorulur; varsayılan 'Sınır yok' → gövdede null; seçilince dakika olarak gider", async () => {
+  it("son karar payı: yalnız 'otomatik' kipte sorulur; kayıtlı kuralda pay yoksa 'Sınır yok' → gövdede null; seçilince dakika olarak gider", async () => {
     render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={RULE} autoActive />);
     const select = screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement;
     expect(select.value).toBe("");
@@ -66,6 +66,40 @@ describe("EarlyCheckinRuleForm — 'çıkıştan önce hazır' rızası", () => 
     cleanup();
     render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...RULE, mode: "draft" }} autoActive />);
     expect(screen.queryByLabelText("Otomatik onay en geç ne zaman verilsin?")).toBeNull();
+  });
+
+  // EG-1 (kurucu 11-19: "Yeni pilotta 30 dakika"): YALNIZ yeni kurulan kuralda (kayıtlı kural yok) seçim 30 dakikayla başlar; kayıtlı
+  // kuralın değeri — boş ("Sınır yok") dahil — kendiliğinden değişmez.
+  it("🚨 EG-1: kayıtlı kural YOKKEN son karar payı 30 dakikayla başlar → gövdede 30; ev sahibi 'Sınır yok'u seçebilir → null", async () => {
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={null} autoActive />);
+    fireEvent.change(screen.getByLabelText("Ne yapılsın?"), { target: { value: "auto" } });
+    const select = screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement;
+    expect(select.value).toBe("30");
+    expect([...select.options].map((o) => o.value)).toEqual(["", "15", "30", "60"]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[0])).toMatchObject({ mode: "auto", decisionLeadMinutes: 30 });
+    fireEvent.change(select, { target: { value: "" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[1]).decisionLeadMinutes).toBeNull();
+  });
+
+  it("🚨 EG-1 KONTROL: kayıtlı kuralın boş payı ('Sınır yok') kip değişse de 30'a DÖNMEZ; kayıtlı 15 / 60 aynen kalır", async () => {
+    render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...RULE, mode: "off" }} autoActive />);
+    fireEvent.change(screen.getByLabelText("Ne yapılsın?"), { target: { value: "auto" } });
+    expect((screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement).value).toBe("");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kaydet/ }));
+    });
+    expect(bodyOf(vi.mocked(fetch).mock.calls[0]).decisionLeadMinutes).toBeNull();
+    for (const m of [15, 60]) {
+      cleanup();
+      render(<EarlyCheckinRuleForm propertyId="p1" canManage initial={{ ...RULE, decisionLeadMinutes: m }} autoActive />);
+      expect((screen.getByLabelText("Otomatik onay en geç ne zaman verilsin?") as HTMLSelectElement).value).toBe(String(m));
+    }
   });
 
   it("🚨 kayıtlı pay okunur; listede olmayan değer (45) de seçenek olur ve kayıtta SİLİNMEZ", async () => {

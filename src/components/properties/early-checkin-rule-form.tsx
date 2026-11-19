@@ -37,6 +37,11 @@ const CURRENCIES = [
  * gösterilir — form kaydı ev sahibinin koyduğu sınırı sessizce silmesin.
  */
 const DECISION_LEADS = [15, 30, 60] as const;
+/**
+ * EG-1 (kurucu 11-19: "Yeni pilotta 30 dakika"): YALNIZ yeni kurulan kuralda (kayıtlı kural yok) seçimin başlangıç değeri. Kayıtlı kuralın
+ * değeri — boş ("Sınır yok") dahil — aynen gösterilir, kendiliğinden değişmez. Sunucu doğrulaması 0–240 tam sayıyı kabul eder.
+ */
+const NEW_RULE_DECISION_LEAD = 30;
 const decisionLeadLabel = (m: number) => (m === 0 ? "İstenen saate kadar" : `İstenen saatten ${m} dakika öncesine kadar`);
 
 export interface EarlyCheckinRuleInitial {
@@ -72,7 +77,9 @@ export function EarlyCheckinRuleForm({
   const [currency, setCurrency] = useState(initial?.fee?.currency ?? "TRY");
   const [note, setNote] = useState(initial?.note ?? "");
   const [readyBeforeCheckout, setReadyBeforeCheckout] = useState(initial?.readyBeforeCheckout === true);
-  const [decisionLead, setDecisionLead] = useState(typeof initial?.decisionLeadMinutes === "number" ? String(initial.decisionLeadMinutes) : "");
+  const [decisionLead, setDecisionLead] = useState(
+    initial === null ? String(NEW_RULE_DECISION_LEAD) : typeof initial.decisionLeadMinutes === "number" ? String(initial.decisionLeadMinutes) : "",
+  );
   const leadOptions = [...new Set<number>([...DECISION_LEADS, ...(typeof initial?.decisionLeadMinutes === "number" ? [initial.decisionLeadMinutes] : [])])].sort(
     (a, b) => a - b,
   );
