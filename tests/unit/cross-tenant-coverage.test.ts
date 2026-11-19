@@ -75,7 +75,12 @@ const COVERAGE: Record<string, Record<string, string>> = {
   "reservations/[id]/manual-copy": { DELETE: "tests/integration/reservation-manual-copy-route.test.ts" },
   "storage/photo/[...key]": { GET: "tests/integration/storage-wiring.test.ts" },
   "tasks/[id]": { PATCH: "tests/integration/tasks-route.test.ts", DELETE: "tests/integration/tasks-route.test.ts" },
-  "templates/[id]": { PATCH: "tests/integration/templates-route.test.ts", DELETE: "tests/integration/cross-tenant-handlers-more.test.ts" },
+  // GET (kurucu 11-19 akşam madde 1, tam metin seçilince): başka işletmenin şablonu 404, gövde sızmaz (template-list "seçilince tam metin").
+  "templates/[id]": {
+    GET: "tests/integration/template-list.test.ts",
+    PATCH: "tests/integration/templates-route.test.ts",
+    DELETE: "tests/integration/cross-tenant-handlers-more.test.ts",
+  },
 };
 
 /** Kiracı oturumuyla çalışmayan dinamik rotalar — gerekçeli. */
