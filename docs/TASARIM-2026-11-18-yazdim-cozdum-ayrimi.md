@@ -63,3 +63,15 @@ Y1 söz okuyucusunun gölge kaydıyla aynı altyapıyı kullanır (aynı tablo, 
 - **YÇ-2:** arızada kapanış için misafirin teyidi beklenirken süre sınırı olsun mu (ör. onarım görevi bittikten 24 saat sonra misafir bir şey
   yazmadıysa "teyit edilmedi" notuyla kapansın)? Önerim: kapanmasın, yalnız sönükleşsin; siz kapatırsınız.
 - **YÇ-3:** etiket metinleri: "Cevaplandı · teslim bekleniyor" · "Cevaplandı · onarım bekleniyor" · "Teslim edildi" — uygun mu?
+
+## 7. Y2 uygulama notu (11-19, kurucu "yç-1 önerin mantıklı")
+
+- Gölge kayıt (`reply-items-shadow.ts replyItemsDetail`) bugün öğe KİMLİĞİ taşımıyor (yalnız tür + sıra); görünür davranışa bağlamak için
+  kayda öğe kimliği eklenir (kimlik kişisel veri değil; misafir metni yine yok). Sıradan geri çıkarım yapılmaz (öğe durumu arada değişebilir).
+- Kural (anahtar arkasında, varsayılan KAPALI): bir öğe, kendisinden SONRA yazılmış SAYILAN ev sahibi mesajlarının HER BİRİ için başarılı bir
+  okuma varsa ve hiçbiri o öğeye değinmiyorsa (`değinmiyor`) açık kalır. Okuması olmayan (henüz okunmamış / model düşmüş) tek bir mesaj bile
+  varsa bugünkü kural geçerlidir ("Yanıtladınız") — model yokken davranış bugünküyle aynı.
+- İki çağıran aynı yüklemi kullanır (`conversation-items/store.ts`: konuşma sayfası listesi + açık iş sayımı / Dikkat).
+- Bilinen yan etki: okuma birkaç dakika sonra geldiği için öğe önce "Yanıtladınız" görünüp sonra açığa dönebilir; açılış ölçümünde sayılır.
+- Etiketler (kurucu + Codex 11-19): "Havlu teslimi bekleniyor" · "Onarım bekleniyor" · "Onarım tamamlandı · misafir teyidi yok"; sessizlik
+  teyit sayılmaz → Y3 / Y4 (öğe ↔ söz bağı; migration).
