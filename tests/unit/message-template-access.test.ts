@@ -7,8 +7,8 @@ import path from "node:path";
 //
 // YAZICI: tabloya şablon EKLEYEN her yol işletme başına sınır kapısından geçer (`lib/template-cap.ts`). Kurucu: "Kopyalama / içe aktarma uçları
 // da aynı kapıdan geçer" — bugün öyle bir uç yok; ileride biri `messageTemplate.create` yazarsa bu test kırmızı olur: kapıyı kullan ya da
-// gerekçeyi listeye yaz (liste EŞİTLİĞİ — eklemek de çıkarmak da bilinçli karar). Tarama yorumsuz kod üzerinde; davranışın kendisi
-// `tests/integration/template-cap*.test.ts`te.
+// gerekçeyi listeye yaz (liste EŞİTLİĞİ — eklemek de çıkarmak da bilinçli karar). OKUYUCU: şablon listesi okuyan yollar da kapalı listede
+// (aşağıda). Tarama yorumsuz kod üzerinde; davranışın kendisi `tests/integration/template-cap*.test.ts` ve `template-list.test.ts`te.
 // ---------------------------------------------------------------------------
 
 const SRC = path.resolve(__dirname, "../../src");
@@ -58,5 +58,38 @@ describe("mesaj şablonu tablosu — yazıcılar", () => {
     const route = sources.find((s) => s.rel === "app/api/templates/route.ts")!;
     expect(route.code).toMatch(/createTemplateWithinCap\(/);
     expect(route.code).not.toMatch(/messageTemplate\s*\.\s*create/);
+  });
+});
+
+// OKUYUCU: şablon LİSTESİ okuyan her yol kapalı listede. Yönetim sayfası ve seçici tek sınırlı sorgudan (`lib/template-list.ts`, sayfa
+// başına en çok 30) okur; kurucu: "Sadece ekranda 30 tanesini göstermek bellek sorununu çözmez; sunucu da en fazla 30 kayıt getirmeli."
+const ALLOWED_LIST_READERS: Record<string, string> = {
+  "lib/template-list.ts": "tek sınırlı sorgu: `take: TEMPLATE_PAGE_SIZE` (30), kısa önizleme",
+  "app/api/kb/suggestions/route.ts":
+    "BİLİNEN TAVANSIZ OKUMA (bu turun kapsamı dışı, kurucu sorusu — tasarım §7.3): etkin şablonlardan bilgi tabanı önerisi; sınır 500 dolaylı sınırlar",
+};
+
+describe("mesaj şablonu tablosu — liste okuyucuları", () => {
+  const readers = filesMatching(/\.messageTemplate\s*\.\s*findMany\s*\(/);
+
+  it("anti-vakum: tarama bilinen okuyucuyu buluyor", () => {
+    expect(readers).toContain("lib/template-list.ts");
+  });
+
+  it("şablon listesi okuyan her yol kapalı listede", () => {
+    expect(readers).toEqual(Object.keys(ALLOWED_LIST_READERS).sort());
+  });
+
+  it("tek sınırlı sorgu gerçekten sınırlı (sayfa boyu 30 ile `take`)", () => {
+    const lib = sources.find((s) => s.rel === "lib/template-list.ts")!;
+    expect(lib.code).toMatch(/export const TEMPLATE_PAGE_SIZE = 30;/);
+    expect(lib.code).toMatch(/take: TEMPLATE_PAGE_SIZE,/);
+  });
+
+  it("yönetim sayfası ve seçicinin ucu aynı sorguyu çağırır", () => {
+    for (const rel of ["app/(app)/templates/page.tsx", "app/api/templates/route.ts"]) {
+      const src = sources.find((s) => s.rel === rel)!;
+      expect(src.code, rel).toMatch(/listTemplatePage\(/);
+    }
   });
 });

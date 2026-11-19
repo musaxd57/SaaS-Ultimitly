@@ -1,5 +1,4 @@
 import "server-only";
-import { prisma } from "@/lib/db";
 import type { TemplateCategory } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -226,36 +225,10 @@ Thank you for your message. I've received your request and will get back to you 
   },
 ];
 
-/**
- * Fetch custom templates from DB and merge with defaults.
- * Custom templates are listed first if they are active.
- */
-export async function getTemplatesForProperty(
-  propertyId: string | null,
-  orgId: string,
-): Promise<MessageTemplate[]> {
-  const dbTemplates = await prisma.messageTemplate.findMany({
-    where: {
-      organizationId: orgId,
-      isActive: true,
-      // When a property is given, include both its property-specific templates
-      // and org-wide (propertyId: null) ones. Otherwise only org-wide.
-      OR: propertyId ? [{ propertyId }, { propertyId: null }] : [{ propertyId: null }],
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const custom: MessageTemplate[] = dbTemplates.map((t) => ({
-    id: t.id,
-    category: t.category as TemplateCategory,
-    title: t.title,
-    body: t.body,
-    language: t.language,
-    isDefault: false,
-  }));
-
-  return [...custom, ...DEFAULT_TEMPLATES];
-}
+// Şablon LİSTESİ burada YOK (kurucu 11-19 akşam madde 1): veritabanı şablonlarını okuyan tek sınırlı sorgu `@/lib/template-list`
+// (sayfa başına en çok 30, kısa önizleme, arama sunucuda; tam metin `getTemplateDetail`). Buradaki eski `getTemplatesForProperty`
+// üretimde hiç çağrılmıyordu ve TAVANSIZ `findMany` ile bütün etkin şablonları tam gövdeyle okuyordu — ilk yeni çağıran onu benimsemesin
+// diye kaldırıldı.
 
 // Şablon UYGULAMA burada YOK (15 ajan A07, 10-01): değişken ikamesinin tek kaynağı `@/lib/template-apply` (`applyTemplateBody`, tek
 // geçiş). Buradaki eski `applyTemplate` üretimde hiç çağrılmıyordu (yalnız testi) ama iki kuralı çiğniyordu — sıralı `replace`
