@@ -50,6 +50,10 @@ import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { InternalNotesCard } from "@/components/inbox/internal-notes";
 import { ConversationItemsCard } from "@/components/inbox/conversation-items-card";
 import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import DashboardPage from "@/app/(app)/dashboard/page";
+import { getOpsStats } from "@/lib/reports";
+import { findAttentionItems, UNANSWERED_HOURS } from "@/modules/intelligence/incidents/attention";
+import { hasRecipientWhere, isInternalRecord } from "@/lib/internal-record";
 
 type ThreadProps = React.ComponentProps<typeof ConversationThread>;
 type ItemsCardProps = React.ComponentProps<typeof ConversationItemsCard>;
@@ -205,3 +209,67 @@ function collectRows(node: unknown, out: string[] = []): string[] {
   }
   return out;
 }
+
+describe("iç kayıt — sayaçlar, panel ve Dikkat (D3b)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.unstubAllEnvs();
+  });
+
+  /** Eskimiş (cevapsız sayılacak kadar) iki konuşma: alıcısı olmayan yerel kayıt + kanal konuşması; ikisi de 'new', ikisi de cevapsız. */
+  async function staleWorld(opts: { demo?: boolean } = {}) {
+    const w = await world(opts);
+    const old = new Date(Date.now() - (UNANSWERED_HOURS + 2) * 3_600_000);
+    for (const id of [w.localId, w.channelId]) {
+      await prisma.conversation.update({ where: { id }, data: { lastMessageAt: old } });
+      await prisma.message.updateMany({ where: { conversationId: id }, data: { createdAt: old } });
+    }
+    return w;
+  }
+
+  it("🚨 işletme sayaçları ve panelin 'bekleyen' listesi iç kaydı SAYMAZ; kanal konuşması bugünkü gibi sayılır", async () => {
+    const w = await staleWorld();
+    // Sorunlu bir iç kayıt da sayılmaz.
+    const problemLocal = await prisma.conversation.create({
+      data: { propertyId: w.propertyId, channel: "airbnb", guestIdentifier: "YerelSorun", status: "problem", externalReservationId: "" },
+    });
+    void problemLocal;
+    const stats = await getOpsStats(w.orgId);
+    expect(stats.openConversations).toBe(1); // ⬅️ ESKİDE 2 (iç kayıt "bekleyen" sayılıyordu)
+    expect(stats.problemConversations).toBe(0); // boş dize de iç kayıttır
+    const text = treeText(await DashboardPage());
+    expect(text).toContain("Kanal");
+    expect(text).not.toContain("Yerel");
+    expect(text).not.toContain("YerelSorun");
+  });
+
+  it("🚨 Dikkat paneli iç kayıt için 'cevapsız' satırı üretmez; kanal konuşması için üretir", async () => {
+    const w = await staleWorld();
+    const rows = await findAttentionItems(w.orgId, { now: new Date() });
+    const unanswered = rows.filter((r) => r.kind === "unanswered_aging" || r.kind === "departing_unanswered");
+    expect(unanswered.map((r) => r.href)).toEqual([expect.stringContaining(w.channelId)]);
+  });
+
+  it("KONTROL: DEMO hesabında süzgeç yok — iki konuşma da sayılır", async () => {
+    const w = await staleWorld({ demo: true });
+    expect((await getOpsStats(w.orgId)).openConversations).toBe(2);
+  });
+
+  it("🚨 sorgu ikizi yüklemle AYNI kararı verir (doğruluk tablosu, gerçek veritabanı)", async () => {
+    const w = await world();
+    const values: Array<string | null> = [null, "", "res-x", "qr-chat:p:r", " "];
+    const ids: Record<string, string> = {};
+    for (const [i, v] of values.entries()) {
+      ids[String(i)] = (
+        await prisma.conversation.create({ data: { propertyId: w.propertyId, channel: "airbnb", guestIdentifier: `T${i}`, status: "new", externalReservationId: v } })
+      ).id;
+    }
+    const kept = new Set(
+      (await prisma.conversation.findMany({ where: { id: { in: Object.values(ids) }, AND: [hasRecipientWhere(w.orgId)] }, select: { id: true } })).map((r) => r.id),
+    );
+    for (const [i, v] of values.entries()) {
+      expect(kept.has(ids[String(i)]!), JSON.stringify(v)).toBe(!isInternalRecord({ externalReservationId: v }, w.orgId));
+    }
+    expect(hasRecipientWhere(DEMO_ORG_ID)).toEqual({});
+  });
+});

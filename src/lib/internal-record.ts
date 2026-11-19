@@ -1,6 +1,7 @@
 import "server-only";
 
 import { deliveryOutcomeOfRoute, resolveOutboundRoute } from "@/lib/channels/outbound";
+import type { Prisma } from "@prisma/client";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
 // ---------------------------------------------------------------------------
@@ -32,4 +33,15 @@ export const INTERNAL_RECORD_NO_SEND_TEXT = "Bu kayıt bir kanala bağlı değil
 export function isInternalRecord(conversation: { externalReservationId?: string | null }, organizationId: string): boolean {
   if (isDemoOrg(organizationId)) return false;
   return deliveryOutcomeOfRoute(resolveOutboundRoute(conversation)) === "local_only";
+}
+
+/**
+ * Yüklemin SORGU İKİZİ: gerçek alıcısı olan konuşma (kanal konuşması ya da iç QR sohbeti) — iç kayıt dışarıda. "Cevap bekleyen" sayaçları,
+ * panelin bekleyen listesi ve Dikkat panelinin cevapsız adayları bunu yayar (D3b): iç kayıtta bekleyen misafir yok, yazılabilecek cevap
+ * yok. Demo hesabında süzgeç YOK (yüklemle aynı muafiyet). Doğruluk tablosu yüklemle aynı testte (`internal-record-page.test.ts`).
+ * Boş dize de iç kayıttır (rota çözümü `!externalReservationId`).
+ */
+export function hasRecipientWhere(organizationId: string): Prisma.ConversationWhereInput {
+  if (isDemoOrg(organizationId)) return {};
+  return { AND: [{ externalReservationId: { not: null } }, { NOT: { externalReservationId: "" } }] };
 }

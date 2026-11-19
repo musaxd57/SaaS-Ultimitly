@@ -25,6 +25,8 @@ async function bulkConversations(
     guestIdentifier: "Misafir",
     status: opts.status,
     channel: "airbnb",
+    // Kanal kimliği: kimliksiz konuşma "İç kayıt"tır (11-19, `lib/internal-record.ts`) ve cevapsız sayılmaz — bu dosya kanal konuşmasını sınar.
+    externalReservationId: `res-${opts.prefix}-${i}`,
     lastMessageAt: opts.at(i),
   }));
   await prisma.conversation.createMany({ data: convs });
@@ -125,7 +127,7 @@ describe("R2 — çıkış günü tek tarih kuralıyla (Hospitable tarih-yalnız
       },
     });
     const convo = await prisma.conversation.create({
-      data: { propertyId, guestIdentifier: "Çıkan Misafir", status: "new", channel: "airbnb", lastMessageAt: guestWroteAt, reservationId: res.id },
+      data: { propertyId, guestIdentifier: "Çıkan Misafir", status: "new", channel: "airbnb", externalReservationId: "res-cikan", lastMessageAt: guestWroteAt, reservationId: res.id },
     });
     await prisma.message.create({
       data: { conversationId: convo.id, direction: "inbound", senderName: "Çıkan Misafir", body: "Anahtarı nereye bırakalım?", createdAt: guestWroteAt },

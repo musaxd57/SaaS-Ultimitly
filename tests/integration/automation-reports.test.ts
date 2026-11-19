@@ -332,10 +332,11 @@ describe("getOpsStats", () => {
       },
     });
     await prisma.conversation.create({
-      data: { propertyId, guestIdentifier: "Open", status: "new", priority: "standard" },
+      // Kanal kimliği: kimliksiz konuşma "İç kayıt"tır ve bekleyen sayılmaz (11-19, `lib/internal-record.ts`).
+      data: { propertyId, guestIdentifier: "Open", status: "new", priority: "standard", externalReservationId: "res-open" },
     });
     await prisma.conversation.create({
-      data: { propertyId, guestIdentifier: "Problem", status: "problem", priority: "urgent" },
+      data: { propertyId, guestIdentifier: "Problem", status: "problem", priority: "urgent", externalReservationId: "res-problem" },
     });
     await prisma.task.create({
       data: { propertyId, type: "maintenance", title: "Urgent", status: "todo", priority: "urgent" },

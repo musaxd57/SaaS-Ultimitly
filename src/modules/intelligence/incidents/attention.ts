@@ -28,6 +28,7 @@ import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
 import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
 import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
+import { hasRecipientWhere } from "@/lib/internal-record";
 import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingConflict } from "@/lib/booking-property-conflict";
 
 // ---------------------------------------------------------------------------
@@ -329,7 +330,13 @@ export async function findAttentionItems(
     (async () => {
       const read = (dir: "asc" | "desc", openOnly: boolean) =>
         prisma.conversation.findMany({
-          where: { propertyId: { in: propertyIds }, lastMessageAt: { gte: windowStart }, ...(openOnly ? { status: { in: [...OPEN_CANDIDATE_STATUSES] } } : {}) },
+          // İç kayıt (alıcısı olmayan eski yerel kayıt — `lib/internal-record.ts`) cevapsız sayılmaz: misafir yok, cevap yazılamaz.
+          where: {
+            propertyId: { in: propertyIds },
+            lastMessageAt: { gte: windowStart },
+            ...(openOnly ? { status: { in: [...OPEN_CANDIDATE_STATUSES] } } : {}),
+            AND: [hasRecipientWhere(organizationId)],
+          },
           orderBy: [{ lastMessageAt: dir }, { id: dir }],
           take: CONVERSATION_CANDIDATE_CAP,
           select: {

@@ -38,6 +38,7 @@ import { taskDueTimeLabel } from "@/lib/tasks/card-data";
 import { guestCheckoutNote } from "@/lib/guest-checkout-time";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { CONNECT_CHANNEL_HREF, canManageChannel } from "@/components/connect-channel-button";
+import { hasRecipientWhere } from "@/lib/internal-record";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,8 @@ export default async function DashboardPage() {
     }),
     prisma.conversation.findMany({
       // Kapanışa bilerek sessiz kalınmış konuşma ("cevap gerekmedi") bekleyen iş değildir (`conversation-attention.ts`).
-      where: { ...scope, status: { in: ["new", "waiting", "problem"] }, AND: [notClosingHandledWhere()] },
+      // İç kayıt (alıcısı olmayan eski yerel kayıt — `internal-record.ts`) bekleyen iş değildir: misafir yok, cevap yazılamaz.
+      where: { ...scope, status: { in: ["new", "waiting", "problem"] }, AND: [notClosingHandledWhere(), hasRecipientWhere(orgId)] },
       include: {
         property: { select: { name: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },

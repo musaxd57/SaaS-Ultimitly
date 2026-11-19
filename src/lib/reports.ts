@@ -11,6 +11,7 @@ import { isAutomationMessage } from "@/lib/message-author";
 import { findInChunks } from "@/lib/in-chunks";
 import { reservationMessagingCapable } from "@/lib/channels/capability";
 import { NON_TOPIC_INTENT_MARKERS } from "@/lib/ai-intent-markers";
+import { hasRecipientWhere } from "@/lib/internal-record";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -206,10 +207,11 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     }),
     prisma.conversation.count({
       // "Cevap gerekmedi" (kapanışa bilerek sessiz kalındı) bekleyen konuşma sayılmaz.
-      where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] }, AND: [notClosingHandledWhere()] },
+      // İç kayıt (alıcısı olmayan eski yerel kayıt — `internal-record.ts`) bekleyen konuşma sayılmaz (panel listesiyle aynı koşul).
+      where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] }, AND: [notClosingHandledWhere(), hasRecipientWhere(orgId)] },
     }),
     prisma.conversation.count({
-      where: { ...propertyScope(orgId), status: "problem" },
+      where: { ...propertyScope(orgId), status: "problem", AND: [hasRecipientWhere(orgId)] },
     }),
     prisma.task.count({
       where: { ...propertyScope(orgId), priority: "urgent", status: { not: "done" } },

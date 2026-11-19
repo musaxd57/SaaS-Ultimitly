@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+
+let fixtureSeq = 0;
 import {
   findAttentionItems,
   ATTENTION_MAX_ITEMS,
@@ -50,6 +52,9 @@ async function conversationWithLastMessage(
       status: "new",
       lastMessageAt: opts.lastMessageAtOverride ?? at,
       ...(opts.channel ? { channel: opts.channel } : {}),
+      // Kanal kimliği: kimliksiz konuşma "İç kayıt"tır (11-19, `lib/internal-record.ts`) ve cevapsız sayılmaz — bu dosya kanal konuşmasını sınar.
+      // QR sohbeti kendi iç işaretini taşır (`guest-chat.ts`).
+      externalReservationId: opts.channel === "chat" ? `qr-chat:${propertyId}:${++fixtureSeq}` : `res-fixture-${++fixtureSeq}`,
       ...(opts.reservationId ? { reservationId: opts.reservationId } : {}),
     },
   });
@@ -394,6 +399,7 @@ describe("dikkat gerektirenler — salt-okuma exception feed", () => {
       data: {
         propertyId,
         reservationId: res.id,
+        externalReservationId: "res-zeynep",
         guestIdentifier: "Zeynep Kayaalp",
         status: "new",
         lastMessageAt: new Date(Date.now() - 5 * HOUR),
