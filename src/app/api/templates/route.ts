@@ -4,6 +4,7 @@ import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/a
 import { withManage } from "@/lib/route-guard";
 import { zodFieldErrors } from "@/lib/validators";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
+import { createTemplateWithinCap, messageTemplateCapMessage } from "@/lib/template-cap";
 
 const templateCreateSchema = z.object({
   // "Tüm mülkler" (org-wide template) arrives as null from the form — nullish
@@ -51,17 +52,16 @@ export const POST = withManage(async (session, req) => {
     }
   }
 
-  const template = await prisma.messageTemplate.create({
-    data: {
-      organizationId: session.organizationId,
-      propertyId: d.propertyId ?? null,
-      category: d.category,
-      title: d.title,
-      body: d.body,
-      language: d.language,
-      isActive: true,
-    },
+  // İşletme başına özel şablon sınırı (kurucu 11-19 akşam madde 1): sayım + yazma tek işlemde, işletme kilidi altında (`lib/template-cap.ts`)
+  // — eşzamanlı iki ekleme sınırı aşamaz. Yalnız büyüme reddedilir: sınırı aşmış işletmede düzenleme / silme / kullanım bu yoldan geçmez.
+  const outcome = await createTemplateWithinCap(session.organizationId, {
+    propertyId: d.propertyId ?? null,
+    category: d.category,
+    title: d.title,
+    body: d.body,
+    language: d.language,
   });
+  if (outcome.kind === "limit") return badRequest({ _: messageTemplateCapMessage(outcome.cap) });
 
-  return jsonOk(template, 201);
+  return jsonOk(outcome.template, 201);
 });

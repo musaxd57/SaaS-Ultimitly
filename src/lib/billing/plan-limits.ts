@@ -29,7 +29,19 @@ export interface PlanLimits {
   aiCallsPerDay: number;
   /** QR concierge: daire başına GÜNLÜK misafir sorusu. */
   qrQuestionsPerPropertyPerDay: number;
+  /**
+   * İşletme başına ÖZEL mesaj şablonu (pasifler DAHİL; işletme geneli şablon tek satırdır, bir kez sayılır; koddaki hazır Lixus
+   * şablonları tabloda olmadığı için sayılmaz). Kapı ve sayım: `src/lib/template-cap.ts`; acil fren `MESSAGE_TEMPLATE_CAP` orada.
+   */
+  messageTemplatesPerOrg: number;
 }
+
+/**
+ * Özel mesaj şablonu sınırının BAŞLANGIÇ değeri (kurucu 11-19 akşam: "500 özel şablon makul bir başlangıç; kalıcı ürün kuralı olarak
+ * koda gömmeyelim"). Bugün üç planda aynı; ayrışma gerekirse yalnız aşağıdaki tablodaki satır değişir. Sınırın sebebi ticari değil
+ * kaynak: tavansız şablon birikimi liste ucunu tek istekte yüzlerce MB'a çıkarıyordu (bulgu T2-B8, 3.000 şablon → 284 MB).
+ */
+const MESSAGE_TEMPLATES_START = 500;
 
 // Tek kaydın karakter tavanı: tek kaynak `kb-item-cap.ts` (dosyadan içe aktarma da aynı sayıyı okur).
 
@@ -54,18 +66,21 @@ const LIMITS_BY_PLAN: Record<string, PlanLimits> = {
     kbCharsPerItem: KB_CHARS_PER_ITEM,
     aiCallsPerDay: 150,
     qrQuestionsPerPropertyPerDay: 50,
+    messageTemplatesPerOrg: MESSAGE_TEMPLATES_START,
   },
   pro: {
     kbItemsPerProperty: 30,
     kbCharsPerItem: KB_CHARS_PER_ITEM,
     aiCallsPerDay: 500,
     qrQuestionsPerPropertyPerDay: 100,
+    messageTemplatesPerOrg: MESSAGE_TEMPLATES_START,
   },
   business: {
     kbItemsPerProperty: 60,
     kbCharsPerItem: KB_CHARS_PER_ITEM,
     aiCallsPerDay: 1_500,
     qrQuestionsPerPropertyPerDay: 200,
+    messageTemplatesPerOrg: MESSAGE_TEMPLATES_START,
   },
 };
 

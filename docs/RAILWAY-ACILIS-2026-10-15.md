@@ -437,6 +437,9 @@ kurucu onayıyla §1'e taşındı.)
 - `AI_DAILY_CALL_CAP` — işletme başına günlük yapay zekâ çağrı tavanını PLANDAN BAĞIMSIZ herkese uygular (boşken tavan plandan gelir;
   `src/lib/ai/daily-budget.ts`). Yalnız maliyet kaçağında geçici fren; yazılırsa her pakete aynı sayı uygulanır — sonra silin.
 - `AI_DAILY_QR_SHARE_PERCENT` — günlük tavanın QR misafir sohbetine ayrılan payı (boşken %30; 1–100). Geçersiz değer sessizce varsayılana döner.
+- `MESSAGE_TEMPLATE_CAP` — işletme başına özel mesaj şablonu sınırını PLANDAN BAĞIMSIZ herkese uygular (boşken plan tablosundan, başlangıç
+  500; `src/lib/template-cap.ts`, kurucu 11-19 akşam). Yalnız rakam, ≥ 1; geçersiz değer yok sayılır. Sınırı aşan işletmede hiçbir şablon
+  silinmez, yalnız yeni ekleme durur.
 
 ## İşletme belgesi (Faz 1a) — VARSAYILAN KAPALI
 - Tasarım `docs/TASARIM-2026-11-06-isletme-belgesi-dogrulama-ve-yetki.md`; migration 95 (yalnız yeni tablolar).
