@@ -182,13 +182,17 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(audit.metadataJson).not.toContain("onaylandı");
   });
 
-  it("🚨 Codex 11-17 C1: kanal hedefi olmayan konuşmada karar → kart bugünkü gibi onaylanır, yanıt 'local_only' der (misafire gitmedi)", async () => {
+  it("🚨 alıcısı olmayan kayıt (kanal hedefi yok): onay / ret 409 'internal_record' — kart 'karar bekliyor' kalır, hiçbir mesaj yazılmaz (kurucu 11-18 akşam)", async () => {
+    // Eskiden (Codex 11-17 C1) kart "onaylandı" diye kapanıyor, yanıt "yalnız kaydedildi" diyordu — misafire hiçbir şey gitmeden.
     const s = await seed();
     await prisma.conversation.update({ where: { id: s.conversationId }, data: { externalReservationId: null } });
-    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ status: "approved", delivery: "local_only" });
-    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("approved");
+    for (const action of ["approve", "decline"] as const) {
+      const res = await post(s, { action, version: 0, time: "13:00", body: APPROVE_TR });
+      expect(res.status, action).toBe(409);
+      expect(await res.json(), action).toMatchObject({ code: "internal_record" });
+    }
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+    expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
   });
 
   it("🚨 Tur 5 D3: rezervasyonsuz açılmış kart onaylanınca konuşmanın rezervasyonuna BAĞLANIR (komşu konaklamanın kontrolleri görür)", async () => {

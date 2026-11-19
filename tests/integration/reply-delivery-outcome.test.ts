@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { FakeOutboundProvider } from "../helpers/fake-channel";
 import type { SessionPayload } from "@/lib/auth";
 
@@ -10,7 +10,9 @@ import type { SessionPayload } from "@/lib/auth";
 // gönderildi." diyordu. Artık her başarılı yanıt bir `delivery` sonucu taşır (`DeliveryOutcome`). `sendOnChannel` MOCK'LANMAZ: gerçek
 // rota çözümü + ortak sağlayıcı fake'i (sağlayıcıya ulaşan deneme sayısı gerçeğin kendisi).
 //
-// 🚨 DAVRANIŞ DEĞİŞMEZ (kurucu sorusu S-1…S-4): yerel cevap bugünkü gibi kaydedilir ve konuşmayı "Cevaplandı" yapar — yalnız yanıt dürüst.
+// 🚨 11-18 akşam (kurucu: "'Gönder' yalnız gerçek bir alıcı varsa görünür … eski yerel kayıtlar 'İç kayıt' olarak korunur"): alıcısı olmayan
+// kayda cevap artık YAZILMAZ — rota reddeder (409 `internal_record`), hiçbir satır oluşmaz (`lib/internal-record.ts`). "Kaydedildi,
+// gönderilmedi" (`local_only`) sonucu yalnız DEMO hesabında kalır (kurgusal veri; ürünü göstermek için yazma akışı orada çalışır).
 // ---------------------------------------------------------------------------
 const { tokenFor } = vi.hoisted(() => ({
   tokenFor: vi.fn<(orgId: string) => Promise<string | null>>(async () => "tok-A"),
@@ -31,6 +33,8 @@ vi.mock("@/lib/api", async (orig) => {
 import { __setOutboundAdapterForTest } from "@/lib/channels";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST as replyRoute } from "@/app/api/conversations/[id]/reply/route";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import { INTERNAL_RECORD_NO_SEND_TEXT, isInternalRecord } from "@/lib/internal-record";
 
 const fake = new FakeOutboundProvider();
 
@@ -42,6 +46,17 @@ async function seed(conv: { channel: string; externalReservationId: string | nul
   });
   if (conv.externalReservationId) fake.registerReservation(conv.externalReservationId, "tok-A");
   return { orgId, conversationId: conversation.id };
+}
+
+/** Demo hesabında (muaf) kanal hedefi olmayan konuşma. */
+async function seedDemo(channel: string) {
+  await prisma.organization.create({ data: { id: DEMO_ORG_ID, name: "Demo" } });
+  const property = await prisma.property.create({ data: { organizationId: DEMO_ORG_ID, createdAt: PROPERTY_EXISTED_BEFORE, name: "Lale Demo" } });
+  session = { userId: "u-demo", organizationId: DEMO_ORG_ID, role: "owner", email: "d@t.com", name: "Demo", sessionEpoch: 0 } as SessionPayload;
+  const conversation = await prisma.conversation.create({
+    data: { propertyId: property.id, channel, guestIdentifier: "Alex", status: "waiting", externalReservationId: null },
+  });
+  return { conversationId: conversation.id };
 }
 
 async function reply(conversationId: string, body = "Havlular dolapta.") {
@@ -70,13 +85,24 @@ describe("C1 — cevap yanıtı teslim sonucunu taşır (gerçek rota çözümü
     vi.unstubAllEnvs();
   });
 
-  it("🚨 kanal hedefi olmayan konuşma (elle açılmış, 'Airbnb' seçilmiş) → 201 + delivery 'local_only', sağlayıcıya SIFIR deneme", async () => {
+  it("🚨 alıcısı olmayan kayıt (elle açılmış, 'Airbnb' seçilmiş) → 409 'internal_record': HİÇBİR şey yazılmaz, sağlayıcıya SIFIR deneme", async () => {
     const { conversationId } = await seed({ channel: "airbnb", externalReservationId: null });
+    const before = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    const r = await reply(conversationId);
+    expect(r.status).toBe(409);
+    expect(r.json).toEqual({ error: INTERNAL_RECORD_NO_SEND_TEXT, code: "internal_record" });
+    expect(fake.attempts).toHaveLength(0);
+    // ⬅️ ESKİDE: cevap "kaydedildi, gönderilmedi" diye saklanıyor ve konuşma "Cevaplandı" oluyordu (kimseye gitmeyen bir cevap satırı).
+    expect(await prisma.message.count({ where: { conversationId } })).toBe(0);
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).toEqual(before);
+  });
+
+  it("KONTROL — DEMO hesabı muaf: kanal hedefi olmayan konuşmada cevap bugünkü gibi kaydedilir → 201 + delivery 'local_only'", async () => {
+    const { conversationId } = await seedDemo("airbnb");
     const r = await reply(conversationId);
     expect(r.status).toBe(201);
     expect(r.json.delivery).toBe("local_only");
     expect(fake.attempts).toHaveLength(0);
-    // Davranış BUGÜNKÜ GİBİ (ürün kararı S-1 bekliyor): cevap kaydedilir, konuşma "Cevaplandı".
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound", authorType: "host" } })).toBe(1);
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
   });
@@ -108,13 +134,26 @@ describe("C1 — cevap yanıtı teslim sonucunu taşır (gerçek rota çözümü
     expect(r.json.outbox).toMatchObject({ status: "queued", deduped: false, delivery: "pending" });
   });
 
-  it("KONTROL — kalıcı kuyruk açık ama hedef yok → kuyruğa girmez, 201 + 'local_only' (bugünkü yol)", async () => {
+  it("KONTROL — kalıcı kuyruk açık ama hedef yok → kuyruğa girmez: demo hesabında 201 + 'local_only', başka hesapta 409 (ret kuyruktan önce)", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
-    const { conversationId } = await seed({ channel: "email", externalReservationId: null });
-    const r = await reply(conversationId);
+    const demo = await seedDemo("email");
+    const r = await reply(demo.conversationId);
     expect(r.status).toBe(201);
     expect(r.json.delivery).toBe("local_only");
+    const other = await seed({ channel: "email", externalReservationId: null });
+    expect((await reply(other.conversationId)).status).toBe(409);
     expect(await prisma.messageOutbox.count()).toBe(0);
+  });
+});
+
+describe("iç kayıt yüklemi (tek kural, gönderimle aynı rota çözümü)", () => {
+  it("kanal kimliği yok → iç kayıt; kanal konuşması ve iç QR sohbeti değil; demo hesabı muaf", () => {
+    expect(isInternalRecord({ externalReservationId: null }, "org-1")).toBe(true);
+    expect(isInternalRecord({ externalReservationId: "" }, "org-1")).toBe(true);
+    expect(isInternalRecord({}, "org-1")).toBe(true);
+    expect(isInternalRecord({ externalReservationId: "res-1" }, "org-1")).toBe(false);
+    expect(isInternalRecord({ externalReservationId: "qr-chat:abc" }, "org-1")).toBe(false);
+    expect(isInternalRecord({ externalReservationId: null }, DEMO_ORG_ID)).toBe(false);
   });
 });

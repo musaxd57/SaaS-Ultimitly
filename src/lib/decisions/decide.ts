@@ -10,6 +10,7 @@ import { deliveryOutcomeOfOutboxStatus } from "@/lib/outbox/state";
 import type { DeliveryOutcome } from "@/lib/delivery-outcome";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { reportError } from "@/lib/report-error";
+import { INTERNAL_RECORD_CODE, INTERNAL_RECORD_NO_SEND_TEXT, isInternalRecord } from "@/lib/internal-record";
 import { hostDecisionsEnabled } from "./flag";
 import {
   DECISION_SENDING_STALE_MS,
@@ -221,6 +222,10 @@ export async function decideHostDecision(args: {
   }
 
   // ── ONAYLA / REDDET ──
+  // 🚨 ALICISI OLMAYAN KAYITTA KARAR MESAJI YOK (kurucu 11-18 akşam, `internal-record.ts`): onay / ret misafire mesaj gönderir; gidecek yeri
+  // olmayan kayıtta kart "onaylandı" diye kapanıp misafire hiçbir şey gitmiyordu. İstek reddedilir, kart olduğu gibi kalır ("Kapat" yukarıda
+  // serbest: hiçbir şey göndermez). Panel bu kayıtta kartı zaten göstermez; WhatsApp düğmesi de aynı çekirdekten geçer. Demo muaf.
+  if (isInternalRecord(conversation, organizationId)) return conflict(INTERNAL_RECORD_CODE, INTERNAL_RECORD_NO_SEND_TEXT);
   if (decision.status !== "pending" || decision.version !== input.version) {
     return conflict("stale", DECISION_STALE_TEXT);
   }

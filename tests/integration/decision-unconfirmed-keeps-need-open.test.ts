@@ -37,6 +37,7 @@ import { POST } from "@/app/api/conversations/[id]/decisions/[decisionId]/route"
 import { claimOutboundSend } from "@/lib/outbound-claim";
 import { listConversationDecisions } from "@/lib/decisions/store";
 import { decisionLinkedItemIds } from "@/lib/decisions/card";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 import { listConversationItems } from "@/lib/conversation-items/store";
 import { isOpenForHost } from "@/lib/conversation-items/core";
 
@@ -55,8 +56,9 @@ interface Seeded {
   itemId: string;
 }
 
-async function seed(opts: { externalReservationId?: string | null; channel?: string } = {}): Promise<Seeded> {
-  const org = await prisma.organization.create({ data: { name: "Org", timezone: "Europe/Istanbul" } });
+async function seed(opts: { externalReservationId?: string | null; channel?: string; demo?: boolean } = {}): Promise<Seeded> {
+  // `demo`: demo hesabı — kanala bağlı olmayan konuşmada yazma / karar akışı yalnız orada çalışır (`lib/internal-record.ts`).
+  const org = await prisma.organization.create({ data: { ...(opts.demo ? { id: DEMO_ORG_ID } : {}), name: "Org", timezone: "Europe/Istanbul" } });
   const owner = await prisma.user.create({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `o${Math.random()}@x.com`, passwordHash: "x", role: "owner" },
   });
@@ -182,8 +184,22 @@ describe("karar mesajı — misafirin gördüğü kanıtlanmadan bağlı ihtiya�
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("🚨 YALNIZ YERELDE kaydedildi (konuşmanın kanalı yok): karar kaydedilir, yanıt 'local_only' der — ama öğe AÇIK kalır (misafire hiçbir şey gitmedi)", async () => {
+  it("🚨 ALICISI OLMAYAN KAYIT (konuşmanın kanalı yok): karar mesajı gönderilmez — onay 409 'internal_record', kart 'karar bekliyor' ve öğe AÇIK kalır", async () => {
+    // Kurucu 11-18 akşam: "'Gönder' yalnız gerçek bir alıcı varsa görünür". Eskiden kart "onaylandı" diye kapanıyor, misafire hiçbir şey gitmiyordu.
     const s = await seed({ externalReservationId: null });
+    const res = await approve(s);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "internal_record" });
+    expect(await cardStatus(s)).toBe("pending");
+    expect(await itemStatus(s)).toBe("pending_host");
+    expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
+    // "Kapat" hiçbir şey göndermez → serbest (ev sahibi kartı kapatabilir).
+    expect((await post(s, { action: "dismiss", version: 0 })).status).toBe(200);
+    expect(await cardStatus(s)).toBe("dismissed");
+  });
+
+  it("🚨 YALNIZ YERELDE kaydedildi (DEMO hesabı, konuşmanın kanalı yok): karar kaydedilir, yanıt 'local_only' der — ama öğe AÇIK kalır (misafire hiçbir şey gitmedi)", async () => {
+    const s = await seed({ externalReservationId: null, demo: true });
     const res = await approve(s);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "approved", delivery: "local_only" });

@@ -55,7 +55,8 @@ async function seed() {
   const t = new Date(Date.now() - 10 * 60_000);
   const convo = (guestIdentifier: string, data: Record<string, unknown>) =>
     prisma.conversation.create({
-      data: { propertyId: property.id, channel: "airbnb", guestIdentifier, lastMessageAt: t, ...data },
+      // Kanal kimliği: kanalı olmayan konuşma "İç kayıt"tır (11-18 akşam) ve kendi etiketini taşır — bu dosya kanal konuşmasını sınar.
+      data: { propertyId: property.id, channel: "airbnb", externalReservationId: `res-${guestIdentifier}`, guestIdentifier, lastMessageAt: t, ...data },
     });
   // Düz yeni konuşma (skippedReason NULL — NULL güvenliği: listeden DÜŞMEMELİ).
   await convo("Misafir-Acik", { status: "new" });

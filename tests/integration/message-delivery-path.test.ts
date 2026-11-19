@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { FakeOutboundProvider } from "../helpers/fake-channel";
 import type { SessionPayload } from "@/lib/auth";
 
@@ -32,11 +32,20 @@ import { POST as replyRoute } from "@/app/api/conversations/[id]/reply/route";
 import { importCanonicalThread } from "@/lib/ingest/write-service";
 import type { CanonicalReservation } from "@/lib/channels/ingest";
 import { DELIVERY_PATHS, deliveryPathOfLocalOutcome, isDeliveryPath } from "@/lib/delivery-path";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 
 const fake = new FakeOutboundProvider();
 
 async function seed(conv: { channel: string; externalReservationId: string | null }) {
-  const { orgId, propertyId } = await makeOrgWithProperty();
+  // Kanalı olmayan konuşmaya yazma yalnız DEMO hesabında yaşar (başka hesapta "İç kayıt" — `lib/internal-record.ts`).
+  const { orgId, propertyId } =
+    conv.externalReservationId === null
+      ? await (async () => {
+          await prisma.organization.create({ data: { id: DEMO_ORG_ID, name: "Demo" } });
+          const p = await prisma.property.create({ data: { organizationId: DEMO_ORG_ID, createdAt: PROPERTY_EXISTED_BEFORE, name: "Lale Demo" } });
+          return { orgId: DEMO_ORG_ID, propertyId: p.id };
+        })()
+      : await makeOrgWithProperty();
   session = { userId: "u1", organizationId: orgId, role: "owner", email: "o@t.com", name: "Owner", sessionEpoch: 0 } as SessionPayload;
   const conversation = await prisma.conversation.create({
     data: { propertyId, channel: conv.channel, guestIdentifier: "Alex", status: "waiting", externalReservationId: conv.externalReservationId },

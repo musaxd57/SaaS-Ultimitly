@@ -12,6 +12,7 @@ import { suggestionOperationKey } from "@/lib/outbox/operation-key";
 import { createHash } from "crypto";
 import { recordReplyDraftLink } from "@/lib/reply-draft/service";
 import { reportError } from "@/lib/report-error";
+import { INTERNAL_RECORD_CODE, INTERNAL_RECORD_NO_SEND_TEXT, isInternalRecord } from "@/lib/internal-record";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
 // task updates; the inbound-message and status routes stay open for their triage.
@@ -37,6 +38,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     },
   });
   if (!conversation) return notFound();
+
+  // 🚨 ALICISI OLMAYAN KAYDA CEVAP YAZILMAZ (kurucu 11-18 akşam: "'Gönder' yalnız gerçek bir alıcı varsa görünür"; `internal-record.ts`).
+  // Eskiden hedefsiz (elle açılmış) konuşmaya yazılan cevap "kaydedildi, gönderilmedi" diye saklanıyordu — cevap gibi görünen ama kimseye
+  // gitmeyen bir satır. Arayüz bu kayıtta yazma kutusu göstermez; eski sekmeden gelen istek açık bir ret alır ve HİÇBİR şey yazılmaz
+  // (ekip kaydı için iç not var). Demo hesabı muaf (yüklemin içinde).
+  if (isInternalRecord(conversation, session.organizationId)) {
+    return NextResponse.json({ error: INTERNAL_RECORD_NO_SEND_TEXT, code: INTERNAL_RECORD_CODE }, { status: 409 });
+  }
 
   const rawData = await readJsonCappedOrNull(req);
   const parsed = conversationReplySchema.safeParse(rawData);

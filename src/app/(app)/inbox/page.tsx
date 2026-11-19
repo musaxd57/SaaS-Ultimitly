@@ -30,6 +30,7 @@ import { openItemCounts } from "@/lib/conversation-items/store";
 import { openItemsBadge } from "@/lib/conversation-items/view";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionCounts } from "@/lib/decisions/store";
+import { INTERNAL_RECORD_LABEL, isInternalRecord } from "@/lib/internal-record";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,8 @@ export default async function InboxPage({
         status: true,
         skippedReason: true,
         autoReplyAttemptedAt: true,
+        // "İç kayıt" etiketi (D3): alıcısı olmayan eski yerel kayıt — gönderimle aynı rota çözümünden.
+        externalReservationId: true,
         property: { select: { name: true } },
         messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { body: true } },
       },
@@ -432,10 +435,14 @@ export default async function InboxPage({
             const handled = isClosingHandled(c) && (c.status === "new" || c.status === "waiting");
             const openBadge = openItemsBadge(openItems.get(c.id) ?? 0);
             const decisionCount = openDecisions.get(c.id) ?? 0;
+            // İÇ KAYIT (kurucu 11-18 akşam, `internal-record.ts`): alıcısı olmayan eski yerel kayıt — misafir beklemiyor, cevap yazılamıyor.
+            // Satır silinmez; durum rozeti ("Yeni" / "Karar bekliyor") yerine kendi etiketiyle, vurgusuz durur.
+            const internal = isInternalRecord(c, session.organizationId);
             const unread =
-              openBadge !== null ||
-              decisionCount > 0 ||
-              (!handled && (c.status === "new" || c.status === "waiting" || c.status === "problem"));
+              !internal &&
+              (openBadge !== null ||
+                decisionCount > 0 ||
+                (!handled && (c.status === "new" || c.status === "waiting" || c.status === "problem")));
             return (
             <Link
               key={c.id}
@@ -473,10 +480,14 @@ export default async function InboxPage({
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
-                  {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
-                </Badge>
-                {decisionCount - (unverifiedDecisions.get(c.id) ?? 0) > 0 ? (
+                {internal ? (
+                  <Badge tone="muted">{INTERNAL_RECORD_LABEL}</Badge>
+                ) : (
+                  <Badge tone={handled ? "muted" : CONVERSATION_STATUS.tone(c.status)}>
+                    {handled ? CLOSING_HANDLED_LABEL : CONVERSATION_STATUS.label(c.status)}
+                  </Badge>
+                )}
+                {!internal && decisionCount - (unverifiedDecisions.get(c.id) ?? 0) > 0 ? (
                   <Badge tone="warning">
                     {decisionCount - (unverifiedDecisions.get(c.id) ?? 0) > 1
                       ? `${decisionCount - (unverifiedDecisions.get(c.id) ?? 0)} karar bekliyor`
@@ -484,7 +495,7 @@ export default async function InboxPage({
                   </Badge>
                 ) : null}
                 {(unverifiedDecisions.get(c.id) ?? 0) > 0 ? <Badge tone="destructive">Gönderim doğrulanamadı</Badge> : null}
-                {openBadge ? <Badge tone="warning">{openBadge}</Badge> : null}
+                {!internal && openBadge ? <Badge tone="warning">{openBadge}</Badge> : null}
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>
             </Link>

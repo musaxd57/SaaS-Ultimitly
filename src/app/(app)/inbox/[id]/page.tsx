@@ -55,6 +55,7 @@ import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
 import { InternalNotesCard, type InternalNoteRow } from "@/components/inbox/internal-notes";
 import { listInternalNotes } from "@/lib/internal-notes/service";
+import { INTERNAL_RECORD_LABEL, isInternalRecord } from "@/lib/internal-record";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
 import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
@@ -247,11 +248,13 @@ export default async function ConversationPage({
           })
       : [];
   const resolvedRows = resolvedDecisionRows(decisionViews, TZ);
-  // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez.
-  const decisionItems = decisionLinkedItemIds(
-    decisionViews,
-    new Set(itemsRead.views.filter((v) => isOpenForHost(v.effective)).map((v) => v.id)),
-  );
+  // İÇ KAYIT (D3, `internal-record.ts`): alıcısı olmayan eski yerel kayıt mı — gönderimle AYNI rota çözümünden; demo hesabı muaf.
+  const internalRecord = isInternalRecord(conversation, session.organizationId);
+  // Kartı / sonuç satırı olan talebin konuşma öğesi "Açık işler"de ikinci kez görünmez. İç kayıtta karar kartı GÖSTERİLMEZ → kartın
+  // temsil ettiği öğe de gizlenmez (gizlenseydi açık iş sayfada hiçbir yerde görünmezdi).
+  const decisionItems = internalRecord
+    ? new Set<string>()
+    : decisionLinkedItemIds(decisionViews, new Set(itemsRead.views.filter((v) => isOpenForHost(v.effective)).map((v) => v.id)));
   // Son misafir mesajının tutuşu bir karar kartıyla anlatılıyorsa "AI emin olamadı / misafir cevabınızı bekliyor" bandı tekrar olur.
   const decisionCoversHold = shownDecisions.some((v) => isOpenDecision(v.effective) && v.messageId === lastInboundId);
   // Açıklar üstte (HEPSİ), sonra en yeni kapanmışlar tavana kadar; rozet açıkların toplamından (Codex 11-17 E4, kural `itemRowsForCard`).
@@ -472,13 +475,18 @@ export default async function ConversationPage({
           ARTAN alanın tamamını alır. Eskiden yükseklik `calc(100vh/0.95-11rem)`
           sabitiydi ve bandları saymıyordu → ölçüldü: tek bandda `<main>` 46 px,
           iki bandda 109 px taşıyordu. */}
-      <DecisionPanel
-        conversationId={conversation.id}
-        decisions={decisionCards}
-        resolved={resolvedRows}
-        readOnly={isImpersonating(session)}
-        aiText={decisionAiTextEnabled()}
-      />
+      {/* İÇ KAYIT (kurucu 11-18 akşam: "'Gönder' yalnız gerçek bir alıcı varsa görünür"; `internal-record.ts`): alıcısı olmayan eski yerel
+          kayıtta karar kartı, yazma kutusu ve yapay zekâ önerisi YOK (hepsi misafire mesaj gönderme yüzeyi). Eski mesajlar okunur; ekip kaydı
+          yan sütundaki "İç notlar"a yazılır. Sunucu da cevap / karar isteğini reddeder. */}
+      {internalRecord ? null : (
+        <DecisionPanel
+          conversationId={conversation.id}
+          decisions={decisionCards}
+          resolved={resolvedRows}
+          readOnly={isImpersonating(session)}
+          aiText={decisionAiTextEnabled()}
+        />
+      )}
 
       <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 lg:min-h-0">
@@ -489,12 +497,13 @@ export default async function ConversationPage({
             priority={conversation.priority}
             propertyId={conversation.propertyId}
             guestName={conversation.guestIdentifier}
-            propertyLabel={`${conversation.property.name} · ${channelLabel(conversation.channel)} · ${conversation.property.checkInTime} → ${conversation.property.checkOutTime}`}
+            // İç kayıtta kanal adı YAZILMAZ: eski formda ev sahibinin seçtiği etiket ("Airbnb") gerçek bir kanal bağı değildi.
+            propertyLabel={`${conversation.property.name} · ${internalRecord ? INTERNAL_RECORD_LABEL : channelLabel(conversation.channel)} · ${conversation.property.checkInTime} → ${conversation.property.checkOutTime}`}
             propertyTitle={
               [conversation.property.address, conversation.property.city].filter(Boolean).join(", ") || undefined
             }
             templateVars={templateVars}
-            canReply={canManage(session)}
+            canReply={canManage(session) && !internalRecord}
             defaultTone={replyToneOrWarm(orgRow?.aiReplyTone)}
             initialDraft={preparedDraft}
             // Codex 11-17 C1: kanala bağlı olmayan konuşmada cevap yalnız kaydedilir — gönderimle AYNI rota çözümünden.

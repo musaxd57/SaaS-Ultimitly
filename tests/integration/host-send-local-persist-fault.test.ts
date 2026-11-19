@@ -34,6 +34,7 @@ vi.mock("@/lib/report-error", async (orig) => ({
 
 import { POST as REPLY } from "@/app/api/conversations/[id]/reply/route";
 import { POST as DECIDE } from "@/app/api/conversations/[id]/decisions/[decisionId]/route";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 
 const RID = "11111111-2222-4333-8444-555555555555";
 const DAY = 86_400_000;
@@ -50,7 +51,9 @@ vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unkno
 }) as never);
 
 async function seed(externalReservationId: string | null) {
-  const org = await prisma.organization.create({ data: { name: "Org", timezone: "Europe/Istanbul" } });
+  // Kanalı olmayan konuşmaya yazma yalnız DEMO hesabında yaşar (başka hesapta "İç kayıt": istek reddedilir — `lib/internal-record.ts`);
+  // bu dosya o yoldaki kayıt arızasını sınar.
+  const org = await prisma.organization.create({ data: { ...(externalReservationId === null ? { id: DEMO_ORG_ID } : {}), name: "Org", timezone: "Europe/Istanbul" } });
   const owner = await prisma.user.create({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `o${Math.random()}@x.com`, passwordHash: "x", role: "owner" },
   });
