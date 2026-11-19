@@ -792,3 +792,10 @@ geliştirme seti: bugünkü kural 44 isteğin 18'ini karşılanmadığı hâlde 
 (anında doğrulama, `BILLING_INSTANT_LINK_ENABLED` KAPALI) · Y-1 D1 iç not + D2 form kalktı + D3 iç kayıt · Dikkat panelinde "iki dairede
 kayıtlı" satırı. Mutasyon kampanya 12: 179 mutant, 160 öldü; yaşayan 19'un 14'ü için test eklendi, 5'i eşdeğer (gerekçeler listelerde).
 Denetim pini iç not paketinde bir kural ihlali yakaladı (denetim faili bürünmede operatör olmalı) — düzeltildi.
+(10) **Kurucunun 11-19 cevabı (AYNEN `docs/KURUCU-TALIMATI-2026-11-19-gece-raporuna-cevap.md`, kayıt `docs/INCELEME-2026-11-19-kurucu-cevabi.md`):**
+ödeme — "ödendi, bağlanmadı" kaydı yalnız aynı işlemin Paddle'da onaylanmış TAM iadesiyle bırakılır (iptal yetmez; bekleyen / kısmi /
+başka işlem / okunamayan / biçimi bozuk yanıt bırakmaz) · ÖD-2 ekran ve saatlik bağlama iki ayrı anahtar (`BILLING_PAID_SWEEP_LINK_ENABLED`)
+· ÖD-1/3 destek bağlantısı baştan, 2 dk sonra "Destekle iletişime geç" + kısa takip numarası · AK-1/KU-1 belirsiz gönderimde Lixus kanal
+konuşmasını kendisi okur (`CHANNEL_SEND_RECONCILE_ENABLED` KAPALI; kurucu "varsa gitmiştir" ↔ Codex "metinle bizim gönderdiğimiz
+denmesin" — kurucu sözü, kanıt kodu ayrı) · İK-1 metni · İK-3 silme onayı · EG-1 yeni kuralda 30 dk. Opus paketi (dört commit) satır
+satır incelendi. Sırada: UA-1 karşılaştırma sayfası (tasarım), YÇ Y2 (anahtar arkasında), EG-4 erişim beyanı (soru), AK-1 2. dilim.

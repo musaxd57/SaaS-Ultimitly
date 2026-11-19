@@ -294,3 +294,12 @@ buradan mesaj gönderilemez." (yalnız eski sekmede) · **İK-3** iç not kartı
 "Notlar okunamadı." metinleri eklensin mi · **UA-1** "Aynı rezervasyon iki dairede kayıtlı: A ve B" · "<gün> · Otomatik mesajlar
 bekletiliyor. Yanlış kaydı kaldırın." metni + ev sahibinin yanlış kaydı kaldıracağı bir yer bugün yok (rezervasyon silme / iptal ucu var,
 arayüzü yok) + kart dolarsa gösterim tavanı (öneri en çok 3).
+
+**11-19 (2) — kurucu cevabından sonra kalan sorular (örnekli hâlleri `docs/INCELEME-2026-11-19-kurucu-cevabi.md`):** **Ö-a** anında
+doğrulama ekranındaki "Ödeme tamamlandı. Planınız hazır olduğunda…" Paddle penceresi kapanınca, sunucu doğrulamasından ÖNCE görünüyor —
+doğrulama sonrasına mı kalsın (önce "Ödemeniz işleniyor…") · **Ö-b** kısa takip numarasının yanına "Takip no:" etiketi · **A-a** kanal
+uzlaştırmasının ev sahibi metinleri: "Kanalda görünmüyor — Lixus konuşmayı 30 dakika boyunca kontrol etti; mesaj misafire ulaşmamış
+görünüyor." + [Yeniden gönder] · "Kanal şu an okunamıyor — gönderim doğrulanamadı." · içerikle görülen mesajın etiketi "Gönderildi" mi
+"Kanalda görünüyor" mu · **E-a** EG-4: otomatik erken giriş onayı için kuralda ev sahibinin açık beyanı "Giriş bilgisi erken saatte de
+geçerli" (varsayılan kapalı; yoksa hazır cevap ev sahibine gelir) · İK-1'deki `Mesajlara dön` düğmesi eski sekmenin kendi kodunda olduğu
+için eklenemez (bilgi).

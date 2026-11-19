@@ -264,6 +264,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yanıtlar" bağı mesajla AYNI işlemde yazılır (`onRecorded`), kartın durumundan bağımsız; kapanış bağı boşla ezmez. Öğe yeniden kapatma
   teslim etkisinin dördüncü parçasıdır (düşerse damga yok, onarıcı yeniden dener). **Bekleyen ürün kararları (davranış DEĞİŞMEDİ):** yerel
   cevap konuşmayı "Cevaplandı" yapıyor / ihtiyacı kapatıyor / sözden görev üretiyor (S-1, S-4), doğrulanamayan gönderim ihtiyacı kapatıyor (S-2).
+- 🚨 **BELİRSİZ GÖNDERİMDE ÖNCE LİXUS BAKAR; GÖRÜNMEMESİ YENİDEN GÖNDERME SEBEBİ DEĞİLDİR (11-19, kurucu AK-1 / KU-1; `outbox/reconcile-match.ts`
+  saf karar + `outbox/reconcile-channel.ts`; anahtar `CHANNEL_SEND_RECONCILE_ENABLED` KAPALI, tasarım
+  `docs/TASARIM-2026-11-19-belirsiz-gonderimi-lixus-kendisi-dogrular.md`):** yanıtı kopan dış gönderimde kanal konuşması okunur. Kimlik elde
+  varsa kimlikle; yoksa gönderim başlangıcından (2 dk saat kayması … 24 saat) sonra yazılmış, biçim farkı dışında AYNI metinli, giden, başka
+  hiçbir kayda (başka kuyruk satırı / yerelde başka mesaj) ait olmayan mesaj → misafire ulaştı; kanıt kodu ayrı (`reconciled_seen_in_channel`
+  — "bizim isteğimiz başarılı" iddiası değildir). Görünmüyorsa ASLA kendiliğinden yeniden gönderilmez; incelemede "kanalda görünmüyor" ile
+  "kanal okunamadı" AYRI koddur ("ulaşmış olabilir" yalnız ikincisinde dürüst). Kesin ret (4xx≠408) kanalı okumaz. Kanal okuması yalnız
+  sağlayıcı adaptöründen (`readThread`; liste okuması ingest adaptöründe — sınır pini); test kurulumu ağı kesmediği için yeni ağ okuması
+  varsayılan KAPALI anahtar ya da sahte adaptör arkasında olur.
 - **Cevap rotasında çeviriyle gönderim YOK; kaldırılan alan sessizce yok sayılmaz, REDDEDİLİR (11-18, Codex 11-17 G3; `api/conversations/[id]/reply`):**
   rota eskiden `translateTo` alanını kabul edip ev sahibinin metnini modele çevirtiyor ve çıktıyı önizlemesiz, ev sahibinin kendi sözü gibi
   gönderiyordu (içerik denetimi yok; satır "ev sahibi yazdı", söz algılayıcısı modelin eklediği cümleden görev açabiliyordu). Arayüzde çağıran

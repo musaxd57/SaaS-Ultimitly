@@ -216,9 +216,13 @@ const defaultVerifyCredential = async (row: OutboxRow, token: string | undefined
 // metni almıştır; kim gönderdiği iddia edilmez), aday gönderim başlangıcından SONRA yazılmış ve başka hiçbir kayda ait olmayan mesaj olmalı.
 // Görünmemesi ASLA yeniden gönderim sebebi değildir (aşağıdaki durum makinesi yeniden göndermez; bakış ~31 dk aralıklı sürer).
 const defaultReconcile: OutboxReconcileFn = async (row, token) => {
-  if (resolveOutboundRoute(row).kind !== "external") return { found: true };
-  // Anahtar kapalı → bugünkü davranış (kanal okunmaz; 6 bakıştan sonra inceleme, kanıt kodu yazılmaz).
+  // Hedefi olmayan satır gitmiş sayılır (eskisi gibi).
+  if (!row.externalReservationId) return { found: true };
+  // Anahtar kapalı → bugünkü davranış BİREBİR (kanal okunmaz; 6 bakıştan sonra inceleme, kanıt kodu yazılmaz).
   if (!channelSendReconcileEnabled()) return { found: false };
+  // Kanala gitmeyen iç yol (QR sohbeti `qr-chat:`) kanaldan okunamaz → eskisi gibi bulunamadı (Haiku 11-19: önceki taslak bunu sessizce
+  // "gönderildi" yapıyordu, anahtar kapalıyken de).
+  if (resolveOutboundRoute(row).kind !== "external") return { found: false };
   const anchor = row.dispatchStartedAt ?? row.createdAt ?? null;
   if (!anchor) return { found: false, evidence: "not_seen" };
   const match = await reconcileSendFromChannel({

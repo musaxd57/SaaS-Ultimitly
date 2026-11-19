@@ -154,6 +154,50 @@ describe("kuyruk — belirsiz gönderimde Lixus kanalı okur", () => {
     expect(await rowOf(outboxId)).toMatchObject({ status: "review", lastErrorCode: RECONCILE_CODES.notSeen });
   });
 
+  it("🚨 aynı metin kanalda ama BAŞKA BİR KUYRUK SATIRININ kimliği (yerelde mesaja bağlanmamış) → doğrulamaz (mutasyon 11-19)", async () => {
+    const { orgId, conversationId } = await seed();
+    // Önceki gönderim kuyruktan gitti ve kimliği kendi satırında; yerel mesajına henüz yazılmadı.
+    const other = await enqueue(orgId, conversationId, "k7-other");
+    await prisma.messageOutbox.update({ where: { id: other.outboxId }, data: { status: "sent", providerMessageId: "host-other-1" } });
+    fake.threadExtra.set(RES, [{ externalId: "host-other-1", direction: "outbound", body: BODY, createdAt: new Date() }]);
+    const { outboxId } = await enqueue(orgId, conversationId, "k7");
+    fake.behave({ mode: "timeout", delivered: false });
+    const clock = { t: Date.now() };
+    await drainOutboxOnce({ now: () => new Date(clock.t) });
+    await drainUntilSettled(clock);
+    expect(await rowOf(outboxId)).toMatchObject({ status: "review", lastErrorCode: RECONCILE_CODES.notSeen });
+    expect(fake.attempts.filter((x) => x.body === BODY).length).toBeLessThanOrEqual(1);
+  });
+
+  it("🚨 senkron kanaldaki mesajı bu satırın KENDİ yerel mesajına bağlamışsa (kimlik yerelde ona yazılı) yine doğrulanır — kendi kimliği 'başka kayıt' sayılmaz (mutasyon 11-19)", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId, messageId } = await enqueue(orgId, conversationId, "k8");
+    fake.behave({ mode: "timeout", delivered: true });
+    const clock = { t: Date.now() };
+    await drainOutboxOnce({ now: () => new Date(clock.t) });
+    expect(await rowOf(outboxId)).toMatchObject({ status: "ambiguous" });
+    // Senkron yankıyı kendi satırına bağladı (adopt-and-heal).
+    await prisma.message.update({ where: { id: messageId! }, data: { externalId: fake.deliveries[0]!.providerMessageId } });
+    await drainUntilSettled(clock);
+    expect(await rowOf(outboxId)).toMatchObject({ status: "sent", providerMessageId: fake.deliveries[0]!.providerMessageId });
+    expect(fake.attempts).toHaveLength(1);
+  });
+
+  it("🚨 zaman çapası KUYRUĞA GİRİŞ değil DIŞ GÖNDERİM BAŞLANGICI: arada ev sahibinin kanaldan elle yazdığı aynı metin bu gönderimi doğrulamaz (mutasyon 11-19)", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId } = await enqueue(orgId, conversationId, "k9");
+    const now = Date.now();
+    // Satır bir saat önce kuyruğa girmiş; ev sahibi yarım saat önce aynı metni kanaldan elle yazmış; gönderim ŞİMDİ başlıyor ve ulaşmıyor.
+    await prisma.messageOutbox.update({ where: { id: outboxId }, data: { createdAt: new Date(now - 60 * 60_000) } });
+    fake.threadExtra.set(RES, [{ externalId: "host-manual-1", direction: "outbound", body: BODY, createdAt: new Date(now - 30 * 60_000) }]);
+    fake.behave({ mode: "timeout", delivered: false });
+    const clock = { t: now };
+    await drainOutboxOnce({ now: () => new Date(clock.t) });
+    expect((await rowOf(outboxId)).dispatchStartedAt).not.toBeNull();
+    await drainUntilSettled(clock);
+    expect(await rowOf(outboxId)).toMatchObject({ status: "review", lastErrorCode: RECONCILE_CODES.notSeen });
+  });
+
   it("🚨 KU-1: gönderim yoldayken konuşma silindi, kanal kabul etti, yanıt kayboldu → satır yine kanaldan doğrulanır (konuşmaya bağlı değil)", async () => {
     const { orgId, conversationId } = await seed();
     const { outboxId } = await enqueue(orgId, conversationId, "k5");
