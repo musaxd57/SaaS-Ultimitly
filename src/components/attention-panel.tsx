@@ -9,6 +9,7 @@ import { itemKindLabel } from "@/lib/conversation-items/view";
 import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
+import { locativeSuffixTr } from "@/lib/tr-locative";
 import {
   AUTOMATION_DIGEST_LABEL,
   automationDigestParts,
@@ -72,6 +73,11 @@ export function joinNamesTr(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} ve ${names[names.length - 1]}`;
 }
 
+/** "Bu rezervasyon Lale 3 ve Lale 5'te görünüyor" (UA-1, kurucu 11-19, aktarılan metin AYNEN) — ek SON adın okunuşuna uyar. */
+export function bookingSpanHeadline(names: readonly string[]): string {
+  return `Bu rezervasyon ${joinNamesTr(names)}${locativeSuffixTr(names[names.length - 1] ?? "")} görünüyor`;
+}
+
 /** Yarı açık [from, to) aralığındaki gece sayısı (takvim günü anahtarları). */
 function nightCount(from: string, to: string): number {
   const ms = (k: string) => {
@@ -119,8 +125,7 @@ function headline(item: AttentionItem): string {
     case "provider_outage":
       return `Kanal sağlayıcısında arıza — ${item.waitingCount ?? 0} mesaj bekliyor`;
     case "booking_two_properties":
-      // Metin kurucu onayı bekliyor (11-18 akşam) — görevdeki metin AYNEN.
-      return `Aynı rezervasyon iki dairede kayıtlı: ${joinNamesTr(item.bookingPropertyNames ?? [item.propertyName])}`;
+      return bookingSpanHeadline(item.bookingPropertyNames ?? [item.propertyName]);
   }
 }
 
@@ -179,9 +184,11 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
     case "provider_outage":
       // G10: mesajlar iletilmiş OLABİLİR (sağlayıcı alıp hata vermiş olabilir) → elle yanıtlamadan önce kontrol (çift mesaj riski).
       return "Tüm daireler · mesajlar iletilmiş olabilir · elle yanıtlamadan önce konuşmaları kanaldan kontrol edin";
-    case "booking_two_properties":
-      // Varış günü + kurucu onayı bekleyen metin AYNEN.
-      return `${item.arrivalDay ? `${dayLabel(item.arrivalDay)} · ` : ""}Otomatik mesajlar bekletiliyor. Yanlış kaydı kaldırın.`;
+    case "booking_two_properties": {
+      // Varış günü + kurucu onayı bekleyen metin AYNEN; kart tavanındaki son satırda kalan sayı (öteki türlerin "· N … daha" kalıbı).
+      const more = (item.bookingMoreCount ?? 0) > 0 ? ` · ${item.bookingMoreCount} rezervasyon daha` : "";
+      return `${item.arrivalDay ? `${dayLabel(item.arrivalDay)} · ` : ""}Otomatik mesajlar bekletiliyor. Yanlış kaydı kaldırın.${more}`;
+    }
   }
 }
 
@@ -278,6 +285,15 @@ export function AttentionPanel({
                     </span>
                   ) : null}
                 </p>
+                {item.kind === "booking_two_properties" ? (
+                  // Satırın tamamı karşılaştırma sayfasına gider; bu yalnız görünür eylem adı (bağlantı içinde ikinci bağlantı / düğme yok).
+                  <span
+                    data-attention-compare
+                    className="mt-1 inline-flex rounded-md border border-border px-2 py-0.5 text-xs font-medium text-primary"
+                  >
+                    Kayıtları karşılaştır
+                  </span>
+                ) : null}
                 {(() => {
                   const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;
                   return line ? (

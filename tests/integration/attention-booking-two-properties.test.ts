@@ -4,7 +4,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 
 import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
 import { stayDay } from "../helpers/stay-dates";
-import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
+import { BOOKING_TWO_PROPERTIES_PANEL_CAP, findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, BOOKING_ENDED_SLACK_MS } from "@/lib/booking-property-conflict";
 import { reportError } from "@/lib/report-error";
 
@@ -73,7 +73,10 @@ describe("Dikkat — aynı rezervasyon iki dairede kayıtlı", () => {
     expect(row.bookingPropertyNames).toEqual(["Lale 1", "Lale 2"]);
     // En erken etkin varış (satırlar farklı tarih taşıyabilir); işletmenin takvim günü.
     expect(row.arrivalDay).toBe(arrival.toISOString().slice(0, 10));
-    expect(row.href).toBe(`/calendar?month=${arrival.toISOString().slice(0, 7)}`);
+    // UA-1 (kurucu 11-19): bağlantı "Kayıtları karşılaştır" sayfası; anahtar = etkin satırların en küçük kimliği.
+    expect(row.href).toBe(`/reservations/compare/${row.rowKey}`);
+    expect(row.rowKey).toBe([...(await prisma.reservation.findMany({ select: { id: true } }))].map((r) => r.id).sort()[0]);
+    expect(row.bookingMoreCount).toBeUndefined();
     expect(row.certainty).toBe("observed");
     // Kaynak kimliği ekrana / anahtara taşınmaz.
     expect(JSON.stringify(row)).not.toContain("HM-1");
@@ -204,6 +207,27 @@ describe("Dikkat — aynı rezervasyon iki dairede kayıtlı", () => {
     const exact = await activeBookingConflicts(prisma, { organizationId: orgId, now: new Date(), cap: 3 });
     expect(exact.capped).toBe(false);
     expect(exact.conflicts).toHaveLength(3);
+  });
+
+  it("🚨 kart tavanı (UA-1): en yakın varışlı 3 rezervasyon satır olur, SON satır kalan sayıyı taşır; tam 3'te sayı yok", async () => {
+    expect(BOOKING_TWO_PROPERTIES_PANEL_CAP).toBe(3);
+    const { orgId, ids } = await seedOrg();
+    for (const [i, ref] of ["HM-E", "HM-A", "HM-D", "HM-B", "HM-C"].entries()) {
+      const arrival = stayDay({ "HM-A": 2, "HM-B": 3, "HM-C": 4, "HM-D": 5, "HM-E": 6 }[ref]!);
+      await booking(ids[0], ref, { arrival });
+      await booking(ids[1 + (i % 2)], ref, { arrival });
+    }
+    const rows = await rowsOf(orgId);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.arrivalDay)).toEqual([stayDay(2), stayDay(3), stayDay(4)].map((d) => d.toISOString().slice(0, 10)));
+    expect(rows.map((r) => r.bookingMoreCount)).toEqual([undefined, undefined, 2]);
+    // Öteki satır türleri dışarı itilmez: aynı dairedeki üst üste gecelerin çakışma satırları da 8'lik listede yer bulur.
+    const all = await findAttentionItems(orgId, { now: new Date() });
+    expect(all.filter((i) => i.kind === "booking_two_properties")).toHaveLength(3);
+    expect(all.some((i) => i.kind === "calendar_conflict")).toBe(true);
+    // Tam tavan: sayı yok.
+    await prisma.reservation.deleteMany({ where: { sourceReference: { in: ["HM-D", "HM-E"] } } });
+    expect((await rowsOf(orgId)).map((r) => r.bookingMoreCount)).toEqual([undefined, undefined, undefined]);
   });
 
   it("🚨 tavan aşımı akışta SESSİZ kalmaz: alarm üretilir", async () => {

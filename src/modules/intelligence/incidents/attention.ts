@@ -59,7 +59,8 @@ import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingCon
 //                           geri açılmaz), ev sahibi kanaldan kontrol eder.
 //  · booking_two_properties — (kurucu 11-18 akşam) aynı kanal rezervasyonu iki FARKLI dairede etkin kayıtlı: otomatik mesajlar
 //                           tutuluyor (`booking-property-conflict.ts`, sistem daire tahmin etmez); ev sahibi yanlış kaydı kaldırır.
-//                           Rezervasyon başına TEK satır; tutma ile AYNI yüklem.
+//                           Rezervasyon başına TEK satır; tutma ile AYNI yüklem. Kartta en çok 3 satır (UA-1, fazlası sayıyla);
+//                           bağlantı "Kayıtları karşılaştır" sayfası.
 //  · calendar_conflict    — (09-24, müsaitlik motoru) önümüzdeki 60 gecede AYNI geceyi
 //                           işgal eden iki rezervasyon. Hiçbir yazma yolu bunu engellemiyor,
 //                           takvim sayfası gece başına mülk saydığı için GÖRÜNMÜYORDU.
@@ -141,6 +142,13 @@ export const PROVIDER_OUTAGE_WINDOW_HOURS = 48;
 
 /** Liste tavanı: dikkat çekmek için kısa kalmak zorunda. */
 export const ATTENTION_MAX_ITEMS = 8;
+
+/**
+ * "İki dairede kayıtlı" satırının kart içi tavanı (UA-1, kurucu 11-19): en yakın varışlı bu kadar rezervasyon satır olur; fazlası son
+ * satırın alt satırında "· N rezervasyon daha" (öteki türlerin "· N … daha" kalıbı). Toplu bir eşleştirme hatası kartı tek başına
+ * doldurmasın (öteki satırlar `ATTENTION_MAX_ITEMS` dışına itilirdi).
+ */
+export const BOOKING_TWO_PROPERTIES_PANEL_CAP = 3;
 
 /**
  * V2 boşluk satırı anahtarı (kurucu talimatı 09-07 "REVENUE LEAK · 2-night gap" örneği). VARSAYILAN KAPALI: satır metni ve önemi
@@ -256,6 +264,8 @@ export interface AttentionItem {
   bookingPropertyNames?: string[];
   /** Yalnız `booking_two_properties`: misafirin varış günü, işletmenin takviminde (YYYY-AA-GG). */
   arrivalDay?: string;
+  /** Yalnız `booking_two_properties`, kart tavanındaki SON satırda: satır olmayan öteki çakışan rezervasyon sayısı (> 0). */
+  bookingMoreCount?: number;
 }
 
 export interface FindAttentionOptions {
@@ -813,13 +823,15 @@ export async function findAttentionItems(
     ).catch(() => {});
   }
   // Tek daireye daraltılmış çağrıda yalnız o daireyi içeren çakışma (öteki daire kapsam dışında olsa da çakışma çakışmadır).
-  const twoPropertyRows = twoProperties.conflicts.filter((c) => c.properties.some((p) => inScope.has(p.id)));
+  const twoPropertyAll = twoProperties.conflicts.filter((c) => c.properties.some((p) => inScope.has(p.id)));
+  const twoPropertyRows = twoPropertyAll.slice(0, BOOKING_TWO_PROPERTIES_PANEL_CAP);
+  const twoPropertyMore = twoPropertyAll.length - twoPropertyRows.length;
   if (twoPropertyRows.length > 0) {
     // Varış günü işletmenin takviminden (tek tarih kuralı) — yalnız satır varsa okunur (sakin günde ek sorgu yok).
     const tz = orgTimezone(
       decisionTz ?? (await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } }))?.timezone,
     );
-    for (const c of twoPropertyRows) {
+    for (const [index, c] of twoPropertyRows.entries()) {
       const arrivalDay = calendarDateOf(c.arrivalDate, tz).key;
       const [y, m, d] = arrivalDay.split("-").map(Number);
       const own = c.properties.find((p) => inScope.has(p.id)) ?? c.properties[0];
@@ -832,11 +844,13 @@ export async function findAttentionItems(
         // Sonucu `channel_reactivation` ile aynı (misafir otomatik karşılama / giriş bilgisi almaz) → aynı sıra.
         severity: 85,
         occurredAt: new Date(Date.UTC(y, m - 1, d)),
-        // İki daireyi birlikte gösteren yüzey: varış ayının takvimi (daire süzgeçsiz).
-        href: `/calendar?month=${arrivalDay.slice(0, 7)}`,
+        // UA-1 (kurucu 11-19): satırlar yan yana — "Kayıtları karşılaştır" sayfası. Anahtar etkin satırların en küçük kimliği; kaynak
+        // kimliği adrese taşınmaz.
+        href: `/reservations/compare/${encodeURIComponent(c.rowKey)}`,
         rowKey: c.rowKey,
         bookingPropertyNames: c.properties.map((p) => p.name),
         arrivalDay,
+        ...(index === twoPropertyRows.length - 1 && twoPropertyMore > 0 ? { bookingMoreCount: twoPropertyMore } : {}),
       });
     }
   }
