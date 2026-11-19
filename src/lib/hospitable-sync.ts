@@ -404,10 +404,17 @@ export async function syncHospitable(
           const countTaskFailure = (err: unknown) => {
             if (reservationTaskFailures++ === 0) firstReservationTaskError = err;
           };
-          await createReservationTasks(localReservationId).catch(countTaskFailure);
+          const observed: { status?: string | null } = {};
+          await createReservationTasks(localReservationId, { observed }).catch(countTaskFailure);
           // If the booking flipped to cancelled, remove its still-pending auto
           // tasks. No-op for active bookings. Best-effort.
-          await removeAutoTasksForCancelledReservation(localReservationId, { repair: upsertOut.cancelledNow !== true }).catch(countTaskFailure);
+          // Temizliğin kilitsiz ön okuması yalnız "iptal DEĞİL → iş yok" der; görev oluşturma AYNI satırı az önce okudu (O1, 11-19) → iptal
+          // değil görüldüyse yeniden okunmaz. İptal görüldüyse, satır yoksa ya da okuma olmadıysa (düştü) eskisi gibi çağrılır; kilitli yol
+          // durumu kendisi yeniden okur. Pin: `tests/integration/hospitable-sync-task-side-effects-query-count.test.ts`.
+          const seenActive = typeof observed.status === "string" && observed.status !== "cancelled";
+          if (!seenActive) {
+            await removeAutoTasksForCancelledReservation(localReservationId, { repair: upsertOut.cancelledNow !== true }).catch(countTaskFailure);
+          }
         }
       } catch (err) {
         // Buraya düşmek "bu rezervasyon satırı DB'ye hiç yazılmadı" demektir:

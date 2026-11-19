@@ -1432,7 +1432,17 @@ export const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as cons
  * ⚠️ Kendi işlemini açar (kilit için): dış bir işlemin İÇİNDEN çağrılmaz — o işlemde yazılıp henüz commit edilmemiş rezervasyonu
  * görmez (bugün bütün çağıranlar commit SONRASI çağırır; Haiku 10-15).
  */
-export async function createReservationTasks(reservationId: string, opts: { reopened?: boolean } = {}): Promise<number> {
+export async function createReservationTasks(
+  reservationId: string,
+  opts: {
+    reopened?: boolean;
+    /**
+     * İsteğe bağlı çıktı (O1, 11-19): hızlı yolun kilitsiz ön okumasında görülen durum (satır yoksa null; okuma olmadıysa — `reopened` ya da
+     * okuma düştü — dokunulmaz). Hospitable senkronu ardından gelen iptal temizliğinin AYNI kilitsiz ön okumasını tekrarlamamak için okur.
+     */
+    observed?: { status?: string | null };
+  } = {},
+): Promise<number> {
   const now = new Date();
   // HIZLI YOL (Opus 10-15 B5): senkron her turda penceresindeki HER rezervasyonu çağırır; geçmiş konaklama ya da görevleri tam rezervasyon
   // için işlem + kilit açılmaz (kilitsiz okuma eksik yok diyorsa yazacak bir şey yoktur — eksik varsa kilit altında YENİDEN okunur).
@@ -1446,6 +1456,7 @@ export async function createReservationTasks(reservationId: string, opts: { reop
     // görevleri sistemin açtığı BİTMEMİŞ görev olarak duran konaklama (gelecek rezervasyonların olağan hâli). Kalanında karar eskisiyle aynı
     // tam kuraldan (okuma sırası değişti: görev mülkten önce). Pin + kilitli yol kâhini: `tests/integration/reservation-tasks-fastpath-query-count.test.ts`.
     const head = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_HEAD_SELECT });
+    if (opts.observed) opts.observed.status = head?.status ?? null;
     if (!head || head.status === "cancelled") return 0;
     if (lifecycleTasksSettledInEveryTimeZone(head, [], now)) return 0;
     const quick = await prisma.task.findMany({ where: lifecycleTasksWhere(head), select: LIFECYCLE_TASK_LITE_SELECT });
