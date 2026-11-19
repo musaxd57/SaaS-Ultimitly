@@ -22,8 +22,10 @@ import {
   CHECKOUT_VERIFY_AWAITING_MESSAGE,
   CHECKOUT_VERIFY_DASHBOARD_LABEL,
   CHECKOUT_VERIFY_SUPPORT_AFTER_MS,
+  CHECKOUT_VERIFY_SUPPORT_LABEL,
   checkoutVerifyDelay,
   checkoutVerifyStep,
+  shortTrackingId,
 } from "@/components/settings/checkout-verify-poll";
 import { ResumeSubscription } from "@/components/settings/resume-subscription";
 import {
@@ -297,7 +299,8 @@ export function PaddlePlans({
   const [verifyTarget, setVerifyTarget] = useState<{ consentId: string; transactionId: string; startedAt: number } | null>(null);
   // `awaiting`: plan henüz açılmadı (bekleyen cevap ya da ilk cevap gelmedi) · `active`: plan açıldı · null: doğrulama yok / bugünkü akış.
   const [verifyState, setVerifyState] = useState<"awaiting" | "active" | null>(null);
-  // Gecikme uzadı → destek bağlantısı + takip numarası (ucun yanıt başlığındaki ödeme zinciri numarası).
+  // Gecikme uzadı → destek bağlantısı öne çıkar ("Destekle iletişime geç") + takip numarası (ucun yanıt başlığındaki ödeme zinciri numarası).
+  // Bağlantının kendisi beklemenin BAŞINDAN beri görünür (kurucu 11-19, ÖD-1).
   const [verifySlow, setVerifySlow] = useState(false);
   const [verifyTrackingId, setVerifyTrackingId] = useState<string | null>(null);
   // Son açılan ödeme ekranının onay kaydı — tamamlanma sinyali sunucuya bununla gider (kilit yalnız kendi işletmesinin yeni onayıyla yazılır).
@@ -1117,14 +1120,17 @@ export function PaddlePlans({
           <p className="text-xs text-muted-foreground" role="status">
             {CHECKOUT_VERIFY_AWAITING_MESSAGE}
           </p>
-          {verifySlow ? (
-            <div className="flex flex-wrap items-center gap-3" data-testid="checkout-verify-support">
-              <a href={`mailto:${SELLER.eposta}`} className="text-xs text-primary underline hover:no-underline">
-                {SELLER.eposta}
-              </a>
-              {verifyTrackingId ? <TrackingNumberCopy id={verifyTrackingId} /> : null}
-            </div>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-3" data-testid="checkout-verify-support">
+            <a href={`mailto:${SELLER.eposta}`} className="text-xs text-primary underline hover:no-underline">
+              {verifySlow ? CHECKOUT_VERIFY_SUPPORT_LABEL : SELLER.eposta}
+            </a>
+            {verifySlow && verifyTrackingId ? (
+              <>
+                <span className="font-mono text-xs text-muted-foreground">{shortTrackingId(verifyTrackingId)}</span>
+                <TrackingNumberCopy id={verifyTrackingId} />
+              </>
+            ) : null}
+          </div>
         </div>
       ) : processing && !manageable ? (
         <p className="text-xs text-muted-foreground">{(checkoutPending ? checkoutPendingMessage : null) ?? CHECKOUT_PENDING_MESSAGE}</p>

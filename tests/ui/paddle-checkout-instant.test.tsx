@@ -22,9 +22,13 @@ import {
   CHECKOUT_VERIFY_SLOW_AFTER_MS,
   CHECKOUT_VERIFY_SLOW_DELAY_MS,
   CHECKOUT_VERIFY_SUPPORT_AFTER_MS,
+  CHECKOUT_VERIFY_SUPPORT_LABEL,
   checkoutVerifyDelay,
   checkoutVerifyStep,
+  shortTrackingId,
 } from "@/components/settings/checkout-verify-poll";
+import { shortCorrelationId } from "@/lib/correlation";
+import { SELLER } from "@/lib/legal-entity";
 import { checkAllCheckoutConsents } from "../helpers/checkout-consent-ui";
 
 const plans = [
@@ -42,7 +46,8 @@ const plans = [
 ];
 
 const TXN = "txn_01lale";
-const TRACKING = "lx_takip_lale_0001";
+// Gerçek biçim (sunucu `newCorrelationId` = UUID v4): ekranda ilk 8 karakter, kopyalama düğmesi TAMAMINI taşır.
+const TRACKING = "3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f";
 
 const plansEl = (instantCheckoutLink: boolean) => (
   <PaddlePlans
@@ -245,6 +250,11 @@ describe("PaddlePlans — ödeme tamamlanınca anında doğrulama", () => {
     expect(pendingCalls()).toHaveLength(1);
     expect(screen.getByText(CHECKOUT_PENDING_MESSAGE)).toBeTruthy();
     expect(screen.queryByText(CHECKOUT_VERIFY_AWAITING_MESSAGE)).toBeNull();
+    // ÖD-1 / ÖD-3 yalnız anında doğrulama yolunda: anahtar kapalıyken destek alanı ne başta ne 2 dakikadan sonra çizilir.
+    expect(screen.queryByTestId("checkout-verify-support")).toBeNull();
+    await tick(CHECKOUT_VERIFY_SUPPORT_AFTER_MS);
+    expect(screen.queryByTestId("checkout-verify-support")).toBeNull();
+    expect(screen.queryByText(CHECKOUT_VERIFY_SUPPORT_LABEL)).toBeNull();
   });
 
   it("🚨 bileşen kaldırılınca zamanlayıcı kalmaz, yeni istek gitmez", async () => {
@@ -293,27 +303,77 @@ describe("PaddlePlans — ödeme tamamlanınca anında doğrulama", () => {
     expect(screen.getByText(CHECKOUT_VERIFY_ACTIVE_MESSAGE)).toBeTruthy();
   });
 
-  it("🚨 2 dakikadan sonra aynı cümlenin altında destek bağlantısı + takip numarası; önce yok", async () => {
+  // ÖD-1 / ÖD-3 (kurucu 11-19): "İki dakika makul ama yalnızca destek seçeneğini öne çıkarma eşiği olarak. Normal destek bağlantısı baştan
+  // erişilebilir olsun. Gecikirse `Destekle iletişime geç` ve yanında kopyalanabilir kısa bir Lixus takip numarası gösterelim."
+  it("🚨 ÖD-1: destek e-posta bağlantısı BAŞTAN görünür (2 dakika dolmadan), takip numarası henüz yok", async () => {
+    verifyAnswers = [{ status: 200, state: "awaiting", headers: { "X-Correlation-ID": TRACKING } }];
+    await payOnce();
+    await complete();
+    expect(screen.getByText(CHECKOUT_VERIFY_AWAITING_MESSAGE)).toBeTruthy();
+    const support = screen.getByTestId("checkout-verify-support");
+    const mail = support.querySelector("a[href^='mailto:']") as HTMLAnchorElement;
+    expect(mail.getAttribute("href")).toBe(`mailto:${SELLER.eposta}`);
+    expect(mail.textContent).toBe(SELLER.eposta);
+    expect(screen.queryByText(CHECKOUT_VERIFY_SUPPORT_LABEL)).toBeNull();
+    expect(screen.queryByText(shortTrackingId(TRACKING))).toBeNull();
+    expect(screen.queryByRole("button", { name: "Takip numarasını kopyala" })).toBeNull();
+  });
+
+  it("🚨 ÖD-3: 2 dakikadan sonra bağlantı 'Destekle iletişime geç' olur, yanında kısa takip numarası (metin) + kopyalama düğmesi", async () => {
     verifyAnswers = [{ status: 200, state: "awaiting", headers: { "X-Correlation-ID": TRACKING } }];
     await payOnce();
     await complete();
     await tick(CHECKOUT_VERIFY_SUPPORT_AFTER_MS - 1);
-    expect(screen.queryByTestId("checkout-verify-support")).toBeNull();
+    expect(screen.queryByText(CHECKOUT_VERIFY_SUPPORT_LABEL)).toBeNull();
     await tick(1);
     const support = screen.getByTestId("checkout-verify-support");
-    const mail = support.querySelector("a[href^='mailto:']");
-    expect(mail).toBeTruthy();
+    const mail = support.querySelector("a[href^='mailto:']") as HTMLAnchorElement;
+    expect(mail.getAttribute("href")).toBe(`mailto:${SELLER.eposta}`);
+    expect(mail.textContent).toBe(CHECKOUT_VERIFY_SUPPORT_LABEL);
+    expect(CHECKOUT_VERIFY_SUPPORT_LABEL).toBe("Destekle iletişime geç");
+    expect(support.textContent).toContain("3f2a9c1e");
+    expect(support.textContent).not.toContain(TRACKING); // ekranda kısa biçim; tamamı yalnız kopyalama düğmesinde
     expect(screen.getByRole("button", { name: "Takip numarasını kopyala" })).toBeTruthy();
     expect(screen.getByText(CHECKOUT_VERIFY_AWAITING_MESSAGE)).toBeTruthy();
   });
 
-  it("KONTROL: 2 dakika dolmadan plan açılırsa destek bağlantısı hiç görünmez", async () => {
+  it("ÖD-3: kopyalama düğmesi takip numarasının TAMAMINI panoya yazar (kurucu kararı 10-10: kısa ekranda, tamamı kopyada)", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    verifyAnswers = [{ status: 200, state: "awaiting", headers: { "X-Correlation-ID": TRACKING } }];
+    await payOnce();
+    await complete();
+    await tick(CHECKOUT_VERIFY_SUPPORT_AFTER_MS);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Takip numarasını kopyala" }));
+    });
+    expect(writeText).toHaveBeenCalledWith(TRACKING);
+    delete (navigator as unknown as { clipboard?: unknown }).clipboard;
+  });
+
+  it("KONTROL: 2 dakikadan sonra takip numarası hiç gelmediyse (başlık yok) bağlantı yine 'Destekle iletişime geç', numara / düğme yok", async () => {
+    verifyAnswers = [{ status: 200, state: "awaiting" }];
+    await payOnce();
+    await complete();
+    await tick(CHECKOUT_VERIFY_SUPPORT_AFTER_MS);
+    const mail = screen.getByTestId("checkout-verify-support").querySelector("a[href^='mailto:']") as HTMLAnchorElement;
+    expect(mail.textContent).toBe(CHECKOUT_VERIFY_SUPPORT_LABEL);
+    expect(screen.queryByRole("button", { name: "Takip numarasını kopyala" })).toBeNull();
+  });
+
+  it("KONTROL: 2 dakika dolmadan plan açılırsa destek alanı kalkar, 'Destekle iletişime geç' hiç görünmez", async () => {
     verifyAnswers = [{ status: 200, state: "awaiting" }, { status: 200, state: "active" }];
     await payOnce();
     await complete();
     await tick(CHECKOUT_VERIFY_SUPPORT_AFTER_MS * 2);
     expect(screen.queryByTestId("checkout-verify-support")).toBeNull();
+    expect(screen.queryByText(CHECKOUT_VERIFY_SUPPORT_LABEL)).toBeNull();
     expect(screen.getByText(CHECKOUT_VERIFY_ACTIVE_MESSAGE)).toBeTruthy();
+  });
+
+  it("kısa takip numarası sunucunun kısa biçimiyle AYNI kural (ilk 8 karakter)", () => {
+    expect(shortTrackingId(TRACKING)).toBe(shortCorrelationId(TRACKING));
+    expect(shortTrackingId(TRACKING)).toBe("3f2a9c1e");
   });
 
   it("bekleme sırasında uç 404 olursa (anahtar kapatıldı) bugünkü akışa geçilir, sorma durur", async () => {
