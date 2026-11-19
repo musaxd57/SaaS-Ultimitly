@@ -9,7 +9,7 @@
 > Girişler'den elle gönderim · konuşma silme · daire silme · misafir silme talebi · saklama süpürgesinin iki dalı) YAZILDI
 > (`src/lib/outbox/dispatch.ts`, `worker.ts`). Silme yolları iptal isteğini KENDİ işlemlerinin içinde yazar (`cancelRequestWrite`); işçinin
 > talebi ezilmez, satır gönderim başlangıcında reddedilir. İptal isteği taşıyan satır dirilmez (elle "tekrar dene" ve abonelik dönüşü
-> onu bekleyene almaz). K4 (karar mesajı kuyruğa) sırada.
+> onu bekleyene almaz). K4 (karar mesajı kuyruğa) GEREKMEDİ — §4 başındaki düzeltme.
 
 ## 1. Bugün
 
@@ -59,7 +59,15 @@ Talep süresi dolan `sending` satır:
 
 Her yeni talepte `dispatchStartedAt` sıfırlanır (önceki denemenin işareti yeni denemeye taşınmaz — önceki denemenin sonucu zaten yazıldı).
 
-## 4. Karar mesajı kuyruğa girer (kurucu: "kalıcı çözüm, kararları konuşma kuyruğuna alıp göndermeden önce yeniden doğrulamak")
+## 4. Karar mesajı kuyruğa girer — ÖNERİ, GEREKMEDİ (11-19)
+
+> **Düzeltme (11-19):** bu bölümün başlığı öneriyi kurucuya atfediyordu — YANLIŞ. Kaynak Codex 11-17 raporudur (G2-02 "ertelenen kararlar
+> genel manuel mesajdan ayrılmalı", K2-01 "kuyruğa kabul tamamlanma sayılıyor"). Kurucunun 11-18 akşam metninde karar mesajını kuyruğa alma
+> talimatı YOK; o bölümdeki öncelikleri (olay başına `nextAttemptAt`, kuyruk evreleri + atomik iptal, ödeme–abonelik bağı, teslim yolu,
+> ayrı anahtarlar) yapıldı. İki Codex bulgusu 11-18 gündüz başka yoldan kapandı: karar mesajı kuyruk açıkken de DOĞRUDAN gider ve kart
+> gerçek gönderim sonucuyla kapanır (K2-01), kilitten sonra rezervasyon taze okunur, iptalse gönderilmez (G2-02). Kuyrukta bekleyen yapay
+> zekâ cevabı da işçinin "ev sahibi yazdı" vetosuyla iptal olur. Bu yüzden aşağıdaki plan UYGULANMADI; karar mesajı bir gün kuyruğa
+> alınacak olursa (ör. toplu gönderim) yeniden açılır. Özgün plan kayıt için duruyor:
 
 Bugün karar mesajı kuyruk açıkken de doğrudan gider (11-18 gündüz) — çünkü kuyruktaki sıra onu bekletebiliyor ve işçi kararı yeniden
 doğrulamıyordu. Atomik kural yerleşince:
@@ -80,7 +88,7 @@ Bu adım ayrı dilimdir (kararın yeniden doğrulanması karar çekirdeğine dok
 | K1 | `dispatch.ts` (üç fonksiyon) + işçide gönderim başlangıcı işareti + iptal isteğini onurlandırma | anahtar kapalıyken etkisiz; yarış testleri (iptal ↔ başlangıç, iki yönde) |
 | K2 | Talep süresi dolan satırın ayrımı (hazırlık → geri bırak, gönderim başladı → belirsiz) | "belirsiz" sayısını azaltır; eski satırlar (`dispatchStartedAt` boş, gerçekte gönderilmiş olabilir) için geçiş kuralı ↓ |
 | K3 | Dış iptal yolları tek girişe: konuşma / daire silme, silme talebi, elle gönderimin satırı bırakması | bugün "sending" satır bu yollardan kaçıyor |
-| K4 | Karar mesajı kuyruğa (§4) | karar çekirdeği |
+| K4 | Karar mesajı kuyruğa (§4) | GEREKMEDİ (11-19): iki Codex bulgusu doğrudan yolla kapandı; öneri kurucunun değildi |
 
 **Geçiş kuralı (K2 — yazıldığı hâliyle):** bu kod yayına girmeden önce talep edilmiş bir satırın `dispatchStartedAt`'ı boştur ama isteği
 atılmış olabilir. Satır kendini tanıtır: işareti YAZAN sürümün işçisi talep belirtecine bir önek koyar (`d1:`); "hazırlıkta çöktü → yeniden
