@@ -189,12 +189,37 @@ const CONCEPT_BY_ID = new Map(CONCEPTS.map((c) => [c.id, c]));
 export function matchForeignConcepts(text: string): ConceptMatch[] {
   const toks = foreignTokens(text);
   if (toks.length === 0) return [];
+  // ADAY BAŞLANGIÇ KONUMLARI (O3 11-19, ölçüldü: her sorguda girdi × belirteç kadar `tokenMatches` — getirmenin ~%25'i). Eşleşmenin
+  // GEREKLİ koşulları `tokenMatches`ten okunur, hüküm aynı kalır:
+  //   · Latin girdi her dalda belirtecin BAŞINDA eşleşir (tam / önek / çekim eki) → baş belirtecin ilk harfiyle başlayan konumlar yeter;
+  //   · Kiril / Arap girdi belirtecin içinde de eşleşebilir ama kendi yazısının harfini taşır → o yazıda harfi olmayan metinde atlanır.
+  // Konumlar artan sırada denenir; sözlük sırası ve kavram başına ilk eşleşme aynen. Eski tarama testte kâhin
+  // (`kb-retrieval-foreign-index.test.ts`).
+  const latinStarts = new Map<string, number[]>();
+  let anyArabic = false;
+  let anyCyrillic = false;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    const starts = latinStarts.get(t[0]);
+    if (starts) starts.push(i);
+    else latinStarts.set(t[0], [i]);
+    if (!anyArabic && ARABIC.test(t)) anyArabic = true;
+    if (!anyCyrillic && CYRILLIC.test(t)) anyCyrillic = true;
+  }
+  const everyStart = toks.map((_, i) => i);
   const out: ConceptMatch[] = [];
   const seen = new Set<string>();
   for (const entry of COMPILED) {
     if (seen.has(entry.conceptId)) continue;
-    outer: for (let i = 0; i + entry.tokens.length <= toks.length; i++) {
-      for (let j = 0; j < entry.tokens.length; j++) if (!tokenMatches(toks[i + j], entry.tokens[j])) continue outer;
+    const head = entry.tokens[0];
+    const starts =
+      head.script === "latin" ? latinStarts.get(head.text[0]) : (head.script === "arabic" ? anyArabic : anyCyrillic) ? everyStart : undefined;
+    if (!starts) continue;
+    for (const i of starts) {
+      if (i + entry.tokens.length > toks.length) break;
+      let j = 0;
+      while (j < entry.tokens.length && tokenMatches(toks[i + j], entry.tokens[j])) j++;
+      if (j < entry.tokens.length) continue;
       const concept = CONCEPT_BY_ID.get(entry.conceptId);
       if (concept) out.push({ concept, via: entry.via });
       seen.add(entry.conceptId);
