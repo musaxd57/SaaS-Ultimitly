@@ -172,6 +172,7 @@ describe("ödeme anında doğrulama + kendiliğinden bağlama", () => {
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
     vi.stubEnv("PADDLE_CHECKOUT_INTENT_ENABLED", "1");
     vi.stubEnv("BILLING_INSTANT_LINK_ENABLED", "1");
+    vi.stubEnv("BILLING_PAID_SWEEP_LINK_ENABLED", "1");
     const o = await owner("a");
     orgId = o.org;
     ownerSession = o.s;
@@ -409,9 +410,16 @@ describe("ödeme anında doğrulama + kendiliğinden bağlama", () => {
       expect(alarms()).toHaveLength(0);
     });
 
-    it("KONTROL: anahtar KAPALI → süpürge bağlamaz, bugünkü gibi operatöre alarm verir", async () => {
+    it("🚨 İKİ AYRI ANAHTAR: ekran anahtarı kapalı + arka plan açık → süpürge yine bağlar (ÖD-2)", async () => {
       await awaitingPayment();
       vi.stubEnv("BILLING_INSTANT_LINK_ENABLED", "");
+      expect(await sweepPaidCheckouts()).toMatchObject({ checked: 1, closed: 1, alerted: 0 });
+      expect(await localSub(orgId)).toMatchObject({ providerRef: "sub_1", status: "active" });
+    });
+
+    it("KONTROL: arka plan anahtarı KAPALI (ekran açık olsa da) → süpürge bağlamaz, bugünkü gibi operatöre alarm verir", async () => {
+      await awaitingPayment();
+      vi.stubEnv("BILLING_PAID_SWEEP_LINK_ENABLED", "");
       expect(await sweepPaidCheckouts()).toMatchObject({ checked: 1, closed: 0, alerted: 1 });
       expect(await localSub(orgId)).toBeNull();
       expect(alarms()).toHaveLength(1);

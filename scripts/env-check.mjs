@@ -723,6 +723,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "OUTBOX_DELIVERY_PAUSED",
   // Odeme aninda dogrulama + kendiliginden baglama (11-18 aksam; src/lib/billing/checkout-verify.ts) — varsayilan KAPALI.
   "BILLING_INSTANT_LINK_ENABLED",
+  "BILLING_PAID_SWEEP_LINK_ENABLED",
   // Erken giris pilotu (11-18 aksam, H-3; src/lib/early-checkin/workflow.ts) — varsayilan KAPALI.
   "EARLY_CHECKIN_FREE_ONLY_ENABLED",
   "EMAIL_OUTBOX_ENABLED",

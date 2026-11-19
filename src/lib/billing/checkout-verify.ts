@@ -26,9 +26,21 @@ import { recordPaidCheckout } from "@/lib/billing/checkout-paid";
 // saatlik süpürgenin alarmıyla düşer). Paddle okunamazsa → "doğrulanamadı" (çağıran yeniden sorar).
 // ---------------------------------------------------------------------------
 
-/** Anahtar (VARSAYILAN KAPALI, yalnız "1"): açılışta sandbox denemesiyle birlikte açılır (iki sekme · olay gecikmesi · kayıp olay). */
+/**
+ * İKİ ANAHTAR, TEK ÇEKİRDEK (kurucu 11-19, ÖD-2: "Tek doğrulama kodu, iki ayrı açma anahtarı … Birinde sorun olursa diğerini kapatmak
+ * zorunda kalmayalım. İkisi yarıştığında da plan bir kez etkinleşsin."). İkisi de VARSAYILAN KAPALI, yalnız "1"; açılışta sandbox
+ * denemesiyle birlikte açılır. İkisi de aynı `verifyAndLinkCheckout` → aynı bildirim işleyicisi: aynı anda koşsalar plan bir kez yazılır.
+ *  · ekran (`BILLING_INSTANT_LINK_ENABLED`): ödeme ekranı tamamlanınca uç (`POST /api/billing/checkout-verify`) hemen doğrular;
+ *  · arka plan (`BILLING_PAID_SWEEP_LINK_ENABLED`): saatlik süpürge, bildirimi hiç gelmeyen ödemeyi Paddle'dan okuyup bağlar — müşteri sekmeyi
+ *    kapatmış olsa da.
+ */
 export function instantCheckoutLinkEnabled(): boolean {
   return process.env.BILLING_INSTANT_LINK_ENABLED === "1";
+}
+
+/** Arka plan anahtarı (↑). */
+export function paidSweepLinkEnabled(): boolean {
+  return process.env.BILLING_PAID_SWEEP_LINK_ENABLED === "1";
 }
 
 export type CheckoutVerifyResult =

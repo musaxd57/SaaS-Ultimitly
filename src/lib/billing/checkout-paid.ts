@@ -313,10 +313,11 @@ export async function sweepPaidCheckouts(
       // KENDİLİĞİNDEN BAĞLAMA (kurucu 11-18 akşam, Ö-2: "aynı işletme ve aynı satın alma doğrulanabiliyorsa Paddle'dan otomatik bağlansın;
       // belirsizse operatöre"): bildirim hiç gelmediyse abonelik Paddle'dan okunup aynı bildirim işleyicisine verilir. Kimlik bekleyen kaydın
       // KENDİ işletmesi + onay kaydı + işlemidir. Bağlanamayan / belirsiz kayıt aşağıdaki operatör alarmına düşer (bugünkü davranış). Anahtar
-      // kapalıyken hiç denenmez. (Dinamik içe aktarma: çekirdek bu modülü kullanıyor — döngü olmasın.)
+      // kapalıyken hiç denenmez. Kendi anahtarı (`BILLING_PAID_SWEEP_LINK_ENABLED`, kurucu 11-19 ÖD-2): ekran doğrulamasının anahtarından
+      // bağımsız açılıp kapanır. (Dinamik içe aktarma: çekirdek bu modülü kullanıyor — döngü olmasın.)
       if (row.providerRef) {
-        const { instantCheckoutLinkEnabled, verifyAndLinkCheckout } = await import("@/lib/billing/checkout-verify");
-        if (instantCheckoutLinkEnabled()) {
+        const { paidSweepLinkEnabled, verifyAndLinkCheckout } = await import("@/lib/billing/checkout-verify");
+        if (paidSweepLinkEnabled()) {
           const linked = await verifyAndLinkCheckout({ organizationId: row.organizationId, consentId: row.consentId, transactionId: row.providerRef, now });
           // Bağlanan kaydı bildirim işleyicisi kapatır (alarm durumu da orada temizlenir).
           if (linked.state === "active") {
