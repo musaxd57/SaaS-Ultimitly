@@ -303,3 +303,13 @@ görünüyor." + [Yeniden gönder] · "Kanal şu an okunamıyor — gönderim do
 "Kanalda görünüyor" mu · **E-a** EG-4: otomatik erken giriş onayı için kuralda ev sahibinin açık beyanı "Giriş bilgisi erken saatte de
 geçerli" (varsayılan kapalı; yoksa hazır cevap ev sahibine gelir) · İK-1'deki `Mesajlara dön` düğmesi eski sekmenin kendi kodunda olduğu
 için eklenemez (bilgi).
+
+**11-19 (3) — ajan turundan kurucuya sorular:** **T2-B8 (P2)** mesaj şablonu sayısı sınırsız ve liste ucu / sayfası hepsini tek yanıtta döküyor
+(ölçüm: ~10 dk yazımla 3.000 şablon → tek istek 284 MB yığın, 2,8 sn) — liste sayfalansın mı, işletme başına şablon sınırı mı (öneri: ikisi;
+sayfalama sınırdan bağımsız) · **T2-B10** vektör ısıtma bütçesi bütün işletmelerde ORTAK (bir deneme hesabı saatlik bütçeyi dakikalar içinde
+tüketip başka işletmelerin anlamsal aramasını o saat kapatabiliyor) — işletme başına adil pay mı · **B3** iyelik ekiyle biten daire adında
+bulunma eki ("Sahil Evi'de" → doğrusu "Sahil Evi'nde"; kuralla güvenle ayrılamaz) — başlık "Bu rezervasyon iki dairede görünüyor: A ve B"
+biçimine mi dönsün · **UA-a ek** son elle kopya kaldırılmaz metni "Bu rezervasyonun başka dairede kaydı kalmadı; bu kayıt kaldırılamaz."
+(yalnız eski sekmede görünür) · **bilgi** konuşma silindikten sonra elle "Gönder"e basılan giriş mesajı artık gerçekten gidiyor (eskiden
+"sıraya alındı" deyip gitmiyordu; misafir silme talebi ayrı korumayla engelli) · **açılışta ölç** panel sayfasının eşzamanlı okumaları ↔
+veritabanı bağlantı havuzu · WhatsApp web kancası düz `JSON.parse` (Paddle'daki NUL sınıfının komşusu, bakılmadı).

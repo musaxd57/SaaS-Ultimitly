@@ -264,6 +264,17 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yanıtlar" bağı mesajla AYNI işlemde yazılır (`onRecorded`), kartın durumundan bağımsız; kapanış bağı boşla ezmez. Öğe yeniden kapatma
   teslim etkisinin dördüncü parçasıdır (düşerse damga yok, onarıcı yeniden dener). **Bekleyen ürün kararları (davranış DEĞİŞMEDİ):** yerel
   cevap konuşmayı "Cevaplandı" yapıyor / ihtiyacı kapatıyor / sözden görev üretiyor (S-1, S-4), doğrulanamayan gönderim ihtiyacı kapatıyor (S-2).
+- 🚨 **SAKLANAMAYAN KARAKTER SAHTE 500 ÜRETMEZ (11-19, G2 sert hata ayıklama; 11-14 A-1 sınıfının tamamı; tek kural `lib/storable-text.ts`):**
+  NUL ve EŞSİZ UTF-16 vekil (PostgreSQL / Prisma ikisini de reddeder) metin DEĞERİNDEN sessizce silinir, geçerli vekil çifti (emoji) korunur —
+  JSON okuyucu (`parseJsonWithoutNul`, QR mesajı dahil), çok parçalı form alanları (`readFormDataCapped`), içe aktarılan dosya metni, sağlayıcı
+  dizesi (`canonicalStr`), imzası doğrulanmış Paddle gövdesi. Anahtarda saklanamayan karakter → bozuk gövde (silmek iki anahtarı birleştirirdi);
+  İSTİSNA Paddle bildirimi: anahtara dokunulmaz (bozuk gövde orada olayı işlemeden 200 ile kapatır — gerçek ödeme düşerdi). Panel yolunda /
+  sorgusunda NUL → ara katman 400. int4 kolona giden her sayı gövde şemasında `max(2_147_483_647)` (taşma 500 değil 400). Gerekçe: kullanıcının
+  tetiklediği her 500 ortak uyarı kovasını doldurup GERÇEK alarmları bastırabilir.
+- **Ara katman eşleyicisinin İKİNCİ deseni panel öneklerini kapsar (11-19, G2 T2-B7; açık iş 08-08 kapandı):** ilk desen noktalı yolu statik dosya
+  sayıp dışlıyor; panel önekleri altındaki her yol (noktalı da) ara katmandan geçer. Liste `PRIVATE_APP_PREFIXES` ile pinli
+  (`tests/unit/middleware-matcher-private.test.ts`, eşleme Next'in kendi eşleyicisiyle) — yeni panel üst klasörü ÜÇ listeye birden girer
+  (`private-routes.ts`, `theme.ts`, `middleware.ts` `config.matcher[1]`).
 - 🚨 **BELİRSİZ GÖNDERİMDE ÖNCE LİXUS BAKAR; GÖRÜNMEMESİ YENİDEN GÖNDERME SEBEBİ DEĞİLDİR (11-19, kurucu AK-1 / KU-1; `outbox/reconcile-match.ts`
   saf karar + `outbox/reconcile-channel.ts`; anahtar `CHANNEL_SEND_RECONCILE_ENABLED` KAPALI, tasarım
   `docs/TASARIM-2026-11-19-belirsiz-gonderimi-lixus-kendisi-dogrular.md`):** yanıtı kopan dış gönderimde kanal konuşması okunur. Kimlik elde

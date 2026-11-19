@@ -799,3 +799,16 @@ başka işlem / okunamayan / biçimi bozuk yanıt bırakmaz) · ÖD-2 ekran ve s
 konuşmasını kendisi okur (`CHANNEL_SEND_RECONCILE_ENABLED` KAPALI; kurucu "varsa gitmiştir" ↔ Codex "metinle bizim gönderdiğimiz
 denmesin" — kurucu sözü, kanıt kodu ayrı) · İK-1 metni · İK-3 silme onayı · EG-1 yeni kuralda 30 dk. Opus paketi (dört commit) satır
 satır incelendi. Sırada: UA-1 karşılaştırma sayfası (tasarım), YÇ Y2 (anahtar arkasında), EG-4 erişim beyanı (soru), AK-1 2. dilim.
+(11) **Kurucu 11-19 öğle: "3 ajan kod optimizasyonu, 2 ajan sert hata ayıklama, bol bol çalıştır, kontrollerini sağla":** beş Opus ajanı
+(kendi çalışma ağacı + kendi test veritabanı, 5441; push yok), her çıktı satır satır incelendi, bulgular ÇALIŞTIRILARAK doğrulandı.
+Hata ayıklama (iki tur): G1 — kanal uzlaştırması senkronun yankısını "başka kayıt" sayıyordu (anahtar açılınca uzlaştırma hiç çalışmazdı) ·
+elle giriş mesajı "sıraya alındı" deyip gitmeyebiliyordu (iki ayrı kök: anlık sayım, sonra eski "gönderim başladı" işareti — ikincisini kendi
+düzeltmem açmıştı, ikinci tur buldu) · son elle kopya rezervasyonu tümden siliyordu · benimsenen giden satır teslim yolsuzdu · kopya
+kaldırma + senkron kilitlenmesi 500 · gölge okuyucularda eksik ad maskesi. G2 — saklanamayan karakter / int4 ile sahte 500 (uyarı kovası
+bastırma; kimliksiz kayıt / demo talebi dahil) · ara katman noktalı yolu atlıyordu · ekip kişisi sınırı yarışla aşılıyordu · Paddle gövdesinde
+NUL. Optimizasyon: O1 arka plan (durgun geçiş başına SQL −%35) · O2 sayfalar (ardışık bekleme: daire sayfası 12→3, konuşma 7→3; oturum
+doğrulaması önbelleği ALINMADI — kimlik akışı, 2 SQL için değmez) · O3 misafir mesajı hattı (sınıflandırıcı 0,51×, getirme 0,68×). Dilim sonu
+Opus sert incelemesi: kanıtlanmış bulgu yok (not: panel sayfasının ~13 eşzamanlı okuması — bağlantı havuzu Railway açılışında ölçülür).
+Mutasyon: O1 24/24 · O2 16/16 · O3 24/24 · F1 15/15 · düzeltmeler 12/12 + 7/10 (+ eşdeğerler gerekçeli) + t2 6/9 → yaşayanlar testle
+kapatıldı. Ders: yaşayan mutant testin YANLIŞ SEBEPLE yeşil olduğunu gösterebilir (önceki testin `restoreAllMocks`ı belirteç taklidini ve
+Prisma temsilcisinin `count`unu bozuyordu → sonuç "no_connection").
