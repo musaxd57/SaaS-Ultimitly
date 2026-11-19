@@ -3,7 +3,8 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  /** Düz metin ya da satır içi öğeler (ör. iki satırlık açıklama — `<span className="block">`); `<p>` içinde çizilir. */
+  description?: React.ReactNode;
   children?: React.ReactNode;
   className?: string;
 }

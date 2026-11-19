@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
-import { bookingSpanHeadline } from "@/components/attention-panel";
+import { BOOKING_SPAN_HEADLINE, bookingSpanPropertiesLine } from "@/components/attention-panel";
 import { RemoveManualCopyButton } from "@/components/reservations/remove-manual-copy-button";
 import { loadBookingComparison, type ComparedBookingRow } from "@/lib/reservations/compare";
 
@@ -61,9 +61,15 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
       <PageHeader
         title="Kayıtları karşılaştır"
         description={
-          comparison.resolved
-            ? "Kayıtlar artık tek dairede. Otomatik mesajlar olağan akışa döndü."
-            : bookingSpanHeadline(comparison.activePropertyNames)
+          comparison.resolved ? (
+            "Kayıtlar artık tek dairede. Otomatik mesajlar olağan akışa döndü."
+          ) : (
+            // Dikkat satırıyla aynı iki satır (kurucu 11-19 akşam, madde 3): sabit başlık + daire adları " · " ile (ada ek takılmaz).
+            <>
+              <span className="block">{BOOKING_SPAN_HEADLINE}</span>
+              <span className="block break-words">{bookingSpanPropertiesLine(comparison.activePropertyNames)}</span>
+            </>
+          )
         }
       />
       <div className="grid gap-4 md:grid-cols-2" data-testid="compare-rows">
