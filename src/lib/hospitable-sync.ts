@@ -116,6 +116,47 @@ function scrubErr(err: unknown): string {
 
 // ---------------------------------------------------------------------------
 
+const THREAD_CURSOR_SELECT = { id: true, reservationId: true, syncCursorAt: true, skippedReason: true } as const;
+type ThreadCursor = { id: string; reservationId: string | null; syncCursorAt: Date | null; skippedReason: string | null };
+
+/**
+ * "THREAD GÜNCEL Mİ?" OKUMASI İLAN BAŞINA TOPLU (O1, 11-19). Senkron her 2 dakikada pencerendeki mesajlı HER rezervasyon için konuşma
+ * imlecini tek tek okuyordu; artık ilanın rezervasyon listesi gelince TEK sorgu. Dönen haritada kimlik → konuşma (yoksa null).
+ *  · Her kayıt EN ÇOK BİR KEZ kullanılır (çağıran siler): sağlayıcı aynı rezervasyonu listede iki kez döndürebilir (ingest varsayımı 1) —
+ *    ikinci geçişte konuşma bu koşuda yazılmış olabilir; haritada olmayan kimlik eski yoldan (tek tek, taze) okunur.
+ *  · Aynı kimliğe birden çok satır (benzersizlik dizini yokken) → o kimlik haritaya girmez (tek tek okumanın seçimi korunur).
+ *  · Okuma düşerse harita boş döner → her rezervasyon kendi okumasını yapar (hatası orada yakalanır — eski davranış).
+ * İmleci (`syncCursorAt`) yalnız bu senkron yazar ve bir konuşmaya ancak kendi rezervasyonu işlenirken yazılır → ilk kullanımdaki değer tek
+ * tek okumanınkiyle aynıdır; başka yazanın (rezervasyon silme / birleştirme) bağı değiştirmesi eski yolda da okumadan hemen sonra
+ * gelebilen yarıştır (bağ yazımı zaten `reservationId: null` koşullu; en geç sonraki geçişte düzelir).
+ * Pin: `tests/integration/hospitable-sync-thread-cursor-prefetch.test.ts`.
+ */
+async function prefetchThreadCursors(
+  propertyId: string,
+  reservations: readonly CanonicalReservation[],
+): Promise<Map<string, ThreadCursor | null>> {
+  const out = new Map<string, ThreadCursor | null>();
+  const ids = [...new Set(reservations.flatMap((r) => (r?.externalId && r.lastMessageAt ? [r.externalId] : [])))];
+  if (ids.length === 0) return out;
+  try {
+    const rows = await prisma.conversation.findMany({
+      where: { propertyId, externalReservationId: { in: ids } },
+      select: { ...THREAD_CURSOR_SELECT, externalReservationId: true },
+    });
+    const ambiguous = new Set<string>();
+    for (const id of ids) out.set(id, null);
+    for (const { externalReservationId: ext, ...cursor } of rows) {
+      if (!ext) continue;
+      if (out.get(ext)) ambiguous.add(ext);
+      else out.set(ext, cursor);
+    }
+    for (const ext of ambiguous) out.delete(ext);
+  } catch {
+    out.clear();
+  }
+  return out;
+}
+
 export async function syncHospitable(
   organizationId: string,
   options: { backDays?: number; forwardDays?: number } = {},
@@ -281,6 +322,8 @@ export async function syncHospitable(
       noteHospitableError(`reservations failed for ${hospitableId}`, err);
       continue;
     }
+    // "Thread güncel mi?" imleçleri bu ilan için TEK sorguda (↓ `prefetchThreadCursors`; her kayıt en çok bir kez kullanılır).
+    const threadCursors = await prefetchThreadCursors(propertyId, reservations);
 
     for (const reservation of reservations) {
       if (!reservation || !reservation.externalId) continue;
@@ -390,18 +433,25 @@ export async function syncHospitable(
       const incomingLast = reservation.lastMessageAt;
       if (incomingLast) {
         try {
-          const existingConv = await prisma.conversation.findFirst({
-            where: { propertyId, externalReservationId: reservation.externalId },
-            // Skip-check cursor = syncCursorAt, NOT lastMessageAt. lastMessageAt is
-            // stamped with wall-clock now() by outbound paths (auto-reply, manual
-            // reply, outbox), so it can exceed a guest message that arrived in the
-            // fetch→reply window and would then be wrongly skipped (message loss).
-            // syncCursorAt is written ONLY by this sync (the provider's
-            // reservation.last_message_at) and never by outbound, so it stays on the
-            // provider's time axis and doesn't depend on any message's created_at.
-            // null → never-synced → don't skip (import), so the cursor backfills.
-            select: { id: true, reservationId: true, syncCursorAt: true, skippedReason: true },
-          });
+          // Skip-check cursor = syncCursorAt, NOT lastMessageAt. lastMessageAt is
+          // stamped with wall-clock now() by outbound paths (auto-reply, manual
+          // reply, outbox), so it can exceed a guest message that arrived in the
+          // fetch→reply window and would then be wrongly skipped (message loss).
+          // syncCursorAt is written ONLY by this sync (the provider's
+          // reservation.last_message_at) and never by outbound, so it stays on the
+          // provider's time axis and doesn't depend on any message's created_at.
+          // null → never-synced → don't skip (import), so the cursor backfills.
+          // İlanın toplu okumasından (tek kullanım); yoksa (ikinci geçiş / toplu okuma düştü / belirsiz) tek tek — eski sorgu.
+          let existingConv: ThreadCursor | null;
+          if (threadCursors.has(reservation.externalId)) {
+            existingConv = threadCursors.get(reservation.externalId) ?? null;
+            threadCursors.delete(reservation.externalId);
+          } else {
+            existingConv = await prisma.conversation.findFirst({
+              where: { propertyId, externalReservationId: reservation.externalId },
+              select: THREAD_CURSOR_SELECT,
+            });
+          }
           if (existingConv?.syncCursorAt && existingConv.syncCursorAt >= incomingLast) {
             // Up to date — skip the message fetch (rate-limit saver). But still
             // backfill the reservation link if it's missing, so an already-imported
