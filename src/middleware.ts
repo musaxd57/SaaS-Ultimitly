@@ -140,5 +140,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Run on everything except API routes, Next internals, and static files.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // İkinci giriş (G2 11-19 T2-B7; açık iş 08-08 "ara katman noktalı yolu atlıyor"): ilk desen noktalı her yolu statik dosya sayıp dışlıyor →
+  // "/inbox/%00.x" gibi bir PANEL yolu ara katmana hiç uğramadan sayfaya ulaşıyordu (NUL kapısı ve oturum yönlendirmesi atlanıyordu). Panel
+  // önekleri altındaki HER yol ara katmandan geçer; panel öneklerinin altında statik dosya yoktur. Liste `PRIVATE_APP_PREFIXES` ile AYNI
+  // olmak zorunda (yapılandırma derleme anında okunduğu için içe aktarılamaz) — pin `tests/unit/middleware-matcher-private.test.ts`.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/(admin|arrivals|billing|calendar|cancellations|dashboard|guest-chats|hazirlik|inbox|knowledge|properties|reports|reservations|sent|settings|tasks|templates)/:path*",
+  ],
 };
