@@ -33,6 +33,7 @@ import ConversationPage from "@/app/(app)/inbox/[id]/page";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import DashboardPage from "@/app/(app)/dashboard/page";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
+import TasksPage from "@/app/(app)/tasks/page";
 
 // Gecikme, kritik yol boyunca biriken sorgu süresi farkından büyük olmalı: 12 ms'de pano ölçümü 10 / 11 arasında oynuyordu (dallar arası
 // kayma sahte bağımlılık üretiyordu); 30-50 ms'de sekiz tekrarda sabit. Yük altında (dört çekirdeğin üçü dolu) pano yine nadiren +1 →
@@ -130,5 +131,19 @@ describe("istek yolu: sorgu sayısı + şelale derinliği", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("/tasks (temizlikçinin ana sayfası): görev okumaları saat dilimini, yardımcı okumalar birbirini beklemez (yönetici 6 → 4, personel 6 → 3)", async () => {
+    const f = await seedRequestPathOrg({ properties: 3 });
+    vi.mocked(requireAuth).mockResolvedValue(ownerSession(f) as never);
+    const manager = await probeQueries(() => TasksPage({ searchParams: sp({}) }), { delayMs: DELAY_MS });
+    expect(manager.byOp["User.findMany"], probeSummary(manager)).toBe(1);
+    expect(manager.depth, probeSummary(manager)).toBeLessThanOrEqual(4);
+    const staff = await prisma.user.create({ data: { organizationId: f.orgId, email: "rp-staff@test.local", name: "Zeynep", passwordHash: "x" } });
+    await prisma.task.update({ where: { id: `${f.propertyIds[0]}-t1` }, data: { assignedToId: staff.id } });
+    vi.mocked(requireAuth).mockResolvedValue({ ...ownerSession(f), userId: staff.id, role: "staff" } as never);
+    const own = await probeQueries(() => TasksPage({ searchParams: sp({}) }), { delayMs: DELAY_MS });
+    expect(own.byOp["User.findMany"] ?? 0, probeSummary(own)).toBe(0);
+    expect(own.depth, probeSummary(own)).toBeLessThanOrEqual(3);
   });
 });

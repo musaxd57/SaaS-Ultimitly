@@ -47,11 +47,16 @@ export default async function TasksPage({
 
   // Day bucketing ("Bugün" filter, cleaning-gap count) follows the HOST'S
   // calendar day (org.timezone; default Istanbul — unchanged for existing orgs).
-  const orgRow = await prisma.organization.findUnique({
-    where: { id: session.organizationId },
-    select: { timezone: true },
-  });
-  const TZ = orgTimezone(orgRow?.timezone);
+  // 🚀 Görev / daire okumaları saat dilimini beklemez (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`):
+  // yalnız eksik temizlik sayımı dilime bakar, o da okuma bitince başlar. Okuma tek; düşerse sayfa bugünkü gibi o hatayla düşer (beklenmeden
+  // önce başka okuma düşerse bu sözün hatası yutulur — işlenmemiş ret kalmaz).
+  const tzRead = prisma.organization
+    .findUnique({
+      where: { id: session.organizationId },
+      select: { timezone: true },
+    })
+    .then((orgRow) => orgTimezone(orgRow?.timezone));
+  void tzRead.catch(() => undefined);
 
   const donePage = clampPage(
     Array.isArray(sp.tamamlanan) ? sp.tamamlanan[0] : sp.tamamlanan,
@@ -105,9 +110,10 @@ export default async function TasksPage({
     // (and the backfill button itself) is management UI; staff must not see it.
     // Gün kuralı ve "zaten var mı?" kuralı görev oluşturmayla AYNI (`countReservationsMissingCleaning`, kurucu D7).
     canManage
-      ? countReservationsMissingCleaning(session.organizationId, new Date(), TZ)
+      ? tzRead.then((tz) => countReservationsMissingCleaning(session.organizationId, new Date(), tz))
       : Promise.resolve(0),
   ]);
+  const TZ = await tzRead;
 
   // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the
   // calendar day of its dueAt under the SINGLE DATE RULE (`calendarDateOf`, via
@@ -139,49 +145,52 @@ export default async function TasksPage({
   const doneFrom = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + 1;
   const doneTo = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + doneTasks.length;
 
-  // The LATEST PHOTO, which is not the same thing as the photo on the latest
-  // update. Every note, photo and status change writes its own TaskUpdate row,
-  // so a note saved after a photo produced a newer row carrying note-but-no-
-  // photo — and the card, reading only that newest row, stopped showing a
-  // cleaning photo that was still perfectly well stored. The proof appeared to
-  // vanish the moment someone wrote "yapıldı" next to it.
-  //
-  // Scoped to the tasks actually on screen and ordered newest-first, so the
-  // first row seen for a task is its most recent photo.
-  const photoRows = await prisma.taskUpdate.findMany({
-    where: { taskId: { in: tasks.map((t) => t.id) }, photoUrl: { not: null } },
-    select: { taskId: true, photoUrl: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // 🚀 Ekrandaki görevlere bağlı dört yardımcı okuma (son fotoğraf, "Yapılamıyor" bildirimi, çıkış saati, kişiler) birbirini beklemez
+  // (optimizasyon turu 11-19): hepsi yalnız görev listesine bakar, hiçbiri yazmaz. Her birinin koşulu ve `.catch`i aynen.
+  // "Yapılamıyor" görevlerin EN SON bildirimi (kim · ne zaman · neden) — kurucu 11-05 gece. Ekrandaki görevlerle sınırlı, org kapsamlı.
+  const blockedIds = tasks.filter((t) => t.status === "blocked").map((t) => t.id);
+  // Temizlik kartında misafirin çıkış saati (kurucu 11-05 gece: geç çıkış onayı temizlik saatine bağlanır). Hazırlık hükmüyle AYNI kural:
+  // mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi. Kopya değil — rezervasyon / onay değişince kart kendiliğinden güncel.
+  const cleaningResIds = [...new Set(tasks.filter((t) => t.type === "cleaning" && t.status !== "done" && t.reservationId).map((t) => t.reservationId as string))];
+  const [photoRows, blockedRows, checkoutByRes, members] = await Promise.all([
+    // The LATEST PHOTO, which is not the same thing as the photo on the latest
+    // update. Every note, photo and status change writes its own TaskUpdate row,
+    // so a note saved after a photo produced a newer row carrying note-but-no-
+    // photo — and the card, reading only that newest row, stopped showing a
+    // cleaning photo that was still perfectly well stored. The proof appeared to
+    // vanish the moment someone wrote "yapıldı" next to it.
+    //
+    // Scoped to the tasks actually on screen and ordered newest-first, so the
+    // first row seen for a task is its most recent photo.
+    prisma.taskUpdate.findMany({
+      where: { taskId: { in: tasks.map((t) => t.id) }, photoUrl: { not: null } },
+      select: { taskId: true, photoUrl: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    blockedIds.length
+      ? prisma.taskUpdate.findMany({
+          where: { taskId: { in: blockedIds }, status: "blocked", task: { property: { organizationId: session.organizationId } } },
+          select: { taskId: true, note: true, createdAt: true, user: { select: { name: true } } },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+      : [],
+    // Yardımcı satır: okunamazsa pano YİNE açılır, satır çizilmez (raporlanır — Haiku 11-06).
+    checkoutTimesFor(session.organizationId, cleaningResIds).catch((err) => {
+      void reportError("tasks-page.checkout-times", err);
+      return new Map<string, CheckoutTime>();
+    }),
+    // Yönetici kartında "Atanan" seçimi: işletmenin kişileri (personel listesi personele gösterilmez).
+    canManage
+      ? prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      : [],
+  ]);
   // Yalnız bu org'un gerçek yükleme yolları çizilir (09-23: eski dönemden kalan keyfi
   // aynı-kaynak yolu sahibin panosunda `<img src>` olarak TIKSIZ GET üretirdi).
   const latestPhotoByTask = latestRenderablePhotoByTask(photoRows, session.organizationId);
-
-  // "Yapılamıyor" görevlerin EN SON bildirimi (kim · ne zaman · neden) — kurucu 11-05 gece. Ekrandaki görevlerle sınırlı, org kapsamlı.
-  const blockedIds = tasks.filter((t) => t.status === "blocked").map((t) => t.id);
-  const blockedRows = blockedIds.length
-    ? await prisma.taskUpdate.findMany({
-        where: { taskId: { in: blockedIds }, status: "blocked", task: { property: { organizationId: session.organizationId } } },
-        select: { taskId: true, note: true, createdAt: true, user: { select: { name: true } } },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      })
-    : [];
   const blockedByTask = new Map<string, { by: string | null; at: Date; reason: string | null }>();
   for (const r of blockedRows) {
     if (!blockedByTask.has(r.taskId)) blockedByTask.set(r.taskId, { by: r.user?.name ?? null, at: r.createdAt, reason: r.note });
   }
-  // Temizlik kartında misafirin çıkış saati (kurucu 11-05 gece: geç çıkış onayı temizlik saatine bağlanır). Hazırlık hükmüyle AYNI kural:
-  // mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi. Kopya değil — rezervasyon / onay değişince kart kendiliğinden güncel.
-  const cleaningResIds = [...new Set(tasks.filter((t) => t.type === "cleaning" && t.status !== "done" && t.reservationId).map((t) => t.reservationId as string))];
-  // Yardımcı satır: okunamazsa pano YİNE açılır, satır çizilmez (raporlanır — Haiku 11-06).
-  const checkoutByRes = await checkoutTimesFor(session.organizationId, cleaningResIds).catch((err) => {
-    void reportError("tasks-page.checkout-times", err);
-    return new Map<string, CheckoutTime>();
-  });
-  // Yönetici kartında "Atanan" seçimi: işletmenin kişileri (personel listesi personele gösterilmez).
-  const members = canManage
-    ? await prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
-    : [];
 
   const cards: TaskCardData[] = tasks.map((t) =>
     taskCardData(t, {
