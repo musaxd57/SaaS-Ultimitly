@@ -54,6 +54,7 @@ import {
   purgeStaleVectors,
   vectorStoreEnabled,
   type ChunkOwner,
+  type VectorKeepItem,
   VECTOR_STORE_READ_TIMEOUT_MS,
   VECTOR_STORE_WARM_READ_TIMEOUT_MS,
 } from "@/lib/ai/embeddings/vector-store";
@@ -406,6 +407,21 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[], opts
 }
 
 /**
+ * D3 (EMB tur 2): kümenin ısıtmada gömeceği parça metinlerinin girdi özetleri, kalem başına (`warmKbVectors` ile AYNI sürüm kuralı ve
+ * parçalama — gömülen metinle birebir). Kalıcı depo temizliği bunları "hâlâ geçerli" sayar. Saf (ağ / DB yok).
+ */
+export function currentChunkHashes<T extends KbChunkSource>(items: readonly T[]): VectorKeepItem[] {
+  const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
+  const byItem = new Map<string, { id: string; versionMs: number; hashes: string[] }>();
+  for (const c of chunkItems(kept)) {
+    const entry = byItem.get(c.id) ?? { id: c.id, versionMs: c.updatedAt.getTime(), hashes: [] };
+    entry.hashes.push(inputHashOf(embeddingTextFor(c)));
+    byItem.set(c.id, entry);
+  }
+  return [...byItem.values()];
+}
+
+/**
  * Açılış temizliği (kalıcı depo, anahtar açıkken): bugünkü gömme modeli / tarif dışındaki ve kalem sürümü tutmayan satırları siler. Gömme
  * sağlayıcısını (`provider.ts`) yalnız bu modül import eder (mimari pin) — model adı buradan verilir. Fırlatmaz.
  */
@@ -419,8 +435,8 @@ export async function purgeVectorStoreForCurrentModel(): Promise<number> {
  * yeniden başlatmada o parçalar yeniden ödeniyordu (Sonnet 10-31). Kayıt yalnız bir yazma iyileştirmesidir: unutulunca sonraki ısıtma bellekteki
  * vektörlerin satırını yeniden dener (gömme YOK, `skipDuplicates`). Fırlatmaz.
  */
-export async function purgeStaleVectorsForProperties(propertyIds: readonly string[]): Promise<number> {
-  const removed = await purgeStaleVectors(propertyIds);
+export async function purgeStaleVectorsForProperties(propertyIds: readonly string[], keep?: readonly VectorKeepItem[]): Promise<number> {
+  const removed = await purgeStaleVectors(propertyIds, keep ? { model: embeddingModel(), items: keep } : undefined);
   if (removed > 0) persisted.clear();
   return removed;
 }

@@ -11,10 +11,12 @@ import { warmPropertyKbVectors } from "@/lib/ai/embeddings/kb-warm";
 import { __awaitSemanticWarm, __exhaustWarmBudgetForTests, __resetSemanticRetrieval } from "@/lib/ai/embeddings/semantic-retrieval";
 import { clearEmbeddingCache, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
+import { purgeChangedPropertyVectors } from "@/lib/ai/embeddings/kb-warm-texts";
 
 // ---------------------------------------------------------------------------
-// EMB tur 2 — D1 FAIL-SOFT (AYRI DOSYA: Prisma temsilcisine kurulan casus sonraki testlere sızar). Kovalar açıkken bütçe işleminde DB
+// EMB tur 2 — D1 / D3 FAIL-SOFT (AYRI DOSYA: Prisma temsilcisine kurulan casus sonraki testlere sızar). Kovalar açıkken bütçe işleminde DB
 // arızası olursa ısıtma bugünkü süreç içi sayaca düşer: ısıtma durmaz, sayaç tablosuna satır yazılmaz; süreç içi sayaç doluysa reddeder.
+// D3: geçerli özet listesi hesaplanamazsa temizlik bugünkü kalem düzeyinde silmeye düşer (yalnız bedel; eski satır kalmaz).
 // ---------------------------------------------------------------------------
 
 const embedded: string[] = [];
@@ -86,5 +88,28 @@ describe("D1 kova okumasında DB arızası", () => {
     tx.mockRestore();
     expect(dbAttempts).toBeGreaterThan(0); // kova denendi, düştü, yedeğe geçildi
     expect(embedded).toEqual([]);
+  });
+});
+
+describe("D3 geçerli özet listesi hesaplanamazsa", () => {
+  it("temizlik bugünkü kalem düzeyinde silmeye düşer (değişen kalemin bütün satırları gider), arıza bildirilir", async () => {
+    vi.stubEnv("KB_VECTOR_STORE_ENABLED", "1");
+    vi.stubEnv("KB_VECTOR_PURGE_BY_HASH_ENABLED", "1");
+    vi.stubEnv("KB_EMBED_ORG_BUDGET_ENABLED", "");
+    const { propertyId } = await makeOrgWithProperty();
+    await seed(propertyId, 35);
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    const item = await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId, title: "Bilgi 3" }, select: { id: true } });
+    expect(await prisma.kbChunkVector.count({ where: { kbItemId: item.id } })).toBe(1);
+    // Yalnız sürüm (metin aynı): liste hesaplanabilseydi satır kalırdı.
+    await prisma.knowledgeBaseItem.update({ where: { id: item.id }, data: { updatedAt: new Date(Date.now() + 60_000) } });
+    vi.mocked(reportError).mockClear();
+    const read = vi.spyOn(prisma.property, "findUnique").mockRejectedValue(new Error("db down"));
+    await purgeChangedPropertyVectors([propertyId]);
+    read.mockRestore();
+    expect(vi.mocked(reportError)).toHaveBeenCalledWith("kb-vector-purge-keep", expect.any(Error));
+    expect(await prisma.kbChunkVector.count({ where: { kbItemId: item.id } })).toBe(0);
+    expect(await prisma.kbChunkVector.count()).toBe(34); // öteki kalemlerin satırları yerinde
   });
 });

@@ -222,14 +222,56 @@ export async function persistChunkVectors(
   }
 }
 
+/** Bir kalemin temizliğin okuduğu sürümü ve o sürümde ısıtmanın gömeceği parça metinlerinin girdi özetleri (EMB tur 2 D3). */
+export interface VectorKeepItem {
+  id: string;
+  versionMs: number;
+  hashes: readonly string[];
+}
+
 /**
  * Değişen dairelerin kalemlerinde ARTIK GEÇMEYEN belirlenimci satırları siler (K7): satırın kalem sürümü kalemin bugünkü sürümü değilse
  * satır eski metnindir. Saat karşılaştırması yok (uygulama ile veritabanı saati farklı olabilir). Metni değişmeyen kalem (ör. aç-kapa) bir
  * kez yeniden ısıtılır — ucuz. Model üretimli türler (`question`) burada silinmez; onların temizliği ileriki dilimde. Fırlatmaz.
+ *
+ * `keep` (EMB tur 2 D3, anahtar `KB_VECTOR_PURGE_BY_HASH_ENABLED`): silmeden ÖNCE, girdi özeti kalemin BUGÜNKÜ parçalarından birine eşit
+ * olan satırların sürüm damgası yenilenir → değişmeyen parça silinmez, yeniden ödenmez; yalnız artık geçmeyen özetler silinir. Damga YALNIZ
+ * kalem hâlâ temizliğin okuduğu sürümdeyse yenilenir (araya yeni düzenleme girdiyse o düzenlemenin kendi temizliği karar verir). Vektör
+ * metnin saf fonksiyonudur (özet aynı → vektör geçerli); sürüm damgası yalnız çöp toplama içindir — okuma içerik adreslidir. Sürüm kuralı
+ * (`persistChunkVectors`: eski sürümle başlamış ısıtma yazamaz) değişmez.
  */
-export async function purgeStaleVectors(propertyIds: readonly string[]): Promise<number> {
+export async function purgeStaleVectors(
+  propertyIds: readonly string[],
+  keep?: { model: string; items: readonly VectorKeepItem[] },
+): Promise<number> {
   if (!vectorStoreEnabled() || propertyIds.length === 0) return 0;
   try {
+    const ids: string[] = [];
+    const versions: number[] = [];
+    const hashes: string[] = [];
+    for (const it of keep?.items ?? []) {
+      for (const h of new Set(it.hashes)) {
+        ids.push(it.id);
+        versions.push(it.versionMs);
+        hashes.push(h);
+      }
+    }
+    if (keep && ids.length > 0) {
+      await prisma.$executeRaw`
+        UPDATE "KbChunkVector" v
+        SET "itemUpdatedAt" = k."updatedAt"
+        FROM unnest(${ids}::text[], ${versions}::float8[], ${hashes}::text[]) AS c(id, ver, hash), "KnowledgeBaseItem" k
+        WHERE k."id" = c.id
+          AND v."kbItemId" = c.id
+          AND v."inputHash" = c.hash
+          AND k."propertyId" = ANY(${[...propertyIds]}::text[])
+          AND round(EXTRACT(EPOCH FROM k."updatedAt") * 1000)::float8 = c.ver
+          AND v."model" = ${keep.model}
+          AND v."recipe" = ${KB_VECTOR_RECIPE}
+          AND v."kind" = 'chunk'
+          AND v."ord" = 0
+          AND v."itemUpdatedAt" <> k."updatedAt"`;
+    }
     return await prisma.$executeRaw`
       DELETE FROM "KbChunkVector" v
       USING "KnowledgeBaseItem" k

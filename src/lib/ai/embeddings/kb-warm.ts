@@ -16,11 +16,9 @@
 
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
-import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { kbRetrievalMode, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
 import { purgeVectorStoreForCurrentModel, warmKbVectors, type WarmOptions } from "@/lib/ai/embeddings/semantic-retrieval";
-import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
-import { QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { propertyWarmSets } from "@/lib/ai/embeddings/kb-warm-texts";
 
 function warmingOn(): boolean {
   return semanticRetrievalInfo().enabled && kbRetrievalMode() === "hybrid";
@@ -33,18 +31,13 @@ function warmingOn(): boolean {
 export async function warmPropertyKbVectors(propertyId: string, extra: Pick<WarmOptions, "onBudgetRefused"> = {}): Promise<number> {
   if (!warmingOn()) return 0;
   try {
-    const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { name: true, organizationId: true } });
-    if (!property) return 0;
-    const kb = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
+    // Kümeler (ham + farklıysa QR'ın nötr hitaplı biçimi) TEK KAYNAKTAN — D3 temizliği aynı metinleri "geçerli" sayar (`kb-warm-texts.ts`).
+    const ws = await propertyWarmSets(propertyId);
+    if (!ws) return 0;
     // İşletme kovası (D1, anahtar açıkken) için işletme burada bilinir; kapalıyken seçenek okunmaz.
-    const opts: WarmOptions = { organizationId: property.organizationId, ...extra };
-    let queued = warmKbVectors(kb.items, opts);
-    // QR: `checkin` kategorisi hiç çekilmez (`wifi` 10-11'den beri kalem bazında süzülür — ısıtma yalnız vektör üretir, metin
-    // misafire gitmez), yer tutucular nötr hitapla doldurulur → yer tutuculu kalemin metni farklıdır; yalnız o zaman ikinci biçim
-    // ısıtılır (aynı metin zaten depoda).
-    const qr = kb.items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category));
-    const qrFilled = fillGuestPlaceholdersInItems(qr, { guestFirstName: GUEST_NAME_FALLBACK, propertyName: property.name });
-    if (qrFilled.some((it, i) => it.content !== qr[i].content || it.title !== qr[i].title)) queued += warmKbVectors(qrFilled, opts);
+    const opts: WarmOptions = { organizationId: ws.organizationId, ...extra };
+    let queued = 0;
+    for (const set of ws.sets) queued += warmKbVectors(set, opts);
     return queued;
   } catch (err) {
     void reportError("kb-semantic-warm-property", err);
