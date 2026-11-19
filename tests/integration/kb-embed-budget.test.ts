@@ -13,6 +13,7 @@ import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
+import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { rateLimitTakeIfFits } from "@/lib/rate-limit";
 import { embedBgPerHour, embedOrgPerHour, takeEmbedBudget } from "@/lib/ai/embeddings/embed-budget";
 
@@ -244,6 +245,25 @@ describe("D1 kova ayrımı — davranış (anahtar açık)", () => {
     expect((await counter("kb-embed-bg"))?.count).toBe(run.embedded);
     expect((await counter(`kb-embed-org:${a.orgId}`))?.count).toBe(run.embedded);
   }, 300_000);
+
+  it("🚨 eski içerik isteme girmez: işletme kovası DB'de dolu, şifre değişti → yeni metin gömülmez, karar 'cold', istemde YENİ şifre, ESKİ yok", async () => {
+    const b = await makeOrgWithProperty();
+    await seedNeutral(b.propertyId, 35);
+    const wifi = await createItem(b.propertyId, "Wi-Fi", "Ağ adı: LaleNet. Şifre: ESKI-4821.", "wifi");
+    await warmAndWait(b.propertyId);
+    await prisma.rateLimitCounter.update({ where: { key: `kb-embed-org:${b.orgId}` }, data: { count: 600 } });
+    restart(); // başka kopya: süreç sayacı boş, karar DB kovasında
+    calls.length = 0;
+    await prisma.knowledgeBaseItem.update({ where: { id: wifi.id }, data: { content: "Ağ adı: LaleNet. Şifre: YENI-7305." } });
+    await afterKbItemsChanged({ organizationId: b.orgId, propertyIds: [b.propertyId] });
+    await warmAndWait(b.propertyId);
+    expect(chunkTextsEmbedded()).toEqual([]);
+    const r = await retrieveKbForPrompt({ items: (await fetchKnowledgeBaseForPrompt({ propertyId: b.propertyId, isActive: true })).items, guestMessage: "Wi-Fi şifresi ne?" });
+    const block = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes).text;
+    expect(r.evidence?.sem).toBe("cold");
+    expect(block).toContain("YENI-7305");
+    expect(block).not.toContain("ESKI-4821");
+  });
 
   it("PİN: sıcak yol kovayı okumaz / yazmaz — iki kova doluyken B'nin ısınmış bilgi tabanında soru 'ok', tek gömme isteği, satırlar değişmez", async () => {
     const b = await makeOrgWithProperty();

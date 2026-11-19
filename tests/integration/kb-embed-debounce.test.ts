@@ -11,6 +11,9 @@ import { __awaitSemanticWarm, __exhaustWarmBudgetForTests, __resetSemanticRetrie
 import { clearEmbeddingCache, EMBEDDING_DIMENSIONS } from "@/lib/ai/embeddings/provider";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
+import { packKnowledgeBase } from "@/lib/ai/prompts";
 
 // ---------------------------------------------------------------------------
 // EMB tur 2 — D2 GECİKMELİ ISITMA + REDDEDİLEN İŞİN YENİDEN PLANLANMASI (kurucu 11-19 akşam madde 2: "Host aynı Wi-Fi kaydını art arda
@@ -111,6 +114,18 @@ describe("D2 gecikmeli ısıtma (anahtar açık)", () => {
     const w = wifiEmbeds();
     expect(w).toHaveLength(1);
     expect(w[0]).toContain("YENI-0005");
+  });
+
+  it("🚨 gecikme süresince misafir sorusu: karar 'cold' (güncel kayıtta sözcüksel), istemde YENİ şifre var, ESKİ yok", async () => {
+    const { orgId, propertyId, wifiId } = await warmProperty();
+    await save(orgId, propertyId, wifiId, "YENI-0901");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await settle();
+    const r = await retrieveKbForPrompt({ items: (await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true })).items, guestMessage: "Wi-Fi şifresi ne?" });
+    const block = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes).text;
+    expect(r.evidence?.sem).toBe("cold");
+    expect(block).toContain("YENI-0901");
+    expect(block).not.toContain("ESKI-0000");
   });
 
   it("her kayıt saati yeniden kurar: 15 sn arayla 4 kayıt → son kayıttan 20 sn sonraya kadar ısıtma yok, sonra bir kez", async () => {
