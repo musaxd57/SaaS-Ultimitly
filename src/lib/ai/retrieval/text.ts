@@ -159,6 +159,25 @@ const PROTECTED_STEMS: ReadonlySet<string> = new Set(["checkin", "isinmiyor"]);
 const PREFIX_FLOOR_STEMS: readonly string[] = ["havlu", "firin", "parti", "sea", "noise", "waste", "hastane"];
 const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length);
 /**
+ * Son harfe göre kova, her kovada `SUFFIXES_LONGEST_FIRST` sırası (O3 11-19): `cur.endsWith(suf)` ancak son harfler aynıysa doğru olur →
+ * aynı sırada ilk uyan ek AYNIDIR; tur başına ~110 yerine ~10 ek denenir.
+ */
+const SUFFIXES_BY_LAST_CHAR: ReadonlyMap<string, readonly string[]> = (() => {
+  const m = new Map<string, string[]>();
+  for (const suf of SUFFIXES_LONGEST_FIRST) {
+    const last = suf[suf.length - 1];
+    const bucket = m.get(last);
+    if (bucket) bucket.push(suf);
+    else m.set(last, [suf]);
+  }
+  return m;
+})();
+const NO_SUFFIXES: readonly string[] = [];
+/** TEST KANCASI (salt-okuma): kovaların tam sıralı listeyle aynı sırayı taşıdığı pinlenir (`stem-suffix-buckets.test.ts`). */
+export function __stemSuffixOrder(): { all: readonly string[]; byLastChar: ReadonlyMap<string, readonly string[]> } {
+  return { all: SUFFIXES_LONGEST_FIRST, byLastChar: SUFFIXES_BY_LAST_CHAR };
+}
+/**
  * SABİT NOKTA (09-10): eski tur tavanı (3) çekimli biçim ile yalın biçimi FARKLI
  * derinlikte bırakıyordu — "çıkışımızı" → ciki (i · imiz · s = 3 tur, durdu) ama
  * "çıkış" → cik (s · i = 2 tur). Dosya başındaki "aşırı kök alma kaçırma üretmez"
@@ -213,7 +232,7 @@ export function stem(token: string): string {
   for (let pass = 0; pass < STEM_PASSES_MAX; pass++) {
     if (PROTECTED_STEMS.has(cur)) break;
     let stripped = false;
-    for (const suf of SUFFIXES_LONGEST_FIRST) {
+    for (const suf of SUFFIXES_BY_LAST_CHAR.get(cur[cur.length - 1]) ?? NO_SUFFIXES) {
       if (pass > 0 && FIRST_PASS_ONLY_SUFFIXES.has(suf)) continue; // ↑tamlayan freni
       const floor = Math.max(prefixFloor, EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM_3_SUFFIXES.has(suf) ? MIN_STEM_AFTER_VOWEL : MIN_STEM);
       if (cur.length - suf.length >= floor && cur.endsWith(suf)) {
