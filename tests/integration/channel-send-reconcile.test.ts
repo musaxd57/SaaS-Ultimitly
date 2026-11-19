@@ -145,7 +145,7 @@ describe("kuyruk — belirsiz gönderimde Lixus kanalı okur", () => {
     const { orgId, conversationId } = await seed();
     // Ev sahibi aynı metni daha önce de göndermişti: kanalda görünüyor ve yerelde o mesaja bağlı.
     fake.threadExtra.set(RES, [{ externalId: "host-old-1", direction: "outbound", body: BODY, createdAt: new Date() }]);
-    await prisma.message.create({ data: { conversationId, direction: "outbound", authorType: "host", senderName: "Owner", body: BODY, externalId: "host-old-1" } });
+    await prisma.message.create({ data: { conversationId, direction: "outbound", authorType: "host", senderName: "Owner", body: BODY, externalId: "host-old-1", deliveryPath: "direct" } });
     const { outboxId } = await enqueue(orgId, conversationId, "k4");
     fake.behave({ mode: "timeout", delivered: false });
     const clock = { t: Date.now() };

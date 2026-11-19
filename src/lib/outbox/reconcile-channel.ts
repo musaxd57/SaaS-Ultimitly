@@ -56,6 +56,10 @@ export async function reconcileSendFromChannel(input: {
         prisma.message.findMany({
           where: {
             externalId: { in: candidateIds },
+            // YALNIZ Lixus'un yazdığı satır (teslim yolu dolu): senkronun kanaldan içe aldığı satır (yol NULL) "başka kayıt" DEĞİLDİR — çoğu
+            // zaman bu gönderimin kendi yankısıdır (senkron 2 dk'da bir koşar, uzlaştırma ~31 dk sürer; G1 11-19). Kanaldan elle yazılmış aynı
+            // metin de misafire ulaşmıştır (tasarım §2). Başka bir LİXUS gönderimi ya kuyruk satırında ya teslim yolu dolu satırda durur.
+            deliveryPath: { not: null },
             conversation: { externalReservationId: input.externalReservationId, property: { organizationId: input.organizationId } },
             ...(input.ownMessageId ? { NOT: { id: input.ownMessageId } } : {}),
           },
