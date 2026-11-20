@@ -583,10 +583,13 @@ bakıp bakıp ilerle") · `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anl
 **Çalışma düzeni (kurucu 11-18):** Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude
 yazar; kontrollerde alt ajan; acele yok.
 
-**Tarih çizelgesi (ayrıntı `docs/claude/durum.md`):** 11-06 temizlikçi K-1…K-5 · üyelik M-2 (migration 93 / 94) · doğrudan görevlendirme ·
+**Tarih çizelgesi (ayrıntı `docs/claude/durum.md`):** 11-06 temizlikçi K-1…K-5 · üyelik M-2 (migration 93 / 94; kurucu Ü-1 askı · Ü-3 kimlik
+kaydı kişide · Ü-4 kuşak · Ü-5 bağ işletme başına; satırsız kişi girişte onarılır, ekipten çıkarılmış kişi DİRİLMEZ, ileride AYRI kimlik
+belirteciyle hesap merkezi) · doğrudan görevlendirme ·
 işletme belgesi Faz 1a (migration 95, anahtar KAPALI) · QR metinleri ev sahibinin ağzından — 11-11 Codex 11-10 bulguları · kurucu kararları S1–S8 —
-11-12 S3 (AÇILMAZ, Opus) · istem denetimi + dayanak (`AI_NO_SOURCE_RULE_ENABLED` · `AI_ANSWER_PARTS_ENABLED` · `AI_TURN_MESSAGES_ENABLED`
-KAPALI; kör koşular kredi bekliyor — sonuç görülmeden hiçbiri AÇILMAZ) · CI süre pini (`linear-cost.ts`) — 11-13 Fable istem denetimi ·
+11-12 S3 `AI_HELD_PET_SPLIT_ENABLED` (Opus: BU HÂLİYLE AÇILMAZ — dal yalnız doğrulanmış cevap parçalarında + aynı turun isteğinde açılır,
+tek başına etkisiz) · istem denetimi + dayanak (`AI_NO_SOURCE_RULE_ENABLED` · `AI_ANSWER_PARTS_ENABLED` · `AI_TURN_MESSAGES_ENABLED`
+KAPALI; kör koşular OpenAI kredisi bittiği için YAPILAMADI — sonuç görülmeden hiçbiri AÇILMAZ) · CI süre pini (`linear-cost.ts`) — 11-13 Fable istem denetimi ·
 anlamsal karar mimarisi tasarımı · zaman yolculuğu aracı · "Bugün" ilk dilimi · temizlikçi T1–T3 (migration 96 / 97) · ödeme onayı üç kutu —
 11-14 sızma testi tur 1 — 11-18 Codex 11-17 dalgaları (ödeme kanıtla kapanır · teslim sonucu sözlüğü · durum tek kaynak · iki dairede kayıt
 tutulur) · söz okuyucusu (model okur, anahtar KAPALI) · migration 98 — 11-19 dalga C · ödeme "yalnız tam iadeyle" · kanal uzlaştırması (anahtar
@@ -622,6 +625,8 @@ son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · 
   dediğini hızlıca doğrular ve nedenini kaydeder; öneri hazırlarken "tırnak varsa şöyle" türü yapı kuralı ÖNERİLMEZ.
 - (11-18 gece) İnceleme ajanının "ekranda şu görünüyor" varsayımı da kodda doğrulanır (düğme görünüyor sanılmıştı, gizliydi — sonuç daha
   kötüydü: ev sahibinin hiçbir yolu yoktu).
+- 🚨 (11-19 (2), kalıcı karar) Belirsiz gönderimde Lixus kanal konuşmasını kendisi okur; mesajın orada görünmemesi YENİDEN GÖNDERME sebebi
+  değildir (`CHANNEL_SEND_RECONCILE_ENABLED` KAPALI; `docs/claude/kalici-kararlar.md`).
 - (11-19) Bir testin korumayı gerçekten ölçtüğü, korumayı geçici kaldırıp kırmızıya döndüğü görülerek doğrulanır (bir sayfa testi metinde
   etiketi başka yerden buluyordu, korumasız da yeşildi).
 - (11-19) Yeni ağ okuması test kurulumunda ağı kesmez — varsayılan kapalı anahtar ya da sahte adaptör arkasında yazılır; sağlayıcının 200 +
