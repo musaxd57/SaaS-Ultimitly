@@ -193,7 +193,7 @@ export interface StayReadinessInput {
    */
   autoCheckin?:
     | { state: "sent"; at: Date }
-    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties" }
+    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties" | "queue_failed" }
     | { state: "disabled" }
     | { state: "missing" }
     | { state: "skipped"; reason: string }
@@ -366,7 +366,7 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
 }
 
 /** Otomatik giriş mesajı bu rezervasyona GİTMEYECEK — neden (ev sahibi dili; teknik ayrıntı yok). */
-const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties", string> = {
+const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" | "erased" | "two_properties" | "queue_failed", string> = {
   kill_switch: "Otomatik mesajlar şu an kapalı",
   no_connection: "Kanal bağlantısı yok, otomatik giriş mesajı gitmez",
   no_baseline: "Otomatik giriş mesajı gitmez",
@@ -375,6 +375,9 @@ const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" |
   erased: "Misafirin verileri silindiği için otomatik mesaj gitmez",
   // Kurucu 11-18 akşam: sistem daire tahmin etmez (`booking-property-conflict.ts`). Metin kurucu onayına sunuldu.
   two_properties: "Bu rezervasyon iki dairede kayıtlı, otomatik mesaj gitmez",
+  // G1 tur 4 T4-B2 (11-20): kuyruktaki giriş mesajı kanal tarafından kesin reddedilip son durumda ("başarısız") kaldı — gönderici o
+  // rezervasyonu bir daha kuyruğa almaz. Ekran "hazır" diyordu; artık VAR OLAN "gitmez" metni + elle gönderim (yeni metin kurucu sorusu).
+  queue_failed: "Otomatik giriş mesajı gitmez",
 };
 
 /** Gitmeyen otomatik giriş mesajının sebebine göre bağlantı. Silinmiş misafire (erased) ve konuşması olmayana (no_channel) BİLİNÇLİ YOK. */
@@ -386,6 +389,7 @@ const NOT_SENDING_LINK: Record<keyof typeof NOT_SENDING_TEXT, FactorLink | null>
   no_channel: null,
   erased: null,
   two_properties: null,
+  queue_failed: { to: "conversation" },
 };
 
 /**
@@ -393,7 +397,8 @@ const NOT_SENDING_LINK: Record<keyof typeof NOT_SENDING_TEXT, FactorLink | null>
  * bağlantı yok / kanalsız / silinmiş misafir zaten gönderilemez.
  */
 // İki dairede kayıtlı rezervasyonda (two_properties) ev sahibi DOĞRU dairenin satırından elle gönderebilir: daireyi o seçmiş olur.
-const MANUAL_SEND_REASONS: ReadonlySet<string> = new Set(["no_baseline", "before_baseline", "two_properties"]);
+// Kuyrukta başarısız kalan giriş mesajı (queue_failed) misafire ulaşmadı: elle gönderim doğrudan yoldan gider (`sendCheckinNow` aynı küme).
+const MANUAL_SEND_REASONS: ReadonlySet<string> = new Set(["no_baseline", "before_baseline", "two_properties", "queue_failed"]);
 
 const SKIP_REASON_TEXT: Record<string, string> = {
   unfilled: "doldurulmamış alan var",

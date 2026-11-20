@@ -275,22 +275,29 @@ export async function loadArrivalReadiness(
       // gönderildi / doğrulanamadı satır bu istisnaya girmez.
       const queuedCheckinRefs = new Set<string>();
       const queuedBeyondPendingRefs = new Set<string>();
+      // G1 tur 4 T4-B2: kuyrukta SON durumda başarısız kalmış giriş mesajı — gönderici bu rezervasyonu bir daha kuyruğa almaz; ekran "hazır"
+      // dememeli (↓`autoCheckinStateOf` "gitmez" + elle gönderim).
+      const failedCheckinRefs = new Set<string>();
       const refs = manualConnection ? [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))] : [];
       const [manualErasure, owned] = await Promise.all([
         manualConnection ? erasureGuard() : null,
         refs.length > 0
           ? prisma.messageOutbox.findMany({
-              where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { notIn: ["failed", "canceled"] } },
+              where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { not: "canceled" } },
               select: { externalReservationId: true, status: true },
             })
           : [],
       ]);
       for (const o of owned) {
         if (!o.externalReservationId) continue;
+        if (o.status === "failed") {
+          failedCheckinRefs.add(o.externalReservationId);
+          continue;
+        }
         queuedCheckinRefs.add(o.externalReservationId);
         if (o.status !== "pending") queuedBeyondPendingRefs.add(o.externalReservationId);
       }
-      return { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs };
+      return { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs };
     })(),
   ]);
   void sendingRead.catch(() => undefined);
@@ -369,7 +376,7 @@ export async function loadArrivalReadiness(
     ? await prisma.user.findMany({ where: { id: { in: [...userIds] }, organizationId }, select: { id: true, name: true } })
     : [];
   const [{ conversations, commitments, items }, earlyDecisions, kbItems, autoCheckins, backups] = await independentRead;
-  const [{ orgOff, erasure, afterBaseline, twoProperties }, { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs }] =
+  const [{ orgOff, erasure, afterBaseline, twoProperties }, { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs }] =
     await sendingRead;
 
   const convByReservation = new Map<string, string[]>();
@@ -402,6 +409,7 @@ export async function loadArrivalReadiness(
     if (erasure?.blocksSourceReference(a.sourceReference)) return { state: "not_sending", reason: "erased" };
     if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
     if (a.sourceReference && twoProperties.has(a.sourceReference)) return { state: "not_sending", reason: "two_properties" };
+    if (a.sourceReference && failedCheckinRefs.has(a.sourceReference)) return { state: "not_sending", reason: "queue_failed" };
     // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
     const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);
     if (issue && issue !== "empty") return { state: "skipped", reason: issue };
