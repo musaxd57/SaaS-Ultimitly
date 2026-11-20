@@ -54,7 +54,7 @@ const STEPS = [
   {
     icon: MessageSquareReply,
     title: "3. Mesajlar yanıtlanır",
-    body: "Soruların sizin üslubunuzla yanıtlanır. Dilerseniz gönderimden önce onaylarsınız; riskli konular doğrudan size bırakılır.",
+    body: "Sorular sizin üslubunuzla yanıtlanır. Dilerseniz gönderimden önce onaylarsınız; riskli konular doğrudan size bırakılır.",
   },
 ];
 
@@ -320,7 +320,7 @@ const PANELS = [
   {
     icon: BookOpen,
     name: "Bilgi Tabanı",
-    body: "Wi-Fi, giriş talimatı, ev kuralları — AI ve otomatik mesajlar bu bilgilerle konuşur.",
+    body: "Wi-Fi, giriş talimatı, ev kuralları — AI misafire bu bilgilerle cevap verir.",
   },
 ];
 
