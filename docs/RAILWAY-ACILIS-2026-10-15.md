@@ -386,6 +386,9 @@ kurucu onayıyla §1'e taşındı.)
   açılmadan önce TAZE YEDEK, migration bununla gider) — bilgi tabanı parçalarının anlam vektörleri kalıcı depoda: yayından / yeniden
   başlatmadan sonra ilk misafir sorusu sözcüksele düşmez, vektörler yeniden ödenmez. Metin saklanmaz; kalem silinince satırlar gider.
   Yalnız `KB_SEMANTIC_RETRIEVAL` açıkken anlamlı. Müşteriye giden metne dokunmaz (yalnız anlamsal aramanın "soğuk" kalma süresi kısalır).
+  🚨 PİLOT (kurucu 11-20 sabah, E-4 "önce sınırlı bir pilotta açılsın"): ana anahtar YANINDA işletme listesi `KB_VECTOR_STORE_ORG_IDS` şart —
+  virgüllü tam işletme kimlikleri ya da `*` (bütün işletmeler). Liste yoksa / boşsa KİMSE (ana anahtar açık olsa da; `DURABLE_OUTBOX_ORG_IDS`
+  deseni). İlk açılış önerisi: `KB_VECTOR_STORE_ORG_IDS=<kurucu org kimliği>`; geri dönüş = listeyi boşalt (satırlar kalır, okunmaz).
 - `KB_EMBED_ORG_BUDGET_ENABLED` (EMB tur 2 D1, kurucu 11-19 akşam madde 2 "işletme başına arka plan bütçesi … kopyalar birlikte görsün";
   migration YOK — var olan `RateLimitCounter`) — bilgi tabanı vektör ısıtması önce işletme kovasından (`KB_EMBED_ORG_PER_HOUR`, varsayılan 600
   parça / saat), sonra ortak arka plan kovasından (`KB_EMBED_BG_PER_HOUR`, varsayılan 2.000 / saat, BÜTÜN kopyalar için) alınır; taşan işletme

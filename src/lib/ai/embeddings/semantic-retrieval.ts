@@ -53,6 +53,8 @@ import {
   purgeOtherModelVectors,
   purgeStaleVectors,
   vectorStoreEnabled,
+  vectorStoreEnabledFor,
+  vectorStoreTargetFor,
   type ChunkOwner,
   type VectorKeepItem,
   VECTOR_STORE_READ_TIMEOUT_MS,
@@ -203,7 +205,8 @@ function pushOwner(map: Map<string, ChunkOwner[]>, text: string, owner: ChunkOwn
  * Depo ya da kovalar açıkken bütçe kararı işin İÇİNDE verilir (depo okuması / DB kovası async) → dönüş "kuyruğa alınan", gömülen değil.
  */
 function scheduleWarm(model: string, entries: readonly WarmEntry[], opts: WarmOptions = {}): number {
-  const storeOn = vectorStoreEnabled();
+  // Kalıcı depo bu işletme için mi (pilot listesi `KB_VECTOR_STORE_ORG_IDS`); işletme bilinmiyorsa yalnız `*` ile.
+  const storeOn = vectorStoreEnabledFor(opts.organizationId);
   const deferBudget = storeOn || orgEmbedBudgetEnabled();
   const owners = new Map<string, ChunkOwner[]>();
   const persistOnly = new Map<string, ChunkOwner[]>();
@@ -324,16 +327,24 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
     // vektörler bu kararda doğrudan kullanılır (bellek deposu dolu olup tahliye etse de — Haiku 10-28). Hâlâ eksik varsa aşağıda bugünkü
     // gibi "cold" + arka plan ısıtması (YARIM HARİTA YOK).
     const loaded = new Map<string, Float32Array>();
+    // Pilot listesi (`KB_VECTOR_STORE_ORG_IDS`): depo bu kalemlerin işletmesi için açık mı — işletme kalemden bulunur, `*` ise sorgusuz. İki adım
+    // aynı süre bütçesini paylaşır. Bulunan işletme soğuk dalın ısıtmasına da verilir (depo kararı + işletme kovası).
+    let target: { on: boolean; organizationId?: string } = { on: false };
     if (missingIdx.length > 0 && vectorStoreEnabled()) {
-      const refs = missingIdx.map((i) => ({ kbItemId: index.chunks[i].id, text: chunkTexts[i] }));
-      const { vectors, found } = await loadChunkVectors(model, refs, VECTOR_STORE_READ_TIMEOUT_MS);
-      markPersisted(found);
-      for (const [text, vec] of vectors) {
-        loaded.set(text, vec);
-        store.set(storeKey(model, text), vec);
+      const started = performance.now();
+      target = await vectorStoreTargetFor([...new Set(index.chunks.map((c) => c.id))], VECTOR_STORE_READ_TIMEOUT_MS);
+      if (target.on) {
+        const left = Math.max(50, VECTOR_STORE_READ_TIMEOUT_MS - (performance.now() - started));
+        const refs = missingIdx.map((i) => ({ kbItemId: index.chunks[i].id, text: chunkTexts[i] }));
+        const { vectors, found } = await loadChunkVectors(model, refs, left);
+        markPersisted(found);
+        for (const [text, vec] of vectors) {
+          loaded.set(text, vec);
+          store.set(storeKey(model, text), vec);
+        }
+        trimStore();
+        missingIdx = missingIdx.filter((i) => !vectors.has(chunkTexts[i]));
       }
-      trimStore();
-      missingIdx = missingIdx.filter((i) => !vectors.has(chunkTexts[i]));
     }
     const chunkVecs: Float32Array[] = [];
     for (const t of chunkTexts) {
@@ -345,6 +356,7 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
       scheduleWarm(
         model,
         chunkTexts.map((text, i) => ({ text, itemId: index.chunks[i].id, updatedAt: index.chunks[i].updatedAt })),
+        target.organizationId ? { organizationId: target.organizationId } : {},
       );
       return done("cold"); // YARIM HARİTA YOK
     }

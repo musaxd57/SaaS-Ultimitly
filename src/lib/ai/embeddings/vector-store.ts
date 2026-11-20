@@ -48,6 +48,76 @@ export function vectorStoreEnabled(): boolean {
 }
 
 /**
+ * PİLOT LİSTESİ (kurucu 11-20 sabah, E-4: "Kalıcı depo, şema ve güncellik testleri geçince önce sınırlı bir pilotta açılsın").
+ * `KB_VECTOR_STORE_ORG_IDS`: virgüllü tam işletme kimlikleri YALNIZ listedekileri, `*` BÜTÜN işletmeleri açar; liste YOKSA ya da boşsa KİMSE
+ * (`DURABLE_OUTBOX_ORG_IDS` deseni: listeyi silmek depoyu herkese açmasın — güvenli yön bugünkü bellek yolu). Ana anahtar kapalıysa liste
+ * hiçbir şey açmaz. Listede olmayan işletme bugünkü gibi yalnız bellek kullanır: depo okunmaz, yazılmaz, temizlik sorgusu çalışmaz.
+ */
+export function vectorStoreOrgIds(): string[] {
+  return (process.env.KB_VECTOR_STORE_ORG_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Bu işletme için kalıcı depo açık mı. İşletme bilinmiyorsa yalnız `*` ile açık. */
+export function vectorStoreEnabledFor(organizationId: string | null | undefined): boolean {
+  if (!vectorStoreEnabled()) return false;
+  const ids = vectorStoreOrgIds();
+  return ids.includes("*") || (!!organizationId && ids.includes(organizationId));
+}
+
+/** SQL koruması için izinli işletmeler: `*` → `null` (süzgeç yok); aksi hâlde liste (boş = kimse). */
+function pilotOrgFilter(): string[] | null {
+  const ids = vectorStoreOrgIds();
+  return ids.includes("*") ? null : ids;
+}
+
+/** Kalem → işletme önbelleği (kalemin işletmesi değişmez; sınırlı). Yalnız pilot listesi `*` değilken dolar. */
+const ownerCache = new Map<string, string>();
+const OWNER_CACHE_MAX = 20_000;
+
+/**
+ * Sıcak yol için: depo bu kalemler için açık mı ve kalemlerin işletmesi. Depo satırında işletme yoktur; işletme KALEMDEN bulunur (kalem → daire
+ * → işletme; bir istemin kalemleri tek dairenindir). `*` → sorgusuz açık · liste boş → sorgusuz kapalı · aksi hâlde önbellek, yoksa zaman
+ * sınırlı tek sorgu. Sorgu düşer / süre aşılırsa kapalı (bu karar bugünkü bellek yolu). Fırlatmaz.
+ */
+export async function vectorStoreTargetFor(
+  kbItemIds: readonly string[],
+  timeoutMs: number,
+): Promise<{ on: boolean; organizationId?: string }> {
+  if (!vectorStoreEnabled()) return { on: false };
+  const ids = vectorStoreOrgIds();
+  if (ids.includes("*")) return { on: true };
+  if (ids.length === 0 || kbItemIds.length === 0) return { on: false };
+  let organizationId = kbItemIds.map((id) => ownerCache.get(id)).find((o): o is string => o !== undefined);
+  if (organizationId === undefined) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const rows = await Promise.race([
+        prisma.knowledgeBaseItem.findMany({
+          where: { id: { in: [...new Set(kbItemIds)].slice(0, 100) } },
+          select: { id: true, property: { select: { organizationId: true } } },
+        }),
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), timeoutMs);
+        }),
+      ]);
+      if (rows === "timeout") return { on: false };
+      if (ownerCache.size + rows.length > OWNER_CACHE_MAX) ownerCache.clear();
+      for (const r of rows) ownerCache.set(r.id, r.property.organizationId);
+      organizationId = rows[0]?.property.organizationId;
+    } catch (err) {
+      void reportError("kb-vector-store-owner", err);
+      return { on: false };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  return organizationId ? { on: ids.includes(organizationId), organizationId } : { on: false };
+}
+
+/**
  * Tarif girdisinin özeti (K3). Belirlenimci tarifte girdi = gömülen metin; değer bellek deposunun anahtarıyla AYNI özet
  * (`semantic-retrieval.ts storeKey`) — iki depo aynı metni aynı anahtarla tanır.
  */
@@ -124,10 +194,20 @@ interface ReadRow {
 async function readRows(kbItemIds: string[], model: string, hashes: string[]): Promise<ReadRow[]> {
   if (readOverride) return readOverride({ kbItemIds, model, hashes });
   const rows: ReadRow[] = [];
+  // Pilot koruması (kalemden bulunan işletme): çağıran zaten süzer; okuma da listedeki işletmelerin satırlarıyla sınırlı.
+  const pilot = pilotOrgFilter();
   for (let i = 0; i < hashes.length; i += READ_BATCH) {
     rows.push(
       ...(await prisma.kbChunkVector.findMany({
-        where: { kbItemId: { in: kbItemIds }, model, recipe: KB_VECTOR_RECIPE, kind: "chunk", ord: 0, inputHash: { in: hashes.slice(i, i + READ_BATCH) } },
+        where: {
+          kbItemId: { in: kbItemIds },
+          model,
+          recipe: KB_VECTOR_RECIPE,
+          kind: "chunk",
+          ord: 0,
+          inputHash: { in: hashes.slice(i, i + READ_BATCH) },
+          ...(pilot ? { kbItem: { property: { organizationId: { in: pilot } } } } : {}),
+        },
         select: { id: true, kbItemId: true, inputHash: true, kind: true, recipe: true, dims: true, vector: true },
       })),
     );
@@ -198,10 +278,14 @@ export async function persistChunkVectors(
   if (!vectorStoreEnabled() || entries.length === 0) return written;
   try {
     const ids = [...new Set(entries.flatMap((e) => e.owners.map((o) => o.kbItemId)))];
+    const pilot = pilotOrgFilter();
     await prisma.$transaction(async (tx) => {
-      const current = await tx.$queryRaw<{ id: string; updatedAt: Date }[]>`
-        SELECT "id", "updatedAt" FROM "KnowledgeBaseItem" WHERE "id" = ANY(${ids}::text[]) FOR SHARE`;
-      const version = new Map(current.map((r) => [r.id, r.updatedAt.getTime()]));
+      const current = await tx.$queryRaw<{ id: string; updatedAt: Date; organizationId: string }[]>`
+        SELECT k."id", k."updatedAt", p."organizationId"
+        FROM "KnowledgeBaseItem" k JOIN "Property" p ON p."id" = k."propertyId"
+        WHERE k."id" = ANY(${ids}::text[]) FOR SHARE OF k`;
+      // Pilot koruması YAZMA SINIRINDA: işletme kalemden bulunur; listede olmayan işletmenin kalemine satır yazılmaz (sürümü bilinmiyor sayılır).
+      const version = new Map(current.filter((r) => pilot === null || pilot.includes(r.organizationId)).map((r) => [r.id, r.updatedAt.getTime()]));
       const data = entries.flatMap((e) => {
         const vector = encodeVector(Array.from(e.vector));
         const inputHash = inputHashOf(e.text);
@@ -309,4 +393,9 @@ export async function purgeOtherModelVectors(model: string): Promise<number> {
 /** Test kancası. */
 export function __setVectorStoreReadForTests(fn: typeof readOverride): void {
   readOverride = fn;
+}
+
+/** Test kancası: kalem → işletme önbelleğini boşalt ("yeniden başlatma"). */
+export function __resetVectorStoreOwnerCache(): void {
+  ownerCache.clear();
 }

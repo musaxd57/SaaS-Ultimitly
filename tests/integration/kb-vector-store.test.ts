@@ -62,6 +62,8 @@ beforeEach(async () => {
   vi.stubEnv("KB_RETRIEVAL_MODE", "");
   vi.stubEnv("KB_SEMANTIC_RETRIEVAL", "1");
   vi.stubEnv("KB_VECTOR_STORE_ENABLED", "1");
+  // Kalıcı depo pilot listesi (kurucu 11-20 sabah): bu dosya depoyu bütün işletmeler için sınar.
+  vi.stubEnv("KB_VECTOR_STORE_ORG_IDS", "*");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: { body: string }) => {

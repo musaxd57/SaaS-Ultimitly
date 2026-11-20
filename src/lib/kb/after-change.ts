@@ -22,6 +22,6 @@ export async function afterKbItemsChanged(input: { organizationId: string; prope
   const ids = [...new Set(input.propertyIds.filter((p): p is string => typeof p === "string" && p.length > 0))];
   if (ids.length === 0) return;
   await refreshPropertyMemoryBestEffort(input.organizationId, ids.length === 1 ? ids[0] : undefined);
-  await purgeChangedPropertyVectors(ids); // kalıcı depo kapalıyken veritabanına dokunmaz; fırlatmaz
+  await purgeChangedPropertyVectors(ids, input.organizationId); // depo kapalı / işletme pilotta değilken veritabanına dokunmaz; fırlatmaz
   for (const id of ids) warmPropertyKbVectorsBestEffort(id);
 }

@@ -13,7 +13,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { fetchKnowledgeBaseForPrompt, type KbForPrompt } from "@/lib/ai/kb-fetch";
 import { currentChunkHashes, purgeStaleVectorsForProperties } from "@/lib/ai/embeddings/semantic-retrieval";
-import { vectorStoreEnabled, type VectorKeepItem } from "@/lib/ai/embeddings/vector-store";
+import { vectorStoreEnabledFor, type VectorKeepItem } from "@/lib/ai/embeddings/vector-store";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 import { QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 
@@ -44,8 +44,10 @@ export function vectorPurgeByHashEnabled(): boolean {
  * veritabanına hiç dokunulmaz). Açıkken (D3) değişen dairelerin bugünkü parça özetleri hesaplanır: değişmeyen parçanın satırı kalır ve
  * damgası yenilenir, yalnız artık geçmeyen özetler silinir. Liste hesaplanamazsa bugünkü silmeye düşer (fail-soft: yalnız bedel). Fırlatmaz.
  */
-export async function purgeChangedPropertyVectors(propertyIds: readonly string[]): Promise<number> {
-  if (!vectorPurgeByHashEnabled() || !vectorStoreEnabled()) return purgeStaleVectorsForProperties(propertyIds);
+export async function purgeChangedPropertyVectors(propertyIds: readonly string[], organizationId?: string): Promise<number> {
+  // Kalıcı depo kapalı ya da işletme pilot listesinde değil: veritabanına dokunulmaz (bugünkü bellek yolu).
+  if (!vectorStoreEnabledFor(organizationId)) return 0;
+  if (!vectorPurgeByHashEnabled()) return purgeStaleVectorsForProperties(propertyIds);
   let keep: VectorKeepItem[] | undefined;
   try {
     const byItem = new Map<string, { id: string; versionMs: number; hashes: Set<string> }>();
