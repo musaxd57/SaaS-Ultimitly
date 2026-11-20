@@ -108,6 +108,8 @@ describe("son kontrol — model düşünürken iptal edilen rezervasyona cevap g
     expect(mockSend).not.toHaveBeenCalled();
     const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
     expect(conv.status).toBe("new");
+    // Sebep ev sahibine görünür (tur başındaki iptal kontrolüyle aynı kayıt).
+    expect(conv.skippedReason).toBe("reservation_ended");
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
 

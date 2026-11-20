@@ -212,6 +212,34 @@ describe("şablon düzenleme — geç dönen tam metin okuması sonradan açıla
     expect(screen.queryByLabelText("Şablon metni")).toBeNull();
   });
 
+  it("🚨 'Düzenle' beklerken açık 'Yeni Şablon' formu aynı düğmeyle kapatılırsa geç gelen yanıt formu yeniden AÇMAZ", async () => {
+    const finish = deferDetail();
+    renderManager();
+    await click("Yeni Şablon");
+    await click("Düzenle");
+    await click("Yeni Şablon");
+    expect(screen.queryByLabelText("Şablon metni")).toBeNull();
+    await finish();
+    expect(screen.queryByLabelText("Şablon metni")).toBeNull();
+  });
+
+  it("🚨 'Düzenle' beklerken 'Kendime uyarla' açılırsa geç gelen yanıt uyarlama formunu EZMEZ", async () => {
+    const finish = deferDetail();
+    render(
+      <TemplateManager
+        properties={[]}
+        customTemplates={[row]}
+        defaultTemplates={[{ id: "default-hosgeldin", category: "general", title: "Hazır karşılama", body: "Hazır şablon metni.", language: "tr", isDefault: true }]}
+      />,
+    );
+    await click("Varsayılan Şablonlar (1)");
+    await click("Düzenle");
+    await click("Kendime uyarla");
+    await finish();
+    expect((screen.getByLabelText("Şablon metni") as HTMLTextAreaElement).value).toBe("Hazır şablon metni.");
+    expect(screen.queryByText("Şablonu Düzenle")).toBeNull();
+  });
+
   it("KONTROL: araya bir şey girmezse geç gelen yanıt formu tam metinle açar", async () => {
     const finish = deferDetail();
     renderManager();
