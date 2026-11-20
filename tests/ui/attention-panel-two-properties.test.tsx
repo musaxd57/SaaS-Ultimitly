@@ -53,6 +53,16 @@ describe("Dikkat — iki dairede kayıtlı satırı", () => {
     expect(document.body.textContent).not.toMatch(/bekletiliyor|Yanlış kaydı kaldırın/);
   });
 
+  // Kurucu 11-20 öğlen ("telefonda kesinlikle panelleri kontrol et"): 390 px'te başlık "…dairede g…" diye kesiliyordu. Bu türün satırları
+  // KESİLMEZ, alt satıra iner (gerçek uygulama ekran görüntüsüyle doğrulandı); öteki türler bugünkü gibi tek satır.
+  it("telefonda kesilmez: başlık, daire satırı ve eylem satırı alt satıra iner (truncate YOK)", () => {
+    render(<AttentionPanel items={[row(["Sahil Evi", "Lale 5"], { autoSendStopped: true })]} />);
+    for (const el of [screen.getByText(BOOKING_SPAN_HEADLINE), screen.getByText("Kayıtları karşılaştır").parentElement!]) {
+      expect(el.className).not.toContain("truncate");
+      expect(el.className).toContain("break-words");
+    }
+  });
+
   it("🚨 gönderim durdurulmuyorsa (yüklem hayır dedi ya da okunamadı): 'Otomatik gönderim durduruldu' YOK, eylem tek başına", () => {
     for (const autoSendStopped of [false, undefined]) {
       render(<AttentionPanel items={[row(["Sahil Evi", "Lale 5"], { autoSendStopped })]} />);

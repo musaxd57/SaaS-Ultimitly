@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, Building2, CalendarPlus, CalendarRange, CalendarX2, Clock, DoorOpen, Hand, HandHeart, Hourglass, LogOut, Repeat, RotateCcw, ServerCrash, Sparkles, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
@@ -274,6 +275,7 @@ export function AttentionPanel({
           const Icon = ICONS[item.kind];
           const reopen =
             item.kind === "channel_reactivation" && item.reservationId && canManageReservations ? item.reservationId : null;
+          const wraps = item.kind === "booking_two_properties";
           const row = (
             <Link
               key={attentionRowKey(item)}
@@ -282,8 +284,10 @@ export function AttentionPanel({
             >
               <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{headline(item)}</p>
-                <p className="truncate text-xs text-muted-foreground">
+                {/* "İki dairede kayıtlı" satırının sabit başlığı ve daire adları telefonda KESİLMEZ, alt satıra iner (kurucu 11-20 öğlen: "telefonda
+                    kesinlikle panelleri kontrol et" — 390 px'te başlık "…dairede g…" diye kesiliyordu, anlam kayboluyordu). Öteki türler bugünkü gibi. */}
+                <p className={cn("text-sm font-medium", wraps ? "break-words" : "truncate")}>{headline(item)}</p>
+                <p className={cn("text-xs text-muted-foreground", wraps ? "break-words" : "truncate")}>
                   {detail(item, canManageChannel)}
                   {item.certainty === "inferred" ? (
                     // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor. Çakışmada sebep sınıflandırma
@@ -299,7 +303,7 @@ export function AttentionPanel({
                   // Üçüncü satır (kurucu 11-20 sabah B-1): "Otomatik gönderim durduruldu · Kayıtları karşılaştır" — durdurma cümlesi YALNIZ
                   // gönderim gerçekten engelleniyorsa. Satırın tamamı karşılaştırma sayfasına gider; eylem adı yalnız görünür etikettir
                   // (bağlantı içinde ikinci bağlantı / düğme yok).
-                  <p className="truncate text-xs">
+                  <p className="break-words text-xs">
                     {item.autoSendStopped ? <span className="text-muted-foreground">{`${AUTO_SEND_STOPPED_TEXT} · `}</span> : null}
                     <span data-attention-compare className="font-medium text-primary">
                       Kayıtları karşılaştır
