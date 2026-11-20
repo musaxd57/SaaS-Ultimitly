@@ -97,6 +97,9 @@ function nightCount(from: string, to: string): number {
   return Math.max(1, Math.round((ms(to) - ms(from)) / 86_400_000));
 }
 
+/** Dikkat satırlarının metni: kesilmez, alt satıra iner (uzun tek sözcük / adres de bölünür). Tek yerde — satır türleri ayrışmasın. */
+const ROW_TEXT_WRAP = "break-words";
+
 function headline(item: AttentionItem): string {
   switch (item.kind) {
     case "feed_broken":
@@ -265,7 +268,7 @@ export function AttentionPanel({
           >
             <DoorOpen className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{notReadyHeadline(a)}</p>
+              <p className={cn("text-sm font-medium", ROW_TEXT_WRAP)}>{notReadyHeadline(a)}</p>
               {/* İki satıra kadar: ilk engelin adı uzun olabilir ve "· N eksik daha" telefonda kırpılırdı (ekran görüntüsünde görüldü). */}
               <p className="line-clamp-2 break-words text-xs text-muted-foreground">{notReadyDetail(a)}</p>
             </div>
@@ -275,7 +278,6 @@ export function AttentionPanel({
           const Icon = ICONS[item.kind];
           const reopen =
             item.kind === "channel_reactivation" && item.reservationId && canManageReservations ? item.reservationId : null;
-          const wraps = item.kind === "booking_two_properties";
           const row = (
             <Link
               key={attentionRowKey(item)}
@@ -284,10 +286,12 @@ export function AttentionPanel({
             >
               <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
-                {/* "İki dairede kayıtlı" satırının sabit başlığı ve daire adları telefonda KESİLMEZ, alt satıra iner (kurucu 11-20 öğlen: "telefonda
-                    kesinlikle panelleri kontrol et" — 390 px'te başlık "…dairede g…" diye kesiliyordu, anlam kayboluyordu). Öteki türler bugünkü gibi. */}
-                <p className={cn("text-sm font-medium", wraps ? "break-words" : "truncate")}>{headline(item)}</p>
-                <p className={cn("text-xs text-muted-foreground", wraps ? "break-words" : "truncate")}>
+                {/* HİÇBİR satır telefonda kesilmez, alt satıra iner (kurucu 11-20 öğlen: "telefonda kesinlikle panelleri kontrol et"). Önce yalnız
+                    "iki dairede kayıtlı" satırı sarıyordu; 11-20 akşam gezisinde 390 px'te ölçüldü: "Çıkışı yaklaşan misafir 7 saattir cevap b…"
+                    (başlık) ve ikinci satırın SONUNDAKİ yapılacak iş ("· onaylayın ya da reddedin", "· takvimi kontrol edin", "· 2 sa gecikti")
+                    kesiliyordu — satırın en önemli parçası sonda. Geniş ekranda metin zaten tek satıra sığar, görünüm değişmez. */}
+                <p className={cn("text-sm font-medium", ROW_TEXT_WRAP)}>{headline(item)}</p>
+                <p className={cn("text-xs text-muted-foreground", ROW_TEXT_WRAP)}>
                   {detail(item, canManageChannel)}
                   {item.certainty === "inferred" ? (
                     // Kesin tespit DEĞİL — host'un doğrulaması gerekiyor. Çakışmada sebep sınıflandırma
@@ -303,7 +307,7 @@ export function AttentionPanel({
                   // Üçüncü satır (kurucu 11-20 sabah B-1): "Otomatik gönderim durduruldu · Kayıtları karşılaştır" — durdurma cümlesi YALNIZ
                   // gönderim gerçekten engelleniyorsa. Satırın tamamı karşılaştırma sayfasına gider; eylem adı yalnız görünür etikettir
                   // (bağlantı içinde ikinci bağlantı / düğme yok).
-                  <p className="break-words text-xs">
+                  <p className={cn("text-xs", ROW_TEXT_WRAP)}>
                     {item.autoSendStopped ? <span className="text-muted-foreground">{`${AUTO_SEND_STOPPED_TEXT} · `}</span> : null}
                     <span data-attention-compare className="font-medium text-primary">
                       Kayıtları karşılaştır
@@ -313,7 +317,7 @@ export function AttentionPanel({
                 {(() => {
                   const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;
                   return line ? (
-                    <p className="truncate text-xs text-muted-foreground" title={line.hint}>
+                    <p className={cn("text-xs text-muted-foreground", ROW_TEXT_WRAP)} title={line.hint}>
                       {line.text}
                     </p>
                   ) : null;

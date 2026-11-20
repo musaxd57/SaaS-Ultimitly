@@ -3,6 +3,7 @@ import { CalendarX2 } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { PropertyFilterChips } from "@/components/property-filter-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
@@ -166,18 +167,14 @@ export default async function CancellationsPage({
         ))}
       </div>
 
-      {/* Property filter */}
+      {/* Daire süzgeci — telefonda tek satır, yana kaydırılır (ortak bileşen). */}
       {properties.length > 1 ? (
-        <div className="flex flex-wrap gap-2">
-          <Link href={href({ propertyId: null })} className={pill(!propertyId)}>
-            Tüm daireler
-          </Link>
-          {properties.map((p) => (
-            <Link key={p.id} href={href({ propertyId: p.id })} className={pill(propertyId === p.id)}>
-              {p.name}
-            </Link>
-          ))}
-        </div>
+        <PropertyFilterChips
+          items={[
+            { key: "all", href: href({ propertyId: null }), label: "Tüm daireler", active: !propertyId },
+            ...properties.map((p) => ({ key: p.id, href: href({ propertyId: p.id }), label: p.name, active: propertyId === p.id })),
+          ]}
+        />
       ) : null}
 
       {reservations.length === 0 ? (

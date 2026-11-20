@@ -32,7 +32,8 @@ const PINS: [file: string, tokens: string[], count: number, what: string][] = [
   ["src/components/inbox/conversation-thread.tsx", ["h-10 w-full py-0 text-xs sm:h-8"], 1, "konuşma: Ton"],
   ["src/components/templates/template-manager.tsx", ["inline-flex min-h-10 shrink-0 items-center", " sm:min-h-0"], 1, "şablon: Kendime uyarla"],
   ["src/app/(app)/calendar/page.tsx", ["inline-flex size-10 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent sm:size-8"], 2, "takvim: ay okları"],
-  ["src/app/(app)/calendar/page.tsx", ["rounded-full border px-3 py-3 text-xs font-medium transition-colors sm:py-1"], 1, "takvim: daire süzgeçleri"],
+  // Daire süzgeci ortak bileşene taşındı (11-20, Takvim + Görevler + İptaller aynı çip; telefonda 40 px, yana kayan tek satır).
+  ["src/components/property-filter-chips.tsx", ["inline-flex min-h-10 ", " sm:min-h-0"], 1, "daire süzgeci çipleri (takvim · görevler · iptaller)"],
   ["src/components/settings/paddle-plans.tsx", ["inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground", " sm:h-8"], 3, "abonelik: plan düğmeleri"],
   ["src/components/tasks/task-board.tsx", [" mt-2 h-10 text-xs sm:h-9 "], 2, "görev: durum + atanan seçicisi"],
   ["src/components/guest-chats/reply-box.tsx", ["inline-flex h-10 shrink-0 items-center rounded-md bg-primary", " sm:h-9"], 1, "QR sohbeti: Yanıtla"],

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { checkoutTimesFor, type CheckoutTime } from "@/lib/tasks/checkout-times";
 import { reportError } from "@/lib/report-error";
 import { redirect } from "next/navigation";
@@ -6,13 +5,13 @@ import { ListChecks, Plus, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { PropertyFilterChips } from "@/components/property-filter-chips";
 import { Pager } from "@/components/pager";
 import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { cn } from "@/lib/utils";
 import { countReservationsMissingCleaning } from "@/lib/tasks/missing-cleaning";
 import { orgTimezone } from "@/lib/timezone";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
@@ -233,34 +232,14 @@ export default async function TasksPage({
         </Card>
       ) : null}
 
+      {/* Daire süzgeci — telefonda tek satır, yana kaydırılır (ortak bileşen). */}
       {properties.length > 1 ? (
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/tasks"
-            className={cn(
-              "rounded-full border px-3 py-1 text-sm transition-colors",
-              !propertyId
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:bg-accent",
-            )}
-          >
-            Tümü
-          </Link>
-          {properties.map((p) => (
-            <Link
-              key={p.id}
-              href={`/tasks?propertyId=${p.id}`}
-              className={cn(
-                "rounded-full border px-3 py-1 text-sm transition-colors",
-                propertyId === p.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {p.name}
-            </Link>
-          ))}
-        </div>
+        <PropertyFilterChips
+          items={[
+            { key: "all", href: "/tasks", label: "Tümü", active: !propertyId },
+            ...properties.map((p) => ({ key: p.id, href: `/tasks?propertyId=${p.id}`, label: p.name, active: propertyId === p.id })),
+          ]}
+        />
       ) : null}
 
       {/* "Görev yok" YALNIZ gerçekten hiç görev yokken. Tamamlananlarda son sayfayı

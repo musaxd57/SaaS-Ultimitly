@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf } from "@/modules/availability/core";
 import { PageHeader } from "@/components/page-header";
+import { PropertyFilterChips } from "@/components/property-filter-chips";
 import { EmptyState } from "@/components/empty-state";
 import { LinkButton } from "@/components/ui/link-button";
 import { ConnectChannelButton, showConnectChannel } from "@/components/connect-channel-button";
@@ -220,33 +221,14 @@ export default async function CalendarPage({
         description="Giriş ve çıkışları aylık takvimde görün. Rezervasyonlar bağlantınızdan otomatik gelir."
       />
 
-      {/* Property filter */}
+      {/* Daire süzgeci — telefonda tek satır, yana kaydırılır (ortak bileşen). */}
       {properties.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Link
-            href={propertyHref()}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-              !propertyFilter ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent",
-            )}
-          >
-            Tüm daireler
-          </Link>
-          {properties.map((p) => (
-            <Link
-              key={p.id}
-              href={propertyHref(p.id)}
-              className={cn(
-                "max-w-[12rem] truncate rounded-full border px-3 py-3 text-xs font-medium transition-colors sm:py-1",
-                propertyFilter === p.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border hover:bg-accent",
-              )}
-            >
-              {p.name}
-            </Link>
-          ))}
-        </div>
+        <PropertyFilterChips
+          items={[
+            { key: "all", href: propertyHref(), label: "Tüm daireler", active: !propertyFilter },
+            ...properties.map((p) => ({ key: p.id, href: propertyHref(p.id), label: p.name, active: propertyFilter === p.id })),
+          ]}
+        />
       ) : null}
 
       <Card>

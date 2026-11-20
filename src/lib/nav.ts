@@ -39,9 +39,16 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Ayarlar", icon: Settings },
 ];
 
+/**
+ * Menüde yeri olmayan ama panelin içinde açılan sayfaların üst çubuk başlığı. Yoksa çubuk "Lixus AI" yazıyordu — telefonda sayfanın
+ * hangi bölüm olduğunu söyleyen tek yer orası (FB gezisi 11-20: rezervasyon ayrıntısı ve kayıt karşılaştırma). Ad, sayfanın kendi
+ * başlığındaki sözcüktür (yeni terim yok).
+ */
+const SECONDARY_TITLES: { href: string; label: string }[] = [{ href: "/reservations", label: "Rezervasyon" }];
+
 export function titleForPath(pathname: string): string {
-  const match = NAV_ITEMS.filter((i) => pathname.startsWith(i.href)).sort(
-    (a, b) => b.href.length - a.href.length,
-  )[0];
+  // Yol PARÇASI eşleşir ("/tasks" → "/tasks", "/tasks/new"; "/tasksx" değil) — önek karşılaştırması "/sent" ile "/sentinel"i karıştırırdı.
+  const under = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const match = [...NAV_ITEMS, ...SECONDARY_TITLES].filter((i) => under(i.href)).sort((a, b) => b.href.length - a.href.length)[0];
   return match?.label ?? "Lixus AI";
 }

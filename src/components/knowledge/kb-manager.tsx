@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
 import { KbTemplateSuggestions } from "@/components/knowledge/kb-template-suggestions";
+import { PropertyFilterChips } from "@/components/property-filter-chips";
 import { KB_CATEGORY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
@@ -92,6 +93,9 @@ const KB_PRESETS: { key: string; label: string; category: string; title: string;
     content: "Çıkış saati [11:00]'dir. Ayrılırken pencereleri kapatmanız, klimayı/ısıtıcıyı kapatmanız ve anahtarı [ANAHTAR BIRAKMA YERİ]'ne bırakmanız yeterli. Bizi tercih ettiğiniz için teşekkürler, tekrar bekleriz!",
   },
 ];
+
+/** Bu sayıdan FAZLA dairenin bilgisi listeleniyorsa listenin başına "Daireye git" şeridi gelir. */
+export const KB_JUMP_MIN_PROPERTIES = 3;
 
 export interface KbItem {
   id: string;
@@ -622,6 +626,14 @@ export function KbManager({
           .map((p) => (
             <div key={`kb-anchor-${p.id}`} id={`kb-${p.id}`} className="scroll-mt-24" aria-hidden="true" />
           ))}
+        {/* Daireye atlama şeridi (FB gezisi 11-20): 12 dairede liste telefonda 13.000 px'i buluyordu, aranan daire için baştan sona
+            kaydırmak gerekiyordu. Çipler var olan `#kb-<daire>` çapalarına götürür; az dairede (≤ 3) gereksiz kalabalık olmasın diye çizilmez. */}
+        {grouped.length > KB_JUMP_MIN_PROPERTIES ? (
+          <PropertyFilterChips
+            label="Daireye git"
+            items={grouped.map((g) => ({ key: g.property.id, href: `#kb-${g.property.id}`, label: g.property.name, active: false }))}
+          />
+        ) : null}
         {grouped.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
