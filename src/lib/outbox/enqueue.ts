@@ -217,6 +217,16 @@ export interface EnqueueProactiveArgs {
   templateRevision?: number;
 }
 
+/**
+ * Rezervasyonun DURUMU yüzünden (iptal / kayıt yok) gönderim anı vetosunda — sağlayıcıya HİÇ gitmeden — iptal edilmiş yaşam döngüsü satırının
+ * sebepleri (`worker.ts` `lifecycleVeto`). Rezervasyon başına tek anahtar olduğu için bu satırlar rezervasyon geri dönünce (ev sahibi yeniden
+ * açtı, silinen kayıt senkronla geri geldi) mesajı KALICI yutuyordu (G1 tur 3 T3-B2 + tur 4 notu, 11-20) — kuyruk kapalıyken aynı akış
+ * gönderiyor. Gönderici rezervasyonu yeniden gönderilebilir bulduğunda bu satırı yeniden bekleyen yapar (↓`enqueueProactive`); işçi gönderim
+ * anında bütün kuralları yeniden uygular (zaten gönderildi damgası, pencere, onay). Başka sebeple iptal edilmiş satır (anahtar kapalı,
+ * silme talebi, pencere geçti) dirilmez.
+ */
+export const REVIVABLE_LIFECYCLE_CANCEL_CODES = ["reservation_cancelled", "reservation_gone"] as const;
+
 export interface EnqueueProactiveResult {
   outboxId: string;
   deduped: boolean;
@@ -253,10 +263,36 @@ export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<Enqu
     return { outboxId: outbox.id, deduped: false };
   } catch (err) {
     if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
+      // Rezervasyonun durumu yüzünden iptal edilmiş satır yeniden bekleyen olur (↑`REVIVABLE_LIFECYCLE_CANCEL_CODES`): gövde, sürüm ve
+      // rezervasyon kimliği bugünkü adaydan (silinip geri gelen kayıt yeni kimlik taşır). Koşullu tek yazma — eşzamanlı iki gönderici
+      // satırı iki kez diriltemez. Deneme sayısı korunur (önceki gerçek denemeler tavana sayılmaya devam eder).
+      const revived = await prisma.messageOutbox.updateMany({
+        where: {
+          organizationId: args.organizationId,
+          idempotencyKey: args.idempotencyKey,
+          messageType: args.messageType,
+          status: "canceled",
+          lastErrorCode: { in: [...REVIVABLE_LIFECYCLE_CANCEL_CODES] },
+        },
+        data: {
+          status: "pending",
+          availableAt: new Date(), // ↓ENQUEUE_CLOCK
+          reservationId: args.reservationId,
+          body: args.body,
+          templateRevision: args.templateRevision ?? null,
+          connectionId,
+          lastErrorKind: null,
+          lastErrorCode: null,
+          claimedBy: null,
+          claimExpiresAt: null,
+          claimedAt: null,
+        },
+      });
       const existing = await prisma.messageOutbox.findFirst({
         where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
         select: { id: true },
       });
+      if (existing && revived.count === 1) return { outboxId: existing.id, deduped: false };
       // A replay / restart is a clean dedupe-hit: the durable row already exists and owns the
       // send. A Hospitable 402 "subscription not active" send does NOT loop here — it parks in
       // `blocked` and is reactivated to `pending` exactly once by `reactivateBlockedOutbox` when

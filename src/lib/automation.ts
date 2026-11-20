@@ -237,7 +237,7 @@ import { openBlockBestEffort } from "@/lib/conversation-control/blocks";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { BILLING_NOTE_OVERWRITABLE, BILLING_PAUSED_REASON, billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
 import { undeliveredFilterActive } from "@/lib/outbox/presence";
-import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
+import { enqueueOutbound, enqueueProactive, REVIVABLE_LIFECYCLE_CANCEL_CODES } from "@/lib/outbox/enqueue";
 import {
   classifySendResult,
   sendFailureHoldMs,
@@ -5842,6 +5842,8 @@ type LifecycleDepartureRow = Prisma.ReservationGetPayload<{ select: typeof LIFEC
  *  · açıkça silinmiş (KVKK) misafir — gönderim döngüsü onu zaten atlıyor (kuyruk yolunda ön eleme, doğrudan yolda işlem içi kapı);
  *  · kuyruğun sahiplendiği rezervasyon — kuyruk KAPALIYKEN `failed` dışındaki her satır (↑`lifecycleOutboxOwns` ile aynı kural), kuyruk
  *    AÇIKKEN aynı anahtarlı, BEKLEMEDE OLMAYAN (`pending` dışı) her satır: yeniden kuyruğa verme "zaten var" der ve hiçbir şey yapmaz.
+ *    İSTİSNA: rezervasyonun DURUMU yüzünden (iptal / kayıt yok) iptal edilmiş satır (`REVIVABLE_LIFECYCLE_CANCEL_CODES`) — kuyruğa verme onu
+ *    yeniden bekleyen yapar (G1 tur 3 T3-B2: yeniden açılan / silinip geri gelen rezervasyona mesaj kalıcı yutuluyordu).
  *    🚨 `pending` satır ELENMEZ: giriş göndericisi ertelenmiş (vadesi ileride) bekleyen satırın vadesini, tarih yeniden pencereye girince
  *    şimdiye çeker (Y4) — o iş gönderim döngüsündedir; bekleyen satır zaten birkaç dakikada teslim edilip damgalanır, listeyi tıkamaz.
  * Sayfa başına TEK kuyruk sorgusu; silme kapısı koşu başına bir kez okunur (`erasureGuardMemo`).
@@ -5859,7 +5861,16 @@ async function lifecycleUnusableIds(
   const owned = new Set(
     (durableOutboxEnabledFor(organizationId)
       ? await prisma.messageOutbox.findMany({
-          where: { organizationId, idempotencyKey: { in: refs.map((ref) => `${messageType}:${organizationId}:${ref}`) }, status: { not: "pending" } },
+          where: {
+            organizationId,
+            idempotencyKey: { in: refs.map((ref) => `${messageType}:${organizationId}:${ref}`) },
+            // Bekleyen satır ve rezervasyonun DURUMU yüzünden iptal edilmiş satır sahiplik sayılmaz: ikincisini kuyruğa verme yeniden bekleyen
+            // yapar (`enqueueProactive`, G1 tur 3 T3-B2). Boş sebep kodu açıkça ele alınır (nullable kolonda `NOT` NULL satırı da dışarıda bırakır).
+            OR: [
+              { status: { notIn: ["pending", "canceled"] } },
+              { status: "canceled", OR: [{ lastErrorCode: null }, { lastErrorCode: { notIn: [...REVIVABLE_LIFECYCLE_CANCEL_CODES] } }] },
+            ],
+          },
           select: { externalReservationId: true },
         })
       : await prisma.messageOutbox.findMany({
