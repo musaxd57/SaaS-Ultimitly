@@ -354,7 +354,7 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Daire (opsiyonel)" htmlFor="tmpl-property">
+                  <Field label="Daire (isteğe bağlı)" htmlFor="tmpl-property">
                     <Select
                       id="tmpl-property"
                       value={form.propertyId}

@@ -158,7 +158,7 @@ export function SupplyProfileForm({
   return (
     <form onSubmit={save} className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Bir giriş (turnover) başına ortalama tüketim. Kaç misafir kaldığından bağımsızdır —
+        Bir giriş başına ortalama tüketim. Kaç misafir kaldığından bağımsızdır —
         her çıkışta yataklar komple toplanır. Boş/0 bıraktığınız kalem sayılmaz.
       </p>
 

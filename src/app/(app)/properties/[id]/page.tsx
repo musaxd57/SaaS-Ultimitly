@@ -535,7 +535,7 @@ export default async function PropertyDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <QrCode className="size-4 text-muted-foreground" /> Misafir Chat (QR)
+                  <QrCode className="size-4 text-muted-foreground" /> Misafir Sohbeti (QR)
                 </CardTitle>
               </CardHeader>
               <CardContent>

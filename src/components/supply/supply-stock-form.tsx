@@ -67,7 +67,7 @@ export function SupplyStockForm({ initial }: { initial: Record<string, number> }
           <Boxes className="size-4 text-muted-foreground" /> Eldeki stok
         </span>
         <span className="text-xs text-muted-foreground">
-          {filledCount > 0 ? `${filledCount} kalem girili · ` : "opsiyonel · "}
+          {filledCount > 0 ? `${filledCount} kalem girili · ` : "isteğe bağlı · "}
           {open ? "gizle" : "düzenle"}
         </span>
       </button>

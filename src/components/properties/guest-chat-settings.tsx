@@ -204,7 +204,7 @@ export function GuestChatSettings({
               <Download className="size-4" /> QR&apos;ı indir (PNG)
             </button>
             <p className="text-[11px] text-muted-foreground">
-              Statik ve süresiz QR — bir kez yazdırıp daireye asın, güncellemeye gerek kalmaz.
+              Bu QR değişmez — bir kez yazdırıp daireye asın, güncellemeye gerek kalmaz.
             </p>
           </div>
 
@@ -239,7 +239,7 @@ export function GuestChatSettings({
                   <span className="font-medium text-foreground">Tüm konaklamalarda sohbet kodu zorunlu</span>{" "}
                   <span className="text-muted-foreground">(işletme geneli)</span>
                   <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                    Açıkken her rezervasyon için misafir, ev sahibinin verdiği sohbet kodunu girmeden sohbeti
+                    Açıkken her rezervasyon için misafir, verdiğiniz sohbet kodunu girmeden sohbeti
                     açamaz. Kod oluşturmadığınız rezervasyonlarda sohbet kilitli kalır. Kapalıyken yalnızca
                     kod oluşturduğunuz rezervasyonlarda kod istenir.
                   </span>

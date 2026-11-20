@@ -204,7 +204,7 @@ export default async function TasksPage({
 
   return (
     <>
-      <PageHeader title="Görevler" description="Temizlik, bakım ve check-in görevlerini yönetin.">
+      <PageHeader title="Görevler" description="Temizlik, bakım ve giriş hazırlığı görevlerini yönetin.">
         {canManage && reservationsMissingTasks > 0 ? (
           <BackfillTasksButton count={reservationsMissingTasks} />
         ) : null}
