@@ -258,6 +258,9 @@ alımı geri sarılır. İşletme verilmezse (sıcak yolun soğuk dalı) kalemle
 içi sayaç (fail-soft). Sıcak yol (sorgu gömmesi) kovaya bakmaz: iki kova doluyken soru `ok`, tek istek, satırlar değişmez (pin).
 Ölçüm: A tek başına 600'de durdu (bugün 1.860); A doluyken B'nin yeni ~200 parçalık bilgi tabanı hemen ısındı; yeniden başlatmada A'nın kovası
 DB'de dolu kaldı (bugün 170 parça yeniden gömüyordu).
+Düzeltme (G2 tur 4 T4-B12, 11-20): dairenin ısıtması iki işti (ham + QR'ın nötr hitaplı kümesi); küçük QR işi boş pencereyi önce açınca
+tavanı aşan ham iş reddediliyordu (tek `{isim}` kalemi olan 601–1.000 parçalık daire ~1 saat `cold`). Anahtar açıkken kümeler TEK işte, tek
+alımla (`warmKbVectorSets`); kapalıyken küme başına iş (bugünkü gibi). Test `kb-embed-budget-property-job`.
 
 **D2.** Kanca daireyi kirli işaretler; ısıtma son kayıttan D sn sonra o anki hâli okur. Ölçüm (sahte saat): 5 sn arayla 5 kayıt → TEK gömme,
 yalnız son sürüm (bugün 5). Bütçe reddederse pencere açılınca kendiliğinden yeniden dener (bugün kayboluyordu); daire başına tek zamanlayıcı,
