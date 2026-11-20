@@ -263,7 +263,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       const res = await prisma.reservation.create({
         data: {
           propertyId, guestName: "G", channel: "airbnb", status: resStatus,
-          arrivalDate: new Date(Date.now() - 86_400_000), departureDate: new Date(Date.now() + 86_400_000),
+          // Çıkış BUGÜN (çıkış mesajı yalnız çıkış günü gider; çıkışı ileride olan satır o günün penceresine ertelenir — G1 tur 3 T3-B3).
+          arrivalDate: new Date(Date.now() - 86_400_000), departureDate: new Date(),
           sourceReference: ref,
         },
       });

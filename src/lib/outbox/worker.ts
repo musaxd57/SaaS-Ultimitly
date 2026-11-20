@@ -9,7 +9,7 @@ import { RECONCILE_CODES } from "./reconcile-match";
 import { channelSendReconcileEnabled, reconcileSendFromChannel } from "./reconcile-channel";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
-import { orgTimezone } from "@/lib/timezone";
+import { orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
@@ -814,6 +814,32 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
   return opensAt > now.getTime() ? new Date(opensAt) : null;
 }
 
+/** Çıkış mesajının gün içi penceresinin başı (gönderici `sendDueCheckouts`: işletme saatiyle 08:00–11:59). */
+const CHECKOUT_WINDOW_START_HOUR = 8;
+
+/**
+ * G1 tur 3 T3-B3 (11-20): kuyruğa çıkış GÜNÜ giren çıkış mesajı, rezervasyonun çıkışı sonradan İLERİ alınınca ("iki gece uzattık") erken
+ * gidiyordu — işçi yalnız "çıkış günü geçti mi" diye bakıyordu, misafire "bugün çıkış gününüz" iki gün erken gidiyordu. Giriş mesajının
+ * ertelemesiyle (↑`checkinNotYetDue`, Y4) aynı kural: iptal EDİLMEZ (rezervasyon başına tek anahtar, mesaj kalıcı yutulurdu), yeni çıkış
+ * gününün gönderim penceresine (işletme saatiyle 08:00) ERTELENİR. Kopya seçimi vetoyla AYNI (`pickLifecycleReservation`). Çıkış geri
+ * alındıysa (geçti) ya da rezervasyon iptalse karar ↓veto'nundur.
+ */
+async function checkoutNotYetDue(row: OutboxRow, now: Date): Promise<Date | null> {
+  if (row.messageType !== "checkout" || !row.externalReservationId) return null;
+  const siblings = await prisma.reservation.findMany({
+    where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
+    select: { id: true, status: true, departureDate: true, property: { select: { organization: { select: { timezone: true } } } } },
+    orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+  });
+  const res = pickLifecycleReservation(siblings, row.reservationId);
+  if (!res || res.status === "cancelled") return null;
+  const tz = orgTimezone(res.property?.organization?.timezone);
+  const departureDay = calendarDateOf(res.departureDate, tz).key;
+  if (departureDay <= todayKey(now, tz)) return null;
+  const [y, m, d] = departureDay.split("-").map(Number);
+  return zonedWallClockToUtc(y, m, d, CHECKOUT_WINDOW_START_HOUR, 0, 0, tz);
+}
+
 /** Otomatik mesaj metni gönderilemez durumdaysa satırın yeniden deneme aralığı (ev sahibi düzeltene kadar bekler). */
 const TEMPLATE_WAIT_MS = 60 * 60_000;
 
@@ -1420,7 +1446,7 @@ async function processOne(
   let deferUntil: Date | null;
   let veto: string | null = null;
   try {
-    deferUntil = await checkinNotYetDue(row, now);
+    deferUntil = (await checkinNotYetDue(row, now)) ?? (await checkoutNotYetDue(row, now));
     if (!deferUntil) veto = await sendTimeVeto(row, now);
     // Rezervasyon gönderilebilir durumda değil ama iptal de değil (D1): iptal YOK, satır yeniden bakmak üzere ertelenir.
     if (veto === LIFECYCLE_STATUS_HOLD) {
