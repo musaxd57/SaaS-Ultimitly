@@ -83,7 +83,9 @@ export async function recheckEarlyCheckinsAfterCleaning(organizationId: string, 
       status: "new",
       reservationId: { not: null },
       reservation: { arrivalDate: { gte: new Date(now.getTime() - ARRIVAL_WINDOW_MS), lte: new Date(now.getTime() + ARRIVAL_WINDOW_MS) } },
-      autoReplyAttemptedAt: { not: null },
+      // "Damga GÜNCEL mesaj için" süzgeci SORGUDA (G2 tur 7; 11-18 kalıcı kuralı "en yeni N'yi oku, sonra süz"): bellekte kalsaydı misafirin
+      // az önce yazdığı (henüz denenmemiş) konuşmalar `take` penceresini doldurup sabah tutulmuş isteği dışarıda bırakıyordu.
+      autoReplyAttemptedAt: { not: null, gte: prisma.conversation.fields.lastMessageAt },
       lastMessageAt: { gte: new Date(now.getTime() - LOOKBACK_MS) },
     },
     select: { id: true, propertyId: true, reservationId: true, autoReplyAttemptedAt: true, lastMessageAt: true },
