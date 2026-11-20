@@ -178,6 +178,23 @@ describe("KB değişikliği → anlamsal aramaya yansıma süresi (olay günlü�
     expect(ev[0].durationMs!).toBeLessThan(25_000);
   }, 60_000);
 
+  // Pencerede art arda iki kaydetme: ölçü İLK kaydetmeden başlar (en uzun bekleyen değişiklik; ara sürüm gömülmez, yine tek satır).
+  it("pencerede art arda iki kaydetme → tek satır, gecikme İLK kaydetmeden (≈ 10 + 20 sn)", async () => {
+    const p = await warmedProperty();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await prisma.knowledgeBaseItem.update({ where: { id: p.wifiId }, data: { content: wifiText("YENI-2001") } });
+    await afterKbItemsChanged({ organizationId: p.orgId, propertyIds: [p.propertyId] });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await prisma.knowledgeBaseItem.update({ where: { id: p.wifiId }, data: { content: wifiText("YENI-2002") } });
+    await afterKbItemsChanged({ organizationId: p.orgId, propertyIds: [p.propertyId] });
+    await vi.advanceTimersByTimeAsync(20_000);
+    await settle();
+    const ev = await readyEvents(p.orgId);
+    expect(ev).toHaveLength(1);
+    expect(ev[0].durationMs!).toBeGreaterThanOrEqual(29_000);
+    expect(ev[0].durationMs!).toBeLessThan(35_000);
+  }, 60_000);
+
   // Sert kontrol 11-20 A2: kovalar kapalıyken ham ve QR biçimi ayrı işlerdir; aynı düzenleme TEK satır yazar.
   it("kovalar kapalı + misafir adı yer tutuculu kalem (iki küme, iki iş) → düzenleme başına TEK satır", async () => {
     vi.stubEnv("KB_EMBED_ORG_BUDGET_ENABLED", "");
