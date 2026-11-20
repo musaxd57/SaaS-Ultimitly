@@ -3,7 +3,7 @@ import { requireManagerSession } from "@/lib/auth/manager-page";
 import { isImpersonating } from "@/lib/auth/impersonation";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
-import { formatDate, formatDateTime, cn } from "@/lib/utils";
+import { formatDateTime, cn } from "@/lib/utils";
 import { RESERVATION_STATUS } from "@/lib/constants";
 import { SELLER } from "@/lib/legal-entity";
 import { PageHeader } from "@/components/page-header";
@@ -13,7 +13,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { AUTO_SEND_STOPPED_TEXT, BOOKING_SPAN_HEADLINE, bookingSpanDetailLine } from "@/components/attention-panel";
 import { RemoveManualCopyButton } from "@/components/reservations/remove-manual-copy-button";
 import { loadBookingComparison } from "@/lib/reservations/compare";
-import { bookingSourceLabel } from "@/lib/reservations/detail-format";
+import { bookingSourceLabel, dayKeyLabel } from "@/lib/reservations/detail-format";
 import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
 import { calendarDateOf } from "@/modules/availability/core";
 import { reportError } from "@/lib/report-error";
@@ -104,7 +104,8 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
                 <RecordFact label="Daire">{row.propertyName}</RecordFact>
                 <RecordFact label="Kaynak">{bookingSourceLabel(row)}</RecordFact>
                 <RecordFact label="Giriş → çıkış">
-                  {formatDate(row.arrivalDate)} → {formatDate(row.departureDate)}
+                  {/* İşletmenin takvim günü (tek tarih kuralı) — detay sayfasıyla AYNI gün; `formatDate` UTC okur, an olarak saklı kayıtta kayardı. */}
+                  {dayKeyLabel(calendarDateOf(row.arrivalDate, tz).key)} → {dayKeyLabel(calendarDateOf(row.departureDate, tz).key)}
                 </RecordFact>
                 <RecordFact label="Misafir">{row.guestName}</RecordFact>
                 <RecordFact label="Durum">{RESERVATION_STATUS.label(row.status)}</RecordFact>

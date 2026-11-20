@@ -141,9 +141,12 @@ describe("Rezervasyon detay sayfası (gerçek PostgreSQL)", () => {
     expect(text).toContain("Kanaldan geliyor · Airbnb");
     expect(text).toContain("Onaylı");
     expect(text).toContain("Son güncelleme");
-    // Kurucu: daire adı başlıkta bir kez (sayfa açıklamasındaki "misafir · daire" dışında) — "Daire" ve "Durum" satır etiketi yok.
+    // Kurucu: daire adı ve misafir adı sayfada BİRER kez — "Daire" / "Durum" satırı yok, açıklama satırı da tekrar etmez.
     expect(text).not.toContain("Daire");
     expect(text).not.toContain("Durum");
+    // (`treeText` bir bileşenin hem özelliklerini hem çıktısını toplar — sayım yerine eski açıklama biçiminin yokluğu ölçülür.)
+    expect(text.split("Lale 3").length - 1).toBe(1);
+    expect(text).not.toContain("Ada Lale · Lale 3");
     expect(treeLinks(tree).filter((l) => l.text === "Lale 3").map((l) => l.href)).toEqual([`/properties/${w.lale}`]);
     // Kanal kaynak kimliği gösterilmez (R-3); sayfa salt okunur.
     expect(text).not.toContain("HM-SECRET-REF-1");

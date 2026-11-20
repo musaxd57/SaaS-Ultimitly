@@ -163,6 +163,20 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     expect(open.map((l) => l.href)).toEqual([`/reservations/${manual.id}`]);
   });
 
+  // Fable denetimi 11-20: karşılaştırma günü UTC okuyordu, detay sayfası işletmenin gününden — an olarak saklı kayıtta iki sayfa farklı gün
+  // gösterirdi. Artık ikisi de işletmenin takvim günü.
+  it("gün işletmenin takvim gününden: an olarak saklı varış (21:30Z) İstanbul'da ertesi gün (detay sayfasıyla aynı)", async () => {
+    const w = await world();
+    const r = await prisma.reservation.create({
+      data: {
+        propertyId: w.lale, guestName: "Ada Lale", arrivalDate: new Date(Date.UTC(2031, 2, 9, 21, 30)), departureDate: new Date(Date.UTC(2031, 2, 12, 9, 0)),
+        status: "confirmed", sourceReference: "HM-TZ", channel: "manual", guestNameSource: "host",
+      },
+      select: { id: true },
+    });
+    expect(treeText(await render(r.id))).toContain("10 Mar 2031 → 12 Mar 2031");
+  });
+
   it("çözülmüş, etkin kayıt kalmamış (ikisi de iptal): 'Rezervasyonu aç' sayfanın KENDİ kaydını açar (iptal kayıt da açılır)", async () => {
     const w = await world();
     const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host", status: "cancelled" });

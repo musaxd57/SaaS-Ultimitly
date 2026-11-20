@@ -62,7 +62,8 @@ export default async function ReservationDetailPage({ params }: { params: Promis
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Rezervasyon" description={`${detail.guestName} · ${detail.propertyName}`} />
+      {/* Açıklama satırı YOK: daire kartın başlığında, misafir kartın satırında — hiçbiri iki kez yazılmaz (kurucu: "birdaha yazılmasın"). */}
+      <PageHeader title="Rezervasyon" />
       {detail.conflict ? (
         <div
           data-testid="reservation-conflict"
