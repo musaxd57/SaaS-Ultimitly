@@ -24,7 +24,7 @@ import { sendDueCheckins } from "@/lib/automation";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 
-describe("G1 tur 5 repro — kuyrukta sonucu belirsiz giriş mesajı, Girişler", () => {
+describe("Girişler — kuyrukta sonucu belirsiz giriş mesajı (T5-B2 + sert kontrol A1-b / A1-c)", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -64,5 +64,54 @@ describe("G1 tur 5 repro — kuyrukta sonucu belirsiz giriş mesajı, Girişler"
     expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
     expect(access?.sendCheckin).toBeUndefined();
     expect(access?.link).toEqual({ to: "conversation" });
+  });
+
+  async function seedQueuedCheckin(ref: string) {
+    const org = await prisma.organization.create({
+      data: {
+        name: "Org", timezone: "UTC", autoCheckin: true, autoCheckinEnabledAt: new Date(Date.now() - 30 * 86_400_000), aiSignature: "Lale",
+        autoReplyHospitable: true, hospitableTokenEnc: encryptSecret("tok-readiness"),
+      },
+    });
+    const property = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale 3", checkInTime: "15:00", checkOutTime: "11:00" } });
+    const other = await prisma.property.create({ data: { createdAt: PROPERTY_EXISTED_BEFORE, organizationId: org.id, name: "Lale 4", checkInTime: "15:00", checkOutTime: "11:00" } });
+    await seedAutoMessage(property.id, "checkin", "Merhaba {isim}, giriş bilgileriniz: kapı kodu 4821.");
+    const r = await prisma.reservation.create({
+      data: { propertyId: property.id, guestName: "Bircan", arrivalDate: stayDay(1), departureDate: stayDay(3), channel: "airbnb", status: "confirmed", sourceReference: ref },
+    });
+    expect((await sendDueCheckins(org.id)).sent).toBe(1);
+    return { org, property, other, r };
+  }
+
+  const accessOf = async (orgId: string, reservationId: string) =>
+    (await loadArrivalReadiness(orgId, new Date())).rows.find((x) => x.reservationId === reservationId)?.readiness.factors.find((f) => f.key === "access") as
+      | { label: string; sendCheckin?: true }
+      | undefined;
+
+  // A1-c: uzlaştırma bekleyen (`ambiguous`) satırın sonucu da bilinmiyor — teslim sonucu kümesinin tek kaynağı (`UNRESOLVED_DELIVERY_STATUSES`).
+  it.each(["ambiguous", "reconciling", "review"] as const)("satır `%s` → 'doğrulanamadı', düğme yok", async (status) => {
+    const { org, r } = await seedQueuedCheckin(`res-unres-${status}`);
+    await prisma.messageOutbox.updateMany({ where: { organizationId: org.id }, data: { status } });
+    const access = await accessOf(org.id, r.id);
+    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.sendCheckin).toBeUndefined();
+  });
+
+  it("aşırı uygulama yok: bekleyen (`pending`) satır 'hazır' kalır", async () => {
+    const { org, r } = await seedQueuedCheckin("res-unres-pending");
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: org.id } })).status).toBe("pending");
+    expect((await accessOf(org.id, r.id))?.label ?? "").toMatch(/^Otomatik giriş mesajı hazır/);
+  });
+
+  // A1-b: belirsiz satır + SONRADAN ikinci dairede kopya → "iki dairede kayıtlı · giriş bilgisini siz gönderin" DEĞİL (mesaj gitmiş olabilir).
+  it("belirsiz satır + sonradan ikinci dairede kopya → yine 'doğrulanamadı' ('siz gönderin' denmez)", async () => {
+    const { org, other, r } = await seedQueuedCheckin("res-unres-copy");
+    await prisma.messageOutbox.updateMany({ where: { organizationId: org.id }, data: { status: "review" } });
+    await prisma.reservation.create({
+      data: { propertyId: other.id, guestName: "Bircan", arrivalDate: stayDay(1), departureDate: stayDay(3), channel: "manual", status: "confirmed", sourceReference: "res-unres-copy" },
+    });
+    const access = await accessOf(org.id, r.id);
+    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.label ?? "").not.toContain("siz gönderin");
   });
 });

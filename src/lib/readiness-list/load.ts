@@ -20,6 +20,7 @@ import { lifecycleBaselineWhere } from "@/lib/automation";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
 import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { loadErasureGuard } from "@/lib/erasure";
+import { UNRESOLVED_DELIVERY_STATUSES } from "@/lib/outbox/state";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
 import { checklistTouched, WORK_TRACE_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
 import { loadBackupCleaners } from "@/lib/tasks/default-cleaner";
@@ -278,7 +279,8 @@ export async function loadArrivalReadiness(
       // G1 tur 4 T4-B2: kuyrukta SON durumda başarısız kalmış giriş mesajı — gönderici bu rezervasyonu bir daha kuyruğa almaz; ekran "hazır"
       // dememeli (↓`autoCheckinStateOf` "gitmez" + elle gönderim).
       const failedCheckinRefs = new Set<string>();
-      // G1 tur 5 T5-B2: gönderimi doğrulanamayan (`review`) giriş mesajı gitmiş OLABİLİR — "hazır" denmez, düğme de sunulmaz (↑queued kümesinde kalır).
+      // G1 tur 5 T5-B2: gönderimi doğrulanamayan giriş mesajı gitmiş OLABİLİR — "hazır" denmez, düğme de sunulmaz (↑queued kümesinde kalır). Küme
+      // teslim sonucunun tek kaynağı (`UNRESOLVED_DELIVERY_STATUSES`: belirsiz · uzlaştırılıyor · inceleme — sert kontrol 11-20 A1-c).
       const unverifiedCheckinRefs = new Set<string>();
       const refs = manualConnection ? [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))] : [];
       const [manualErasure, owned] = await Promise.all([
@@ -298,7 +300,7 @@ export async function loadArrivalReadiness(
         }
         queuedCheckinRefs.add(o.externalReservationId);
         if (o.status !== "pending") queuedBeyondPendingRefs.add(o.externalReservationId);
-        if (o.status === "review") unverifiedCheckinRefs.add(o.externalReservationId);
+        if ((UNRESOLVED_DELIVERY_STATUSES as readonly string[]).includes(o.status)) unverifiedCheckinRefs.add(o.externalReservationId);
       }
       return { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs, unverifiedCheckinRefs };
     })(),
@@ -411,9 +413,11 @@ export async function loadArrivalReadiness(
     if (a.status !== "confirmed") return { state: "not_sending", reason: "no_baseline" };
     if (erasure?.blocksSourceReference(a.sourceReference)) return { state: "not_sending", reason: "erased" };
     if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
+    // Gönderimi belirsiz mesaj iki dairede kayıttan ÖNCE okunur (sert kontrol 11-20 A1-b): mesaj gitmiş olabilir, "giriş bilgisini siz gönderin"
+    // denmez (sonradan eklenen kopya bunu değiştirmez).
+    if (a.sourceReference && unverifiedCheckinRefs.has(a.sourceReference)) return { state: "unverified" };
     if (a.sourceReference && twoProperties.has(a.sourceReference)) return { state: "not_sending", reason: "two_properties" };
     if (a.sourceReference && failedCheckinRefs.has(a.sourceReference)) return { state: "not_sending", reason: "queue_failed" };
-    if (a.sourceReference && unverifiedCheckinRefs.has(a.sourceReference)) return { state: "unverified" };
     // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
     const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);
     if (issue && issue !== "empty") return { state: "skipped", reason: issue };

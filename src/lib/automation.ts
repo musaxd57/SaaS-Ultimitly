@@ -5849,7 +5849,7 @@ type LifecycleDepartureRow = Prisma.ReservationGetPayload<{ select: typeof LIFEC
  *    şimdiye çeker (Y4) — o iş gönderim döngüsündedir; bekleyen satır zaten birkaç dakikada teslim edilip damgalanır, listeyi tıkamaz.
  * Sayfa başına TEK kuyruk sorgusu; silme kapısı koşu başına bir kez okunur (`erasureGuardMemo`).
  */
-async function lifecycleUnusableIds(
+export async function lifecycleUnusableIds(
   organizationId: string,
   messageType: AutoMessageKind,
   rows: readonly { id: string; sourceReference: string | null }[],

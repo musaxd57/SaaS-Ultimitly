@@ -9,7 +9,7 @@ import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE } from "@/lib/channels/capabilit
 import { lifecycleStatusWhere, type LifecycleMessageKind } from "@/lib/lifecycle-status";
 import { CHECKOUT_SEND_END_HOUR } from "@/lib/lifecycle-window";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
-import { lifecycleBaselineWhere, lifecycleTemplatedPropertyWhere } from "@/lib/automation";
+import { lifecycleBaselineWhere, lifecycleTemplatedPropertyWhere, lifecycleUnusableIds } from "@/lib/automation";
 import { loadErasureGuard } from "@/lib/erasure";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,9 @@ import { loadErasureGuard } from "@/lib/erasure";
 //     çekmez, yenilemez);
 //   · satır: işletme · gönderilebilir durum (`lifecycle-status.ts`) · bu türde damgasız · kanaldan mesajlaşabilir (V0.5) · daire başına açılış
 //     tabanı (`lifecycleBaselineWhere`) · bu türde metni olan daire (`lifecycleTemplatedPropertyWhere`);
-//   · açıkça silinmiş (KVKK) misafir değil (`loadErasureGuard`);
+//   · açıkça silinmiş (KVKK) misafir değil ve satır kuyruğun / eski kuyruk denemesinin SAHİPLİĞİNDE değil — göndericinin kendi ön elemesi
+//     (`lifecycleUnusableIds`, sert kontrol 11-20 A1): kuyrukta gönderimi belirsiz (`ambiguous` / `review`, misafire gitmiş OLABİLİR) ya da
+//     kesin başarısız satır varsa gönderici bu rezervasyonu bir daha kuyruğa vermez → "durduruldu" yanlış bilgi olurdu;
 //   · pencere HENÜZ geçmemiş: karşılama ve giriş varış gününe kadar (giriş mesajının "varıştan en çok 4 gün önce" alt sınırı yalnız ZAMANI
 //     erteler, engeli değil), çıkış çıkış günü işletme saatiyle 12:00'ye kadar (`lifecycle-window.ts`).
 // Geçici engeller sayılmaz (sağlayıcının 429 beklemesi, reddedilen gönderimin yeniden deneme aralığı): onlar mesajı durdurmaz, erteler.
@@ -102,8 +104,9 @@ export async function autoSendStoppedByConflict(input: { organizationId: string;
   if (!(await hasMessagingConnection(organizationId))) return out;
 
   const tz = orgTimezone(org.timezone);
-  const guardRead = loadErasureGuard(organizationId);
-  void guardRead.catch(() => undefined);
+  const erasureRead = loadErasureGuard(organizationId);
+  void erasureRead.catch(() => undefined);
+  const erasureGuard = () => erasureRead;
   const perKind = await Promise.all(
     switched.map(async ({ kind, baseline }) => ({
       kind,
@@ -122,15 +125,15 @@ export async function autoSendStoppedByConflict(input: { organizationId: string;
             await lifecycleTemplatedPropertyWhere(organizationId, kind),
           ],
         },
-        select: { sourceReference: true, arrivalDate: true, departureDate: true },
+        select: { id: true, sourceReference: true, arrivalDate: true, departureDate: true },
       }),
     })),
   );
-  const guard = await guardRead;
   for (const { kind, rows } of perKind) {
+    const unusable = await lifecycleUnusableIds(organizationId, kind, rows, erasureGuard);
     for (const row of rows) {
       const ref = row.sourceReference;
-      if (ref && !out.has(ref) && windowStillOpen(kind, row, now, tz) && !guard.blocksSourceReference(ref)) out.add(ref);
+      if (ref && !out.has(ref) && windowStillOpen(kind, row, now, tz) && !unusable.has(row.id)) out.add(ref);
     }
   }
   return out;
