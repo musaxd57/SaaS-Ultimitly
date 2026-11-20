@@ -367,6 +367,62 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     expect(await prisma.guestCommitment.count({ where: { conversationId: keeper.id, status: "open" } })).toBe(1);
   });
 
+  // G1 tur 10 (ölçüldü): kopyanın mesajı tutulanda AYNI sağlayıcı mesajı olarak var ve İKİ konuşma da o mesaja aynı türde öğe / karar kartı
+  // açmışsa, birleştirmeden sonra tutulan konuşmada aynı istek İKİ kez açık görünüyordu (rozet 2, Dikkat 2, iki "karar bekliyor" kartı — ikincisi
+  // onaylanırsa misafire ikinci karar mesajı). Kopyanın açık ikizi kapanır (iz kalır, silinmez).
+  const msgId = async (conversationId: string, externalId: string) =>
+    (await prisma.message.findFirstOrThrow({ where: { conversationId, externalId }, select: { id: true } })).id;
+
+  it("🚨 G1 tur 10: aynı mesajın iki konuşmadaki AÇIK öğe + bekleyen karar kartı ikizi birleştirmede TEK kalır (kopyanınki kapanır, silinmez)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const dup = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?"], messageIds: ["m-1"] });
+    const keeper = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?", "Anahtar?"], messageIds: ["m-1", "m-2"] });
+    const [dupMsg, keeperMsg] = [await msgId(dup.id, "m-1"), await msgId(keeper.id, "m-1")];
+    for (const [conversationId, messageId] of [[keeper.id, keeperMsg], [dup.id, dupMsg]] as const) {
+      await prisma.conversationItem.create({
+        data: { organizationId: orgId, conversationId, messageId, kind: "late_checkout", sensitivity: "sensitive", sources: "understanding", status: "pending_host" },
+      });
+      await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId, messageId, kind: "late_checkout", requestedTime: "13:00", lang: "tr" } });
+    }
+
+    expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.conversationItem.count({ where: { conversationId: keeper.id, status: { in: ["open", "pending_host"] } } })).toBe(1);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id, status: "pending" } })).toBe(1);
+    // Kalan açık kayıtlar tutulanın KENDİ mesajına bağlı olanlar; kopyanınkiler iz olarak durur (kapalı).
+    expect(await prisma.conversationItem.findFirst({ where: { conversationId: keeper.id, status: "pending_host" }, select: { messageId: true } })).toEqual({ messageId: keeperMsg });
+    expect(await prisma.conversationItem.findFirst({ where: { messageId: dupMsg }, select: { status: true, conversationId: true } })).toEqual({ status: "superseded", conversationId: keeper.id });
+    expect(await prisma.decisionRequest.findFirst({ where: { messageId: dupMsg }, select: { status: true, conversationId: true } })).toEqual({ status: "superseded", conversationId: keeper.id });
+  });
+
+  it("🚨 G1 tur 10: kopyadaki kart KARARA bağlandıysa tutulandaki bekleyen ikizi kapanır (aynı talep ikinci kez onaylanıp misafire gitmesin)", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const dup = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?"], messageIds: ["m-1"] });
+    const keeper = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?", "Anahtar?"], messageIds: ["m-1", "m-2"] });
+    const [dupMsg, keeperMsg] = [await msgId(dup.id, "m-1"), await msgId(keeper.id, "m-1")];
+    await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: dup.id, messageId: dupMsg, kind: "late_checkout", requestedTime: "13:00", lang: "tr", status: "approved", decidedTime: "13:00", decidedAt: new Date() } });
+    await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: keeper.id, messageId: keeperMsg, kind: "late_checkout", requestedTime: "13:00", lang: "tr" } });
+
+    expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id, status: "pending" } })).toBe(0);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id, status: "approved" } })).toBe(1);
+  });
+
+  it("KONTROL (aşırı uygulama): ikizi OLMAYAN öğe / kart (başka tür ya da tutulanda kaydı yok) açık kalır", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const dup = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?"], messageIds: ["m-1"] });
+    const keeper = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Geç çıkış olur mu?", "Anahtar?"], messageIds: ["m-1", "m-2"] });
+    const [dupMsg, keeperMsg] = [await msgId(dup.id, "m-1"), await msgId(keeper.id, "m-1")];
+    // Tutulanda AYNI mesaja başka TÜRDE kayıt var — ikiz değil.
+    await prisma.conversationItem.create({ data: { organizationId: orgId, conversationId: keeper.id, messageId: keeperMsg, kind: "early_checkin", sensitivity: "sensitive", sources: "understanding", status: "pending_host" } });
+    await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: keeper.id, messageId: keeperMsg, kind: "early_checkin", requestedTime: "11:00", lang: "tr" } });
+    await prisma.conversationItem.create({ data: { organizationId: orgId, conversationId: dup.id, messageId: dupMsg, kind: "late_checkout", sensitivity: "sensitive", sources: "understanding", status: "pending_host" } });
+    await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: dup.id, messageId: dupMsg, kind: "late_checkout", requestedTime: "13:00", lang: "tr" } });
+
+    expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.conversationItem.count({ where: { conversationId: keeper.id, status: "pending_host" } })).toBe(2);
+    expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id, status: "pending" } })).toBe(2);
+  });
+
   it("🚨 taşınan model listesi şemadaki konuşma referans envanteriyle BİREBİR aynı (mesajlar hariç — onlar kapsanmış kopya, silinir)", () => {
     expect([...CLEANUP_REPOINTED_MODELS].sort()).toEqual(inventoryConversationReferences().filter((m) => m !== "Message"));
   });

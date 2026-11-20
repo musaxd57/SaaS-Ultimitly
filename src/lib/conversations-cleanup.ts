@@ -158,7 +158,7 @@ const CONVERSATION_SELECT = {
   reservationId: true,
   externalReservationId: true,
   externalConversationId: true,
-  messages: { select: { body: true, externalId: true, direction: true, createdAt: true } },
+  messages: { select: { id: true, body: true, externalId: true, direction: true, createdAt: true } },
 } as const;
 
 /**
@@ -202,11 +202,91 @@ async function repointConversationChildren(tx: Prisma.TransactionClient, fromId:
   await tx.replyDraftLink.updateMany(move);
   await tx.replyDraftSpan.updateMany(move);
   await tx.riskEvent.updateMany(move);
-  // Anlam okuması gölge kaydı (migration 99, FK Cascade): silinirse ölçüm kaydı kaybolurdu; mesaj korunan konuşmaya taşındığı için kayıt da
-  // onu izler (tekillik mesaj kimliği + katman — küresel, çakışmaz).
+  // Anlam okuması gölge kaydı (migration 99, FK Cascade): silinirse ölçüm kaydı kaybolurdu → korunan konuşmayı izler (tekillik mesaj kimliği +
+  // katman — küresel, çakışmaz). ⚠️ Bu yolda kopyanın MESAJLARI TAŞINMAZ, silinir (hepsi tutulanda aynı mesaj olarak var): mesaj kimliğini düz
+  // metin taşıyan kayıtlar (bu kayıt, öğe, karar kartı, ev sahibine soru, söz, engel) silinmiş kopya mesajı göstermeye devam eder — okuyucular
+  // mesajı bulamayınca kaydın kendi anına düşer (`decisions/decide.ts`, `conversation-items/store.ts`). Aynı isteğin İKİ açık kaydı ise
+  // ↓`closeDuplicatedTwins` ile teke iner.
   await tx.semanticReading.updateMany(move);
   await tx.shadowVerdict.updateMany(move);
   await tx.signal.updateMany(move);
+}
+
+type MessageWithId = MessageIdentity & { id: string };
+
+/** Kopyadaki mesaj → tutulandaki AYNI mesaj (`coveredByKeeper` ile aynı kimlik, çoklu kümede bire bir eşleme). */
+function pairCoveredMessages(keeper: readonly MessageWithId[], dup: readonly MessageWithId[]): Map<string, string> {
+  const pool = new Map<string, string[]>();
+  for (const m of keeper) {
+    const k = messageKey(m);
+    const ids = pool.get(k);
+    if (ids) ids.push(m.id);
+    else pool.set(k, [m.id]);
+  }
+  const out = new Map<string, string>();
+  for (const m of dup) {
+    const id = pool.get(messageKey(m))?.shift();
+    if (id) out.set(m.id, id);
+  }
+  return out;
+}
+
+const OPEN_ITEM_STATUSES = ["open", "pending_host"];
+/** Karar verilmiş ya da gönderimi başlamış kart: misafire karar mesajı gitmiş / gidiyor olabilir. */
+const DECIDED_CARD_STATUSES = ["approved", "declined", "resolved_by_policy", "sending", "send_unverified"];
+
+/**
+ * AYNI İSTEĞİN İKİ AÇIK KAYDI TEKE İNER (G1 tur 10, ölçüldü). Kopya ile tutulan AYNI sağlayıcı mesajını taşır; iki konuşma da o mesaja aynı
+ * türde öğe / karar kartı açmışsa birleştirmeden sonra tutulan konuşmada aynı istek iki kez açık görünüyordu (rozet 2, Dikkat 2, iki "karar
+ * bekliyor" kartı — ikincisi onaylanırsa misafire ikinci karar mesajı). Kural "mesaj + tür tekil"in birleştirmedeki karşılığı:
+ *  · kopyanın AÇIK öğesi, tutulanda aynı mesaj + tür + sıra kaydı varsa (durumu ne olursa olsun) "superseded" olur — acil öğe dahil: ikizi
+ *    aynı acil kaydıdır (açıksa o görünür, ev sahibi kapattıysa aynı mesajın kopyası yeniden açık görünmemeli). Silinmez, iz kalır.
+ *  · kopyanın BEKLEYEN kartı, tutulanda aynı mesaj + tür kartı varsa kapanır; kopyanın kartı KARARA bağlandıysa (gitmiş / gidiyor olabilir)
+ *    tutulandaki BEKLEYEN ikiz kapanır — aynı talep ikinci kez onaylanmasın.
+ * İkizi olmayan kayıt (başka tür, tutulanda kaydı yok) dokunulmadan taşınır. Durum koşullu yazılır (eşzamanlı karar CAS'ı korunur).
+ */
+async function closeDuplicatedTwins(
+  tx: Prisma.TransactionClient,
+  keeperId: string,
+  dupId: string,
+  pairs: ReadonlyMap<string, string>,
+  now: Date,
+): Promise<void> {
+  if (pairs.size === 0) return;
+  const dupMessageIds = [...pairs.keys()];
+  const items = await tx.conversationItem.findMany({
+    where: { conversationId: dupId, messageId: { in: dupMessageIds }, status: { in: OPEN_ITEM_STATUSES } },
+    select: { id: true, messageId: true, kind: true, ordinal: true },
+  });
+  for (const it of items) {
+    // `undefined` Prisma'da süzgeci DÜŞÜRÜR (her mesaj eşleşirdi) → eşlenmemiş mesaj açıkça atlanır.
+    const mapped = pairs.get(it.messageId);
+    if (!mapped) continue;
+    const twin = await tx.conversationItem.findFirst({
+      where: { conversationId: keeperId, messageId: mapped, kind: it.kind, ordinal: it.ordinal },
+      select: { id: true },
+    });
+    if (twin) {
+      await tx.conversationItem.updateMany({ where: { id: it.id, status: { in: OPEN_ITEM_STATUSES } }, data: { status: "superseded", resolvedAt: now } });
+    }
+  }
+  const cards = await tx.decisionRequest.findMany({
+    where: { conversationId: dupId, messageId: { in: dupMessageIds } },
+    select: { id: true, messageId: true, kind: true, status: true },
+  });
+  for (const card of cards) {
+    const mapped = pairs.get(card.messageId);
+    if (!mapped) continue;
+    const twin = await tx.decisionRequest.findFirst({
+      where: { conversationId: keeperId, messageId: mapped, kind: card.kind },
+      select: { id: true, status: true },
+    });
+    if (!twin) continue;
+    const loser = card.status === "pending" ? card.id : DECIDED_CARD_STATUSES.includes(card.status) && twin.status === "pending" ? twin.id : null;
+    if (loser) {
+      await tx.decisionRequest.updateMany({ where: { id: loser, status: "pending" }, data: { status: "superseded", version: { increment: 1 } } });
+    }
+  }
 }
 
 export async function cleanupDuplicateConversations(
@@ -267,6 +347,7 @@ export async function cleanupDuplicateConversations(
         const d = fresh.find((c) => c.id === dup.id);
         if (!k || !d) return "gone" as const;
         if (!coveredByKeeper(k.messages, d.messages) || !sameStay(k, d) || conversationIdsConflict(k, d)) return "review" as const;
+        await closeDuplicatedTwins(tx, k.id, d.id, pairCoveredMessages(k.messages, d.messages), new Date());
         await repointConversationChildren(tx, d.id, k.id);
         await tx.message.deleteMany({ where: { conversationId: d.id } });
         await tx.conversation.delete({ where: { id: d.id } });
