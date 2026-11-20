@@ -221,6 +221,9 @@ Bu dosyaya token/anahtar/parola yazma.
   HATA OLMAYANI HATA GİBİ GÖSTERMESİ ÇOK DAHA KÖTÜDÜR. Bu cümle hata ayıklama / inceleme ajanının istemine yazılır; bulgu dosya:satır + somut
   senaryo taşır, kanıtlanamayan "emin değilim" diye ayrı yazılır, "bulgu yok" geçerli sonuçtur; ana oturum her bulguyu kodda doğrular.
   Araştırma ajanı bu kuralın konusu DEĞİLDİR — kod hatası aramaz, araştırma yapar.
+- **Hata ayıklama ajanı konu döndürür (kurucu 11-20: "P1 ve P2 bulamamaya başlayınca o spesifik yer için agentları başka konuya geçir,
+  zorla hata buldurmuş gibi olmamıza gerek yok, kontrolleri sen güzelce sağla"):** bir alanda makul çabadan sonra P1 / P2 çıkmıyorsa alan
+  "temiz (ne denendi)" diye kaydedilir ve ajan başka konuya geçirilir; P3'ler tek satır. Bulguların kontrolü ve doğrulaması ana oturumdadır.
 - **Kurucu cevap incelemesi (10-08):** ölçüm yan dosyalarından (`docs/olcum/*.json`) çıkan misafir mesajı → yapay zekâ cevabı çiftleri
   `scripts/review/build-review-set.py` ile toplanır, sayfa https://claude.ai/artifact/DFkiB4FkXrNagEtHnGTXXN (veri `review-set.json`,
   yorumlar sayfanın veritabanında `reviews/m<mesaj özeti>` — soru başına kararlı kimlik, eski `q…` / çift kimlikli kayıtlar da okunur: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list
