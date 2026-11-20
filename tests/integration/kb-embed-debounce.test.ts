@@ -210,6 +210,8 @@ describe("D2 kontrol", () => {
       await settle();
     }
     expect(wifiEmbeds()).toHaveLength(3);
-    expect(vi.getTimerCount()).toBe(0);
+    // Gecikmeli ısıtmanın zamanlayıcısı kurulmadı. (`vi.getTimerCount()` değil: ölçüm satırının olay günlüğü yazımı kendi 500 ms'lik zaman
+    // aşımı zamanlayıcısını kurar — sahte saatte hiç dolmaz, gecikmeli ısıtmayla ilgisi yok.)
+    expect(kbWarm.__pendingWarmTimers().size).toBe(0);
   });
 });

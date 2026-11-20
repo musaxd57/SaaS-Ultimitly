@@ -49,6 +49,9 @@ export const OPERATIONAL_EVENTS = {
   "job.failed": "error",
   "job.org.processed": "info",
   "job.outbox.row": "info",
+  // Bilgi tabanı değişikliği anlamsal aramaya yansıdı (kurucu 11-20 sabah, ilk hafta izlenecek sayı; `ai/embeddings/kb-warm.ts`):
+  // `durationMs` = kayıt değişikliği → ısıtmanın bitişi, `count` = gömülen metin. Metin / kimlik yok.
+  "job.kb_embed.ready": "info",
   // Operatör yazması (güvenlik 2. tur 10-22): müşteri adayı kaydı işletmesiz olduğu için denetim kaydına (AuditLog, işletme ister) yazılamaz;
   // iz burada — yalnız aday + operatör kimliği, değişen alanların ADI ve yeni durum (not / tarih değeri yazılmaz).
   "operator.lead.updated": "info",

@@ -19,6 +19,7 @@ import { reportError } from "@/lib/report-error";
 import { kbRetrievalMode, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
 import { purgeVectorStoreForCurrentModel, warmKbVectorSets, type WarmOptions } from "@/lib/ai/embeddings/semantic-retrieval";
 import { propertyWarmSets } from "@/lib/ai/embeddings/kb-warm-texts";
+import { logEvent } from "@/lib/event-log";
 
 function warmingOn(): boolean {
   return semanticRetrievalInfo().enabled && kbRetrievalMode() === "hybrid";
@@ -28,20 +29,40 @@ function warmingOn(): boolean {
  * Tek mülkün bilgi tabanını ısıtır; kuyruğa alınan parça metni sayısını döner (test/teşhis). Fırlatmaz. `onBudgetRefused` yalnız gecikmeli
  * ısıtmanın yeniden planlaması içindir (D2).
  */
-export async function warmPropertyKbVectors(propertyId: string, extra: Pick<WarmOptions, "onBudgetRefused"> = {}): Promise<number> {
+export async function warmPropertyKbVectors(
+  propertyId: string,
+  extra: Pick<WarmOptions, "onBudgetRefused"> & { measure?: boolean } = {},
+): Promise<number> {
   if (!warmingOn()) return 0;
   try {
     // Kümeler (ham + farklıysa QR'ın nötr hitaplı biçimi) TEK KAYNAKTAN — D3 temizliği aynı metinleri "geçerli" sayar (`kb-warm-texts.ts`).
     const ws = await propertyWarmSets(propertyId);
     if (!ws) return 0;
     // İşletme kovası (D1, anahtar açıkken) için işletme burada bilinir; kapalıyken seçenek okunmaz.
-    const opts: WarmOptions = { organizationId: ws.organizationId, ...extra };
+    const { measure, ...rest } = extra;
+    const opts: WarmOptions = {
+      organizationId: ws.organizationId,
+      ...rest,
+      ...(measure ? { onReady: (info: { texts: number; newestVersionMs: number }) => noteKbEmbedReady(ws.organizationId, info) } : {}),
+    };
     // Kovalar açıkken dairenin kümeleri TEK iş (tek bütçe alımı, hepsi-ya-hiç); kapalıyken küme başına iş (bugünkü gibi).
     return warmKbVectorSets(ws.sets, opts);
   } catch (err) {
     void reportError("kb-semantic-warm-property", err);
     return 0;
   }
+}
+
+/**
+ * KURUCUNUN İLK HAFTA İZLEYECEĞİ SAYI (11-20 sabah): "bir KB değişikliği anlamsal aramaya ne kadar sürede yansıyor?" Ölçü = kayıt değişikliği
+ * (işin taşıdığı en yeni kalem sürümü, `updatedAt`) → ısıtmanın bitişi; gecikme (20 sn), bütçe beklemesi ve yeniden denemeler İÇİNDE.
+ * Yalnız düzenlemeden doğan ısıtma ölçülür (kanca / gecikmeli ısıtma ve onun yeniden denemesi); açılış ısıtması ölçülmez (eski kalemler).
+ * Kalıcı, yalnız-ekle olay günlüğüne (`OperationalEvent`, migration YOK) tek satır: `job.kb_embed.ready` · `durationMs` = gecikme ·
+ * `count` = gömülen metin. Metin / kimlik yok; işletme satırın kendi alanında. Fırlatmaz.
+ */
+function noteKbEmbedReady(organizationId: string, info: { texts: number; newestVersionMs: number }): void {
+  const lagMs = Math.max(0, Math.round(Date.now() - info.newestVersionMs));
+  void logEvent("job.kb_embed.ready", { job: "kb_embed", durationMs: lagMs, count: info.texts }, { organizationId });
 }
 
 // ─── GECİKMELİ ISITMA (EMB tur 2 D2) ────────────────────────────────────────
@@ -73,12 +94,12 @@ const pendingWarm = new Map<string, ReturnType<typeof setTimeout>>();
 const scheduledRuns = new Set<Promise<void>>();
 let scheduledRunCount = 0;
 
-function scheduleWarmLater(propertyId: string, delayMs: number, refusals: number): void {
+function scheduleWarmLater(propertyId: string, delayMs: number, refusals: number, measureRun = true): void {
   const prev = pendingWarm.get(propertyId);
   if (prev) clearTimeout(prev);
   const timer = setTimeout(() => {
     pendingWarm.delete(propertyId);
-    const run = runScheduledWarm(propertyId, refusals);
+    const run = runScheduledWarm(propertyId, refusals, measureRun);
     scheduledRuns.add(run);
     void run.finally(() => scheduledRuns.delete(run));
   }, delayMs);
@@ -86,15 +107,16 @@ function scheduleWarmLater(propertyId: string, delayMs: number, refusals: number
   pendingWarm.set(propertyId, timer);
 }
 
-async function runScheduledWarm(propertyId: string, refusals: number): Promise<void> {
+async function runScheduledWarm(propertyId: string, refusals: number, measureRun = true): Promise<void> {
   scheduledRunCount += 1;
   let rescheduled = false;
   await warmPropertyKbVectors(propertyId, {
+    measure: measureRun,
     onBudgetRefused: (retryAfterMs) => {
       // Bu arada yeni bir kayıt zamanlayıcıyı kurduysa o kazanır; aynı koşunun ikinci reddi (QR biçimi) ikinci zamanlayıcı kurmaz.
       if (rescheduled || pendingWarm.has(propertyId) || retryAfterMs === null || refusals >= WARM_RETRY_MAX) return;
       rescheduled = true;
-      scheduleWarmLater(propertyId, Math.max(retryAfterMs, warmDebounceMs()), refusals + 1);
+      scheduleWarmLater(propertyId, Math.max(retryAfterMs, warmDebounceMs()), refusals + 1, measureRun);
     },
   });
 }
@@ -106,7 +128,7 @@ export function warmPropertyKbVectorsBestEffort(propertyId: string | null | unde
     scheduleWarmLater(propertyId, warmDebounceMs(), 0);
     return;
   }
-  void warmPropertyKbVectors(propertyId);
+  void warmPropertyKbVectors(propertyId, { measure: true });
 }
 
 /** Test: bekleyen zamanlayıcıları sil. */
@@ -152,7 +174,7 @@ export function warmAllKbVectorsOnce(): void {
         // Kurucu 11-20 sabah: "Bütçe dolarsa iş kaybolmasın, sonraki uygun zamanda devam etsin". Gecikmeli ısıtma açıkken açılış ısıtması
         // da reddedilirse (işletme kovası DB'de, kopyalar / önceki süreç doldurmuş olabilir) pencere açılınca kendiliğinden yeniden denenir
         // — yeniden başlatmada kaybolan süreç içi zamanlayıcının yerini tutar. Kapalıyken bugünkü tek deneme.
-        if (debouncedWarmEnabled()) await runScheduledWarm(r.propertyId, 0);
+        if (debouncedWarmEnabled()) await runScheduledWarm(r.propertyId, 0, false);
         else await warmPropertyKbVectors(r.propertyId);
       }
     } catch (err) {

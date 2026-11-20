@@ -151,6 +151,12 @@ export interface WarmOptions {
   organizationId?: string;
   /** Bütçe reddederse çağrılır (D2 yeniden planlama): pencerenin bitişine kalan süre; `null` = yeniden denemenin anlamı yok. */
   onBudgetRefused?: (retryAfterMs: number | null) => void;
+  /**
+   * İş TAMAMLANDI (bütün metinleri gömüldü ya da depodan okundu): metin sayısı + işin taşıdığı EN YENİ kalem sürümü (ms). Yalnız ölçüm içindir
+   * (kurucu 11-20 sabah: "bir KB değişikliği anlamsal aramaya ne kadar sürede yansıyor?"); reddedilen / sağlayıcı arızasıyla yarım kalan işte
+   * çağrılmaz.
+   */
+  onReady?: (info: { texts: number; newestVersionMs: number }) => void;
 }
 
 /**
@@ -259,20 +265,31 @@ function scheduleWarm(model: string, entries: readonly WarmEntry[], opts: WarmOp
           remaining = todo.filter((t) => !vectors.has(t));
         }
       }
+      let complete = true;
       if (deferBudget && remaining.length > 0) {
         const ids = [...new Set(remaining.flatMap((t) => (owners.get(t) ?? []).map((o) => o.kbItemId)))];
-        if (!(await takeBackgroundBudget(remaining.length, ids, opts))) remaining = [];
+        if (!(await takeBackgroundBudget(remaining.length, ids, opts))) {
+          remaining = [];
+          complete = false;
+        }
       }
       for (let i = 0; i < remaining.length; i += EMBEDDING_BATCH_MAX) {
         const batch = remaining.slice(i, i + EMBEDDING_BATCH_MAX);
         const out = await embedTexts(batch, { quiet: true });
         // Sağlayıcı arızası: dur. Alarm sağlayıcının kendi (geçiş tabanlı) yolunda; burada ikinci
         // bir alarm YOK (kalıcı kota arızasında her misafir mesajı bir e-posta demek olurdu).
-        if (!out) break;
+        if (!out) {
+          complete = false;
+          break;
+        }
         batch.forEach((t, j) => storeSet(storeKey(model, t), out[j]));
         if (storeOn) {
           markPersisted(await persistChunkVectors(model, batch.map((t, j) => ({ owners: owners.get(t) ?? [], text: t, vector: out[j] }))));
         }
+      }
+      if (complete && todo.length > 0 && opts.onReady) {
+        const newestVersionMs = Math.max(...todo.flatMap((t) => (owners.get(t) ?? []).map((o) => o.updatedAt.getTime())));
+        opts.onReady({ texts: todo.length, newestVersionMs });
       }
     } catch (err) {
       void reportError("kb-semantic-warm", err);
