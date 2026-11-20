@@ -46,6 +46,11 @@ interface Props {
   totalCount?: number;
   /** Verilmezse tek sayfa, arama yok. */
   listing?: Listing;
+  /**
+   * Sınır satırı (kurucu 11-20 sabah Ş-2): sınırın %90'ında uyarı, sınırda bugünkü sınır metni. Metin sunucuda kurulur
+   * (`messageTemplateCapNotice`, eşik yürürlükteki sınırdan); bileşen yalnız gösterir. Yoksa satır yok.
+   */
+  capNotice?: string | null;
   defaultTemplates: MessageTemplate[];
   /** Owner/manager may add/edit/delete templates; staff get a read-only view. */
   canManage?: boolean;
@@ -66,7 +71,7 @@ const LANG_LABELS: Record<string, string> = { tr: "Türkçe", en: "İngilizce", 
 
 const EMPTY_FORM = { title: "", body: "", category: "general", language: "tr", propertyId: "" };
 
-export function TemplateManager({ properties, customTemplates, totalCount, listing, defaultTemplates, canManage = true }: Props) {
+export function TemplateManager({ properties, customTemplates, totalCount, listing, capNotice, defaultTemplates, canManage = true }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const allCount = totalCount ?? customTemplates.length;
@@ -285,6 +290,13 @@ export function TemplateManager({ properties, customTemplates, totalCount, listi
           </Button>
         ) : null}
       </div>
+
+      {/* Sınır satırı (Ş-2): %90'da uyarı, sınırda bugünkü sınır metni — tek satır, sunucunun kurduğu metin. */}
+      {capNotice ? (
+        <p className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+          {capNotice}
+        </p>
+      ) : null}
 
       {/* Create / Edit Form */}
       <div ref={formRef}>

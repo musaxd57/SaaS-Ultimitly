@@ -45,6 +45,20 @@ export function messageTemplateCapMessage(cap: number): string {
   return `Özel şablon sınırına ulaştınız (${cap.toLocaleString("tr-TR")} şablon). Yeni şablon eklemek için kullanmadığınız bir şablonu silin.`;
 }
 
+/**
+ * Şablonlar sayfasındaki sınır satırı (kurucu 11-20 sabah Ş-2: "Evet, 450'de uyarı"). Eşik sınırın %90'ı, SINIRDAN türetilir (450 koda
+ * yazılmaz; sınır plan tablosundan / acil frenden gelir) ve yukarı yuvarlanır — uyarı hiçbir zaman %90'ın altında başlamaz. Sınıra ulaşan ya
+ * da aşan işletmede uyarı yerine bugünkü sınır metni: TEK satır (iki satır aynı şeyi iki kez söylerdi). `count` sınırın saydığıyla aynı —
+ * işletmenin bütün özel şablonları, pasifler dahil. Satır yoksa null.
+ */
+export function messageTemplateCapNotice(count: number, cap: number): string | null {
+  if (count >= cap) return messageTemplateCapMessage(cap);
+  if (count >= Math.ceil((cap * 9) / 10)) {
+    return `Özel şablon sınırına yaklaşıyorsunuz (${count.toLocaleString("tr-TR")} / ${cap.toLocaleString("tr-TR")}).`;
+  }
+  return null;
+}
+
 export type TemplateCreateFields = {
   propertyId: string | null;
   category: string;

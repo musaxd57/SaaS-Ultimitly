@@ -98,3 +98,24 @@ describe("şablonlar sayfası — sayfalama ve arama", () => {
     expect(screen.getByLabelText("Şablonlarda ara")).toBeTruthy();
   });
 });
+
+// Kurucu 11-20 sabah Ş-2: sınıra yaklaşınca tek satır (metin sunucuda kurulur — `messageTemplateCapNotice`; burada yalnız gösterim).
+describe("şablonlar sayfası — sınır satırı", () => {
+  it("sunucunun verdiği sınır satırı başlığın altında görünür", () => {
+    render(
+      <TemplateManager
+        properties={[]}
+        customTemplates={rows(3)}
+        totalCount={452}
+        capNotice="Özel şablon sınırına yaklaşıyorsunuz (452 / 500)."
+        defaultTemplates={[]}
+      />,
+    );
+    expect(screen.getByText("Özel şablon sınırına yaklaşıyorsunuz (452 / 500).")).toBeTruthy();
+  });
+
+  it("KONTROL: satır verilmezse hiçbir sınır metni basılmaz", () => {
+    render(<TemplateManager properties={[]} customTemplates={rows(3)} totalCount={3} defaultTemplates={[]} />);
+    expect(screen.queryByText(/sınırına/)).toBeNull();
+  });
+});

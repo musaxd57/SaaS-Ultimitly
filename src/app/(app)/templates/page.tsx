@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
 import { TemplateManager } from "@/components/templates/template-manager";
 import { listTemplatePage, normalizeTemplateQuery } from "@/lib/template-list";
+import { messageTemplateCapForOrg, messageTemplateCapNotice } from "@/lib/template-cap";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export default async function TemplatesPage({
 
   // Kurucu 11-19 akşam madde 1: sayfa BÜTÜN şablonları tam gövdeyle okuyordu (T2-B8). Artık seçiciyle AYNI sınırlı sorgu
   // (`lib/template-list.ts`): sayfa başına en çok 30, kısa önizleme; arama bütün şablonlarda; tam metin "Düzenle"de `GET /api/templates/[id]`.
-  const [properties, list, allCount] = await Promise.all([
+  const [properties, list, allCount, cap] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
       select: { id: true, name: true },
@@ -31,7 +32,11 @@ export default async function TemplatesPage({
     listTemplatePage(session.organizationId, { scope: { kind: "manage" }, query, page }),
     // Başlıktaki sayı işletmenin TOPLAM özel şablonu (aramadan bağımsız); aramasızken liste toplamı zaten odur.
     query ? prisma.messageTemplate.count({ where: { organizationId: session.organizationId } }) : Promise.resolve(null),
+    // Kurucu 11-20 sabah Ş-2: sınıra yaklaşınca uyarı satırı — eşik yürürlükteki sınırdan (plan tablosu / acil fren) türetilir.
+    messageTemplateCapForOrg(session.organizationId),
   ]);
+  // Sınırın saydığıyla aynı sayı: işletmenin bütün özel şablonları, pasifler dahil (aramadan bağımsız).
+  const templateCount = allCount ?? list.total;
 
   const hrefFor = (p: number) => {
     const qs = new URLSearchParams();
@@ -64,7 +69,8 @@ export default async function TemplatesPage({
           propertyName: t.propertyName,
           propertyId: t.propertyId,
         }))}
-        totalCount={allCount ?? list.total}
+        totalCount={templateCount}
+        capNotice={messageTemplateCapNotice(templateCount, cap)}
         listing={{ query, page: list.page, pageSize: list.pageSize, matchCount: list.total }}
         defaultTemplates={DEFAULT_TEMPLATES}
       />
