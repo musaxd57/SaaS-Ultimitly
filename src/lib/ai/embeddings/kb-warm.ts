@@ -17,7 +17,7 @@
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { kbRetrievalMode, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
-import { purgeVectorStoreForCurrentModel, warmKbVectors, type WarmOptions } from "@/lib/ai/embeddings/semantic-retrieval";
+import { purgeVectorStoreForCurrentModel, warmKbVectorSets, type WarmOptions } from "@/lib/ai/embeddings/semantic-retrieval";
 import { propertyWarmSets } from "@/lib/ai/embeddings/kb-warm-texts";
 
 function warmingOn(): boolean {
@@ -36,9 +36,8 @@ export async function warmPropertyKbVectors(propertyId: string, extra: Pick<Warm
     if (!ws) return 0;
     // İşletme kovası (D1, anahtar açıkken) için işletme burada bilinir; kapalıyken seçenek okunmaz.
     const opts: WarmOptions = { organizationId: ws.organizationId, ...extra };
-    let queued = 0;
-    for (const set of ws.sets) queued += warmKbVectors(set, opts);
-    return queued;
+    // Kovalar açıkken dairenin kümeleri TEK iş (tek bütçe alımı, hepsi-ya-hiç); kapalıyken küme başına iş (bugünkü gibi).
+    return warmKbVectorSets(ws.sets, opts);
   } catch (err) {
     void reportError("kb-semantic-warm-property", err);
     return 0;

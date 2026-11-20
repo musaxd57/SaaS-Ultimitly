@@ -389,17 +389,39 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
 export function warmKbVectors<T extends KbChunkSource>(items: readonly T[], opts: WarmOptions = {}): number {
   try {
     if (!semanticRetrievalInfo().enabled) return 0;
-    if (!retrievalNeeded(items)) return 0;
-    const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
-    const chunks = chunkItems(kept);
-    if (chunks.length > SEMANTIC_MAX_CHUNKS) return 0;
-    const model = embeddingModel();
+    const entries = warmEntriesFor(items);
+    if (!entries) return 0;
     // Depoda olmayan ve hâlihazırda ısıtılmayan metinler (sayı kuyruğa GERÇEKTEN alınanlar; bütçe reddederse 0).
-    return scheduleWarm(
-      model,
-      chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id, updatedAt: c.updatedAt })),
-      opts,
-    );
+    return scheduleWarm(embeddingModel(), entries, opts);
+  } catch (err) {
+    void reportError("kb-semantic-warm-items", err);
+    return 0;
+  }
+}
+
+/** Kümenin ısıtma girdileri (`warmKbVectors` kuralları: küçük KB / parça tavanını aşan KB → `null`). */
+function warmEntriesFor<T extends KbChunkSource>(items: readonly T[]): WarmEntry[] | null {
+  if (!retrievalNeeded(items)) return null;
+  const { kept } = dropSuperseded(items as readonly (T & Supersedable)[]);
+  const chunks = chunkItems(kept);
+  if (chunks.length > SEMANTIC_MAX_CHUNKS) return null;
+  return chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id, updatedAt: c.updatedAt }));
+}
+
+/**
+ * BİR DAİRENİN ısıtması (ham küme + varsa QR'ın nötr hitaplı kümesi). Kovalar açıkken (`KB_EMBED_ORG_BUDGET_ENABLED`, D1) kümeler TEK işte
+ * gömülür → TEK bütçe alımı, daire işi hepsi-ya-hiç (G2 tur 4 T4-B12: iki ayrı işte küçük QR işi boş pencereyi önce açıyor, tavanı aşan ham iş
+ * "boş pencere tek büyük işi alır" istisnasını kaybedip ≤ 1 saat reddediliyordu). Her kümenin kendi kuralı (küçük KB, parça tavanı) aynen;
+ * iki kümede aynı metin bir kez sayılır (`scheduleWarm` metne göre birleştirir). Kapalıyken bugünkü gibi küme başına ayrı iş (süreç içi
+ * sayaçla birebir). Kuyruğa alınan metin sayısını döner. Fırlatmaz.
+ */
+export function warmKbVectorSets<T extends KbChunkSource>(sets: readonly (readonly T[])[], opts: WarmOptions = {}): number {
+  if (!orgEmbedBudgetEnabled()) return sets.reduce((sum, set) => sum + warmKbVectors(set, opts), 0);
+  try {
+    if (!semanticRetrievalInfo().enabled) return 0;
+    const entries = sets.flatMap((set) => warmEntriesFor(set) ?? []);
+    if (entries.length === 0) return 0;
+    return scheduleWarm(embeddingModel(), entries, opts);
   } catch (err) {
     void reportError("kb-semantic-warm-items", err);
     return 0;
@@ -457,9 +479,9 @@ export function __semanticStoreSize(): number {
 }
 
 /** Test: saatlik ısıtma bütçesini doldur (bütçe doluyken kalıcı depodan okumanın sürdüğünü sınamak için). */
-export function __exhaustWarmBudgetForTests(): void {
+export function __exhaustWarmBudgetForTests(leave = 0): void {
   warmWindowStart = Date.now();
-  warmUsed = WARM_TEXTS_PER_HOUR;
+  warmUsed = WARM_TEXTS_PER_HOUR - leave;
 }
 
 /** Test: depo tavanını küçült (tahliye yarışını sınamak için). `__resetSemanticRetrieval` geri alır. */
