@@ -7,8 +7,9 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import { serializeSupplyProfile } from "@/lib/supply";
-import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { ERASABLE_STATUSES, SETTLED_OUTBOX_STATUSES } from "@/lib/outbox/state";
 import { cancelRequestWrite } from "@/lib/outbox/dispatch";
+import { ANON_BODY } from "@/lib/data-retention";
 import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
 import { houseRulesWhere } from "@/lib/house-rules/store";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
@@ -164,6 +165,15 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
       },
       data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "property_deleted" },
     });
+    // 🚨 GÖVDE DE BOŞALIR (G2 tur 8 T8-B15; konuşma silmeyle aynı kural): kaskad konuşma / rezervasyonu götürünce saklama süpürgesi bu satırlara
+    // bir daha ulaşamaz → misafire yazılmış metin (yanıt + yaşam döngüsü) SONUÇLANMIŞ satırlarda burada `ANON_BODY` olur (uçuştaki / belirsiz satır
+    // kanal uzlaştırması için gövdesini korur — konuşma silmeyle aynı sınır).
+    if (targets.length) {
+      await tx.messageOutbox.updateMany({
+        where: { organizationId: session.organizationId, OR: targets, status: { in: [...SETTLED_OUTBOX_STATUSES] }, body: { not: ANON_BODY } },
+        data: { body: ANON_BODY },
+      });
+    }
     // Mülkün erken giriş kuralı ve ev kuralları da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
     await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
     await tx.automationRule.deleteMany({ where: houseRulesWhere(session.organizationId, id) });

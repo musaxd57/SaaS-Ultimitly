@@ -2,8 +2,9 @@ import { prisma } from "@/lib/db";
 import { conversationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { ERASABLE_STATUSES, SETTLED_OUTBOX_STATUSES } from "@/lib/outbox/state";
 import { cancelRequestWrite } from "@/lib/outbox/dispatch";
+import { ANON_BODY } from "@/lib/data-retention";
 
 // Guest conversations are owner/manager-only (staff must not read guest messages or
 // re-triage threads): both PATCH (status/priority) and DELETE are withManage.
@@ -57,6 +58,19 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
         claimedBy: null,
       },
       data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "conversation_deleted" },
+    }),
+    // 🚨 GÖVDE DE BOŞALIR (G2 tur 8 T8-B15): kuyruk satırı konuşmaya FK ile bağlı değil — konuşma silindikten sonra saklama süpürgesi o
+    // satırlara bir daha ULAŞAMAZ (yalnız var olan konuşma / rezervasyon kimliğinden gider) ve misafire yazılmış metin hesap silinene kadar
+    // kalırdı. Yalnız SONUÇLANMIŞ satır (gönderildi / iptal / başarısız / engelli): uçuştaki ya da belirsiz satırın gövdesi kanal uzlaştırmasının
+    // içerik eşleşmesi için gerekir (KU-1, `outbox/reconcile-channel.ts` — konuşma silinse de satır kanaldan doğrulanır); o pencere bilinen sınır.
+    prisma.messageOutbox.updateMany({
+      where: {
+        organizationId: session.organizationId,
+        conversationId: id,
+        status: { in: [...SETTLED_OUTBOX_STATUSES] },
+        body: { not: ANON_BODY },
+      },
+      data: { body: ANON_BODY },
     }),
     prisma.message.deleteMany({ where: { conversationId: id } }),
     prisma.conversation.delete({ where: { id } }),

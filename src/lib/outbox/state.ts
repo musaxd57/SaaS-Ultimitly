@@ -59,6 +59,13 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 export const NOT_DELIVERED_STATUSES: readonly OutboxStatus[] = ["canceled", "failed", "blocked"];
 
 /**
+ * SONUÇLANMIŞ satır: gönderildi ya da kesinlikle ulaşmadı. Gövdesine artık hiçbir yol ihtiyaç duymaz (uçuştaki / belirsiz satırın gövdesi kanal
+ * uzlaştırmasının içerik eşleşmesi için gerekir — burada YOK). Konuşma / daire silme rotaları bu satırların misafir metnini `ANON_BODY` yapar
+ * (G2 tur 8 T8-B15: kuyruk satırının konuşmaya / rezervasyona FK'si yok, silinince saklama süpürgesi o satırlara bir daha ulaşamaz).
+ */
+export const SETTLED_OUTBOX_STATUSES: readonly OutboxStatus[] = ["sent", ...NOT_DELIVERED_STATUSES];
+
+/**
  * Sonucu BİLİNMEYEN gönderim: misafire ulaşmış da olabilir, ulaşmamış da (Tur 7 T7-OB-1 adım 2, kurucu 11-05). Eşleştirici teslimi
  * kendiliğinden doğrulamaz (`defaultReconcile`) → bu satırlar sonunda `review`e düşer; çözüm ev sahibindedir. `sending` (yolda, saniyeler)
  * bilinçli DEĞİL: sonucu birazdan belli olur.
