@@ -267,11 +267,14 @@ describe("F-4 QR: okuma sayısı + model düşünürken değişen dünya", { tim
   });
 });
 
-// Ölçülen değerler (aa8098f7, varsayılan anahtarlar). Bir tekrar okuma kaldırılınca bu değerler DÜŞÜRÜLÜR; artış kırmızıdır. Prisma çağrısı ve
-// derinlik belirlenimci (sınır = ölçülen); SQL sayısına motorun bağlantı yoklaması (`SELECT 1`) zaman zaman +1–2 ekler → SQL sınırı ölçülen + 2.
-const QR_FIRST = { conversationFindFirst: 6, ops: 47, sqlMax: 64, depthMax: 45 };
-const QR_ONGOING = { conversationFindFirst: 5, ops: 43, sqlMax: 56, depthMax: 41 };
-const QR_PAUSED = { conversationFindFirst: 2, ops: 22, sqlMax: 27 };
+// Ölçülen değerler (varsayılan anahtarlar). Bir tekrar okuma kaldırılınca bu değerler DÜŞÜRÜLÜR; artış kırmızıdır. Prisma çağrısı ve derinlik
+// belirlenimci (sınır = ölçülen); SQL sayısına motorun bağlantı yoklaması (`SELECT 1`) zaman zaman +1–2 ekler → SQL sınırı ölçülen + 2.
+// F-4 öncesi (aa8098f7): ilk mesaj 6 arama / 47 çağrı / 45 tur · süren sohbet 5 / 43 / 41 · devir 2 / 22. Sonrası: konuşma kimliği model
+// öncesinde bir kez aranır ve paylaşılır, kayıt işleminde devir kontrolüne aynı işlemin kimliği verilir, doğrulanmış cihaz geçişi bağı ikinci
+// kez okumaz. Korunanlar (model beklerken değişebilir): kayıt işlemindeki silme, iptal ve ev sahibi devri okumaları — `F4-SINIF.md`.
+const QR_FIRST = { conversationFindFirst: 3, ops: 44, sqlMax: 61, depthMax: 42 };
+const QR_ONGOING = { conversationFindFirst: 2, ops: 39, sqlMax: 52, depthMax: 37 };
+const QR_PAUSED = { conversationFindFirst: 2, ops: 21, sqlMax: 26 };
 
 // ── taklit veritabanı gidiş-dönüşü (yalnız ölçüm testinde; 0 iken geçirgen) ──
 const DB_LATENCY = { ms: 0 };

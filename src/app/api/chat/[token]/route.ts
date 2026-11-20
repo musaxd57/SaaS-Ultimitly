@@ -316,10 +316,18 @@ async function assertStayNotErased(tx: Prisma.TransactionClient, organizationId:
  */
 const QR_TX = { timeout: 30_000, maxWait: 10_000 } as const;
 
-/** Y3: konuşma satırı (misafir adını taşır) da silme sınırının arkasında açılır — model çağrısından ÖNCEKİ okuma noktaları için. */
-async function ensureGuardedQrConversation(organizationId: string, propertyId: string, reservationId: string): Promise<string> {
+/**
+ * Y3: konuşma satırı (misafir adını taşır) da silme sınırının arkasında açılır — model çağrısından ÖNCEKİ okuma noktaları için.
+ * `known` (F-4): çağıran kimliği bu istekte zaten aradıysa sonucu verir (`null` = "yok" → yeniden aranmaz, doğrudan korumalı açılış).
+ */
+async function ensureGuardedQrConversation(
+  organizationId: string,
+  propertyId: string,
+  reservationId: string,
+  known?: string | null,
+): Promise<string> {
   // Konuşma zaten varsa okuma yazma yapmaz → kilit gerekmez (mesaj başına kilit sayısı az kalsın). Yalnız İLK açılış (adı yazar) korunur.
-  const existing = await findGuestChatConversationId(propertyId, reservationId);
+  const existing = known !== undefined ? known : await findGuestChatConversationId(propertyId, reservationId);
   if (existing) return existing;
   return prisma.$transaction(async (tx) => {
     const guestName = await assertStayNotErased(tx, organizationId, reservationId);
@@ -750,9 +758,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // so a past guest / cleaner with the QR photo can't hijack the current stay.
   // PIN gate (Faz 5): when this stay requires a PIN, a message may NOT claim it —
   // the guest must unlock with the PIN first, so the message is refused until then.
-  const binding = ctx.pinRequired
-    ? await bindOrCheckStay(res.id, cookie, { allowClaim: false })
-    : await bindOrCheckStay(res.id, cookie, { allowClaim: true });
+  // F-4: imzalı cihaz geçişi az önce AYNI satırla doğrulandıysa ("match") bağ ikinci kez okunmaz — arada model beklemesi yok, sonuç aynı.
+  const binding: Awaited<ReturnType<typeof bindOrCheckStay>> = passOk
+    ? { status: "match" }
+    : ctx.pinRequired
+      ? await bindOrCheckStay(res.id, cookie, { allowClaim: false })
+      : await bindOrCheckStay(res.id, cookie, { allowClaim: true });
   if (binding.status === "unclaimed") {
     return jsonOk({
       pinRequired: true,
@@ -910,7 +921,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         const live = await tx.reservation.findUnique({ where: { id: res.id }, select: { status: true } });
         if (live?.status === "cancelled") throw new StayCancelledMidTurnError();
       }
-      if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx))) {
+      // F-4: kimlik iki satır yukarıda AYNI işlemde bulundu (yeniden aranmaz); devri veren mesaj satırı kilit altında yine okunur.
+      if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx, conversationId))) {
         const r = await recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
         return { ...r, handedOff: true, conversationId };
       }
@@ -929,7 +941,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // the host and DON'T spend a (paid) model call — the human owns the conversation.
   // Re-checked once more just before an AI reply would be stored (send-time veto
   // below), which also catches a host reply that lands WHILE the model is running.
-  if (await guestChatAiPausedForStay(ctx.property.id, res.id)) {
+  // F-4 (kurucu 11-20 sabah): konuşmanın KİMLİĞİ model öncesinde bir kez aranır; ön kontrol, kapanış iş parçacığı ve bağlam penceresi aynı
+  // kimliği paylaşır (kimlik oluşunca değişmez; arada model beklemesi yok). Model beklerken değişebilenler — ev sahibi devri, silme, iptal —
+  // kayıt işleminde (`record`) her istekte yeniden okunur.
+  const knownConversationId = await findGuestChatConversationId(ctx.property.id, res.id);
+  if (await guestChatAiPausedForStay(ctx.property.id, res.id, prisma, knownConversationId)) {
     const paused = await record(null, true);
     // Ev sahibi devraldı ama AÇIK tehlike bildirimi yine acil kaydı + KRİTİK uyarı üretir (hızlı acil yoluyla aynı ölçüt ve aynı kayıtlar;
     // misafire hiçbir şey gitmez). Eskiden duraklatmada erken dönülüyor, ev sahibine yalnız "acil" öncelikli konuşma kalıyordu
@@ -968,7 +984,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   //  · son cevaptan sonraki TÜM misafir mesajları kapanış olmalı (yapay zekâ duraklatılmışken yazılmış, ev sahibinin
   //    cevaplamadığı bir soru bir "teşekkürler"in arkasında kaybolmasın);
   //  · konuşma yalnız açık iş yoksa "cevap gerekmedi" diye gizlenir (`closingMayHide`), yoksa görünür kalır.
-  const closingThread = await loadClosingThread(await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id));
+  // İlk mesajda konuşma burada silme sınırının arkasında açılır (silme giriş kapısından sonra olduysa model çağrılmaz); varsa yeniden aranmaz.
+  const qrConversationId = await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id, knownConversationId);
+  const closingThread = await loadClosingThread(qrConversationId);
   const qrUnanswered = [...unansweredGuestTextsOf(closingThread), message];
   const qrClosable = closableAfter(closingThread);
   const qrHideDecision = async () =>
@@ -1145,7 +1163,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // kapanmamış konuların PII'siz kategori notu (`openTopics`).
   // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
-  const priorConversationId = await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id);
+  const priorConversationId = qrConversationId; // F-4: ↑ kapanış iş parçacığıyla aynı kimlik (yeniden aranmaz)
   const contextWindow = await buildGuestChatContextWindow(priorConversationId);
   const { openTopics, hasPriorOperatorReply } = contextWindow;
   // GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11): ev sahibinin / yapay zekânın yazdığı satırlarda kapı / kutu / giriş kodunun

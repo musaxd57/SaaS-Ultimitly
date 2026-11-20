@@ -134,21 +134,30 @@ const PAUSE_SKIPPED_AUTHOR_TYPES = ["guest", "ai", "system", ""];
  * sayar) ya da "yapay zekâ yeniden açıldı" sistem olayı. Misafir, yapay zekâ ve nötr sistem olayları atlanır; yazar alanı boş
  * (eski) satırda karar yön + görünen addan (`resolveMessageAuthor` ile aynı kural). Sıra `(createdAt, id)` (panodaki rozetle aynı).
  * Eşdeğerlik tarayıcı kâhin alınarak rastgele dizilerle pinli (`tests/integration/guest-chat-pause-one-row.test.ts`).
+ *
+ * `conversationId` (F-4, kurucu 11-20 sabah: "gereksiz okumayı kaldır, güncellik kontrolünü değil"): çağıran konuşmanın kimliğini AYNI
+ * istekte / AYNI işlemde zaten bulduysa yeniden aranmaz (`null` = "arandı, konuşma yok" → devir de yok). Verilmezse bugünkü gibi aranır.
+ * Hükmü veren mesaj satırı HER ZAMAN okunur — ev sahibinin model beklerken devralması tam olarak bu okumayla yakalanır.
  */
 export async function guestChatAiPausedForStay(
   propertyId: string,
   reservationId: string,
   db: GuestChatDb = prisma,
+  conversationId?: string | null,
 ): Promise<boolean> {
-  const marker = `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}`;
-  const convo = await db.conversation.findFirst({
-    where: { propertyId, externalReservationId: marker },
-    select: { id: true },
-  });
-  if (!convo) return false;
+  const id =
+    conversationId !== undefined
+      ? conversationId
+      : ((
+          await db.conversation.findFirst({
+            where: { propertyId, externalReservationId: `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}` },
+            select: { id: true },
+          })
+        )?.id ?? null);
+  if (!id) return false;
   const decisive = await db.message.findFirst({
     where: {
-      conversationId: convo.id,
+      conversationId: id,
       OR: [
         { authorType: { not: null, notIn: PAUSE_SKIPPED_AUTHOR_TYPES } },
         { authorType: "system", systemEventType: SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED },
