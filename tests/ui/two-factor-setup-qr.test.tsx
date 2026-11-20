@@ -118,3 +118,14 @@ describe("UX-16 — kurulum ekranında QR", () => {
     expect(screen.queryByText(secret.match(/.{1,4}/g)!.join(" "))).toBeNull();
   });
 });
+
+// FB gezisi 11-20 akşam (gerçek uygulamanın görünür metni): kurulum adımı `kur"düğmesine basın` diye BİTİŞİK çıkıyordu — JSX, kapanan
+// etiketten sonraki satır başı boşluğunu yutar. Metnin kendisi aynı; araya boşluk girer.
+describe("iki adımlı giriş — kurulum adımları metni", () => {
+  it("düğme adı ile 'düğmesine' arasında boşluk var", () => {
+    render(<TwoFactorCard initialEnabled={false} />);
+    const text = document.body.textContent ?? "";
+    expect(text).toContain('"İki adımlı girişi (2FA) kur" düğmesine basın');
+    expect(text).not.toContain('kur"düğmesine');
+  });
+});

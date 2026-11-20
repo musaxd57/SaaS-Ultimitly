@@ -370,7 +370,9 @@ export default async function SentPage({
                     : "border-border bg-card text-muted-foreground hover:bg-accent",
                 )}
               >
-                {f.label} <span className="opacity-70">({f.count})</span>
+                {/* Sayaç soluk YAZILMAZ: yüzde 70 saydamlık açık temada 2,95:1, koyu temada seçili sekmede 4,03:1 karşıtlık veriyordu (WCAG AA 4,5 ister;
+                    FB gezisi 11-20, axe). Ayrım rakam biçimiyle (tabular) kalır. */}
+                {f.label} <span className="tabular-nums">({f.count})</span>
               </Link>
             );
           })}

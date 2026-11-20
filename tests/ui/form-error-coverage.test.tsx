@@ -52,4 +52,16 @@ describe("form hata bandı — çıplak desen geri gelmesin", () => {
     render(<FormError>Kaydedilemedi.</FormError>);
     expect(screen.getByRole("alert").textContent).toContain("Kaydedilemedi.");
   });
+  // FB gezisi 11-20 (axe, /e-posta-dogrula): bant yazısı tema kırmızısıyla kendi kırmızı zemininde 3,93:1 kalıyordu (AA 4,5 ister).
+  // Açık temada koyu kırmızı (rozetle aynı çift); koyu temada tema kırmızısı.
+  it("bant yazısı açık temada koyu kırmızıdır (tema kırmızısı yalnız koyu temada)", async () => {
+    const { render, screen, cleanup } = await import("@testing-library/react");
+    const { FormError } = await import("@/components/form-error");
+    cleanup();
+    render(<FormError>Kaydedilemedi.</FormError>);
+    const cls = screen.getByRole("alert").className.split(/\s+/);
+    expect(cls).toContain("text-red-700");
+    expect(cls).toContain("dark:text-destructive");
+    expect(cls).not.toContain("text-destructive");
+  });
 });

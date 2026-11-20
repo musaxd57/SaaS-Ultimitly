@@ -7,7 +7,7 @@ import { formatDateTime, cn } from "@/lib/utils";
 import { RESERVATION_STATUS } from "@/lib/constants";
 import { SELLER } from "@/lib/legal-entity";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, INACTIVE_CARD_CLASS } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { AUTO_SEND_STOPPED_TEXT, BOOKING_SPAN_HEADLINE, bookingSpanDetailLine } from "@/components/attention-panel";
@@ -93,7 +93,7 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
             key={row.id}
             data-testid="compare-row"
             data-active={row.active ? "1" : "0"}
-            className={cn(!row.active && "opacity-60")}
+            className={cn(!row.active && INACTIVE_CARD_CLASS)}
           >
             <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="min-w-0 break-words text-base">{row.propertyName}</CardTitle>

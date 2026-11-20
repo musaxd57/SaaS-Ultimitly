@@ -31,7 +31,9 @@ export function FormError({
       id={id}
       role="alert"
       className={cn(
-        "flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive",
+        // Yazı `text-destructive` DEĞİL: kırmızı zemin üstünde 3,93:1 kalıyordu (WCAG AA 4,5 ister; FB gezisi 11-20, axe —
+        // /e-posta-dogrula). Rozetle (`Badge` destructive) aynı çift: açık temada koyu kırmızı, koyu temada tema kırmızısı.
+        "flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-red-700 dark:text-destructive",
         className,
       )}
     >

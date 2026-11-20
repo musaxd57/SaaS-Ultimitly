@@ -37,6 +37,16 @@ describe("Kayıt formu — onay metni", () => {
     expect(notice.textContent).not.toMatch(/kabul|onay/i);
   });
 
+  // FB gezisi 11-20 (axe `link-in-text-block`): cümle içindeki iki bağlantı yalnız renkle ayrılıyordu (altı çizgi yalnız üstüne gelince).
+  it("sözleşme ve gizlilik bağlantıları cümle içinde altı çizili durur (yalnız renkle ayrılmaz)", () => {
+    render(<RegisterForm />);
+    for (const name of ["Kullanım Koşulları", "Gizlilik Politikası"]) {
+      const cls = screen.getByRole("link", { name }).className.split(/\s+/);
+      expect(cls, name).toContain("underline");
+      expect(cls, name).not.toContain("hover:underline");
+    }
+  });
+
   it("kutu boşken çıkan uyarı da yalnız koşulları söyler", () => {
     expect(REGISTER_CONSENT_REQUIRED).toBe("Devam etmek için Kullanım Koşulları'nı kabul edin.");
   });

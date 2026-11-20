@@ -15,6 +15,12 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
 );
 Card.displayName = "Card";
 
+/**
+ * "Etkin değil" kartı (iptal rezervasyon, karşılaştırmada etkin olmayan kayıt): kesik çerçeve + gri zemin. 🚨 `opacity-*` KULLANILMAZ —
+ * bütün metni soldurur, karşıtlık WCAG AA'nın (4,5:1) altına iner (ölçüldü 11-20: 2,5–4,1:1). Pin: `tests/unit/no-faded-text.test.ts`.
+ */
+export const INACTIVE_CARD_CLASS = "border-dashed bg-muted/40 shadow-none";
+
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col space-y-1.5 p-5", className)} {...props} />

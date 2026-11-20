@@ -771,7 +771,7 @@ export function TaskBoard({
                 </div>
                 <div className="space-y-3 lg:max-h-[68vh] lg:overflow-y-auto lg:pr-0.5">
                   {colTasks.length === 0 ? (
-                    <p className="py-8 text-center text-xs text-muted-foreground/70">Görev yok</p>
+                    <p className="py-8 text-center text-xs text-muted-foreground">Görev yok</p>
                   ) : (
                     colTasks.map((t) => renderCard(t))
                   )}

@@ -34,6 +34,12 @@ function browserTimezone(): string {
 }
 
 /** `turnstileSiteKey`: sunucu yalnız `SIGNUP_TURNSTILE_ENABLED` açık ve anahtarlar tamken verir (U15); yoksa widget yok, davranış eskisi. */
+/**
+ * Cümle içi bağlantı (onay satırı, aydınlatma satırı): altı çizili. Yalnız renkle ayrılan bağlantı, renkleri ayırt edemeyen kullanıcıya
+ * düz yazı gibi görünür (WCAG 1.4.1; axe `link-in-text-block`, FB gezisi 11-20). Sözleşme bağlantısının fark edilmesi ayrıca önemli.
+ */
+const INLINE_LINK_CLASS = "text-primary underline underline-offset-2 hover:no-underline";
+
 export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: string | null } = {}) {
   const router = useRouter();
   const [humanToken, setHumanToken] = useState("");
@@ -313,7 +319,7 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
           {/* Kurucu 11-13 ("kelime seçimleri önemli, ceza yemeyelim"): kutu yalnız sözleşmeyi (Kullanım Koşulları) KABUL ettirir. Gizlilik
               Politikası bir aydınlatma metnidir; KVKK'ya göre aydınlatma onaya / kabule bağlanmaz → kutusuz bilgi satırı (↓). */}
           <span>
-            <Link href="/kosullar" target="_blank" className="text-primary hover:underline">
+            <Link href="/kosullar" target="_blank" className={INLINE_LINK_CLASS}>
               Kullanım Koşulları
             </Link>
             &apos;nı okudum ve kabul ediyorum.
@@ -326,7 +332,7 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
         ) : null}
         <p data-privacy-notice className="pl-6 text-xs text-muted-foreground">
           Kişisel verilerinizi nasıl işlediğimizi{" "}
-          <Link href="/gizlilik" target="_blank" className="text-primary hover:underline">
+          <Link href="/gizlilik" target="_blank" className={INLINE_LINK_CLASS}>
             Gizlilik Politikası
           </Link>
           &apos;nda anlattık.

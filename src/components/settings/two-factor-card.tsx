@@ -305,7 +305,7 @@ export function TwoFactorCard({
             ücretsizdir.
           </li>
           <li>
-            Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;İki adımlı girişi (2FA) kur&quot;</strong>
+            Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;İki adımlı girişi (2FA) kur&quot;</strong>{" "}
             düğmesine basın; ekranda bir QR kod ve bir anahtar çıkar.
           </li>
           <li>

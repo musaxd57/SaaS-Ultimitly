@@ -7,7 +7,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { cn, formatDateTime } from "@/lib/utils";
 import { RESERVATION_STATUS } from "@/lib/constants";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, INACTIVE_CARD_CLASS } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AUTO_SEND_STOPPED_TEXT, BOOKING_SPAN_HEADLINE, bookingSpanDetailLine } from "@/components/attention-panel";
 import { loadReservationDetail } from "@/lib/reservations/detail";
@@ -82,7 +82,10 @@ export default async function ReservationDetailPage({ params }: { params: Promis
           </div>
         </div>
       ) : null}
-      <Card data-testid="reservation-card" data-status={detail.status} className={cn(cancelled && "opacity-60")}>
+      {/* İptal kartı SOLUK YAZIYLA değil zeminle ayrılır: yüzde 60 saydamlık bütün metni soldurup karşıtlığı 2,5–4,1:1'e düşürüyordu (etiketler,
+          daire bağlantısı, "İptal" rozeti — WCAG AA 4,5 ister; FB gezisi 11-20, axe, açık + koyu tema). Kesik çerçeve + gri zemin aynı
+          "etkin değil" işaretini verir, yazı tam karşıtlıkta kalır. */}
+      <Card data-testid="reservation-card" data-status={detail.status} className={cn(cancelled && INACTIVE_CARD_CLASS)}>
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="min-w-0 break-words text-base">
             <Link href={`/properties/${encodeURIComponent(detail.propertyId)}`} className="text-primary underline hover:no-underline">

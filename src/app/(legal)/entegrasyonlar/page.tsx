@@ -111,7 +111,8 @@ export default function IntegrationsPage() {
 
       <p className="text-sm text-muted-foreground">
         Daha fazla bağlantı seçeneği yakında.{" "}
-        <Link href="/" className="text-primary hover:underline">
+        {/* Cümle içi bağlantı altı çizili (yalnız renkle ayrılan bağlantı WCAG 1.4.1'e takılır — axe link-in-text-block). */}
+        <Link href="/" className="text-primary underline underline-offset-2 hover:no-underline">
           Ana sayfaya dönün
         </Link>
         .
