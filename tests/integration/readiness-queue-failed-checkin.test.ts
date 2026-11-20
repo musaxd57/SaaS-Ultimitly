@@ -35,7 +35,7 @@ describe("Girişler — kuyrukta başarısız kalan giriş mesajı 'hazır' gör
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 satır `failed` → gönderici bir daha almaz; ekran 'gitmez' der ve elle gönderim düğmesi sunar", async () => {
+  it("🚨 satır `failed` → gönderici bir daha almaz; ekran 'gönderilemedi' der ve elle gönderim düğmesi sunar", async () => {
     const org = await prisma.organization.create({
       data: {
         name: "Org",
@@ -82,7 +82,7 @@ describe("Girişler — kuyrukta başarısız kalan giriş mesajı 'hazır' gör
       | undefined;
     // Eskiden "Otomatik giriş mesajı hazır" + düğme yok (kapı kodu misafire hiç gitmiyor, ev sahibi bilmiyordu).
     expect({ label: access?.label, manualButton: access?.sendCheckin === true }).toEqual({
-      label: "Otomatik giriş mesajı gitmez · giriş bilgisini siz gönderin",
+      label: "Otomatik giriş mesajı gönderilemedi · giriş bilgisini siz gönderin",
       manualButton: true,
     });
   });

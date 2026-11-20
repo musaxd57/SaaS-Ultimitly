@@ -376,8 +376,8 @@ const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" |
   // Kurucu 11-18 akşam: sistem daire tahmin etmez (`booking-property-conflict.ts`). Metin kurucu onayına sunuldu.
   two_properties: "Bu rezervasyon iki dairede kayıtlı, otomatik mesaj gitmez",
   // G1 tur 4 T4-B2 (11-20): kuyruktaki giriş mesajı kanal tarafından kesin reddedilip son durumda ("başarısız") kaldı — gönderici o
-  // rezervasyonu bir daha kuyruğa almaz. Ekran "hazır" diyordu; artık VAR OLAN "gitmez" metni + elle gönderim (yeni metin kurucu sorusu).
-  queue_failed: "Otomatik giriş mesajı gitmez",
+  // rezervasyonu bir daha kuyruğa almaz. Ekran "hazır" diyordu; metin kurucunun seçimi (11-20 sabah G-1) + elle gönderim.
+  queue_failed: "Otomatik giriş mesajı gönderilemedi",
 };
 
 /** Gitmeyen otomatik giriş mesajının sebebine göre bağlantı. Silinmiş misafire (erased) ve konuşması olmayana (no_channel) BİLİNÇLİ YOK. */
