@@ -12,6 +12,7 @@ import { hasMessagingConnection } from "@/lib/channels";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { dedupeBookings } from "@/lib/reports";
+import { parseCalendarMonthParam } from "@/lib/calendar-month";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,8 @@ export default async function CalendarPage({
   // month in the org's timezone.
   const todayKey = dayKey(new Date(), tz);
   const fallbackMonth = todayKey.slice(0, 7);
-  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month ?? "") ? params.month! : fallbackMonth;
+  // Biçim + makul yıl aralığı (`lib/calendar-month.ts`, G2 tur 4 T4-B13: `9999-12` sorgu penceresini 10000. yıla taşıyıp sayfayı düşürüyordu).
+  const month = parseCalendarMonthParam(params.month, fallbackMonth);
   const [year, monthNum] = month.split("-").map(Number);
 
   const properties = await prisma.property.findMany({
