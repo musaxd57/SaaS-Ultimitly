@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { AUTO_SEND_STOPPED_TEXT, BOOKING_SPAN_HEADLINE, bookingSpanDetailLine } from "@/components/attention-panel";
 import { RemoveManualCopyButton } from "@/components/reservations/remove-manual-copy-button";
-import { loadBookingComparison, reservationCalendarHref, type ComparedBookingRow } from "@/lib/reservations/compare";
+import { loadBookingComparison } from "@/lib/reservations/compare";
+import { bookingSourceLabel } from "@/lib/reservations/detail-format";
 import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
 import { calendarDateOf } from "@/modules/availability/core";
 import { reportError } from "@/lib/report-error";
@@ -24,20 +25,6 @@ export const dynamic = "force-dynamic";
 // bu işletmedeki bütün satırları yan yana (telefonda alt alta). Yalnız elle / dosya satırı kaldırılır; takvim / kanal satırında silme
 // yok, kaynağın nasıl düzeltileceği yazar. Metinler tasarımdaki cümleler (kurucu onayı bekliyor, UA-a).
 // ---------------------------------------------------------------------------
-
-/** Kaynak satırı — tasarım §2'deki etiketler AYNEN. */
-function sourceLabel(row: ComparedBookingRow): string {
-  switch (row.sourceClass) {
-    case "manual":
-      return "Elle girildi";
-    case "file":
-      return "Dosyadan içe aktarıldı";
-    case "calendar":
-      return row.calendarSourceLabel ? `Takvimden geliyor: ${row.calendarSourceLabel}` : "Takvimden geliyor";
-    case "channel":
-      return "Kanaldan geliyor";
-  }
-}
 
 function RecordFact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -60,7 +47,9 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
   const remainingAfter = (id: string) => comparison.rows.find((r) => r.id !== id)?.id ?? null;
   // Çakışma çözüldüyse (etkin kayıt tek dairede) kalan rezervasyon açılabilir (kurucu 11-19 akşam, madde 4: son kopya yanıtından sonra
   // liste yenilenince "Rezervasyonu aç"). Çakışma sürerken yok — hangisinin açılacağı sorunun kendisi; etkin kayıt kalmadıysa da yok.
-  const openRow = comparison.resolved ? comparison.rows.find((r) => r.active) : undefined;
+  // Kurucu 11-20 öğlen B-2: takvime değil DOĞRUDAN kalan kaydın detay sayfasına (`/reservations/<kimlik>`) gider; "Kayıt Beklemede veya İptal
+  // olsa da açılabilsin" → etkin kayıt kalmadıysa sayfanın kendi kaydı açılır (detay sayfası her durumu gösterir).
+  const openRow = comparison.resolved ? (comparison.rows.find((r) => r.active) ?? comparison.rows.find((r) => r.id === key)) : undefined;
   // Çakışma sürerken açıklama Dikkat satırının satırları (kurucu 11-20 sabah B-1): varış günü aynı kuralla (en erken etkin varış, işletmenin
   // takvim günü); "Otomatik gönderim durduruldu" AYNI yüklemden — okunamazsa yazılmaz (söz verilmez), sayfa düşmez.
   const arrivalDay = comparison.earliestActiveArrival ? calendarDateOf(comparison.earliestActiveArrival, tz).key : undefined;
@@ -93,7 +82,7 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
         }
       >
         {openRow ? (
-          <LinkButton href={reservationCalendarHref(openRow, tz)} size="sm" data-testid="compare-open-reservation">
+          <LinkButton href={`/reservations/${encodeURIComponent(openRow.id)}`} size="sm" data-testid="compare-open-reservation">
             Rezervasyonu aç
           </LinkButton>
         ) : null}
@@ -113,7 +102,7 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
             <CardContent className="space-y-3">
               <dl className="space-y-1.5">
                 <RecordFact label="Daire">{row.propertyName}</RecordFact>
-                <RecordFact label="Kaynak">{sourceLabel(row)}</RecordFact>
+                <RecordFact label="Kaynak">{bookingSourceLabel(row)}</RecordFact>
                 <RecordFact label="Giriş → çıkış">
                   {formatDate(row.arrivalDate)} → {formatDate(row.departureDate)}
                 </RecordFact>

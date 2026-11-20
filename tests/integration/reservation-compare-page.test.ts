@@ -9,9 +9,9 @@ import { treeText } from "../helpers/tree-text";
 // (`calendar-page.test.ts` deseni). Sabitlenen:
 //   · çakışma sürerken açıklama Dikkat satırıyla aynı (kurucu 11-20 sabah B-1): "Aynı rezervasyon birden fazla dairede görünüyor" · daire
 //     adları " · " ile + " · Giriş: <gün>" (ek takılmaz) · "Otomatik gönderim durduruldu" YALNIZ tutma gerçekten bir mesajı durduruyorsa;
-//   · çakışma çözülünce (son kopya yanıtından sonra liste yenilenince de) "Rezervasyonu aç" görünür ve kalan kaydın dairesinin, varış ayının
-//     takvimine gider (uygulamada tek rezervasyonu açan sayfa yok — en dar var olan görünüm);
-//   · etkin kayıt hiç kalmadıysa "Rezervasyonu aç" yok; çakışma sürerken yok (hangisinin açılacağı sorunun kendisi).
+//   · çakışma çözülünce (son kopya yanıtından sonra liste yenilenince de) "Rezervasyonu aç" görünür ve DOĞRUDAN kalan kaydın detay sayfasına
+//     gider (kurucu 11-20 öğlen B-2: "takvime değil, bu ekranda doğrudan kalan kayda");
+//   · etkin kayıt hiç kalmadıysa sayfanın kendi kaydı açılır ("Beklemede veya İptal olsa da açılabilsin"); çakışma sürerken yok.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/auth", async (orig) => ({
@@ -148,7 +148,7 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     }
   });
 
-  it("🚨 çakışma çözülünce (öteki kopya gitti): çözüldü cümlesi + 'Rezervasyonu aç' → kalan kaydın dairesi, varış ayı takvimi (tek bağlantı)", async () => {
+  it("🚨 çakışma çözülünce (öteki kopya gitti): çözüldü cümlesi + 'Rezervasyonu aç' → kalan kaydın detay sayfası (tek bağlantı)", async () => {
     const w = await world();
     const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host" });
     const other = await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
@@ -160,11 +160,10 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     expect(text).toContain("Kayıtlar artık tek dairede. Otomatik mesajlar olağan akışa döndü.");
     expect(text).not.toContain("Aynı rezervasyon birden fazla dairede görünüyor");
     const open = treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç");
-    // Varış yalnız tarih (00:00Z) → takvimin kendi gün kuralıyla UTC tarihi; ay bağımsız hesaplanır.
-    expect(open.map((l) => l.href)).toEqual([`/calendar?property=${w.lale}&month=${stayDay(4).toISOString().slice(0, 7)}`]);
+    expect(open.map((l) => l.href)).toEqual([`/reservations/${manual.id}`]);
   });
 
-  it("çözülmüş ama kalan kayıt iptal edilmiş (etkin kayıt yok): 'Rezervasyonu aç' YOK", async () => {
+  it("çözülmüş, etkin kayıt kalmamış (ikisi de iptal): 'Rezervasyonu aç' sayfanın KENDİ kaydını açar (iptal kayıt da açılır)", async () => {
     const w = await world();
     const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host", status: "cancelled" });
     await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel", status: "cancelled" });
@@ -172,10 +171,10 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     const tree = await render(manual.id);
 
     expect(treeText(tree)).toContain("Kayıtlar artık tek dairede.");
-    expect(treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç")).toEqual([]);
+    expect(treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç").map((l) => l.href)).toEqual([`/reservations/${manual.id}`]);
   });
 
-  it("KONTROL: çözülmüş sayfada iptal edilmiş satır açılmaz — bağlantı ETKİN kalan kaydın dairesine gider", async () => {
+  it("KONTROL: çözülmüş sayfada iptal edilmiş satır yerine ETKİN kalan kayıt açılır", async () => {
     const w = await world();
     await booking(w.lale, { channel: "manual", guestNameSource: "host", status: "cancelled" });
     const live = await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
@@ -183,6 +182,6 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     const tree = await render(live.id);
 
     const open = treeLinks(tree).filter((l) => l.text === "Rezervasyonu aç");
-    expect(open.map((l) => l.href)).toEqual([`/calendar?property=${w.sahil}&month=${stayDay(4).toISOString().slice(0, 7)}`]);
+    expect(open.map((l) => l.href)).toEqual([`/reservations/${live.id}`]);
   });
 });

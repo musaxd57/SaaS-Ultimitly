@@ -1,7 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { activePropertyIdsOf, isActiveBookingRow } from "@/lib/booking-property-conflict";
 import { bookingRowSourceClass, isRemovableBookingRowClass, type BookingRowSourceClass } from "@/lib/booking-row-source";
-import { calendarDateOf } from "@/modules/availability/core";
 
 // ---------------------------------------------------------------------------
 // "KAYITLARI KARŞILAŞTIR" SAYFASININ VERİSİ (UA-1, kurucu 11-19; tasarım `docs/TASARIM-2026-11-19-ua1-kayitlari-karsilastir.md` §2).
@@ -117,14 +116,4 @@ export async function loadBookingComparison(
     null,
   );
   return { rows, sourceReference: anchor.sourceReference, activePropertyNames, earliestActiveArrival, resolved };
-}
-
-/**
- * "Rezervasyonu aç" hedefi (kurucu 11-19 akşam, madde 4). Uygulamada tek rezervasyonu açan sayfa yok; en dar var olan görünüm kaydın
- * DAİRESİNE süzülmüş, VARIŞ AYINDAKİ takvim (kayıt giriş / çıkış gününde misafir adıyla görünür). Ay, takvimin rezervasyonu yerleştirdiği
- * günden alınır (tek tarih kuralı `calendarDateOf`, işletmenin saat dilimi) — ay sınırındaki varış başka aya düşmez.
- */
-export function reservationCalendarHref(row: { propertyId: string; arrivalDate: Date }, timeZone: string): string {
-  const month = calendarDateOf(row.arrivalDate, timeZone).key.slice(0, 7);
-  return `/calendar?property=${encodeURIComponent(row.propertyId)}&month=${month}`;
 }
