@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
-import { prisma, resetDb } from "./helpers/db";
+import { prisma, resetDb } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // G2 TUR 7 — erken giriş yeniden kontrol taraması: "EN YENİ 25'İ OKU, SONRA SÜZ" (11-18 kalıcı kuralının sınıfı).
