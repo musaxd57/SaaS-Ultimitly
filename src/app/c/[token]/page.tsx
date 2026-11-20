@@ -1,3 +1,4 @@
+import { qrTurnMergeEnabled } from "@/lib/guest-chat-turn-core";
 import type { Metadata } from "next";
 import { resolveGuestChat } from "@/lib/guest-chat";
 import { GuestChat } from "@/components/guest-chat/guest-chat";
@@ -65,5 +66,6 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
   }
 
   // U4: yalnız açık sohbette (ve kod ekranında) misafire görünen ad; "kullanılamıyor / aktif konaklama yok" ekranları yalnız marka.
-  return <GuestChat token={token} locale={locale} placeName={ctx.property.guestDisplayName} />;
+  // Tek cevap kipi (F4-b, anahtar kapalıyken ekran bugünkü gibi): cevap beklenirken yeni mesaj gönderilebilir.
+  return <GuestChat token={token} locale={locale} placeName={ctx.property.guestDisplayName} turnMerge={qrTurnMergeEnabled()} />;
 }

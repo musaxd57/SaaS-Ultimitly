@@ -105,6 +105,8 @@ const REASONS = new Set([
   // Tur 7 T7-OB-1 adım 2 (kurucu 11-05): önceki yapay zekâ cevabının teslimi belirsiz, ev sahibi henüz yazmadı → bu turun cevabı otomatik
   // gitmedi, ev sahibine kaldı (konuşma notu aynı kod — `outbox/state.ts` `DELIVERY_UNVERIFIED_REASON`).
   "delivery_unverified",
+  // QR tek cevap kipi (F4-b): sahipsiz kalmış mesaj · taslak hazırlanırken tur değişti · tur modele gidemeyecek kadar büyük.
+  "qr_turn_abandoned", "qr_turn_changed", "qr_turn_too_large",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

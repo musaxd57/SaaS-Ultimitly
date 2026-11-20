@@ -729,6 +729,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "EARLY_CHECKIN_FREE_ONLY_ENABLED",
   "EMAIL_OUTBOX_ENABLED",
   "GUEST_CHAT_ENABLED",
+  // QR'da birden cok misafir mesajina tek cevap (11-20, F4-b; src/lib/guest-chat-turn-core.ts) — varsayilan KAPALI.
+  "GUEST_CHAT_TURN_MERGE_ENABLED",
   "GUEST_ERASURE_ENABLED",
   "HOST_DECISIONS_ENABLED",
   "HOST_DECISION_AI_TEXT_ENABLED",

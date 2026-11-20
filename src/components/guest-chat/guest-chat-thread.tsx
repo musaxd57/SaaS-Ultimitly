@@ -17,6 +17,8 @@ export interface GuestChatMessage {
   text: string;
   /** Mesajın saati ("07:29") — sunucu işletmenin saat diliminde kurar; yoksa (henüz gönderilmekte olan yerel satır) çizilmez. */
   time?: string;
+  /** Tek cevap kipi (F4-b): misafirin bu mesajı gönderirken ürettiği istek kimliği — ekran, kaydı görünen mesajın yerel balonunu bununla düşürür. */
+  clientId?: string;
 }
 
 // Guest-facing title. Deliberately a FIXED brand string, never the internal

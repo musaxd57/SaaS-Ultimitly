@@ -249,6 +249,12 @@ kurucu onayıyla §1'e taşındı.)
   havlu / temizlik / eşya sözleri kapanır (elle kaydedilenler dahil). Belirsiz sözler (hangi söz / birden çok saat) gelen kutusunda kart olarak
   kalır — öneri anahtarı `AI_ACTION_SUGGESTIONS_ENABLED` kapalı olsa da söz kartları görünür.
 
+- `GUEST_CHAT_TURN_MERGE_ENABLED` (kurucu 11-20 öğlen F4-b: "kanal gibi olsun … tek cevapta verebilir") — KAPALI kalır; misafire gideni değiştirir.
+  Açıkken QR'da misafir cevabı beklemeden art arda yazabilir; model düşünürken gelen mesajlar TEK cevapta toplanır (ilk taslak gitmez, ilk
+  soru silinmez), 700 karakteri aşan cevap iki mesaja bölünür, sabit bekleme yoktur. Açmadan önce: kör ölçüm (birkaç mesaja bölünmüş sorular,
+  biri bilgi tabanında yok) + kurucu soruları S-F4b-1…3 (`docs/TASARIM-2026-11-20-qr-tek-cevap.md` §6). Migration yok. Kapatmak = env'i sil
+  (açıkken yazılmış satırlar okunmaya devam eder).
+
 - `OUTBOX_FAST_WAKE` (kurucu 10-16) — varsayılan AÇIK, env gerekmez; yalnız `0` kapatır (kuyruğa yazılan elle cevap 2 dk beklemesin).
 - `OUTBOX_DELIVERY_PAUSED` (kurucu 10-16) — EKLEMEYİN; acil durumda `1` = kuyrukta bekleyen gönderimler durur (uzlaştırma sürer; kuyruk dışı
   anında gönderim ve kimlik e-postası etkilenmez). Kaldırınca kaldığı yerden TEK kez gider. Ayrıntı `DEPLOYMENT.md` §6.

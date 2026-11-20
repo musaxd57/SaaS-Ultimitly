@@ -105,6 +105,8 @@ import { hostContactOpenWithoutLedger, needsFromUnderstanding } from "@/lib/conv
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { QR_SERVER_TEXT } from "@/components/guest-chat/guest-chat-copy";
 import { DELIVERY_PATH } from "@/lib/delivery-path";
+import { mergeQrTurnText, qrTurnKeyOf, qrTurnMergeEnabled, qrTurnTooLarge } from "@/lib/guest-chat-turn-core";
+import { commitQrTurn, loadOpenQrTurnRows, persistQrTurnInbound } from "@/lib/guest-chat-turn";
 import {
   deviceLaneKey,
   devicePassAvailable,
@@ -244,9 +246,10 @@ function setStayCookie(
  * (PostgreSQL aborts the whole tx on a unique violation).
  */
 /** Kapanış kararı için konuşmanın son mesajları (kronolojik): yazar, sistem olayı, niyet — misafir metni kalıcı yazılmaz. */
-async function loadClosingThread(conversationId: string): Promise<(ClosingThreadMessage & { id: string })[]> {
+async function loadClosingThread(conversationId: string, excludeIds: readonly string[] = []): Promise<(ClosingThreadMessage & { id: string })[]> {
   const rows = await prisma.message.findMany({
-    where: { conversationId },
+    // Tek cevap kipi (F4-b): bu turun satırları kayıtlıdır ama "güncel mesaj"dır — iş parçacığı onlardan ÖNCEKİ konuşmadır (kip kapalıyken liste boş).
+    where: { conversationId, ...(excludeIds.length > 0 ? { id: { notIn: [...excludeIds] } } : {}) },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, aiIntent: true },
@@ -585,7 +588,7 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
         // TAM SIRA (`createdAt` + `id`): eşit damgada pencere sınırı kaymasın.
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: GUEST_CHAT_MESSAGE_WINDOW,
-        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, createdAt: true },
+        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true, createdAt: true, externalId: true },
       },
     },
   });
@@ -597,6 +600,9 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
     text: m.body,
     // Etiketin yanındaki saat (3c, kurucu 11-11: "Airbnb'de nasıl görünüyorsa") — işletmenin saat diliminde, sunucuda kurulur.
     time: guestChatClock(m.createdAt, ctx.timeZone),
+    // Tek cevap kipi (F4-b): misafirin KENDİ istek kimliği — ekran, kaydı görünen mesajın iyimser balonunu bununla düşürür. Kip kapalıyken
+    // yazılan satırlarda alan yoktur (yanıt bugünküyle aynı).
+    ...(qrTurnKeyOf(m.externalId) ? { clientId: qrTurnKeyOf(m.externalId) } : {}),
   }));
   const out = jsonOk({ open: true, messages });
   if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, ctx.activeReservation, token);
@@ -638,6 +644,8 @@ async function recordCancelledStayMessage(
   stay: NonNullable<GuestChatContext["cancelledStay"]>,
   message: string,
   requestId: string | null,
+  // Tek cevap kipi (F4-b): misafir satırı zaten kayıtlı → YENİDEN yazılmaz; turun açık satırları ev sahibine bırakılır.
+  turn?: { ownId: string; seenIds: readonly string[] },
 ): Promise<void> {
   try {
     // Aynı istemci isteğinin yeniden denemesi (bağlantı kopması) ikinci kez kaydedilmez, tavandan hak yemez (Haiku 10-12).
@@ -651,6 +659,10 @@ async function recordCancelledStayMessage(
       const guestName = await assertStayNotErased(tx, ctx.property.organizationId, stay.id); // Y3: silme sınırı
       const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: stay.id, guestName }, tx);
       await acquireGuestChatThreadLock(tx, conversationId);
+      if (turn) {
+        await commitQrTurn(tx, { conversationId, ownId: turn.ownId, seenIds: turn.seenIds, reply: null, escalated: true, closing: false, paused: false });
+        return { inboundMessageId: turn.ownId };
+      }
       return recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
     }, QR_TX);
     // E-posta: konaklama başına KAYAN 6 saatte en çok bir (dilim sınırında iki e-posta olmasın — Haiku 10-12). Gitmezse hak geri.
@@ -697,7 +709,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const pinInput = typeof body?.pin === "string" ? body.pin : null;
   // Denetim karakterleri (NUL vb.; sekme / satır sonu HARİÇ) sessizce silinir — PostgreSQL metin alanı NUL yazamaz, eskiden 500 + hata
   // raporu üretiyordu (Haiku QR taraması 10-10; sağlayıcı dizesindeki NUL kuralıyla aynı). Misafire giden hiçbir metin değişmez.
-  const message = typeof body?.message === "string" ? body.message.replace(GUEST_CONTROL_CHARS, "").trim() : "";
+  const ownMessage = typeof body?.message === "string" ? body.message.replace(GUEST_CONTROL_CHARS, "").trim() : "";
   // Client-generated idempotency id (Codex 07-24 #2, composer parity): one id per
   // COMPOSED guest message, reused across connection-loss retries of that same
   // message. Optional — an old open tab without it keeps today's behaviour.
@@ -722,9 +734,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // İPTAL EDİLMİŞ konaklama şu anı kapsıyorsa (kurucu 10-12): model ÇAĞRILMAZ (kota düşmez), yazana aynı "sohbet kapalı" cevabı
     // gider (iptal bilgisi verilmez), mesaj ev sahibi için panele kaydedilir ve ev sahibine "iptal edilmiş rezervasyonun dairesinden
     // yazılıyor" uyarısı gider. Tekrar yazışma da aynı yoldan; e-posta en çok 6 saatte bir, kayıt saatte en çok N mesaj.
-    if (ctx.cancelledStay && message && message.length <= MAX_MESSAGE) {
+    if (ctx.cancelledStay && ownMessage && ownMessage.length <= MAX_MESSAGE) {
       // Yanıt bu işi BEKLEMEZ (süre farkı iptal kaydını sızdırmasın); iş yanıttan sonra tamamlanır.
-      runDetached(recordCancelledStayMessage(ctx, ctx.cancelledStay, message, requestId));
+      runDetached(recordCancelledStayMessage(ctx, ctx.cancelledStay, ownMessage, requestId));
     }
     return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
   }
@@ -748,8 +760,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   }
 
   // ---- Message flow ----
-  if (!message) return badRequest({ message: "Bir mesaj yazın." });
-  if (message.length > MAX_MESSAGE) {
+  if (!ownMessage) return badRequest({ message: "Bir mesaj yazın." });
+  if (ownMessage.length > MAX_MESSAGE) {
     return badRequest({ message: `Mesaj çok uzun (en fazla ${MAX_MESSAGE} karakter).` });
   }
 
@@ -802,7 +814,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const claimScopeId = requestId ? `qr-in:${res.id}:${requestId}` : null;
   const claimToken = randomUUID();
   if (claimScopeId) {
-    const claimed = await claimKeyedOutboundSend(claimScopeId, message, claimToken);
+    const claimed = await claimKeyedOutboundSend(claimScopeId, ownMessage, claimToken);
     if (claimed === "duplicate") {
       // KAYDEDİLDİ (tamamlanmış kayıt). The client is GET-authoritative — it reloads the thread and renders what the first attempt
       // recorded.
@@ -837,7 +849,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // denemesi normal işlenir). 429 + metin: istemci gönderilmemiş balonu geri alır, yazılan metni geri koyar ve metni gösterir.
   const stayLimit = await rateLimit(`guestchat-stay:${res.id}`, STAY_MESSAGES_PER_HOUR, 60 * 60_000);
   if (!stayLimit.ok) {
-    if (claimScopeId) await releaseKeyedOutboundSend(claimScopeId, message, claimToken);
+    if (claimScopeId) await releaseKeyedOutboundSend(claimScopeId, ownMessage, claimToken);
     // Ev sahibine saatte TEK kayıt (aynı pencerede ikinci aşım hiçbir şey yazmaz). Kayıt yazılamazsa misafirin cevabı yine döner;
     // hata raporlanır (genel 500 yerine onaylı metin).
     try {
@@ -892,7 +904,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Kilit yenileme (kurucu 10-16): işçi çalıştıkça kilidi uzatır; sahiplik kaybedilirse sonraki ücretli adımdan ÖNCE durur.
   let claimLost = false;
   const stopHeartbeat = claimScopeId
-    ? startKeyedClaimHeartbeat(claimScopeId, message, claimToken, () => {
+    ? startKeyedClaimHeartbeat(claimScopeId, ownMessage, claimToken, () => {
         claimLost = true;
       })
     : () => {};
@@ -901,17 +913,21 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const assertClaimHeld = async () => {
     if (claimLost) throw new KeyedClaimLostError();
     if (!claimScopeId) return;
-    const held = await renewKeyedOutboundSend(claimScopeId, message, claimToken).catch(() => true);
+    const held = await renewKeyedOutboundSend(claimScopeId, ownMessage, claimToken).catch(() => true);
     if (!held) {
       claimLost = true;
       throw new KeyedClaimLostError();
     }
   };
+  // ── TEK CEVAP KİPİ (kurucu 11-20 öğlen F4-b; `lib/guest-chat-turn-core.ts`; anahtar `GUEST_CHAT_TURN_MERGE_ENABLED` KAPALI → `turn` hep
+  // null, aşağıdaki her dal bugünkü yoldan geçer). Açıkken misafir satırı modelden ÖNCE yazılır (↓ try başı) ve bu isteğin turu = o an
+  // kararı verilmemiş misafir satırları; kayıt artık satır EKLEMEZ, turun kararını yazar (`commitQrTurn`).
+  let turn: { conversationId: string; ownId: string; seenIds: string[] } | null = null;
   const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
     stopHeartbeat(); // kayıt işlemi kilidi "tamamlandı"ya çevirir ya da kaybı kesinleştirir — yenileme bitti
     const out = await prisma.$transaction(async (tx) => {
       // Kurucu 10-16: çalışan kilit → tamamlanmış istek kaydı, kayıtla AYNI işlemde; kilit artık bu işçinin değilse hiçbir şey yazılmaz.
-      if (claimScopeId) await completeKeyedOutboundSend(tx, claimScopeId, message, claimToken);
+      if (claimScopeId) await completeKeyedOutboundSend(tx, claimScopeId, ownMessage, claimToken);
       // Y3: silme kilidi + kapı İŞLEM İÇİNDE; konuşma satırı da (adı taşır) bu sınırın arkasında açılır.
       const guestName = await assertStayNotErased(tx, ctx.property.organizationId, res.id);
       const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: res.id, guestName }, tx);
@@ -922,19 +938,151 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         if (live?.status === "cancelled") throw new StayCancelledMidTurnError();
       }
       // F-4: kimlik iki satır yukarıda AYNI işlemde bulundu (yeniden aranmaz); devri veren mesaj satırı kilit altında yine okunur.
-      if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx, conversationId))) {
-        const r = await recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
-        return { ...r, handedOff: true, conversationId };
+      const paused = botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx, conversationId));
+      if (turn) {
+        // Tek cevap kipi: açık satırlar kilit altında yeniden okunur; daha yeni misafir mesajı varsa cevap YAZILMAZ (o mesajın isteği hepsini
+        // kapsar), devir kararı ise düşmez. Kilit yine "tamamlandı"ya döner: misafirin mesajı kayıtlıdır, tekrar denemesi yeni iş açmaz.
+        const done = await commitQrTurn(tx, { conversationId, ownId: turn.ownId, seenIds: turn.seenIds, reply: botReply, escalated, closing, paused });
+        if (done.outcome === "superseded") {
+          return { inboundMessageId: turn.ownId, handedOff: false, conversationId, superseded: true, heldInstead: false, sentReply: null as string | null };
+        }
+        return {
+          inboundMessageId: turn.ownId,
+          handedOff: paused,
+          conversationId,
+          superseded: false,
+          heldInstead: done.heldInstead && !paused,
+          sentReply: done.replyParts.length > 0 ? botReply : null,
+        };
       }
-      const r = await recordGuestChatExchange(tx, conversationId, guestName, message, botReply, escalated, ctx.property.organizationId, closing);
-      return { ...r, handedOff: false, conversationId };
+      if (paused) {
+        const r = await recordGuestChatExchange(tx, conversationId, guestName, ownMessage, null, true, ctx.property.organizationId);
+        return { ...r, handedOff: true, conversationId, superseded: false, heldInstead: false, sentReply: null as string | null };
+      }
+      const r = await recordGuestChatExchange(tx, conversationId, guestName, ownMessage, botReply, escalated, ctx.property.organizationId, closing);
+      return { ...r, handedOff: false, conversationId, superseded: false, heldInstead: false, sentReply: botReply };
     }, QR_TX);
     recorded = true;
     // `conversationId` dışarıya taşınır: karar gerekçesi kaydı (RiskEvent) konuşmaya
     // bağlanabilsin — kurucu konsolunda "hangi sohbette hangi kapı kapattı" izlenir.
     return out;
   };
+  /** Tek cevap kipinde bu isteğin kararı yazılmadıysa (başka istek kapsadı) ya da cevap yerine ev sahibine bırakıldıysa yanıt; yoksa null. */
+  const turnExit = async (r: Awaited<ReturnType<typeof record>>, text: string): Promise<NextResponse | null> => {
+    if (r.superseded) return finalize({ merged: true });
+    if (!r.heldInstead) return null;
+    // Taslak, bu arada ev sahibine bırakılmış bir mesajı da kapsıyordu → cevap gitmedi, kalan mesaj(lar) ev sahibinde (kısmi gönderim yok).
+    await recordRiskEvent({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      conversationId: r.conversationId,
+      surface: "guest_chat",
+      triggerId: r.inboundMessageId,
+      finalDecision: "human_review",
+      reason: "qr_turn_changed",
+    });
+    await sendQrEscalationAlertBounded({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      eventId: qrEscalationEventId(r.inboundMessageId, text, false),
+      reason: "ai_escalated",
+      critical: false,
+    });
+    return finalize({ escalated: true, reply: null });
+  };
+  /** Tek cevap kipi: ücretli adımdan önce — daha yeni misafir mesajı geldiyse (ya da bu mesajın kararı başka istekte verildiyse) bu tur bayat. */
+  class QrTurnSupersededError extends Error {}
+  const assertTurnCurrent = async () => {
+    if (!turn) return;
+    const seen = new Set(turn.seenIds);
+    const open = await loadOpenQrTurnRows(prisma, turn.conversationId);
+    if (!open.some((r) => r.id === turn!.ownId) || open.some((r) => !seen.has(r.id))) throw new QrTurnSupersededError();
+  };
   try {
+
+  // ── TEK CEVAP KİPİ: MİSAFİR SATIRI MODELDEN ÖNCE (F4-b) ───────────────────────────────────────────────────────────────────────────
+  // Kurucu: "İlk taslağı iptal etmek, ilk soruyu silmek demek olmasın." Satır "açık" işaretiyle hemen yazılır; bu isteğin turu o an açık
+  // satırlardır ve metinleri TEK mesaj gibi birleşir (↓ `message`). Sabit bekleme yok: istek hemen çalışır; model düşünürken yeni mesaj
+  // gelirse bu isteğin cevabı kayıt anında düşer, yeni mesajın isteği hepsini birlikte cevaplar. Aynı istek kimliğinin yarıda kalmış
+  // denemesi aynı satırı sürdürür (satır ikinci kez yazılmaz). Silme sınırı + konuşma kilidi aynı işlemde.
+  let turnTexts: string[] | null = null;
+  if (qrTurnMergeEnabled()) {
+    const persisted = await prisma.$transaction(async (tx) => {
+      const guestName = await assertStayNotErased(tx, ctx.property.organizationId, res.id);
+      const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: res.id, guestName }, tx);
+      await acquireGuestChatThreadLock(tx, conversationId);
+      const p = await persistQrTurnInbound(tx, {
+        conversationId,
+        organizationId: ctx.property.organizationId,
+        guestName,
+        body: ownMessage.slice(0, MAX_MESSAGE),
+        // İstek kimliği yoksa (eski açık sekme) satır yine işaret taşır; tekrar koruması bugünkü gibi yoktur.
+        key: requestId ?? claimToken,
+      });
+      // Kararı önceki denemede verilmiş satır: kilit de "tamamlandı"ya döner (geç tekrar yeni iş açmaz).
+      if (p.alreadyDecided && claimScopeId) await completeKeyedOutboundSend(tx, claimScopeId, ownMessage, claimToken);
+      return { conversationId, ...p };
+    }, QR_TX);
+    if (persisted.alreadyDecided) {
+      stopHeartbeat();
+      recorded = true;
+      return finalize({ deduped: true });
+    }
+    turn = { conversationId: persisted.conversationId, ownId: persisted.ownId, seenIds: persisted.turn.map((r) => r.id) };
+    turnTexts = persisted.turn.map((r) => r.body);
+    // Sahipsiz kalmış eski mesaj(lar) ev sahibine bırakıldı (işleyen istek ölmüştü): karar kaydı + tek uyarı. Bu turun cevabına katılmaz.
+    if (persisted.staleIds.length > 0) {
+      for (const staleId of persisted.staleIds) {
+        await recordRiskEvent({
+          organizationId: ctx.property.organizationId,
+          propertyId: ctx.property.id,
+          conversationId: persisted.conversationId,
+          surface: "guest_chat",
+          triggerId: staleId,
+          finalDecision: "human_review",
+          reason: "qr_turn_abandoned",
+        });
+      }
+      await sendQrEscalationAlertBounded({
+        organizationId: ctx.property.organizationId,
+        propertyName: ctx.property.name,
+        reservationId: res.id,
+        eventId: `turn-abandoned:${persisted.staleIds[0]}`,
+        reason: "ai_escalated",
+        critical: false,
+      });
+    }
+  }
+  // Aşağıdaki bütün hat (anlama, getirme, model, kapılar, kayıt gerekçesi) bu metni görür. Kip kapalıyken misafirin bu mesajı; açıkken turun
+  // mesajları yazılış sırasıyla, satır sonuyla birleşik — misafir hepsini tek mesajda yazmış gibi (yeni istem biçimi yok).
+  const message = turnTexts ? mergeQrTurnText(turnTexts) : ownMessage;
+  if (turn && turnTexts && qrTurnTooLarge(turnTexts)) {
+    // Tur modele gidemeyecek kadar büyük (çok mesaj / çok uzun): cevap üretilmez, hepsi ev sahibine. Tehlike bildirimi ise uyarı kritik.
+    const big = await record(null, true);
+    const bigExit = await turnExit(big, message);
+    if (bigExit) return bigExit;
+    const bigCritical = hazardEvidenceOf(message).level === "clear" || isSafetyEmergencyText(message);
+    await recordRiskEvent({
+      organizationId: ctx.property.organizationId,
+      propertyId: ctx.property.id,
+      conversationId: big.conversationId,
+      surface: "guest_chat",
+      triggerId: big.inboundMessageId,
+      finalDecision: "human_review",
+      reason: "qr_turn_too_large",
+      ...(bigCritical ? { riskLevel: "high", riskType: "safety_emergency" } : {}),
+    });
+    await sendQrEscalationAlertBounded({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      eventId: qrEscalationEventId(big.inboundMessageId, message, bigCritical),
+      reason: "ai_escalated",
+      critical: bigCritical,
+    });
+    return finalize({ escalated: true, reply: null });
+  }
 
   // HOST HANDOFF (pre-check): if a human host has already replied in this thread,
   // the AI has handed off for the rest of the stay. Record the guest's message for
@@ -944,9 +1092,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // F-4 (kurucu 11-20 sabah): konuşmanın KİMLİĞİ model öncesinde bir kez aranır; ön kontrol, kapanış iş parçacığı ve bağlam penceresi aynı
   // kimliği paylaşır (kimlik oluşunca değişmez; arada model beklemesi yok). Model beklerken değişebilenler — ev sahibi devri, silme, iptal —
   // kayıt işleminde (`record`) her istekte yeniden okunur.
-  const knownConversationId = await findGuestChatConversationId(ctx.property.id, res.id);
+  const knownConversationId = turn ? turn.conversationId : await findGuestChatConversationId(ctx.property.id, res.id);
   if (await guestChatAiPausedForStay(ctx.property.id, res.id, prisma, knownConversationId)) {
     const paused = await record(null, true);
+    if (paused.superseded) return finalize({ merged: true });
     // Ev sahibi devraldı ama AÇIK tehlike bildirimi yine acil kaydı + KRİTİK uyarı üretir (hızlı acil yoluyla aynı ölçüt ve aynı kayıtlar;
     // misafire hiçbir şey gitmez). Eskiden duraklatmada erken dönülüyor, ev sahibine yalnız "acil" öncelikli konuşma kalıyordu
     // (Claude kod incelemesi 10-21).
@@ -986,8 +1135,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   //  · konuşma yalnız açık iş yoksa "cevap gerekmedi" diye gizlenir (`closingMayHide`), yoksa görünür kalır.
   // İlk mesajda konuşma burada silme sınırının arkasında açılır (silme giriş kapısından sonra olduysa model çağrılmaz); varsa yeniden aranmaz.
   const qrConversationId = await ensureGuardedQrConversation(ctx.property.organizationId, ctx.property.id, res.id, knownConversationId);
-  const closingThread = await loadClosingThread(qrConversationId);
-  const qrUnanswered = [...unansweredGuestTextsOf(closingThread), message];
+  const closingThread = await loadClosingThread(qrConversationId, turn?.seenIds);
+  // Tek cevap kipinde turun mesajları AYRI AYRI sayılır ("Teşekkürler" + "Tamamdır" iki kapanıştır; birleşik metin sözcük listesinde yok).
+  const qrUnanswered = [...unansweredGuestTextsOf(closingThread), ...(turnTexts ?? [message])];
   const qrClosable = closableAfter(closingThread);
   const qrHideDecision = async () =>
     closingMayHide({
@@ -995,7 +1145,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       openHostWork: await hasOpenHostWork(ctx.property.organizationId, closingThread),
     });
   if (qrClosable && lexicalClosingOnly(qrUnanswered)) {
-    const { inboundMessageId, conversationId } = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
+    const lexical = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
+    const lexicalExit = await turnExit(lexical, message);
+    if (lexicalExit) return lexicalExit;
+    const { inboundMessageId, conversationId } = lexical;
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
       propertyId: ctx.property.id,
@@ -1054,9 +1207,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
           earlierGuestTexts: qrUnanswered.slice(0, -1),
         })
       : null;
-    const reply = fastNumber?.text ?? null;
-    const fast = await record(reply, true);
+    const fast = await record(fastNumber?.text ?? null, true);
+    if (fast.superseded) return finalize({ merged: true });
     if (fast.handedOff) return finalize({ handoff: true });
+    // Tek cevap kipinde numara satırı yazılmamış olabilir (daha yeni mesaj geldi): yanıt alanı gerçekte yazılanı taşır. Devir yine yazıldı.
+    const reply = fast.sentReply;
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
       propertyId: ctx.property.id,
@@ -1086,7 +1241,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
 
   if (usage.count > dailyAiCap) {
     const reply = null;
-    const { inboundMessageId, handedOff } = await record(reply, true);
+    const capped = await record(reply, true);
+    if (capped.superseded) return finalize({ merged: true });
+    const { inboundMessageId, handedOff } = capped;
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
     if (handedOff) return finalize({ handoff: true });
@@ -1131,7 +1288,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
   if (!budget.ok) {
     const escalationText = null;
-    const { inboundMessageId, handedOff } = await record(escalationText, true);
+    const overBudget = await record(escalationText, true);
+    if (overBudget.superseded) return finalize({ merged: true });
+    const { inboundMessageId, handedOff } = overBudget;
     if (handedOff) return finalize({ handoff: true });
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
@@ -1164,7 +1323,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
   const priorConversationId = qrConversationId; // F-4: ↑ kapanış iş parçacığıyla aynı kimlik (yeniden aranmaz)
-  const contextWindow = await buildGuestChatContextWindow(priorConversationId);
+  const contextWindow = await buildGuestChatContextWindow(priorConversationId, turn?.seenIds);
   const { openTopics, hasPriorOperatorReply } = contextWindow;
   // GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11): ev sahibinin / yapay zekânın yazdığı satırlarda kapı / kutu / giriş kodunun
   // DEĞERİ "(kod gizlendi)" olur — model görmediği kodu yazamaz. Kapı, injection taraması ve model AYNI diziyi görür (↓tek `history`).
@@ -1175,8 +1334,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     organizationId: ctx.property.organizationId,
     conversationId: priorConversationId,
     reservationId: res.id,
-    pendingGuestMessage: true, // bu mesaj cevabıyla birlikte kaydedilir (↓recordGuestChatExchange)
-    pendingGuestText: message,
+    // Bu mesaj cevabıyla birlikte kaydedilir (↓recordGuestChatExchange) → "bekleyen mesaj" olarak sayılır. Tek cevap kipinde (F4-b) turun
+    // satırları ZATEN kayıtlıdır (kanal yolundaki gibi): bekleyen mesaj yoktur, sayım ve aşama satırlardan okunur.
+    pendingGuestMessage: !turn,
+    pendingGuestText: turn ? null : message,
     timeZone: orgTimezone(org?.timezone),
   });
 
@@ -1185,6 +1346,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // bu kümeye kalem EKLEYEMEZ. Bayrak kapalıyken `kbSel.items` aynı dizidir
   // ve `droppedItems` 0'dır (canlı davranış aynen).
   await assertClaimHeld(); // getirme katmanı ücretli çağrılar yapabilir (anlama / embedding / sıralayıcı) — sahiplik yoksa YAPILMAZ (N4)
+  await assertTurnCurrent(); // tek cevap kipi: daha yeni mesaj geldiyse bu turun ücretli adımları YAPILMAZ (yeni mesajın isteği hepsini kapsar)
   const kbSel = await retrieveKbForPrompt({
     items: ctx.knowledgeBase,
     guestMessage: message,
@@ -1252,6 +1414,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   };
   const replyStartedAt = Date.now();
   await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+  await assertTurnCurrent();
   let result = await suggestReply(replyInput);
   // Üretim izi için: yeniden yazdırma yedeğe düşse de İLK çağrı modele gittiyse karar izlenir (Haiku 10-12).
   const firstModelCalled = result.source === "openai" || Boolean(result.llmUsage);
@@ -1578,6 +1741,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     semanticClosingOnly({ unanswered: [message], hasPriorReply: qrClosable, understood, reply: finalResult })
   ) {
     const closingRecord = await record(null, false, (await qrHideDecision()) ? "handled" : "open");
+    const closingExit = await turnExit(closingRecord, message);
+    if (closingExit) return closingExit;
     const closingAudit = await auditFields();
     await recordRiskEvent({
       organizationId: ctx.property.organizationId,
@@ -1637,9 +1802,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       needs: understood ? needsFromUnderstanding(understood.requests) : null,
     });
   const sendEscalate = emergencyNumber !== null || escalate || hostContactOpen;
-  const reply = emergencyNumber ? emergencyNumber.text : escalate ? null : finalResult.reply;
-  const { inboundMessageId, handedOff, conversationId } = await record(reply, sendEscalate);
+  const draftedReply = emergencyNumber ? emergencyNumber.text : escalate ? null : finalResult.reply;
+  const finalRecord = await record(draftedReply, sendEscalate);
+  const { inboundMessageId, handedOff, conversationId } = finalRecord;
   if (handedOff) return finalize({ handoff: true });
+  const finalExit = await turnExit(finalRecord, message);
+  if (finalExit) return finalExit;
+  // Misafire GERÇEKTE yazılan metin (tek cevap kipinde devirle birlikte gidecek satır, daha yeni mesaj yüzünden yazılmamış olabilir).
+  const reply = finalRecord.sentReply;
   // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
   // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
   // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
@@ -1689,18 +1859,32 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Kilit süresi dolarken aynı isteği yeni işçi aldı / bitirdi (kurucu 10-16): bu işçi hiçbir şey yazmadı. Yeni işçi BİTİRDİYSE istemci
     // kaydı GET ile okur (`deduped`); hâlâ ÇALIŞIYORSA sonucu belli değil → `pending` (E1: süren iş "kaydedildi" diye duyurulmaz).
     if (err instanceof KeyedClaimLostError) {
-      return finalize(claimScopeId && (await keyedOutboundSendRecorded(claimScopeId, message)) ? { deduped: true } : { pending: true });
+      return finalize(claimScopeId && (await keyedOutboundSendRecorded(claimScopeId, ownMessage)) ? { deduped: true } : { pending: true });
     }
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
     // Yenileme ÖNCE durur (Haiku 10-16): bırakmadan sonra gelen bir yenileme turu, satır yok diye kilidi yeniden almasın.
     stopHeartbeat();
-    if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId, message, claimToken);
+    // Tek cevap kipi: daha yeni misafir mesajı geldi, bu tur ücretli adıma girmeden bırakıldı. Mesaj KAYITLI (satırı açık, yeni mesajın isteği
+    // kapsar) → kilit "tamamlandı"ya döner; hiçbir karar yazılmaz.
+    if (err instanceof QrTurnSupersededError && !recorded) {
+      try {
+        if (claimScopeId) await prisma.$transaction((tx) => completeKeyedOutboundSend(tx, claimScopeId, ownMessage, claimToken));
+        recorded = true;
+        return finalize({ merged: true });
+      } catch (settleErr) {
+        if (settleErr instanceof KeyedClaimLostError) {
+          return finalize((await keyedOutboundSendRecorded(claimScopeId as string, ownMessage)) ? { deduped: true } : { pending: true });
+        }
+        throw settleErr;
+      }
+    }
+    if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId, ownMessage, claimToken);
     // Y3: konaklama istek sürerken silindi — hiçbir şey yazılmadı; misafire konaklaması olmayan biriyle aynı cevap.
     if (err instanceof StayErasedError) {
       // Kurucu kararı 10-14 ("Uyarı gitsin, metinsiz"): mesaj bir tehlike bildirimiyse ev sahibine METİNSİZ acil uyarı (iki ağdan biri
       // yeter — kaçırma gürültüden pahalı). Tekilleştirme kimliği saat dilimi (metinden türemez; silinmiş satıra metin özeti yazılmaz).
-      if (hazardEvidenceOf(message).level === "clear" || isSafetyEmergencyText(message)) {
+      if (hazardEvidenceOf(ownMessage).level === "clear" || isSafetyEmergencyText(ownMessage)) {
         await sendQrEscalationAlertBounded({
           organizationId: ctx.property.organizationId,
           propertyName: ctx.property.name,
@@ -1715,7 +1899,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Ö-1: konaklama model düşünürken iptal edildi — hiçbir şey yazılmadı (kilit yukarıda bırakıldı). İptal edilmiş konaklamada QR'a
     // yazılınca bugün olanla aynı: misafire "sohbet kapalı", mesaj ev sahibine (kayıt + uyarı; yanıt bu işi beklemez).
     if (err instanceof StayCancelledMidTurnError) {
-      runDetached(recordCancelledStayMessage(ctx, { id: res.id, guestName: res.guestName }, message, requestId));
+      runDetached(recordCancelledStayMessage(ctx, { id: res.id, guestName: res.guestName }, ownMessage, requestId, turn ?? undefined));
       return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
     }
     throw err;

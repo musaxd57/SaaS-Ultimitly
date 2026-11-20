@@ -1318,13 +1318,15 @@ const OPEN_TOPIC_INTENTS = new Set(["complaint", "refund", "early_departure", "h
  * · Sistem olayları ve gövdesiz satırlar dışarıda.
  * · Güncel mesaj burada YOKTUR: sohbet, misafirin mesajı yazılmadan ÖNCE okunur.
  */
-export async function buildGuestChatContextWindow(conversationId: string): Promise<GuestChatContextWindow> {
+export async function buildGuestChatContextWindow(conversationId: string, excludeIds: readonly string[] = []): Promise<GuestChatContextWindow> {
   // İkinci sorgu bilinçli: "daha önce cevap verdik mi" sorusu TARAMA TAVANINDAN
   // bağımsız olmalı (bkz. `hasPriorOperatorReply`). Küçük, indeksli bir sayım ve
   // hemen ardından saniyeler süren bir model çağrısı geliyor.
   const [rows, priorOperatorReplies] = await Promise.all([
     prisma.message.findMany({
-      where: { conversationId, systemEventType: null, NOT: { body: "" } },
+      // `excludeIds` (tek cevap kipi, F4-b): bu turun misafir satırları modelden ÖNCE kaydedilir ama geçmiş değil GÜNCEL mesajdır —
+      // pencereye girmez ("güncel mesaj burada yoktur" değişmezi korunur). Kip kapalıyken liste boştur, sorgu bugünküyle aynı.
+      where: { conversationId, systemEventType: null, NOT: { body: "" }, ...(excludeIds.length > 0 ? { id: { notIn: [...excludeIds] } } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { id: true, direction: true, body: true, createdAt: true, authorType: true, senderName: true },
       take: QR_TOPIC_SCAN_CAP,

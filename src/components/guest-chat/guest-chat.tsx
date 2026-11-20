@@ -62,16 +62,28 @@ export function GuestChat({
   token,
   locale = "tr",
   placeName,
+  turnMerge = false,
 }: {
   token: string;
   locale?: GuestLocale;
   /** U4: ev sahibinin "misafire görünen ad"ı (sunucuda normalleştirilmiş). Yoksa başlık yalnız marka. */
   placeName?: string | null;
+  /**
+   * TEK CEVAP KİPİ (kurucu 11-20 öğlen F4-b; sunucu anahtarı `GUEST_CHAT_TURN_MERGE_ENABLED`, sayfa bu değeri verir). Açıkken misafir cevabı
+   * beklemeden art arda mesaj gönderebilir: her mesaj kendi isteğidir, sunucu hepsini tek cevapta toplar. Kapalıyken ekran bugünkü gibi
+   * (gönderim sürerken ikinci mesaj gönderilmez).
+   */
+  turnMerge?: boolean;
 }) {
   // Ekran dili sunucuda `Accept-Language`tan seçilir (kurucu 10-22 U2); yapay zekânın cevabı zaten misafirin dilinde.
   const t = GUEST_COPY[locale];
   const title = placeName ? t.titleFor(placeName) : t.title;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Tek cevap kipi: henüz sunucudan onayı gelmemiş kendi mesajları (yerel balonlar). Sunucu listesi ekranı TOPTAN değiştirdiği için ayrı
+  // tutulur — bir mesajın cevabı gelip liste yenilenince, hâlâ yolda olan öteki mesajın balonu kaybolmaz. Kaydı listede görünen mesajın
+  // (aynı istek kimliği) yerel balonu çizilmez.
+  const [pendingBubbles, setPendingBubbles] = useState<(ChatMessage & { clientId: string })[]>([]);
+  const inflightSendsRef = useRef(0);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -211,8 +223,9 @@ export function GuestChat({
         timer = null;
       }
       try {
-        // Gönderim sürerken atla: ön-gönderim anlık görüntüsü iyimser balonu ezmesin.
-        if (!sendingRef.current && visible()) await loadHistory();
+        // Gönderim sürerken atla: ön-gönderim anlık görüntüsü iyimser balonu ezmesin. Tek cevap kipinde yerel balonlar listeden ayrı
+        // tutulur (ezilmez) → sorgu sürer: art arda yazan misafir, önceki mesajlarının cevabını beklerken de görür.
+        if ((turnMerge || !sendingRef.current) && visible()) await loadHistory();
       } finally {
         running = false;
         if (!stopped) timer = setTimeout(() => void run(), guestChatPollDelay(failuresRef.current));
@@ -233,7 +246,7 @@ export function GuestChat({
       inflightRef.current = null;
       inflight?.abort();
     };
-  }, [loadHistory, closed, boundElsewhere]);
+  }, [loadHistory, closed, boundElsewhere, turnMerge]);
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -261,11 +274,12 @@ export function GuestChat({
   useEffect(() => {
     if (!stickToEndRef.current) return;
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
-  }, [messages, sending]);
+  }, [messages, sending, pendingBubbles]);
 
   async function send() {
     const text = input.trim();
-    if (!text || sending) return;
+    // Tek cevap kipinde gönderim sürerken de gönderilir (her mesaj ayrı istek; sunucu tek cevapta toplar).
+    if (!text || (sending && !turnMerge)) return;
     // Opus 11-05 F12: kimlik HER ŞEYDEN ÖNCE ve fırlatmayan yardımcıyla (eski Safari'de `crypto.randomUUID` yok) — eskiden iyimser balondan
     // SONRA ve try DIŞINDA üretiliyordu: hata balonu "gönderildi" gibi bırakıp mesajı hiç yollamıyor, "gönderiliyor" bayrağı takılıyordu.
     // Same text (a retry after a failure) reuses the id; new/edited text mints a fresh one — a deliberate identical follow-up gets a new
@@ -287,14 +301,20 @@ export function GuestChat({
     setError(null);
     // optimistic guest bubble; the server fetch below replaces the list with the
     // authoritative version (guest message + AI reply) keyed by real ids.
-    const tmpId = `tmp-${Date.now()}`;
-    setMessages((m) => [...m, { id: tmpId, role: "guest", text }]);
+    const tmpId = `tmp-${requestId}`;
+    if (turnMerge) setPendingBubbles((b) => [...b, { id: tmpId, role: "guest", text, clientId: requestId }]);
+    else setMessages((m) => [...m, { id: tmpId, role: "guest", text }]);
+    inflightSendsRef.current += 1;
     sendingRef.current = true;
     setSending(true);
     // On failure, roll back the optimistic bubble and restore the typed text so the
     // guest isn't left with a "sent"-looking message sitting next to an error.
     const rollback = () => {
-      setMessages((m) => m.filter((x) => x.id !== tmpId));
+      if (turnMerge) {
+        setPendingBubbles((b) => b.filter((x) => x.id !== tmpId));
+        // Bu arada başka mesaj gönderildiyse kimlik yuvası onundur; geri gelen metnin yeniden gönderimi AYNI işlem kalsın.
+        requestIdRef.current = { id: requestId, text };
+      } else setMessages((m) => m.filter((x) => x.id !== tmpId));
       // U27 (Codex 10-07): yazma alanı gönderim sürerken açık; misafir o arada YENİ bir mesaj yazdıysa onu ezme — yalnız alan boşsa
       // gönderilemeyen metin geri gelir.
       setInput((cur) => (cur.trim() ? cur : text));
@@ -372,15 +392,22 @@ export function GuestChat({
         await wait(delay);
         if (unmountedRef.current) return;
       }
-      requestIdRef.current = null; // kaydedildi — sonraki mesaj yeni işlem
+      // Kaydedildi — sonraki mesaj yeni işlem. (Tek cevap kipinde yuva o arada gönderilen başka mesajın olabilir: yalnız kendi kimliği silinir.)
+      if (!turnMerge || requestIdRef.current?.id === requestId) requestIdRef.current = null;
       stickToEndRef.current = true; // kendi mesajının cevabı: sona in (↑ H6)
       await loadHistory({ force: true });
+      // Sunucu listesi artık bu mesajı taşıyor (ya da taşımıyorsa bir sonraki sorgu getirir) — yerel balon bırakılır.
+      if (turnMerge) setPendingBubbles((b) => b.filter((x) => x.id !== tmpId));
     } catch {
       rollback();
       setError(t.connectionError);
     } finally {
-      sendingRef.current = false;
-      setSending(false);
+      inflightSendsRef.current -= 1;
+      if (inflightSendsRef.current <= 0) {
+        inflightSendsRef.current = 0;
+        sendingRef.current = false;
+        setSending(false);
+      }
     }
   }
 
@@ -485,7 +512,7 @@ export function GuestChat({
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.length === 0 && !closed && !boundElsewhere ? (
+        {messages.length === 0 && pendingBubbles.length === 0 && !closed && !boundElsewhere ? (
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.intro}</div>
         ) : null}
 
@@ -497,7 +524,14 @@ export function GuestChat({
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.closed}</div>
         ) : null}
 
-        <GuestChatThread messages={messages} locale={locale} />
+        <GuestChatThread
+          messages={
+            pendingBubbles.length === 0
+              ? messages
+              : [...messages, ...pendingBubbles.filter((b) => !messages.some((m) => m.clientId === b.clientId))]
+          }
+          locale={locale}
+        />
 
         {sending ? (
           <div className="flex items-end justify-start gap-2">
@@ -561,7 +595,7 @@ export function GuestChat({
           />
           <button
             type="submit"
-            disabled={sending || !input.trim()}
+            disabled={(sending && !turnMerge) || !input.trim()}
             className="inline-flex h-10 shrink-0 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {t.send}
