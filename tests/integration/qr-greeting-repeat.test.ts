@@ -255,4 +255,17 @@ describe("QR — konuşma kayıtları (CUS v1 dilim B)", () => {
     const records = (mockSuggest.mock.calls[1][0] as SuggestReplyInput).conversationState?.records;
     expect(records).toMatchObject({ outbound: 1, hostOutbound: 0, unansweredGuest: 1, lifecycleSent: [] });
   });
+
+  it("🚨 tek cevap kipi (F4-b): bu turun satırı modelden ÖNCE kayıtlı → 'bekleyen mesaj' diye İKİNCİ kez sayılmaz (sayılar kip kapalıyla aynı)", async () => {
+    vi.stubEnv("AI_CONVERSATION_STATE_ENABLED", "1");
+    vi.stubEnv("GUEST_CHAT_TURN_MERGE_ENABLED", "1");
+    const { token } = await seed();
+    const r1 = await ask(token, "Otopark var mı?");
+    await ask(token, "Çöp nereye atılıyor?", cookieOf(r1));
+    const first = (mockSuggest.mock.calls[0][0] as SuggestReplyInput).conversationState?.records;
+    const second = (mockSuggest.mock.calls[1][0] as SuggestReplyInput).conversationState?.records;
+    expect(first).toMatchObject({ outbound: 0, unansweredGuest: 1 });
+    expect(second).toMatchObject({ outbound: 1, hostOutbound: 0, unansweredGuest: 1, lifecycleSent: [] });
+    vi.stubEnv("GUEST_CHAT_TURN_MERGE_ENABLED", "");
+  });
 });

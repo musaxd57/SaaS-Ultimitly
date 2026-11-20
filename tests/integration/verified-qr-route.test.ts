@@ -148,6 +148,16 @@ describe("QR — doğrulanmış müsaitlik / uzatma kod metni", () => {
     expect(JSON.parse(String(ev.kbEvidenceJson)).sc?.v ?? null).toBeNull();
   });
 
+  it("🚨 tek cevap kipi açıkken de (F4-b) aynı kod metni gider: misafirin modelden önce kaydedilen satırı 'cevapsız ÖNCEKİ mesaj' sayılmaz", async () => {
+    // Kip açıkken bu turun satırı modelden ÖNCE kayıtlıdır; kapanış iş parçacığı onu dışarıda bırakmazsa cevapsız mesaj sayısı 1 yerine 2 olur
+    // ve "tek cevapsız mesaj" şartı düşer → kod metni yerine modelin taslağı kapıya girer (gece 11-20 mutasyonu: kapsayan test yoktu).
+    vi.stubEnv("GUEST_CHAT_TURN_MERGE_ENABLED", "1");
+    const s = await seed();
+    expect((await ask(s.token, "Merhaba, bir gece daha kalabilir miyiz?")).status).toBe(200);
+    expect(await lastBotReply(s.propertyId)).toBe(EXT_CODE);
+    vi.stubEnv("GUEST_CHAT_TURN_MERGE_ENABLED", "");
+  });
+
   it("🚨 model çağrısı sürerken kilit başka işçiye geçti → konaklama bekçisi (ücretli) ÇAĞRILMAZ, kod metni yazılmaz (Opus 10-16 N4)", async () => {
     const f = fakeFetch();
     vi.stubGlobal("fetch", f);
