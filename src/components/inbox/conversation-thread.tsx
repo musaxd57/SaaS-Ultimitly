@@ -44,6 +44,7 @@ import {
   FALLBACK_DRAFT_BADGE_TEXT,
 } from "@/lib/ui-labels";
 import { applyTemplateBody } from "@/lib/template-apply";
+import { useLatestRequest } from "@/lib/use-latest-request";
 import type { PreparedDraft } from "@/lib/conversation-items/prepared-draft";
 import type { AvailabilityVetoReason } from "@/lib/ai/availability-claims";
 import { LOCAL_REPLY_RECORDED_TEXT, LOCAL_THREAD_COMPOSER_NOTE, isDeliveryOutcome } from "@/lib/delivery-outcome";
@@ -350,9 +351,9 @@ export function ConversationThread({
   /**
    * Seçilen şablonun tam metni okunurken panel kapanırsa (Esc, dışarı tıklama, tetikleyici) geç dönen okuma mesaj kutusuna YAZMAZ — ev sahibi
    * bu arada kendi cevabını yazmış olabilir (Opus 11-20 gece; eskiden tam metin listede olduğu için seçim beklemesizdi). Her seçim ve her
-   * kapanış kuşağı artırır; okuma yalnız başladığı kuşak hâlâ geçerliyse kutuyu doldurur.
+   * kapanış geçersiz kılar; okuma yalnız başladığı bilet hâlâ geçerliyse kutuyu doldurur (ortak yardımcı `useLatestRequest`, F-2).
    */
-  const templateApplySeq = useRef(0);
+  const templateApply = useLatestRequest();
   /** Ekrandaki listeyi üreten arama ("Daha fazla göster" aynı aramanın sonraki sayfasını ister; kutuda yazılan henüz aranmamış olabilir). */
   const [templatesListQuery, setTemplatesListQuery] = useState("");
   const templateSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -645,14 +646,14 @@ export function ConversationThread({
   useEffect(() => {
     if (showTemplates) templatesWasOpen.current = true;
     else {
-      // Panel kapandı: süren tam metin okuması artık kutuya yazmaz (↑`templateApplySeq`).
-      templateApplySeq.current++;
+      // Panel kapandı: süren tam metin okuması artık kutuya yazmaz (↑`templateApply`).
+      templateApply.invalidate();
       if (templatesWasOpen.current) {
         templatesWasOpen.current = false;
         templatesTriggerRef.current?.focus();
       }
     }
-  }, [showTemplates]);
+  }, [showTemplates, templateApply]);
 
   async function loadTemplates() {
     // Açıksa KAPAT — koşul `templates.length > 0` idi, yani şablon listesi boş
@@ -747,12 +748,12 @@ export function ConversationThread({
     if (applyingTemplateId) return;
     setApplyingTemplateId(item.id);
     setTemplatesNotice(null);
-    const seq = ++templateApplySeq.current;
+    const ticket = templateApply.begin();
     try {
       const res = await fetch(`/api/templates/${encodeURIComponent(item.id)}`);
       const t = (await res.json().catch(() => null)) as { body?: unknown; error?: unknown } | null;
       // Panel bu arada kapandıysa kutuya da listeye de dokunulmaz.
-      if (seq !== templateApplySeq.current) return;
+      if (!templateApply.isCurrent(ticket)) return;
       if (!res.ok || typeof t?.body !== "string") {
         if (res.status === 404) setTemplates((prev) => prev.filter((x) => x.id !== item.id));
         setTemplatesNotice(typeof t?.error === "string" ? t.error : TEMPLATE_LOAD_FAILED_TEXT);
@@ -764,7 +765,7 @@ export function ConversationThread({
       setComposerSource(null);
       setShowTemplates(false);
     } catch {
-      if (seq === templateApplySeq.current) setTemplatesNotice(TEMPLATE_LOAD_FAILED_TEXT);
+      if (templateApply.isCurrent(ticket)) setTemplatesNotice(TEMPLATE_LOAD_FAILED_TEXT);
     } finally {
       setApplyingTemplateId(null);
     }
