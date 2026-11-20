@@ -534,7 +534,7 @@ export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string, tria
       Merhaba,<br/><br/>
       ${trialDays} günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
       panelinizi kullanmaya devam edebilirsiniz; ancak <strong>otomatik misafir yanıtları</strong>
-      (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.
+      (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR misafir sohbeti) <strong>kapanır</strong>.
     </p>
     <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
       Otomatik mesajlaşmayı kesintisiz sürdürmek için bir plan seçin:
@@ -562,7 +562,7 @@ export function trialEndedEmail(settingsUrl: string, trialDays: number = 14): st
     <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
       AI'nın misafirlerinize sizin yerinize, 7/24 yanıt vermesini yeniden açmak için bir plan seçin:
     </p>
-    ${ctaButton(settingsUrl, "Plan seç & devam et")}
+    ${ctaButton(settingsUrl, "Plan seçin")}
     <p style="margin:0;color:#94a3b8;font-size:13px;">
       Sorularınız için bize her zaman ulaşabilirsiniz.
     </p>
@@ -622,14 +622,14 @@ export function qrEscalationEmail(
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
       <strong>${esc(propertyName)}</strong> dairesinin QR misafir sohbetinde yeni bir mesaj
-      insan ilgisi bekliyor.
+      sizi bekliyor.
     </p>
     <p style="margin:0 0 24px;color:#334155;font-size:14px;">${esc(reasonText)}</p>
     <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
       <tr>
         <td style="background:#1e293b;border-radius:8px;">
           <a href="${esc(panelUrl)}" style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
-            Misafir Sohbetleri panelini aç
+            Misafir Sohbetleri'ni açın
           </a>
         </td>
       </tr>
