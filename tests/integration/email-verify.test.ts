@@ -609,10 +609,23 @@ describe("registration → verification → login", () => {
         emailVerifyExpiresAt: new Date(Date.now() + 60 * 60_000),
       },
     });
-    // Tek yuvayı başka bir parola işi tutuyor (gerçek bcrypt, ~300 ms).
+    // Tek yuvayı başka bir parola işi tutuyor — test BIRAKANA kadar (CI 1831, 11-20: gerçek bcrypt ~300 ms tutuyordu; yavaş CI makinesinde
+    // doğrulama rotası parola adımına gelmeden yuva boşalıyor, 200 dönüyordu — süreye bağlı yarış). Tutan işin karşılaştırması elle çözülen
+    // bir sözdür: yuva çağrı anında (eşzamanlı) alınır, rota parola adımına geldiğinde kesin doludur.
+    const bcrypt = (await import("bcryptjs")).default;
+    let releaseHolder!: () => void;
+    const compareSpy = vi
+      .spyOn(bcrypt, "compare")
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (releaseHolder = () => resolve(false))));
     const holder = realVerify("x", "$2a$12$pW7aCpH9gDjLDJgWwMZS9e4XetljqUVeM6688s259LuXEGh42XYii");
-    const res = await verifyEmail(verifyReq(raw));
-    await holder;
+    let res: Response;
+    try {
+      res = await verifyEmail(verifyReq(raw));
+    } finally {
+      releaseHolder?.();
+      await holder;
+      compareSpy.mockRestore();
+    }
     expect(res.status).toBe(503);
     const u = await prisma.user.findUniqueOrThrow({ where: { email: "busy@x.com" } });
     expect(u.emailVerifyTokenHash, "yoğunluk yüzünden token yanmamalı").toBe(hash);
