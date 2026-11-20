@@ -60,14 +60,23 @@ describe("kuyruk yolu — kuyruktaki çıkış mesajı, çıkış ileri alındı
   const drain = () => drainOutboxOnce({ send, tokenFor: async () => "t" });
 
   beforeEach(async () => {
+    vi.useRealTimers();
     await resetDb();
     vi.clearAllMocks();
     sends.length = 0;
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    // Saat çıkış gününün SABAHI (işletme UTC, 09:00): çıkış hatırlatması 12:00'den sonra gitmez (kurucu 11-20 öğlen A3) — gerçek saatle
+    // koşan test öğleden sonra kırmızıya dönerdi (saat bombası). Yalnız `Date` sahte; zamanlayıcılar gerçek.
+    const n = new Date();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), 9, 0)));
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   /** İkinci dairede kopya → işçi tutar → kopya kaldırılır → 20 dk geçer (yeniden bakma vadesi). `extend` arada çıkışı ileri alır. */
   async function holdThenRelease(s: Awaited<ReturnType<typeof seed>>, extend: boolean) {

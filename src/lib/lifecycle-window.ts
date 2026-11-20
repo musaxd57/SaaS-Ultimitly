@@ -7,9 +7,8 @@ export const CHECKIN_LEAD_DAYS = 4;
 /**
  * Çıkış mesajının gün içi aralığı ([başlangıç, bitiş) saat, işletmenin saatiyle, çıkış GÜNÜ). TEK KAYNAK: gönderici (`sendDueCheckouts`)
  * yalnız bu aralıkta aday seçer; "otomatik gönderim durduruldu" yüklemi (`booking-conflict-auto-send.ts`) bitiş saatini okur; kuyruk işçisi
- * (`outbox/worker.ts` `checkoutNotYetDue`) ertelenen satırı başlangıç saatine kurar. ⚠️ İşçinin gönderim anı vetosu bitiş saatini OKUMAZ
- * (yalnız "çıkış günü geçti mi"): kuyruğa aralık içinde girip tutulan / geciken satır çıkış günü öğleden sonra da gidebilir — doğrudan yolla
- * fark; davranış değişikliği kurucu sorusu (sert kontrol 11-20 A3).
+ * (`outbox/worker.ts` `checkoutNotYetDue`) ertelenen satırı başlangıç saatine kurar, gönderim anı vetosu (`lifecycleVeto`) bitiş saatinden
+ * sonra çıkış gününde bekleyen satırı `window_passed` ile iptal eder (kurucu 11-20 öğlen A3: "12:00 sabah hatırlatmasının son saati").
  */
 export const CHECKOUT_SEND_START_HOUR = 8;
 export const CHECKOUT_SEND_END_HOUR = 12;

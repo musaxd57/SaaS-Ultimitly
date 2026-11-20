@@ -3,6 +3,7 @@ import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages, PROPERTY_EXIS
 import { enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, reactivateBlockedOutbox, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
+import { zonedWallClockToUtc } from "@/lib/timezone";
 
 // FAZ 1 — welcome / check-in / check-out (proactive) + holding-ack wired to the durable outbox.
 // The provider transport + token are mocked; the sender loops (sendDue*) are exercised with the
@@ -270,7 +271,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       });
       await prisma.messageOutbox.create({
         data: {
-          availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
+          // Vade işçinin (sabitlenmiş) saatinden önce — vade kapısı TEK SAAT (JS), şema varsayılanı veritabanı saati.
+          availableAt: new Date("2020-01-01T00:00:00Z"),
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
           externalReservationId: ref, messageType: type, body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
         },
@@ -280,7 +282,13 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     const coId = await mkLifecycleRow("checkout", "completed", "res-co", "co");
     const wId = await mkLifecycleRow("welcome", "completed", "res-w", "w");
     const { send, calls } = okDeliver();
-    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    // İşçinin saati çıkış gününün sabah penceresinde (çıkış hatırlatması işletme saatiyle 12:00'den sonra gitmez — kurucu 11-20 öğlen A3);
+    // gerçek saatle koşan test öğleden sonra kırmızıya dönerdi. Çıkış günü = satırın kendi `departureDate`'inin işletme günü.
+    const co = await prisma.reservation.findUniqueOrThrow({ where: { id: coId }, select: { departureDate: true, property: { select: { organization: { select: { timezone: true } } } } } });
+    const tz = co.property.organization.timezone ?? "Europe/Istanbul";
+    const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(co.departureDate).split("-").map(Number);
+    const morning = zonedWallClockToUtc(y, m, d, 9, 0, 0, tz);
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now: () => morning });
     expect(calls()).toBe(1); // checkout sent; welcome vetoed
     expect(res.canceled).toBe(1);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: coId } })).checkoutSentAt).toBeInstanceOf(Date);
@@ -354,14 +362,19 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       return res.id;
     };
 
-    // 25 SAATLİK GÜN (2026-10-25, geri alma): departure = Berlin yerel geceyarısı
-    // = 2026-10-24T22:00Z. now = AYNI yerel günün 23:30'u (CET) = 2026-10-25T22:30Z
-    // → departure + 24.5h: eski sabit-24h kod burada VETOLARDI (erken iptal).
+    // 25 SAATLİK GÜN (2026-10-25, geri alma): departure = Berlin yerel geceyarısı = 2026-10-24T22:00Z. Kurucu 11-20 öğlen A3'ten beri
+    // çıkış hatırlatması çıkış günü YEREL 12:00'ye kadar gider: 11:30 CET (= 10:30Z, geri almadan SONRA UTC+1) gider; 12:30 CET (= 11:30Z)
+    // window_passed. Saat de org diliminde okunur — UTC+2 sanılsaydı 11:30Z "13:30" olurdu (erken iptal), yaz saati kaymaz.
     const dstId = await mkRow(new Date("2026-10-24T22:00:00Z"), "res-dst25", "co-dst25");
     const first = okDeliver();
-    await drainOutboxOnce({ send: first.send, tokenFor: async () => "t", batchSize: 10, now: () => new Date("2026-10-25T22:30:00Z") });
-    expect(first.calls()).toBe(1); // yerel gün bitmeden ASLA veto edilmez
+    await drainOutboxOnce({ send: first.send, tokenFor: async () => "t", batchSize: 10, now: () => new Date("2026-10-25T10:30:00Z") });
+    expect(first.calls()).toBe(1); // yerel öğleden önce veto edilmez
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: dstId } })).checkoutSentAt).toBeInstanceOf(Date);
+    await mkRow(new Date("2026-10-24T22:00:00Z"), "res-dst25b", "co-dst25b");
+    const late = okDeliver();
+    const rLate = await drainOutboxOnce({ send: late.send, tokenFor: async () => "t", batchSize: 10, now: () => new Date("2026-10-25T11:30:00Z") });
+    expect(late.calls()).toBe(0); // yerel 12:30 → çıkış hatırlatması geçti (A3)
+    expect(rLate.canceled).toBe(1);
 
     // 23 SAATLİK GÜN (2026-03-29, ileri alma): departure = 2026-03-28T23:00Z (CET
     // geceyarısı). now = ERTESİ yerel günün 00:30'u (CEST) = 2026-03-29T22:30Z

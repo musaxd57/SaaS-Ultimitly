@@ -9,9 +9,9 @@ import { RECONCILE_CODES } from "./reconcile-match";
 import { channelSendReconcileEnabled, reconcileSendFromChannel } from "./reconcile-channel";
 import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
-import { orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
+import { currentHourInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
-import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
+import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_END_HOUR, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { spansMultipleProperties } from "@/lib/booking-property-conflict";
 import { loadErasureGuard } from "@/lib/erasure";
@@ -738,6 +738,10 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
     const departureDay = calendarDateOf(res.departureDate, tz).key;
     if (type === "checkin" && today >= departureDay) return "window_passed";
     if (type === "checkout" && today > departureDay) return "window_passed";
+    // Kurucu 11-20 öğlen A3: "12:00 mevcut sabah hatırlatmasının son saati" — çıkış GÜNÜ öğleden sonra kuyrukta bekleyen / tutulup serbest
+    // kalan çıkış hatırlatması gitmez (doğrudan yol bu saatten sonra hiç aday seçmez; iki yol aynı). Rezervasyonu iptal etmez, çıkış saatini
+    // değiştirmez, elle yazmayı engellemez; satır iptal sebebi diriltilebilir kümede DEĞİL (eski sabah mesajı geri gelmez).
+    if (type === "checkout" && today === departureDay && currentHourInTimeZone(tz, now) >= CHECKOUT_SEND_END_HOUR) return "window_passed";
   }
   // N1 (kurucu 10-17 "kesinlikle bayat mesaj gitmemeli"; Opus 10-17): abonelik kapalıyken kuyrukta BEKLEMİŞ karşılama / giriş mesajı, ödeme
   // geldiğinde varış günü GEÇTİYSE bayattır (konaklamanın ortasında "Girişiniz bugün 15:00, kapı kodu …" gitmesin). Normal kuyruk
