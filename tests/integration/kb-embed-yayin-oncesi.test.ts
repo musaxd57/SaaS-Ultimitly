@@ -188,16 +188,13 @@ describe("yayın öncesi test 1 — A büyük dosya işlerken B'nin YENİ kaydı
     expect(after.titles).toContain("Isıtma");
     // A'nın yeni turu hâlâ reddedilmiş (kendi kovası dolu): B'nin yansıması A'yı beklemedi.
     expect(chunkTexts().filter((t) => t.startsWith("general · Saldirgan") && t.includes("Tur 6 kalem"))).toEqual([]);
-    // Kurucunun izleyeceği sayı olay günlüğünde: B'nin değişikliği → ısıtmanın bitişi (`job.kb_embed.ready`).
-    // `updatedAt`i Prisma motoru GERÇEK saatle yazar; testte uygulama saati sahte (A'nın turları onu öne aldı) → beklenen değer iki saatten:
-    // bitiş (kayıt + yansıma) − kaydın `updatedAt`'i. Üretimde ikisi de aynı makinenin saatidir ve sayı doğrudan "kayıt → yansıma"dır.
+    // Kurucunun izleyeceği sayı olay günlüğünde: B'nin KAYDETME ANI → ısıtmanın bitişi (`job.kb_embed.ready`; sert kontrol 11-20 A2'den beri
+    // ölçü kaydetme anından başlar — iki uç da uygulamanın saati, sahte saatle de doğrudan "kayıt → yansıma").
     const ev = await prisma.operationalEvent.findMany({ where: { event: "job.kb_embed.ready", organizationId: b.orgId } });
     expect(ev).toHaveLength(1);
     const lag = (JSON.parse(ev[0].dataJson ?? "{}") as { durationMs?: number }).durationMs ?? -1;
-    const heatingRow = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: heating.id }, select: { updatedAt: true } });
-    const expected = savedAt + reflectedAfterMs! - heatingRow.updatedAt.getTime();
-    console.log(`YAYIN-ONCESI-1 olay günlüğü durationMs=${lag} (beklenen ${expected}; sahte saat farkı ${savedAt - heatingRow.updatedAt.getTime()} ms)`);
-    expect(Math.abs(lag - expected)).toBeLessThan(1_500);
+    console.log(`YAYIN-ONCESI-1 olay günlüğü durationMs=${lag} (arka plan yansıma ${reflectedAfterMs} ms)`);
+    expect(Math.abs(lag - reflectedAfterMs!)).toBeLessThan(1_500);
 
     // Misafir sorusu gecikmeyi BEKLEMEZ: B kaydı yeniden düzenler; ilk soru 'cold' (güncel kayıtta sözcüksel), soru ısıtmayı o anda başlatır,
     // sanal saat ilerlemeden sonraki soru 'ok' ve kombi kaydını seçer.

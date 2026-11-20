@@ -17,7 +17,7 @@ import { __resetEventLogLimits } from "@/lib/event-log";
 // ---------------------------------------------------------------------------
 // KURUCUNUN İLK HAFTA İZLEYECEĞİ SAYI (11-20 sabah, E-1…E-5: "bir KB değişikliği anlamsal aramaya ne kadar sürede yansıyor?"). Migration'sız
 // en sade yol: düzenlemeden doğan ısıtma bitince kalıcı, yalnız-ekle olay günlüğüne (`OperationalEvent`) tek satır `job.kb_embed.ready`:
-// `durationMs` = kayıt değişikliği (`updatedAt`) → ısıtmanın bitişi (gecikme, bütçe beklemesi ve yeniden denemeler içinde), `count` = gömülen
+// `durationMs` = kaydetme anı → ısıtmanın bitişi (gecikme, bütçe beklemesi ve yeniden denemeler içinde), `count` = gömülen
 // metin. Açılış ısıtması ve reddedilen / yarım kalan iş satır yazmaz. Sahte saat (setTimeout / clearTimeout / Date); DB gerçek.
 // ---------------------------------------------------------------------------
 
@@ -157,5 +157,43 @@ describe("KB değişikliği → anlamsal aramaya yansıma süresi (olay günlü�
     const ev = await readyEvents(p.orgId);
     expect(ev).toHaveLength(1);
     expect(ev[0].durationMs!).toBeLessThan(5_000);
+  }, 60_000);
+
+  // Sert kontrol 11-20 A2: ölçü KAYDETME ANINDAN başlar. Eskiden işin taşıdığı en yeni kalem sürümünden başlıyordu: silmeden sonraki ısıtmada
+  // düzenlenen kalemin metni işte yoktu, gecikme başka (eski) kalemin yaşı kadar şişiyordu.
+  it("silme sonrası ısıtma: gecikme kaydetme anından (≈ 20 sn), işteki eski kalemin yaşından DEĞİL", async () => {
+    const p = await warmedProperty();
+    const old = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: p.propertyId, category: "general", title: "Eski not", content: "Çöp kovası balkonda durur.", isActive: true, source: "host_manual", reviewState: "approved" },
+    });
+    await prisma.$executeRaw`UPDATE "KnowledgeBaseItem" SET "updatedAt" = now() - interval '10 days' WHERE "id" = ${old.id}`;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await prisma.knowledgeBaseItem.delete({ where: { id: p.wifiId } });
+    await afterKbItemsChanged({ organizationId: p.orgId, propertyIds: [p.propertyId] });
+    await vi.advanceTimersByTimeAsync(20_000);
+    await settle();
+    const ev = await readyEvents(p.orgId);
+    expect(ev).toHaveLength(1);
+    expect(ev[0].durationMs!).toBeGreaterThanOrEqual(19_000);
+    expect(ev[0].durationMs!).toBeLessThan(25_000);
+  }, 60_000);
+
+  // Sert kontrol 11-20 A2: kovalar kapalıyken ham ve QR biçimi ayrı işlerdir; aynı düzenleme TEK satır yazar.
+  it("kovalar kapalı + misafir adı yer tutuculu kalem (iki küme, iki iş) → düzenleme başına TEK satır", async () => {
+    vi.stubEnv("KB_EMBED_ORG_BUDGET_ENABLED", "");
+    const p = await warmedProperty();
+    const greet = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: p.propertyId, category: "general", title: "Karşılama", content: "Hoş geldiniz {isim}, anahtar kutusu kapının solunda.", isActive: true, source: "host_manual", reviewState: "approved" },
+    });
+    await kbWarm.warmPropertyKbVectors(p.propertyId); // ölçülmeyen ısıtma: iki küme de hazır
+    await settle();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await prisma.knowledgeBaseItem.update({ where: { id: greet.id }, data: { content: "Hoş geldiniz {isim}, anahtar kutusu kapının sağında." } });
+    calls.length = 0;
+    await afterKbItemsChanged({ organizationId: p.orgId, propertyIds: [p.propertyId] });
+    await vi.advanceTimersByTimeAsync(20_000);
+    await settle();
+    expect(calls.length).toBeGreaterThanOrEqual(2); // gerçekten iki ayrı iş gömdü (ham + QR biçimi)
+    expect(await readyEvents(p.orgId)).toHaveLength(1);
   }, 60_000);
 });
