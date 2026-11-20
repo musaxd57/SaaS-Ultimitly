@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "./helpers/db";
+import { prisma, resetDb } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
-// G1 TUR 5 YENİDEN ÜRETME — yapay zekâ kapıları, sahte modelle saldırı (konu 3): GÖRÜNMEZ KARAKTER ev sahibi sesi kemerini deler.
+// GÖRÜNMEZ KARAKTER ev sahibi sesi kemerini DELMEZ (G1 tur 5 T5-B3, 11-20; düzeltildi: kemer eşleşme kopyasını temizler, gönderilen metin aynen).
 //
 // Kural kaynağı (`docs/claude/ai-guvenlik.md`): görünmez karakter = `\p{Default_Ignorable_Code_Point}` + `\p{Cf}` + U+2800; çıktı vetosu,
 // "bilgim yok" kuralı ve tazminat sözü kemeri cevabı bu kümeden temizleyip okur (`output-veto.ts:700`, `absence.ts:612`,
@@ -105,13 +105,14 @@ describe("G1 tur 5 repro — görünmez karakter ev sahibi sesi kemerini deler",
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("🚨 KIRMIZI: 'ev sahi​biniz' (sözcük içinde sıfır genişlikli boşluk) → cevap misafire GİDER", async () => {
+  it("🚨 'ev sahi​biniz' (sözcük içinde sıfır genişlikli boşluk) → cevap misafire GİTMEZ (reply_host_voice)", async () => {
     const id = await seed("Wi-Fi şifresi neydi?");
     understands(["wifi"]);
     mockSuggest.mockResolvedValueOnce(answer(`Wi-Fi şifresi modemin altında. Ev sahi${ZWSP}biniz de binada oturuyor.`));
     await applyChannelAutoReply(id);
     const visible = sentBodies().map((b) => b.replace(/​/g, ""));
     expect(visible.some((b) => b.includes("Ev sahibiniz")), `giden: ${JSON.stringify(visible)}`).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });
 

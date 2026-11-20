@@ -27,7 +27,13 @@
 
 /** Türkçe duyarlı katlama: "KAPIDA ÖDEME" → "kapida odeme", "İBAN" → "iban", "NAKİT" → "nakit". */
 export function foldPaymentText(s: string): string {
-  return s.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("tr").replace(/ı/g, "i");
+  // Görünmez karakter eşleşme kopyasından silinir — "IB<ZWSP>AN", "ca<ZWSP>sh" ödeme kemerini atlatmasın (G1 tur 5, 11-20; öteki kemerlerle aynı küme).
+  return s
+    .normalize("NFKD")
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("tr")
+    .replace(/ı/g, "i");
 }
 
 // Sözcük başı (yalnız KISA/çok anlamlı adlarda): "Libanlı" ≠ IBAN, "left" ≠ EFT. Uzun ve tek anlamlı adlar alt dize

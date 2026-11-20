@@ -138,8 +138,10 @@ function mentionsHostThirdPerson(sentence: string): boolean {
 /** Gönderilecek metinde ev sahibinin sesini bozan ilk ihlal (yoksa `null`). Saf, doğrusal. */
 export function hostVoiceViolation(reply: string | null | undefined): HostVoiceViolation | null {
   if (!reply || !reply.trim()) return null;
-  // Uzun boşluk / sekme dizileri tek boşluğa iner (aralıklı kalıplarda yeniden tarama olmasın); anlam değişmez.
-  const text = reply.replace(/[^\S\n]+/gu, " ");
+  // Görünmez karakter yalnız eşleşme kopyasından silinir (gönderilen metin aynen kalır) — "Ev sahi<ZWSP>biniz" kemeri atlatmasın (G1 tur 5
+  // T5-B3, 11-20; çıktı vetosu / bilgim yok / tazminat kemerleriyle aynı küme, kural `ai-guvenlik.md` "Görünmez karakter"). Ardından uzun boşluk
+  // / sekme dizileri tek boşluğa iner (aralıklı kalıplarda yeniden tarama olmasın); anlam değişmez.
+  const text = reply.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "").replace(/[^\S\n]+/gu, " ");
   let third: HostVoiceViolation | null = null;
   for (const s of sentencesOf(text)) {
     const lower = s.toLocaleLowerCase("tr");
