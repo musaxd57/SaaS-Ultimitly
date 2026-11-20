@@ -178,6 +178,29 @@ describe("KB değişikliği → anlamsal aramaya yansıma süresi (olay günlü�
     expect(ev[0].durationMs!).toBeLessThan(25_000);
   }, 60_000);
 
+  // Bütçe reddinden sonraki yeniden deneme AYNI kaydetme anını taşır (yoksa ölçü işteki kalemin yaşına düşer — burada 10 günlük eski kalem).
+  it("silme + bütçe reddi + yeniden deneme → gecikme kaydetme anından (≈ 1 saat), eski kalemin yaşından DEĞİL", async () => {
+    const p = await warmedProperty();
+    const old = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: p.propertyId, category: "general", title: "Eski not", content: "Çöp kovası balkonda durur.", isActive: true, source: "host_manual", reviewState: "approved" },
+    });
+    await prisma.$executeRaw`UPDATE "KnowledgeBaseItem" SET "updatedAt" = now() - interval '10 days' WHERE "id" = ${old.id}`;
+    await prisma.rateLimitCounter.update({ where: { key: kbEmbedOrgKey(p.orgId) }, data: { count: 600 } });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    await prisma.knowledgeBaseItem.delete({ where: { id: p.wifiId } });
+    await afterKbItemsChanged({ organizationId: p.orgId, propertyIds: [p.propertyId] });
+    await vi.advanceTimersByTimeAsync(20_000);
+    await settle();
+    expect(await readyEvents(p.orgId)).toEqual([]); // reddedildi
+    await prisma.$executeRaw`UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 second' WHERE "key" = ${kbEmbedOrgKey(p.orgId)}`;
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    await settle();
+    const ev = await readyEvents(p.orgId);
+    expect(ev).toHaveLength(1);
+    expect(ev[0].durationMs!).toBeGreaterThan(3_000_000);
+    expect(ev[0].durationMs!).toBeLessThan(2 * 3_600_000);
+  }, 60_000);
+
   // Pencerede art arda iki kaydetme: ölçü İLK kaydetmeden başlar (en uzun bekleyen değişiklik; ara sürüm gömülmez, yine tek satır).
   it("pencerede art arda iki kaydetme → tek satır, gecikme İLK kaydetmeden (≈ 10 + 20 sn)", async () => {
     const p = await warmedProperty();
