@@ -338,6 +338,47 @@ describe("WhatsApp cevap dilimi", () => {
     expect((await question(q.questionId)).status).toBe("sent");
   });
 
+  it("🚨 G1 tur 8: göreli gün Türkçe EKLİ yazıldıysa ('yarına kadar', 'yarınki', 'bugünkü') gece yarısını geçen [Gönder] yine tutulur", async () => {
+    // Türkçe sondan eklemeli: ev sahibinin cevabında ve Türkçe taslakta "yarın" çoğunlukla ekli geçer. Eski kalıp sözcüğün hemen ardında harf
+    // istemiyordu → "yarına kadar" taşıyan taslak gün değiştikten sonra da gidiyordu (misafir "yarın"ı bir gün sonrası okur).
+    for (const [i, [draft, hostText]] of (
+      [
+        ["Klimanız yarına kadar tamir edilecek.", "yarına kadar tamir edilir"],
+        ["Yarınki temizlik öğleden sonra yapılacak.", "yarınki temizlik öğleden sonra"],
+        ["Bugünkü sıcak su sorunu akşam düzelecek.", "bugünkü sorun akşam düzelir"],
+      ] as const
+    ).entries()) {
+      await resetDb();
+      tr.out.length = 0;
+      sendMock.mockReset();
+      sendMock.mockResolvedValue({ status: "sent", message: null });
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, `wamid.Q${i}`);
+      composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: draft, replyTr: draft });
+      await deliver([text(DIG_A, `wamid.a${i}`, hostText, `wamid.Q${i}`)]);
+      const row = await question(q.questionId);
+      expect(row.status).toBe("awaiting_confirm");
+      await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = "updatedAt" - interval '1 day' WHERE "id" = ${q.questionId}`;
+      await deliver([button(DIG_A, `wamid.b${i}`, hostQuestionButtonId(q.questionId, row.version, "send"))]);
+      expect(sendMock, draft).not.toHaveBeenCalled();
+      expect(lastText()).toContain(HOST_TEXTS.dayChanged);
+      expect((await question(q.questionId)).status).toBe("sent");
+    }
+  });
+
+  it("KONTROL (aşırı uygulama): 'yarım saat' göreli gün DEĞİLDİR — gün değişse de gönderim bugünkü gibi", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await seedQuestion(h, "wamid.Q1");
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: "Temizlikçimiz yarım saat içinde dairede olacak.", replyTr: "Temizlikçimiz yarım saat içinde dairede olacak." });
+    await deliver([text(DIG_A, "wamid.a1", "yarım saat içinde orada", "wamid.Q1")]);
+    const row = await question(q.questionId);
+    expect(row.status).toBe("awaiting_confirm");
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = "updatedAt" - interval '1 day' WHERE "id" = ${q.questionId}`;
+    sendMock.mockResolvedValueOnce({ status: "sent", message: null } as never);
+    await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, row.version, "send"))]);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
   it("KONTROL: gün değişse de metinde göreli gün YOKSA gönderim bugünkü gibi", async () => {
     const h = await seedHost(DIG_A, "+90 532 111 22 33");
     const q = await previewed(h);

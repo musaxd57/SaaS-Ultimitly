@@ -72,9 +72,12 @@ export const REVOKED_BINDING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * Göreli gün sözcükleri (Codex 11-04 P2: gece yarısını geçen önizleme). Sınırlı seçenek kümesi + Unicode sözcük sınırı (doğrusal; metinler
  * kısa: önizleme tavanı). "Guten Morgen"daki "morgen" de tutar — yanlış alarm yalnız ev sahibine yeniden yazdırır (güvenli yön).
+ * Türkçe kökler EKLİ biçimleriyle de tutar (G1 tur 8: "yarına kadar", "yarından", "yarınki", "bugünkü", "bu akşamki" sağ sınır yüzünden
+ * kaçıyordu; ev sahibinin Türkçe cevabında ve Türkçe taslakta göreli gün çoğunlukla eklidir). Sol sınır aynı: "yarım" (yarı + m) tutmaz.
+ * Kök sabit, ekin kendisi okunmaz (sağda sınır yok → karesel iş yok).
  */
 const RELATIVE_DAY_WORDS =
-  /(?<![\p{L}\p{N}_])(?:bugün|bugun|bu\s+akşam|bu\s+aksam|bu\s+gece|yarın|yarin|öbür\s*gün|obur\s*gun|today|tonight|tomorrow|heute|morgen|übermorgen|demain|aujourd['’]hui|ce\s+soir|hoy|mañana|esta\s+noche|сегодня|завтра|послезавтра)(?![\p{L}\p{N}_])|اليوم|الليلة|غدا(?!ء)/iu;
+  /(?<![\p{L}\p{N}_])(?:(?:bugün|bugun|bu\s+akşam|bu\s+aksam|bu\s+gece|yarın|yarin|öbür\s*gün|obur\s*gun)|(?:today|tonight|tomorrow|heute|morgen|übermorgen|demain|aujourd['’]hui|ce\s+soir|hoy|mañana|esta\s+noche|сегодня|завтра|послезавтра)(?![\p{L}\p{N}_]))|اليوم|الليلة|غدا(?!ء)/iu;
 
 export const HOST_TEXTS = {
   previewHeader: "Misafire şu cevap gidecek:",
