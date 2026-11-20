@@ -321,3 +321,12 @@ takvimde görünmez) — tek rezervasyon sayfası ileride mi · **E-1…E-6** an
 gecikmeli ısıtma 20 sn · kalıcı kuyruk tablosu ne zaman · **Ş-1** şablon ekranı yeni metinleri · **Ş-2** sınıra yaklaşınca uyarı · **Ö-1** QR'da
 model düşünürken iptal edilen konaklama (öneri: cevap gitmez, "sohbet kapalı" metni, mesaj ev sahibine) · **Ö-2** mesaj içi sorgu tekrarlarını
 kaldırma + yeniden sıralayıcı sonucunu içeriğe bağlı önbelleğe alma (misafire gideni değiştirmez) · konaklama bekçisini atlamak ÖNERİLMEDİ.
+
+**11-20 öğlen — kurucuya sorular (örnekli hâlleri öğlen raporunda):** **A3** kuyruk açıkken çıkış günü 12:00'den sonra tutması kalkan / geciken
+çıkış mesajı ("Bugün çıkış gününüz…") gitsin mi, iptal mi edilsin (kuyruksuz yol bugün 12:00'den sonra hiç göndermez; kuyruk gönderiyor — doğrudan
+yolla misafire giden FARK, F-1 kuralıyla önce örnek) · **G-2** Girişler'de gönderimi belirsiz giriş mesajı metni "Otomatik giriş mesajının gönderimi
+doğrulanamadı · konuşmayı kontrol edin" (düğme yok) · **EMB-S1** ilk hafta ölçüsü nerede görünsün (öneri: operatör konsolunda tek satır kart) ·
+**F4-a** plan sınırı istek başına iki kez okunuyor — tek okuma kanal yolunu da değiştirir, ayrı dilim mi · **F4-b** QR'da "daha yeni misafir
+mesajı varsa bu cevabı yazma" kontrolü yok (kanal yolunda var) — eklensin mi (misafire gideni değiştirir, örnekli soru) · **R-1…R-6** rezervasyon
+detay ekranı (`docs/TASARIM-2026-11-20-rezervasyon-detay-ekrani.md` §10) · **A4 (bilgi)** "durduruldu" yazısı abonelik kapısına bakmıyor
+(faturalandırma uygulaması bugün kapalı; Girişler de aynı).

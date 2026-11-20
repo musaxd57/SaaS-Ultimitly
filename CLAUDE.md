@@ -594,7 +594,8 @@ anlamsal karar mimarisi tasarımı · zaman yolculuğu aracı · "Bugün" ilk di
 11-14 sızma testi tur 1 — 11-18 Codex 11-17 dalgaları (ödeme kanıtla kapanır · teslim sonucu sözlüğü · durum tek kaynak · iki dairede kayıt
 tutulur) · söz okuyucusu (model okur, anahtar KAPALI) · migration 98 — 11-19 dalga C · ödeme "yalnız tam iadeyle" · kanal uzlaştırması (anahtar
 KAPALI) · beş ajanlı optimizasyon / hata ayıklama turu — 11-20 şablon listesi 30'luk + sınır 500 · anlamsal arama bütçesi (üç anahtar KAPALI) ·
-son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · Ö-1 · F-1 adım 1 · F-2 · Dikkat satırı üç satır.
+son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · Ö-1 · F-1 adım 1 · F-2 · Dikkat satırı üç satır · öğlen: CLAUDE.md
+sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 kurucu sorusu) · EMB pilotu · F-4 QR — özet `durum.md` (13).
 
 **Turlardan kurallar (Durum satırlarından, AYNEN):**
 - (11-11) Bağlantıyı / veriyi düşüren "kesin ret" kararı münhasırlık ister (kilit elde değilse ret belirsizdir — OAuth yenileme); uzunluk engeli
@@ -633,5 +634,7 @@ son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · 
   bozuk gövdesi "okunamadı" sayılır, olumlu sonuç sayılmaz.
 - (11-19) Yaşayan mutant testin YANLIŞ SEBEPLE yeşil olduğunu gösterebilir — önceki testin `restoreAllMocks`ı taklitleri bozar; mutantı elle
   uygulayıp testin döndürdüğü sonucu oku.
+- (11-20 öğlen) İki ayrı kuralın aynı şeyi söylediği yerde (gönderici ↔ ekran yazısı) yazı tarafı göndericinin KENDİ ön elemesini çağırır,
+  kopyasını yazmaz (sert kontrol A1: kopya kural kuyruk sahipliğini unutmuştu).
 - (11-20) Yeni bir "iptal" vetosu eklerken rezervasyon geri dönerse aynı anahtarın bir daha gönderilip gönderilemeyeceği sorulur (kuyruk yolu
   doğrudan yoldan ayrışmaz).
