@@ -30,6 +30,7 @@ import { REACTIVATION_ATTENTION_DAYS, REACTIVATION_BLOCKED_FIELD } from "@/lib/i
 import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { hasRecipientWhere } from "@/lib/internal-record";
 import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingConflict } from "@/lib/booking-property-conflict";
+import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -266,6 +267,11 @@ export interface AttentionItem {
   arrivalDay?: string;
   /** Yalnız `booking_two_properties`, kart tavanındaki SON satırda: satır olmayan öteki çakışan rezervasyon sayısı (> 0). */
   bookingMoreCount?: number;
+  /**
+   * Yalnız `booking_two_properties`: tutma bu rezervasyonda GERÇEKTEN bir otomatik mesajı durduruyor (kurucu 11-20 sabah B-1; yüklem
+   * `lib/booking-conflict-auto-send.ts`). Yoksa (durdurmuyor ya da okunamadı) "Otomatik gönderim durduruldu" yazılmaz.
+   */
+  autoSendStopped?: boolean;
 }
 
 export interface FindAttentionOptions {
@@ -849,6 +855,14 @@ export async function findAttentionItems(
   if (twoPropertyRows.length > 0) {
     // Varış günü işletmenin takviminden (tek tarih kuralı) — yalnız satır varsa okunur (sakin günde ek sorgu yok).
     const tz = orgTimezone(decisionTz ?? (await storedTimezone()));
+    // "Otomatik gönderim durduruldu" yalnız gerçekten durduruluyorsa (kurucu 11-20 sabah B-1) — gösterilen satırlar için TEK okuma. Okunamazsa
+    // satır yine görünür, durdurma cümlesi yazılmaz (söz verilmez; geçiş tabanlı alarm).
+    const stopped = await autoSendStoppedByConflict({ organizationId, refs: twoPropertyRows.map((c) => c.sourceReference), now }).catch(
+      (err): Set<string> => {
+        void alertOnTransition("attention:booking-two-properties-stopped", "attention booking_two_properties stopped", err).catch(() => {});
+        return new Set();
+      },
+    );
     for (const [index, c] of twoPropertyRows.entries()) {
       const arrivalDay = calendarDateOf(c.arrivalDate, tz).key;
       const [y, m, d] = arrivalDay.split("-").map(Number);
@@ -869,6 +883,7 @@ export async function findAttentionItems(
         bookingPropertyNames: c.properties.map((p) => p.name),
         arrivalDay,
         ...(index === twoPropertyRows.length - 1 && twoPropertyMore > 0 ? { bookingMoreCount: twoPropertyMore } : {}),
+        ...(stopped.has(c.sourceReference) ? { autoSendStopped: true } : {}),
       });
     }
   }

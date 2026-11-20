@@ -10,9 +10,12 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
-import { BOOKING_SPAN_HEADLINE, bookingSpanPropertiesLine } from "@/components/attention-panel";
+import { AUTO_SEND_STOPPED_TEXT, BOOKING_SPAN_HEADLINE, bookingSpanDetailLine } from "@/components/attention-panel";
 import { RemoveManualCopyButton } from "@/components/reservations/remove-manual-copy-button";
 import { loadBookingComparison, reservationCalendarHref, type ComparedBookingRow } from "@/lib/reservations/compare";
+import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
+import { calendarDateOf } from "@/modules/availability/core";
+import { reportError } from "@/lib/report-error";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +61,19 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
   // Çakışma çözüldüyse (etkin kayıt tek dairede) kalan rezervasyon açılabilir (kurucu 11-19 akşam, madde 4: son kopya yanıtından sonra
   // liste yenilenince "Rezervasyonu aç"). Çakışma sürerken yok — hangisinin açılacağı sorunun kendisi; etkin kayıt kalmadıysa da yok.
   const openRow = comparison.resolved ? comparison.rows.find((r) => r.active) : undefined;
+  // Çakışma sürerken açıklama Dikkat satırının satırları (kurucu 11-20 sabah B-1): varış günü aynı kuralla (en erken etkin varış, işletmenin
+  // takvim günü); "Otomatik gönderim durduruldu" AYNI yüklemden — okunamazsa yazılmaz (söz verilmez), sayfa düşmez.
+  const arrivalDay = comparison.earliestActiveArrival ? calendarDateOf(comparison.earliestActiveArrival, tz).key : undefined;
+  const autoSendStopped = comparison.resolved
+    ? false
+    : (
+        await autoSendStoppedByConflict({ organizationId: session.organizationId, refs: [comparison.sourceReference], now: new Date() }).catch(
+          (err) => {
+            void reportError("reservations.compare.auto-send-stopped", err);
+            return new Set<string>();
+          },
+        )
+      ).has(comparison.sourceReference);
 
   return (
     <div className="space-y-6">
@@ -67,10 +83,11 @@ export default async function CompareBookingRecordsPage({ params }: { params: Pr
           comparison.resolved ? (
             "Kayıtlar artık tek dairede. Otomatik mesajlar olağan akışa döndü."
           ) : (
-            // Dikkat satırıyla aynı iki satır (kurucu 11-19 akşam, madde 3): sabit başlık + daire adları " · " ile (ada ek takılmaz).
+            // Dikkat satırıyla aynı satırlar (kurucu 11-20 sabah B-1); bu sayfada eylem adı yok (sayfanın kendisi "Kayıtları karşılaştır").
             <>
               <span className="block">{BOOKING_SPAN_HEADLINE}</span>
-              <span className="block break-words">{bookingSpanPropertiesLine(comparison.activePropertyNames)}</span>
+              <span className="block break-words">{bookingSpanDetailLine(comparison.activePropertyNames, arrivalDay)}</span>
+              {autoSendStopped ? <span className="block">{AUTO_SEND_STOPPED_TEXT}</span> : null}
             </>
           )
         }

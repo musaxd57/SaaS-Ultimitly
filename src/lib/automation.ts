@@ -101,7 +101,7 @@ import {
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
-import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_END_HOUR, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
 // Otomatik mesajın gönderilebildiği rezervasyon durumları — TEK KAYNAK (D1, 11-18): gönderici sorguları, son talepler, önizlemeler ve kalıcı
 // kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
@@ -5798,8 +5798,9 @@ export async function lifecycleBaselineWhere(organizationId: string, baseline: D
  * Kural `loadAutoMessage` ile AYNI (satır var + `body.trim()` boş değil); gönderim anındaki kontroller (metin okuma, `autoMessageStillAt`)
  * AYNEN durur — küme geçiş başında okunur, arada yazılan metin sonraki geçişte görülür. Doldurulamayan metin burada ELENMEZ: sonuç misafir
  * adına ve kanal imzasına da bağlıdır (rezervasyon düzeyi), ön elemede kalır.
+ * Dışa açık: "otomatik gönderim durduruldu" yüklemi (`booking-conflict-auto-send.ts`, kurucu 11-20 B-1) AYNI parçayı okur.
  */
-async function lifecycleTemplatedPropertyWhere(organizationId: string, kind: AutoMessageKind): Promise<Prisma.ReservationWhereInput> {
+export async function lifecycleTemplatedPropertyWhere(organizationId: string, kind: AutoMessageKind): Promise<Prisma.ReservationWhereInput> {
   const rows = await prisma.autoMessageTemplate.findMany({
     where: { kind, property: { organizationId }, NOT: { body: "" } },
     select: { propertyId: true, body: true },
@@ -6962,9 +6963,9 @@ export async function sendDueCheckouts(
 
   const now = new Date();
   const tz = orgTimezone(org.timezone);
-  // Same-day reminder window: 08:00-11:59 org time on the departure day.
+  // Same-day reminder window: 08:00-11:59 org time on the departure day (sınır tek kaynak `lifecycle-window.ts`).
   const hour = currentHourInTimeZone(tz, now);
-  if (hour < 8 || hour >= 12) return { sent: 0, considered: 0 };
+  if (hour < CHECKOUT_SEND_START_HOUR || hour >= CHECKOUT_SEND_END_HOUR) return { sent: 0, considered: 0 };
   // The calendar date of "today" in the org timezone — check-out must be today (TEK TARİH KURALI, ↑todayDateAnchors).
   const today = todayKey(now, tz);
   const day = zonedDayRange(now, tz);

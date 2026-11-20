@@ -34,8 +34,14 @@ export interface ComparedBookingRow {
 
 export interface BookingComparison {
   rows: ComparedBookingRow[];
+  /**
+   * Satırların ortak kaynak kimliği — YALNIZ sunucuda ("otomatik gönderim durduruldu" yüklemine girdi); sayfada / adreste gösterilmez.
+   */
+  sourceReference: string;
   /** Etkin kaydı olan dairelerin adları, ada göre sıralı (Dikkat satırıyla aynı sıra). */
   activePropertyNames: string[];
+  /** Etkin satırların en erken varışı (Dikkat satırının "Giriş: <gün>"üyle aynı kural); etkin satır yoksa `null`. */
+  earliestActiveArrival: Date | null;
   /** Etkin kayıtlar artık tek (ya da hiç) dairede: tutma kalktı. */
   resolved: boolean;
 }
@@ -106,7 +112,11 @@ export async function loadBookingComparison(
   );
   const nameOf = new Map(found.map((r) => [r.propertyId, r.property.name]));
   const activePropertyNames = activeIds.map((id) => nameOf.get(id) ?? "").sort((a, b) => a.localeCompare(b, "tr"));
-  return { rows, activePropertyNames, resolved };
+  const earliestActiveArrival = rows.reduce<Date | null>(
+    (min, r) => (r.active && (min === null || r.arrivalDate.getTime() < min.getTime()) ? r.arrivalDate : min),
+    null,
+  );
+  return { rows, sourceReference: anchor.sourceReference, activePropertyNames, earliestActiveArrival, resolved };
 }
 
 /**

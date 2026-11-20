@@ -72,10 +72,20 @@ function nightsLabel(from: string, to: string): string {
  */
 export const BOOKING_SPAN_HEADLINE = "Aynı rezervasyon birden fazla dairede görünüyor";
 
-/** İkinci satırın daire listesi: adlar OLDUĞU GİBİ, " · " ile ("Sahil Evi · Lale 5"; üç dairede de aynı biçim — kurucu 11-19 akşam). */
-export function bookingSpanPropertiesLine(names: readonly string[]): string {
-  return names.join(" · ");
+/**
+ * İkinci satır (kurucu 11-20 sabah B-1, AYNEN): daire adları OLDUĞU GİBİ " · " ile, varış günü biliniyorsa " · Giriş: <gün>"
+ * ("Sahil Evi · Lale 5 · Giriş: 5 Ara"; üç dairede de aynı biçim). Dikkat satırı ve karşılaştırma sayfası aynı fonksiyonu kullanır.
+ */
+export function bookingSpanDetailLine(names: readonly string[], arrivalDay?: string): string {
+  return [...names, ...(arrivalDay ? [`Giriş: ${dayLabel(arrivalDay)}`] : [])].join(" · ");
 }
+
+/**
+ * Üçüncü satırın başı (kurucu 11-20 sabah B-1, AYNEN). YALNIZ tutma bu rezervasyonda gerçekten bir otomatik mesajı durduruyorsa yazılır
+ * (`autoSendStopped`, yüklem `lib/booking-conflict-auto-send.ts`); eski "Otomatik mesajlar bekletiliyor." kalktı — sırada mesaj varmış ve
+ * sonradan mutlaka gidecekmiş gibi okunuyordu (sonradan gönderme sözü verilmez).
+ */
+export const AUTO_SEND_STOPPED_TEXT = "Otomatik gönderim durduruldu";
 
 /** Yarı açık [from, to) aralığındaki gece sayısı (takvim günü anahtarları). */
 function nightCount(from: string, to: string): number {
@@ -184,14 +194,10 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
       // G10: mesajlar iletilmiş OLABİLİR (sağlayıcı alıp hata vermiş olabilir) → elle yanıtlamadan önce kontrol (çift mesaj riski).
       return "Tüm daireler · mesajlar iletilmiş olabilir · elle yanıtlamadan önce konuşmaları kanaldan kontrol edin";
     case "booking_two_properties": {
-      // İkinci satır (kurucu 11-19 akşam, madde 3): daire adları ÖNCE — satır kırpılsa da hangi daireler olduğu görünür; ardından varış günü ve
-      // "Otomatik mesajlar bekletiliyor." (bilgi kaybolmaz, satır sayısı artmaz: başlık + bu satır + eylem). Eylem artık "Kayıtları
-      // karşılaştır" olduğu için eski talimat cümlesi ("Yanlış kaydı kaldırın.") kalktı. Kart tavanındaki son satırda kalan sayı (öteki
-      // türlerin "· N … daha" kalıbı).
-      const names = bookingSpanPropertiesLine(item.bookingPropertyNames ?? [item.propertyName]);
-      const day = item.arrivalDay ? ` · ${dayLabel(item.arrivalDay)}` : "";
+      // İkinci satır (kurucu 11-20 sabah B-1): daire adları + " · Giriş: <gün>". Kart tavanındaki son satırda kalan sayı satırın sonunda
+      // (öteki türlerin "· N … daha" kalıbı). Durdurma cümlesi ve eylem üçüncü satırda (↓ `AttentionPanel`).
       const more = (item.bookingMoreCount ?? 0) > 0 ? ` · ${item.bookingMoreCount} rezervasyon daha` : "";
-      return `${names}${day} · Otomatik mesajlar bekletiliyor.${more}`;
+      return `${bookingSpanDetailLine(item.bookingPropertyNames ?? [item.propertyName], item.arrivalDay)}${more}`;
     }
   }
 }
@@ -290,13 +296,15 @@ export function AttentionPanel({
                   ) : null}
                 </p>
                 {item.kind === "booking_two_properties" ? (
-                  // Satırın tamamı karşılaştırma sayfasına gider; bu yalnız görünür eylem adı (bağlantı içinde ikinci bağlantı / düğme yok).
-                  <span
-                    data-attention-compare
-                    className="mt-1 inline-flex rounded-md border border-border px-2 py-0.5 text-xs font-medium text-primary"
-                  >
-                    Kayıtları karşılaştır
-                  </span>
+                  // Üçüncü satır (kurucu 11-20 sabah B-1): "Otomatik gönderim durduruldu · Kayıtları karşılaştır" — durdurma cümlesi YALNIZ
+                  // gönderim gerçekten engelleniyorsa. Satırın tamamı karşılaştırma sayfasına gider; eylem adı yalnız görünür etikettir
+                  // (bağlantı içinde ikinci bağlantı / düğme yok).
+                  <p className="truncate text-xs">
+                    {item.autoSendStopped ? <span className="text-muted-foreground">{`${AUTO_SEND_STOPPED_TEXT} · `}</span> : null}
+                    <span data-attention-compare className="font-medium text-primary">
+                      Kayıtları karşılaştır
+                    </span>
+                  </p>
                 ) : null}
                 {(() => {
                   const line = item.kind === "calendar_conflict" ? moneyLine(item.money) : null;

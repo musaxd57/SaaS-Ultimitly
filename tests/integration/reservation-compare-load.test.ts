@@ -146,4 +146,20 @@ describe("loadBookingComparison (gerçek PostgreSQL)", () => {
     expect(cal.sourceClass).toBe("calendar");
     expect(cal.calendarSourceLabel).toBeNull();
   });
+  it("en erken ETKİN varış (Dikkat satırının 'Giriş: <gün>' kuralı): iptal edilmiş daha erken kopya sayılmaz; kaynak kimliği sunucuda taşınır", async () => {
+    const w = await world(["Lale 3", "Lale 5", "Lale 7"]);
+    const late = await prisma.reservation.create({
+      data: { propertyId: w.ids[0], guestName: "Ada", arrivalDate: stayDay(6), departureDate: stayDay(9), status: "confirmed", sourceReference: "HM-1", channel: "airbnb", connectionId: "c1" },
+      select: { id: true },
+    });
+    await prisma.reservation.create({
+      data: { propertyId: w.ids[1], guestName: "Ada", arrivalDate: stayDay(4), departureDate: stayDay(9), status: "confirmed", sourceReference: "HM-1", channel: "manual" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId: w.ids[2], guestName: "Ada", arrivalDate: stayDay(2), departureDate: stayDay(9), status: "cancelled", sourceReference: "HM-1", channel: "manual" },
+    });
+    const view = await load(w.orgId, late.id);
+    expect(view!.earliestActiveArrival?.toISOString()).toBe(stayDay(4).toISOString());
+    expect(view!.sourceReference).toBe("HM-1");
+  });
 });

@@ -7,7 +7,8 @@ import { treeText } from "../helpers/tree-text";
 // ---------------------------------------------------------------------------
 // "Kayıtları karşılaştır" SAYFASI (kurucu 11-19 akşam, madde 3 ve 4). Sayfa fonksiyonu GERÇEK test veritabanıyla çağrılır, dönen ağaç yürünür
 // (`calendar-page.test.ts` deseni). Sabitlenen:
-//   · çakışma sürerken açıklama: "Aynı rezervasyon birden fazla dairede görünüyor" + ikinci satırda daire adları " · " ile (ek takılmaz);
+//   · çakışma sürerken açıklama Dikkat satırıyla aynı (kurucu 11-20 sabah B-1): "Aynı rezervasyon birden fazla dairede görünüyor" · daire
+//     adları " · " ile + " · Giriş: <gün>" (ek takılmaz) · "Otomatik gönderim durduruldu" YALNIZ tutma gerçekten bir mesajı durduruyorsa;
 //   · çakışma çözülünce (son kopya yanıtından sonra liste yenilenince de) "Rezervasyonu aç" görünür ve kalan kaydın dairesinin, varış ayının
 //     takvimine gider (uygulamada tek rezervasyonu açan sayfa yok — en dar var olan görünüm);
 //   · etkin kayıt hiç kalmadıysa "Rezervasyonu aç" yok; çakışma sürerken yok (hangisinin açılacağı sorunun kendisi).
@@ -17,6 +18,10 @@ vi.mock("@/lib/auth", async (orig) => ({
   ...(await orig<typeof import("@/lib/auth")>()),
   requireAuth: vi.fn(),
 }));
+vi.mock("@/lib/hospitable-credentials", async (orig) => ({
+  ...(await orig<typeof import("@/lib/hospitable-credentials")>()),
+  getConnectionInfo: vi.fn().mockResolvedValue({ connected: true }),
+}));
 vi.mock("next/headers", () => ({
   headers: async () => new Map([["host", "localhost:3000"]]),
   cookies: async () => ({ get: () => undefined }),
@@ -24,6 +29,7 @@ vi.mock("next/headers", () => ({
 
 import { requireAuth } from "@/lib/auth";
 import CompareBookingRecordsPage from "@/app/(app)/reservations/compare/[key]/page";
+import { seedAutoMessage } from "../helpers/auto-message";
 
 const mockAuth = vi.mocked(requireAuth);
 
@@ -94,6 +100,8 @@ async function booking(propertyId: string, o: { channel: string; connectionId?: 
 }
 
 const render = (key: string) => CompareBookingRecordsPage({ params: Promise.resolve({ key }) });
+/** Varış günü (yalnız tarih, 00:00Z → takvimin gün kuralıyla UTC tarihi), panelin biçimiyle ("5 Ara"). */
+const arrivalLabel = stayDay(4).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });
 
 describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
   beforeEach(async () => {
@@ -112,10 +120,32 @@ describe("Kayıtları karşılaştır sayfası (gerçek PostgreSQL)", () => {
     const text = treeText(await render(manual.id));
 
     expect(text).toContain("Aynı rezervasyon birden fazla dairede görünüyor");
-    expect(text).toContain("Lale 3 · Sahil Evi");
+    expect(text).toContain(`Lale 3 · Sahil Evi · Giriş: ${arrivalLabel}`);
     expect(text).not.toMatch(/Evi'(n?d|t)[ae]|3'(t|d)[ae]/);
     expect(text).not.toContain("Kayıtlar artık tek dairede.");
     expect(text).not.toContain("Rezervasyonu aç");
+    // Otomatik mesajlar bu işletmede kapalı: tutma hiçbir gönderimi durdurmuyor → söz yok. Eski cümle de yok.
+    expect(text).not.toContain("Otomatik gönderim durduruldu");
+    expect(text).not.toContain("bekletiliyor");
+  });
+
+  it("🚨 çakışma sürerken tutma gerçekten bir gönderimi durduruyorsa: üçüncü satır 'Otomatik gönderim durduruldu'", async () => {
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    try {
+      const w = await world();
+      await prisma.organization.update({ where: { id: w.orgId }, data: { autoCheckin: true, autoCheckinEnabledAt: new Date(0) } });
+      await prisma.property.update({ where: { id: w.sahil }, data: { createdAt: new Date(Date.now() - 30 * 86_400_000) } });
+      await seedAutoMessage(w.sahil, "checkin", "Merhaba {isim}, giriş bilgileri.");
+      const manual = await booking(w.lale, { channel: "manual", guestNameSource: "host" });
+      await booking(w.sahil, { channel: "airbnb", connectionId: "conn-1", guestNameSource: "channel" });
+
+      const text = treeText(await render(manual.id));
+
+      expect(text).toContain(`Lale 3 · Sahil Evi · Giriş: ${arrivalLabel}`);
+      expect(text).toContain("Otomatik gönderim durduruldu");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("🚨 çakışma çözülünce (öteki kopya gitti): çözüldü cümlesi + 'Rezervasyonu aç' → kalan kaydın dairesi, varış ayı takvimi (tek bağlantı)", async () => {
