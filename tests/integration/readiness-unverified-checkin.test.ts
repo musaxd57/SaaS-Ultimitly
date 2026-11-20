@@ -11,7 +11,8 @@ import { encryptSecret } from "@/lib/crypto-core";
 // ulaşmış OLABİLİR); gönderici o rezervasyonu bir daha kuyruğa almaz (bekleyen olmayan satır = sahipli) ve elle gönderim düğmesi bilerek
 // yoktur (çift gönderim riski). Girişler bu durumda yine "Otomatik giriş mesajı hazır" der — mesaj ne gönderilmeyi bekliyor ne de gönderildiği
 // biliniyor. İşçi yorumu da `review` = "gönderilmiş OLABİLİR, kontrol edin" (`worker.ts` `applyFailureEffect(row, "ambiguous")`).
-// Düzeltme: ayrı durum `unverified` — "gönderimi doğrulanamadı · konuşmayı kontrol edin", konuşmaya bağlantı, elle gönderim düğmesi YOK.
+// Düzeltme: ayrı durum `unverified` — kurucu 11-20 öğlen G-2: uzlaştırma sürerken "Giriş mesajının gönderimi kontrol ediliyor", kontrol bitince
+// "Giriş mesajının gönderimi doğrulanamadı" + konuşmaya bağlantı; ikisinde de elle gönderim düğmesi YOK.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/hospitable-credentials", async (orig) => ({
@@ -34,7 +35,7 @@ describe("Girişler — kuyrukta sonucu belirsiz giriş mesajı (T5-B2 + sert ko
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 satır `review` (gitmiş olabilir) → ekran 'hazır' DEMEZ: 'doğrulanamadı · konuşmayı kontrol edin', düğme yok", async () => {
+  it("🚨 satır `review` (gitmiş olabilir) → ekran 'hazır' DEMEZ: 'doğrulanamadı' + konuşma bağlantısı, düğme yok", async () => {
     const org = await prisma.organization.create({
       data: {
         name: "Org", timezone: "UTC", autoCheckin: true, autoCheckinEnabledAt: new Date(Date.now() - 30 * 86_400_000), aiSignature: "Lale",
@@ -61,7 +62,7 @@ describe("Girişler — kuyrukta sonucu belirsiz giriş mesajı (T5-B2 + sert ko
       | undefined;
     // Gönderimi doğrulanamamış mesaj için ekran "hazır" (= gönderilecek) demez; gitmiş olabileceği için elle gönderim düğmesi de yok.
     expect(access?.label ?? "", `Girişler etiketi: "${access?.label}"`).not.toMatch(/^Otomatik giriş mesajı hazır/);
-    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.label).toBe("Giriş mesajının gönderimi doğrulanamadı");
     expect(access?.sendCheckin).toBeUndefined();
     expect(access?.link).toEqual({ to: "conversation" });
   });
@@ -89,11 +90,16 @@ describe("Girişler — kuyrukta sonucu belirsiz giriş mesajı (T5-B2 + sert ko
       | undefined;
 
   // A1-c: uzlaştırma bekleyen (`ambiguous`) satırın sonucu da bilinmiyor — teslim sonucu kümesinin tek kaynağı (`UNRESOLVED_DELIVERY_STATUSES`).
-  it.each(["ambiguous", "reconciling", "review"] as const)("satır `%s` → 'doğrulanamadı', düğme yok", async (status) => {
+  // Kurucu 11-20 öğlen G-2: uzlaştırma sürerken "kontrol ediliyor", kontrol bitip hâlâ belirsizse "doğrulanamadı"; ikisinde de düğme yok.
+  it.each([
+    ["ambiguous", "Giriş mesajının gönderimi kontrol ediliyor"],
+    ["reconciling", "Giriş mesajının gönderimi kontrol ediliyor"],
+    ["review", "Giriş mesajının gönderimi doğrulanamadı"],
+  ] as const)("satır `%s` → %s, düğme yok", async (status, label) => {
     const { org, r } = await seedQueuedCheckin(`res-unres-${status}`);
     await prisma.messageOutbox.updateMany({ where: { organizationId: org.id }, data: { status } });
     const access = await accessOf(org.id, r.id);
-    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.label).toBe(label);
     expect(access?.sendCheckin).toBeUndefined();
   });
 
@@ -111,7 +117,7 @@ describe("Girişler — kuyrukta sonucu belirsiz giriş mesajı (T5-B2 + sert ko
       data: { propertyId: other.id, guestName: "Bircan", arrivalDate: stayDay(1), departureDate: stayDay(3), channel: "manual", status: "confirmed", sourceReference: "res-unres-copy" },
     });
     const access = await accessOf(org.id, r.id);
-    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.label).toBe("Giriş mesajının gönderimi doğrulanamadı");
     expect(access?.label ?? "").not.toContain("siz gönderin");
   });
 });

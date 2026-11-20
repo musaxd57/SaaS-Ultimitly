@@ -198,8 +198,9 @@ export interface StayReadinessInput {
     | { state: "missing" }
     | { state: "skipped"; reason: string }
     | { state: "review"; id: string; at: Date }
-    // Kuyrukta gönderimi zaman aşımına uğrayıp kanalda doğrulanamayan giriş mesajı (`review` satırı): misafire GİTMİŞ OLABİLİR (G1 tur 5 T5-B2).
-    | { state: "unverified" }
+    // Kuyrukta gönderimi belirsiz giriş mesajı (G1 tur 5 T5-B2; kurucu 11-20 öğlen G-2): misafire GİTMİŞ OLABİLİR. `checking` = Lixus kanalı
+    // kontrol ediyor (belirsiz / uzlaştırılıyor), `unverified` = kontrol bitti, hâlâ belirsiz (inceleme).
+    | { state: "unverified"; phase: "checking" | "unverified" }
     | { state: "ready"; id: string; at: Date };
   /** UX-10 D5: giriş mesajı bu misafire ELLE gönderilebilir mi (yükleyicinin kararı; yoksa düğme yok). */
   checkinManualSendable?: boolean;
@@ -454,13 +455,14 @@ function accessFactor(input: StayReadinessInput): Factor {
     };
   }
   if (a?.state === "unverified") {
-    // G1 tur 5 T5-B2 (11-20): kuyrukta gönderim zaman aşımına uğradı, kanalda da görülemedi (`review`) — mesaj misafire gitmiş OLABİLİR.
-    // "Hazır" (= gidecek) demek yanlıştı; elle gönderim düğmesi BİLEREK yok (gitmişse ikinci kapı kodu mesajı olur). Ürünün belirsiz gönderim
-    // dili ("Gönderim doğrulanamadı, konuşmayı kontrol edin" — gelen kutusu / karar cevabı) + konuşmaya bağlantı.
+    // Kurucu 11-20 öğlen G-2, AYNEN: "Sonuç kesinleşene kadar Giriş mesajının gönderimi kontrol ediliyor. Kontrol bittikten sonra hâlâ belirsizse
+    // Giriş mesajının gönderimi doğrulanamadı ve Konuşmayı aç gösterilsin. Belirsizlik sürerken yeniden gönder düğmesi olmasın." Mesaj misafire
+    // gitmiş OLABİLİR → "hazır" denmez, elle gönderim düğmesi İKİ evrede de YOK (gitmişse ikinci kapı kodu mesajı olur). Gitmediği kesinleşen
+    // mesaj ayrı durumdur (`queue_failed`, "gönderilemedi" + elle gönderim). Bağlantı etiketi sitenin hitabıyla "Konuşmayı açın".
     return {
       key: "access",
       state: "unknown",
-      label: "Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin",
+      label: a.phase === "checking" ? "Giriş mesajının gönderimi kontrol ediliyor" : "Giriş mesajının gönderimi doğrulanamadı",
       missing: "giriş mesajının misafire ulaştığının kontrolü",
       basis: [],
       link: { to: "conversation" },

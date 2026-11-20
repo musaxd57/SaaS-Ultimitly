@@ -123,7 +123,7 @@ describe("A1-b/c — Girişler, gitmiş olabilecek giriş mesajı", () => {
       data: { propertyId: other.id, guestName: "Bircan", arrivalDate: stayDay(1), departureDate: stayDay(3), channel: "manual", status: "confirmed", sourceReference: "res-review-1" },
     });
     const access = await accessOf(org.id, r.id);
-    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.label).toBe("Giriş mesajının gönderimi doğrulanamadı");
   });
 
   it("A1-c: ilk zaman aşımından sonra (ambiguous, uzlaştırma bekliyor) → ekran 'hazır' DEMEZ", async () => {
@@ -133,5 +133,6 @@ describe("A1-b/c — Girişler, gitmiş olabilecek giriş mesajı", () => {
     const st = (await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: org.id } })).status;
     const access = await accessOf(org.id, r.id);
     expect({ st, label: access?.label }).toEqual({ st, label: expect.not.stringMatching(/^Otomatik giriş mesajı hazır/) });
+    expect(access?.label).toBe("Giriş mesajının gönderimi kontrol ediliyor"); // kurucu 11-20 öğlen G-2: uzlaştırma sürerken
   });
 });

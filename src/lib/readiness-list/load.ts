@@ -281,7 +281,7 @@ export async function loadArrivalReadiness(
       const failedCheckinRefs = new Set<string>();
       // G1 tur 5 T5-B2: gönderimi doğrulanamayan giriş mesajı gitmiş OLABİLİR — "hazır" denmez, düğme de sunulmaz (↑queued kümesinde kalır). Küme
       // teslim sonucunun tek kaynağı (`UNRESOLVED_DELIVERY_STATUSES`: belirsiz · uzlaştırılıyor · inceleme — sert kontrol 11-20 A1-c).
-      const unverifiedCheckinRefs = new Set<string>();
+      const unverifiedCheckinRefs = new Map<string, "checking" | "unverified">();
       const refs = manualConnection ? [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))] : [];
       const [manualErasure, owned] = await Promise.all([
         manualConnection ? erasureGuard() : null,
@@ -300,7 +300,10 @@ export async function loadArrivalReadiness(
         }
         queuedCheckinRefs.add(o.externalReservationId);
         if (o.status !== "pending") queuedBeyondPendingRefs.add(o.externalReservationId);
-        if ((UNRESOLVED_DELIVERY_STATUSES as readonly string[]).includes(o.status)) unverifiedCheckinRefs.add(o.externalReservationId);
+        // Kurucu 11-20 öğlen G-2: uzlaştırma sürerken "kontrol ediliyor", inceleme (kontrol bitti, hâlâ belirsiz) "doğrulanamadı".
+        if ((UNRESOLVED_DELIVERY_STATUSES as readonly string[]).includes(o.status)) {
+          unverifiedCheckinRefs.set(o.externalReservationId, o.status === "review" ? "unverified" : "checking");
+        }
       }
       return { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs, unverifiedCheckinRefs };
     })(),
@@ -415,7 +418,8 @@ export async function loadArrivalReadiness(
     if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
     // Gönderimi belirsiz mesaj iki dairede kayıttan ÖNCE okunur (sert kontrol 11-20 A1-b): mesaj gitmiş olabilir, "giriş bilgisini siz gönderin"
     // denmez (sonradan eklenen kopya bunu değiştirmez).
-    if (a.sourceReference && unverifiedCheckinRefs.has(a.sourceReference)) return { state: "unverified" };
+    const unresolved = a.sourceReference ? unverifiedCheckinRefs.get(a.sourceReference) : undefined;
+    if (unresolved) return { state: "unverified", phase: unresolved };
     if (a.sourceReference && twoProperties.has(a.sourceReference)) return { state: "not_sending", reason: "two_properties" };
     if (a.sourceReference && failedCheckinRefs.has(a.sourceReference)) return { state: "not_sending", reason: "queue_failed" };
     // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
