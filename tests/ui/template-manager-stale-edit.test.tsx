@@ -202,11 +202,12 @@ describe("şablon düzenleme — geç dönen tam metin okuması sonradan açıla
     expect(screen.getByText("Yeni Şablon Oluştur")).toBeTruthy();
   });
 
-  it("🚨 'Düzenle' beklerken form 'İptal' ile kapatılırsa geç gelen yanıt formu yeniden AÇMAZ", async () => {
+  it("🚨 'Düzenle' beklerken açık form 'İptal' ile kapatılırsa geç gelen yanıt formu yeniden AÇMAZ", async () => {
     const finish = deferDetail();
     renderManager();
-    await click("Düzenle");
+    // Önce yeni şablon formu açık; "Düzenle"ye basılır (okuma bekliyor), sonra form "İptal" ile kapatılır — kuşağı yalnız "İptal" artırır.
     await click("Yeni Şablon");
+    await click("Düzenle");
     await click("İptal");
     await finish();
     expect(screen.queryByLabelText("Şablon metni")).toBeNull();
