@@ -284,6 +284,17 @@ class StayErasedError extends Error {
 }
 
 /**
+ * SON KONTROL (kurucu 11-20 sabah Ö-1, kanal yolundaki 11-20 düzeltmesinin QR eşi): istek başı sohbeti yalnız onaylı / tamamlanmış
+ * konaklamada açar; model cevap yazarken rezervasyon İPTAL edilirse cevap (ör. Wi-Fi şifresi) yine gidiyordu. Kayıt işlemi, cevap
+ * yazılacaksa iptali işlem içinde yeniden okur; iptalse hiçbir şey yazılmaz, misafire "sohbet kapalı", mesajı ev sahibine iletilir.
+ */
+class StayCancelledMidTurnError extends Error {
+  constructor() {
+    super("qr_stay_cancelled_mid_turn");
+  }
+}
+
+/**
  * SİLME SINIRI QR YAZMASINDA (Y3): model çağrısı sürerken misafirin verisi silinirse bekleyen istek ham mesajı ve eski adı GERİ
  * yazıyordu (giriş kapısı yalnız istek başında bakıyordu). Öteki girişlerle aynı iki-sıralama kuralı (`erasure.ts` RACE MODEL): yazma
  * işlemi ÖNCE işletmenin silme kilidini alır, sonra kapıyı İŞLEM İÇİNDE yeniden okur. Uzun model çağrısı kilidin DIŞINDA kalır.
@@ -894,6 +905,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       const guestName = await assertStayNotErased(tx, ctx.property.organizationId, res.id);
       const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: res.id, guestName }, tx);
       await acquireGuestChatThreadLock(tx, conversationId);
+      // Ö-1: misafire bir şey gidecekse konaklama hâlâ iptal edilmemiş olmalı (↑`StayCancelledMidTurnError`; işlem geri alınır).
+      if (botReply !== null) {
+        const live = await tx.reservation.findUnique({ where: { id: res.id }, select: { status: true } });
+        if (live?.status === "cancelled") throw new StayCancelledMidTurnError();
+      }
       if (botReply !== null && (await guestChatAiPausedForStay(ctx.property.id, res.id, tx))) {
         const r = await recordGuestChatExchange(tx, conversationId, guestName, message, null, true, ctx.property.organizationId);
         return { ...r, handedOff: true, conversationId };
@@ -1676,6 +1692,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
           critical: true,
         });
       }
+      return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
+    }
+    // Ö-1: konaklama model düşünürken iptal edildi — hiçbir şey yazılmadı (kilit yukarıda bırakıldı). İptal edilmiş konaklamada QR'a
+    // yazılınca bugün olanla aynı: misafire "sohbet kapalı", mesaj ev sahibine (kayıt + uyarı; yanıt bu işi beklemez).
+    if (err instanceof StayCancelledMidTurnError) {
+      runDetached(recordCancelledStayMessage(ctx, { id: res.id, guestName: res.guestName }, message, requestId));
       return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
     }
     throw err;
