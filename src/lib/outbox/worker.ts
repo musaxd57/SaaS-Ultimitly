@@ -11,7 +11,7 @@ import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
-import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { spansMultipleProperties } from "@/lib/booking-property-conflict";
 import { loadErasureGuard } from "@/lib/erasure";
@@ -826,15 +826,13 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
   return opensAt > now.getTime() ? new Date(opensAt) : null;
 }
 
-/** Çıkış mesajının gün içi penceresinin başı (gönderici `sendDueCheckouts`: işletme saatiyle 08:00–11:59). */
-const CHECKOUT_WINDOW_START_HOUR = 8;
-
 /**
  * G1 tur 3 T3-B3 (11-20): kuyruğa çıkış GÜNÜ giren çıkış mesajı, rezervasyonun çıkışı sonradan İLERİ alınınca ("iki gece uzattık") erken
  * gidiyordu — işçi yalnız "çıkış günü geçti mi" diye bakıyordu, misafire "bugün çıkış gününüz" iki gün erken gidiyordu. Giriş mesajının
  * ertelemesiyle (↑`checkinNotYetDue`, Y4) aynı kural: iptal EDİLMEZ (rezervasyon başına tek anahtar, mesaj kalıcı yutulurdu), yeni çıkış
- * gününün gönderim penceresine (işletme saatiyle 08:00) ERTELENİR. Kopya seçimi vetoyla AYNI (`pickLifecycleReservation`). Çıkış geri
- * alındıysa (geçti) ya da rezervasyon iptalse karar ↓veto'nundur.
+ * gününün gönderim penceresine (işletme saatiyle 08:00, `lifecycle-window.ts`) ERTELENİR. Kopya seçimi vetoyla AYNI
+ * (`pickLifecycleReservation`). Ertelenen çıkış sonra GERİ alınıp bugüne dönerse gönderici vadeyi şimdiye çeker (`sendDueCheckouts`, T5-B1);
+ * çıkış günü geçtiyse ya da rezervasyon iptalse karar ↓veto'nundur.
  */
 async function checkoutNotYetDue(row: OutboxRow, now: Date): Promise<Date | null> {
   if (row.messageType !== "checkout" || !row.externalReservationId) return null;
@@ -849,7 +847,7 @@ async function checkoutNotYetDue(row: OutboxRow, now: Date): Promise<Date | null
   const departureDay = calendarDateOf(res.departureDate, tz).key;
   if (departureDay <= todayKey(now, tz)) return null;
   const [y, m, d] = departureDay.split("-").map(Number);
-  return zonedWallClockToUtc(y, m, d, CHECKOUT_WINDOW_START_HOUR, 0, 0, tz);
+  return zonedWallClockToUtc(y, m, d, CHECKOUT_SEND_START_HOUR, 0, 0, tz);
 }
 
 /** Otomatik mesaj metni gönderilemez durumdaysa satırın yeniden deneme aralığı (ev sahibi düzeltene kadar bekler). */

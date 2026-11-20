@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "./helpers/db";
-import { seedAutoMessage } from "./helpers/auto-message";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
 
 // ---------------------------------------------------------------------------
-// G1 TUR 5 YENİDEN ÜRETME — yeni kod: çıkış ertelemesi (`checkoutNotYetDue`, `4f5bbacd`, T3-B3 düzeltmesi) × çıkış GERİ alınır (konu 4).
+// KUYRUK — ERTELENEN ÇIKIŞ SATIRI, ÇIKIŞ GERİ ALININCA ÖNE ÇEKİLİR (G1 tur 5 T5-B1, 11-20; düzeltildi: `sendDueCheckouts` giriş göndericisinin
+// Y4 kuralıyla vadeyi şimdiye çeker). Yeni kod: çıkış ertelemesi (`checkoutNotYetDue`, `4f5bbacd`, T3-B3 düzeltmesi) × çıkış GERİ alınır.
 //
 // Kuyruktaki çıkış satırı, çıkış ileri alınınca yeni çıkış gününün 08:00'ine ertelenir. Çıkış sonra GERİ alınırsa (uzatmanın bir gecesi
 // iptal) satırın vadesi öne çekilmez: gönderici yeni çıkış günü sabahı adayı görür, `enqueueProactive` "zaten var" der (bekleyen satır
@@ -42,7 +43,7 @@ async function seed() {
   return { orgId: org.id, p2: p2.id, reservationId: r.id };
 }
 
-describe("G1 tur 5 repro — çıkış ertelemesi, çıkış geri alınınca", () => {
+describe("kuyruk — çıkış ertelemesi, çıkış geri alınınca (T5-B1)", () => {
   const sends: string[] = [];
   const send: OutboxSendFn = async (row) => {
     sends.push(String(row.messageType));
@@ -74,7 +75,7 @@ describe("G1 tur 5 repro — çıkış ertelemesi, çıkış geri alınınca", (
     expect((await sendDueCheckouts(s.orgId)).sent).toBe(1);
   });
 
-  it("🚨 KIRMIZI: kuyruk — çıkış +2 gün (satır ertelendi), sonra +1 güne geri alındı → yeni çıkış günü mesaj gitmez, ertesi gün iptal", async () => {
+  it("🚨 kuyruk — çıkış +2 gün (satır ertelendi), sonra +1 güne geri alındı → yeni çıkış günü mesaj GİDER (vade öne çekilir)", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
     const s = await seed();
@@ -104,7 +105,26 @@ describe("G1 tur 5 repro — çıkış ertelemesi, çıkış geri alınınca", (
     await drain();
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: s.orgId } });
     console.log(`[co-back] satır=${row.status}/${row.lastErrorCode} gönderim=${sends.length}`);
-    // Beklenen (doğrudan yol + giriş mesajının öne çekme kuralı): yeni çıkış günü (yarın) çıkış mesajı GİDER. Gerçek: hiç gitmez.
+    // Doğrudan yol + giriş mesajının öne çekme kuralı: yeni çıkış günü (yarın) çıkış mesajı GİDER (düzeltmeden önce hiç gitmiyordu).
     expect(sends).toEqual(["checkout"]);
+  });
+
+  // Aşırı uygulama: öne çekme YALNIZ zamanı gelmediği için bekleyen satıra (hata bilgisi boş). Sağlayıcının "çok fazla istek" beklemesindeki
+  // satırın vadesi her geçişte (2 dk) silinmemeli — giriş göndericisinin kuralıyla aynı (S8, 11-11).
+  it.each([
+    { kind: null, pulled: true },
+    { kind: "rate_limited", pulled: false },
+  ])("öne çekme yalnız hata bilgisi boş bekleyen satırda (lastErrorKind=$kind → öne çekildi=$pulled)", async ({ kind, pulled }) => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const s = await seed();
+    clock(day(0, 9));
+    expect((await sendDueCheckouts(s.orgId)).sent).toBe(1);
+    const later = new Date(day(0, 9).getTime() + 45 * 60_000);
+    await prisma.messageOutbox.updateMany({ where: { organizationId: s.orgId }, data: { availableAt: later, lastErrorKind: kind } });
+    await sendDueCheckouts(s.orgId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    expect(row.availableAt.getTime() <= day(0, 9).getTime()).toBe(pulled);
+    if (!pulled) expect(row.availableAt.toISOString()).toBe(later.toISOString());
   });
 });

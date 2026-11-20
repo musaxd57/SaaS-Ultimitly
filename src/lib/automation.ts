@@ -7052,6 +7052,15 @@ export async function sendDueCheckouts(
           idempotencyKey: `checkout:${organizationId}:${r.sourceReference}`,
         });
         if (!enq.deduped) sent++;
+        // Ertelenmiş satır (işçi: çıkış ileri alındı, `checkoutNotYetDue`) çıkış sonra GERİ alınıp bugüne döndüyse beklemez — vadesi şimdiye
+        // çekilir (G1 tur 5 T5-B1, 11-20: satır eski vadesinde talep edilince çıkış günü geçmiş olurdu → `window_passed`, misafir hatırlatmayı
+        // hiç almazdı; doğrudan yol bugün gönderir). Giriş göndericisinin kuralıyla (Y4) AYNI: YALNIZ zamanı gelmediği için bekleyen satır
+        // (hata bilgisi BOŞ) — sağlayıcı beklemesindeki ya da geri çekilmedeki satırın vadesi öne alınmaz.
+        else
+          await prisma.messageOutbox.updateMany({
+            where: { id: enq.outboxId, organizationId, status: "pending", availableAt: { gt: new Date() }, lastErrorKind: null },
+            data: { availableAt: new Date() },
+          });
       } catch {
         // enqueue failure → *SentAt stays null → retries cleanly, ama SESSİZ DEĞİL
         // (denetim, 08-01 — üçüncü tur): bu dal `failures`'a hiçbir şey itmediği için
