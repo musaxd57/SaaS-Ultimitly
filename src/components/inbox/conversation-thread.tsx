@@ -347,6 +347,12 @@ export function ConversationThread({
   const [templatesNotice, setTemplatesNotice] = useState<string | null>(null);
   /** Son başlatılan liste isteğinin sırası: yavaş dönen eski arama yenisinin sonucunu ezmesin. */
   const templatesRequestSeq = useRef(0);
+  /**
+   * Seçilen şablonun tam metni okunurken panel kapanırsa (Esc, dışarı tıklama, tetikleyici) geç dönen okuma mesaj kutusuna YAZMAZ — ev sahibi
+   * bu arada kendi cevabını yazmış olabilir (Opus 11-20 gece; eskiden tam metin listede olduğu için seçim beklemesizdi). Her seçim ve her
+   * kapanış kuşağı artırır; okuma yalnız başladığı kuşak hâlâ geçerliyse kutuyu doldurur.
+   */
+  const templateApplySeq = useRef(0);
   /** Ekrandaki listeyi üreten arama ("Daha fazla göster" aynı aramanın sonraki sayfasını ister; kutuda yazılan henüz aranmamış olabilir). */
   const [templatesListQuery, setTemplatesListQuery] = useState("");
   const templateSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -638,9 +644,13 @@ export function ConversationThread({
   const templatesWasOpen = useRef(false);
   useEffect(() => {
     if (showTemplates) templatesWasOpen.current = true;
-    else if (templatesWasOpen.current) {
-      templatesWasOpen.current = false;
-      templatesTriggerRef.current?.focus();
+    else {
+      // Panel kapandı: süren tam metin okuması artık kutuya yazmaz (↑`templateApplySeq`).
+      templateApplySeq.current++;
+      if (templatesWasOpen.current) {
+        templatesWasOpen.current = false;
+        templatesTriggerRef.current?.focus();
+      }
     }
   }, [showTemplates]);
 
@@ -737,9 +747,12 @@ export function ConversationThread({
     if (applyingTemplateId) return;
     setApplyingTemplateId(item.id);
     setTemplatesNotice(null);
+    const seq = ++templateApplySeq.current;
     try {
       const res = await fetch(`/api/templates/${encodeURIComponent(item.id)}`);
       const t = (await res.json().catch(() => null)) as { body?: unknown; error?: unknown } | null;
+      // Panel bu arada kapandıysa kutuya da listeye de dokunulmaz.
+      if (seq !== templateApplySeq.current) return;
       if (!res.ok || typeof t?.body !== "string") {
         if (res.status === 404) setTemplates((prev) => prev.filter((x) => x.id !== item.id));
         setTemplatesNotice(typeof t?.error === "string" ? t.error : TEMPLATE_LOAD_FAILED_TEXT);
@@ -751,7 +764,7 @@ export function ConversationThread({
       setComposerSource(null);
       setShowTemplates(false);
     } catch {
-      setTemplatesNotice(TEMPLATE_LOAD_FAILED_TEXT);
+      if (seq === templateApplySeq.current) setTemplatesNotice(TEMPLATE_LOAD_FAILED_TEXT);
     } finally {
       setApplyingTemplateId(null);
     }

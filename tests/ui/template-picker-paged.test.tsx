@@ -189,3 +189,44 @@ describe("şablon seçici — sayfalı liste + seçilince tam metin", () => {
     expect(composer().value).toBe("");
   });
 });
+
+describe("şablon seçici — geç dönen tam metin, panel kapandıktan sonra yazılanı EZMEZ (Opus 11-20 gece)", () => {
+  /** Seçilen şablonun tam metni elle çözülene kadar bekler (yavaş ağ). */
+  function deferT1() {
+    let resolve!: (r: Response) => void;
+    routes["/api/templates/t1"] = () => new Promise<Response>((r) => (resolve = r));
+    return async () => {
+      await act(async () => {
+        resolve(json({ id: "t1", body: "Merhaba {{guestName}}, hoş geldiniz. TAM-METIN-SONU" }));
+        for (let i = 0; i < 12; i++) await Promise.resolve();
+      });
+    };
+  }
+
+  it("🚨 şablona basılır, istek beklerken panel Esc ile kapatılır ve ev sahibi kendi cevabını yazar → geç gelen şablon kutuya YAZILMAZ", async () => {
+    const finish = deferT1();
+    const dialog = await open();
+    await waitFor(() => expect(dialog.textContent).toContain("Karşılama"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Karşılama/ }));
+    });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.change(composer(), { target: { value: "Kendi cevabım" } });
+    await finish();
+    expect(composer().value).toBe("Kendi cevabım");
+  });
+
+  it("KONTROL: panel açık kalırsa geç gelen tam metin kutuya yazılır", async () => {
+    const finish = deferT1();
+    const dialog = await open();
+    await waitFor(() => expect(dialog.textContent).toContain("Karşılama"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Karşılama/ }));
+    });
+    await finish();
+    await waitFor(() => expect(composer().value).toBe("Merhaba Ayşe, hoş geldiniz. TAM-METIN-SONU"));
+  });
+});
