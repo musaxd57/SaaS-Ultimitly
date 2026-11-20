@@ -253,6 +253,20 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
 **Mesajlaşma / outbox / sync**
+- 🚨 **OTOMATİK CEVAPTA SON KONTROL — REZERVASYON İPTALİ GÖNDERİM TALEBİNDE (11-20, kurucu 11-19 akşam: "rezervasyon ve erişim gibi değişken
+  bilgilerin son kontrolünü koru"):** kanal satır içi yolu rezervasyonu yalnız tur başında okuyordu; model düşünürken (2–10 sn) iptal edilen
+  konaklamaya Wi-Fi şifresi gidiyordu (ÖLÇ ölçtü). Talep UPDATE'i "bağlı rezervasyon iptal değil" şartını taşır (ilişki süzgeci, mutlu yolda ek
+  sorgu yok); düşerse sonuç tur başındaki iptal kontrolüyle aynı (`reservation_ended`, gönderim yok). Kuyruk yolunun gönderim anı kuralıyla aynı.
+  QR yolu ayrı karar (soru Ö-1).
+- **Kuyruk yolu doğrudan yoldan ayrışmaz — rezervasyon başına tek anahtarlı yaşam döngüsü satırı İPTAL edilince mesaj kalıcı yutulur (11-20,
+  G1 tur 3–4):** (a) gönderici rezervasyonu yeniden gönderilebilir bulduğunda (ev sahibi yeniden açtı, silinen kayıt senkronla geri geldi)
+  YALNIZ rezervasyonun durumu yüzünden (`reservation_cancelled` / `reservation_gone`, `REVIVABLE_LIFECYCLE_CANCEL_CODES`) iptal edilmiş
+  yaşam döngüsü satırını koşullu tek yazmayla bekleyen yapar (`outbox/enqueue.ts`; gönderim anı vetosunda sağlayıcıya hiç gitmemişti, işçi
+  kuralları yeniden uygular); başka sebep (anahtar kapalı, silme talebi, pencere) dirilmez. (b) Kuyruktaki çıkış mesajı çıkış İLERİ alındıysa iptal edilmez, yeni çıkış
+  gününün 08:00'ine (işletme saati) ertelenir (`checkoutNotYetDue`, giriş mesajının Y4 ertelemesiyle aynı). Yeni bir "iptal" vetosu
+  eklerken sor: rezervasyon geri dönerse bu anahtar bir daha gönderilebilir mi?
+- E-posta kuyruğu: gönderici "alıcı e-posta alamaz" (`undeliverable`, `.invalid`) derse satır ilk denemede `canceled` (neden `lastError`da),
+  yeniden deneme ve operatör alarmı YOK (11-20, G2 tur 3: kayıt formu bu alan adını kabul ediyor, kimliksiz alarm tetikleniyordu).
 - 🚨 **"KAYDEDİLDİ" ≠ "KANAL KABUL ETTİ" ≠ "İŞ ÇÖZÜLDÜ" (11-18, Codex 11-17 3. bulgu; `lib/delivery-outcome.ts`):** gönderim sonucu kapalı
   kümedir — `local_only` (hedefi olmayan, elle açılmış konuşma: yalnız Lixus'a kaydedildi, misafire HİÇBİR kanaldan gitmedi) · `qr_visible`
   (iç QR sohbeti) · `queued` · `channel_accepted` (kanal kabul etti; okundu / ulaştı DEĞİL) · `unverified` · `not_delivered`. Eşleyiciler

@@ -313,3 +313,11 @@ biçimine mi dönsün · **UA-a ek** son elle kopya kaldırılmaz metni "Bu reze
 (yalnız eski sekmede görünür) · **bilgi** konuşma silindikten sonra elle "Gönder"e basılan giriş mesajı artık gerçekten gidiyor (eskiden
 "sıraya alındı" deyip gitmiyordu; misafir silme talebi ayrı korumayla engelli) · **açılışta ölç** panel sayfasının eşzamanlı okumaları ↔
 veritabanı bağlantı havuzu · WhatsApp web kancası düz `JSON.parse` (Paddle'daki NUL sınıfının komşusu, bakılmadı).
+
+**11-20 gece — kurucuya sorular (örnekli hâlleri sabah dosyasında):** **B-1** "iki dairede kayıtlı" satırının ikinci satırında varış günü ve
+"Otomatik mesajlar bekletiliyor." kalsın mı (şu an daire adlarının ardında) · **B-2** "Rezervasyonu aç" takvimi açıyor ("Beklemede" kayıt
+takvimde görünmez) — tek rezervasyon sayfası ileride mi · **E-1…E-6** anlamsal arama: işletme kovası saatte 600 · ortak tavan 2.000 + günlük
+üst tavan · soğuk pencerede dayanak (dar kural A mı genel dayanak işi B mi; QR'da tutmak ne demek) · `KB_VECTOR_STORE_ENABLED` açılışta 1 mi ·
+gecikmeli ısıtma 20 sn · kalıcı kuyruk tablosu ne zaman · **Ş-1** şablon ekranı yeni metinleri · **Ş-2** sınıra yaklaşınca uyarı · **Ö-1** QR'da
+model düşünürken iptal edilen konaklama (öneri: cevap gitmez, "sohbet kapalı" metni, mesaj ev sahibine) · **Ö-2** mesaj içi sorgu tekrarlarını
+kaldırma + yeniden sıralayıcı sonucunu içeriğe bağlı önbelleğe alma (misafire gideni değiştirmez) · konaklama bekçisini atlamak ÖNERİLMEDİ.

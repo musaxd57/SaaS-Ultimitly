@@ -812,3 +812,20 @@ Opus sert incelemesi: kanıtlanmış bulgu yok (not: panel sayfasının ~13 eşz
 Mutasyon: O1 24/24 · O2 16/16 · O3 24/24 · F1 15/15 · düzeltmeler 12/12 + 7/10 (+ eşdeğerler gerekçeli) + t2 6/9 → yaşayanlar testle
 kapatıldı. Ders: yaşayan mutant testin YANLIŞ SEBEPLE yeşil olduğunu gösterebilir (önceki testin `restoreAllMocks`ı belirteç taklidini ve
 Prisma temsilcisinin `count`unu bozuyordu → sonuç "no_connection").
+(12) **Kurucu 11-19 akşam cevabı + gece döngüsü (AYNEN `docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md`; "soru sormadan ilerle,
+sabah yanıtlarım"):** dört Opus ajanı (kendi ağacı + kendi test veritabanı, push yok), her çıktı satır satır incelendi, iddialar çalıştırılarak
+doğrulandı. Madde 1 şablonlar: sunucu sayfa başına en çok 30 kayıt + kısa önizleme, tam metin seçilince `GET /api/templates/[id]`, arama
+işletmenin bütün şablonlarında, özel şablon sınırı plan tablosunda başlangıç 500 (pasifler sayılır, hazır şablonlar sayılmaz, aşan işletmede
+hiçbir şey silinmez) — işletme kilidi altında say + yaz, 499'da 10 eşzamanlı ekleme → 1 kabul (`lib/template-cap.ts`, `lib/template-list.ts`).
+Madde 2 anlamsal arama: eski şifre isteme GİRMİYOR (11 test: bütçe dolu / yeniden başlatma / tek cümle değişimi / altı mesaj — depolar içerik
+adresli); A bütçeyi bitirirken B'nin hazır vektörleri çalışıyor; D1 işletme kovası → ortak kova (`RateLimitCounter`, kopyalar ortak), D2
+gecikmeli ısıtma + reddedilen işin yeniden planlanması, D3 kalıcı depoda parça özeti düzeyinde temizlik — üç anahtar KAPALI
+(`KB_EMBED_ORG_BUDGET_ENABLED`, `KB_EMBED_DEBOUNCE_ENABLED`, `KB_VECTOR_PURGE_BY_HASH_ENABLED`); tasarım
+`docs/TASARIM-2026-11-19-anlamsal-arama-butcesi.md`. Madde 3 başlık "Aynı rezervasyon birden fazla dairede görünüyor" + daire adları " · " ile
+(Türkçe ek kalktı, `tr-locative.ts` silindi). Madde 4 son kopya metni kurucunun cümlesi, 409'da liste kendiliğinden yenilenir, "Rezervasyonu aç"
+(dairenin varış ayı takvimi), "Yanlış kopyayı kaldır"; eşzamanlılık rota üzerinden iki / üç daireli testlerle. Ölçüm (temsilî mesajlar; ayrıntı
+sabah raporu): selamlaşma kanalda 32 SQL / 0 embedding / 3 model çağrısı. Düzeltilenler: model düşünürken iptal edilen rezervasyona Wi-Fi şifresi
+gidiyordu (son kontrol, kalıcı karar) · `.invalid` alıcılı doğrulama e-postası 5 deneme + yanlış alarm · şablon formunda geç dönen okuma yazılanı
+eziyordu (yönetim formu + mesaj yazarken seçici) · kuyruk açıkken iptal edilip geri dönen (yeniden açılan / silinip senkronla gelen)
+rezervasyona otomatik mesaj hiç gitmiyordu ve uzayan konaklamada çıkış mesajı erken gidiyordu (G1 tur 3) · istek yolu fikstürü İstanbul gece yarısında kırmızıydı (test saat bombası, `stayDayInZone`). Mutasyon: BS 23/23 · EMB 6/6 (bir
+yaşayan testle kapatıldı) · SB 42/42 · EMB tur 2 24/24 · e-posta 4/4. Sorular `docs/claude/acik-isler.md` "11-20 gece".
