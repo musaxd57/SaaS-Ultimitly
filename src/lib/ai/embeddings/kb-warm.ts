@@ -132,6 +132,7 @@ export async function __awaitScheduledWarms(): Promise<void> {
 }
 
 let bootWarmStarted = false;
+let bootWarm: Promise<void> | null = null;
 
 /**
  * Süreç başına BİR KEZ: aktif bilgi tabanı olan tüm mülkleri sırayla ısıtır (zamanlanmış senkronun ilk geçişi çağırır).
@@ -141,13 +142,18 @@ let bootWarmStarted = false;
 export function warmAllKbVectorsOnce(): void {
   if (bootWarmStarted || !warmingOn()) return;
   bootWarmStarted = true;
-  void (async () => {
+  bootWarm = (async () => {
     try {
       // Kalıcı depo (anahtar açıkken): başka model / tarifin satırları silinir — model değişince eski vektörler kalmasın.
       await purgeVectorStoreForCurrentModel();
       const rows = await prisma.knowledgeBaseItem.groupBy({ by: ["propertyId"], where: { isActive: true }, _count: { _all: true } });
       for (const r of rows) {
-        if (r.propertyId) await warmPropertyKbVectors(r.propertyId);
+        if (!r.propertyId) continue;
+        // Kurucu 11-20 sabah: "Bütçe dolarsa iş kaybolmasın, sonraki uygun zamanda devam etsin". Gecikmeli ısıtma açıkken açılış ısıtması
+        // da reddedilirse (işletme kovası DB'de, kopyalar / önceki süreç doldurmuş olabilir) pencere açılınca kendiliğinden yeniden denenir
+        // — yeniden başlatmada kaybolan süreç içi zamanlayıcının yerini tutar. Kapalıyken bugünkü tek deneme.
+        if (debouncedWarmEnabled()) await runScheduledWarm(r.propertyId, 0);
+        else await warmPropertyKbVectors(r.propertyId);
       }
     } catch (err) {
       void reportError("kb-semantic-warm-boot", err);
@@ -155,7 +161,13 @@ export function warmAllKbVectorsOnce(): void {
   })();
 }
 
+/** Test kancası: açılış ısıtmasının bitmesini bekler. */
+export async function __awaitBootWarm(): Promise<void> {
+  if (bootWarm) await bootWarm;
+}
+
 /** Test kancası. */
 export function __resetBootWarm(): void {
   bootWarmStarted = false;
+  bootWarm = null;
 }
