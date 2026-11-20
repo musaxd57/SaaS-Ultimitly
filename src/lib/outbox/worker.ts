@@ -670,6 +670,12 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
  * misafire giriş bilgisi hiç gitmezdi). Doğrudan yol aynı şeyi yapar: onaylı değilse göndermez, sonraki geçişte yeniden bakar.
  */
 export const LIFECYCLE_STATUS_HOLD = "reservation_not_ready";
+/**
+ * Karşılama / giriş satırının "olağan kuyruk gecikmesi" sınırı (G1 tur 4 T4-B1): varış günü geçmişse bundan uzun beklemiş satır bayattır
+ * (kapalı dönem — duraklatma, kanal 402'si, genel kapatma, abonelik). İşçi en geç birkaç dakikada bir geçer; iki saat, gece yarısını geçen
+ * olağan gecikmeyi bayat saymayacak kadar geniş, kapalı dönemi yakalayacak kadar dar.
+ */
+export const LIFECYCLE_STALE_AFTER_MS = 2 * 60 * 60_000;
 /** Durumu bekleyen satırın yeniden bakma aralığı (deneme sayılmaz). */
 export const LIFECYCLE_STATUS_RECHECK_MS = 20 * 60_000;
 /** Karşılama: varış günü geçti ve rezervasyon hâlâ onaylı değil → bayat (sonsuz erteleme olmasın). */
@@ -737,7 +743,13 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
   // geldiğinde varış günü GEÇTİYSE bayattır (konaklamanın ortasında "Girişiniz bugün 15:00, kapı kodu …" gitmesin). Normal kuyruk
   // gecikmesinde (dakika) eski pencere aynen — yalnız kapalı dönemi kapsayan satır daraltılır. Yeni gönderim adayları zaten "varış bugün
   // ya da sonra" kuralıyla seçilir (`sendDueWelcomes`).
-  if (spannedBillingBlock && (type === "welcome" || type === "checkin")) {
+  // G1 tur 4 T4-B1 (11-20): kural yalnız ABONELİK kapalı dönemine bağlıydı; öteki kapalı dönemler (operatörün "bekleyen gönderimleri
+  // duraklat"ı — kuyruğa yeni iş almayı durdurmaz, satırlar birikir — kanal aboneliğinin 402'si, genel kapatma) bitince konaklaması BİTMİŞ
+  // misafire karşılama, varışı dün olan misafire "girişiniz bugün 15:00, kapı kodu …" gidiyordu (doğrudan yol aynı saatte göndermez). Artık
+  // kapalı dönemin TÜRÜNDEN bağımsız: varış günü geçmiş ve satır olağan gecikmeden (↓`LIFECYCLE_STALE_AFTER_MS`) uzun beklemişse bayattır.
+  // Gece yarısını birkaç dakika geçen olağan gecikme eski pencereyle aynen gider.
+  const waitedLong = !!row.createdAt && now.getTime() - row.createdAt.getTime() > LIFECYCLE_STALE_AFTER_MS;
+  if ((spannedBillingBlock || waitedLong) && (type === "welcome" || type === "checkin")) {
     const tz = orgTimezone(res.property?.organization?.timezone);
     if (todayKey(now, tz) > calendarDateOf(res.arrivalDate, tz).key) return "window_passed";
   }
