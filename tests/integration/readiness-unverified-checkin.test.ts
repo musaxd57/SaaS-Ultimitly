@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "./helpers/db";
-import { seedAutoMessage } from "./helpers/auto-message";
-import { stayDay } from "./helpers/stay-dates";
+import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
+import { stayDay } from "../helpers/stay-dates";
 import { encryptSecret } from "@/lib/crypto-core";
 
 // ---------------------------------------------------------------------------
-// G1 TUR 5 YENİDEN ÜRETME — T4-B2 düzeltmesinin (`2ae4ed4f`) kalan yanı: kuyrukta SONUCU BELİRSİZ kalan giriş mesajı (konu 1).
+// GİRİŞLER — KUYRUKTA GÖNDERİMİ DOĞRULANAMAYAN GİRİŞ MESAJI (G1 tur 5 T5-B2, 11-20; düzeltildi): T4-B2 düzeltmesinin (`2ae4ed4f`) kalan yanı.
 //
 // Düzeltme yalnız `failed` satırı "gitmez" yaptı. Gönderimi zaman aşımına uğrayıp uzlaştırmada görülemeyen satır `review` olur (mesaj misafire
 // ulaşmış OLABİLİR); gönderici o rezervasyonu bir daha kuyruğa almaz (bekleyen olmayan satır = sahipli) ve elle gönderim düğmesi bilerek
 // yoktur (çift gönderim riski). Girişler bu durumda yine "Otomatik giriş mesajı hazır" der — mesaj ne gönderilmeyi bekliyor ne de gönderildiği
 // biliniyor. İşçi yorumu da `review` = "gönderilmiş OLABİLİR, kontrol edin" (`worker.ts` `applyFailureEffect(row, "ambiguous")`).
+// Düzeltme: ayrı durum `unverified` — "gönderimi doğrulanamadı · konuşmayı kontrol edin", konuşmaya bağlantı, elle gönderim düğmesi YOK.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/hospitable-credentials", async (orig) => ({
@@ -33,7 +34,7 @@ describe("G1 tur 5 repro — kuyrukta sonucu belirsiz giriş mesajı, Girişler"
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 KIRMIZI: satır `review` (gitmiş olabilir) → ekran 'Otomatik giriş mesajı hazır' der", async () => {
+  it("🚨 satır `review` (gitmiş olabilir) → ekran 'hazır' DEMEZ: 'doğrulanamadı · konuşmayı kontrol edin', düğme yok", async () => {
     const org = await prisma.organization.create({
       data: {
         name: "Org", timezone: "UTC", autoCheckin: true, autoCheckinEnabledAt: new Date(Date.now() - 30 * 86_400_000), aiSignature: "Lale",
@@ -55,8 +56,13 @@ describe("G1 tur 5 repro — kuyrukta sonucu belirsiz giriş mesajı, Girişler"
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: org.id } })).status).toBe("review");
 
     const list = await loadArrivalReadiness(org.id, new Date());
-    const access = list.rows.find((x) => x.reservationId === r.id)?.readiness.factors.find((f) => f.key === "access") as { label: string } | undefined;
-    // Beklenen: gönderimi doğrulanamamış mesaj için ekran "hazır" (= gönderilecek) demez. Gerçek: "Otomatik giriş mesajı hazır …".
+    const access = list.rows.find((x) => x.reservationId === r.id)?.readiness.factors.find((f) => f.key === "access") as
+      | { label: string; sendCheckin?: true; link?: { to: string } }
+      | undefined;
+    // Gönderimi doğrulanamamış mesaj için ekran "hazır" (= gönderilecek) demez; gitmiş olabileceği için elle gönderim düğmesi de yok.
     expect(access?.label ?? "", `Girişler etiketi: "${access?.label}"`).not.toMatch(/^Otomatik giriş mesajı hazır/);
+    expect(access?.label).toBe("Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin");
+    expect(access?.sendCheckin).toBeUndefined();
+    expect(access?.link).toEqual({ to: "conversation" });
   });
 });

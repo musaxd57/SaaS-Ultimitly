@@ -198,6 +198,8 @@ export interface StayReadinessInput {
     | { state: "missing" }
     | { state: "skipped"; reason: string }
     | { state: "review"; id: string; at: Date }
+    // Kuyrukta gönderimi zaman aşımına uğrayıp kanalda doğrulanamayan giriş mesajı (`review` satırı): misafire GİTMİŞ OLABİLİR (G1 tur 5 T5-B2).
+    | { state: "unverified" }
     | { state: "ready"; id: string; at: Date };
   /** UX-10 D5: giriş mesajı bu misafire ELLE gönderilebilir mi (yükleyicinin kararı; yoksa düğme yok). */
   checkinManualSendable?: boolean;
@@ -449,6 +451,19 @@ function accessFactor(input: StayReadinessInput): Factor {
       missing: "giriş mesajının düzeltilmesi (Daire → Otomatik mesajlar)",
       basis: [],
       link: { to: "auto_message", reason: "fix" },
+    };
+  }
+  if (a?.state === "unverified") {
+    // G1 tur 5 T5-B2 (11-20): kuyrukta gönderim zaman aşımına uğradı, kanalda da görülemedi (`review`) — mesaj misafire gitmiş OLABİLİR.
+    // "Hazır" (= gidecek) demek yanlıştı; elle gönderim düğmesi BİLEREK yok (gitmişse ikinci kapı kodu mesajı olur). Ürünün belirsiz gönderim
+    // dili ("Gönderim doğrulanamadı, konuşmayı kontrol edin" — gelen kutusu / karar cevabı) + konuşmaya bağlantı.
+    return {
+      key: "access",
+      state: "unknown",
+      label: "Otomatik giriş mesajının gönderimi doğrulanamadı · konuşmayı kontrol edin",
+      missing: "giriş mesajının misafire ulaştığının kontrolü",
+      basis: [],
+      link: { to: "conversation" },
     };
   }
   if (a?.state === "review") {
