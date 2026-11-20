@@ -282,3 +282,48 @@ kurar; anahtarlar AÇIK koşulursa DB kovası boş olduğu için yeni metin ıs�
 düşmedi). Anahtarlar açıkken eski içerik iddiası ayrı testlerde DB kovası doluyken sınandı (D1, D2, D3 dosyaları).
 
 **Yapılmadı (kurucu sorusu / migration):** D4 günlük tavan + misafir payı, D5 soğuk pencere kuralı, D6 kalıcı kuyruk.
+
+---
+
+## 9. Kurucu kararından sonra (11-20 sabah) — pilot, iki yayın öncesi test, yeniden başlatma, izlenecek sayı
+
+Kurucu kararı (E-1/E-2/E-4/E-5, `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md`): işletme başına saatte 600, toplam 2.000 parça, 20 sn
+bekleme — kod varsayılanları zaten bu değerler (`KB_EMBED_ORG_PER_HOUR`, `KB_EMBED_BG_PER_HOUR`, `KB_EMBED_DEBOUNCE_SECONDS` boş = bunlar).
+Bekleme yalnız arka plan vektör üretimi içindir; bilgi tabanı kaydı hemen güncellenir (kanca yazımdan SONRA koşar; misafir sorusu güncel
+kayıtta sözcüksel arar — test 2).
+
+**9.1 Kalıcı depo pilotu.** `KB_VECTOR_STORE_ENABLED=1` + `KB_VECTOR_STORE_ORG_IDS` (virgüllü tam kimlikler ya da `*`; `DURABLE_OUTBOX_ORG_IDS`
+deseni). Liste yoksa / boşsa KİMSE (listeyi silmek depoyu herkese açmaz). Listede olmayan işletme bugünkü gibi yalnız bellek: depo okunmaz,
+yazılmaz, temizlik sorgusu çalışmaz. Depo satırında işletme yok; işletme kalemden bulunur (kalem → daire → işletme): ısıtma yolunda daireden,
+sıcak yolda kalemlerden (önbellekli, depo okumasıyla aynı 250 ms bütçesi içinde; `*` ise sorgusuz), yazma sınırında ayrıca SQL'de denetlenir.
+🚨 Davranış değişikliği yalnız ana anahtar AÇIKKEN: eskiden `KB_VECTOR_STORE_ENABLED=1` herkes demekti, şimdi liste ister (`*` = eskisi).
+Depo canlıda hiç açılmadı (açılış listesinde değil), bu yüzden kimse için geri gidiş yok.
+
+**9.2 Yayın öncesi test 1** (`tests/integration/kb-embed-yayin-oncesi.test.ts`, anahtarlar açık + pilotta iki işletme): A 300/dk sınırında
+gerçek düzenlemelerle işletme kovasını (600) doldurup düzenlemeye devam ederken B YENİ bir kayıt ekler (kelime paylaşmayan parafrazla
+bulunabilen kombi kaydı). Ölçüm: ISITMANIN BİTİŞİ (kaydın parça satırı kalıcı depoda) = **20,0 sn** sanal (20 sn gecikme dahil; ısıtma + test beklemesi
+gerçek ≈ 0,45 sn taklit sağlayıcıyla — gerçek sağlayıcıda tek gömme isteği eklenir); ardından parafraz anlamsal aramayla (geri çekilme değil, seçim) kombi kaydını bulur.
+Olay günlüğü aynı sayıyı yazar. Ek bulgu (ölçüldü): misafir sorusu gecikmeyi BEKLEMEZ — soğuk dal ısıtmayı o anda başlatır; ilk soru
+güncel kayıtta sözcüksel, sonraki soru anlamsal (sanal süre 0).
+
+**9.3 Yayın öncesi test 2:** Wi-Fi şifresi değişir değişmez (0 sn), 10 sn'de, 21 sn'de (ısındıktan sonra), başka kopyada (bellek boş, depodan)
+ve işletme kovası doluyken: istem bloğunda YENİ şifre var, ESKİ hiçbir anda yok; vektör hazır değilken karar `cold` (güncel kayıtta sözcüksel).
+
+**9.4 Yeniden başlatma.** (a) Kaydın 20 sn'si dolmadan süreç kapanırsa açılış ısıtması daireyi güncel hâliyle ısıtır (test). (b) Açık vardı ve
+kapatıldı: açılışta işletme kovası (DB, kopyalar ortak) hâlâ doluysa açılış ısıtması reddediliyor ve iş yeniden planlanmıyordu (bir sonraki
+düzenleme / misafir sorusuna kadar sözcüksel). Şimdi `KB_EMBED_DEBOUNCE_ENABLED` açıkken açılış ısıtması da reddedilince pencere açılınca
+kendiliğinden yeniden dener (kırmızı-önce test). Kalan açık (yazıldı, kod yok): sıcak yolun soğuk dalındaki ısıtma (misafir sorusunun
+tetiklediği) reddedilirse daireye bağlı yeniden deneme yok — o daire bir sonraki soru / düzenleme / açılışta yeniden denenir.
+
+**9.5 İlk hafta izlenecek sayı — "bir KB değişikliği anlamsal aramaya ne kadar sürede yansıyor?"**
+Envanter (bugün): operatör konsolu (`/admin`) anahtarları ve kuyruk / kalite kartlarını gösterir, gömme sayısı yok · kalite konsolu
+(`/admin/ai-quality`) cevap kalitesi, gömme yok · `/api/health?strict=1` senkron / kuyruk / üyelik, gömme yok · günlükte yalnız arıza satırları ·
+olay günlüğü (`OperationalEvent`) var ve operatör ekranından YALNIZ takip numarasıyla aranıyor. Yani sayı bugün hiçbir yerde yoktu.
+Migration'sız en sade yol (yazıldı): düzenlemeden doğan ısıtma bitince olay günlüğüne tek satır `job.kb_embed.ready` — `durationMs` = kayıt
+değişikliği (`updatedAt`) → ısıtmanın bitişi (gecikme, bütçe beklemesi ve yeniden denemeler İÇİNDE), `count` = gömülen metin; işletme satırın
+kendi alanında; metin / kimlik yok; reddedilen / yarım kalan iş ve açılış ısıtması satır yazmaz. Olay günlüğü 90 gün saklar, işletme başına
+dakikada tavanlı. Okuma bugün SQL ile (örnek: `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY ("dataJson"::json->>'durationMs')::int)
+FROM "OperationalEvent" WHERE event='job.kb_embed.ready' AND "createdAt" > now() - interval '7 days'`).
+Öneri (kod YOK, kurucu metni ister — soru EMB-S1): operatör konsoluna tek satırlık kart: "Bilgi tabanı → anlamsal arama (son 7 gün): ortanca ·
+%95 · en uzun · sayı". Alternatif: `/api/health?strict=1` yanıtına yalnız sayılar (insan metni yok; her yoklamada bir sorgu — maliyeti ölçülmeli).
+Migration GEREKMEZ; gerekirse (ör. daire bazında bekleyen iş sayısı) kalıcı kuyruk tablosu D6 ile birlikte düşünülür.
