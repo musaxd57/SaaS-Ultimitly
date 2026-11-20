@@ -16,6 +16,17 @@ export function stayDay(daysFromToday: number, now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysFromToday));
 }
 
+/**
+ * İşletmenin SAAT DİLİMİNDEKİ bugünden `daysFromToday` gün sonrası; yalnız tarih (00:00Z). Ürün "bugün giriş"i işletmenin takvim gününe göre
+ * okur: UTC gününe göre kurulan fikstür (`stayDay`) İstanbul 00:00–02:59 arasında (UTC 21:00–23:59) bir gün geride kalır ve "bugün giriş"
+ * dünün girişi olur (G1 tur 3 T3-B4, 11-20: istek yolu fikstürü o saatlerde kırmızıydı). "Bugün"e bakan bir yolu sınayan fikstür bunu kullanır.
+ */
+export function stayDayInZone(daysFromToday: number, timeZone: string, now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const part = (type: string) => Number(parts.find((x) => x.type === type)?.value);
+  return new Date(Date.UTC(part("year"), part("month") - 1, part("day") + daysFromToday));
+}
+
 /** Testlerin ortak "yaklaşan konaklama"sı: 12 gün sonra giriş, 3 gece (fikstürlerin yazıldığı günkü uzaklık). */
 export function upcomingStay(now: Date = new Date()): { arrivalDate: Date; departureDate: Date } {
   return { arrivalDate: stayDay(12, now), departureDate: stayDay(15, now) };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { stayDay, stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
+import { stayDay, stayDayInZone, stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // Zaman bombası sınıfı (11-13): saati KENDİSİ okuyan ürün yolunu sınayan test, konaklamayı sabit tarihle kurarsa takvim o güne gelince
 // ürün değişmeden kırmızıya döner. Ayrıntı: `tests/helpers/stay-dates.ts`.
@@ -13,6 +13,15 @@ describe("bağıl konaklama tarihi yardımcıları", () => {
     expect(stayDay(0, NOW).toISOString()).toBe("2026-11-13T00:00:00.000Z");
     expect(stayDay(12, NOW).toISOString()).toBe("2026-11-25T00:00:00.000Z");
     expect(stayDay(-1, NOW).toISOString()).toBe("2026-11-12T00:00:00.000Z");
+  });
+
+  it("stayDayInZone: işletme diliminin takvim gününe göre (İstanbul 01:30 = UTC 22:30 → İstanbul günü bir ileride)", () => {
+    expect(stayDayInZone(0, "Europe/Istanbul", NOW).toISOString()).toBe("2026-11-14T00:00:00.000Z");
+    expect(stayDayInZone(-1, "Europe/Istanbul", NOW).toISOString()).toBe("2026-11-13T00:00:00.000Z");
+    expect(stayDayInZone(0, "UTC", NOW).toISOString()).toBe(stayDay(0, NOW).toISOString());
+    // Gün ortasında iki yardımcı aynı günü verir.
+    const noon = new Date("2026-11-13T09:00:00Z");
+    expect(stayDayInZone(3, "Europe/Istanbul", noon).toISOString()).toBe(stayDay(3, noon).toISOString());
   });
 
   it("ay / yıl sınırını taşır", () => {

@@ -1,5 +1,5 @@
 import { prisma, makeUser, PROPERTY_EXISTED_BEFORE } from "./db";
-import { stayDay } from "./stay-dates";
+import { stayDayInZone } from "./stay-dates";
 
 // ---------------------------------------------------------------------------
 // İSTEK YOLU FİKSTÜRÜ (optimizasyon turu 11-19). Ev sahibi sayfalarının (pano, gelen kutusu, konuşma, girişler, görevler, daire) her
@@ -20,13 +20,15 @@ export interface RequestPathFixture {
 }
 
 const HOUR = 3_600_000;
+/** Fikstür işletmesinin saat dilimi: konaklama günleri BU dilimin takvim gününe göre kurulur (G1 tur 3 T3-B4 — İstanbul gece yarısı). */
+const ORG_TZ = "Europe/Istanbul";
 
 export async function seedRequestPathOrg(opts: { properties: number; now?: Date; idPrefix?: string }): Promise<RequestPathFixture> {
   const now = opts.now ?? new Date();
   const px = opts.idPrefix ?? "rp";
   const at = (hoursAgo: number) => new Date(now.getTime() - hoursAgo * HOUR);
   const org = await prisma.organization.create({
-    data: { id: `${px}-org`, name: "Lale İşletmesi", timezone: "Europe/Istanbul", aiSignature: "Lale ekibi", autoReplyHospitable: true },
+    data: { id: `${px}-org`, name: "Lale İşletmesi", timezone: ORG_TZ, aiSignature: "Lale ekibi", autoReplyHospitable: true },
   });
   const user = await makeUser({ data: { id: `${px}-user`, organizationId: org.id, email: `${px}-owner@test.local`, name: "Ayşe Yılmaz", passwordHash: "x" } });
   const propertyIds: string[] = [];
@@ -44,8 +46,8 @@ export async function seedRequestPathOrg(opts: { properties: number; now?: Date;
           id: `${p}-r${key}`,
           propertyId: p,
           guestName: `Misafir ${key.toUpperCase()}${i}`,
-          arrivalDate: stayDay(arrival, now),
-          departureDate: stayDay(departure, now),
+          arrivalDate: stayDayInZone(arrival, ORG_TZ, now),
+          departureDate: stayDayInZone(departure, ORG_TZ, now),
           status: "confirmed",
           channel: "airbnb",
           sourceReference: `${p}-ref-${key}`,
@@ -115,10 +117,10 @@ export async function seedRequestPathOrg(opts: { properties: number; now?: Date;
     departureConversationIds.push(cB);
 
     await prisma.task.create({
-      data: { id: `${p}-t1`, propertyId: p, reservationId: `${p}-rb`, type: "cleaning", title: "Çıkış temizliği", status: "pending", dueAt: stayDay(0, now) },
+      data: { id: `${p}-t1`, propertyId: p, reservationId: `${p}-rb`, type: "cleaning", title: "Çıkış temizliği", status: "pending", dueAt: stayDayInZone(0, ORG_TZ, now) },
     });
     await prisma.task.create({
-      data: { id: `${p}-t2`, propertyId: p, type: "maintenance", title: "Musluk", status: "pending", priority: "urgent", dueAt: stayDay(0, now) },
+      data: { id: `${p}-t2`, propertyId: p, type: "maintenance", title: "Musluk", status: "pending", priority: "urgent", dueAt: stayDayInZone(0, ORG_TZ, now) },
     });
     await prisma.knowledgeBaseItem.create({
       data: { id: `${p}-k1`, propertyId: p, category: "checkin", title: "Giriş", content: "Anahtar kutusu kapının yanında." },
