@@ -41,11 +41,34 @@ export interface VerifiedAvailability {
   result: VerifiedToolResult<AvailabilityToolValue>;
 }
 
+// ── SÜRE / BİTİŞ YAZILMIŞ SORU → KOD METNİ YOK (GEÇİCİ; kurucu 11-21: "önce geçici, sonra kalıcı"; G1 tur 8 T8-B2) ─────────────────
+// Tarih çözücü yalnız TARİHLERİ görür: "15 Aralık'tan itibaren 3 gece müsait mi?", "15 Aralık'tan 18'ine kadar", "for a week" tek tarihe
+// (= tek gece) iner; 15'i boş 16'sı doluyken misafire "15 Aralık gecesi için daire müsait." gider ve misafir bütün süreyi boş sanır.
+// Geçici kural: misafir bir SÜRE ya da BİTİŞ yazdıysa sorulan aralık çözücünün gördüğünden uzun olabilir → aralık KURULMAZ, soru ev sahibine
+// kalır. Sözcük ağı yalnız DARALTIR (hiçbir zaman metin göndermez) — uzatma modülünün `OTHER_DURATION` kuralıyla aynı yön. Bilinen bedel:
+// "15 Ekim için bir gece" gibi zaten tek gecelik soru da ev sahibine kalır. KALICI çözüm (kurucu onaylı, kredi bekliyor): model misafirin
+// sorduğu giriş / çıkışı okur, kod kendi aralığıyla birebir kıyaslar; tutmazsa metin kurulmaz (istem değişikliği + ücretli ölçüm).
+const L = "(?<![\\p{L}\\d])";
+const R = "(?![\\p{L}\\d])";
+const STAY_LENGTH = new RegExp(
+  `${L}(?:\\d{1,3}|bir|iki|üç|dört|beş|altı|yedi|sekiz|dokuz|on|birkaç|one|two|three|four|five|six|seven|eight|nine|ten|a|an|several|few)\\s+(?:gece|gün|nights?|days?)${R}`,
+  "u",
+);
+const STAY_SPAN = new RegExp(`${L}(?:hafta\\p{L}{0,6}|ay|aylık|weeks?|fortnight|months?|kadar|until|till|through|thru)${R}`, "u");
+
+/** Misafirin metni bir konaklama SÜRESİ ya da BİTİŞİ söylüyor mu (yalnız daraltmak için; saf, doğrusal). */
+export function mentionsStayLengthOrEnd(text: string | null | undefined): boolean {
+  if (typeof text !== "string" || text.length === 0) return false;
+  // Türkçe küçük harf "I"yı "ı" yapar → İngilizce kalıplar yerel ayarsız küçük harfte de okunur.
+  return [text.toLocaleLowerCase("tr"), text.toLowerCase()].some((t) => STAY_LENGTH.test(t) || STAY_SPAN.test(t));
+}
+
 /**
- * Misafirin sorduğu aralık: tek gün → o gece; iki gün → [ilk, son) (giriş – çıkış). Belirsiz / üç ve üstü gün / tarih yok / geçmiş
- * → null (tahmin yok; kapı eskisi gibi tutar).
+ * Misafirin sorduğu aralık: tek gün → o gece; iki gün → [ilk, son) (giriş – çıkış). Belirsiz / üç ve üstü gün / tarih yok / geçmiş /
+ * süre ya da bitiş yazılmış (↑ geçici kural) → null (tahmin yok; kapı eskisi gibi tutar).
  */
 export function availabilityQueryOf(text: string | null | undefined, ctx: DateResolutionContext): AvailabilityQuery | null {
+  if (mentionsStayLengthOrEnd(text)) return null;
   const r = resolveGuestDates(text, ctx);
   if (r.status !== "resolved" || r.reasons.includes("past_date")) return null;
   if (r.dates.length === 1) return { from: r.dates[0], to: addNights(r.dates[0], 1) };

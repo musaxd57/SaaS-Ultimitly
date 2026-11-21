@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   availabilityQueryOf,
+  mentionsStayLengthOrEnd,
   verifiedAvailabilityEnabled,
   verifiedAvailabilityLang,
   verifiedAvailabilityText,
@@ -62,6 +63,32 @@ describe("availabilityQueryOf — misafirin sorduğu aralık", () => {
       expect(availabilityQueryOf(text, ctx)).toBeNull();
     },
   );
+});
+
+describe("availabilityQueryOf — süre / bitiş yazılmış soru (GEÇİCİ kural, kurucu 11-21; G1 tur 8 T8-B2)", () => {
+  // Önce: tarih çözücü yalnız ilk tarihi görüyordu → hepsi TEK gece sorgusuydu (14 Ekim → 15 Ekim); 14'ü boş, 15'i doluyken misafire
+  // "14 Ekim gecesi için daire müsait." giderdi. Sonra: aralık kurulmaz → kod metni yok, soru ev sahibine.
+  it.each([
+    "14 Ekim'den itibaren 3 gece müsait mi?",
+    "14 Ekim için 3 gece boş mu?",
+    "14 Ekim giriş, 3 gece kalacağız, müsait mi?",
+    "14 Ekim'den 18'ine kadar müsait mi?",
+    "14 Ekim'den itibaren bir hafta boş mu?",
+    "Is it available from Oct 14 for 3 nights?",
+    "Is the apartment free on Oct 14 for a week?",
+    "Is Oct 14 available until the 18th?",
+    "14 Ekim için birkaç gün müsait mi?",
+  ])("🚨 %s → null", (text) => {
+    expect(availabilityQueryOf(text, ctx)).toBeNull();
+  });
+
+  it("KONTROL (aşırı uygulama yok): süresiz tek tarih, iki tarihli aralık ve 'gecesi' biçimi aynen kurulur", () => {
+    expect(availabilityQueryOf("14 Ekim müsait mi?", ctx)).toEqual({ from: "2026-10-14", to: "2026-10-15" });
+    expect(availabilityQueryOf("14-18 Ekim müsait mi?", ctx)).toEqual({ from: "2026-10-14", to: "2026-10-18", explicitRange: true });
+    expect(availabilityQueryOf("15 Ekim gecesi boş mu?", ctx)).toEqual({ from: "2026-10-15", to: "2026-10-16" });
+    expect(mentionsStayLengthOrEnd("Ayın 14'ü müsait mi?")).toBe(false); // "Ayın" ay (süre) sözcüğü değil
+    expect(mentionsStayLengthOrEnd("Bu gece müsait mi?")).toBe(false); // "bu" sayı değil
+  });
 });
 
 describe("verifiedAvailabilityUsable", () => {

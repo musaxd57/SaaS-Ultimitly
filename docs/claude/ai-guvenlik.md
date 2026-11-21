@@ -474,6 +474,11 @@
 - 🚨 (10-09 gece, Haiku uzatma incelemesi) Bağımsız BEKÇİ koşmuş ve "belirli tarihler boş mu" sorusu görmüş olmalı (`guest_requests_change`
   + tür `availability`); bekçi o turda koşmadıysa kod metniyle koşturulur, `AI_STAY_GUARD_ENABLED` kapalıysa muafiyet YOK. Önceden bekçi
   koşmadığında sinyal "off" idi ve muafiyet tek modele + kelime ağına kalıyordu.
+- 🚨 (11-21, kurucu: "önce geçici, sonra kalıcı"; G1 tur 8 T8-B2) Misafir bir SÜRE ("3 gece", "bir hafta", "for 3 nights") ya da BİTİŞ
+  ("18'ine kadar", "until the 18th") yazdıysa aralık KURULMAZ (`mentionsStayLengthOrEnd`, yalnız daraltır) — tarih çözücü yalnız ilk tarihi
+  görüyordu: "15 Aralık'tan itibaren 3 gece müsait mi?" 1 gecelik sorguya iniyor, 15'i boş 16'sı doluyken "15 Aralık gecesi için daire müsait."
+  giderdi. Bedel: süreli tek gecelik soru da ev sahibine kalır. KALICI (onaylı, kredi bekliyor): model sorulan giriş / çıkışı okur, kod kendi
+  aralığıyla birebir kıyaslar (istem değişikliği + ücretli ölçüm).
 - Bilinen sınır: kalıcı kuyruk (`DURABLE_OUTBOX_ENABLED`, kapalı) yolunda gönderim anında yaş yeniden denetlenmez. QR yolu bağlanmadı.
 - Kanıt: birim 43 · entegrasyon 13 (gerçek PG: gider / anahtar kapalı / dolu / kısmen dolu / bayat / uzatma / anlama kapalı / iki soru / yanlış
   konu / ikinci soru / riskli niyet / İngilizce / dili belirsiz) · mutasyon 21/21 (iki Haiku turu).

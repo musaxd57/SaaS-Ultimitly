@@ -15,6 +15,7 @@ import { hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidenc
 import { mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
 import { heldPetLeak } from "@/lib/conversation-items/pet-policy";
 import { promisesCompensation } from "@/lib/ai/compensation-promise";
+import { mentionsStayLengthOrEnd } from "@/lib/ai/verified-availability";
 import { costMessage, measureCost } from "../helpers/linear-cost";
 
 const N = 4_000;
@@ -75,4 +76,10 @@ measure("evcil hayvan sızıntısı · Arap harfi dizisi", N / 2, (n) => "\u0627
 // burada değil — `qr-secret-scan-cost.test.ts`te ölçülür, var olan QR tarayıcılarıyla aynı.)
 measure("tazminat sözü · telafi kökü tekrarı", N / 5, (n) => "iade ".repeat(n), (t) => promisesCompensation(t));
 measure("tazminat sözü · boşluk dizisi", N, (n) => "iade" + " ".repeat(n) + "edeceğiz", (t) => promisesCompensation(t));
+// Müsaitlik sorusunda süre / bitiş okuyucusu (GEÇİCİ kural, kurucu 11-21; misafir metnine uygulanır): sayı + uzun boşluk dizisi
+// (`\s+` tek başlangıçta geri izler — doğrusal), sayı tekrarı (her başlangıç kısa) ve tek uzun sözcük.
+mentionsStayLengthOrEnd("14 Ekim'den itibaren 3 gece müsait mi?");
+measure("süre okuyucusu · sayı + boşluk dizisi", N, (n) => "3" + " ".repeat(n) + "x", (t) => mentionsStayLengthOrEnd(t));
+measure("süre okuyucusu · sayı tekrarı", N / 2, (n) => "3 ".repeat(n), (t) => mentionsStayLengthOrEnd(t));
+measure("süre okuyucusu · tek uzun sözcük", N, (n) => "hafta" + "a".repeat(n), (t) => mentionsStayLengthOrEnd(t));
 process.stdout.write(`${JSON.stringify({ done: true })}\n`);
