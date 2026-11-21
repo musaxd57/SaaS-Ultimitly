@@ -44,6 +44,10 @@ describe("T9-B16 — saklama süpürgesi bağı kopmuş kuyruk satırının göv
     await row("yetim-ucusta", { conversationId: "silinmis-konusma-3", status: "sending", claimedBy: "w1", claimExpiresAt: new Date(Date.now() + 60_000), createdAt: old });
     await row("yetim-taze", { conversationId: "silinmis-konusma-4", status: "sent", createdAt: new Date(Date.now() - DAY) });
     await row("bagli-eski", { conversationId: conv.id, reservationId: res.id, status: "sent", createdAt: old });
+    // YARI bağlı satırlar (gece mutasyonu 11-21: iki "ebeveyn var mı" koşulundan biri silinince yaşıyordu): ebeveynlerden BİRİ duruyorsa satır bu
+    // geçişe girmez — karar o ebeveynin konaklama kuralındadır (burada konaklama dün bitti → metin kalır).
+    await row("yari-bagli-konusma-duruyor", { conversationId: conv.id, reservationId: "silinmis-rezervasyon-2", status: "sent", createdAt: old });
+    await row("yari-bagli-rezervasyon-duruyor", { conversationId: "silinmis-konusma-5", reservationId: res.id, status: "sent", createdAt: old });
 
     await anonymizeOldGuestData();
 
@@ -56,6 +60,8 @@ describe("T9-B16 — saklama süpürgesi bağı kopmuş kuyruk satırının göv
       "yetim-ucusta": "METIN",
       "yetim-taze": "METIN",
       "bagli-eski": "METIN",
+      "yari-bagli-konusma-duruyor": "METIN",
+      "yari-bagli-rezervasyon-duruyor": "METIN",
     });
   });
 

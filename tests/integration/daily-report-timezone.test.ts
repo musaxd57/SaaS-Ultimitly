@@ -177,6 +177,29 @@ describe("GET /api/reports/daily — sayı ile liste aynı küme (iki dairede ka
     expect((body.summary.match(/Çift Kayıt/g) ?? []).length).toBe(1);
   });
 
+  it("🚨 ÇIKIŞ listesi de aynı küme: bugün çıkan, iki dairede kayıtlı sağlayıcı rezervasyonu listede BİR kez (gece mutasyonu: yalnız giriş sınanıyordu)", async () => {
+    const second = await prisma.property.create({ data: { organizationId: orgId, name: "Daire 2" } });
+    const first = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId, name: "Daire 1" } });
+    for (const propertyId of [first.id, second.id]) {
+      await prisma.reservation.create({
+        data: {
+          propertyId,
+          guestName: "Çift Çıkış",
+          channel: "airbnb",
+          status: "confirmed",
+          sourceReference: "hosp-res-out",
+          arrivalDate: new Date("2026-07-25T00:00:00.000Z"),
+          departureDate: new Date("2026-07-28T00:00:00.000Z"),
+        },
+      });
+    }
+    vi.setSystemTime(new Date("2026-07-28T09:00:00.000Z")); // İst 28 Tem 12:00
+    const body = await (await dailyGET(req(), ctx())).json();
+    expect(body.departures.filter((d: { guestName: string }) => d.guestName === "Çift Çıkış")).toHaveLength(1);
+    expect(body.departures).toHaveLength(body.stats.departuresToday);
+    expect((body.summary.match(/Çift Çıkış/g) ?? []).length).toBe(1);
+  });
+
   it("KONTROL (aşırı uygulama): FARKLI dairelerin aynı referanslı ELLE rezervasyonları iki ayrı giriştir (listede ikisi de kalır)", async () => {
     const second = await prisma.property.create({ data: { organizationId: orgId, name: "Daire 2" } });
     const first = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId, name: "Daire 1" } });
