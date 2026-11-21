@@ -280,6 +280,39 @@ describe("GuestChat (UI, two-way)", () => {
     await screen.findByText("Wrong code. Please check the chat code we gave you.");
   });
 
+  // FB tur 2 (11-20): yanlış kod hatası ekran okuyucuya SESSİZDİ — duyurulmuyor, kutuya bağlı değildi. Metin aynı; yalnız bağ + duyuru.
+  it("yanlış sohbet kodu: hata DUYURULUR (role=alert) ve kutuya bağlanır (aria-invalid + aria-describedby); hata yokken bağ da yok", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ pinRequired: true, pinError: true }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+    const input = await screen.findByPlaceholderText("Sohbet kodu");
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(input.getAttribute("aria-describedby")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.change(input, { target: { value: "000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sohbeti aç" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Kod hatalı. Size verdiğimiz sohbet kodunu kontrol edin.");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    // Bağlanan düğüm GERÇEKTEN hata metnini taşır (kimlik eşleşmesi yetmez).
+    expect(document.getElementById(input.getAttribute("aria-describedby")!)).toBe(alert);
+  });
+
+  it("sohbet akışı ekran okuyucuya duyurulan bir günlüktür (role=log, kibar kip): yeni cevap bu bölgenin içine düşer", async () => {
+    setupFetch([{ id: "a1", role: "ai", text: "Çöp salı günü." }]);
+    render(<GuestChat token="t" />);
+    const reply = await screen.findByText("Çöp salı günü.");
+    const log = screen.getByRole("log");
+    expect(log.getAttribute("aria-live")).toBe("polite");
+    expect(log.contains(reply)).toBe(true);
+    // Yazma kutusu günlüğün DIŞINDA (yazarken her tuş duyurulmaz).
+    expect(log.contains(screen.getByPlaceholderText(/Sorunuzu yazın/))).toBe(false);
+  });
+
   it("varsayılan (Türkçe) PIN ekranında da kapı kodu olmadığı yazılı (U3)", async () => {
     const fn = vi.fn((_url: string, opts?: RequestInit) => {
       const method = opts?.method ?? "GET";

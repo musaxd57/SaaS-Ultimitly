@@ -481,6 +481,9 @@ export function GuestChat({
               autoComplete="one-time-code"
               placeholder={t.pinPlaceholder}
               aria-label={t.pinPlaceholder}
+              // Hata kutuya BAĞLI (FB tur 2, 11-20): yanlış kodda ekran okuyucu ne hatayı duyuyor ne kutunun geçersiz olduğunu biliyordu.
+              aria-invalid={pinError ? true : undefined}
+              aria-describedby={pinError ? "guest-pin-error" : undefined}
               autoFocus
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-center text-lg tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
@@ -492,7 +495,12 @@ export function GuestChat({
               {pinBusy ? t.pinChecking : t.pinSubmit}
             </button>
           </form>
-          {pinError ? <p className="text-sm text-destructive">{pinError}</p> : null}
+          {/* `role="alert"`: sohbetteki gönderim hatası zaten duyuruluyordu; kod ekranındaki hata SESSİZDİ (metin aynı, yalnız duyuru). */}
+          {pinError ? (
+            <p id="guest-pin-error" role="alert" className="text-sm text-destructive">
+              {pinError}
+            </p>
+          ) : null}
           {/* U3 (kurucu 10-22): "giriş kodu / access code" kapı koduyla karışıyordu — adı "sohbet kodu", kapı kodu olmadığı yazılı. */}
           <p className="text-xs text-muted-foreground">
             {t.pinNotDoorCode} {t.pinUnknown}
@@ -511,7 +519,9 @@ export function GuestChat({
         <p className="text-xs text-muted-foreground">{t.disclosure}</p>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      {/* `role="log"`: yeni gelen cevap ekran okuyucuya DUYURULUR (kibar kip — okumayı kesmez). Eskiden gören misafir cevabı ekranda görüyor,
+          ekran okuyucu kullanan misafir ise cevabın geldiğini ancak sayfayı baştan gezerek anlıyordu (FB tur 2, 11-20). Metin değişmedi. */}
+      <div role="log" aria-live="polite" className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && pendingBubbles.length === 0 && !closed && !boundElsewhere ? (
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.intro}</div>
         ) : null}

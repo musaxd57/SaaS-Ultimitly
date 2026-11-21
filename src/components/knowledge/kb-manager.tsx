@@ -797,7 +797,7 @@ export function KbManager({
                     {editId === item.id ? (
                       <div className="mt-2.5 space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
                         {editError ? (
-                          <p className="text-xs text-destructive">{editError}</p>
+                          <p role="alert" className="text-xs text-destructive">{editError}</p>
                         ) : null}
                         <div className="grid gap-2 sm:grid-cols-2">
                           <Field label="Kategori" htmlFor={`edit-cat-${item.id}`}>
@@ -920,7 +920,7 @@ export function KbManager({
                             </button>
                           ))}
                         </div>
-                        {copyMsg ? <p className="text-xs text-destructive">{copyMsg}</p> : null}
+                        {copyMsg ? <p role="alert" className="text-xs text-destructive">{copyMsg}</p> : null}
                         <div className="flex flex-wrap items-center gap-3">
                           <Button
                             size="sm"

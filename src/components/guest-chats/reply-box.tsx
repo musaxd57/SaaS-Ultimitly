@@ -108,7 +108,7 @@ export function GuestChatReply({
           {busy ? "…" : "Yanıtla"}
         </button>
       </form>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       {/* 🚨 UYARI YAZMADAN ÖNCE GÖRÜNÜR (kurucu, 09-11: "host QR'da tek 'merhaba'
           yazarsa AI o konaklama boyunca susuyor — yazma kutusu bunu önceden
           söylemiyor"). Bu cümle ürünün içinde VARDI ama yalnız `resume-ai-button`

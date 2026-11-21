@@ -172,7 +172,7 @@ export function TwoFactorCard({
             2FA&apos;yı kapat
           </Button>
         </form>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
         {done ? <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{done}</p> : null}
 
         {/* ---- Recovery codes (single-use backup second factor) ---- */}
@@ -240,7 +240,7 @@ export function TwoFactorCard({
               </Button>
             </form>
           )}
-          {recoveryError ? <p className="text-sm text-destructive">{recoveryError}</p> : null}
+          {recoveryError ? <p role="alert" className="text-sm text-destructive">{recoveryError}</p> : null}
         </div>
       </div>
     );

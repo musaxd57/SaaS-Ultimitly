@@ -317,7 +317,7 @@ export function AutomationPrefsForm({
         />
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={busy || !dirty || courtesyTokens.length > 0}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}

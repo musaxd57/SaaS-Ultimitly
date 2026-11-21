@@ -212,7 +212,7 @@ export function EarlyCheckinRuleForm({
           </span>
         </span>
       </label>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       {canManage ? (
         <div className="flex justify-end">
           <Button type="button" disabled={busy} onClick={save}>

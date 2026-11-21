@@ -100,7 +100,7 @@ export function SupplyStockForm({ initial }: { initial: Record<string, number> }
               </label>
             ))}
           </div>
-          {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-2 text-sm text-destructive">{error}</p> : null}
           <div className="mt-3 flex items-center gap-3">
             <Button type="button" size="sm" onClick={save} disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}

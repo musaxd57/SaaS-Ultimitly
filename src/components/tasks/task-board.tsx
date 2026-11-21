@@ -644,7 +644,7 @@ export function TaskBoard({
               </button>
             </div>
             {noteError[t.id] ? (
-              <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
+              <p role="alert" className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
             ) : null}
 
             {/* Photo upload — only for cleaning tasks (proof of cleaning); never check-in prep */}

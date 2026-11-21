@@ -89,7 +89,7 @@ export function TimezoneForm({ initial }: { initial: string }) {
           {saved && !dirty ? "Kaydedildi" : "Kaydet"}
         </Button>
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
     </form>
   );
 }

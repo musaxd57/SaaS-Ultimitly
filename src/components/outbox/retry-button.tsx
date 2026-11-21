@@ -43,7 +43,7 @@ export function OutboxRetryButton({ outboxId }: { outboxId: string }) {
         {working ? <Loader2 className="mr-1 size-3 animate-spin" /> : <RotateCcw className="mr-1 size-3" />}
         Yeniden dene
       </Button>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

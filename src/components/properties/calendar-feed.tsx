@@ -97,7 +97,7 @@ export function CalendarFeed({ feedUrl, propertyId }: CalendarFeedProps) {
           Bağlantıyı yenile
         </Button>
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       <p className="text-xs text-muted-foreground">
         Bu bağlantıyı bilen herkes bu dairenin dolu günlerini görebilir. Yanlış birine gittiyse
         &quot;Bağlantıyı yenile&quot; ile eskisini geçersiz kılabilirsiniz.

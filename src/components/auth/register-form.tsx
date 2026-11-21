@@ -236,7 +236,7 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             <p className="text-center text-xs text-emerald-700">{VERIFY_RESEND_REQUESTED_TEXT}</p>
           ) : null}
           {resendError ? (
-            <p className="text-center text-xs text-destructive">{resendError}</p>
+            <p role="alert" className="text-center text-xs text-destructive">{resendError}</p>
           ) : null}
         </div>
         <p className="text-center text-sm text-muted-foreground">
@@ -351,11 +351,11 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             onLoadError={() => setHumanLoadError(true)}
           />
           {humanLoadError ? (
-            <p className="text-center text-xs text-destructive">
+            <p role="alert" className="text-center text-xs text-destructive">
               Güvenlik doğrulaması yüklenemedi. Sayfayı yenileyip tekrar deneyin.
             </p>
           ) : null}
-          {fields.captcha ? <p className="text-center text-xs text-destructive">{fields.captcha}</p> : null}
+          {fields.captcha ? <p role="alert" className="text-center text-xs text-destructive">{fields.captcha}</p> : null}
         </div>
       ) : null}
       {/* UX-3: yalnız istek sürerken pasif (çift gönderim). Onay / doğrulama eksiği basınca söylenir (yukarıdaki `onSubmit`). */}

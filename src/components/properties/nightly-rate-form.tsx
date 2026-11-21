@@ -111,7 +111,7 @@ export function NightlyRateForm({
           </Select>
         </Field>
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       {canManage ? (
         <div className="flex justify-end gap-2">
           {initial ? (

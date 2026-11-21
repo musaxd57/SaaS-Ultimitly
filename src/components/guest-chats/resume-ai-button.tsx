@@ -46,7 +46,7 @@ export function GuestChatResumeAi({ conversationId }: { conversationId: string }
       <span className="text-[11px] text-muted-foreground">
         Siz yazdıkça AI susar; hazır olduğunuzda buradan tekrar açın.
       </span>
-      {error ? <span className="text-xs text-destructive">{error}</span> : null}
+      {error ? <span role="alert" className="text-xs text-destructive">{error}</span> : null}
     </div>
   );
 }

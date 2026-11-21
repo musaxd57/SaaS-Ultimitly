@@ -246,7 +246,7 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
           <Button size="sm" onClick={addSource} disabled={adding} className="w-full">
             {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Takvim bağlantısı ekle

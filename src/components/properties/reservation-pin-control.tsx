@@ -192,7 +192,7 @@ export function ReservationPinControl({
           ) : null}
         </div>
       )}
-      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-[11px] text-destructive">{error}</p> : null}
     </div>
   );
 }

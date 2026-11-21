@@ -83,7 +83,7 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600 dark:text-emerald-400" /> : <Mail className="size-4" />}
         {saved && !dirty ? "Kaydedildi" : "Kaydet"}
       </Button>
-      {error ? <p className="w-full text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="w-full text-xs text-destructive">{error}</p> : null}
       {pending ? (
         <p className="w-full text-xs text-muted-foreground" role="status">
           Doğrulama bağlantısı {pending} adresine gönderildi. Bağlantı onaylanınca uyarılar bu adrese gider.

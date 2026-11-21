@@ -162,7 +162,7 @@ export function AccountCard({ email }: { email: string }) {
           <Check className="size-4" /> Şifreniz güncellendi.
         </p>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

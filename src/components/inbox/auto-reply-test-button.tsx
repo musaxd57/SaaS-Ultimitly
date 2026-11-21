@@ -183,7 +183,7 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
                 </p>
               ) : null}
               {error ? (
-                <p className="text-sm text-destructive">{error}</p>
+                <p role="alert" className="text-sm text-destructive">{error}</p>
               ) : previews && previews.length === 0 && !limitNote ? (
                 <p className="text-sm text-muted-foreground">
                   Cevap bekleyen (misafirin son yazdığı) konuşma yok. Önce &quot;Mesajları çek&quot;e basın.

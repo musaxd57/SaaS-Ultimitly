@@ -205,7 +205,7 @@ export function CalendarFileImport({ propertyId }: { propertyId: string }) {
           <Loader2 className="size-3 animate-spin" /> İşleniyor…
         </p>
       )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
 
       {preview && (
         <div className="space-y-2 rounded-lg border border-border p-3">

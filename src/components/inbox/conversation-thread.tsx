@@ -1189,7 +1189,7 @@ export function ConversationThread({
                     Şablonlar yükleniyor…
                   </p>
                 ) : templatesError ? (
-                  <p className="p-3 text-xs text-destructive">
+                  <p role="alert" className="p-3 text-xs text-destructive">
                     Şablonlar yüklenemedi. Lütfen tekrar deneyin.
                   </p>
                 ) : templates.length === 0 ? (

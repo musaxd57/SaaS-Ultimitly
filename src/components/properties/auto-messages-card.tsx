@@ -158,7 +158,7 @@ function AutoMessageEditor({ propertyId, item, canEdit }: { propertyId: string; 
       ) : dirty ? (
         <p className="text-xs text-muted-foreground">Kaydetmeden önce önizleyin.</p>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       {canEdit && dirty ? (
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" disabled={busy !== null} onClick={showPreview}>

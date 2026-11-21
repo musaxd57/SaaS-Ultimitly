@@ -127,11 +127,11 @@ export function LeadForm() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Input aria-label="Adınız" placeholder="Adınız" value={form.name} onChange={(e) => set("name", e.target.value)} required />
-          {errors.name ? <p className="mt-1 text-xs text-destructive">{errors.name}</p> : null}
+          {errors.name ? <p role="alert" className="mt-1 text-xs text-destructive">{errors.name}</p> : null}
         </div>
         <div>
           <Input aria-label="E-posta adresiniz" type="email" placeholder="E-posta adresiniz" value={form.email} onChange={(e) => set("email", e.target.value)} required />
-          {errors.email ? <p className="mt-1 text-xs text-destructive">{errors.email}</p> : null}
+          {errors.email ? <p role="alert" className="mt-1 text-xs text-destructive">{errors.email}</p> : null}
         </div>
       </div>
 
@@ -162,7 +162,7 @@ export function LeadForm() {
           className="h-full min-w-0 flex-1 rounded-r-md bg-transparent px-3 outline-none placeholder:text-muted-foreground"
         />
       </div>
-      {errors.phone ? <p className="text-xs text-destructive">{errors.phone}</p> : null}
+      {errors.phone ? <p role="alert" className="text-xs text-destructive">{errors.phone}</p> : null}
 
       {/*
         SERBEST METİN — sabit boyut + görünür tavan. Öncesinde ne `maxLength`
@@ -186,7 +186,7 @@ export function LeadForm() {
             {form.message.length} / {MESSAGE_MAX}
           </p>
         ) : null}
-        {errors.message ? <p className="mt-1 text-xs text-destructive">{errors.message}</p> : null}
+        {errors.message ? <p role="alert" className="mt-1 text-xs text-destructive">{errors.message}</p> : null}
       </div>
       {/* Honeypot: hidden from humans; bots that fill it get silently dropped. */}
       <input
@@ -213,8 +213,8 @@ export function LeadForm() {
           işlenmesine açık rıza veriyorum.
         </span>
       </label>
-      {errors.consent ? <p className="text-xs text-destructive">{errors.consent}</p> : null}
-      {errors._ ? <p className="text-sm text-destructive">{errors._}</p> : null}
+      {errors.consent ? <p role="alert" className="text-xs text-destructive">{errors.consent}</p> : null}
+      {errors._ ? <p role="alert" className="text-sm text-destructive">{errors._}</p> : null}
       <Button type="submit" className="w-full" size="lg" disabled={busy || !consent}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         Ücretsiz demo iste

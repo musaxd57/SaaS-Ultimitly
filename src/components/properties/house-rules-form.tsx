@@ -99,7 +99,7 @@ export function HouseRulesForm({
         Yasak seçilen konuda misafire nazikçe izin verilmediği söylenir. Parti, fazla misafir ve sessiz saatlerde
         &quot;İzinli&quot; seçseniz de yapay zekâ izin vermez; bu istekler size kalır.
       </p>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       {canManage ? (
         <div className="flex justify-end">
           <Button type="button" disabled={busy} onClick={save}>
