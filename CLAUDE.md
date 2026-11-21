@@ -638,3 +638,5 @@ sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 k
   kopyasını yazmaz (sert kontrol A1: kopya kural kuyruk sahipliğini unutmuştu).
 - (11-20) Yeni bir "iptal" vetosu eklerken rezervasyon geri dönerse aynı anahtarın bir daha gönderilip gönderilemeyeceği sorulur (kuyruk yolu
   doğrudan yoldan ayrışmaz).
+- (11-21, CI 1841) Prisma'nın sorgu olayı sonuçtan SONRA gelebilir ve havuzun `SELECT 1` yoklaması da olay üretir (ölçüldü) → sorgu sayan test
+  sayacı kapatmadan önce `flushQueryEvents` (`tests/helpers/query-event-barrier.ts`) çağırır; sabit bekleme yazılmaz.

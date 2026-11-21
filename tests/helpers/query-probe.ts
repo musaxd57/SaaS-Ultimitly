@@ -120,6 +120,9 @@ function install(): void {
     $use(mw: (params: { model?: string; action: string }, next: (p: unknown) => Promise<unknown>) => Promise<unknown>): void;
   };
   client.$on("query", (e) => {
+    // Bağlantı havuzunun kendi yoklaması (çıplak `SELECT 1`) ölçülen işin sorgusu değildir; ara sıra düşüp "aynı sayı" iddiasını oynatırdı
+    // (ölçüldü 11-21: 1.500 çağrıda 4 kez; `tests/helpers/query-event-barrier.ts`).
+    if (/^\s*SELECT 1\s*$/i.test(e.query)) return;
     active?.sql.push(e.query);
   });
   client.$use(async (params, next) => {

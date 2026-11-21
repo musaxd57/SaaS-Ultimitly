@@ -27,6 +27,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 import { prisma, resetDb, PROPERTY_EXISTED_BEFORE } from "../helpers/db";
+import { flushQueryEvents } from "../helpers/query-event-barrier";
 import { createReservationTasks, lifecycleTasksSettledInEveryTimeZone } from "@/lib/automation";
 import { onOrAfterToday } from "@/modules/availability/core";
 import { lifecycleTaskPresent } from "@/lib/tasks/lifecycle-presence";
@@ -38,6 +39,7 @@ async function countQueries<T>(fn: () => Promise<T>): Promise<{ result: T; queri
   counter.on = true;
   try {
     const result = await fn();
+    await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     return { result, queries: [...counter.rows] };
   } finally {
     counter.on = false;

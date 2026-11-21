@@ -24,6 +24,7 @@ vi.mock("@/lib/report-error", () => ({
 }));
 
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
+import { flushQueryEvents } from "../helpers/query-event-barrier";
 import { FakeIngestProvider, canonicalReservation } from "../helpers/fake-ingest";
 import { __setIngestAdapterForTest } from "@/lib/channels/ingest";
 import { syncHospitable } from "@/lib/hospitable-sync";
@@ -60,6 +61,7 @@ describe("syncHospitable — görev yan etkileri tek kilitsiz okumayla", () => {
     counter.rows = [];
     counter.on = true;
     const r = await syncHospitable(orgId);
+    await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     counter.on = false;
     expect(r).toMatchObject({ reservations: 4 });
     expect(reservationReads()).toBe(8);

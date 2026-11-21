@@ -25,6 +25,7 @@ vi.mock("@/lib/db", async () => {
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) } }));
 
 import { prisma, resetDb, makeOrgWithProperty, makeUser } from "../helpers/db";
+import { flushQueryEvents } from "../helpers/query-event-barrier";
 import { latestMessagesByConversation, sendDueAlerts } from "@/lib/automation";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 
@@ -105,6 +106,7 @@ describe("latestMessagesByConversation — eski iç içe okumayla birebir pencer
     counter.rows = [];
     counter.on = true;
     const got = await latestMessagesByConversation([], HISTORY_MESSAGE_CAP);
+    await flushQueryEvents(prisma, counter); // geç gelen olay da sayılsın ("sorgu yok" iddiası boş kalmasın)
     counter.on = false;
     expect(got.size).toBe(0);
     expect(counter.rows).toHaveLength(0);
@@ -126,6 +128,7 @@ describe("sendDueAlerts — mesaj okuması sınırlı", () => {
     counter.rows = [];
     counter.on = true;
     const res = await sendDueAlerts(orgId);
+    await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     counter.on = false;
     expect(res.alerted).toBe(0);
     const messageReads = counter.rows.filter((q) => /FROM\s+"(?:public"\.")?Message"/i.test(q) && /^\s*SELECT/i.test(q));

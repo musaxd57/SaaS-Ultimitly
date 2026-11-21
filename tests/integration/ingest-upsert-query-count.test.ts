@@ -21,6 +21,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
+import { flushQueryEvents } from "../helpers/query-event-barrier";
 import { canonicalReservation } from "../helpers/fake-ingest";
 import { upsertCanonicalReservation } from "@/lib/ingest/write-service";
 
@@ -42,6 +43,7 @@ async function upsertCounted(propertyId: string, organizationId: string, r: Retu
   counter.on = true;
   try {
     const id = await prisma.$transaction(async (tx) => upsertCanonicalReservation(tx, propertyId, r, ctx));
+    await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     return { id, ops: counter.rows.map(op).filter((o) => o !== "BEGIN" && o !== "COMMIT") };
   } finally {
     counter.on = false;
