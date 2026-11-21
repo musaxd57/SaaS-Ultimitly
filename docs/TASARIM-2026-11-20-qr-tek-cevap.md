@@ -104,5 +104,16 @@ gider). Bu değişiklik bunu DEĞİŞTİRMEDİ (yalnız kararı verilmemiş mesa
 - İstek kimliği göndermeyen eski açık sekme: tekrar koruması bugünkü gibi yoktur (satır yine işaret taşır).
 - Kapsanan (bırakılan) isteğin model çağrısı ve kota birimi geri gelmez (yukarıda sınırlandı).
 - Kritik uyarı kimliği metinden türediği için aynı tehlike mesajı iki turda (tek başına + birleşik) iki uyarı üretebilir — fazla uyarı ucuz taraf.
-- Süreç çökerse (dağıtım) açık satır sahipsiz kalır; ev sahibi onu konuşmada görür ama işaret ancak misafirin sonraki mesajında düşer
-  (G-2 konuşma özeti bunu kendiliğinden "bekleyen misafir mesajı" olarak gösterecek — orada bağlanır).
+- 🚨 **AÇILIŞ ŞARTI — sahipsiz açık satır ev sahibine kendiliğinden düşmüyor (ana oturum incelemesi 11-20).** Misafir satırı modelden önce
+  yazıldığı için, satır yazıldıktan SONRA istek beklenmedik biçimde biterse (süreç çökmesi / dağıtım, ama aynı zamanda veritabanı hatası,
+  zaman aşımı, yakalanmamış istisna) ve misafir yeniden göndermezse satır "açık" kalır: ev sahibi mesajı konuşmada görür ama "Yanıtınızı
+  bekliyor" işareti ve UYARI gitmez. Sahipsiz satır bugün yalnız misafirin SONRAKİ mesajında ev sahibine bırakılıyor (`persistQrTurnInbound`).
+  Anahtar kapalıyken böyle bir satır hiç oluşmaz (mesaj cevabıyla birlikte yazılır; hata olursa hiçbir şey yazılmaz ve misafir hata görür).
+  **Kapatıldı (11-21): süpürge yazıldı** — `src/lib/guest-chat-turn-sweep.ts` `sweepAbandonedQrTurns`, 2 dakikalık zamanlanmış turda
+  (`scheduled-sync.ts`, senkron kilidinin dışında). 5 dakikadan (`QR_TURN_FRESH_MS`) eski açık satır konuşma kilidi altında ev sahibine
+  bırakılır: satır "kararı verildi", konuşma "Yanıtınızı bekliyor", satır başına karar kaydı (`qr_turn_abandoned`), konuşma başına TEK uyarı
+  (`turn-abandoned:<ilk satır>`). Mesaj tablosu taranmaz: yalnız son 24 saatte hareket görmüş QR konuşmalarının açık işaretli satırları; kip
+  kapalıyken hiç sorgu yok. Süren gerçek bir istek 5 dakikayı bulmaz (çalışan kilit 120 sn); bulursa kendi kaydında "satırım artık açık
+  değil" görüp hiçbir şey yazmaz. Testler `tests/integration/qr-turn-sweep.test.ts`.
+  Kalan sınır: kip açıkken yazılıp kip KAPATILDIKTAN sonra açık kalan satır süpürülmez (süpürge kiple birlikte durur) — kapatmadan önce
+  bir tur beklenir ya da süpürge elle bir kez çağrılır. G-2 özeti bu konuşmayı ayrıca `guest_waiting` gösterir.

@@ -661,6 +661,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_LATE_MESSAGE_REPLY_ENABLED",
   "AI_NO_SOURCE_RULE_ENABLED",
   "AI_TURN_MESSAGES_ENABLED",
+  // Cevap dili hedefi golgesi (11-20; src/lib/ai/reply-language-target.ts) — varsayilan KAPALI, yalniz golge kaydi.
+  "AI_REPLY_LANGUAGE_SHADOW_ENABLED",
   "AI_STAY_DEFERRAL_PLAIN_ENABLED",
   "AI_STAY_GUARD_ENABLED",
   "AI_UNDERSTANDING_ENABLED",

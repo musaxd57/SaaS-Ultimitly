@@ -84,6 +84,7 @@ import type {
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
 import { gateGuestLanguage, guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
+import { recordReplyLanguageShadow } from "@/lib/ai/reply-language-shadow";
 import {
   conversationRecordsInPrompt,
   conversationStateWindowSufficient,
@@ -2934,6 +2935,26 @@ export async function applyChannelAutoReply(
   // Anlama katmanı (katman kapalıysa `null`): retrieval'a gerekmediyse cevap üretimiyle paralel koştu; kapı
   // onu burada bekler — konaklama sinyali ve risk niyeti AYNI sonuçtan.
   const understood = await kbSel.understanding;
+  // Cevap dili hedefi GÖLGESİ (anahtar `AI_REPLY_LANGUAGE_SHADOW_ENABLED` KAPALI → sorgu yok; `ai/reply-language-target.ts`): istemin, dil
+  // kapısının ve koddan kurulan metnin bu turda okuduğu dil ile tek hedef değerin kıyası kaydedilir. Hiçbir karar buna bakmaz.
+  if (!options.dryRun) {
+    await recordReplyLanguageShadow({
+      organizationId: conversation.property.organizationId,
+      conversationId: conversation.id,
+      messageId: last.id,
+      language: {
+        latest: last.body,
+        pending: pendingGuestMessages,
+        understandingLanguage: understood?.language ?? null,
+        declaredLanguage: result.detectedLanguage ?? null,
+      },
+      consumers: {
+        prompt: guestLanguage,
+        gate: gateGuestLanguage(guestLanguage, result.detectedLanguage, [...pendingGuestMessages, last.body]),
+        codeText: guestLanguage,
+      },
+    });
+  }
   // Airbnb platform dışı iletişim penceresi + gidecek imza TEK kez hesaplanır: kapı, taslak ve gönderilen gövde AYNI imzayı görür.
   const contactWindow = offPlatformContactHoldsFor(conversation);
   // 4-14-b (kurucu kararı 10-28 gece): Airbnb'de imzanın iletişim satırı HER ZAMAN çıkar; tutma kuralı yine yalnız engelleme penceresinde.

@@ -489,12 +489,17 @@ export function evaluateEscalation(
  */
 const QR_HINT_LANGUAGES: ReadonlySet<string> = new Set<ConfidentLanguage>(["tr", "en", "de", "fr", "es", "ru", "ar"]);
 
-function qrLanguageMismatch(message: string, reply: string | null | undefined, hint?: string | null): boolean {
+/** QR dil kapısının okuduğu misafir dili (kapının TEK kaynağı; cevap dili hedefi gölgesi de bunu kaydeder). Saf. */
+export function qrGateGuestLanguage(message: string, hint?: string | null): ConfidentLanguage | null {
   // Kodun kesin tespiti önce; emin değilse (kısa / karışık soru) MODELİN bildirdiği dil — yalnız en az iki sözcükte ("Merci !", "Wifi?"
   // gibi tek sözcükte hüküm verilmez: kısa mesaj kuralı).
   const words = (message.match(/\p{L}+/gu) ?? []).length;
   const hinted = hint && QR_HINT_LANGUAGES.has(hint) ? (hint as ConfidentLanguage) : null;
-  const guest = guestTurnLanguage(message, []) ?? (words >= 2 ? hinted : null);
+  return guestTurnLanguage(message, []) ?? (words >= 2 ? hinted : null);
+}
+
+function qrLanguageMismatch(message: string, reply: string | null | undefined, hint?: string | null): boolean {
+  const guest = qrGateGuestLanguage(message, hint);
   if (!replyLanguageMismatch(guest, reply)) return false;
   // KARIŞIK DİL: cevabın (emin) dili misafirin mesajında da iz taşıyorsa ("Hi! Wifi şifresi ne acaba?" → İngilizce cevap) meşrudur.
   const replyLang = confidentLanguage(reply);

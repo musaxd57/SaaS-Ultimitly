@@ -10,12 +10,13 @@ import { ANON_NAME } from "@/lib/data-retention";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isAccessLossText, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { asksHypotheticalSituation, namesInternalSource } from "@/lib/ai/absence";
-import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
+import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy, qrGateGuestLanguage } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { fixSupportContextOf } from "@/lib/conversation-items/relation";
 import { hasEmergencyCallDirective, hazardDecisionFor, hazardEvidenceOf } from "@/lib/ai/hazard-evidence";
 import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency-number";
-import { confidentLanguage } from "@/lib/ai/language-signal";
+import { confidentLanguage, guestTurnLanguage, unansweredGuestTexts } from "@/lib/ai/language-signal";
+import { recordReplyLanguageShadow } from "@/lib/ai/reply-language-shadow";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { understandingSawAll } from "@/lib/ai/semantic/understanding-schema";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
@@ -1815,6 +1816,23 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
   // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
   // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
+  // Cevap dili hedefi GÖLGESİ (anahtar KAPALI → sorgu yok): QR'da istemin, dil kapısının ve kod metninin okuduğu dil + tek hedef değer.
+  await recordReplyLanguageShadow({
+    organizationId: ctx.property.organizationId,
+    conversationId,
+    messageId: inboundMessageId,
+    language: {
+      latest: message,
+      pending: unansweredGuestTexts(history, message),
+      understandingLanguage: understood?.language ?? null,
+      declaredLanguage: result.detectedLanguage ?? null,
+    },
+    consumers: {
+      prompt: guestTurnLanguage(message, unansweredGuestTexts(history, message)),
+      gate: qrGateGuestLanguage(message, stayCtx?.guestLanguageHint),
+      codeText: lineLanguage,
+    },
+  });
   const finalAudit = await auditFields();
   const finalReason = emergencyNumber ? "emergency_number" : hostContactOpen ? "host_contact_open" : (verdict.reason ?? "gate_passed");
   await recordRiskEvent({

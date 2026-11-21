@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sweepAbandonedQrTurns } from "@/lib/guest-chat-turn-sweep";
 import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
 import { deliverDueLateFailureMails } from "@/lib/host-channel/late-failure-mail";
 import { randomUUID } from "node:crypto";
@@ -375,6 +376,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   // gider, okunduysa düşer. Senkron KİLİDİNİN DIŞINDA ve her tikte (inceleme 10-31: uzun bir geçiş "10 dk"yı ~25 dk'ya uzatıyordu); satır
   // başına kiralama (CAS) eşzamanlı çalışmayı güvenli kılar. Süreç içinde üst üste binmesin diye ayrı bayrak; kendi 30 sn bütçesi.
   await sweepDueAlertEmails(opsAlarm);
+  // QR tek cevap kipi (anahtar kapalıyken sorgu yok): sahipsiz kalmış açık misafir mesajı ev sahibine bırakılır + tek uyarı. Asla fırlatmaz.
+  await sweepAbandonedQrTurns();
   if (running) {
     return { ...zero(), ok: false, error: "already_running" };
   }

@@ -11,7 +11,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 // ---------------------------------------------------------------------------
 
 /** Okuma katmanları. Yeni katman buraya eklenir (şema değişmez). */
-export const SEMANTIC_LAYERS = ["host_commitment", "reply_items"] as const;
+export const SEMANTIC_LAYERS = ["host_commitment", "reply_items", "reply_language"] as const;
 export type SemanticLayerName = (typeof SEMANTIC_LAYERS)[number];
 
 /**

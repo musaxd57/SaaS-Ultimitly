@@ -249,6 +249,11 @@ kurucu onayıyla §1'e taşındı.)
   havlu / temizlik / eşya sözleri kapanır (elle kaydedilenler dahil). Belirsiz sözler (hangi söz / birden çok saat) gelen kutusunda kart olarak
   kalır — öneri anahtarı `AI_ACTION_SUGGESTIONS_ENABLED` kapalı olsa da söz kartları görünür.
 
+- `AI_REPLY_LANGUAGE_SHADOW_ENABLED` (11-20, konu 1 gölge dilimi; `src/lib/ai/reply-language-target.ts`) — KAPALI doğar; açmak misafire
+  gideni DEĞİŞTİRMEZ: tur başına bir gölge satırı (`SemanticReading`, katman `reply_language`: istemin / dil kapısının / kod metninin
+  okuduğu dil + tek hedef değer; metin yok). Açılışta ölçüm için açılabilir; sonuç `docs/TASARIM-2026-11-20-cevap-dili-hedefi.md` §5
+  sorgusuyla okunur. Hedef değerin üç tüketiciye BAĞLANMASI ayrı dilim + kurucu kararı (K1-1).
+
 - `GUEST_CHAT_TURN_MERGE_ENABLED` (kurucu 11-20 öğlen F4-b: "kanal gibi olsun … tek cevapta verebilir") — KAPALI kalır; misafire gideni değiştirir.
   Açıkken QR'da misafir cevabı beklemeden art arda yazabilir; model düşünürken gelen mesajlar TEK cevapta toplanır (ilk taslak gitmez, ilk
   soru silinmez), 700 karakteri aşan cevap iki mesaja bölünür, sabit bekleme yoktur. Açmadan önce: kör ölçüm (birkaç mesaja bölünmüş sorular,

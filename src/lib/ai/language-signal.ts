@@ -344,7 +344,7 @@ const LANGUAGE_REQUEST_BEFORE: ReadonlySet<string> = new Set([
 ]);
 const LANGUAGE_REQUEST_AFTER: ReadonlySet<string> = new Set(["please", "pls", "plz", "por", "s'il", "svp"]);
 
-function mentionsLanguageName(text: string): boolean {
+export function mentionsLanguageName(text: string): boolean {
   const words = text.replace(/İ/g, "i").replace(/I/g, "i").toLowerCase().match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
   return words.some((w, i) => {
     if (LANGUAGE_NAME_ALWAYS.has(w)) return true;
