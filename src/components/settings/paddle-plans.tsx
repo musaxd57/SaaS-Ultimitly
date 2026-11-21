@@ -865,7 +865,9 @@ export function PaddlePlans({
                 <span>
                   {"doc" in copy ? (
                     <>
-                      <Link href={copy.href} target="_blank" className="text-primary hover:underline">
+                      {/* Sözleşme bağlantısı cümle içinde ALTI ÇİZİLİ: yalnız renkle ayrılan bağlantı ölçüldü (axe link-in-text-block, çevre metne karşı
+                          1,24:1) — ödeme öncesi onay satırında bağlantının fark edilmesi ayrıca önemli (FB tur 2, 11-20). */}
+                      <Link href={copy.href} target="_blank" className="text-primary underline underline-offset-2 hover:no-underline">
                         {copy.doc}
                       </Link>
                       {copy.after}
@@ -1007,7 +1009,8 @@ export function PaddlePlans({
             size="sm"
           />
           {/* ↑landing ile aynı gerekçe: aylıkta DAVET, yıllıkta ONAY. */}
-          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+          {/* Yazı rozetle (`Badge` success) aynı çift: tema yeşili kendi yeşil zemininde açık temada 3,01:1 kalıyordu (axe; AA 4,5 ister). */}
+          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-success">
             {annual ? "2 ay bedava — yıllık seçildi" : "Yıllığa geçin, 2 ay bedava"}
           </span>
           <BillingPeriodAnnouncer value={period} />

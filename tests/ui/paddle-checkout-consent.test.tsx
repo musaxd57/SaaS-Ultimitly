@@ -158,6 +158,21 @@ describe("PaddlePlans — ödeme öncesi onaylar (kurucu 11-13: en yasal şekild
     ]);
     expect(within(group()).getByRole("link", { name: "Ön Bilgilendirme Formu" }).getAttribute("href")).toBe("/on-bilgilendirme");
     expect(within(group()).getByRole("link", { name: "Mesafeli Satış Sözleşmesi" }).getAttribute("href")).toBe("/mesafeli-satis");
+    // FB tur 2 (11-20, axe link-in-text-block): sözleşme bağlantıları cümle içinde yalnız renkle ayrılıyordu → altı çizili durur.
+    for (const name of ["Ön Bilgilendirme Formu", "Mesafeli Satış Sözleşmesi"]) {
+      const cls = within(group()).getByRole("link", { name }).className.split(/\s+/);
+      expect(cls, name).toContain("underline");
+      expect(cls, name).not.toContain("hover:underline");
+    }
+  });
+
+  // FB tur 2 (11-20, axe): "Yıllığa geçin, 2 ay bedava" rozetinin yazısı tema yeşiliyle kendi zemininde 3,01:1 kalıyordu (AA 4,5 ister).
+  it("yıllık rozeti açık temada koyu yeşil yazıyla durur (tema yeşili yalnız koyu temada)", () => {
+    renderPlans({ annualAvailable: true });
+    const cls = screen.getByText("Yıllığa geçin, 2 ay bedava").className.split(/\s+/);
+    expect(cls).toContain("text-emerald-700");
+    expect(cls).toContain("dark:text-success");
+    expect(cls).not.toContain("text-success");
   });
 
   it("iki kutu işaretli, üçüncüsü boş → ödeme açılmaz, kayıt gitmez; uyarı o kutunun altında, odak orada (denemedeyse seçenek de söylenir)", async () => {
