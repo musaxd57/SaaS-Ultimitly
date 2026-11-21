@@ -3,7 +3,7 @@ import { ANON_ID, ANON_NAME } from "@/lib/anon-sentinels";
 import { subMonths, startOfDay } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ERASABLE_STATUSES } from "@/lib/outbox/state";
+import { ERASABLE_STATUSES, SETTLED_OUTBOX_STATUSES } from "@/lib/outbox/state";
 import { OUTBOX_ERASED_REASON, cancelRequestWrite } from "@/lib/outbox/dispatch";
 import { redactNameInCodeGreetingLine } from "@/lib/ai/code-greeting";
 import { nameSource } from "@/lib/name-source";
@@ -739,6 +739,21 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
   await prisma.semanticReading.deleteMany({
     where: { OR: [{ createdAt: { lt: cutoff } }, { conversation: { reservation: { departureDate: { lt: cutoff } } } }] },
   });
+
+  // (4) BAĞI KOPMUŞ KUYRUK SATIRI (G2 tur 9 T9-B16; T8-B15'in kalan penceresi). Kuyruk satırı konuşmaya / rezervasyona FK'sız; yukarıdaki
+  // dallar gövdeye YALNIZ var olan konuşma / rezervasyon kimliğiyle ulaşır. Ebeveyni silinmiş satır (silme anında uçuştaydı ve sonra
+  // sonuçlandı · takvimden kaybolan / elle kopyası kaldırılan rezervasyonun yaşam döngüsü satırı · silme rotalarının gövde kuralından önce
+  // silinmiş konuşma) misafire yazılmış metni süresiz taşıyordu. Ebeveyn olmadığı için konaklama kuralı uygulanamaz → satırın KENDİ yaşı
+  // (yazılış anı kesimden eski). Yalnız SONUÇLANMIŞ satır (`SETTLED_OUTBOX_STATUSES`): uçuştaki / belirsiz satırın gövdesi gönderim ve kanal
+  // uzlaştırması içindir. Seçim = temizlik koşulu (gövde `ANON_BODY` olunca bir daha eşleşmez → sonlanır). Bağı DURAN satır bu geçişe girmez.
+  await prisma.$executeRaw`
+    UPDATE "MessageOutbox" o
+    SET "body" = ${ANON_BODY}, "updatedAt" = ${now}
+    WHERE o."status" IN (${Prisma.join([...SETTLED_OUTBOX_STATUSES])})
+      AND o."body" <> ${ANON_BODY}
+      AND o."createdAt" < ${cutoff}
+      AND (o."conversationId" IS NULL OR NOT EXISTS (SELECT 1 FROM "Conversation" c WHERE c."id" = o."conversationId"))
+      AND (o."reservationId" IS NULL OR NOT EXISTS (SELECT 1 FROM "Reservation" r WHERE r."id" = o."reservationId"))`;
 
   return { anonymized };
 }
