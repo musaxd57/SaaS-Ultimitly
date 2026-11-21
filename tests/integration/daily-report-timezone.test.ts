@@ -138,3 +138,64 @@ describe("GET /api/reports/daily — org'un günü, sunucunun günü değil", ()
     expect(r.date).toBe("2026-07-27T22:00:00.000Z");
   });
 });
+
+// G1 tur 11: rotanın sayıları (`getOpsStats`) aynı rezervasyonun tekrar eden satırlarını TEK sayar (`dedupeBookings`); listeler de AYNI kümeyi
+// göstermeli (rota başlığı "SAYILARLA AYNI KÜME"; pano ve takvim listeleri aynı kuralla ayıklanır). Sağlayıcı rezervasyonu iki dairede kayıtlıyken
+// rapor "Bugün 1 giriş … Girişler: A (Daire 1), A (Daire 2)" diyordu.
+describe("GET /api/reports/daily — sayı ile liste aynı küme (iki dairede kayıtlı rezervasyon)", () => {
+  beforeEach(async () => {
+    await seed();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("🚨 aynı sağlayıcı rezervasyonu iki dairede: giriş / çıkış SAYISI ile LİSTESİ eşit", async () => {
+    const second = await prisma.property.create({ data: { organizationId: orgId, name: "Daire 2" } });
+    const first = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId, name: "Daire 1" } });
+    for (const propertyId of [first.id, second.id]) {
+      await prisma.reservation.create({
+        data: {
+          propertyId,
+          guestName: "Çift Kayıt",
+          channel: "airbnb",
+          status: "confirmed",
+          sourceReference: "hosp-res-1",
+          arrivalDate: new Date("2026-07-28T00:00:00.000Z"),
+          departureDate: new Date("2026-07-31T00:00:00.000Z"),
+        },
+      });
+    }
+    vi.setSystemTime(new Date("2026-07-28T09:00:00.000Z")); // İst 28 Tem 12:00
+    const res = await dailyGET(req(), ctx());
+    const body = await res.json();
+    expect(body.arrivals.filter((a: { guestName: string }) => a.guestName === "Çift Kayıt")).toHaveLength(1);
+    expect(body.arrivals).toHaveLength(body.stats.arrivalsToday);
+    expect(body.departures).toHaveLength(body.stats.departuresToday);
+    expect(body.summary).toContain(`Bugün ${body.stats.arrivalsToday} giriş`);
+    expect((body.summary.match(/Çift Kayıt/g) ?? []).length).toBe(1);
+  });
+
+  it("KONTROL (aşırı uygulama): FARKLI dairelerin aynı referanslı ELLE rezervasyonları iki ayrı giriştir (listede ikisi de kalır)", async () => {
+    const second = await prisma.property.create({ data: { organizationId: orgId, name: "Daire 2" } });
+    const first = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId, name: "Daire 1" } });
+    for (const propertyId of [first.id, second.id]) {
+      await prisma.reservation.create({
+        data: {
+          propertyId,
+          guestName: "Elle R1",
+          channel: "manual",
+          status: "confirmed",
+          sourceReference: "R1",
+          arrivalDate: new Date("2026-07-28T00:00:00.000Z"),
+          departureDate: new Date("2026-07-31T00:00:00.000Z"),
+        },
+      });
+    }
+    vi.setSystemTime(new Date("2026-07-28T09:00:00.000Z"));
+    const body = await (await dailyGET(req(), ctx())).json();
+    expect(body.arrivals.filter((a: { guestName: string }) => a.guestName === "Elle R1")).toHaveLength(2);
+    expect(body.arrivals).toHaveLength(body.stats.arrivalsToday);
+  });
+});

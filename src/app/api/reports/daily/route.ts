@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getOpsStats, buildDailySummary } from "@/lib/reports";
+import { getOpsStats, buildDailySummary, dedupeBookings } from "@/lib/reports";
 import { jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { orgTimezone, zonedDayRange } from "@/lib/timezone";
@@ -26,7 +26,7 @@ export const GET = withManage(async (session) => {
   const today = todayRange(now, tz);
   const scope = { property: { organizationId: orgId } };
 
-  const [stats, arrivals, departures] = await Promise.all([
+  const [stats, arrivalsRaw, departuresRaw] = await Promise.all([
     getOpsStats(orgId),
     // ⚠️ SAYILARLA AYNI KÜME (denetim, 08-01 — beşinci tur, ajan bulgusu).
     // `getOpsStats` yalnız confirmed/completed sayıyor; bu iki liste hiç
@@ -51,6 +51,12 @@ export const GET = withManage(async (session) => {
       orderBy: { departureDate: "asc" },
     }),
   ]);
+
+  // Sayılar (`getOpsStats`) aynı rezervasyonun tekrar eden satırlarını TEK sayar; listeler de AYNI kurala (`dedupeBookings` — pano ve takvim
+  // listeleriyle aynı) uğrar. Eskiden sağlayıcı rezervasyonu iki dairede kayıtlıyken "Bugün 1 giriş … Girişler: A (Daire 1), A (Daire 2)" çıkıyordu
+  // (G1 tur 11). Elle / dosya rezervasyonları daire içinde ayıklanır — farklı dairelerin aynı referanslı kaydı iki giriştir.
+  const arrivals = dedupeBookings(arrivalsRaw);
+  const departures = dedupeBookings(departuresRaw);
 
   const summary = buildDailySummary(
     stats,
