@@ -32,6 +32,8 @@ export function lastMaintenanceLine(m: LastMaintenance, timeZone: string, now: D
   const sameYear = todayKey(m.closedAt, timeZone).slice(0, 4) === todayKey(now, timeZone).slice(0, 4);
   const day = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", ...(sameYear ? {} : { year: "numeric" }), timeZone }).format(m.closedAt);
   const raw = oneLine(m.note);
-  const note = raw.length > LAST_MAINTENANCE_NOTE_MAX ? `${raw.slice(0, LAST_MAINTENANCE_NOTE_MAX - 1)}…` : raw;
+  // Kod noktasıyla kesilir (emoji ortadan bölünüp bozuk karakter kalmasın — sert inceleme 11-25).
+  const chars = Array.from(raw);
+  const note = chars.length > LAST_MAINTENANCE_NOTE_MAX ? `${chars.slice(0, LAST_MAINTENANCE_NOTE_MAX - 1).join("")}…` : raw;
   return `Bu dairede son bakım işi: ${day}${note ? ` — '${note}'` : ""}${m.by ? ` (${m.by})` : ""}`;
 }

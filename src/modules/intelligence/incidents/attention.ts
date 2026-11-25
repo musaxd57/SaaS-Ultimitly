@@ -32,6 +32,8 @@ import { hasRecipientWhere } from "@/lib/internal-record";
 import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingConflict } from "@/lib/booking-property-conflict";
 import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
 import { isClockText, type DepartureOpen, type DepartureTopic } from "@/modules/intelligence/incidents/departure-open";
+import { approvedLateCheckouts } from "@/lib/early-checkin/load";
+import { laterTime } from "@/lib/early-checkin/readiness";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -529,6 +531,22 @@ export async function findAttentionItems(
 
   const items: AttentionItem[] = [];
 
+  // Onaylı geç çıkış okuması (birleşik çıkış satırının saati — ↓ `departureClock`) BURADA başlatılır, sonda beklenir: saat dilimi ve öteki
+  // okumalarla AYNI turda gider (panelin ardışık bekleme zinciri uzamaz — `request-path-queries` pini). Adaylar saat dilimi bilinmeden
+  // seçildiği için geniş tutulur (çıkışı ±48 saatteki konaklamalar — işletmenin bugün / yarın takvim günlerini her dilimde kapsar).
+  const lateCandidateIds = new Set<string>();
+  const nearDeparture = (r: StayRef | null | undefined) => {
+    if (r && Math.abs(r.departureDate.getTime() - now.getTime()) <= 48 * HOUR) lateCandidateIds.add(r.id);
+  };
+  for (const c of conversations) nearDeparture(c.reservation);
+  for (const c of commitments) nearDeparture(c.conversation.reservation);
+  const readApprovedLate = (ids: string[]): Promise<Map<string, string> | null> =>
+    approvedLateCheckouts(organizationId, ids).catch((err) => {
+      void alertOnTransition("attention:departure-late", "attention departure_late", err).catch(() => {});
+      return null;
+    });
+  const lateRead = lateCandidateIds.size > 0 ? readApprovedLate([...lateCandidateIds]) : Promise.resolve(new Map<string, string>());
+
   // ÇIKIŞTAN ÖNCE AÇIK KONU (plan madde 7): çıkışı penceredeki konaklama başına grup. Konu (bırakılan istek · açık söz · Sorunlu) olan grubun
   // satırları sonda TEK satıra toplanır; konusu olmayan grupta hiçbir şey değişmez (yalnız cevapsız mesaj → bugünkü satır aynen).
   // Aynı rezervasyon iki dairede etkin kayıtlıysa grup kurulmaz (daire tahmin edilmez; "iki dairede kayıtlı" satırı ayrı uyarır).
@@ -548,16 +566,14 @@ export async function findAttentionItems(
         : isClockText(storedClock)
           ? storedClock
           : null;
-    const day = key === todayKey(now, tz) ? "today" : "tomorrow";
-    // Tarih-yalnız kayıtta dairenin çıkış saati bugün GEÇTİYSE saat yazılmaz: 15:00'te "bugün 11:00'de çıkıyor" yanlış okunur
-    // (misafir çıkmış olabilir; bunu bilmiyoruz → yalnız "bugün çıkıyor"). Saatli kayıt pencereye zaten yalnız gelecekteyse girer.
-    const nowClock = now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz, hourCycle: "h23" });
-    const passed = anchor !== "instant" && day === "today" && isClockText(time) && time <= nowClock;
     const group: DepartureGroup = {
       reservationId: res.id,
       propertyId,
-      day,
-      time: isClockText(time) && !passed ? time : null,
+      day: key === todayKey(now, tz) ? "today" : "tomorrow",
+      // Tarih-yalnız kayıtta bu, dairenin çıkış saatidir; satır kurulurken onaylı geç çıkışla birleşir ve geçmişse düşer (↓ `departureClock`).
+      time: isClockText(time) ? time : null,
+      dateOnly: anchor !== "instant",
+      nowClock: now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz, hourCycle: "h23" }),
       topics: [],
       problem: null,
       absorbed: [],
@@ -1007,8 +1023,21 @@ export async function findAttentionItems(
   }
 
   // ÇIKIŞTAN ÖNCE AÇIK KONU — birleşik satır (konu ya da Sorunlu işareti olan grup). Yutulan satırlar listeden çıkar.
-  for (const g of departureGroups.values()) {
-    if (g.topics.length === 0 && !g.problem) continue;
+  // Onaylı geç çıkış (Opus sert inceleme 11-25, P2): görev kartı "Misafir çıkışı 14:00 · geç çıkış onaylı" derken bu satır dairenin
+  // saatini (11:00) yazmasın — aynı kaynak (`approvedLateCheckouts`). Okuma ↑ başta başlatıldı; aday listesinin dışından gelen (yalnız
+  // bırakılan istekle bulunan) konaklama için nadir ek okuma. Okunamazsa o grupların saati hiç yazılmaz (yanlış saat yerine saatsiz satır).
+  const rowGroups = [...departureGroups.values()].filter((g) => g.topics.length > 0 || g.problem);
+  let approvedLate: Map<string, string> | null = new Map<string, string>();
+  if (rowGroups.some((g) => g.dateOnly)) {
+    approvedLate = await lateRead;
+    const extraIds = rowGroups.filter((g) => g.dateOnly && !lateCandidateIds.has(g.reservationId)).map((g) => g.reservationId);
+    if (approvedLate !== null && extraIds.length > 0) {
+      const extra = await readApprovedLate(extraIds);
+      approvedLate = extra === null ? null : new Map([...approvedLate, ...extra]);
+    }
+  }
+  for (const g of rowGroups) {
+    g.time = departureClock(g, approvedLate);
     const absorbed = new Set(g.absorbed);
     for (let i = items.length - 1; i >= 0; i--) if (absorbed.has(items[i])) items.splice(i, 1);
     const lead = [...g.absorbed].sort((a, b) => b.severity - a.severity || a.occurredAt.getTime() - b.occurredAt.getTime())[0];
@@ -1063,6 +1092,23 @@ interface DepartureGroup {
   /** Birleşik satır çıkarsa listeden kalkacak satırlar (cevapsız · bırakılan istek · söz). */
   absorbed: AttentionItem[];
   hoursWaiting: number | undefined;
+  /** Çıkış tarih-yalnız kayıt (saat daireden / onaylı geç çıkıştan gelir); saatli kayıtta saat kaydın kendisidir. */
+  dateOnly: boolean;
+  /** İşletmenin saatiyle "şimdi" ("SS:DD"). */
+  nowClock: string;
+}
+
+/**
+ * Birleşik satırda yazılacak çıkış saati. Saatli kayıt: kaydın saati. Tarih-yalnız kayıt: dairenin saati ile onaylı geç çıkıştan GEÇ olanı
+ * (görev kartıyla aynı kural, `tasks/checkout-times.ts`); onaylar okunamadıysa (`null`) ya da saat bugün GEÇTİYSE yazılmaz — 15:00'te
+ * "bugün 11:00'de çıkıyor" yanlış okunur (misafir çıkmış olabilir; bunu bilmiyoruz → yalnız "bugün çıkıyor").
+ */
+function departureClock(g: DepartureGroup, approvedLate: Map<string, string> | null): string | null {
+  if (!g.dateOnly) return g.time;
+  if (approvedLate === null) return null;
+  const time = laterTime(g.time, approvedLate.get(g.reservationId) ?? null);
+  if (!isClockText(time)) return null;
+  return g.day === "today" && time <= g.nowClock ? null : time;
 }
 
 class BookingTwoPropertiesCapExceeded extends Error {

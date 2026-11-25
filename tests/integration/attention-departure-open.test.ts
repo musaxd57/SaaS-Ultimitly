@@ -253,6 +253,44 @@ describe("Çıkıştan önce açık konu — tek satır", () => {
     expect(text((await findAttentionItems(s.orgId, { now: todayAt("10:59") }))[0])[0]).toBe("Lale 3 bugün 11:00'de çıkıyor");
   });
 
+  it("🚨 onaylı geç çıkış (14:00) varsa satır dairenin saatini (11:00) DEĞİL onaylı saati yazar; 11:00'i geçince de 14:00 durur", async () => {
+    const s = await stay({ departureInDays: 0, answered: true, conversationStatus: "problem" });
+    await prisma.decisionRequest.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        messageId: s.inboundMessageId,
+        reservationId: s.reservationId,
+        kind: "late_checkout",
+        dayKey: new Date().toLocaleDateString("en-CA", { timeZone: TZ }),
+        lang: "tr",
+        status: "approved",
+        decidedTime: "14:00",
+      },
+    });
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("10:00") }))[0])[0]).toBe("Lale 3 bugün 14:00'te çıkıyor");
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("12:30") }))[0])[0]).toBe("Lale 3 bugün 14:00'te çıkıyor");
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("14:00") }))[0])[0]).toBe("Lale 3 bugün çıkıyor");
+  });
+
+  it("KONTROL: reddedilen geç çıkış isteği saati değiştirmez", async () => {
+    const s = await stay({ departureInDays: 0, answered: true, conversationStatus: "problem" });
+    await prisma.decisionRequest.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        messageId: s.inboundMessageId,
+        reservationId: s.reservationId,
+        kind: "late_checkout",
+        dayKey: new Date().toLocaleDateString("en-CA", { timeZone: TZ }),
+        lang: "tr",
+        status: "rejected",
+        decidedTime: "14:00",
+      },
+    });
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("10:00") }))[0])[0]).toBe("Lale 3 bugün 11:00'de çıkıyor");
+  });
+
   it("aşırı uygulama: çıkışı 3 gün sonra olan Sorunlu konuşma satır üretmez (bugünkü gibi)", async () => {
     const s = await stay({ departureInDays: 3, answered: true, conversationStatus: "problem" });
     expect(await findAttentionItems(s.orgId)).toEqual([]);

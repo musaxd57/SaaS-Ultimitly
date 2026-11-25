@@ -198,4 +198,12 @@ describe("lastMaintenanceLine — biçim", () => {
     const now = at("2026-11-25T09:00:00Z");
     expect(lastMaintenanceLine({ closedAt: at("2026-05-16T22:30:00Z"), note: null, by: null }, TZ, now)).toBe("Bu dairede son bakım işi: 17 Mayıs");
   });
+
+  it("uzun not kod noktasıyla kesilir: emoji ortadan bölünmez (bozuk karakter kalmaz)", () => {
+    const note = `${"a".repeat(78)}😀😀😀`;
+    const line = lastMaintenanceLine({ closedAt: new Date(), note, by: null }, TZ, new Date());
+    expect(line).toContain(`${"a".repeat(78)}😀…'`);
+    // Tek başına kalmış vekil (surrogate) yok.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(line)).toBe(false);
+  });
 });
