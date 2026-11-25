@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { clearProbeCache, readProbeCache, sharedProbe, writeProbeCache, type ProbeSnapshot } from "@/lib/health-probe";
-import { strictQueueState } from "@/lib/outbox/health";
+import { strictQueueState, type StrictQueueState } from "@/lib/outbox/health";
 import { strictMembershipState } from "@/lib/membership/health";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,8 @@ export const dynamic = "force-dynamic";
 //   "queue_stalled" — kalıcı kuyruklardan birinde vadesi gelmiş satır 15 dk'dır
 //   bekliyor (döngü canlı ama satır ilerlemiyor). Yalnız STRICT: Railway'in
 //   hazır olma yoklaması (normal mod) kuyruk yüzünden ASLA düşmez → yeniden
-//   başlatma döngüsü yok. Gövde yalnız "ok" / "stalled" söyler (sayı, kimlik yok).
+//   başlatma döngüsü yok. Gövde yalnız "ok" / "delayed" / "stalled" / "unknown" söyler (sayı, kimlik yok). "delayed" (K27-K1):
+//   gönderilebilir en eski satır 10 dk'dan uzun bekliyor ama kuyruk ilerliyor — 200 kalır (sayfalamaz), yalnız "ok" yalan söylemez.
 //
 // LIVENESS /api/health?live=1 (altyapı envanteri 10-21, madde 57): süreç cevap veriyor mu — veritabanına HİÇ dokunmaz. Kapsayıcı
 //   yöneticisi (Docker HEALTHCHECK / ileride ikinci kopya) "yeniden başlat" kararını buna bağlar; DB arızası süreci yeniden başlatma
@@ -52,8 +53,12 @@ type Health = {
   db: "up" | "down";
   sync: "ok" | "stale" | "unknown";
   lastSyncAgeSec: number | null;
-  /** Yalnız strict modda: kalıcı kuyruklar ilerliyor mu. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir). */
-  queue?: "ok" | "stalled" | "unknown";
+  /**
+   * Yalnız strict modda: kalıcı kuyruklar ilerliyor mu. `stalled` = durdu (503); `delayed` = gönderilebilir en eski satır 10 dk'dan uzun
+   * bekliyor ama kuyruk ilerliyor (200 — sayfalamaz, gövde söyler; K27-K1); okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir
+   * arıza değildir). Sayı / kimlik taşımaz.
+   */
+  queue?: StrictQueueState;
   /**
    * Yalnız strict modda (M-2 dilim 2, Opus M10): HİÇ üyelik satırı olmayan kullanıcı var mı — kayan dağıtımda eski kodun açtığı hesap; oturum
    * artık üyelikten doğrulandığı için böyle biri giriş YAPAMAZ → sayfalar. Yalnız ÇIKARILMIŞ üyeliği olan kişi (ileride ekipten çıkarma)

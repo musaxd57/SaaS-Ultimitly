@@ -105,6 +105,37 @@ describe("GET /api/health", () => {
     expect(await strict.json()).toMatchObject({ ok: true, queue: "ok" });
   });
 
+  // K27-K1 (Codex 11-25): gönderilebilir satır 65 dk bekliyor, başka bir işletmede yakın zamanda iş alınmış → kuyruk "durmadı" (sayfalamaz,
+  // Haiku 10-16 kararı: ilerleyen birikim alarm değildir) ama "ok" da DEĞİL. Eskiden gövde `queue: "ok"` diyordu.
+  it("🚨 K27-K1: 65 dk bekleyen gönderilebilir satır + başka işletmede taze iş → strict 200 ama queue 'delayed' (eskiden 'ok')", async () => {
+    await freshHeartbeat();
+    const orgA = await prisma.organization.create({ data: { name: "Org A" } });
+    const orgB = await prisma.organization.create({ data: { name: "Org B" } });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgA.id, channel: "airbnb", body: "x", idempotencyKey: "a1", status: "pending", availableAt: new Date(Date.now() - 65 * 60_000) },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgB.id,
+        channel: "airbnb",
+        body: "y",
+        idempotencyKey: "b1",
+        status: "sent",
+        availableAt: new Date(Date.now() - 3 * 60_000),
+        claimedAt: new Date(Date.now() - 2 * 60_000),
+        sentAt: new Date(Date.now() - 60_000),
+      },
+    });
+    const strict = await GET(req(true));
+    expect(strict.status, "readiness sözleşmesi: ilerleyen kuyruk sayfalamaz").toBe(200);
+    const body = await strict.json();
+    expect(body).toMatchObject({ ok: true, queue: "delayed" });
+    expect(body.reason).toBeUndefined();
+    // Normal (Railway hazır olma) yoklaması kuyruğu hiç okumaz.
+    const normal = await (await GET(req(false))).json();
+    expect(normal.queue).toBeUndefined();
+  });
+
   it("O3-B: kimlik e-postası kuyruğunda 20 dk bekleyen satır da strict 503 (şifre sıfırlama e-postası gitmiyor)", async () => {
     await freshHeartbeat();
     const org = await prisma.organization.create({ data: { name: "Org" } });

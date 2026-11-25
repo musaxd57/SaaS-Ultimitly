@@ -194,6 +194,24 @@ export function isStalled(q: QueueStallState): boolean {
   return q.lagMs !== null && q.lagMs >= QUEUE_STALL_MS && !q.progressing;
 }
 
+/**
+ * Strict yoklamanın kuyruk hükmü (K27-K1, Codex 11-25). "Durdu" ile "geride" AYRI söylenir:
+ *  · `stalled` — ↑`isStalled` (gönderilebilir satır 15 dk bekliyor VE son 15 dk'da kuyrukta hiç ilerleme yok) → strict 503 (değişmedi).
+ *  · `delayed` — işçinin alabileceği vadesi gelmiş en eski satır `QUEUE_LAG_WARN_MS`den (paneldeki kırmızı eşik) uzun bekliyor ama kuyruk
+ *    ilerliyor (başka satırlar alınıyor / gönderiliyor). Eskiden bu durum `ok` görünüyordu: 65 dk bekleyen satır, başka bir işletmenin taze
+ *    işiyle örtülüyordu. Sayfalamaz (büyük birikim ilerlediği sürece alarm değildir — Haiku 10-16 kararı), yalnız gövde doğru söyler.
+ * Ölçüt işletmeden BAĞIMSIZDIR: en eski gönderilebilir satırın yaşı, hangi işletmenin olursa olsun (işçi de işletme gözetmeden en eskiyi alır).
+ * "Gönderilebilir" süzgeci ↑`queueStallStates` (işçinin talep süzgeci): duraklatılmış gönderim, abonelik bekletmesi, anahtar kapalıyken
+ * otomatik şablon, konuşma sırası, vadesi gelmemiş ve inceleme / son durum satırları gecikme SAYILMAZ.
+ */
+export type StrictQueueVerdict = "ok" | "delayed" | "stalled";
+
+export function strictQueueVerdict(states: { message: QueueStallState; email: QueueStallState }): StrictQueueVerdict {
+  if (isStalled(states.message) || isStalled(states.email)) return "stalled";
+  const behind = (q: QueueStallState) => q.lagMs !== null && q.lagMs >= QUEUE_LAG_WARN_MS;
+  return behind(states.message) || behind(states.email) ? "delayed" : "ok";
+}
+
 /** A — senkron geçişinin sonunda. Okuma düşerse sessiz (senkron geçişini düşürmez; B yine görür). İki kuyruk AYRI başlıkla (e-posta
  *  kısıtı başlık başına — biri ötekinin alarmını geciktirmesin). */
 export async function checkQueueStall(
@@ -236,21 +254,23 @@ export async function checkQueueStall(
 
 // B — `/api/health?strict=1` için. Kuyruk okuması herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama veritabanına yük
 // bindirmez. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir; DB arızasını yoklama zaten görür).
+// Yalnız `stalled` sayfalar; `delayed` (↑`strictQueueVerdict`) 200 kalır, gövdede görünür.
 const QUEUE_PROBE_TTL_MS = 30_000;
-let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
+export type StrictQueueState = StrictQueueVerdict | "unknown";
+let queueProbe: { at: number; state: StrictQueueState } | null = null;
 // Süren yoklama PAYLAŞILIR (Codex 10-16, ölçüldü: önbellek boşken 100 eşzamanlı istek 400 veritabanı okuması başlatıyordu). Yoklama bitince
 // (başarı ya da hata) boşalır → sonraki istek yeniden dener; hata sonucu da TTL boyunca önbellekte durur (bugünkü davranış).
-let queueProbeInFlight: Promise<"ok" | "stalled" | "unknown"> | null = null;
+let queueProbeInFlight: Promise<StrictQueueState> | null = null;
 /** Sıfırlama kuşağı: sıfırlamadan önce başlamış yoklamanın sonucu önbelleğe yazılmaz (yalnız test yardımcısı için, Haiku 10-16). */
 let queueProbeGeneration = 0;
 
-async function probeQueueState(now: number): Promise<"ok" | "stalled" | "unknown"> {
+async function probeQueueState(now: number): Promise<StrictQueueState> {
   const generation = queueProbeGeneration;
-  let state: "ok" | "stalled" | "unknown";
+  let state: StrictQueueState;
   try {
     const st = await queueStallStates(new Date(now));
     // Bilerek duraklatılmış gönderim izleyiciyi sayfalamaz: talep süzgeci duraklatmada `pending` saymaz (uzlaştırma takılması yine sayfalar).
-    state = isStalled(st.message) || isStalled(st.email) ? "stalled" : "ok";
+    state = strictQueueVerdict(st);
   } catch {
     state = "unknown";
   }
@@ -258,7 +278,7 @@ async function probeQueueState(now: number): Promise<"ok" | "stalled" | "unknown
   return state;
 }
 
-export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> {
+export async function strictQueueState(): Promise<StrictQueueState> {
   const now = Date.now();
   if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
   if (queueProbeInFlight) return queueProbeInFlight;
