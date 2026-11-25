@@ -548,11 +548,16 @@ export async function findAttentionItems(
         : isClockText(storedClock)
           ? storedClock
           : null;
+    const day = key === todayKey(now, tz) ? "today" : "tomorrow";
+    // Tarih-yalnız kayıtta dairenin çıkış saati bugün GEÇTİYSE saat yazılmaz: 15:00'te "bugün 11:00'de çıkıyor" yanlış okunur
+    // (misafir çıkmış olabilir; bunu bilmiyoruz → yalnız "bugün çıkıyor"). Saatli kayıt pencereye zaten yalnız gelecekteyse girer.
+    const nowClock = now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz, hourCycle: "h23" });
+    const passed = anchor !== "instant" && day === "today" && isClockText(time) && time <= nowClock;
     const group: DepartureGroup = {
       reservationId: res.id,
       propertyId,
-      day: key === todayKey(now, tz) ? "today" : "tomorrow",
-      time: isClockText(time) ? time : null,
+      day,
+      time: isClockText(time) && !passed ? time : null,
       topics: [],
       problem: null,
       absorbed: [],
@@ -761,7 +766,7 @@ export async function findAttentionItems(
       // Çıkışı penceredeki konaklamanın sözü birleşik satıra gider (söz tavanında yer tutmaz — o satırda zaten görünür).
       const group = departingStay(c.conversation.reservation, c.conversation.propertyId, tz);
       if (group) {
-        addTopic(group, { source: "commitment", kind: c.kind, topic: c.topic });
+        addTopic(group, { source: "commitment", kind: c.kind, topic: c.topic, ...(precise ? { when: whenText.trim() } : {}) });
         group.absorbed.push(row);
         continue;
       }

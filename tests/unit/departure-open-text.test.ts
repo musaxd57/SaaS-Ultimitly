@@ -31,6 +31,15 @@ describe("saate bulunma eki", () => {
 });
 
 describe("alt satır", () => {
+  it("kesin saatli sözün zamanı konu adının yanında yazılır; zamansız sözde parantez yok", () => {
+    expect(
+      departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water", when: "bugün 18:00" }], problem: false }),
+    ).toBe("sıcak su (söz bugün 18:00) konusu açık");
+    expect(departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water" }], problem: false })).toBe(
+      "sıcak su konusu açık",
+    );
+  });
+
   it("tek konu tekil, iki konu çoğul; konu adı yapılı etiketten (konusuz söz → tür)", () => {
     expect(departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water" }], problem: false })).toBe("sıcak su konusu açık");
     expect(

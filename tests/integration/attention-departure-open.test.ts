@@ -107,6 +107,10 @@ async function openCommitment(s: Stay, over: { topic?: string | null; dueInHours
 
 const departureRows = (items: AttentionItem[]) => items.filter((i) => i.departureOpen);
 const text = (i: AttentionItem) => [departureOpenHeadline(i.propertyName, i.departureOpen!), departureOpenDetail(i.departureOpen!)];
+// Kesin saatli sözün zamanı konu adının yanında kalır ("sıcak su (söz bugün 18:00)"); gün / saat koşu anına bağlı → biçim kalıbı.
+const WHEN = String.raw`\(söz (?:bugün|yarın) \d{2}:\d{2}\)`;
+/** İşletmenin (İstanbul, sabit +03:00) bugününde verilen saat — "şimdi"yi sabitlemek için. */
+const todayAt = (clock: string) => new Date(`${new Date().toLocaleDateString("en-CA", { timeZone: TZ })}T${clock}:00+03:00`);
 
 describe("Çıkıştan önce açık konu — tek satır", () => {
   beforeEach(async () => {
@@ -124,7 +128,9 @@ describe("Çıkıştan önce açık konu — tek satır", () => {
     expect(items[0].kind).toBe("departing_unanswered");
     expect(items[0].href).toBe(`/inbox/${s.conversationId}`);
     expect(items[0].certainty).toBe("observed");
-    expect(text(items[0])).toEqual(["Lale 3 yarın 11:00'de çıkıyor", "sıcak su konusu açık"]);
+    expect(text(items[0])[0]).toBe("Lale 3 yarın 11:00'de çıkıyor");
+    // Söz verdiğiniz saat birleşik satırda kaybolmaz (söz satırı yutulduğu için tek görünen yer burası).
+    expect(text(items[0])[1]).toMatch(new RegExp(`^sıcak su ${WHEN} konusu açık$`));
     // Söz satırı ayrıca görünmez (aynı konu iki satırda yok).
     expect(items.filter((i) => i.kind === "commitment_due")).toHaveLength(0);
   });
@@ -178,11 +184,12 @@ describe("Çıkıştan önce açık konu — tek satır", () => {
     await openCommitment(s);
     const items = await findAttentionItems(s.orgId);
     expect(items).toHaveLength(1);
-    expect(items[0].departureOpen?.topics).toEqual([
+    expect(items[0].departureOpen?.topics).toMatchObject([
       { source: "commitment", kind: "maintenance", topic: "hot_water" },
       { source: "held", kind: "payment_invoice" },
     ]);
-    expect(text(items[0])[1]).toBe("sıcak su, ödeme / fatura konuları açık · misafir 3 saattir cevap bekliyor");
+    expect(items[0].departureOpen?.topics).toHaveLength(2);
+    expect(text(items[0])[1]).toMatch(new RegExp(`^sıcak su ${WHEN}, ödeme / fatura konuları açık · misafir 3 saattir cevap bekliyor$`));
   });
 
   it("🚨 (e) iptal edilmiş rezervasyon → birleşik satır yok (söz satırı bugünkü gibi)", async () => {
@@ -201,14 +208,23 @@ describe("Çıkıştan önce açık konu — tek satır", () => {
     await heldItem(b);
     const items = await findAttentionItems(a.orgId);
     expect(items).toHaveLength(1);
-    expect(text(items[0])).toEqual(["Lale 3 yarın 11:00'de çıkıyor", "klima konusu açık"]);
+    expect(text(items[0])[0]).toBe("Lale 3 yarın 11:00'de çıkıyor");
+    expect(text(items[0])[1]).toMatch(new RegExp(`^klima ${WHEN} konusu açık$`));
   });
 
-  it("Sorunlu konuşma tek başına (son söz bizde) → 'konuşma Sorunlu olarak işaretli'; çıkış bugün", async () => {
+  it("Sorunlu konuşma tek başına (son söz bizde) → 'konuşma Sorunlu olarak işaretli'; çıkış bugün, saat henüz gelmedi", async () => {
     const s = await stay({ departureInDays: 0, answered: true, conversationStatus: "problem" });
-    const items = await findAttentionItems(s.orgId);
+    const items = await findAttentionItems(s.orgId, { now: todayAt("09:00") });
     expect(items).toHaveLength(1);
     expect(text(items[0])).toEqual(["Lale 3 bugün 11:00'de çıkıyor", "konuşma Sorunlu olarak işaretli"]);
+  });
+
+  it("🚨 çıkış saati bugün GEÇTİYSE saat yazılmaz (15:00'te 'bugün 11:00'de çıkıyor' denmez); tam saatinde de yazılmaz", async () => {
+    const s = await stay({ departureInDays: 0, answered: true, conversationStatus: "problem" });
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("15:00") }))[0])[0]).toBe("Lale 3 bugün çıkıyor");
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("11:00") }))[0])[0]).toBe("Lale 3 bugün çıkıyor");
+    // KONTROL: bir dakika önce saat hâlâ yazılır.
+    expect(text((await findAttentionItems(s.orgId, { now: todayAt("10:59") }))[0])[0]).toBe("Lale 3 bugün 11:00'de çıkıyor");
   });
 
   it("aşırı uygulama: çıkışı 3 gün sonra olan Sorunlu konuşma satır üretmez (bugünkü gibi)", async () => {
