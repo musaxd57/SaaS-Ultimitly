@@ -21,6 +21,10 @@ import { deleteAccountData } from "@/lib/data-retention";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
 import { reportError } from "@/lib/report-error";
+import { CHECKOUT_PAID_STATUS } from "@/lib/billing/checkout-paid";
+import { CHECKOUT_INTENT_BUSY_MESSAGE } from "@/lib/billing/checkout-intent";
+import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
+import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 
 // ---------------------------------------------------------------------------
 // PERMANENT account + data erasure (KVKK right-to-erasure / "hesabımı sil").
@@ -84,6 +88,13 @@ export async function POST(req: NextRequest) {
     if (blocked) {
       return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
     }
+    // 🚨 SONUÇLANMAMIŞ ÖDEME KAPISI (Codex 11-25 ikinci rapor, K5): abonelik kapısı yalnız YEREL abonelik satırına bakıyordu. Ödemesi alınmış
+    // ama aboneliği henüz bağlanmamış işletme ("ödeme alındı" kaydı, `checkout-paid.ts`) ya da sonucu belli olmayan açık ödeme işlemi olan
+    // işletme silinebiliyordu: kayıt hesapla birlikte kademeyle gidiyor, para alınmış ama uzlaştırılacak iz kalmıyordu. Silme BEKLETİLİR.
+    const paymentPending = await pendingPaymentText(session.organizationId);
+    if (paymentPending) {
+      return NextResponse.json({ error: paymentPending }, { status: 409 });
+    }
 
     // 🚨 U11 (kurucu 10-22: "Dediğin gibi olabilir"): 2FA AÇIKSA geri dönüşsüz silme doğrulama KODU da ister. Eskiden yalnız şifre
     // yetiyordu — şifresi sızmış ama 2FA'lı bir hesap, ele geçirilmiş oturumla kalıcı olarak silinebiliyordu. Kod TÜKETİLİR (giriş ve
@@ -122,6 +133,7 @@ export async function POST(req: NextRequest) {
     // ya da ödeme olayı aktif abonelik yazabilir. Silme işleminin İLK adımı (org satırı kilitliyken) ikisini yeniden doğrular; tutmuyorsa
     // HİÇBİR şey silinmez.
     const epoch = session.sessionEpoch;
+    let paymentPendingInTx: string | null = null;
     const outcome = await deleteAccountData(session.organizationId, {
       precondition: async (tx) => {
         const owner = await tx.$queryRaw<{ id: string }[]>`
@@ -136,12 +148,24 @@ export async function POST(req: NextRequest) {
         // sırada (güncelleme önce commit) bu okuma güncel durumu görür → 409.
         await tx.$queryRaw`SELECT "id" FROM "Subscription" WHERE "organizationId" = ${session.organizationId} FOR UPDATE`;
         if (await hasBillableSubscription(session.organizationId, tx)) return "billable_subscription";
+        // Ödeme kayıtları da KİLİTLENİR (K5): kapanmış niyetin işlemi sonradan ödenirse satır "ödeme alındı"ya geçer — o güncelleme bu
+        // silmenin sonucunu bekler (satır gitmiş → 0 satır → onay kaydı da yok → web kancası "bağlanamayan ödeme" alarmı). Yeni satır
+        // eklemesi işletme satırının kilidine zaten takılır (yabancı anahtar). Ters sırada (ödeme önce commit) okuma güncel durumu görür → 409.
+        await tx.$queryRaw`SELECT "id" FROM "CheckoutIntent" WHERE "organizationId" = ${session.organizationId} FOR UPDATE`;
+        const pending = await pendingPaymentText(session.organizationId, tx);
+        if (pending) {
+          paymentPendingInTx = pending;
+          return "payment_pending";
+        }
         return null;
       },
     });
     if (!outcome.deleted) {
       if (outcome.reason === "billable_subscription") {
         return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
+      }
+      if (outcome.reason === "payment_pending") {
+        return NextResponse.json({ error: paymentPendingInTx ?? CHECKOUT_PENDING_MESSAGE }, { status: 409 });
       }
       return unauthorized();
     }
@@ -188,5 +212,36 @@ async function hasBillableSubscription(organizationId: string, db: Pick<typeof p
     return subs.some((s) => !DEFINITELY_ENDED.has(s.status) && !s.cancelAtPeriodEnd);
   } catch {
     return true; // durumu okuyamıyoruz → geri alınamaz silme YAPILMAZ
+  }
+}
+
+/**
+ * SONUÇLANMAMIŞ ÖDEME (K5, Codex 11-25 ikinci rapor): silmeyi bekleten ödeme durumu varsa müşteriye gösterilecek metin, yoksa null.
+ *  · "ödeme alındı, abonelik bekleniyor" kaydı (`CheckoutIntent` "completed") — süreyle kapanmaz; ancak bağlanınca / kanıtla bırakılınca
+ *    silme açılır. Niyet anahtarı kapalıyken de yazılır (işlem olayı / doğrulanmış istemci sinyali).
+ *  · açık / açılmakta olan ödeme işlemi (niyet anahtarı açıkken) — sonucu belli olana dek (ödenir → yukarıdaki kayıt; iptali doğrulanır →
+ *    kapanır).
+ *  · 10 dakikalık "ödemeniz işleniyor" kilidi (ödeme ekranı "tamamlandı" dedi, sunucu henüz görmedi).
+ * Metinler VAR OLAN ödeme metinleridir (yeni müşteri metni kurucu onayında — öneri `docs/INCELEME-2026-11-25-k27-A.md`).
+ * ⚠️ Okuma hatasında da BEKLETİR (fail-closed — geri alınamaz silme belirsizlikte yapılmaz).
+ */
+async function pendingPaymentText(
+  organizationId: string,
+  db: Pick<typeof prisma, "checkoutIntent" | "systemLock"> = prisma,
+  now: Date = new Date(),
+): Promise<string | null> {
+  try {
+    const rows = await db.checkoutIntent.findMany({
+      where: { organizationId, status: { in: [CHECKOUT_PAID_STATUS, "open", "opening"] } },
+      select: { status: true },
+      take: 10,
+    });
+    if (rows.some((r) => r.status === CHECKOUT_PAID_STATUS)) return CHECKOUT_PAID_AWAITING_MESSAGE;
+    if (rows.length > 0) return CHECKOUT_INTENT_BUSY_MESSAGE;
+    const lock = await db.systemLock.findUnique({ where: { name: checkoutPendingLockName(organizationId) }, select: { lockedUntil: true } });
+    if (lock && lock.lockedUntil > now) return CHECKOUT_PENDING_MESSAGE;
+    return null;
+  } catch {
+    return CHECKOUT_PENDING_MESSAGE; // durumu okuyamıyoruz → geri alınamaz silme YAPILMAZ
   }
 }
