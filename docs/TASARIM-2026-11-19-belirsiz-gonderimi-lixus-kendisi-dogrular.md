@@ -30,7 +30,8 @@ Belirsiz gönderimden sonra Lixus kanal konuşmasını OKUR ve üç sonuçtan bi
 "Başka hiçbir kayda ait olmayan": o mesaj kimliği başka bir kuyruk satırının sağlayıcı kimliği değil ve yerelde başka bir mesaja bağlı değil
 (aynı metni iki kez yazan ev sahibinin ikinci mesajı birinci gönderimi "doğrulamaz"). Aday birden çoksa en erkeni alınır.
 
-Zaman penceresi: gönderim başlangıcının 2 dakika öncesi (saat kayması) … 24 saat sonrası. Başlangıç anı: kuyrukta "dış gönderim başladı"
+Zaman penceresi: gönderim başlangıcı … 24 saat sonrası (11-25, Codex: eski 2 dk geri pay KALDIRILDI — başlangıçtan önce damgalı aynı metin
+kanıt değildir; sağlayıcı saati geri kalırsa sonuç "görünmüyor" olur, güvenli yön). Başlangıç anı: kuyrukta "dış gönderim başladı"
 işareti (11-19, K1), doğrudan yolda gönder'e basılan an.
 
 Okuma yapılamazsa (sağlayıcı arızası, belirteç yok) karar verilmez, sonra yeniden bakılır. Bütün bakışlar bittiğinde hâlâ görünmüyorsa satır

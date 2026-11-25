@@ -292,7 +292,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - 🚨 **BELİRSİZ GÖNDERİMDE ÖNCE LİXUS BAKAR; GÖRÜNMEMESİ YENİDEN GÖNDERME SEBEBİ DEĞİLDİR (11-19, kurucu AK-1 / KU-1; `outbox/reconcile-match.ts`
   saf karar + `outbox/reconcile-channel.ts`; anahtar `CHANNEL_SEND_RECONCILE_ENABLED` KAPALI, tasarım
   `docs/TASARIM-2026-11-19-belirsiz-gonderimi-lixus-kendisi-dogrular.md`):** yanıtı kopan dış gönderimde kanal konuşması okunur. Kimlik elde
-  varsa kimlikle; yoksa gönderim başlangıcından (2 dk saat kayması … 24 saat) sonra yazılmış, biçim farkı dışında AYNI metinli, giden, başka
+  varsa kimlikle; yoksa gönderim başlangıcında ya da sonra (… 24 saat; 11-25 Codex: geri pay YOK, başlangıçtan önce damgalı aynı metin kanıt değildir) yazılmış, biçim farkı dışında AYNI metinli, giden, başka
   hiçbir kayda (başka kuyruk satırı / yerelde başka mesaj) ait olmayan mesaj → misafire ulaştı; kanıt kodu ayrı (`reconciled_seen_in_channel`
   — "bizim isteğimiz başarılı" iddiası değildir). Görünmüyorsa ASLA kendiliğinden yeniden gönderilmez; incelemede "kanalda görünmüyor" ile
   "kanal okunamadı" AYRI koddur ("ulaşmış olabilir" yalnız ikincisinde dürüst). Kesin ret (4xx≠408) kanalı okumaz. Kanal okuması yalnız

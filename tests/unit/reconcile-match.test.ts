@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  RECONCILE_CLOCK_SKEW_MS,
   RECONCILE_WINDOW_MS,
   matchSendInThread,
   normalizeForReconcile,
@@ -9,7 +8,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // BELİRSİZ GÖNDERİMİ KANALDAN DOĞRULAMA — saf karar (kurucu 11-19 AK-1; `src/lib/outbox/reconcile-match.ts`). Kanıt: aynı metin, giden,
-// gönderim başlangıcından SONRA (2 dk saat kayması payı, 24 saat pencere), başka hiçbir kayda ait değil. Görünmüyorsa "not_seen" — çağıran
+// gönderim başlangıcında ya da SONRA (geri pay YOK — Codex 11-25; 24 saat pencere), başka hiçbir kayda ait değil. Görünmüyorsa "not_seen" — çağıran
 // yeniden göndermez.
 // ---------------------------------------------------------------------------
 
@@ -37,7 +36,7 @@ describe("kanaldan doğrulama — saf karar", () => {
 
   it("🚨 GÖRÜNMEYEN durumlar 'not_seen': aynı metin gönderimden ÖNCE (pay dışı) · 24 saatten SONRA · gelen (misafir) · başka kayda ait · metin farklı · zamansız · kimliksiz", () => {
     const cases: Array<[string, ThreadMessage[], Set<string>]> = [
-      ["önce", [out("a", BODY, -RECONCILE_CLOCK_SKEW_MS - 1)], new Set()],
+      ["önce", [out("a", BODY, -1)], new Set()],
       ["pencere sonrası", [out("b", BODY, RECONCILE_WINDOW_MS + 1)], new Set()],
       ["gelen", [{ externalId: "c", direction: "inbound", body: BODY, createdAt: at(1_000) }], new Set()],
       ["başka kayda ait", [out("d", BODY, 1_000)], new Set(["d"])],
@@ -54,8 +53,26 @@ describe("kanaldan doğrulama — saf karar", () => {
     expect(matchSendInThread({ body: BODY, anchor: ANCHOR, knownProviderMessageId: "zz", messages: [], taken: new Set() }).found).toBe(false);
   });
 
-  it("sınırlar: tam pay sınırında (−2 dk) ve tam pencere sonunda (+24 sa) aday", () => {
-    expect(matchSendInThread({ body: BODY, anchor: ANCHOR, messages: [out("s", BODY, -RECONCILE_CLOCK_SKEW_MS)], taken: new Set() }).found).toBe(true);
+  it("🚨 gönderim başlangıcından ÖNCE damgalı aynı metin kanıt DEĞİL (Codex 11-25: 13:59'daki mesaj 14:00 gönderiminin kanıtı olamaz) — geri pay YOK", () => {
+    // Eski kural 2 dk geri pay veriyordu: 1 dk önceki, kimsenin sahiplenmediği aynı metin yeni gönderimi "gönderildi" yapıyordu.
+    for (const ms of [-60_000, -1, -2 * 60_000, -10 * 60_000]) {
+      expect(matchSendInThread({ body: BODY, anchor: ANCHOR, messages: [out("p", BODY, ms)], taken: new Set() }), String(ms)).toEqual({
+        found: false,
+        evidence: "not_seen",
+      });
+    }
+    // Önce damgalı eski mesaj, sonra damgalı gerçek yankı birlikteyse yankı seçilir (eski mesaj en erken diye seçilmez).
+    expect(matchSendInThread({ body: BODY, anchor: ANCHOR, messages: [out("old", BODY, -30_000), out("echo", BODY, 5_000)], taken: new Set() })).toEqual({
+      found: true,
+      providerMessageId: "echo",
+      evidence: "content",
+    });
+    // Sağlayıcı KİMLİĞİ kesin kanıttır: zaman damgası ne olursa olsun (önce damgalı da) kimlik eşleşmesi doğrular.
+    expect(matchSendInThread({ body: BODY, anchor: ANCHOR, knownProviderMessageId: "k1", messages: [out("k1", BODY, -60_000)], taken: new Set() }).evidence).toBe("id");
+  });
+
+  it("sınırlar: tam gönderim anında (0) ve tam pencere sonunda (+24 sa) aday", () => {
+    expect(matchSendInThread({ body: BODY, anchor: ANCHOR, messages: [out("s", BODY, 0)], taken: new Set() }).found).toBe(true);
     expect(matchSendInThread({ body: BODY, anchor: ANCHOR, messages: [out("t", BODY, RECONCILE_WINDOW_MS)], taken: new Set() }).found).toBe(true);
   });
 

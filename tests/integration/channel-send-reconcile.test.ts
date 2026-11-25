@@ -198,6 +198,45 @@ describe("kuyruk — belirsiz gönderimde Lixus kanalı okur", () => {
     expect(await rowOf(outboxId)).toMatchObject({ status: "review", lastErrorCode: RECONCILE_CODES.notSeen });
   });
 
+  it("🚨 Codex 11-25: gönderim 14:00'te başladı, kanalda aynı metin 13:59 damgalı (kimsenin değil) → kanıt DEĞİL: satır hiçbir bakışta 'sent' olmaz, belirsiz kalır, sonunda 'kanalda görünmüyor'; yeniden gönderim YOK", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId } = await enqueue(orgId, conversationId, "k10");
+    const start = Date.now();
+    fake.threadExtra.set(RES, [{ externalId: "host-1359", direction: "outbound", body: BODY, createdAt: new Date(start - 60_000) }]);
+    fake.behave({ mode: "timeout", delivered: false });
+    const clock = { t: start };
+    await drainOutboxOnce({ now: () => new Date(clock.t) });
+    expect(await rowOf(outboxId)).toMatchObject({ status: "ambiguous", dispatchStartedAt: new Date(start) });
+    fake.behave({ mode: "succeed" });
+    const seen = new Set<string>();
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 3; i++) {
+      clock.t += 60 * 60_000;
+      await drainOutboxOnce({ now: () => new Date(clock.t) });
+      const r = await rowOf(outboxId);
+      seen.add(r.status);
+      expect(r.providerMessageId).toBeNull();
+    }
+    expect(seen.has("sent")).toBe(false);
+    expect(await rowOf(outboxId)).toMatchObject({ status: "review", lastErrorCode: RECONCILE_CODES.notSeen });
+    expect(fake.attempts).toHaveLength(1); // ⬅️ görünmüyor diye yeniden gönderim YOK
+    expect(fake.deliveries).toHaveLength(0);
+    expect(fake.threadReads).toBeGreaterThan(0);
+  });
+
+  it("KONTROL (Codex 11-25): aynı kurulum, aynı metin 14:00:05 damgalı → doğrulanır ('sent', kanıt: kanalda görüldü, o mesajın kimliği); ikinci istek YOK", async () => {
+    const { orgId, conversationId } = await seed();
+    const { outboxId } = await enqueue(orgId, conversationId, "k11");
+    const start = Date.now();
+    fake.threadExtra.set(RES, [{ externalId: "host-140005", direction: "outbound", body: BODY, createdAt: new Date(start + 5_000) }]);
+    fake.behave({ mode: "timeout", delivered: false });
+    const clock = { t: start };
+    await drainOutboxOnce({ now: () => new Date(clock.t) });
+    expect(await rowOf(outboxId)).toMatchObject({ status: "ambiguous" });
+    await drainUntilSettled(clock);
+    expect(await rowOf(outboxId)).toMatchObject({ status: "sent", providerMessageId: "host-140005", lastErrorCode: RECONCILE_CODES.seenByContent });
+    expect(fake.attempts).toHaveLength(1);
+  });
+
   it("🚨 KU-1: gönderim yoldayken konuşma silindi, kanal kabul etti, yanıt kayboldu → satır yine kanaldan doğrulanır (konuşmaya bağlı değil)", async () => {
     const { orgId, conversationId } = await seed();
     const { outboxId } = await enqueue(orgId, conversationId, "k5");
@@ -280,6 +319,15 @@ describe("doğrudan yol — belirsiz sonuçtan hemen sonra tek bakış", () => {
     fake.threadExtra.set(RES, [{ externalId: "host-typed-1", direction: "outbound", body: BODY, createdAt: new Date(Date.now() - 10 * 60_000) }]);
     fake.behave({ mode: "timeout", delivered: false });
     expect((await reply(conversationId)).status).toBe(502);
+  });
+
+  it("🚨 Codex 11-25: aynı metin kanalda gönder'e basılmadan 1 dk ÖNCE damgalı (eski 2 dk geri payın içinde) → doğrulamaz, 502; ikinci istek YOK", async () => {
+    const { conversationId } = await seed();
+    fake.threadExtra.set(RES, [{ externalId: "host-typed-2", direction: "outbound", body: BODY, createdAt: new Date(Date.now() - 60_000) }]);
+    fake.behave({ mode: "timeout", delivered: false });
+    expect((await reply(conversationId)).status).toBe(502);
+    expect(fake.attempts).toHaveLength(1);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound", externalId: "host-typed-2" } })).toBe(0);
   });
 
   it("KONTROL: anahtar KAPALI → bugünkü belirsiz yanıt, kanal okunmaz", async () => {
