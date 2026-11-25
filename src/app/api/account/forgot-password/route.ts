@@ -15,10 +15,12 @@ import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { setKnownDeviceCookie } from "@/lib/auth";
 import {
-  issueChallenge,
+  prepareChallenge,
+  storeChallenge,
   verifyChallenge,
   consumeChallengeAndResetPassword,
 } from "@/lib/auth/password-reset-challenge";
+import { reportError } from "@/lib/report-error";
 import { isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
 import { enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
 
@@ -135,10 +137,16 @@ export async function POST(req: NextRequest) {
         // enqueue'yu ARTIK KOŞULSUZ yapıyor → paritenin de koşulsuz olması
         // gerekiyor; bayrak kapalıyken bilinen dal yazıp bilinmeyen dal
         // yazmasaydı fark tam da kapatmaya çalıştığımız yan kanal olurdu.
-        await prisma.user.updateMany({
-          where: { id: "__timing_parity__" },
-          data: { pwResetCodeAttempts: 0 },
-        });
+        // 🚨 Eşitleyici yazımın hatası da YUTULUR (Codex 11-25): bilinen dalın yazım hatası aşağıda 200'e iner; bu dal 500 dönseydi
+        // veritabanı zorlanınca kâhin TERS yönden açılırdı (yalnız hesabı OLMAYAN adres 500). `resend-verification` emsali.
+        try {
+          await prisma.user.updateMany({
+            where: { id: "__timing_parity__" },
+            data: { pwResetCodeAttempts: 0 },
+          });
+        } catch (err) {
+          void reportError("auth.forgot_password.parity", err instanceof Error ? err : new Error(String(err)));
+        }
         return jsonOk({ ok: true });
       }
 
@@ -148,18 +156,34 @@ export async function POST(req: NextRequest) {
       // göndererek kurbanın ELİNDEKİ geçerli challenge'ı düşürmesini engelleyen
       // şey budur (kullanıcı kararı, 08-02). Canlı satır sayısı "sınırsız"
       // değildir — `forgot-req` kovası (4/15 dk) ve TTL (30 dk) doğal tavandır.
-      const issued = await issueChallenge(prisma, user.id);
+      //
+      // bcrypt (kod özeti) işlemden ÖNCE: işlem bcrypt boyunca bağlantı tutmaz ve parola kapısının doygunluk hatası (503) bilinmeyen
+      // dalın `hashPassword`u ile AYNI yerde kalır (o dal da 503 alır — eşit).
+      const issued = await prepareChallenge();
+      // 🚨 KAYIT + E-POSTA KUYRUĞU TEK İŞLEMDE (Codex 11-25, kurucu talimatı 2026-11-25). Eskiden ayrı işlemlerdi: kuyruk yazımı düşünce
+      // e-postası hiç kuyruğa girmemiş bir challenge kalıyor ve bu dal 500 dönüyordu — bilinmeyen adres 200 aldığı için arıza anında hesap
+      // varlığı sızıyordu. Şimdi ikisi birlikte yazılır ya da hiçbiri; işlem düşerse cevap bilinmeyen dalla AYNI 200 (durum kodu + gövde),
+      // hata operatöre raporlanır. Kişi e-posta gelmezse yeniden ister (`forgot-req` kovası 4/15 dk); kayıt yazılmadığı için elinde ölü kod
+      // kalmaz.
       // ⚠️ Token VE kod yalnız e-postaya gider. Yanıta, log'a, AuditLog'a ya da
       // Sentry'ye ASLA girmez — bileşik sır şifreli outbox payload'ında taşınır.
-      await prisma.$transaction(async (tx) => {
-        await enqueueIdentityEmail(tx, {
-          userId: user.id,
-          kind: "pw_reset_challenge",
-          secret: `${issued.token}.${issued.code}`,
-          recipient: email,
-          expiresAt: issued.expiresAt,
+      try {
+        await prisma.$transaction(async (tx) => {
+          await storeChallenge(tx, user.id, issued);
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "pw_reset_challenge",
+            secret: `${issued.token}.${issued.code}`,
+            recipient: email,
+            expiresAt: issued.expiresAt,
+          });
         });
-      });
+      } catch (err) {
+        // Ham token / kod veritabanına hiç verilmez (yalnız özetleri ve şifreli payload) → hata nesnesi onları taşımaz; rapor ayrıca
+        // `redactSensitive` / Prisma özetinden geçer.
+        void reportError("auth.forgot_password.enqueue", err instanceof Error ? err : new Error(String(err)));
+        return jsonOk({ ok: true });
+      }
       kickEmailOutboxDrain();
       return jsonOk({ ok: true });
     }

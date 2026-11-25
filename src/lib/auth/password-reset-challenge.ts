@@ -72,20 +72,50 @@ export async function issueChallenge(
   userId: string,
   now: Date = new Date(),
 ): Promise<IssuedChallenge> {
+  const prepared = await prepareChallenge(now);
+  await storeChallenge(db, userId, prepared);
+  return { token: prepared.token, code: prepared.code, expiresAt: prepared.expiresAt };
+}
+
+/** Kaydedilmeye hazır challenge: ham sırlar (yalnız e-postaya) + kolonlara yazılacak özetleri. */
+export interface PreparedChallenge extends IssuedChallenge {
+  tokenHash: string;
+  codeHash: string;
+}
+
+/**
+ * Challenge'ı HAZIRLA — veritabanına dokunmaz. bcrypt (kod özeti) burada koşar, böylece çağıran kaydı e-posta kuyruğuyla AYNI veritabanı
+ * işleminde yazarken işlem bcrypt süresince bağlantı tutmaz (Codex 11-25, `forgot-password` rotası) ve parola kapısının doygunluk hatası
+ * (`PasswordHashBusyError`, 503) işlemin hata yolundan ayrı kalır.
+ */
+export async function prepareChallenge(now: Date = new Date()): Promise<PreparedChallenge> {
   const token = makeChallengeToken();
   const code = makeChallengeCode();
-  const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
+  return {
+    token,
+    code,
+    expiresAt: new Date(now.getTime() + CHALLENGE_TTL_MS),
+    tokenHash: hashChallengeToken(token),
+    codeHash: await hashPassword(code),
+  };
+}
+
+/** Hazırlanmış challenge'ı yaz (verilen istemciyle — işlem içinde de çağrılabilir). Önceki canlı challenge'lar iptal EDİLMEZ (↑). */
+export async function storeChallenge(
+  db: Prisma.TransactionClient | typeof prisma,
+  userId: string,
+  prepared: PreparedChallenge,
+): Promise<void> {
   await db.passwordResetChallenge.create({
     data: {
       userId,
-      tokenHash: hashChallengeToken(token),
-      codeHash: await hashPassword(code),
+      tokenHash: prepared.tokenHash,
+      codeHash: prepared.codeHash,
       maxAttempts: CHALLENGE_MAX_ATTEMPTS,
-      expiresAt,
+      expiresAt: prepared.expiresAt,
     },
     select: { id: true },
   });
-  return { token, code, expiresAt };
 }
 
 export type ChallengeFailure =
