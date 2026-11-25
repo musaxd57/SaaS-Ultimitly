@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 // ---------------------------------------------------------------------------
 // YÖNETİCİ SAYFASI KAPISI (10-11 gece, Haiku incelemesi). Personel yalnız `/tasks` görür; sınır middleware'deydi ve 24 uygulama sayfasının
@@ -53,7 +53,7 @@ function pages(dir: string): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) out.push(...pages(p));
-    else if (name === "page.tsx") out.push(relative(APP, p));
+    else if (name === "page.tsx") out.push(relative(APP, p).split(sep).join("/")); // `/` ayraçlı (K27-K12: Windows)
   }
   return out.sort();
 }

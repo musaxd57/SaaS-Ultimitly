@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { Prisma } from "@prisma/client";
 import { DEMO_ID_PREFIX, DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 import { DEMO_ID_PREFIX_FOR_MEMBERSHIP, DEMO_ORG_ID_FOR_MEMBERSHIP } from "@/lib/membership/write";
@@ -59,7 +59,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const FILES = [...SCAN_DIRS.flatMap((d) => walk(join(ROOT, d))), ...EXTRA_FILES.map((f) => join(ROOT, f))].map((p) => relative(ROOT, p));
+const FILES = [...SCAN_DIRS.flatMap((d) => walk(join(ROOT, d))), ...EXTRA_FILES.map((f) => join(ROOT, f))].map((p) => relative(ROOT, p).split(sep).join("/")); // `/` ayraçlı (K27-K12: Windows)
 const read = (f: string) => readFileSync(join(ROOT, f), "utf8");
 
 describe("üyelik — tek yazıcı", () => {

@@ -23,6 +23,8 @@ import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "../..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
+/** Kökten göreli yol, her işletim sisteminde `/` ayraçlı (K27-K12: Windows `\\` döndürür; aşağıdaki sabitler ve kalıplar `/` yazılı). */
+const relOf = (abs: string) => path.relative(ROOT, abs).split(path.sep).join("/");
 /** Yorum satırlarını at (satır başına çapalı — `https://` içindeki `//` korunur). */
 const code = (src: string) =>
   src
@@ -56,7 +58,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     const files = [...walk(path.join(ROOT, "src/lib")), ...walk(path.join(ROOT, "src/app"))];
     const callers: string[] = [];
     for (const abs of files) {
-      const rel = path.relative(ROOT, abs);
+      const rel = relOf(abs);
       const c = code(readFileSync(abs, "utf8"));
       // Tanımın kendisi (`export async function sendMessage(`) sayılmaz.
       const calls = c.replace(/export async function sendMessage\(/g, "").match(/\bsendMessage\(/g) ?? [];
@@ -81,7 +83,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     const ALLOWED = new Set(["src/lib/channels/hospitable-ingest.ts", "src/app/api/hospitable/diagnostics/route.ts"]);
     const offenders: string[] = [];
     for (const abs of walk(path.join(ROOT, "src"))) {
-      const rel = path.relative(ROOT, abs);
+      const rel = relOf(abs);
       if (rel === "src/lib/hospitable.ts" || ALLOWED.has(rel)) continue;
       const c = code(read(rel));
       if (/import\s*\{[^}]*\b(listProperties|listReservations|listMessages)\b[^}]*\}\s*from\s*["']@\/lib\/hospitable["']/.test(c)) offenders.push(rel);
@@ -96,7 +98,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
   });
 
   it("🚨 V1: intelligence bounded context'i sağlayıcı modülü import etmez ve `hospitable*` alanı okumaz (değişmez 1/20)", () => {
-    const files = walk(path.join(ROOT, "src/modules/intelligence")).map((p) => path.relative(ROOT, p));
+    const files = walk(path.join(ROOT, "src/modules/intelligence")).map(relOf);
     expect(files.length).toBeGreaterThan(3);
     for (const rel of files) {
       const c = code(read(rel));
@@ -107,7 +109,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
   });
 
   it("🚨 V1 ürün akışı: IngestEvent'in TEK yazıcısı ingest/events.ts (+ write-service toplu mesaj); iCal · elle dosya · QR aynı sözleşmeyi çağırır (yapay olay üreten başka yazıcı yok)", () => {
-    const files = walk(path.join(ROOT, "src")).map((p) => path.relative(ROOT, p));
+    const files = walk(path.join(ROOT, "src")).map(relOf);
     const writers = files.filter((rel) => /ingestEvent\.create(Many)?\(/.test(code(read(rel)))).sort();
     expect(writers).toEqual(["src/lib/ingest/events.ts", "src/lib/ingest/write-service.ts"]);
     for (const rel of ["src/lib/import/sync.ts", "src/app/api/reservations/import/route.ts", "src/app/api/chat/[token]/route.ts"]) {
@@ -138,7 +140,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
       /^src\/lib\/channels\/hospitable-[a-z0-9-]+\.tsx?$/.test(rel) ||
       rel.startsWith("src/lib/channels/airbnb-direct/");
     const isProviderOwned = (rel: string) => isProviderModule(rel) || rel.startsWith("src/app/api/hospitable/");
-    const allFiles = walk(path.join(ROOT, "src")).map((abs) => path.relative(ROOT, abs));
+    const allFiles = walk(path.join(ROOT, "src")).map(relOf);
     const providerModules = new Set(allFiles.filter(isProviderModule));
     const fileSet = new Set(allFiles);
     const resolveSpec = (fromRel: string, spec: string): string | null => {
@@ -196,7 +198,7 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     const LIST_FILTER = /\bchannel\s*:\s*\{\s*(?:notIn|in)\s*:\s*\[/;
     const offenders: string[] = [];
     for (const abs of walk(path.join(ROOT, "src"))) {
-      const rel = path.relative(ROOT, abs);
+      const rel = relOf(abs);
       if (rel.startsWith("src/lib/channels/")) continue;
       const c = code(read(rel));
       if (CMP.test(c) || LIST_FILTER.test(c)) offenders.push(rel);

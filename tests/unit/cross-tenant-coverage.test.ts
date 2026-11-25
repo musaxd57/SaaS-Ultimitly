@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, posix, win32 } from "node:path";
 
 // ---------------------------------------------------------------------------
 // DEĞİŞMEZ 16 — "tenant isolation her yeni yolda davranışsal test" (kurucu talimatı 09-07). MEKANİK PİN (10-10 gece, Haiku envanteri +
@@ -127,8 +127,16 @@ function importedMethods(testFile: string, route: string): Set<string> {
   return names;
 }
 
+/**
+ * Saf: API köküne göreli rota dosyası yolu → rota anahtarı ("tasks/[id]"). K27-K12 (Codex 11-25): `path.relative` Windows'ta `\\`
+ * ayraçlı döner ("tasks\\[id]\\route.ts") — eski satır yalnız `/` arıyordu, kurucunun bilgisayarında beş kontrolden üçü kırmızıydı.
+ */
+function routeKeyOf(relPath: string): string {
+  return relPath.split("\\").join("/").replace(/\/route\.ts$/, "");
+}
+
 const dynamicRoutes = routeFiles(API)
-  .map((f) => relative(API, f).replace(/\/route\.ts$/, ""))
+  .map((f) => routeKeyOf(relative(API, f)))
   .filter((r) => r.includes("["))
   .sort();
 
@@ -138,6 +146,22 @@ describe("değişmez 16 — dinamik rotaların kiracılar arası davranışsal t
   it("ANTİ-VAKUM: rota taraması gerçek rotaları buluyor (boş liste sessizce geçmez)", () => {
     expect(dynamicRoutes.length).toBeGreaterThanOrEqual(30);
     expect(dynamicRoutes).toContain("tasks/[id]");
+  });
+
+  it("K27-K12: rota anahtarı yol ayracından bağımsız (Windows `\\` = POSIX `/`)", () => {
+    // Gerçek `path.win32` / `path.posix` işlevleriyle: aynı rota iki işletim sisteminde AYNI anahtarı verir.
+    expect(routeKeyOf(win32.relative("C:\\repo\\src\\app\\api", "C:\\repo\\src\\app\\api\\tasks\\[id]\\route.ts"))).toBe("tasks/[id]");
+    expect(routeKeyOf(posix.relative("/repo/src/app/api", "/repo/src/app/api/tasks/[id]/route.ts"))).toBe("tasks/[id]");
+    expect(routeKeyOf("storage\\photo\\[...key]\\route.ts")).toBe("storage/photo/[...key]");
+  });
+
+  it("ANTİ-VAKUM (K27-K12): bulunan rota kümesi, aynı yollar Windows ayracıyla yazılsa da BİREBİR aynı", () => {
+    const rels = routeFiles(API).map((f) => relative(API, f));
+    const asPosix = rels.map((r) => routeKeyOf(r.split("\\").join("/"))).filter((r) => r.includes("[")).sort();
+    const asWindows = rels.map((r) => routeKeyOf(r.split("/").join("\\"))).filter((r) => r.includes("[")).sort();
+    expect(asWindows).toEqual(asPosix);
+    expect(asPosix).toEqual(dynamicRoutes);
+    expect(dynamicRoutes.every((r) => !r.includes("\\") && !r.endsWith("route.ts"))).toBe(true);
   });
 
   it("yöntem okuyucu iki yazımı da görür (bildirim + dışa aktarma listesi); yöntem olmayan adı saymaz", () => {
