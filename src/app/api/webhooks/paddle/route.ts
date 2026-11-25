@@ -3,7 +3,7 @@ import { inPaddleReplay } from "@/lib/payments/paddle-replay-context";
 import { nextPaddleReplayAt } from "@/lib/payments/paddle-replay-schedule";
 import { Prisma } from "@prisma/client";
 import { completeCheckoutIntent } from "@/lib/billing/checkout-intent";
-import { fulfilPaidCheckouts, recordPaidCheckout } from "@/lib/billing/checkout-paid";
+import { afterPaidCheckoutsFulfilled, fulfilPaidCheckoutsInTx, recordPaidCheckout, type FulfilledCheckout } from "@/lib/billing/checkout-paid";
 import { prisma } from "@/lib/db";
 import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
@@ -467,6 +467,21 @@ async function applySubscriptionEventOnce(
   // an unrelated subscription event must not clear someone else's guard.
   const eventPriceId = eventPriceIdFromData(data);
   const eventConsentId = consentIdFromData(data);
+  // "Ödeme alındı, abonelik bekleniyor" kaydı ABONELİK YAZIMIYLA AYNI İŞLEMDE kapanır (Codex 11-25): bu onayın aboneliği hesaba yazılıyor →
+  // kayıt kapanır; ikisi birlikte commit olur ya da hiçbiri (hata yutulmaz — olay işlenmemiş sayılır, Paddle yeniden gönderir ve aynı karar
+  // baştan verilir). Durumdan bağımsız (bağ, satırdaki abonelik kimliğidir); kimliksiz / onaysız olayda dokunulmaz. Eskiden abonelik
+  // yazıldıktan SONRA ayrı yazımdı: arada bağlantı koparsa plan açık, ödeme "abonelik bekliyor" kalıyordu.
+  let fulfilled: FulfilledCheckout[] = [];
+  const fulfilInTx = async (tx: Prisma.TransactionClient): Promise<void> => {
+    if (providerRef && eventConsentId) fulfilled = await fulfilPaidCheckoutsInTx(tx, organizationId, eventConsentId);
+  };
+  /** Korumalı abonelik güncellemesi + (yazıldıysa) kayıt kapanışı, tek işlem. */
+  const guardedUpdate = () =>
+    prisma.$transaction(async (tx) => {
+      const res = await tx.subscription.updateMany({ where: guardedWhere, data: updateData });
+      if (res.count === 1) await fulfilInTx(tx);
+      return res;
+    });
   const settlePending = async () => {
     // Olay günlüğü (takip numarası): abonelik satırı bu olayla GERÇEKTEN yazıldı (sıra koruması geçti).
     await logEvent("billing.subscription.applied", { status, plan: planCode ?? undefined, subscriptionRef: providerRef ?? undefined }, { organizationId });
@@ -488,11 +503,10 @@ async function applySubscriptionEventOnce(
         ),
       );
     }
-    // "Ödeme alındı, abonelik bekleniyor" kaydı (Codex 11-17): bu onayın aboneliği hesaba YAZILDI → kayıt kapanır. Durumdan bağımsız (bağ,
-    // satırdaki abonelik kimliğidir); kimlik bu olayla yazılmadıysa (kimliksiz olay) dokunulmaz. Hata YUTULMAZ (olay yeniden gelir) — bu
-    // yüzden yukarıdaki "ikinci abonelik" alarmından SONRA: alarmın koşulu yazımdan ÖNCEKİ satıra bağlı, yeniden gelen olayda artık
-    // görünmez; burada fırlayan hata o alarmı yutmasın (Opus incelemesi 11-18).
-    if (providerRef && eventConsentId) await fulfilPaidCheckouts(organizationId, eventConsentId);
+    // "Ödeme alındı, abonelik bekleniyor" kaydı (Codex 11-17) abonelik yazımıyla AYNI işlemde kapandı (↑`fulfilInTx`, 11-25); burada yalnız
+    // commit sonrası işler: alarm durumu + olay günlüğü (asla fırlatmaz). "İkinci abonelik" alarmı için eski sıra kaygısı (Opus 11-18) kalktı:
+    // kapanış düşerse abonelik de yazılmaz → yeniden gelen olayda alarmın koşulu (yazımdan önceki satır) aynen görünür.
+    await afterPaidCheckoutsFulfilled(organizationId, fulfilled);
     // STRICT match only: the event must carry the pending TARGET price. A lock
     // without a matching event (incl. any legacy null-holder row) expires via
     // its 15-min TTL instead of being cleared by an unrelated event.
@@ -573,10 +587,7 @@ async function applySubscriptionEventOnce(
   }
 
   if (existing) {
-    const resU = await prisma.subscription.updateMany({
-      where: guardedWhere,
-      data: updateData,
-    });
+    const resU = await guardedUpdate();
     if (resU.count === 1) {
       await settlePending();
       return;
@@ -587,7 +598,10 @@ async function applySubscriptionEventOnce(
     return afterZeroRows();
   }
   try {
-    await prisma.subscription.create({
+    // İlk abonelik satırı + kayıt kapanışı tek işlem (↑`fulfilInTx`). Çakışma (P2002) / silinmiş işletme (P2003) işlemi geri alır ve aynı
+    // hata sınıfıyla dışarı çıkar — aşağıdaki dallar değişmedi.
+    await prisma.$transaction(async (tx) => {
+      await tx.subscription.create({
       data: {
         organizationId,
         planCode: planCode ?? "free",
@@ -602,6 +616,8 @@ async function applySubscriptionEventOnce(
         // Kartla deneme: ilk olay `trialing` ise Paddle'ın deneme sonu (güncelleme yoluyla aynı kural — boş bırakılırsa kapalı yön).
         ...(status === "trialing" && currentPeriodEnd ? { trialEndsAt: currentPeriodEnd } : {}),
       },
+      });
+      await fulfilInTx(tx);
     });
     await settlePending();
   } catch (err) {
@@ -609,10 +625,7 @@ async function applySubscriptionEventOnce(
     // read and this create (organizationId is unique). Fall back to the guarded
     // update — the ordering WHERE decides which of the two events sticks.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const resF = await prisma.subscription.updateMany({
-        where: guardedWhere,
-        data: updateData,
-      });
+      const resF = await guardedUpdate();
       if (resF.count === 1) {
         await settlePending();
         return;

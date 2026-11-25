@@ -23,6 +23,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { POST } from "@/app/api/webhooks/paddle/route";
 import { prisma, resetDb } from "../helpers/db";
+import { interceptTxOperation } from "../helpers/tx-intercept";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 
@@ -38,12 +39,19 @@ const findUniqueSpy = vi.spyOn(prisma.subscription, "findUnique").mockImplementa
 }) as never);
 const realCreate = prisma.subscription.create.bind(prisma.subscription);
 let createHook: (() => Promise<void>) | null = null;
-vi.spyOn(prisma.subscription, "create").mockImplementation((async (args: Parameters<typeof realCreate>[0]) => {
+// İlk abonelik satırı artık etkileşimli İŞLEM içinde yazılıyor (Codex 11-25: abonelik + ödeme kaydı kapanışı tek işlem) — genel temsilciye
+// kurulan casus işlem istemcisini görmez; kanca işlem istemcisine kurulur (`tests/helpers/tx-intercept.ts`). `realCreate` (kancaların
+// "eşzamanlı öteki olay satırı yazdı" taklidi) işlemin DIŞINDA, ayrı bağlantıda yazar.
+let createHookRuns = 0;
+interceptTxOperation(prisma, "subscription", "create", async (real, args) => {
   const hook = createHook;
   createHook = null;
-  if (hook) await hook();
-  return realCreate(args);
-}) as never);
+  if (hook) {
+    createHookRuns++;
+    await hook();
+  }
+  return real(args);
+});
 
 function sign(body: string): string {
   const ts = Math.floor(Date.now() / 1000);
@@ -79,6 +87,7 @@ describe("ödeme P1 — eşzamanlı eski aboneliğin AKTİF olayı yeni aboneli�
     vi.clearAllMocks();
     interleave = null;
     createHook = null;
+    createHookRuns = 0;
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -168,6 +177,7 @@ describe("ödeme P1 — eşzamanlı eski aboneliğin AKTİF olayı yeni aboneli�
       await realCreate({ data: { organizationId: orgId, provider: "paddle", providerRef: "sub_a", status: "active", planCode: "pro", lastEventAt: new Date(Date.now() - 120_000) } });
     };
     expect((await post(sub("evt_b1", "sub_b", "active", at(5)))).status).toBe(200);
+    expect(createHookRuns).toBe(1); // kanca GERÇEKTEN çalıştı (işlem istemcisine kurulu — boşa düşerse test sahte yeşil olurdu)
     expect(await state()).toMatchObject({ providerRef: "sub_b", status: "active" });
     expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_b1" } })).status).toBe("processed");
   });
@@ -180,6 +190,7 @@ describe("ödeme P1 — eşzamanlı eski aboneliğin AKTİF olayı yeni aboneli�
       throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "test" });
     };
     expect((await post(sub("evt_first", "sub_n", "active", at(5)))).status).toBe(200);
+    expect(createHookRuns).toBe(1); // kanca GERÇEKTEN çalıştı (işlem istemcisine kurulu — boşa düşerse test sahte yeşil olurdu)
     expect(alarms("paddle-webhook-unlinked-payment")).toHaveLength(1); // ⬅️ ESKİDE 0
     const evt = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_first" } });
     expect([evt.status, evt.error]).toEqual(["error", "needs_review: org_deleted"]); // ⬅️ ESKİDE "processed"
@@ -191,6 +202,7 @@ describe("ödeme P1 — eşzamanlı eski aboneliğin AKTİF olayı yeni aboneli�
       await realCreate({ data: { organizationId: orgId, provider: "paddle", providerRef: "sub_n", status: "active", planCode: "pro", lastEventAt: new Date(Date.now() - 60_000) } });
     };
     expect((await post(sub("evt_first", "sub_n", "active", at(5)))).status).toBe(200);
+    expect(createHookRuns).toBe(1); // kanca GERÇEKTEN çalıştı (işlem istemcisine kurulu — boşa düşerse test sahte yeşil olurdu)
     expect(await state()).toMatchObject({ providerRef: "sub_n", status: "active" });
     expect(alarms("paddle-webhook-unlinked-payment")).toHaveLength(0);
     // En sık yarış bu (Paddle ilk olayları birlikte yollar): yedek güncelleme TEK turda uygular — yeniden karar turu (ek okumalar) yok.

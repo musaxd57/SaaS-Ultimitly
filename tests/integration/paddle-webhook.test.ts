@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma, resetDb } from "../helpers/db";
+import { interceptTxOperation } from "../helpers/tx-intercept";
 import { POST } from "@/app/api/webhooks/paddle/route";
 import { premiumAllowed } from "@/lib/billing/subscription";
 
@@ -773,12 +774,9 @@ describe("POST /api/webhooks/paddle", () => {
     // mark the event processed or apply the mutation. Manual reassign + finally
     // restores the real method even if POST throws (a vi.spyOn().mockRestore() on
     // the shared Prisma delegate did not restore reliably and leaked to later tests).
-    const origCreate = prisma.subscription.create;
-    prisma.subscription.create = (() =>
-      Promise.reject(new Error("db down"))) as unknown as typeof origCreate;
-    const first = await POST(req(body, sign(body))).finally(() => {
-      prisma.subscription.create = origCreate;
-    });
+    // (11-25) İlk abonelik satırı etkileşimli işlem içinde yazılıyor → arıza işlem istemcisinden verilir (`tests/helpers/tx-intercept.ts`).
+    const restore = interceptTxOperation(prisma, "subscription", "create", () => Promise.reject(new Error("db down")));
+    const first = await POST(req(body, sign(body))).finally(restore);
     expect(first.status).toBe(500);
 
     const ev1 = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_retry_1" } });
@@ -1027,19 +1025,21 @@ describe("codex round-5: pending settle via the REAL handler", () => {
 
   it("P2002 create-fallback: the rival's row is updated AND the matching pending settles", async () => {
     await seedPending("pri_pro");
-    const origCreate = prisma.subscription.create;
     // Emulate a racing replica: it creates the row first, our create hits P2002,
     // the handler falls back to the guarded updateMany (count 1) → settle.
-    prisma.subscription.create = (async () => {
-      await origCreate.call(prisma.subscription, {
+    // (11-25) The first-row create now runs inside an interactive transaction → the hook sits on the transaction client; the rival's row
+    // is written OUTSIDE it (separate connection), so our in-transaction create fails with a REAL unique violation.
+    let rivalWrites = 0;
+    const restore = interceptTxOperation(prisma, "subscription", "create", async (real, args) => {
+      rivalWrites++;
+      await prisma.subscription.create({
         data: { organizationId: orgId, planCode: "free", status: "past_due", provider: "paddle", providerRef: "sub_p4" },
       });
-      throw new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" });
-    }) as unknown as typeof origCreate;
-    const body = subEvent("sub_p4", "evt_p4", new Date().toISOString());
-    const res = await POST(req(body, sign(body))).finally(() => {
-      prisma.subscription.create = origCreate;
+      return real(args);
     });
+    const body = subEvent("sub_p4", "evt_p4", new Date().toISOString());
+    const res = await POST(req(body, sign(body))).finally(restore);
+    expect(rivalWrites).toBe(1); // the hook really ran (a spy on the global client would silently miss the transaction client)
     expect(res.status).toBe(200);
     const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
     expect(sub?.status).toBe("active"); // fallback updateMany applied the event

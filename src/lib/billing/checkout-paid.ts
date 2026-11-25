@@ -177,35 +177,70 @@ export async function recordPaidCheckout(input: {
   return fulfilled ? "fulfilled" : "recorded";
 }
 
+/** `fulfilPaidCheckoutsInTx`in kapattığı kayıt (işlem commit olduktan sonra alarm temizliği + olay günlüğü için). */
+export interface FulfilledCheckout {
+  id: string;
+  consentId: string;
+  providerRef: string | null;
+}
+
+/** TEST KANCASI: kapanış yazımından hemen önce çalışır (işlem içi arıza taklidi — genel istemciye kurulan casus işlem istemcisini görmez). */
+export const __checkoutPaidHooks: { beforeFulfilWrite: null | (() => void | Promise<void>) } = { beforeFulfilWrite: null };
+
 /**
- * Abonelik olayı hesaba YAZILDI ve bu onay kimliğini taşıyor → o onayın ödemesi bağlanmıştır (durumu ne olursa olsun: bağ, abonelik
+ * Abonelik olayı hesaba YAZILIYOR ve bu onay kimliğini taşıyor → o onayın ödemesi bağlanmıştır (durumu ne olursa olsun: bağ, abonelik
  * satırındaki kimliktir). Bekleyen kayıt kapanır; işlem olayı henüz gelmediyse açık niyet de doğrudan kapanır (abonelik varsa ödeme
- * alınmıştır). Hata yutulmaz: çağıran (web kancası) olayı işlenmemiş sayar ve yeniden dener — kaçarsa uzlaştırma yine kapatır.
+ * alınmıştır).
+ *
+ * 🚨 ABONELİK YAZIMIYLA AYNI İŞLEMDE (Codex 11-25, kurucu talimatı `docs/KURUCU-TALIMATI-2026-11-25-…`): eskiden abonelik satırı yazıldıktan
+ * SONRA ayrı bir yazımla kapanıyordu — arada veritabanı bağlantısı koparsa müşteri planı kullanırken aynı ödeme içeride "abonelik bekliyor"
+ * kalıyordu (sonraki olay / uzlaştırma toparlıyordu; ikinci tahsilat yoktu). Artık çağıran bu fonksiyonu abonelik yazımının işlem
+ * istemcisiyle çağırır: ikisi birlikte yazılır ya da hiçbiri (olay işlenmemiş sayılır, Paddle yeniden gönderir). Yalnız VERİTABANI yazımı
+ * burada; alarm temizliği ve olay günlüğü işlem commit olduktan sonra `afterPaidCheckoutsFulfilled` ile.
+ * (Paddle'ın para çekmesi ile bu yazım tek işlem DEĞİLDİR — dış sağlayıcıyla aradaki belirsizlik için kalıcı kayıt + uzlaştırma aynen durur.)
  */
-export async function fulfilPaidCheckouts(organizationId: string, consentId: string, now: Date = new Date()): Promise<number> {
-  const rows = await prisma.checkoutIntent.findMany({
+export async function fulfilPaidCheckoutsInTx(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  consentId: string,
+  now: Date = new Date(),
+): Promise<FulfilledCheckout[]> {
+  const rows = await tx.checkoutIntent.findMany({
     where: { organizationId, consentId, status: { in: [CHECKOUT_PAID_STATUS, "open"] } },
     select: { ...ROW, status: true },
   });
-  let closed = 0;
+  if (rows.length === 0) return [];
+  if (__checkoutPaidHooks.beforeFulfilWrite) await __checkoutPaidHooks.beforeFulfilWrite();
+  const closed: FulfilledCheckout[] = [];
   for (const row of rows) {
-    if (row.status === CHECKOUT_PAID_STATUS) {
-      if (await closePaidCheckout(row, CHECKOUT_FULFILLED_STATUS, "subscription_applied")) closed++;
-      continue;
-    }
-    const done = await prisma.checkoutIntent.updateMany({
-      where: { id: row.id, status: "open" },
-      data: { status: CHECKOUT_FULFILLED_STATUS, openKey: null, closedAt: now },
+    // Koşullu: yalnız hâlâ aynı durumdaysa (eşzamanlı uzlaştırma / operatör bırakması kazandıysa dokunulmaz). Kapanış anı bağlandığı andır
+    // (ödeme anı değil): 90 günlük saklama bu andan sayılır.
+    const done = await tx.checkoutIntent.updateMany({
+      where: { id: row.id, status: row.status },
+      data: { status: CHECKOUT_FULFILLED_STATUS, closedAt: now, ...(row.status === "open" ? { openKey: null } : {}) },
     });
-    if (done.count !== 1) continue;
-    closed++;
+    if (done.count === 1) closed.push({ id: row.id, consentId: row.consentId, providerRef: row.providerRef });
+  }
+  return closed;
+}
+
+/** İşlem COMMIT olduktan sonra: kapanan kayıtların operatör alarm durumu silinir + olay günlüğü. Asla fırlatmaz. */
+export async function afterPaidCheckoutsFulfilled(organizationId: string, closed: readonly FulfilledCheckout[]): Promise<void> {
+  for (const row of closed) {
+    await clearAlertState(paidCheckoutAlertKey(row.id));
     await logEvent(
       "billing.checkout.fulfilled",
       { reason: "subscription_applied", consentId: row.consentId, ...(row.providerRef ? { transactionRef: row.providerRef } : {}) },
       { organizationId },
     );
   }
-  return closed;
+}
+
+/** Tek başına çağrı (abonelik yazımı olmadan): kendi işleminde kapatır. Hata yutulmaz. */
+export async function fulfilPaidCheckouts(organizationId: string, consentId: string, now: Date = new Date()): Promise<number> {
+  const closed = await prisma.$transaction((tx) => fulfilPaidCheckoutsInTx(tx, organizationId, consentId, now));
+  await afterPaidCheckoutsFulfilled(organizationId, closed);
+  return closed.length;
 }
 
 export interface PaidCheckoutVerdict {

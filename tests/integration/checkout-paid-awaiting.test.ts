@@ -51,12 +51,13 @@ vi.mock("@/lib/billing/checkout-paid", async (orig) => {
       if (hook) await hook();
       return out;
     }),
-    fulfilPaidCheckouts: vi.fn(async (...args: Parameters<typeof actual.fulfilPaidCheckouts>) => {
+    // Kapanış artık abonelik yazımının İŞLEMİ içinde (Codex 11-25): arıza işlem içinden verilir.
+    fulfilPaidCheckoutsInTx: vi.fn(async (...args: Parameters<typeof actual.fulfilPaidCheckoutsInTx>) => {
       if (gate.failFulfilOnce) {
         gate.failFulfilOnce = false;
         throw new Error("kayıt kapatılamadı (test)");
       }
-      return actual.fulfilPaidCheckouts(...args);
+      return actual.fulfilPaidCheckoutsInTx(...args);
     }),
     recordPaidCheckout: vi.fn(async (...args: Parameters<typeof actual.recordPaidCheckout>) => {
       if (gate.failRecordOnce) {
@@ -800,24 +801,41 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(await invoices()).toBe(1);
     });
 
-    it("🚨 abonelik olayında kaydı kapatma adımı düşer → 500, ama 'ikinci abonelik' alarmı YİNE gider (yeniden gelen olayda koşulu görünmez olurdu)", async () => {
+    it("🚨 abonelik yazımı + kaydın kapanışı TEK İŞLEM (Codex 11-25): kapanış düşerse abonelik de YAZILMAZ (500); yeniden gelen olay ikisini birlikte yazar, 'ikinci abonelik' alarmı bir kez gider", async () => {
       // Kayıtlı canlı abonelik A; ikinci ödemenin (B) işlemi geldi, kaydı bekliyor.
       const a = await openCheckout();
       await postEvent("subscription.created", subData("sub_a", "active", a.body.consentId!));
       const consentB = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
       await postEvent("transaction.completed", txnData("txn_b", consentB.id));
       const rowB = () => prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: "txn_b" } });
+      const subRef = async () => (await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef;
       expect((await rowB()).status).toBe("completed");
 
       gate.failFulfilOnce = true;
       expect(await postEvent("subscription.created", subData("sub_b", "active", consentB.id))).toBe(500);
       const second = () => reportErrorMock.mock.calls.filter(([context]) => context === "paddle-webhook-second-subscription");
-      expect(second()).toHaveLength(1);
+      // Eskiden (iki ayrı yazım): abonelik B yazılmış, kayıt "bekliyor" kalmıştı. Artık ikisi birlikte geri alınır.
+      expect(await subRef()).toBe("sub_a");
       expect((await rowB()).status).toBe("completed");
-      // Olay yeniden gelir: abonelik zaten B; kayıt kapanır, alarm yinelenmez.
-      expect(await postEvent("subscription.updated", subData("sub_b", "active", consentB.id))).toBe(200);
+      expect(second()).toHaveLength(0);
+      // Olay yeniden gelir: aynı karar baştan verilir — abonelik B + kayıt kapanır + alarm (koşulu hâlâ görünür: satır A'ydı) bir kez.
+      expect(await postEvent("subscription.created", subData("sub_b", "active", consentB.id))).toBe(200);
+      expect(await subRef()).toBe("sub_b");
       expect((await rowB()).status).toBe("fulfilled");
       expect(second()).toHaveLength(1);
+    });
+
+    it("🚨 İLK abonelik satırı da aynı işlemde: kapanış düşerse abonelik satırı OLUŞMAZ; yeniden gelen olay ikisini yazar", async () => {
+      const first = await openCheckout();
+      await postEvent("transaction.completed", txnData("txn_c1", first.body.consentId!));
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      gate.failFulfilOnce = true;
+      expect(await postEvent("subscription.created", subData("sub_1", "active", first.body.consentId!))).toBe(500);
+      expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).toBeNull(); // satır oluşmadı (işlem geri alındı)
+      expect((await intentOf(orgId))!.status).toBe("completed");
+      expect(await postEvent("subscription.created", subData("sub_1", "active", first.body.consentId!))).toBe(200);
+      expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).toMatchObject({ providerRef: "sub_1", status: "active" });
+      expect((await intentOf(orgId))!.status).toBe("fulfilled");
     });
 
     it.each(["open", "opening", "expired", "canceled"])(
