@@ -580,7 +580,8 @@ Bu dosyaya token/anahtar/parola yazma.
 **Kurucu talimatları AYNEN — o işte her dilimden ÖNCE okunur:** `docs/KURUCU-TALIMATI-2026-11-18-codex-raporu-ve-orkestrasyon.md` (kurucu: "oraya
 bakıp bakıp ilerle") · `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md` · `docs/KURUCU-TALIMATI-2026-11-19-gece-raporuna-cevap.md` ·
 `docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md` · `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md` ·
-`docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md`.
+`docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md` ·
+`docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md`.
 **Çalışma düzeni (kurucu 11-18):** Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude
 yazar; kontrollerde alt ajan; acele yok.
 
@@ -598,7 +599,8 @@ KAPALI) · beş ajanlı optimizasyon / hata ayıklama turu — 11-20 şablon lis
 son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · Ö-1 · F-1 adım 1 · F-2 · Dikkat satırı üç satır · öğlen: CLAUDE.md
 sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 kurucu sorusu) · EMB pilotu · F-4 QR — özet `durum.md` (13) —
 11-21 gece turu (CI 1841, metinler, gece sayısı geçici kuralı) — 11-25 Codex raporu: on iddia teyit, ödeme iptali üç değerli + tek işlem,
-şifre sıfırlama / IP kovaları / günlük 2FA / kanal doğrulama düzeltmeleri, üç tasarım kurucu sorusunda — özet `durum.md` (14).
+şifre sıfırlama / IP kovaları / günlük 2FA / kanal doğrulama düzeltmeleri, üç tasarım kurucu sorusunda — özet `durum.md` (14) · akşam: iki
+ajanlı ürün fikirleri planı + üç küçük iş (çıkıştan önce açık konu · son bakım işi notu · temizlikçi gün sırası + ay sayımı) — `durum.md` (15).
 
 **Turlardan kurallar (Durum satırlarından, AYNEN):**
 - (11-11) Bağlantıyı / veriyi düşüren "kesin ret" kararı münhasırlık ister (kilit elde değilse ret belirsizdir — OAuth yenileme); uzunluk engeli
@@ -649,3 +651,6 @@ sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 k
   bütün testler taranır, araya girme `tests/helpers/tx-intercept.ts` ile kurulur ve her kanca ÇALIŞTIĞINI iddia eder.
 - (11-25) Ajanın sondayla "bulduğu" hata, sondanın kurduğu durum üründe oluşabiliyor mu diye ölçülür (çıplak mesaj satırı eklemek panelden cevap
   yazmak DEĞİLDİR — panel konuşma durumunu da değiştirir).
+- (11-25 akşam) İstek yoluna yeni okuma eklerken ardışık tur eklenmez: okuma, girdisi belli olur olmaz (gerekirse geniş aday kümesiyle)
+  başlatılıp sonda beklenir (`request-path-queries` derinlik pini; sınır büyütülmez). Bir satır başka satırları yutuyorsa yutulanın taşıdığı
+  bilgi (söz saati, onaylı saat) yeni satırda aranır.

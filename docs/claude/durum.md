@@ -903,3 +903,15 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   BAŞ bariyeri (`beginQueryCount`): ilk tam kapıda `alerts-message-window-bounded` bir kez 8 yerine 9 sorgu saydı — fazladan satır sayaç
   açılmadan önceki fikstür `UPDATE`inin geç gelen olayıydı (yük altında 200 turda 1 yakalandı; düzeltmeyle 800 turda 0). Aynı açık
   `query-probe.ts`te de vardı (sonda sabit 20 ms, başta hiçbir şey) — iki uç bariyerli. Ürün kodu değişmedi.
+
+## (15) 11-25 akşam — fikir ajanları + üç küçük iş (K26)
+
+- Kurucu (AYNEN `docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md`): iki Fable ajanı karşılıklı yazışıp ürün fikirleri planı çıkardı
+  (`docs/PLAN-2026-11-25-urun-fikirleri-iki-ajan.md` + sıra tablosu; 15 "bugün yok / var" iddiası kodda doğrulandı) → kurucu "3'ünü de ekle".
+- Üç iş yazıldı (migration / anahtar / model YOK; misafire giden değişmedi): Dikkat panelinde çıkıştan önce açık konu tek satır
+  (`incidents/departure-open.ts`) · Görevler'de "Bu dairede son bakım işi" + kapanışta isteğe bağlı not (`tasks/last-maintenance*.ts`) ·
+  Girişler'de temizlik sırası önerisi (`tasks/day-order*.ts`) + Raporlar'da temizlikçi başına ay sayımı (`getCleanerMonthCounts`).
+- Ana oturum düzeltmeleri: söz saati birleşik satırda kalır · geçmiş çıkış saati yazılmaz · onaylı geç çıkış saati (sert inceleme P2) ·
+  emoji bölünmez. Sert inceleme `docs/INCELEME-2026-11-25-uc-kucuk-is-sert-kontrol.md` (P1 yok).
+- Aynı gün: depo bir süre private kaldı → CI işleri çalıştırıcısız 2 sn'de düştü (kurucu public yaptı); CI 1845 kırmızısı sabit 50 ms
+  bekleyen bildirim testiydi (`vi.waitFor`).

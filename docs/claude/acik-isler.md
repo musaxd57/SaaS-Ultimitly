@@ -338,3 +338,13 @@ başlasın mı; kapı kodu model düşünürken değişirse cevap bir kez yenide
 `docs/TASARIM-2026-11-25-gonderim-oncesi-yetki-kontrolu.md` · **AD-S1…S4** acil durdurma (salt okunur kapsam tablosu; genel anahtar kapalıyken
 QR'daki yapay zekâ da sussun mu; tek şalter) `docs/TASARIM-2026-11-25-acil-durdurma-kapsami.md` · **IP-1** ortak ağda şifre kodu isteme tavanı
 12 → 5 (doğrulamaya 7 ayrıldı) uygun mu · **ÖD-4** yeni ödeme sözleşmesinin gerçek Paddle sandbox denemesi (açılışta, kurucuyla).
+
+**11-25 (2) — üç küçük işten kurucuya sorular (örnekli hâlleri tasarım notlarında):** **Ç-1** çıkış satırında gecikmiş söz ayrıca
+belirtilsin mi ("sıcak su (söz bugün 14:00 · gecikti)") · **Ç-2** 48 saatten eski açık söz de çıkıştan önce hatırlatılsın mı (bir ek okuma) ·
+**B-1** usta / temizlikçi kendi bakım kartında "son bakım işi" satırını görsün mü (bugün yalnız yönetici — not serbest metin) · **B-2** satır
+tamamlanmış bakım kartında da çıksın mı · **B-3** ikinci yüzey: Dikkat panelindeki tekrarlayan sorun satırında da gösterilsin mi (okuma hazır) ·
+**T-1** erken giriş isteyen daire saatten bağımsız öne mi geçsin (bugün evet) · **T-2** atanmamış temizliklerin sırası gösterilsin mi (bugün
+evet) · **T-3** sayımda "kim yaptı" = atanan kişi (bugün) mi, "bitti"yi işaretleyen mi · **T-4** "giriş hazırlığı" görevleri de temizlik
+sayılsın mı (bugün hayır) · **T-5** sıra önerisi temizlikçinin kendi gün görünümünde de çıksın mı (bugün yalnız Girişler / yönetici).
+Fikir planından kalan: Meta (WhatsApp) kurulumu · yorumlardan "bilinen sorunlar" öne alınsın mı · QR'da Wi-Fi adı kartı · Hospitable'sız
+denemede "ödeme anı" (`docs/PLAN-2026-11-25-urun-fikirleri-iki-ajan.md`).
