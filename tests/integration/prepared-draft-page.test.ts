@@ -154,6 +154,34 @@ describe("konuşma sayfası — hazır taslak bağlantısı", () => {
     expect(initialDraftOf(await render(conversationId))).toMatchObject({ messageId: ids[0], reply: DRAFT });
   });
 
+  it("K27-K2: AYNI zaman damgalı iki misafir mesajı → taslak `(createdAt, id)` sırasının SONUNDAKİNDEN (yapay zekâ tarafıyla aynı)", async () => {
+    // Satırlar kimlik sırasının TERSİNE eklenir: yalnız `createdAt` ile okuyan sorgu eşitlikte ekleme sırasını döndürür ve
+    // listenin sonuna "a" düşer; `(createdAt, id)` sırası "z"yi sona koyar (yapay zekâ tarafı `channel-thread-window` da öyle okur).
+    const { orgId, conversationId } = await seed([]);
+    const at = new Date(Date.now() - 5 * 60_000);
+    for (const [id, body, draft] of [
+      ["msg-z-tie", "Wi-Fi şifresi nedir?", "Taslak Z"],
+      ["msg-a-tie", "IBAN'ınızı atar mısınız?", "Taslak A"],
+    ] as const) {
+      await prisma.message.create({
+        data: {
+          id,
+          conversationId,
+          direction: "inbound",
+          senderName: "Ada",
+          authorType: "guest",
+          body,
+          createdAt: at,
+          aiSuggestedReply: draft,
+          aiIntent: "general",
+          aiConfidence: 0.9,
+        },
+      });
+    }
+    mockAuth.mockResolvedValue(session(orgId, "owner"));
+    expect(initialDraftOf(await render(conversationId))).toMatchObject({ messageId: "msg-z-tie", reply: "Taslak Z" });
+  });
+
   it("mülkün giriş/çıkış saatleri uyarıya girer: standart çıkış saatini söyleyen taslak uyarısız (saat mülkünkiyle birebir)", async () => {
     const { orgId, conversationId } = await seed([
       { direction: "inbound", body: "Çıkış saati kaçta?", draft: "Çıkış günü saat 11:00'e kadar kalabilirsiniz.", intent: "checkout" },

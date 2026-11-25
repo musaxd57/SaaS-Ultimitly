@@ -112,7 +112,9 @@ export default async function ConversationPage({
           totalAmountDec: true,
         },
       },
-      messages: { orderBy: { createdAt: "asc" } },
+      // `(createdAt, id)` — yapay zekâ tarafının sırası (`channel-thread-window`): aynı milisaniyedeki iki mesajda hazır taslak, son
+      // misafir mesajı ve uzunluk kontrolü AYNI mesaja bakar (K27-K2; eskiden eşitlikte veritabanının döndürdüğü sıra belirliyordu).
+      messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
   });
   if (!conversation) notFound();

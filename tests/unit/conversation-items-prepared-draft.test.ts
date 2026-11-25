@@ -83,3 +83,14 @@ describe("preparedDraftOf — müsaitlik uyarısı yeniden hesaplanır (takvim k
     expect(answered?.availabilityCheck).toBeNull();
   });
 });
+
+describe("preparedDraftOf — girdi sırası seçimi belirler (K27-K2: çağıran kesin sıra vermeli)", () => {
+  it("aynı zaman damgalı iki misafir mesajı: iki geçerli eşit-zaman sıralaması FARKLI taslak seçer", () => {
+    // Saf işlev zamanı okumaz, listenin SONUNA bakar; eşit `createdAt`te sırayı çağıranın sorgusu belirler. Konuşma sayfası
+    // `(createdAt, id)` ile okur (yapay zekâ tarafının `channel-thread-window` sırasıyla aynı) — pin `prepared-draft-page.test.ts`.
+    const a = m("a", "inbound", "IBAN?", "Taslak A", "general");
+    const z = m("z", "inbound", "Wi-Fi?", "Taslak Z", "general");
+    expect(preparedDraftOf([a, z], opts)?.messageId).toBe("z");
+    expect(preparedDraftOf([z, a], opts)?.messageId).toBe("a");
+  });
+});
