@@ -9,6 +9,7 @@ import { formatDayInTz, formatTime, safeJsonParse } from "@/lib/utils";
 import { nightsBetween, todayKey } from "@/modules/availability/core";
 import { taskDueReading } from "./due-at";
 import { cleanerTaskTitle } from "./staff-view";
+import { lastMaintenanceLine, type LastMaintenance } from "./last-maintenance";
 
 /**
  * Vadenin SAATİ yalnız gerçek bir anda anlamlıdır (09-26). Yaşam döngüsü görevinin vadesi rezervasyon TARİHİDİR — "yalnız
@@ -70,6 +71,8 @@ export function taskCardData(
     blocked?: { by: string | null; at: Date; reason: string | null } | null;
     /** Temizlik görevinin konaklamasının çıkış saati (mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi) + onaylı geç çıkış mı. */
     checkout?: { time: string; lateApproved: boolean; departureKey: string } | null;
+    /** Görevin dairesindeki en son kapanmış bakım işi (`last-maintenance.ts`; sayfa toplu okur). */
+    lastMaintenance?: LastMaintenance | null;
   },
 ): TaskCardData {
   const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
@@ -103,6 +106,12 @@ export function taskCardData(
     checkoutNote:
       t.type === "cleaning" && ctx.checkout && due?.key === ctx.checkout.departureKey
         ? `Misafir çıkışı ${ctx.checkout.time}${ctx.checkout.lateApproved ? " · geç çıkış onaylı" : ""}`
+        : null,
+    // "Son bakım işi" (plan madde 9): yalnız AÇIK bakım kartında ve yalnız yönetici görünümünde — not serbest metindir (misafir adı /
+    // şikâyet ayrıntısı taşıyabilir), personel o eski göreve atanmamış olabilir (`staff-view.ts` ilkesi, dar taraf).
+    lastMaintenance:
+      ctx.canManage && t.type === "maintenance" && t.status !== "done" && ctx.lastMaintenance
+        ? lastMaintenanceLine(ctx.lastMaintenance, ctx.timeZone, ctx.now)
         : null,
   };
 }

@@ -35,6 +35,8 @@ export interface TaskCardData {
   blocked?: string | null;
   /** Temizlik görevinde misafirin çıkış saati ("Misafir çıkışı 14:00 · geç çıkış onaylı") — temizlik bundan sonra başlar. */
   checkoutNote?: string | null;
+  /** Açık bakım kartında dairenin son kapanmış bakım işi ("Bu dairede son bakım işi: 17 Mayıs — 'reset yapıldı' (Ahmet)"); yalnız yönetici. */
+  lastMaintenance?: string | null;
 }
 
 // The three Kanban columns. A card lands in exactly one: explicit todo / done,
@@ -159,13 +161,26 @@ export function TaskBoard({
     return true;
   }
 
-  async function setStatus(id: string, status: string) {
+  /**
+   * "Son bakım işi" notu (plan madde 9): bakım görevi kapanırken "ne yapıldı" İSTENİR ama zorunlu DEĞİLDİR. Kartın not kutusunda
+   * kaydedilmemiş yazı varsa durumla AYNI istekte gider (sunucu tek satır yazar: kim + ne zaman + not). Not kutusu o an kendi kaydını
+   * yapıyorsa (blur) yazı ikinci kez gönderilmez. Yazı yoksa istek eskisi gibi `{ status }`.
+   */
+  function closingNote(id: string, status: string, card?: Pick<TaskCardData, "type" | "status">): string {
+    if (status !== "done" || card?.type !== "maintenance" || card.status === "done" || savingNotes.current.has(id)) return "";
+    return noteMapRef.current[id]?.trim() ?? "";
+  }
+
+  async function setStatus(id: string, status: string, card?: Pick<TaskCardData, "type" | "status" | "latestNote">) {
     setBusyId(id);
+    const note = closingNote(id, status, card);
+    // Kutuda yazı varken (ör. blur kaydı sürüyor) "isterseniz not ekleyin" denmez — not zaten yolda.
+    const typed = !!noteMapRef.current[id]?.trim();
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(note ? { status, note } : { status }),
       });
       if (!res.ok) {
         if (await handledStaleAssignment(res)) return;
@@ -173,6 +188,14 @@ export function TaskBoard({
         // tell the user why the change didn't stick.
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
         return;
+      }
+      if (note) {
+        // Gönderilen yazı hâlâ kutudaysa temizlenir (bu arada değiştiyse yeni yazı korunur — `saveNote` ile aynı kural).
+        if (noteMapRef.current[id]?.trim() === note) setNoteValue(id, "");
+      } else if (status === "done" && card?.type === "maintenance" && card.status !== "done" && !card.latestNote && !typed) {
+        // Not yazılmadan kapandı → kart açılır, not kutusu "Ne yapıldı? (isteğe bağlı)" ile görünür. Engel / ek soru yok.
+        setExpanded((prev) => new Set(prev).add(id));
+        toast.info("Görev tamamlandı. İsterseniz ne yapıldığını karta not olarak ekleyin.");
       }
       startTransition(() => router.refresh());
     } catch {
@@ -186,7 +209,8 @@ export function TaskBoard({
    * Atanan kişi: tek dokunuşla "Bitti" (kurucu 11-05 gece akışı: "Başladım → Bitti"). "Bitti" kaydı dairenin hazır olduğunun kanıtıdır
    * (Girişler / erken giriş kararı) — yanlışlıkla basılmasın diye bir kez sorulur. "Başladım" sorulmaz (zararsız).
    */
-  async function markDone(id: string, type: string) {
+  async function markDone(card: Pick<TaskCardData, "id" | "type" | "status" | "latestNote">) {
+    const { id, type } = card;
     const ok = await confirmDialog({
       title: "İş bitti mi?",
       // Temizlikte "bitti" dairenin hazırlık kanıtıdır; başka işte yalnız işin bittiği görülür (Haiku 11-06).
@@ -194,7 +218,7 @@ export function TaskBoard({
       confirmLabel: "Evet, bitti",
       cancelLabel: "Vazgeç",
     });
-    if (ok) await setStatus(id, "done");
+    if (ok) await setStatus(id, "done", card);
   }
 
   /**
@@ -472,6 +496,8 @@ export function TaskBoard({
             </p>
           ) : null}
           {t.checkoutNote && t.status !== "done" ? <p className="break-words font-medium text-foreground">{t.checkoutNote}</p> : null}
+          {/* Plan madde 9: dairenin son kapanmış bakım işi (yalnız yönetici, yalnız açık bakım kartı — `card-data.ts`). */}
+          {t.lastMaintenance ? <p className="break-words">{t.lastMaintenance}</p> : null}
           {t.checklist ? (
             <p className="flex items-center gap-1">
               <CheckSquare className="size-3" /> {t.checklist.items.filter((c) => c.done).length}/
@@ -500,7 +526,7 @@ export function TaskBoard({
         <Select
           value={t.status === "blocked" ? "blocked" : columnOf(t.status)}
           disabled={busyId === t.id}
-          onChange={(e) => setStatus(t.id, e.target.value)}
+          onChange={(e) => setStatus(t.id, e.target.value, t)}
           className="mt-2 h-10 text-xs sm:h-9"
           // Görsel bir etiketi yok (kart zaten dar) — ekran okuyucu için HANGİ
           // görevin durumu olduğu da söylenir, yoksa 20 kartta 20 tane
@@ -541,7 +567,7 @@ export function TaskBoard({
         {!canManage && t.status !== "done" ? (
           <button
             type="button"
-            onClick={() => (t.status === "in_progress" ? void markDone(t.id, t.type) : void setStatus(t.id, "in_progress"))}
+            onClick={() => (t.status === "in_progress" ? void markDone(t) : void setStatus(t.id, "in_progress"))}
             disabled={busyId === t.id}
             className="mt-2 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
@@ -611,7 +637,7 @@ export function TaskBoard({
 
             {/* Note input */}
             <textarea
-              placeholder="Not ekleyin…"
+              placeholder={t.type === "maintenance" ? "Ne yapıldı? (isteğe bağlı)" : "Not ekleyin…"}
               aria-label={`Görev notu: ${t.title}`}
               value={noteMap[t.id] ?? ""}
               onChange={(e) => {

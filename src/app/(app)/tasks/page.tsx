@@ -18,6 +18,8 @@ import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { latestRenderablePhotoByTask } from "@/lib/storage/keys";
 import { taskCardData } from "@/lib/tasks/card-data";
 import { TASK_BOARD_INCLUDE } from "@/lib/tasks/board-include";
+import { lastClosedMaintenanceByProperty } from "@/lib/tasks/last-maintenance-query";
+import type { LastMaintenance } from "@/lib/tasks/last-maintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -151,7 +153,11 @@ export default async function TasksPage({
   // Temizlik kartında misafirin çıkış saati (kurucu 11-05 gece: geç çıkış onayı temizlik saatine bağlanır). Hazırlık hükmüyle AYNI kural:
   // mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi. Kopya değil — rezervasyon / onay değişince kart kendiliğinden güncel.
   const cleaningResIds = [...new Set(tasks.filter((t) => t.type === "cleaning" && t.status !== "done" && t.reservationId).map((t) => t.reservationId as string))];
-  const [photoRows, blockedRows, checkoutByRes, members] = await Promise.all([
+  // "Son bakım işi" (plan madde 9): yalnız yönetici, yalnız ekrandaki AÇIK bakım görevlerinin daireleri — tek toplu sorgu.
+  const maintenancePropIds = canManage
+    ? [...new Set(tasks.filter((t) => t.type === "maintenance" && t.status !== "done").map((t) => t.propertyId))]
+    : [];
+  const [photoRows, blockedRows, checkoutByRes, members, lastMaintenanceByProp] = await Promise.all([
     // The LATEST PHOTO, which is not the same thing as the photo on the latest
     // update. Every note, photo and status change writes its own TaskUpdate row,
     // so a note saved after a photo produced a newer row carrying note-but-no-
@@ -182,6 +188,11 @@ export default async function TasksPage({
     canManage
       ? prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : [],
+    // Yardımcı satır: okunamazsa pano YİNE açılır, satır çizilmez (raporlanır).
+    lastClosedMaintenanceByProperty(session.organizationId, maintenancePropIds).catch((err) => {
+      void reportError("tasks-page.last-maintenance", err);
+      return new Map<string, LastMaintenance>();
+    }),
   ]);
   // Yalnız bu org'un gerçek yükleme yolları çizilir (09-23: eski dönemden kalan keyfi
   // aynı-kaynak yolu sahibin panosunda `<img src>` olarak TIKSIZ GET üretirdi).
@@ -199,6 +210,7 @@ export default async function TasksPage({
       latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null,
       blocked: blockedByTask.get(t.id) ?? null,
       checkout: t.reservationId ? (checkoutByRes.get(t.reservationId) ?? null) : null,
+      lastMaintenance: lastMaintenanceByProp.get(t.propertyId) ?? null,
     }),
   );
 
