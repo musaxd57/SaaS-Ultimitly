@@ -29,6 +29,18 @@ async function activeStay(propertyId: string) {
 }
 
 
+/** K27-K10 (c): Wi-Fi yalnız GÜNCEL kodla bağlanmış cihazın sohbetinde girer — kodu ver ve cihazın KODDAN SONRA bağlandığını kur
+ *  (rota bunu yalnız doğru kodla yapar; burada çözümleyici düzeyinde sınanıyor). */
+async function pinAndVerifiedDevice(reservationId: string): Promise<void> {
+  await setReservationPin(reservationId);
+  const row = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId }, select: { chatPinSetAt: true } });
+  await prisma.reservation.update({
+    where: { id: reservationId },
+    data: { chatBoundHash: "a".repeat(64), chatBoundAt: new Date(row.chatPinSetAt!.getTime() + 1_000) },
+  });
+}
+
+
 
 describe("resolveGuestChat (public QR concierge foundation)", () => {
   beforeEach(resetDb);
@@ -47,7 +59,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "rules", title: "Kural", content: "Sigara yok.", isActive: false },
       ],
     });
-    await setReservationPin((await activeStay(propertyId)).id);
+    await pinAndVerifiedDevice((await activeStay(propertyId)).id);
     const token = await enableChat(propertyId);
 
     const ctx = await resolveGuestChat(token);
@@ -90,10 +102,19 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     ctx = await resolveGuestChat(token);
     expect(ctx!.pinRequired).toBe(false);
     expect(JSON.stringify(ctx!.knowledgeBase)).not.toContain("SECRET123");
-    // Kod verilince → Wi-Fi girer.
+    // Kod verildi ama henüz hiçbir cihaz kodla bağlanmadı → yine yok (K27-K10 c: "kod isteniyor" tek başına yetmez).
     await setReservationPin(stay.id);
     ctx = await resolveGuestChat(token);
     expect(ctx!.pinRequired).toBe(true);
+    expect(JSON.stringify(ctx!.knowledgeBase)).not.toContain("SECRET123");
+    // Cihaz KODDAN ÖNCE (kodsuz) bağlanmış → yine yok.
+    const setAt = (await prisma.reservation.findUniqueOrThrow({ where: { id: stay.id }, select: { chatPinSetAt: true } })).chatPinSetAt!;
+    await prisma.reservation.update({ where: { id: stay.id }, data: { chatBoundHash: "a".repeat(64), chatBoundAt: new Date(setAt.getTime() - 1_000) } });
+    ctx = await resolveGuestChat(token);
+    expect(JSON.stringify(ctx!.knowledgeBase)).not.toContain("SECRET123");
+    // Cihaz kodla (koddan SONRA) bağlanınca → Wi-Fi girer.
+    await prisma.reservation.update({ where: { id: stay.id }, data: { chatBoundAt: new Date(setAt.getTime() + 1_000) } });
+    ctx = await resolveGuestChat(token);
     expect(JSON.stringify(ctx!.knowledgeBase)).toContain("SECRET123");
   });
 
@@ -108,7 +129,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "wifi", title: "Wifi kodu", content: "Wi-Fi kodu: 12345678 (ağ adı LaleNet)" },
       ],
     });
-    await setReservationPin((await activeStay(propertyId)).id);
+    await pinAndVerifiedDevice((await activeStay(propertyId)).id);
     const token = await enableChat(propertyId);
 
     const blob = JSON.stringify((await resolveGuestChat(token))!.knowledgeBase);

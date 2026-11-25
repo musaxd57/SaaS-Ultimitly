@@ -82,16 +82,48 @@ function safeEqualHex(a: string, b: string): boolean {
  */
 export async function setReservationPin(reservationId: string, now: Date = new Date()): Promise<string> {
   const pin = generatePin();
+  const pinData = {
+    chatPinHash: hashPin(reservationId, pin),
+    chatPinSetAt: now,
+    chatPinFailedCount: 0,
+    chatPinLockedUntil: null,
+  };
+  // 🚨 K27-K10 (a)+(b) (Codex 11-25 ikinci rapor; kurucu kararı 11-25 gece "Yeniden PIN sorulsun"): kod OLUŞTURMAK ya da YENİLEMEK
+  // konaklamanın cihaz bağını aynı yazımda siler. Eskiden yalnız özet değişiyordu: eski kodla (ya da kod yokken ilk tarayışla) bağlanmış
+  // cihaz yeni kodu bilmeden sohbeti okumaya / yazmaya ve Wi-Fi almaya devam ediyordu. Artık o cihaz bir sonraki istekte VAR OLAN kod
+  // ekranını görür (yeni metin yok) ve güncel kodu girince yeniden bağlanır. Böylece değişmez: "kod isteniyorken bağlı cihaz = güncel
+  // kodla bağlanmış" (`qrWifiDeviceVerified` aynı şeyi anlarla ayrıca denetler).
+  // Kodu KALDIRMAK (`clearReservationPin`) bağa dokunmaz: kısıt gevşer; bağı düşürmek sohbeti kodsuz ilk tarayana açardı.
   await prisma.reservation.update({
     where: { id: reservationId },
-    data: {
-      chatPinHash: hashPin(reservationId, pin),
-      chatPinSetAt: now,
-      chatPinFailedCount: 0,
-      chatPinLockedUntil: null,
-    },
+    data: { ...pinData, chatBoundHash: null, chatBoundAt: null },
   });
   return pin;
+}
+
+/**
+ * 🚨 K27-K10 (b) (kurucu kararı 11-25 gece): işletme "sohbet kodu iste"yi AÇINCA, o işletmede GÜNCEL kodla bağlanmamış her cihaz bağı
+ * silinir — kod yokken bağlanmış (ilk tarayış) ya da kod oluşturulmadan ÖNCE bağlanmış cihaz. Cihaz bir sonraki istekte var olan kod
+ * ekranını görür; konaklamada kod yoksa ev sahibi kod oluşturana kadar sohbet kapalı kalır (bugünkü "kod iste" davranışı, yeni cihazla
+ * aynı). Güncel kodla bağlanmış cihaz (bağ anı ≥ kod anı — `qrWifiDeviceVerified` ile aynı kural) DÜŞMEZ.
+ * Tek SQL cümlesi (iki sütun kıyası Prisma süzgecinde yazılamaz); işletme sınırı mülk üzerinden. Çağıran, ayarı yazan işlemin İÇİNDE çağırır.
+ * `QR_PIN_ENABLED` kapalıyken çağrılmaz: kod sorulmayan düzende bağı silmek sohbeti ilk tarayana açardı.
+ */
+export async function unbindDevicesNotVerifiedByCurrentPin(
+  db: Pick<typeof prisma, "$executeRaw">,
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  // `updatedAt` elle yazılır (ham SQL'de Prisma yazmaz) — cihaz sıfırlama rotasının `updateMany`'siyle aynı iz; uygulama saatiyle
+  // (veritabanı oturumunun saat dilimine bağlı NOW() değil).
+  return db.$executeRaw`
+    UPDATE "Reservation" AS r
+       SET "chatBoundHash" = NULL, "chatBoundAt" = NULL, "updatedAt" = ${now}
+      FROM "Property" AS p
+     WHERE r."propertyId" = p."id"
+       AND p."organizationId" = ${organizationId}
+       AND r."chatBoundHash" IS NOT NULL
+       AND (r."chatPinHash" IS NULL OR r."chatPinSetAt" IS NULL OR r."chatBoundAt" IS NULL OR r."chatBoundAt" < r."chatPinSetAt")`;
 }
 
 /** Remove a reservation's PIN (host disables it, or before regenerating). */

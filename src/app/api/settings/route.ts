@@ -12,6 +12,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 import { bumpAlertEmailGeneration } from "@/lib/alert-email-generation";
+import { qrPinEnabled, unbindDevicesNotVerifiedByCurrentPin } from "@/lib/guest-chat-pin";
 import {
   ALERT_ADDRESS_VERIFY_SUBJECT,
   alertEmailVerifyEnabled,
@@ -294,10 +295,20 @@ export const PATCH = withManage(async (session, req) => {
   // Uyarı adresi doğrudan değişiyor (ekip üyesi / temizleme): bekleyen doğrulama bağlantıları geçersizleşir — adres eski değerine
   // dönse de eski bağlantı canlanmaz (15 ajan A13 F2). Güncellemeden ÖNCE: artırma düşerse hiçbir şey değişmeden hata döner.
   if ("alertEmail" in update) await bumpAlertEmailGeneration(session.organizationId);
-  await prisma.organization.update({
-    where: { id: session.organizationId },
-    data: update,
-  });
+  // 🚨 K27-K10 (b) (kurucu kararı 11-25 gece "Yeniden PIN sorulsun"): "sohbet kodu iste" AÇIK kaydedilince, güncel kodla bağlanmamış
+  // QR cihaz bağları ayarla AYNI işlemde silinir (`unbindDevicesNotVerifiedByCurrentPin`) — eski telefon güncel kodu girene kadar sohbeti
+  // ve Wi-Fi'yi alamaz. Kod özelliği kapalıyken (`QR_PIN_ENABLED`) ayar etkisizdir → bağa dokunulmaz.
+  if (update.qrChatPinRequired === true && qrPinEnabled()) {
+    await prisma.$transaction(async (tx) => {
+      await tx.organization.update({ where: { id: session.organizationId }, data: update });
+      await unbindDevicesNotVerifiedByCurrentPin(tx, session.organizationId);
+    });
+  } else {
+    await prisma.organization.update({
+      where: { id: session.organizationId },
+      data: update,
+    });
+  }
 
   // ── DENETİM İZİ (gözlemlenebilirlik turu, 08-06) ──────────────────────────
   //

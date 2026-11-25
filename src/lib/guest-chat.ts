@@ -1525,6 +1525,31 @@ export function escalationReply(_opts?: { critical?: boolean }): string | null {
   return null;
 }
 
+/**
+ * 🚨 K27-K10 (c) (Codex 11-25 ikinci rapor): QR'da Wi-Fi kalemi modele YALNIZ bu konaklamanın GÜNCEL sohbet koduyla bağlanmış cihazın
+ * sohbetinde girer. Eskiden koşul yalnız "bu konaklamada şu an kod isteniyor mu"ydu (`pinRequired`): kod yokken ilk tarayışla bağlanmış
+ * cihaz, sonradan konaklamaya kod verilince ya da işletme "kod iste"yi açınca Wi-Fi'yi alıyordu — oysa o cihaz hiç kod girmedi.
+ *
+ * Şemasız çıkarım: kod isteniyorken bağ YALNIZ doğru kod girilerek kurulabilir (rota `allowClaim: false`; tek sahiplenme yolu
+ * `handlePinUnlock` → `verifyReservationPin` ok), ve kodu yenilemek bağı siler (`setReservationPin`). Öyleyse bağın kuruluş anı GÜNCEL
+ * kodun oluşturulduğu andan önce değilse bağ o kodla kurulmuştur. Bağ koddan ÖNCE kurulduysa (kodsuz ilk tarayış) ya da konaklamada kod
+ * hiç yoksa (işletme "kod iste" açık, kod verilmemiş — o hâlde sohbet ancak "kod iste" öncesinden kalan cihazla sürer) Wi-Fi girmez;
+ * Wi-Fi sorusu ev sahibine kalır (kod istenmeyen konaklamanın bugünkü yolu, U1 b — misafire yeni metin yok).
+ * Eşit an "sonra" sayılır: kodsuz bağ ile kod aynı milisaniyede olamaz (kod ev sahibinden misafire ayrı bir mesajla gider).
+ * Bilinen sınır: `QR_PIN_ENABLED` kapalıyken (kod sorulmaz) kod oluşturulduktan sonra kodsuz bağlanan cihaz, anahtar yeniden açılınca
+ * doğrulanmış görünür — bayrak üretimde kapalı, açılış tek yönlü; ayrıntı `docs/INCELEME-2026-11-25-k27-C1.md`.
+ * Rota yalnız bağlı cihazla ("match") ilerler; burada bakılan bağ, isteği yapan cihazın bağıdır.
+ */
+export function qrWifiDeviceVerified(
+  row: { chatPinHash: string | null; chatPinSetAt: Date | null; chatBoundHash: string | null; chatBoundAt: Date | null },
+  pinRequired: boolean,
+): boolean {
+  if (!pinRequired) return false;
+  if (!row.chatPinHash || !row.chatPinSetAt) return false;
+  if (!row.chatBoundHash || !row.chatBoundAt) return false;
+  return row.chatBoundAt.getTime() >= row.chatPinSetAt.getTime();
+}
+
 export async function resolveGuestChat(
   token: string,
   now: Date = new Date(),
@@ -1612,6 +1637,10 @@ export async function resolveGuestChat(
       status: true,
       channel: true,
       chatPinHash: true,
+      // K27-K10 (c): yalnız `qrWifiDeviceVerified` için (bağ / kod ANLARI + bağın varlığı); dışarı verilen biçime girmez.
+      chatPinSetAt: true,
+      chatBoundHash: true,
+      chatBoundAt: true,
       sourceReference: true,
     },
   });
@@ -1733,10 +1762,12 @@ export async function resolveGuestChat(
   // Wi-Fi kalemi modele HİÇ girmez. O durumda sohbeti giriş saatinden sonra ilk açan cihaz bağlanır — bağlantıyı saklayan eski misafir /
   // temizlikçi de olabilir. Wi-Fi sorusu ev sahibine kalır (model bilgiyi bilmez → "bilgim yok" misafire gitmez, devir). Kodla açılan
   // konaklamada Wi-Fi bugünkü gibi verilir (↑dosya başı istisna). Kapı kodu her durumda zaten yok.
+  // 🚨 K27-K10 (c): "kodla açılan" = bağlı cihaz GÜNCEL kodla bağlanmış (`qrWifiDeviceVerified`); yalnız "kod isteniyor" yetmez.
+  const wifiAllowed = qrWifiDeviceVerified(activeRow, pinRequired);
   const kb = await fetchKnowledgeBaseForPrompt({
     propertyId: property.id,
     isActive: true,
-    category: { notIn: pinRequired ? [...QR_SECRET_CATEGORIES] : [...QR_SECRET_CATEGORIES, "wifi"] },
+    category: { notIn: wifiAllowed ? [...QR_SECRET_CATEGORIES] : [...QR_SECRET_CATEGORIES, "wifi"] },
   });
   const { items: kbRaw, dropped: kbDropped } = kb;
   // Drop any item whose text looks like an access secret, even in an allowed
