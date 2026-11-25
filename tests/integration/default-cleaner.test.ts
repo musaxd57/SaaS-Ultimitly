@@ -243,7 +243,8 @@ describe("dairenin temizlikçisi", () => {
     expect(mail.sent).toHaveLength(0);
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     await put(propertyId, { userId: ayse.id, moveOpen: true });
-    await new Promise((res) => setTimeout(res, 50));
+    // Bildirimler yanıttan SONRA, arka planda gider: sabit 50 ms yavaş makinede yetmedi (CI 1845: iki e-postadan biri henüz yoktu).
+    await vi.waitFor(() => expect(mail.sent.length).toBeGreaterThanOrEqual(2), { timeout: 10_000, interval: 10 });
     const byTo = Object.fromEntries(mail.sent.map((m) => [m.to, m.subject]));
     expect(Object.keys(byTo).sort()).toEqual(["ayse-dc@example.test", "mehmet-dc@example.test"]);
     expect(byTo["ayse-dc@example.test"].startsWith("Yeni Görev: ")).toBe(true);
@@ -326,7 +327,7 @@ describe("dairenin temizlikçisi", () => {
     vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
     const r2 = await reservation(addNights(TODAY, 4), addNights(TODAY, 6), "Deniz Yılmaz");
     await createReservationTasks(r2.id);
-    await new Promise((r) => setTimeout(r, 50));
+    await vi.waitFor(() => expect(mail.sent.length).toBeGreaterThanOrEqual(1), { timeout: 10_000, interval: 10 }); // arka planda gider (CI 1845)
     expect(mail.sent.map((m) => m.to)).toEqual(["ayse-dc@example.test"]);
     expect(mail.sent[0].subject.startsWith("Yeni Görev: ")).toBe(true);
     expect(mail.sent[0].subject).not.toContain("Deniz");
@@ -340,6 +341,8 @@ describe("dairenin temizlikçisi", () => {
       const r = await reservation(addNights(TODAY, 1 + i * 2), addNights(TODAY, 2 + i * 2), `R${i}`);
       await createReservationTasks(r.id);
     }
+    // Önce onuncu e-posta gelene kadar bekle (arka planda gider, CI 1845), sonra on birincinin GELMEDİĞİNİ görmek için kısa bekle.
+    await vi.waitFor(() => expect(mail.sent.filter((m) => m.to === "ayse-dc@example.test").length).toBeGreaterThanOrEqual(10), { timeout: 10_000, interval: 10 });
     await new Promise((r) => setTimeout(r, 50));
     expect(mail.sent.filter((m) => m.to === "ayse-dc@example.test")).toHaveLength(10);
     expect(await prisma.task.count({ where: { type: "cleaning", assignedToId: ayse.id } })).toBe(12);
