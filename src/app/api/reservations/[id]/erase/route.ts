@@ -45,6 +45,12 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
       actorUserId: auditActor(session),
     });
     if (!scope) return notFound();
+    // K8: silme COMMIT OLDU ama commit sonrası doğrulama geçişi arızalandı (arıza raporlandı). Genel 500 DEĞİL: gövde silmenin kalıcı
+    // olduğunu söyler (`erased: true`) ve tekrar güvenlidir — aynı istek ikinci denetim kaydı yazmaz, doğrulamayı yeniden koşar. Durum
+    // kodu başarısız kalır (503) ki bugünkü ekran "tekrar deneyin" desin ve doğrulama tamamlansın (ekran metni değişmedi — kurucu sorusu).
+    if (!scope.verified) {
+      return jsonOk({ ok: false, erased: true, verified: false, retryable: true, scope }, 503);
+    }
     return jsonOk({ ok: true, scope });
   } catch (err) {
     return serverError(undefined, err);

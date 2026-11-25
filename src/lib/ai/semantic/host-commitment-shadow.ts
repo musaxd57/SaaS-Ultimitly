@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { detectHostPromises } from "@/lib/ai-suggestions/core";
 import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import { ANON_NAME } from "@/lib/anon-sentinels";
 import { runShadowPass, type ShadowLayerSpec, type ShadowPassResult } from "@/lib/semantic-reading/shadow-pass";
 import { semanticApiKey } from "./config";
 import { HOST_COMMITMENT_READER_SYSTEM_PROMPT, hostCommitmentReaderFlag, readHostCommitments, type HostCommitmentReaderResult } from "./host-commitment-reader";
@@ -92,6 +93,8 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
     // Misafir adı maskesi öteki anlam katmanlarıyla AYNI üç kaynaktan (G1 T2-B7): konuşmanın görünen adı + rezervasyonun iki adı. Görünen
     // ad rezervasyon kodu olabilir ("Rezervasyon <kod>"); yalnız onunla maskelenen metinde misafirin adı modele açık giderdi. Rezervasyon
     // yalnız AYNI işletmenin dairesindeyse okunur (kiracı kapsamı); rezervasyonsuz konuşma aday olmaya devam eder (LEFT JOIN).
+    // Maskeli (silinmiş / saklama süresi dolmuş) konaklamanın mesajı aday DEĞİL (K22): silme okumaları siler → "okunmamış" görünür; yazıcı
+    // geç sonucu reddettiği için (`semantic-reading/store.ts`) süzgeç sorguda olmasa aday her turda yeniden model çağırırdı.
     candidates: ({ since, now, limit }) =>
       prisma.$queryRaw<Candidate[]>(Prisma.sql`
         SELECT m."id", m."body", m."conversationId", p."organizationId", c."guestIdentifier", r."guestName", r."guestGivenName"
@@ -105,6 +108,7 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
           AND m."createdAt" >= ${since}
           AND m."createdAt" <= ${now}
           AND p."organizationId" <> ${DEMO_ORG_ID}
+          AND (c."reservationId" IS NULL OR NOT EXISTS (SELECT 1 FROM "Reservation" er WHERE er."id" = c."reservationId" AND er."guestName" = ${ANON_NAME}))
           AND NOT EXISTS (SELECT 1 FROM "SemanticReading" r WHERE r."messageId" = m."id" AND r."layer" = ${LAYER})
         ORDER BY m."createdAt" ASC, m."id" ASC
         LIMIT ${limit}

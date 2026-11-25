@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { writeAuditInTx } from "@/lib/audit";
+import { lockStayForGuestDerivedWrite } from "@/lib/erasure";
 import { INTERNAL_NOTE_PAGE_MAX, canDeleteInternalNote, checkInternalNoteBody, internalNoteAuthorName } from "./core";
 
 // ---------------------------------------------------------------------------
@@ -161,7 +162,13 @@ function sameRequest(
   return stored.body === body && stored.propertyId === b.propertyId && stored.reservationId === b.reservationId && stored.conversationId === b.conversationId;
 }
 
-const REPLAY_SELECT = { ...VIEW_SELECT, propertyId: true, reservationId: true, conversationId: true } as const;
+/**
+ * Not yazma işleminin süre sınırı (K22): konaklama satırı kilidi, o konaklamanın silmesini ya da satırı güncelleyen bir senkron işlemini
+ * BEKLEYEBİLİR — Prisma'nın 5 sn varsayılanı kısa beklemeyi 500'e çevirirdi (QR yazma işlemiyle aynı sınır).
+ */
+const NOTE_WRITE_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+
+const REPLAY_SELECT ={ ...VIEW_SELECT, propertyId: true, reservationId: true, conversationId: true } as const;
 
 /**
  * Not ekler. Yazan oturumdaki kişidir; adı o anki `User.name`'den kopyalanır (kişi bulunamazsa — silinmiş — oturumdaki ad).
@@ -203,6 +210,10 @@ export async function createInternalNote(input: {
   const author = await prisma.user.findUnique({ where: { id: input.viewer.userId }, select: { id: true, name: true } });
   try {
     const created = await prisma.$transaction(async (tx) => {
+      // K22 (Codex 11-25): misafir silmesi konaklamanın notlarını siler ama konaklama satırı (maskeli) kalır — silmeyle yarışan ya da
+      // silmeden sonra gelen not, silinmiş konaklamaya misafirin adını / numarasını GERİ yazıyordu. Konaklama satırı bu işlemde kilitlenir
+      // ve maske işlem içinde okunur (`erasure.ts` "GEÇ GELEN YAZIM SINIRI"); maskeliyse not yazılmaz → "bulunamadı" (misafirin verisi yok).
+      if (binding.reservationId && (await lockStayForGuestDerivedWrite(tx, binding.reservationId))) return null;
       const note = await tx.internalNote.create({
         data: {
           organizationId: input.organizationId,
@@ -229,7 +240,8 @@ export async function createInternalNote(input: {
         },
       });
       return note;
-    });
+    }, NOTE_WRITE_TX);
+    if (!created) return { kind: "not_found" };
     return { kind: "created", note: toView(created, input.viewer) };
   } catch (err) {
     if (requestId && isUniqueViolation(err, ["organizationId", "clientRequestId"])) {

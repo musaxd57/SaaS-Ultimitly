@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { lockConversationStayForGuestDerivedWrite } from "@/lib/erasure";
 
 // ---------------------------------------------------------------------------
 // ANLAM OKUMASI GÖLGE KAYDI — TEK YAZICI (migration 99; kurucu 11-18 akşam: "anlamı model güçlerine bırak … doğru anlandığına dair anlama
@@ -66,15 +67,26 @@ type Db = PrismaClient | Prisma.TransactionClient;
 /**
  * Okumayı kaydet. Dönüş: BU çağrı satırı yazdı mı (aynı mesaj + katman için satır zaten varsa `false` — tekillik; hata değil).
  * Konuşma arada silindiyse (yabancı anahtar) fırlatır; çağıran en iyi çaba olarak yutar (gölge kaydı hiçbir akışı durdurmaz).
+ * 🚨 GEÇ GELEN SONUÇ (K22, Codex 11-25): model okuması saniyeler sürer; o arada konaklamanın misafir verisi silinirse (silme bu tablonun
+ * satırlarını siler, konuşmayı maskeleyip TUTAR) sonuç silinmiş konuşmaya yeniden yazılıyordu. Yazım, konuşmanın konaklama satırını aynı
+ * işlemde paylaşımlı kilitleyip maskeyi okur (`erasure.ts` "GEÇ GELEN YAZIM SINIRI"); maskeliyse yazılmaz (`false`). Aday sorguları
+ * maskeli konaklamanın mesajlarını zaten seçmez (aksi hâlde reddedilen aday her turda yeniden model çağırırdı).
  */
 export async function recordSemanticReading(db: Db, input: SemanticReadingInput): Promise<boolean> {
+  // Çağıran bir işlem verdiyse kilit O işlemde alınır (ayrı işlem açıp aynı satırı kendi kendine bekleme yok); değilse kısa bir işlem açılır.
+  if ("$transaction" in db) return db.$transaction((tx) => writeGuarded(tx, input), { timeout: 30_000, maxWait: 10_000 });
+  return writeGuarded(db, input);
+}
+
+async function writeGuarded(tx: Prisma.TransactionClient, input: SemanticReadingInput): Promise<boolean> {
+  if (await lockConversationStayForGuestDerivedWrite(tx, input.conversationId)) return false;
   let detailJson: string | null = null;
   if (input.detail !== undefined && input.detail !== null) {
     const json = JSON.stringify(input.detail);
     if (json.length <= SEMANTIC_DETAIL_MAX) detailJson = json;
   }
   const latency = typeof input.latencyMs === "number" && Number.isFinite(input.latencyMs) ? Math.max(0, Math.round(input.latencyMs)) : null;
-  const res = await db.semanticReading.createMany({
+  const res = await tx.semanticReading.createMany({
     data: [
       {
         organizationId: input.organizationId,

@@ -228,6 +228,59 @@ export async function acquireErasureLock(tx: Prisma.TransactionClient, organizat
 }
 
 // ---------------------------------------------------------------------------
+// GEÇ GELEN YAZIM SINIRI (K22, Codex 11-25): silme konaklama / konuşma satırlarını SİLMEZ, maskeler. Bu yüzden silme sırasında
+// yolda olan bir yazım (iç not isteği, model okuması süren gölge kaydı) silme bittikten SONRA aynı konaklamaya misafir türevi veri
+// yazabiliyordu — silme yalnız kendi anında var olan satırları temizler. Kural: misafir türevi veriyi konaklamaya bağlayan yazıcı, yazımı
+// yaptığı İŞLEMİN içinde konaklama satırını PAYLAŞIMLI kilitler ve maskelenmiş mi diye okur; maskelenmişse yazmaz.
+//  · Silme işlemi aynı satırı işleminin BAŞINDA özel kilitler (`eraseReservationData`). İki sıra mümkündür: yazıcı önce kilitlerse silme
+//    onun commit'ini bekler ve yazılanı kendi işleminde siler; silme önce kilitlerse yazıcı silmenin commit'ini bekler, maskeyi görür ve
+//    yazmaz. Kilit konaklama başınadır (işletme geneli silme kilidi DEĞİL) — uzun bir içe aktarım not yazmayı bekletmez.
+//  · Ölçüt maskeleme işaretidir (`guestName === ANON_NAME`; QR / içe aktarım / yazma servisiyle aynı işaret): açık silme her zaman yazar;
+//    saklama süresi de yazar — o konaklamanın notu / okuması saklama süpürgesinde zaten silinir, yazmak boşunadır. Kaynak kimliği olmayan
+//    (elle girilmiş) konaklamanın silinmesi de böylece görünür (iz anahtarı olmayabilir).
+//  · Satır yoksa (arada silindi) "maskeli" sayılır — kapalı yönde.
+// ---------------------------------------------------------------------------
+
+/** Konaklamayı bu işlemde paylaşımlı kilitler; maskelenmiş (ya da yok) ise `true` — misafir türevi veri YAZILMAZ. */
+export async function lockStayForGuestDerivedWrite(tx: Prisma.TransactionClient, reservationId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ guestName: string }[]>(
+    Prisma.sql`SELECT "guestName" FROM "Reservation" WHERE "id" = ${reservationId} FOR SHARE`,
+  );
+  return rows.length === 0 || rows[0].guestName === ANON_NAME;
+}
+
+/**
+ * Konuşmanın konaklaması için `lockStayForGuestDerivedWrite`. Konaklamasız konuşma misafir silmesinin kapsamında değildir (silme konuşmaya
+ * konaklamadan ulaşır) → kilit yok, `false`. Konuşma yoksa `true` (kapalı yön).
+ */
+export async function lockConversationStayForGuestDerivedWrite(tx: Prisma.TransactionClient, conversationId: string): Promise<boolean> {
+  const conv = await tx.conversation.findUnique({ where: { id: conversationId }, select: { reservationId: true } });
+  if (!conv) return true;
+  if (!conv.reservationId) return false;
+  return lockStayForGuestDerivedWrite(tx, conv.reservationId);
+}
+
+/**
+ * Bu konaklamanın açık silmesi ZATEN tamamlandı mı (K8): konaklama satırı maskeli (ad işareti + bütün kimlik alanları boş) VE bu konaklama
+ * için `kvkk.guest_erasure` denetim kaydı var. İkisi birden: yalnız saklama süresiyle maskelenmiş satır denetim kaydı taşımaz (ilk açık silme
+ * normal yol); silmeden sonra kimlik alanı yeniden yazılmışsa (elle düzenleme) yeni bir silme gerekir ve yeni kayıt yazılır. Silme kilidi
+ * altında okunur (aynı isteğin iki eşzamanlı gelişi sıraya girer; ikincisi birincinin commit'ini görür).
+ */
+async function erasureAlreadyCompleted(tx: Prisma.TransactionClient, organizationId: string, reservationId: string): Promise<boolean> {
+  const live = await tx.reservation.findUnique({
+    where: { id: reservationId },
+    select: { guestName: true, guestGivenName: true, guestEmail: true, guestPhone: true, guestExternalId: true },
+  });
+  if (!live || live.guestName !== ANON_NAME || live.guestGivenName || live.guestEmail || live.guestPhone || live.guestExternalId) return false;
+  // `metadataJson` = JSON.stringify({ reservationId, … }) — kimlik cuid (tırnak / ters bölü taşımaz), alt dize eşleşmesi kesin.
+  const audit = await tx.auditLog.findFirst({
+    where: { organizationId, action: "kvkk.guest_erasure", metadataJson: { contains: `"reservationId":${JSON.stringify(reservationId)}` } },
+    select: { id: true },
+  });
+  return audit !== null;
+}
+
+// ---------------------------------------------------------------------------
 // Ingress guard — one DB read per sync run, in-memory matching per record.
 // ---------------------------------------------------------------------------
 
@@ -360,6 +413,16 @@ export interface ErasureScope {
   inboundMessages: number;
   outboundMessages: number;
   tombstoneKeys: number;
+}
+
+/**
+ * Silmenin sonucu (K8). `alreadyErased`: bu konaklamanın silmesi daha önce TAMAMLANMIŞTI (aynı isteğin tekrarı) — maskeleme yeniden koşar
+ * (arada yazılanı temizler) ama ikinci denetim kaydı ve yeni iz yazılmaz. `verified: false`: silme işlemi COMMIT OLDU (iz + maske + denetim
+ * kaydı kalıcı) ama commit sonrası doğrulama geçişi arızalandı — silme "başarısız" değildir; aynı isteğin tekrarı doğrulamayı yeniden koşar.
+ */
+export interface ErasureResult extends ErasureScope {
+  alreadyErased: boolean;
+  verified: boolean;
 }
 
 async function loadScope(organizationId: string, reservationId: string) {
@@ -693,7 +756,7 @@ export async function eraseReservationData(
      *  lets a test deterministically simulate a racing write in that window. */
     __afterTxHook?: () => Promise<void>;
   },
-): Promise<ErasureScope | null> {
+): Promise<ErasureResult | null> {
   const actorUserId = opts?.actorUserId ?? null;
   const __afterTxHook = opts?.__afterTxHook;
   const scope = await loadScope(organizationId, reservationId);
@@ -710,11 +773,18 @@ export async function eraseReservationData(
 
   const fp = currentKeyFingerprint(); // which key produced these hashes (Codex P1)
 
+  let alreadyErased = false;
   await prisma.$transaction(async (tx) => {
     // Org-scoped mutual exclusion (auto-released at commit/rollback) — the same
     // lock every tombstone-scoped ingress write-transaction takes (RACE MODEL).
     await acquireErasureLock(tx, organizationId);
-    if (keys.length) {
+    // K22: konaklama satırı işlemin BAŞINDA özel kilitlenir — misafir türevi veri yazan yazıcılar (iç not, anlam okuması) aynı satırı
+    // paylaşımlı kilitleyip maskeyi işlem içinde okur (`lockStayForGuestDerivedWrite`). Başta alındığı için güvence maskeleme adımlarının
+    // sırasına bağlı değildir.
+    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Reservation" WHERE "id" = ${reservation.id} FOR UPDATE`);
+    // K8: aynı isteğin tekrarı (ör. commit sonrası doğrulama arızasından sonra) ikinci denetim kaydı / yeni iz YAZMAZ; maskeleme yine koşar.
+    alreadyErased = await erasureAlreadyCompleted(tx, organizationId, reservation.id);
+    if (keys.length && !alreadyErased) {
       await tx.erasureTombstone.createMany({
         data: keys.map((k) => ({
           organizationId,
@@ -736,6 +806,7 @@ export async function eraseReservationData(
       });
     }
     await maskReservationRows(tx, organizationId, reservation.id, names);
+    if (alreadyErased) return;
 
     // MANDATORY audit, IN THIS TRANSACTION (Codex P1-B): Deletion Regulation art. 7
     // requires the destruction to be LOGGED, so the legal record commits together
@@ -767,7 +838,17 @@ export async function eraseReservationData(
   // transaction can have written fresh rows the in-TX mask never saw. Re-read
   // and re-mask once — idempotent, and every later sync is blocked by the
   // now-committed tombstones anyway.
-  await maskReservationRows(prisma, organizationId, reservation.id, names);
+  // K8: bu adım COMMIT'TEN SONRA koşar — arızası silmeyi geri almaz ve "silme başarısız" demek yanlış olur (eskiden 500 dönüyordu ve tekrar
+  // ikinci denetim kaydı yazıyordu). Arıza raporlanır, sonuç `verified: false` taşır; aynı isteğin tekrarı (yukarıda `alreadyErased`)
+  // maskelemeyi yeniden koşar = doğrulamanın yeniden denenmesi.
+  let verified = true;
+  try {
+    await maskReservationRows(prisma, organizationId, reservation.id, names);
+  } catch (err) {
+    verified = false;
+    const { reportError } = await import("@/lib/report-error");
+    await reportError("erasure verify-pass", err).catch(() => {});
+  }
 
   return {
     reservationId: reservation.id,
@@ -775,5 +856,7 @@ export async function eraseReservationData(
     inboundMessages: scope.inboundMessages,
     outboundMessages: scope.outboundMessages,
     tombstoneKeys: keys.length,
+    alreadyErased,
+    verified,
   };
 }

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import { ANON_NAME } from "@/lib/anon-sentinels";
 import { runShadowPass, type ShadowLayerSpec, type ShadowPassResult } from "@/lib/semantic-reading/shadow-pass";
 import { semanticApiKey } from "./config";
 import { REPLY_ITEMS_MAX, REPLY_ITEMS_READER_SYSTEM_PROMPT, readReplyItems, replyItemsReaderFlag, type ReplyItemsReaderResult } from "./reply-items-reader";
@@ -77,6 +78,7 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
     layer: LAYER,
     promptId: replyItemsPromptId(),
     // Misafir adı maskesi üç kaynaktan, kiracı kapsamlı (söz turuyla aynı birleştirme — `host-commitment-shadow.ts`, G1 T2-B7).
+    // Maskeli konaklamanın mesajı aday değil (K22 — söz turuyla aynı süzgeç ve gerekçe).
     candidates: ({ since, now, limit }) =>
       prisma.$queryRaw<Candidate[]>(Prisma.sql`
         SELECT m."id", m."body", m."createdAt", m."conversationId", p."organizationId", c."guestIdentifier", r."guestName", r."guestGivenName"
@@ -90,6 +92,7 @@ function layerSpec(reader: Reader): ShadowLayerSpec<Candidate> {
           AND m."createdAt" >= ${since}
           AND m."createdAt" <= ${now}
           AND p."organizationId" <> ${DEMO_ORG_ID}
+          AND (c."reservationId" IS NULL OR NOT EXISTS (SELECT 1 FROM "Reservation" er WHERE er."id" = c."reservationId" AND er."guestName" = ${ANON_NAME}))
           AND NOT EXISTS (SELECT 1 FROM "SemanticReading" r WHERE r."messageId" = m."id" AND r."layer" = ${LAYER})
           AND EXISTS (
             SELECT 1 FROM "ConversationItem" i
