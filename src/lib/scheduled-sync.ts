@@ -232,9 +232,12 @@ async function acquireLock(): Promise<string | null> {
  * çağrıldığında yenileme ancak GERÇEK ilerleme varken olur; gerçekten asılan bir
  * koşuda yenileme de durur ve TTL doğru şekilde devreye girer.
  *
- * ⚠️ KAPATMADIĞI DELİK (bilinçli): TEK bir org'un kendi içinde 15 dakikayı
- * aşması. Org içinde ilerleme noktası yok; tam çözüm `syncHospitable`'a
- * `onProgress` geçirmek olurdu ve imza + `withSyncLock` sözleşmesi genişlerdi.
+ * ⚠️ KAPATMADIĞI DELİK (bilinçli): TEK bir AŞAMANIN kendi içinde 15 dakikayı
+ * aşması. 11-25'ten (K27-K3) beri org içindeki aşama sınırları da ilerleme
+ * noktasıdır (senkron → uyarı → otomasyon → takvim → zekâ, ↓`holdLock`); ama tek
+ * bir `syncHospitable` çağrısının içinde nokta yok. Tam çözüm `syncHospitable`'a
+ * `onProgress` geçirmek olurdu ve imza + `withSyncLock` sözleşmesi genişlerdi
+ * (kurucu sorusu, `docs/INCELEME-2026-11-25-k27-B.md`).
  * `withSyncLock`'un in-process bayrağı en ulaşılabilir yolu zaten kapatıyor.
  *
  * ⚠️ SONUCU OKUNUR (denetim, 08-01 — üçüncü tur). `count === 0` "kilit ARTIK
@@ -497,6 +500,17 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       let budgetSkipped = 0;
       let firstBudgetSkippedId: string | null = null;
       let lockLost = false;
+      // K27-K3 (Codex 11-25): kilit yalnız işletmeler ARASINDA yenileniyordu → tek işletmenin aşamaları (senkron + uyarı + üslup modeli +
+      // otomasyon + takvim + zekâ) toplamı 15 dk'yı aşarsa ikinci bir koşu kilidi alıp AYNI işletmeye paralel yazabiliyordu. Artık aşama
+      // SINIRLARINDA da yenilenir (ilerleme-tetikli kalır — ↑renewLock: asılı tek bir çağrı yine kilidi tutamaz). Kayıp görülürse o işletmenin
+      // KALAN aşamaları koşmaz ve döngü kesilir (eski "kilit kaybı → kalan işletmeler işlenmez" kuralının aşama düzeyine inmiş hâli).
+      // Kapatmadığı delik: TEK bir aşamanın (ör. büyük hesabın derin `syncHospitable`ı) kendi başına 15 dk'yı aşması — ↑renewLock notu.
+      const holdLock = async (): Promise<boolean> => {
+        if (lockLost) return false;
+        if (await renewLock(holder)) return true;
+        lockLost = true;
+        return false;
+      };
 
       // ⚠️ iCal BÜTÇESİ = YUKARIDAKİ 12 DAKİKANIN İÇİNDEN AYRILMIŞ BİR PAY
       // (üstüne EKLENEN bir süre DEĞİL). Gerekçe ölçekle ilgili: İşletme
@@ -548,10 +562,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // kaybolmaz: kilidi alan koşu zaten aynı listeyi işliyor.
         // ⚠️ İLK TUR ATLANIR: kilit saniyeler önce `acquireLock` ile alındı,
         // yenileme tanım gereği gereksiz — sırf bir başarısızlık yüzeyi eklerdi.
-        if (orgIndex > 0 && !(await renewLock(holder))) {
-          lockLost = true;
-          break;
-        }
+        if (orgIndex > 0 && !(await holdLock())) break;
         // TAKİP NUMARASI (2. dilim, kurucu kararı 10-12 sabah): her işletmenin işlenmesi kendi numarasıyla — içindeki hata raporu /
         // alarm / olay satırı işletmeye bağlı ve operatör ekranından aranabilir. İş yapıldıysa (mesaj / otomatik cevap) tek özet satırı.
         const before = { messages: totals.messages, autoReplies: totals.autoReplies };
@@ -608,6 +619,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           } catch (err) {
             await handleOrgError("sync", err);
           }
+          // Aşama sınırı (K27-K3): senkron uzun sürebilir; kilit hâlâ bizde mi, uzat.
+          if (!(await holdLock())) return;
 
           // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
           // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
@@ -679,6 +692,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
               await handleOrgError("billing-paused-mark", err);
             }
           }
+          // Aşama sınırı (K27-K3): otomasyon misafire mesaj gönderir — kilit kaybedildiyse BAŞLAMAZ.
+          if (!(await holdLock())) return;
           if (syncOk) {
             if (!withinOrgBudget) {
               // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
@@ -741,6 +756,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // ⚠️ `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` BURADAN AÇILMAZ: bu bacak
           // yalnızca `syncCalendarSource`'u çağırır, o da bayrağı KENDİ okur
           // (default KAPALI). Zamanlama uzlaştırmayı AÇMAZ.
+          // Aşama sınırı (K27-K3).
+          if (!(await holdLock())) return;
           if (icalLegEnabled && icalSpentMs < ICAL_PASS_BUDGET_MS) {
             const icalStartedAt = Date.now();
             try {
@@ -777,6 +794,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // (Hospitable senkronu VE iCal bacağı) SONRA: bu geçişte yazılan besleme event'leri aynı
           // geçişte tüketilir. AYRI ve KORUMALI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/
           // karşılama/takvim) asla bloklamaz. Hospitable'ı olmayan org da buraya gelir (busy = mülkü var).
+          // Aşama sınırı (K27-K3).
+          if (!(await holdLock())) return;
           try {
             await runIntelligencePass(org.id);
             await opsAlarm.ok(orgKey("intelligence"));
@@ -812,6 +831,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             (firstBudgetSkippedId ? ` — sonraki geçiş org ${firstBudgetSkippedId}'den başlar` : ""),
         );
       }
+      // Döngü sonrası işler (kuyruk boşaltmaları, e-posta, saatlik bloklar) son işletmenin süresi kadar geç başlar → kilit burada da
+      // uzatılır (K27-K3). Kayıp görülürse aşağıdaki alarm yazılır; döngü sonrası işler eskisi gibi koşar (kuyruklar SKIP LOCKED ile
+      // güvenli, derin pencere bu geçişte zaten alındı — atlamak saatlik işi bir saat geciktirirdi).
+      await holdLock();
       if (!lockLost) await writeSyncResumeCursor(firstBudgetSkippedId);
       // ⚠️ KİLİT KAYBI SESSİZ GEÇMEZ. Bu, TTL'in (15 dk) gerçekten aşıldığının
       // KANITIDIR ve tam olarak "heartbeat'li kilide geç" kararının tetikleyicisi
