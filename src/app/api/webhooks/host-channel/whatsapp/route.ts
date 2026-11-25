@@ -106,10 +106,34 @@ export async function POST(req: NextRequest): Promise<Response> {
     return jsonOk({ ok: true });
   }
   const parsed = parseMetaWebhook(body, { onlyPhoneNumberId: cfg.phoneNumberId });
+
+  // 🚨 EV SAHİBİ MESAJLARI ÖNCE (K27-K14, Codex 11-25 akşam): aynı imzalı teslimat ev sahibi mesajı (ör. "DUR" — bildirimden çık) ile birlikte
+  // ekip numarası mesajı ve / veya teslim durumları taşıyabilir. Eskiden ekip işleyicisi ve durum kayıtları ÖNCE bekleniyordu (yukarıdaki T3
+  // yorumu "geciktirmez" diyordu ama kod tersini yapıyordu) → yavaş / asılı bir ekip ya da durum işi ev sahibinin "DUR"unu geciktiriyordu.
+  // Artık ev sahibi işleyicisi ilk koşar; sonucu yanıt koduna saklanır, KALAN işler her durumda yapılır (bir işleyicinin hatası ötekini
+  // kesmez). Yanıt sözleşmesi aynı: ev sahibi hatası 500 · ev sahibi meşgul 503 · yalnız ekip hatası 500 · aksi 200.
+  let hostOutcome: "ok" | "busy" | "error" = "ok";
+  if (parsed.messages.length > 0) {
+    try {
+      const r = await handleHostInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events: parsed.messages, flags, transport: hostChannelTransport() });
+      if (r.processed + r.duplicates > 0) {
+        await logEvent(
+          "host_channel.webhook.received",
+          { count: parsed.messages.length, processed: r.processed, duplicates: r.duplicates, ignored: r.ignored },
+          { organizationId: r.organizationIds.length === 1 ? r.organizationIds[0]! : null },
+        );
+      }
+      if (r.busy > 0) hostOutcome = "busy";
+    } catch (err) {
+      hostOutcome = "error";
+      await reportError("host-channel-webhook", new Error(redactSensitive(String(err)).slice(0, 500)));
+    }
+  }
+
   // TEMİZLİKÇİ NUMARASI (T3, anahtar `TEAM_CONTACTS_ENABLED`): aynı Meta uygulamasının ikinci numarası. Yalnız bağlama kodunu işler; ev sahibi
-  // akışına HİÇ girmez (ev sahibi numarasının mesajlarıyla karışmaz) ve yabancı numara sayılmaz. Hata ev sahibi teslimatını düşürmez ve
-  // GECİKTİRMEZ (Haiku T3 #4: aynı teslimattaki ev sahibi "DUR"u önce işlenir); 500 yalnız en sonda döner → Meta yeniden dener, iki akış
-  // da yinelenen teslimatı zararsız işler.
+  // akışına HİÇ girmez (ev sahibi numarasının mesajlarıyla karışmaz) ve yabancı numara sayılmaz. Ev sahibi işleyicisinden SONRA koşar (K14):
+  // hata ev sahibi teslimatını düşürmez ve geciktirmez; 500 yalnız en sonda döner → Meta yeniden dener, iki akış da yinelenen teslimatı
+  // zararsız işler.
   const teamPid = teamContactsEnabled() ? teamPhoneNumberId() : null;
   let teamFailed = false;
   if (teamPid && parsed.phoneNumberIds.includes(teamPid)) {
@@ -137,7 +161,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     clearBadSignatureThrottleFor(foreignKey);
   }
   // Teslim / okundu durumları (yalnız durum taşıyan teslimat da buraya gelir — eskiden aşağıdaki erken dönüşte atılıyordu). Kayıt hatası
-  // teslimatı düşürmez: kayıp "okundu" yalnız gereksiz bir acil e-postası doğurur (güvenli yön; tasarım §3.12).
+  // teslimatı düşürmez: kayıp "okundu" yalnız gereksiz bir acil e-postası doğurur (güvenli yön; tasarım §3.12). Ev sahibi mesajlarından
+  // SONRA (K14).
   if (parsed.statuses.length > 0) {
     // Gönderildi sanılan acil bildirim ulaşmadı → ertelenmiş e-postası öne çekilir (§3.12). Okundu kaydından BAĞIMSIZ (inceleme 10-31: kayıt
     // döngüsündeki tek bir veritabanı hatası teslimattaki bütün "failed" öne çekmelerini düşürüyordu).
@@ -159,22 +184,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
     }
   }
-  if (parsed.messages.length === 0) return teamFailed ? NextResponse.json({ error: "Geçici hata" }, { status: 500 }) : jsonOk({ ok: true });
 
-  try {
-    const r = await handleHostInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events: parsed.messages, flags, transport: hostChannelTransport() });
-    if (r.processed + r.duplicates > 0) {
-      await logEvent(
-        "host_channel.webhook.received",
-        { count: parsed.messages.length, processed: r.processed, duplicates: r.duplicates, ignored: r.ignored },
-        { organizationId: r.organizationIds.length === 1 ? r.organizationIds[0]! : null },
-      );
-    }
-    if (r.busy > 0) return NextResponse.json({ error: "Geçici hata" }, { status: 503 });
-  } catch (err) {
-    await reportError("host-channel-webhook", new Error(redactSensitive(String(err)).slice(0, 500)));
-    return NextResponse.json({ error: "Geçici hata" }, { status: 500 });
-  }
+  if (hostOutcome === "error") return NextResponse.json({ error: "Geçici hata" }, { status: 500 });
+  if (hostOutcome === "busy") return NextResponse.json({ error: "Geçici hata" }, { status: 503 });
   if (teamFailed) return NextResponse.json({ error: "Geçici hata" }, { status: 500 });
   return jsonOk({ ok: true });
 }
