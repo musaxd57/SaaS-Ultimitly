@@ -167,3 +167,23 @@ describe("5 MB'lık uç girdiler (doğrusal yürüyüş; süre pini değil — y
     expect(check(Buffer.concat([PNG_SIG, junk(5 * 1024 * 1024)])).ok).toBe(false);
   });
 });
+
+describe("JPEG yeniden başlatma işaretleri (RSTn) — tarama verisinin parçasıdır", () => {
+  // Elle kurulmuş en küçük kabuk: SOI · SOF0 (8×8, 1 bileşen) · SOS · veri · RST0 · veri · RST1 · veri · EOI.
+  // Yeniden başlatma aralıklı JPEG'ler (bazı kameralar / dışa aktarıcılar) reddedilmemeli (mutasyon k27c1'de yaşayan mutant).
+  const sof = Buffer.from([0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x08, 0x00, 0x08, 0x01, 0x01, 0x11, 0x00]);
+  const sos = Buffer.from([0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00]);
+  const withRst = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    sof,
+    sos,
+    Buffer.from([0x12, 0x34, 0xff, 0xd0, 0x56, 0x78, 0xff, 0xd1, 0x9a, 0xbc, 0xff, 0x00, 0xde]),
+    Buffer.from([0xff, 0xd9]),
+  ]);
+
+  it("RST0 / RST1 ve FF00 dolgusu taşıyan tarama kabul edilir, boyut SOF'tan okunur", () => {
+    const r = validateImageStructure(withRst, "jpg");
+    expect(r.ok).toBe(true);
+  });
+
+});

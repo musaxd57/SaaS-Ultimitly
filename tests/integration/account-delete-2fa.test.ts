@@ -122,6 +122,29 @@ describe("U11 — 2FA açıkken hesap silme kod ister", () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).twoFactorLastStep).toBeNull();
   });
 
+  it("🚨 bekleyen ödeme varken silme, doğrulama kodu TÜKETİLMEDEN bekletilir (K27-K5: ödeme kapısı koddan ÖNCE)", async () => {
+    const { orgId, userId } = await seed({ secret: encryptSecret(SECRET) });
+    const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+    await prisma.checkoutIntent.create({
+      data: {
+        organizationId: orgId,
+        consentId: consent.id,
+        planCode: "pro",
+        priceId: "pri_pro",
+        providerRef: "txn_k5_2fa",
+        status: "completed",
+        openKey: null,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        closedAt: new Date(Date.now() - 3_600_000),
+      },
+    });
+    const res = await POST(req({ password: PASSWORD, code: totp(SECRET) }));
+    expect(res.status).toBe(409);
+    expect(await prisma.organization.count({ where: { id: orgId } })).toBe(1);
+    // Kod harcanmadı: ödeme sonuçlanınca aynı adımın kodu hâlâ kullanılabilir.
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).twoFactorLastStep).toBeNull();
+  });
+
   it("2FA KAPALI hesap: eskisi gibi yalnız şifre yeter", async () => {
     const { orgId } = await seed(null);
     const res = await POST(req({ password: PASSWORD }));

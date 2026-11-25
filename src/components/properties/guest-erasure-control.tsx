@@ -54,7 +54,18 @@ export function GuestErasureControl({
     setPhase("working");
     try {
       const res = await fetch(`/api/reservations/${reservationId}/erase`, { method: "POST" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Silme KAYDEDİLDİ ama son kontrol tamamlanamadı (rota 503 + `erased: true`, K27-K8): "silme tamamlanamadı" demek yanlış olur —
+        // ekran yenilenir (maskelenmiş veri görünür) ve doğru durum söylenir; tekrar güvenlidir (ikinci denetim kaydı yazılmaz).
+        const body = (await res.json().catch(() => null)) as { erased?: boolean } | null;
+        if (body?.erased === true) {
+          router.refresh();
+          setError("Misafir verisi silindi. Son kontrol tamamlanamadı; bir kez daha deneyin.");
+          setPhase("confirm");
+          return;
+        }
+        throw new Error();
+      }
       setPhase("done");
       router.refresh();
     } catch {

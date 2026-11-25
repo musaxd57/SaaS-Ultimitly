@@ -43,4 +43,30 @@ describe("GuestErasureControl — legally-pinned copy", () => {
     expect(screen.getByText(/kalıcı olarak silindi \(maskelendi/i)).toBeTruthy();
     expect(screen.queryByText(/anonimleştir/i)).toBeNull();
   });
+
+  it("🚨 silme kaydedildi ama son kontrol tamamlanamadı (503 + erased) → 'tamamlanamadı' DENMEZ; doğru durum söylenir, tekrar mümkün", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ scope: { conversations: 1, inboundMessages: 3, outboundMessages: 2, tombstoneKeys: 4 } }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ ok: false, erased: true, verified: false, retryable: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<GuestErasureControl reservationId="res-1" initialErased={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /KVKK: misafiri kalıcı sil/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Evet, kalıcı olarak sil/i }));
+    expect(await screen.findByText("Misafir verisi silindi. Son kontrol tamamlanamadı; bir kez daha deneyin.")).toBeTruthy();
+    expect(screen.queryByText(/Silme tamamlanamadı/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Evet, kalıcı olarak sil/i })).toBeTruthy();
+  });
+
+  it("KONTROL: gerçek hata (500, erased yok) → 'Silme tamamlanamadı, tekrar deneyin.'", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ scope: { conversations: 1, inboundMessages: 3, outboundMessages: 2, tombstoneKeys: 4 } }) })
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: "x" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<GuestErasureControl reservationId="res-1" initialErased={false} />);
+    fireEvent.click(screen.getByRole("button", { name: /KVKK: misafiri kalıcı sil/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Evet, kalıcı olarak sil/i }));
+    expect(await screen.findByText("Silme tamamlanamadı, tekrar deneyin.")).toBeTruthy();
+  });
 });

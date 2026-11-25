@@ -83,6 +83,16 @@ describe("K23 — hesap silmenin son kontrolü ÜYELİKTEN", () => {
     expect(await prisma.organization.count({ where: { id: s.orgId } })).toBe(1);
   });
 
+  it("🚨 rol ÜYELİKTE düştü ama kuşak ARTMADI (yalnız rol satırı değişti) → silme yine sürmez: rol denetimi kuşaktan bağımsız", async () => {
+    const s = await seed();
+    afterVerify = async () => {
+      await prisma.membership.updateMany({ where: membershipOf(s), data: { role: "manager" } });
+    };
+    const res = await POST(req());
+    expect(res.status).toBe(401);
+    expect(await prisma.organization.count({ where: { id: s.orgId } })).toBe(1);
+  });
+
   it("🚨 parola doğrulandı → üyelik kuşağı arttı (rol aynı) → oturum kuralıyla aynı: silme sürmez", async () => {
     const s = await seed();
     afterVerify = async () => {
