@@ -22,9 +22,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
 import { reportError } from "@/lib/report-error";
 import { CHECKOUT_PAID_STATUS } from "@/lib/billing/checkout-paid";
-import { CHECKOUT_INTENT_BUSY_MESSAGE } from "@/lib/billing/checkout-intent";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
-import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 
 // ---------------------------------------------------------------------------
 // PERMANENT account + data erasure (KVKK right-to-erasure / "hesabımı sil").
@@ -165,7 +163,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
       }
       if (outcome.reason === "payment_pending") {
-        return NextResponse.json({ error: paymentPendingInTx ?? CHECKOUT_PENDING_MESSAGE }, { status: 409 });
+        return NextResponse.json({ error: paymentPendingInTx ?? PAYMENT_PENDING_BLOCK_TEXT }, { status: 409 });
       }
       return unauthorized();
     }
@@ -222,7 +220,7 @@ async function hasBillableSubscription(organizationId: string, db: Pick<typeof p
  *  · açık / açılmakta olan ödeme işlemi (niyet anahtarı açıkken) — sonucu belli olana dek (ödenir → yukarıdaki kayıt; iptali doğrulanır →
  *    kapanır).
  *  · 10 dakikalık "ödemeniz işleniyor" kilidi (ödeme ekranı "tamamlandı" dedi, sunucu henüz görmedi).
- * Metinler VAR OLAN ödeme metinleridir (yeni müşteri metni kurucu onayında — öneri `docs/INCELEME-2026-11-25-k27-A.md`).
+ * Metin üç durumda da AYNI ve silmeye özgü (kurucu 11-25 gece: "Silmeye özgü metin") — ↓`PAYMENT_PENDING_BLOCK_TEXT`.
  * ⚠️ Okuma hatasında da BEKLETİR (fail-closed — geri alınamaz silme belirsizlikte yapılmaz).
  */
 async function pendingPaymentText(
@@ -236,12 +234,14 @@ async function pendingPaymentText(
       select: { status: true },
       take: 10,
     });
-    if (rows.some((r) => r.status === CHECKOUT_PAID_STATUS)) return CHECKOUT_PAID_AWAITING_MESSAGE;
-    if (rows.length > 0) return CHECKOUT_INTENT_BUSY_MESSAGE;
+    if (rows.length > 0) return PAYMENT_PENDING_BLOCK_TEXT;
     const lock = await db.systemLock.findUnique({ where: { name: checkoutPendingLockName(organizationId) }, select: { lockedUntil: true } });
-    if (lock && lock.lockedUntil > now) return CHECKOUT_PENDING_MESSAGE;
+    if (lock && lock.lockedUntil > now) return PAYMENT_PENDING_BLOCK_TEXT;
     return null;
   } catch {
-    return CHECKOUT_PENDING_MESSAGE; // durumu okuyamıyoruz → geri alınamaz silme YAPILMAZ
+    return PAYMENT_PENDING_BLOCK_TEXT; // durumu okuyamıyoruz → geri alınamaz silme YAPILMAZ
   }
 }
+
+/** Silme ekranında gösterilen metin (kurucu onayı 11-25 gece, AYNEN). */
+const PAYMENT_PENDING_BLOCK_TEXT = "Bekleyen bir ödemeniz var. Ödeme sonuçlanınca hesabınızı silebilirsiniz; acil ise bize yazın.";

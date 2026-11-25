@@ -38,8 +38,8 @@ vi.mock("@/lib/data-retention", async (orig) => {
 
 import { POST } from "@/app/api/account/delete/route";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
-import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
-import { CHECKOUT_INTENT_BUSY_MESSAGE } from "@/lib/billing/checkout-intent";
+// Kurucu onayı 11-25 gece (AYNEN): silmeye özgü tek metin, üç durumda da.
+const PENDING_TEXT = "Bekleyen bir ödemeniz var. Ödeme sonuçlanınca hesabınızı silebilirsiniz; acil ise bize yazın.";
 
 const PASSWORD = "correct-horse";
 const MIN = 60_000;
@@ -107,7 +107,7 @@ describe("hesap silme — sonuçlanmamış ödeme kapısı (K5)", () => {
     const row = await intent(orgId, consentId, "completed", "txn_k5a");
     const res = await POST(req());
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe(CHECKOUT_PAID_AWAITING_MESSAGE);
+    expect((await res.json()).error).toBe(PENDING_TEXT);
     expect(await prisma.organization.count({ where: { id: orgId } })).toBe(1);
     expect(await prisma.checkoutIntent.findUnique({ where: { id: row.id } })).not.toBeNull();
   });
@@ -118,7 +118,7 @@ describe("hesap silme — sonuçlanmamış ödeme kapısı (K5)", () => {
       await intent(orgId, consentId, status, "txn_k5b");
       const res = await POST(req());
       expect(res.status).toBe(409);
-      expect((await res.json()).error).toBe(CHECKOUT_INTENT_BUSY_MESSAGE);
+      expect((await res.json()).error).toBe(PENDING_TEXT);
       expect(await prisma.organization.count({ where: { id: orgId } })).toBe(1);
     });
   }
@@ -128,7 +128,7 @@ describe("hesap silme — sonuçlanmamış ödeme kapısı (K5)", () => {
     await prisma.systemLock.create({ data: { name: checkoutPendingLockName(orgId), lockedUntil: new Date(Date.now() + 5 * MIN), holder: consentId } });
     const res = await POST(req());
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe(CHECKOUT_PENDING_MESSAGE);
+    expect((await res.json()).error).toBe(PENDING_TEXT);
     expect(await prisma.organization.count({ where: { id: orgId } })).toBe(1);
 
     await prisma.systemLock.update({ where: { name: checkoutPendingLockName(orgId) }, data: { lockedUntil: new Date(Date.now() - 1_000) } });
@@ -165,7 +165,7 @@ describe("hesap silme — sonuçlanmamış ödeme kapısı (K5)", () => {
     const res = await POST(req());
     expect(hook.ran).toBe(1);
     expect(res.status).toBe(409); // 401 değil — yeni neden eşlenmiş olmalı
-    expect((await res.json()).error).toBe(CHECKOUT_PAID_AWAITING_MESSAGE);
+    expect((await res.json()).error).toBe(PENDING_TEXT);
     expect(await prisma.organization.count({ where: { id: orgId } })).toBe(1);
     expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("completed");
   });

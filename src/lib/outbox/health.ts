@@ -198,7 +198,7 @@ export function isStalled(q: QueueStallState): boolean {
  * Strict yoklamanın kuyruk hükmü (K27-K1, Codex 11-25). "Durdu" ile "geride" AYRI söylenir:
  *  · `stalled` — ↑`isStalled` (gönderilebilir satır 15 dk bekliyor VE son 15 dk'da kuyrukta hiç ilerleme yok) → strict 503 (değişmedi).
  *  · `delayed` — işçinin alabileceği vadesi gelmiş en eski satır `QUEUE_LAG_WARN_MS`den (paneldeki kırmızı eşik) uzun bekliyor ama kuyruk
- *    ilerliyor (başka satırlar alınıyor / gönderiliyor). Eskiden bu durum `ok` görünüyordu: 65 dk bekleyen satır, başka bir işletmenin taze
+ *    "durdu" sayılmıyor: ya ilerliyor (başka satırlar alınıyor / gönderiliyor) ya da durma eşiği (15 dk) henüz dolmadı. Eskiden bu durum `ok` görünüyordu: 65 dk bekleyen satır, başka bir işletmenin taze
  *    işiyle örtülüyordu. Sayfalamaz (büyük birikim ilerlediği sürece alarm değildir — Haiku 10-16 kararı), yalnız gövde doğru söyler.
  * Ölçüt işletmeden BAĞIMSIZDIR: en eski gönderilebilir satırın yaşı, hangi işletmenin olursa olsun (işçi de işletme gözetmeden en eskiyi alır).
  * "Gönderilebilir" süzgeci ↑`queueStallStates` (işçinin talep süzgeci): duraklatılmış gönderim, abonelik bekletmesi, anahtar kapalıyken
