@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { membershipCanManage, sessionMembershipInclude } from "@/lib/membership/session";
 import { decryptSecretBound, encryptSecretBound } from "@/lib/crypto";
 import {
   BINDING_CODE_MAX_ATTEMPTS,
@@ -151,8 +152,9 @@ export async function confirmHostBindingFromInbound(input: {
     const verdict = judgeBindingCode(b, input.code, secret, now);
     if (verdict !== "ok" && verdict !== "mismatch") return { ok: false as const, reason: verdict };
     if (verdict === "ok") {
-      const user = await tx.user.findUnique({ where: { id: b.userId }, select: { organizationId: true, role: true } });
-      if (!user || user.organizationId !== b.organizationId || (user.role !== "owner" && user.role !== "manager")) {
+      // Yetki bağın işletmesindeki ÜYELİKTEN (K23) — ana işletme aynası çıkarmayı / askıyı görmez.
+      const user = await tx.user.findUnique({ where: { id: b.userId }, select: { memberships: sessionMembershipInclude(b.organizationId) } });
+      if (!user || !membershipCanManage(user.memberships[0])) {
         return { ok: false as const, reason: "not_allowed" as const };
       }
     }
@@ -237,11 +239,11 @@ export async function usableHostBindingForOrg(organizationId: string): Promise<{
     orderBy: [{ verifiedAt: "desc" }, { id: "asc" }],
     // Bayat (rolü düşmüş / kuşağı eskimiş) satırlar süzülmeden önce geçerli olanı dışarıda bırakmasın (Haiku 10-30 P3-3).
     take: 50,
-    select: { id: true, userId: true, status: true, userSessionEpoch: true, user: { select: { sessionEpoch: true, organizationId: true, role: true } } },
+    select: { id: true, userId: true, status: true, userSessionEpoch: true, user: { select: { sessionEpoch: true, memberships: sessionMembershipInclude(organizationId) } } },
   });
   for (const r of rows) {
-    if (r.user.organizationId !== organizationId) continue;
-    if (r.user.role !== "owner" && r.user.role !== "manager") continue;
+    // Yetki bu işletmedeki ÜYELİKTEN (K23), ana işletme aynasından değil.
+    if (!membershipCanManage(r.user.memberships[0])) continue;
     if (!bindingUsable(r, r.user.sessionEpoch)) continue;
     return { id: r.id, userId: r.userId };
   }

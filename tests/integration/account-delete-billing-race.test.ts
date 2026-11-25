@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
@@ -37,7 +37,7 @@ vi.spyOn(prisma.taskUpdate, "findMany").mockImplementation((async (args: Paramet
 const PW = "dogru-sifre-42";
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "U", email: `u${Math.random()}@x.com`, passwordHash: await hashPassword(PW), role: "owner" },
   });
   session = { userId: user.id, organizationId: org.id, role: "owner", email: user.email, name: "U", sessionEpoch: 0 };

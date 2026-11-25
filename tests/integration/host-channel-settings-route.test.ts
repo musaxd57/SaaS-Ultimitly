@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
 let session: SessionPayload;
@@ -24,9 +24,9 @@ import { HOST_CHANNEL_CONSENT_VERSION } from "@/lib/host-channel/consent";
 const SECRET = "test-host-channel-secret-0123456789abcdef";
 const URL_ = "https://www.lixusai.com/api/settings/host-channel";
 
-async function seedUser(role = "owner", orgId?: string) {
+async function seedUser(role: "owner" | "manager" | "staff" = "owner", orgId?: string) {
   const organizationId = orgId ?? (await prisma.organization.create({ data: { name: "Test Org" } })).id;
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId, name: "Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role },
   });
   return { organizationId, userId: user.id };

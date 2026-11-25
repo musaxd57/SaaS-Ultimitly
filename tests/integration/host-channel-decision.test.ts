@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // KARAR KARTI WHATSAPP'TA (tasarım §3.10, dilim 3; anahtarlar `HOST_DECISIONS_ENABLED` + `HOST_QUESTION_DECISIONS_ENABLED`). Gerçek veritabanı,
@@ -75,7 +75,7 @@ const transport: HostChannelTransport = {
 
 async function seed(opts: { lang?: string; requestedTime?: string | null; kind?: "early_checkin" | "late_checkout"; phone?: string } = {}) {
   const org = await prisma.organization.create({ data: { name: "Org", timezone: "Europe/Istanbul", alertEmail: "host@example.com" } });
-  const owner = await prisma.user.create({
+  const owner = await makeUser({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `o${Math.random()}@x.com`, passwordHash: "x", role: "owner" },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" } });

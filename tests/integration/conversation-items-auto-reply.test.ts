@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
   afterEach(() => __setHostChannelTransportForTest(undefined));
 
   async function bindHost(orgId: string, conversationId: string) {
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: { organizationId: orgId, name: "Ayla", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
     });
     const property = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });

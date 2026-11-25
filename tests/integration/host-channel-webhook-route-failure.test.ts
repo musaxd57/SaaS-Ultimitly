@@ -9,7 +9,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/host-channel/whatsapp/route";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
@@ -93,7 +93,7 @@ describe("WhatsApp web kancası — yarıda düşme", () => {
 
   it("500 + kilit bırakılır + yeniden teslimat işlenir; hata kaydında numara yok", async () => {
     const org = await prisma.organization.create({ data: { name: "Test Org" } });
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: { organizationId: org.id, name: "Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
     });
     const r = await startHostBinding({ organizationId: org.id, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });
@@ -121,7 +121,7 @@ describe("WhatsApp web kancası — yarıda düşme", () => {
 
   it("🚨 veritabanı kesintisinde kilit de silinemezse: hemen gelen tekrar 503 (kaybolmaz), kira dolunca yeniden deneme işler (Haiku 10-30 P2-2)", async () => {
     const org = await prisma.organization.create({ data: { name: "Test Org" } });
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: { organizationId: org.id, name: "Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
     });
     const r = await startHostBinding({ organizationId: org.id, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });

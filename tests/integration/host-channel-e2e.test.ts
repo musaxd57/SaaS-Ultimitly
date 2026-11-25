@@ -13,7 +13,7 @@ vi.mock("@/lib/email", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/host-channel/whatsapp/route";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
@@ -103,7 +103,7 @@ const post = (raw: string) =>
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Test Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "Ayla Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });

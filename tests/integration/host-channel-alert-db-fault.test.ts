@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { alertHostOnChannel } from "@/lib/host-channel/alert";
@@ -50,7 +50,7 @@ describe("acil bildirim — gönderim sonrası kayıt hatası", () => {
 
   it("🚨 bildirim gitti, kayıt yazılamadı → 'sent' (satır 'failed' olmaz); yol yeniden çağırınca İKİNCİ WhatsApp YOK", async () => {
     const org = await prisma.organization.create({ data: { name: "Test Org" } });
-    const user = await prisma.user.create({
+    const user = await makeUser({
       data: { organizationId: org.id, name: "Ayla", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
     });
     const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser, setHomeRole } from "../helpers/db";
 import {
   confirmHostBindingFromInbound,
   hostChannelSecret,
@@ -21,9 +21,9 @@ const P = "fake";
 const NUM = "+90 532 123 45 67";
 const DIGITS = "905321234567";
 
-async function seedUser(role = "owner") {
+async function seedUser(role: "owner" | "manager" | "staff" = "owner") {
   const org = await prisma.organization.create({ data: { name: "Test Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role },
   });
   return { orgId: org.id, userId: user.id };
@@ -143,18 +143,20 @@ describe("WhatsApp numara bağlama", () => {
     const o = await seedUser();
     const r = await start(o);
     if (!r.ok) throw new Error(r.reason);
-    await prisma.user.update({ where: { id: o.userId }, data: { role: "staff" } });
+    await setHomeRole(o.userId, "staff");
     expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).toEqual({ ok: false, reason: "not_allowed" });
     expect((await prisma.hostChannelBinding.findUniqueOrThrow({ where: { id: r.bindingId } })).status).toBe("pending");
     // Rol geri gelince aynı kod geçer (deneme hakkı yanmadı).
-    await prisma.user.update({ where: { id: o.userId }, data: { role: "manager" } });
+    await setHomeRole(o.userId, "manager");
     expect((await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).ok).toBe(true);
 
     const o2 = await seedUser();
     const r2 = await start(o2, "+49 151 12345678");
     if (!r2.ok) throw new Error(r2.reason);
     const other = await prisma.organization.create({ data: { name: "Baska Org" } });
+    // İşletmeden çıkma = üyelik etkin değil (K23: yetki üyelikten; ana işletme aynası da artık başka işletmeyi gösteriyor).
     await prisma.user.update({ where: { id: o2.userId }, data: { organizationId: other.id } });
+    await prisma.membership.updateMany({ where: { userId: o2.userId }, data: { status: "revoked", revokedAt: new Date(), epoch: { increment: 1 } } });
     expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: "4915112345678", code: r2.code })).toEqual({ ok: false, reason: "not_allowed" });
   });
 
@@ -211,9 +213,10 @@ describe("WhatsApp numara bağlama", () => {
     await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code });
     await prisma.user.update({ where: { id: o.userId }, data: { sessionEpoch: { increment: 1 } } });
     expect(await usableHostBindingForOrg(o.orgId)).toBeNull();
-    await prisma.user.update({ where: { id: o.userId }, data: { sessionEpoch: 0, role: "staff" } });
+    await prisma.user.update({ where: { id: o.userId }, data: { sessionEpoch: 0 } });
+    await setHomeRole(o.userId, "staff");
     expect(await usableHostBindingForOrg(o.orgId)).toBeNull();
-    await prisma.user.update({ where: { id: o.userId }, data: { role: "manager" } });
+    await setHomeRole(o.userId, "manager");
     expect(await usableHostBindingForOrg(o.orgId)).toEqual({ id: r.bindingId, userId: o.userId });
     // Başka işletme kimliğiyle kaldırılamaz (reddin sebebi: kiracı).
     const other = await seedUser();

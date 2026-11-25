@@ -4,6 +4,7 @@ import { dateKeyInTimeZone } from "@/lib/timezone";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { membershipCanManage, sessionMembershipInclude } from "@/lib/membership/session";
 import { decryptSecretBound, encryptSecretBound } from "@/lib/crypto";
 import { logEvent } from "@/lib/event-log";
 import { appBaseUrl } from "@/lib/auth/email-verify";
@@ -199,19 +200,21 @@ interface BindingForAnswer {
   organizationId: string;
 }
 
-/** Bağlantı soru alabilir / cevap verebilir mi (kullanıcı hâlâ işletmede sahip / yönetici, oturum kuşağı aynı). */
+/**
+ * Bağlantı soru alabilir / cevap verebilir mi (kullanıcının bu işletmedeki ÜYELİĞİ etkin + sahip / yönetici, oturum kuşağı aynı). Yetki
+ * üyelikten (K23): ana işletme aynası (`User.organizationId` / `User.role`) çıkarmayı / askıyı görmez.
+ */
 async function usableBinding(b: BindingForAnswer): Promise<{ userId: string; userName: string } | null> {
   const row = await prisma.hostChannelBinding.findFirst({
     where: { id: b.id, organizationId: b.organizationId, status: "active" },
     select: {
       status: true,
       userSessionEpoch: true,
-      user: { select: { id: true, name: true, role: true, organizationId: true, sessionEpoch: true } },
+      user: { select: { id: true, name: true, sessionEpoch: true, memberships: sessionMembershipInclude(b.organizationId) } },
     },
   });
   if (!row) return null;
-  if (row.user.organizationId !== b.organizationId) return null;
-  if (row.user.role !== "owner" && row.user.role !== "manager") return null;
+  if (!membershipCanManage(row.user.memberships[0])) return null;
   if (!bindingUsable(row, row.user.sessionEpoch)) return null;
   return { userId: row.user.id, userName: row.user.name };
 }

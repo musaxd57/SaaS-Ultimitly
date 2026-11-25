@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 
 const sendReporting = vi.fn(async (_to: string, _subject: string, _html: string) => ({ ok: true }));
 vi.mock("@/lib/email", () => ({ emailService: { sendReporting: (to: string, subject: string, html: string) => sendReporting(to, subject, html) } }));
@@ -43,7 +43,7 @@ function fakeTransport(result: { ok: boolean } = { ok: true }) {
 
 async function seed() {
   const org = await prisma.organization.create({ data: { name: "Test Org", alertEmail: "uyari@ornek.test" } });
-  const owner = await prisma.user.create({
+  const owner = await makeUser({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `o${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" } });

@@ -22,7 +22,7 @@ vi.mock("@/lib/host-send", async () => {
 });
 vi.mock("@/lib/ai/daily-budget", () => ({ consumeDailyAiBudget: budgetMock }));
 
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser, setHomeRole } from "../helpers/db";
 import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // Casus dosya başında BİR KEZ kurulur, geri alınmaz (Prisma temsilcisi deseni); bayrak açıkken bağlantı okumasının N'inci çağrısı "yok" döner —
@@ -124,7 +124,7 @@ function fakeTransport() {
 
 async function seedHost(digits: string, raw: string) {
   const org = await prisma.organization.create({ data: { name: "Test Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "Ayla Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const r = await startHostBinding({ organizationId: org.id, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: raw, optInTextVersion: "v1" });
@@ -1026,7 +1026,7 @@ describe("WhatsApp cevap dilimi", () => {
       const h = await seedHost(DIG_A, "+90 532 111 22 33");
       const stuck = await seedQuestion(h, "wamid.SS", { status: "sending" });
       await prisma.$executeRawUnsafe(`UPDATE "HostQuestion" SET "updatedAt" = $1 WHERE id = $2`, new Date(Date.now() - STUCK_MS - 1_000), stuck.questionId);
-      await prisma.user.update({ where: { id: h.userId }, data: { role: "staff" } });
+      await setHomeRole(h.userId, "staff");
       const r = await sweepHostQuestions(new Date(), tr.t);
       expect(r.recovered).toBe(1);
       expect((await question(stuck.questionId)).status).toBe("send_unverified");

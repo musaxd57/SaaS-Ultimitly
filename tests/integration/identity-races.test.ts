@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { encryptSecret } from "@/lib/crypto";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SessionPayload } from "@/lib/auth";
@@ -82,7 +82,7 @@ function req(url: string, body: unknown) {
 
 async function seed(opts: { pendingTwoFactor?: boolean } = {}) {
   const org = await prisma.organization.create({ data: { name: "Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: {
       organizationId: org.id,
       name: "U",

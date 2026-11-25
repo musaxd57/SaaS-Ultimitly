@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser, setHomeRole } from "../helpers/db";
 import { stayRangeLabel, upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ async function seed(body: string, org: Record<string, unknown> = {}, phone = "+9
   const o = await prisma.organization.create({
     data: { name: "Org", alertEmail: "host@example.com", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul", ...org },
   });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: o.id, name: "Ayla", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale 7", checkInTime: "15:00", checkOutTime: "11:00" } });
@@ -362,7 +362,7 @@ describe("olası tehlike + anlama katmanı koşmadı (kurucu T2)", () => {
 
     // Alıcısı olmayan işletme: işaret konur, e-posta da bildirim de yok.
     const t = await seed(SHORT, { alertEmail: null }, "+90 532 111 22 44");
-    await prisma.user.updateMany({ where: { organizationId: t.orgId }, data: { role: "staff" } });
+    for (const u of await prisma.user.findMany({ where: { organizationId: t.orgId }, select: { id: true } })) await setHomeRole(u.id, "staff");
     const quiet = vi.fn(async () => null);
     const conv2 = { ...conversation, id: t.conversationId };
     expect(await escalateUnverifiedHazard({ organizationId: t.orgId, conversation: conv2, trigger: { id: t.messageId, body: SHORT }, onAlert: quiet })).toEqual({

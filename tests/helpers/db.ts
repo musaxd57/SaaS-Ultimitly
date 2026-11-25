@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { createUserWithMembership, type MembershipRole } from "@/lib/membership/write";
+import { createUserWithMembership, setHomeMembershipRole, type MembershipRole } from "@/lib/membership/write";
 
 export { prisma };
 
@@ -12,6 +12,15 @@ export { prisma };
 export async function makeUser(args: { data: Omit<Prisma.UserUncheckedCreateInput, "role"> & { role?: MembershipRole } }) {
   const { role = "owner", ...rest } = args.data;
   return prisma.$transaction((tx) => createUserWithMembership(tx, { ...rest, role }, "seed"));
+}
+
+/**
+ * Ana işletmedeki rolü üretim yazıcısıyla değiştirir (ayna + üyelik + kuşak, `setHomeMembershipRole`). Yetki üyelikten okunan yollar (K23:
+ * ev sahibi kanalı, hesap silmenin son kontrolü) yalnız aynayı değiştiren test kurulumunu görmez — rol değişimi bununla kurulur.
+ */
+export async function setHomeRole(userId: string, role: MembershipRole): Promise<void> {
+  const u = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { organizationId: true } });
+  await prisma.$transaction((tx) => setHomeMembershipRole(tx, userId, u.organizationId, role, "seed"));
 }
 
 /** Wipe every table in FK-safe order. Call in beforeEach for test isolation. */

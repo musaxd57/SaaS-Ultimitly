@@ -9,7 +9,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { GET, POST } from "@/app/api/webhooks/host-channel/whatsapp/route";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser, setHomeRole } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { OPT_OUT_REPLY } from "@/lib/host-channel/inbound";
@@ -113,9 +113,9 @@ function post(raw: string, headers: Record<string, string | null> = {}) {
 }
 const get = (params: Record<string, string>) => GET(new NextRequest(`${ENDPOINT}?${new URLSearchParams(params).toString()}`));
 
-async function seedOrg(role = "owner") {
+async function seedOrg(role: "owner" | "manager" | "staff" = "owner") {
   const org = await prisma.organization.create({ data: { name: "Test Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "Ev Sahibi", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role },
   });
   return { orgId: org.id, userId: user.id };
@@ -365,7 +365,7 @@ describe("WhatsApp web kancası rotası", () => {
       flagsOn();
       const o = await seedOrg();
       const r = await pending(o, NUM_A);
-      await prisma.user.update({ where: { id: o.userId }, data: { role: "staff" } });
+      await setHomeRole(o.userId, "staff");
       await post(body([{ from: DIG_A, id: "wamid.1", text: r.code }]));
       expect((await binding(r.bindingId)).status).toBe("pending");
     });

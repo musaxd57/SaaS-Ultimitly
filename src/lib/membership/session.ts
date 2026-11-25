@@ -31,12 +31,28 @@ export function sessionMembershipInclude(organizationId: string) {
   } satisfies Prisma.User$membershipsArgs;
 }
 
+/** Üyelik etkin mi — oturum doğrulaması ve oturumsuz yetki (ev sahibi kanalı) AYNI tanımı kullanır. */
+export function isActiveMembership(m: Pick<SessionMembershipRow, "status"> | null | undefined): boolean {
+  return m?.status === "active";
+}
+
+/**
+ * OTURUMSUZ YÖNETİM YETKİSİ (K23, Codex 11-25; tasarım M-2 §10.1 S6): ev sahibi WhatsApp kanalı web oturumu taşımaz → yetki, kişinin O
+ * işletmedeki üyeliğinden okunur (etkin + sahip / yönetici). `User.organizationId` / `User.role` ana işletme AYNASIDIR (yalnız ana işletmeyi
+ * anlatır, çıkarma / askıyı görmez) — yetki kararı ondan VERİLMEZ. Kuşak burada denetlenmez: bağ üyelik kuşağını saklamıyor (migration ister);
+ * rol düşürme ve çıkarma (etkin değil) yine de anında etki eder.
+ */
+export function membershipCanManage(m: Pick<SessionMembershipRow, "status" | "role"> | null | undefined): boolean {
+  if (!m || !isActiveMembership(m)) return false;
+  return m.role === "owner" || m.role === "manager";
+}
+
 /** Üyelik bu oturumu taşıyabilir mi: etkin + kuşak aynı + (belirteç kimlik taşıyorsa) kimlik aynı. */
 export function membershipMatchesSession(
   m: SessionMembershipRow | null | undefined,
   session: { membershipId?: string; membershipEpoch?: number },
 ): m is SessionMembershipRow {
-  if (!m || m.status !== "active") return false;
+  if (!m || !isActiveMembership(m)) return false;
   if ((session.membershipEpoch ?? 0) !== m.epoch) return false;
   if (session.membershipId !== undefined && session.membershipId !== m.id) return false;
   return true;

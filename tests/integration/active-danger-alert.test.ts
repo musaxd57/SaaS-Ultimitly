@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { upcomingStay } from "../helpers/stay-dates";
 
 // ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ async function seed(body: string, opts: { email?: string; phone?: string; conver
   const o = await prisma.organization.create({
     data: { name: `Org ${seq}`, alertEmail: email, autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
   });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: o.id, name: "Ayla", email: `u${seq}${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const p = await prisma.property.create({ data: { organizationId: o.id, name: `Lale ${seq}`, checkInTime: "15:00", checkOutTime: "11:00" } });

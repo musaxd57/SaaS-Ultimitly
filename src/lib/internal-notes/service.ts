@@ -168,7 +168,7 @@ function sameRequest(
  */
 const NOTE_WRITE_TX = { timeout: 30_000, maxWait: 10_000 } as const;
 
-const REPLAY_SELECT ={ ...VIEW_SELECT, propertyId: true, reservationId: true, conversationId: true } as const;
+const REPLAY_SELECT = { ...VIEW_SELECT, propertyId: true, reservationId: true, conversationId: true } as const;
 
 /**
  * Not ekler. Yazan oturumdaki kişidir; adı o anki `User.name`'den kopyalanır (kişi bulunamazsa — silinmiş — oturumdaki ad).

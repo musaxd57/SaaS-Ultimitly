@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 import { encryptSecretBound } from "@/lib/crypto";
 import {
   __kbSaveHooks,
@@ -67,7 +67,7 @@ afterAll(async () => {
 
 async function seed(answer = "Çöp konteyneri binanın arkasında.", opts: { status?: string } = {}) {
   const org = await prisma.organization.create({ data: { name: "Test Org" } });
-  const user = await prisma.user.create({
+  const user = await makeUser({
     data: { organizationId: org.id, name: "Ayla", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
   });
   const binding = await prisma.hostChannelBinding.create({

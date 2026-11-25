@@ -23,6 +23,7 @@ import { verifyTotpStep } from "@/lib/auth/totp";
 import { reportError } from "@/lib/report-error";
 import { CHECKOUT_PAID_STATUS } from "@/lib/billing/checkout-paid";
 import { checkoutPendingLockName } from "@/lib/billing/checkout-pending";
+import { membershipMatchesSession } from "@/lib/membership/session";
 
 // ---------------------------------------------------------------------------
 // PERMANENT account + data erasure (KVKK right-to-erasure / "hesabımı sil").
@@ -134,12 +135,14 @@ export async function POST(req: NextRequest) {
     let paymentPendingInTx: string | null = null;
     const outcome = await deleteAccountData(session.organizationId, {
       precondition: async (tx) => {
-        const owner = await tx.$queryRaw<{ id: string }[]>`
-          SELECT "id" FROM "User"
-          WHERE "id" = ${session.userId} AND "organizationId" = ${session.organizationId}
-            AND "role" = 'owner' AND "sessionEpoch" = ${epoch}
+        // K23 (Codex 11-25): sahiplik ÜYELİKTEN — oturum doğrulamasıyla aynı kural (`membershipMatchesSession`: etkin + kuşak + kimlik)
+        // + rol sahip. Ana işletme aynası (`User.organizationId` / `User.role`) çıkarmayı / askıyı / üyelikteki rol düşürmeyi görmez. Kişi
+        // satırı (parola sıfırlama = `sessionEpoch`) ve üyelik satırı (rol değişimi / çıkarma) birlikte KİLİTLENİR.
+        const owner = await tx.$queryRaw<{ id: string; role: string; status: string; epoch: number }[]>`
+          SELECT m."id", m."role", m."status", m."epoch" FROM "Membership" m JOIN "User" u ON u."id" = m."userId"
+          WHERE m."userId" = ${session.userId} AND m."organizationId" = ${session.organizationId} AND u."sessionEpoch" = ${epoch}
           FOR UPDATE`;
-        if (owner.length === 0) return "session_revoked";
+        if (!membershipMatchesSession(owner[0], session) || owner[0].role !== "owner") return "session_revoked";
         // Opus F2 (10-16): abonelik satırı da KİLİTLENİR. Ödeme olayının güncellemesi işletme satırının kilidine takılmaz (yabancı anahtar
         // değişmiyor); kilitsiz okumadan SONRA, kademeli silmeden ÖNCE commit olan ödemeli güncelleme "işlendi" sayılıp alarmsız düşüyordu.
         // Kilitle: güncelleme bu silmenin sonucunu bekler → satır gitmiş → 0 satır → işletme yok → alarm + inceleme (webhook S2 dalı). Ters

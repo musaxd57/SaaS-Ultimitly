@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vitest";
-import { prisma, resetDb } from "../helpers/db";
+import { prisma, resetDb, makeUser } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // HOST KARAR MOTORU — OTO-YANIT BAĞLANTISI (Faz 1; kurucu 10-02: "cevap vermek talebi çözmek değil … Host panelinde '13:00 erken
@@ -322,7 +322,7 @@ describe("oto-yanıt → karar kartı → WhatsApp (dilim 3)", () => {
   });
 
   async function bind(orgId: string) {
-    const owner = await prisma.user.create({
+    const owner = await makeUser({
       data: { organizationId: orgId, name: "Ev Sahibi", email: `o${Math.random()}@x.com`, passwordHash: "x", role: "owner" },
     });
     const b = await startHostBinding({ organizationId: orgId, userId: owner.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });
