@@ -126,6 +126,55 @@ describe("son kontrol — model düşünürken iptal edilen rezervasyona cevap g
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  // Codex 11-25 ("acil durdurmanın kapsamı") + OB envanteri (sonda): ev sahibi model düşünürken otomatik cevabı KAPATIRSA üretilmiş cevap yine
+  // gidiyordu — tur başındaki anahtar kontrolü model çağrısından önce. Şart artık talebin kendisinde (ilişki süzgeci, ek sorgu yok).
+  it("🚨 model çağrıdayken işletme otomatik cevabı KAPATIR → hiçbir şey gönderilmez (sebep 'disabled'), konuşma 'Cevaplandı'ya geçmez", async () => {
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      await prisma.organization.updateMany({ data: { autoReplyHospitable: false } });
+      return WIFI_REPLY;
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("disabled");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("🚨 model çağrıdayken ev sahibi kanaldan cevap yazdı (eşzamanlı senkron içeri aldı) → yapay zekânın cevabı GİTMEZ (misafire iki cevap yok)", async () => {
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      // Senkron ev sahibinin kanaldan yazdığı cevabı içeri aldı; konuşma durumu henüz güncellenmedi (durum şartı tek başına yakalamaz).
+      await prisma.message.create({ data: { conversationId, direction: "outbound", authorType: "host", senderName: "Host", body: "Şifre deniz2024", externalId: "hm-1" } });
+      return WIFI_REPLY;
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1); // yalnız ev sahibinin cevabı
+  });
+
+  it("KONTROL: model çağrıdayken yazılan OTOMATİK şablon mesajı (yazar 'automation') cevap sayılmaz → yapay zekânın cevabı gider", async () => {
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      await prisma.message.create({ data: { conversationId, direction: "outbound", authorType: "automation", senderName: "GuestOps AI", body: "Hoş geldiniz", externalId: "am-1" } });
+      return WIFI_REPLY;
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("KONTROL: anahtarı yok sayan çağrı (elle 'AI ile dene' — `ignoreToggle`) anahtar kapalıyken de gönderir (bugünkü sözleşme)", async () => {
+    const { conversationId } = await seed();
+    await prisma.organization.updateMany({ data: { autoReplyHospitable: false } });
+    mockSuggest.mockResolvedValue(WIFI_REPLY);
+    const out = await applyChannelAutoReply(conversationId, { ignoreToggle: true });
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it("KONTROL: rezervasyon iptal edilmezse cevap gider (talep şartı yanlış engellemiyor)", async () => {
     const { conversationId } = await seed();
     mockSuggest.mockResolvedValue(WIFI_REPLY);

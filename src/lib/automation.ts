@@ -4559,6 +4559,17 @@ export async function applyChannelAutoReply(
     id: { notIn: seenInboundIds },
     ...(thread.complete ? {} : keysetAfter(thread.rows[0])),
   };
+  // 🚨 MODEL DÜŞÜNÜRKEN EV SAHİBİ CEVAP YAZDI (Codex 11-25; kuyruk yolunun `replyVeto` kuralının satır içi eşi — ajan turu 11-04 F1): tetik
+  // mesajından sonra yazılmış, bu turun görmediği ev sahibi cevabı varsa misafir zaten cevaplandı — yapay zekânın cevabı da giderse misafire
+  // iki (çelişebilecek) cevap gider. Lixus panelinden yazılan cevap konuşmayı zaten "Cevaplandı" yapar (talep durum şartından düşer); bu
+  // şart kanalın kendi uygulamasından yazılıp eşzamanlı bir senkronla içeri alınan cevabı kapatır. Otomatik şablon (yazar "automation") cevap
+  // sayılmaz → durdurmaz. Şart talebin KENDİSİNDE (aynı tek UPDATE).
+  const unseenHostReply: Prisma.MessageWhereInput = {
+    direction: "outbound",
+    authorType: "host",
+    id: { notIn: thread.rows.map((m) => m.id) },
+    ...keysetAfter(last),
+  };
   // 🚨 CEVABIN "YAZILDIĞI AN" = TALEP ANI (mesaj A25, Codex 11-10). Cevap satırı teslimden SONRA yazılıyor ve zamanı kayıt anı oluyordu:
   // gönderim sürerken içeri alınan misafir mesajı (cevap onu GÖRMEDEN yazıldı) satır sırasında cevaptan ÖNCE düşüyor → sonraki geçiş "son
   // mesaj giden" deyip cevaplamıyor, sonraki senkron da konuşmayı "Cevaplandı" yapıyordu (`lateGuestMessages` içeri alınma anını cevabın
@@ -4574,11 +4585,31 @@ export async function applyChannelAutoReply(
   const reservationLive: Prisma.ConversationWhereInput = conversation.reservation
     ? { reservation: { is: { status: { not: "cancelled" } } } }
     : {};
+  // 🚨 SON KONTROL — OTOMATİK CEVAP HÂLÂ AÇIK (Codex 11-25 "acil durdurmanın kapsamı"; OB envanteri, sonda): tur başındaki anahtar kontrolü
+  // model çağrısından ÖNCE; ev sahibi model düşünürken otomatik cevabı kapatırsa üretilmiş cevap yine gidiyordu (ölçüldü). Kural 11-18: bir
+  // freni olan yolun freni gönderim anında da geçerlidir. Şart talebin KENDİSİNDE (ilişki süzgeci, ek sorgu yok). Anahtarı bilerek yok
+  // sayan çağrı (`ignoreToggle` — elle "AI ile dene") bugünkü gibi geçer.
+  const autoReplyStillOn: Prisma.ConversationWhereInput = options.ignoreToggle
+    ? {}
+    : { property: { organization: { autoReplyHospitable: true } } };
   const claim = await prisma.conversation.updateMany({
-    where: { id: conversation.id, status: { in: ["new", "waiting"] }, messages: { none: unseenInbound }, ...reservationLive },
+    where: {
+      id: conversation.id,
+      status: { in: ["new", "waiting"] },
+      messages: { none: { OR: [unseenInbound, unseenHostReply] } },
+      ...reservationLive,
+      ...autoReplyStillOn,
+    },
     data: { status: "answered" },
   });
   if (claim.count === 0) {
+    // Talep, otomatik cevap bu arada kapatıldığı için düştüyse sonuç tur başındaki anahtar kontrolüyle AYNI (gönderim yok, "disabled").
+    if (!options.ignoreToggle) {
+      const stillOn = await prisma.organization
+        .findUnique({ where: { id: conversation.property.organizationId }, select: { autoReplyHospitable: true } })
+        .catch(() => null);
+      if (stillOn && !stillOn.autoReplyHospitable) return { sent: false, skippedReason: "disabled", draft, ...meta };
+    }
     // Talep iptal yüzünden düştüyse sonuç tur başındaki iptal kontrolüyle AYNI (gönderim yok, sebep görünür).
     if (conversation.reservation) {
       const cancelled = await prisma.reservation
@@ -4590,7 +4621,7 @@ export async function applyChannelAutoReply(
       }
     }
     const unseen = await prisma.message
-      .count({ where: { conversationId: conversation.id, ...unseenInbound } })
+      .count({ where: { conversationId: conversation.id, OR: [unseenInbound, unseenHostReply] } })
       .catch(() => 0);
     if (unseen > 0) return { sent: false, skippedReason: SUPERSEDED_BY_NEWER_MESSAGE, draft, ...meta };
     return { sent: false, skippedReason: "already_claimed", draft, ...meta };
