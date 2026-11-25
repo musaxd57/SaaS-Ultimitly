@@ -13,7 +13,8 @@ import { __resetRateLimit } from "@/lib/rate-limit";
 // "legacy testleri körlemesine silme; rota-geneli invaryantları önce taşı."
 //
 // Buraya taşınanlar:
-//   · `forgot:{ip}` kovası (12/15 dk) — akışın tamamını kapsar, eski yola özel değil
+//   · IP kovaları — akışın tamamını kapsar, eski yola özel değil (11-25'ten beri `forgot-ip-req` 5 + `forgot-ip-confirm` 7 / 15 dk;
+//     eskiden tek `forgot:{ip}` 12 / 15 dk)
 //   · enumeration: bilinmeyen adres de 200 alır, hiçbir satır yazılmaz
 //   · token'sız confirm'in fail-closed reddi (Faz 3'ün YENİ sözleşmesi)
 //
@@ -28,6 +29,7 @@ vi.mock("@/lib/email-outbox", async (orig) => {
 });
 
 import { POST } from "@/app/api/account/forgot-password/route";
+import { issueChallenge } from "@/lib/auth/password-reset-challenge";
 
 const EMAIL = "host@example.com";
 
@@ -54,25 +56,55 @@ describe("forgot-password — rota-geneli değişmezler", () => {
     });
   });
 
-  // ── IP kovası — eski dosyadan TAŞINDI (legacy'ye özel DEĞİL) ──────────────
-  it("IP limiti: aynı IP'den 13. istek 429", { timeout: 90_000 }, async () => {
-    for (let i = 0; i < 12; i++) {
+  // ── IP kovaları — eski dosyadan TAŞINDI (legacy'ye özel DEĞİL); 11-25'ten beri eylem başına İKİ kova (istek 5 + doğrulama 7 = eski 12) ──
+  it("IP limiti (doğrulama kovası): aynı IP'den 8. doğrulama 429", { timeout: 90_000 }, async () => {
+    for (let i = 0; i < 7; i++) {
       const r = await POST(reqFrom({ action: "confirm", code: "00000000", newPassword: "yenisifre1" }, "7.7.7.7"));
-      // KONTROL: ilk 12 istek limite TAKILMIYOR — bu olmadan "her zaman 429"
+      // KONTROL: ilk 7 istek limite TAKILMIYOR — bu olmadan "her zaman 429"
       // mutasyonu da yeşil geçerdi.
       expect(r.status).toBe(400);
     }
-    const res = await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.7.7"));
-    expect(res.status).toBe(429);
+    expect((await POST(reqFrom({ action: "confirm", code: "00000000", newPassword: "yenisifre1" }, "7.7.7.7"))).status).toBe(429);
+    // Bozuk / bilinmeyen eylem de doğrulama kovasına sayılır (sayılmadan geçen istek yok).
+    expect((await POST(reqFrom({ action: "baska" }, "7.7.7.7"))).status).toBe(429);
+  });
+
+  it("IP limiti (istek kovası): aynı IP'den 6. kod isteği 429 (farklı adreslerle — adres tavanı 4)", { timeout: 90_000 }, async () => {
+    for (let i = 0; i < 5; i++) {
+      expect((await POST(reqFrom({ action: "request", email: `a${i}@example.com` }, "7.7.7.6"))).status).toBe(200);
+    }
+    expect((await POST(reqFrom({ action: "request", email: "a9@example.com" }, "7.7.7.6"))).status).toBe(429);
   });
 
   it("IP kovası ADRESE değil IP'ye bağlı: başka IP etkilenmez", { timeout: 90_000 }, async () => {
-    for (let i = 0; i < 12; i++) {
-      await POST(reqFrom({ action: "confirm", code: "00000000", newPassword: "yenisifre1" }, "7.7.7.8"));
+    for (let i = 0; i < 5; i++) {
+      await POST(reqFrom({ action: "request", email: `b${i}@example.com` }, "7.7.7.8"));
     }
     expect((await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.7.8"))).status).toBe(429);
     // Farklı IP hâlâ çalışıyor → kova global değil.
     expect((await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.7.9"))).status).toBe(200);
+  });
+
+  // ── Codex 11-25: "kod iste" ile "kodu doğrula" IP bütçeleri AYRI ─────────
+  it("🚨 aynı ağdan çok sayıda KOD İSTEĞİ, elinde geçerli kodu olan kişinin DOĞRULAMASINI kapatmaz", { timeout: 90_000 }, async () => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    const issued = await issueChallenge(prisma, user.id);
+    // Ortak ağdaki başka kişiler (farklı adresler) istek bütçesini sonuna kadar kullanır.
+    let i = 0;
+    while ((await POST(reqFrom({ action: "request", email: `kisi${i++}@example.com` }, "7.7.6.1"))).status === 200) {
+      if (i > 30) throw new Error("istek kovası hiç dolmadı");
+    }
+    // Kişi geçerli kodunu aynı ağdan girer → doğrulama kendi bütçesinden geçer.
+    const res = await POST(reqFrom({ action: "confirm", token: issued.token, code: issued.code, newPassword: "yenisifre12" }, "7.7.6.1"));
+    expect(res.status).toBe(200);
+  });
+
+  it("🚨 ters yön: aynı ağdan çok sayıda DOĞRULAMA denemesi KOD İSTEĞİNİ kapatmaz", { timeout: 90_000 }, async () => {
+    let i = 0;
+    while ((await POST(reqFrom({ action: "confirm", code: "00000000", newPassword: "yenisifre1" }, "7.7.6.2"))).status === 400) {
+      if (++i > 30) throw new Error("doğrulama kovası hiç dolmadı");
+    }
+    expect((await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.6.2"))).status).toBe(200);
   });
 
   // ── Enumeration — eski dosyadan TAŞINDI ──────────────────────────────────

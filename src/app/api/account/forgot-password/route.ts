@@ -77,21 +77,40 @@ function verificationCode(): string {
 // kodu öldürmez) diyordu; tek haneli yazım hatası "ölü kod" gibi okunuyor, kişi geçerli kodu bırakıyordu. Ayarlar'daki metin AYNI kalır.
 const GENERIC_CONFIRM = "Kod doğrulanamadı. Kodu kontrol edip tekrar deneyin ya da “Baştan başla” ile yeni bir kod isteyin.";
 
+/** IP başına, 15 dakikada "kod iste" tavanı. İki kova toplamı (5 + 7) eski ortak tavanı (12) AŞMAZ — gerekçe ↓POST. */
+const FORGOT_IP_REQUEST_CAP = 5;
+/** IP başına, 15 dakikada "kodu doğrula" tavanı (bozuk / bilinmeyen eylemler dahil). */
+const FORGOT_IP_CONFIRM_CAP = 7;
+
 export async function POST(req: NextRequest) {
   // 🚨 JSON KONTROLÜ IP KOVASINDAN ÖNCE (09-23; `login` rotasının F8 emsali, gerekçe
   // `hasJsonContentType`te): başka bir site ziyaretçinin tarayıcısından `text/plain`
   // POST'larla (preflight YOK) bir ofis/mobil NAT'ının kovasını yakıp orayı bu akıştan
   // dakikalarca dışarıda bırakabiliyordu. Kendi formlarımız hep `application/json` yollar.
   if (!hasJsonContentType(req)) return unsupportedMediaType();
-  // Per-IP cap over the whole flow (enumeration / code-spray defense).
-  const ipLimit = await rateLimit(`forgot:${rateLimitClientKey(req)}`, 12, 15 * 60_000);
+  // Gövde (boyut tavanlı) kovadan ÖNCE okunur: hangi IP kovasının sayılacağı eyleme bağlı. Okuma fırlatmaz; aşırı büyük gövde aşağıda
+  // yine kovadan SONRA 413 alır (eskisi gibi sayılır — doğrulama kovasına).
+  const bodyResult = await parseJsonBody<Record<string, unknown>>(req);
+  const data = bodyResult.ok ? bodyResult.data : null;
+  const action = typeof data?.action === "string" ? data.action : "";
+  // 🚨 IP BAŞINA İKİ AYRI KOVA (Codex 11-25, kurucu talimatı 2026-11-25): eskiden "kod iste" ile "kodu doğrula" tek kovayı (12 / 15 dk)
+  // paylaşıyordu → ortak ağda (ofis, mobil NAT) başkalarının kod istekleri kovayı doldurunca elinde GEÇERLİ kodu olan kişi de şifresini
+  // sıfırlayamıyordu (ve tersi). Toplam IP bütçesi AŞILMAZ: 5 + 7 = eski 12. Bölüşüm gerekçesi: istek kovası 5 > adres başına istek
+  // tavanı (`forgot-req`, 4) → tek kişi IP tavanına adres tavanından önce çarpmaz; doğrulama kovası 7 = bir kodun bütün denemeleri
+  // (`CHALLENGE_MAX_ATTEMPTS`, 5) + "Baştan başla" ile gelen yeni kodun iki denemesi → kodunu tüketen kişi yeni kodla yine girebilir
+  // (eski ortak kovada bu akış 5 + 2 istek + 2 = 9 ile sığıyordu; `password-reset-challenge` testi 2). `request` dışındaki her şey (bozuk /
+  // bilinmeyen eylem, aşırı büyük gövde dahil) doğrulama kovasına sayılır — hiçbir istek sayılmadan geçmez. Kod başına deneme sınırı
+  // satırda, aynen.
+  // ⚠️ Ad `forgot-ip-*`: `forgot-confirm:` HESAP kovası adıdır ve bilinçli olarak YOKTUR (m47; pin `forgot-password-phase3-contract`).
+  const ipLimit = await rateLimit(
+    action === "request" ? `forgot-ip-req:${rateLimitClientKey(req)}` : `forgot-ip-confirm:${rateLimitClientKey(req)}`,
+    action === "request" ? FORGOT_IP_REQUEST_CAP : FORGOT_IP_CONFIRM_CAP,
+    15 * 60_000,
+  );
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   try {
-    const bodyResult = await parseJsonBody<Record<string, unknown>>(req);
     if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
-    const data = bodyResult.ok ? bodyResult.data : null;
-    const action = typeof data?.action === "string" ? data.action : "";
     const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
 
     // ── E-POSTA YALNIZ `request` İÇİN ZORUNLUDUR (Faz 3) ───────────────────

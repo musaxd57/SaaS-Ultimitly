@@ -23,7 +23,7 @@ import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 
 const ROUTES = [
   { name: "register", handler: register, url: "http://localhost/api/auth/register", bucket: "register:" },
-  { name: "forgot-password", handler: forgot, url: "http://localhost/api/account/forgot-password", bucket: "forgot:" },
+  { name: "forgot-password", handler: forgot, url: "http://localhost/api/account/forgot-password", bucket: "forgot-ip-" }, // 11-25: eylem başına iki IP kovası (`forgot-ip-req` / `forgot-ip-confirm`)
   { name: "resend-verification", handler: resend, url: "http://localhost/api/auth/resend-verification", bucket: "verify-resend:" },
   // 09-23 saldırgan turu: dördüncü kimlik rotası da aynı sırayla (JSON önce, kova sonra).
   { name: "verify-email", handler: verifyEmail, url: "http://localhost/api/auth/verify-email", bucket: "verify-email:" },

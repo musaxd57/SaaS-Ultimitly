@@ -135,9 +135,11 @@ describe("Faz 3 — eski yola dönüş engelli", () => {
     // m47'nin kapattığı delik tam buydu: bütçe hesaba bağlıyken saldırgan
     // kurbanın adresiyle onu yakabiliyordu. Bütçe artık challenge SATIRINDA.
     expect(routeSrc()).not.toMatch(/forgot-confirm:/);
-    // KONTROL: rotanın diğer iki kovası DURUYOR.
+    // KONTROL: rotanın diğer kovaları DURUYOR.
     // (09-23: kova anahtarı IPv6 /64'e indirgeyen `rateLimitClientKey`ten gelir.)
-    expect(routeSrc()).toMatch(/forgot:\$\{rateLimitClientKey\(req\)\}/);
+    // (11-25 Codex: IP kovası eylem başına ikiye ayrıldı — `forgot-ip-req` / `forgot-ip-confirm`.)
+    expect(routeSrc()).toMatch(/forgot-ip-req:\$\{rateLimitClientKey\(req\)\}/);
+    expect(routeSrc()).toMatch(/forgot-ip-confirm:\$\{rateLimitClientKey\(req\)\}/);
     expect(routeSrc()).toMatch(/forgot-req:\$\{email\}/);
   });
 });
