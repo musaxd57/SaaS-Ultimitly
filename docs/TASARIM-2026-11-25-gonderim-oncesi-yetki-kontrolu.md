@@ -57,6 +57,14 @@ Wi-Fi kalemi ("şifre deniz2024"). Gerçek PostgreSQL (`lixus_o3`). Dosya commit
 | Kontrol: değişiklik yok | evet | gönderildi | evet |
 
 Notlar (hata olmayanı hata gibi göstermemek için):
+- **Ana oturum düzeltmesi (11-25, kodda doğrulandı):** "ev sahibi o arada elle cevap yazdı → iki cevap" satırı sondada çıplak bir mesaj
+  satırı eklenerek üretildi. Gerçek yollarda: Lixus panelinden yazılan cevap konuşmayı aynı anda "Cevaplandı" yapar (`src/lib/host-send.ts:311`)
+  → talep durum şartından düşer, iki cevap OLUŞMAZ. Açık yalnız ev sahibinin KANALIN kendi uygulamasından yazdığı cevabın eşzamanlı bir
+  senkronla içeri alındığı (durum henüz güncellenmemiş) dar pencerededir. "AI durduruldu" (`autoReplyHoldUntil`) alanını satır içi kipte
+  eşzamanlı yazan bir yol yok (ev sahibinin durdurma eylemi konuşmayı "Sorunlu" yapmaktır — o yakalanıyor) → pratikte açık değil.
+- **Aynı gün kapatılanlar (`6f33a939`):** otomatik cevabın model düşünürken kapatılması ve kanaldan yazılıp eşzamanlı içeri alınan ev sahibi
+  cevabı artık gönderim talebinin kendisinde (tek UPDATE). S1'in bu iki bacağı soru olmaktan çıktı; konaklamanın model düşünürken bitmesi
+  (saniyelik pencere, tarih değişimi) ve aşağıdaki KB / daire maddeleri soruda kalır.
 - Rezervasyon iptali bu tabloda yok çünkü 11-20 düzeltmesiyle yakalanıyor (aynı dosyanın var olan testi yeşil).
 - Kuyruk yolu (`replyVeto`) AI durdurma, konaklama bitişi ve ev sahibinin elle cevabını ZATEN yakalar; satır içi yol yakalamaz. Yani "ev sahibi
   elle yazdı → iki cevap" ve "AI durduruldu → yine gitti" iki yol arasında ayrışma; düzeltmesi yeni sistem değil, kuyruktaki kuralın satır içi eşi
