@@ -622,7 +622,7 @@ describe("K27-K18: açılışta yalnız UYARI olan zayıf ayarlar (kurucu 11-25 
   });
 
   it("Turnstile açık + anahtarlardan biri eksik → uyarı, hata değil; ikisi de varken uyarı yok", () => {
-    for (const keys of [{}, { TURNSTILE_SITE_KEY: "s" }, { TURNSTILE_SECRET_KEY: "k" }]) {
+    for (const keys of [{}, { TURNSTILE_SITE_KEY: "s" }, { TURNSTILE_SECRET_KEY: "k" }] as Record<string, string>[]) {
       const r = run({ SIGNUP_TURNSTILE_ENABLED: "1", ...keys });
       expect(r.errors).toEqual([]);
       expect(r.warnings.filter((w) => w.startsWith("SIGNUP_TURNSTILE_ENABLED is 1 but"))).toHaveLength(1);
