@@ -248,6 +248,11 @@ async function postTokenRequest(
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
+      // 🚨 YÖNLENDİRME İZLENMEZ (K27-K13, Codex 11-25 akşam): gövde client_secret + yetki kodu / yenileme anahtarı taşır. Varsayılan
+      // "follow"da 307 / 308 gövdeyi YENİ hedefe aynen taşır (Authorization başlığı köken değişince düşer, gövde DÜŞMEZ — Node 22'de
+      // ölçüldü) ve oradan dönen anahtar kabul edilirdi. Token ucu yönlendirme yapmaz; 3xx `fetch`te hata olur → aşağıdaki catch onu
+      // GEÇİCİ sayar (authFailure:false): anahtar silinmez, istek sağlayıcıya ulaşmadığı için dönüşüm (rotation) de olmamıştır.
+      redirect: "error",
       signal: AbortSignal.timeout(OAUTH_TOKEN_REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
