@@ -12,7 +12,17 @@
       "mcp__github__pull_request_read",
       "mcp__Claude_Code_Remote__list_triggers",
       "mcp__Claude_Code_Remote__get_trigger",
-      "ReadNotifications"
+      "ReadNotifications",
+      "mcp__Claude_Code_Remote__delete_trigger",
+      "mcp__Claude_Code_Remote__update_trigger",
+      "mcp__Claude_Code_Remote__get_session",
+      "Monitor",
+      "SendMessage",
+      "TaskStop",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "ToolSearch"
     ]
   }
 }

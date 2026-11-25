@@ -105,3 +105,19 @@ kodları opus 5.5 agentlarına yazdır ama bak bu turda çok hata yaptın beni h
 ## Uygulama durumu
 
 (dalga ilerledikçe doldurulur — her iddianın teyidi + ne yapıldı / ne soruya döndü)
+
+## Kurucu cevapları — 25 Kasım gece (AYNEN)
+
+Kurucu: "CI izni için bana istek gönderme onun kontrolu için iznin hep var remote control için mi ne salak gibi bana sorma izin isteme
+bunun için ve bana soruların varsa sor gece moduna gireceksin bu sorulardan sonra"
+
+- **Silme ekranı metni (K5):** Silmeye özgü metin (Önerilen) — "Bekleyen bir ödemeniz var. Ödeme sonuçlanınca hesabınızı silebilirsiniz;
+  acil ise bize yazın." (üç durumda da).
+- **QR PIN (K10):** Yeniden PIN sorulsun (Önerilen) — PIN değişince de, PIN sonradan zorunlu yapılınca da eski telefon yeni PIN'i girmek
+  zorunda; girene kadar Wi-Fi gibi bilgiler verilmez.
+- **Açılış kontrolü (K17):** Açılış dursun (Önerilen) — `BILLING_ENFORCED` açık + Paddle webhook anahtarı eksik birleşiminde uygulama
+  açılmaz; öteki zayıf ayarlar uyarı olarak kalır (liste sabah raporunda).
+- **Migration:** Evet, yaz (Önerilen) — yalnız eklemeli ve güvenli olanlar (boş bırakılabilir alan / yeni tablo / dizin); dolu tabloya
+  zorunlu alan ya da tekil kısıt yok; hepsi sabah raporunda listelenir.
+- **İzinler:** CI kontrolü, hatırlatıcı ve izleme araçları için kurucuya soru gitmez (`.claude/settings.json` listesi genişletildi).
+- Gece modu: bu cevaplardan sonra soru sormadan ilerlenir; sorular sabah raporuna.
