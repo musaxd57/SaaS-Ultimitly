@@ -19,12 +19,12 @@ import {
 } from "@/lib/api";
 import {
   rateLimit,
-  rateLimitPeek,
   rateLimitReserve,
   rateLimitReleaseReservation,
   rateLimitTouch,
   clientIp,
   rateLimitClientKey,
+  type RateLimitReservation,
 } from "@/lib/rate-limit";
 import { KNOWN_DEVICE_COOKIE, verifyKnownDeviceToken } from "@/lib/auth/known-device";
 import { decryptSecret } from "@/lib/crypto";
@@ -270,10 +270,19 @@ export async function POST(req: NextRequest) {
         // TOTP'ye uygulanır: kurtarma kodları yüksek entropili + tek kullanımlıktır, tahmin
         // edilemez — telefonunu kaybeden kullanıcıyı 24 saat kilitlemek yanlış yön olurdu.
         // Kilitleme vektörü AÇMAZ: bu dala ulaşmak doğru PAROLA ister.
+        // 🚨 HAK DOĞRULAMADAN ÖNCE ATOMİK AYRILIR (Codex 11-25; hesap kovasının F1 emsali ↑). Eskiden tavan yalnız OKUNUYOR, sayaç hatalı
+        // koddan SONRA artıyordu: "oku → doğrula → artır" arasında gelen eşzamanlı istekler aynı eski sayaçla geçiyordu (günlük tavan kesin
+        // değildi; aşımı yalnız 10 dk kovası sınırlıyordu). Şimdi sayaç = biten hatalar + UÇUŞTAKİ TOTP denemeleri (tek SQL ifadesi). Hak
+        // İADE edilir: doğru kodda (başarılı kod tavanı tüketmez — 09-23 sözleşmesi), tavan doluyken reddedilen istekte (doğrulama yapılmadı)
+        // ve doğrulama hiç tamamlanamadıysa (beklenmeyen hata). Hatalı kod ve aynı kodun tekrarı hakkı TUTAR (= bir hata). İade yalnız
+        // ayrıldığı pencereye (`rateLimitReleaseReservation`).
         const totpDayKey = `login-2fa-fail-day:${user.id}`;
+        let dayReservation: RateLimitReservation | null = null;
         if (!recoveryCode) {
-          const day = await rateLimitPeek(totpDayKey, LOGIN_2FA_DAILY_FAILURES, DAY_MS);
+          const day = await rateLimitReserve(totpDayKey, LOGIN_2FA_DAILY_FAILURES, DAY_MS);
+          dayReservation = day.reservation;
           if (!day.ok) {
+            await rateLimitReleaseReservation(dayReservation);
             return tooManyRequests(
               day.retryAfter,
               "Bugün bu hesap için çok fazla hatalı doğrulama kodu girildi. Güvenliğiniz için kod girişi geçici olarak durduruldu; kurtarma kodunuzla giriş yapabilir ya da daha sonra tekrar deneyebilirsiniz.",
@@ -281,9 +290,8 @@ export async function POST(req: NextRequest) {
           }
         }
         // Hatalı ikinci-adım denemesi: iz bırakır (eskiden SESSİZDİ — 08-08'de planlanan
-        // `auth.2fa_failed` kaydı hiç yazılmamıştı) ve TOTP ise günlük tavana sayılır.
+        // `auth.2fa_failed` kaydı hiç yazılmamıştı). TOTP ise günlük tavana zaten sayıldı (↑ayrılan hak TUTULUR — ikinci kez sayılmaz).
         const noteSecondFactorFailure = async (method: "totp" | "recovery") => {
-          if (method === "totp") await rateLimit(totpDayKey, LOGIN_2FA_DAILY_FAILURES, DAY_MS);
           await writeAudit({
             organizationId: user.organizationId,
             actorUserId: user.id,
@@ -338,13 +346,20 @@ export async function POST(req: NextRequest) {
           // twoFactorLastStep is still null or older than this step, so two concurrent
           // logins with the SAME code can't both pass (the read-check-then-update
           // version had a replay race). count===0 → already consumed → reject.
-          const burned = await prisma.user.updateMany({
-            where: {
-              id: user.id,
-              OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
-            },
-            data: { twoFactorLastStep: step },
-          });
+          let burned: { count: number };
+          try {
+            burned = await prisma.user.updateMany({
+              where: {
+                id: user.id,
+                OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
+              },
+              data: { twoFactorLastStep: step },
+            });
+          } catch (err) {
+            // Doğrulama TAMAMLANAMADI (veritabanı hatası) → bu bir hatalı kod değil, günlük hak geri verilir.
+            await rateLimitReleaseReservation(dayReservation);
+            throw err;
+          }
           if (burned.count === 0) {
             // Aynı kodun İKİNCİ kullanımı (tekrar oynatma) da hatalı denemedir.
             await noteSecondFactorFailure("totp");
@@ -353,6 +368,8 @@ export async function POST(req: NextRequest) {
               { status: 401 },
             );
           }
+          // DOĞRU kod → günlük hatalı-kod hakkı iade (oturumun sonraki dallarından — üyelik vb. — ÖNCE; sonuçları ne olursa olsun).
+          await rateLimitReleaseReservation(dayReservation);
         }
       }
     }

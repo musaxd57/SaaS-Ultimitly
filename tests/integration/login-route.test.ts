@@ -268,8 +268,10 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
       const r = await POST(loginReq({ email, password: "correct-horse", code: totp(secret) }, `9.4.1.${i}`));
       expect(r.status).toBe(200);
     }
+    // 11-25 (Codex): hak doğrulamadan ÖNCE ayrılıp doğru kodda iade edilir → satır sayaç 0 ile kalabilir; "hiç ayrılmamış" ile "ayrılıp
+    // iade edilmiş" aynı bütçedir (satır yoksa 0 — `login-account-budget-race` emsali).
     const row = await prisma.rateLimitCounter.findUnique({ where: { key: `login-2fa-fail-day:${u.id}` } });
-    expect(row, "başarılı kod günlük BAŞARISIZLIK sayacına yazıldı").toBeNull();
+    expect(row?.count ?? 0, "başarılı kod günlük BAŞARISIZLIK sayacına yazıldı").toBe(0);
   }, 60_000);
 
   it("günlük tavan KURTARMA KODUNU engellemez (telefonunu kaybeden kullanıcı 24 saat kilitlenmez)", async () => {
