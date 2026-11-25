@@ -879,13 +879,22 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // eder; gönderim ortasında düşen sürecin `claimed` satırını YALNIZ bu geri kazanır.
       // Drain de burada: yalnız harici cron'la çalışan kurulumlar da gecikmesiz teslim eder.
       // Bayrak kapalıyken ikisi de sorgusuz no-op.
+      // K27-K7 (Codex 11-25): kurtarma ile gönderim BAĞIMSIZ — kurtarmanın hatası (ör. askıdaki satırları okuyan sorgu düştü) o turun
+      // normal gönderimini de atlatıyordu (ikisi aynı try içindeydi). Satır başına hatalar `recoverEmailOutbox` içinde kalır; burada
+      // yalnız bütünüyle düşen adım yakalanır. Alarm anahtarı ve konusu AYNI; iki adımdan biri düşerse ilk hata bildirilir.
+      const emailOutboxErrors: unknown[] = [];
       try {
         await recoverEmailOutbox();
-        await drainEmailOutboxOnce();
-        await opsAlarm.ok("email-outbox");
       } catch (err) {
-        await opsAlarm.fail("email-outbox", "scheduled-sync email-outbox", err);
+        emailOutboxErrors.push(err);
       }
+      try {
+        await drainEmailOutboxOnce();
+      } catch (err) {
+        emailOutboxErrors.push(err);
+      }
+      if (emailOutboxErrors.length === 0) await opsAlarm.ok("email-outbox");
+      else await opsAlarm.fail("email-outbox", "scheduled-sync email-outbox", emailOutboxErrors[0]);
 
       // Kuyruk ilerlemiyor alarmı (kurucu 10-16 O3-A): iki boşaltmadan SONRA — vadesi gelmiş satır 15 dk bekliyorsa bir kez e-posta, düzelince
       // temizlenir. Asla fırlatmaz.

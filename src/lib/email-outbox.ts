@@ -802,79 +802,97 @@ export async function recoverEmailOutbox(
   const out = { recovered: 0, canceled: 0, failed: 0 };
   if (!emailOutboxEnabled()) return out;
 
+  // K27-K7 (Codex 11-25): sıra BELİRLİ (en eski satır önce, eşitlikte kimlik) ve SATIR HATASI SATIRDA KALIR. Eskiden sırasız okunuyor ve
+  // döngüde tek satırın geçici işlem hatası (kilit zaman aşımı, bağlantı kopması) fırlayıp sonraki sağlıklı satırların kurtarılmasını
+  // kesiyordu; senkron geçişinde aynı hata o turun normal gönderimini de atlatıyordu. Hata `drainEmailOutboxOnce` ile aynı desende
+  // raporlanır (kimlik bağlamda değil mesajda — kısıt kovası tek). Hatalı satır olduğu gibi kalır (her yazım kendi işleminde, koşullu) →
+  // sonraki geçiş yeniden dener; çift gönderim yok (kurtarma sağlayıcıyı çağırmaz, yalnız durumu geri alır).
   const stuck = await prisma.emailOutbox.findMany({
     where: { status: { in: ["claimed", "sending"] }, claimExpiresAt: { lt: now } },
     select: { id: true, userId: true, kind: true, status: true, version: true, payloadEnc: true, attemptCount: true, expiresAt: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: 100,
   });
   for (const row of stuck) {
-    await prisma.$transaction(async (tx) => {
-      await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
-      const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
-      const current = await rowIsCurrent(tx, row, user, now);
-      const where = { id: row.id, status: row.status, claimExpiresAt: { lt: now } };
-
-      if (!current) {
-        const c = await tx.emailOutbox.updateMany({
-          where,
-          data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
-        });
-        if (c.count === 1) out.canceled++;
-        return;
-      }
-
-      // THE TWO RECOVERIES ARE NOT THE SAME EVENT:
-      //
-      //  · `claimed` expired → the worker died BEFORE the pre-send CAS, so the
-      //    provider was never called. Nothing was attempted; charging an attempt
-      //    would burn the budget for work that never happened.
-      //
-      //  · `sending` expired → the worker died AFTER the CAS, i.e. DURING or
-      //    AROUND a provider call. Whether the mail went out is UNKNOWABLE from
-      //    here. We therefore treat it as a real (ambiguous) attempt: it costs
-      //    budget and takes backoff, so a provider that keeps hanging cannot be
-      //    retried forever. This is the honest reading — see the at-least-once
-      //    note in the module header.
-      if (row.status === "claimed") {
-        const r = await tx.emailOutbox.updateMany({
-          where,
-          data: { status: "pending", nextAttemptAt: now, claimedBy: null, claimExpiresAt: null },
-        });
-        if (r.count === 1) out.recovered++;
-        return;
-      }
-
-      const attempts = row.attemptCount + 1;
-      const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
-      const nextAt = new Date(now.getTime() + backoff);
-      const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
-      const r = await tx.emailOutbox.updateMany({
-        where,
-        data: terminal
-          ? {
-              status: "failed",
-              attemptCount: attempts,
-              payloadEnc: null,
-              claimedBy: null,
-              claimExpiresAt: null,
-              lastError: "lease expired while sending (ambiguous)",
-            }
-          : {
-              status: "pending",
-              attemptCount: attempts,
-              nextAttemptAt: nextAt,
-              claimedBy: null,
-              claimExpiresAt: null,
-              lastError: "lease expired while sending (ambiguous)",
-            },
-      });
-      if (r.count === 1) {
-        if (terminal) out.failed++;
-        else out.recovered++;
-      }
-    });
+    try {
+      await recoverStuckRow(row, now, out);
+    } catch (err) {
+      void reportError("email-outbox.recover-row", errorWithContext(err, ` (row ${row.id})`));
+    }
   }
   return out;
+}
+
+async function recoverStuckRow(
+  row: ClaimedRow & { status: string },
+  now: Date,
+  out: { recovered: number; canceled: number; failed: number },
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+    const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
+    const current = await rowIsCurrent(tx, row, user, now);
+    const where = { id: row.id, status: row.status, claimExpiresAt: { lt: now } };
+
+    if (!current) {
+      const c = await tx.emailOutbox.updateMany({
+        where,
+        data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+      });
+      if (c.count === 1) out.canceled++;
+      return;
+    }
+
+    // THE TWO RECOVERIES ARE NOT THE SAME EVENT:
+    //
+    //  · `claimed` expired → the worker died BEFORE the pre-send CAS, so the
+    //    provider was never called. Nothing was attempted; charging an attempt
+    //    would burn the budget for work that never happened.
+    //
+    //  · `sending` expired → the worker died AFTER the CAS, i.e. DURING or
+    //    AROUND a provider call. Whether the mail went out is UNKNOWABLE from
+    //    here. We therefore treat it as a real (ambiguous) attempt: it costs
+    //    budget and takes backoff, so a provider that keeps hanging cannot be
+    //    retried forever. This is the honest reading — see the at-least-once
+    //    note in the module header.
+    if (row.status === "claimed") {
+      const r = await tx.emailOutbox.updateMany({
+        where,
+        data: { status: "pending", nextAttemptAt: now, claimedBy: null, claimExpiresAt: null },
+      });
+      if (r.count === 1) out.recovered++;
+      return;
+    }
+
+    const attempts = row.attemptCount + 1;
+    const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
+    const nextAt = new Date(now.getTime() + backoff);
+    const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
+    const r = await tx.emailOutbox.updateMany({
+      where,
+      data: terminal
+        ? {
+            status: "failed",
+            attemptCount: attempts,
+            payloadEnc: null,
+            claimedBy: null,
+            claimExpiresAt: null,
+            lastError: "lease expired while sending (ambiguous)",
+          }
+        : {
+            status: "pending",
+            attemptCount: attempts,
+            nextAttemptAt: nextAt,
+            claimedBy: null,
+            claimExpiresAt: null,
+            lastError: "lease expired while sending (ambiguous)",
+          },
+    });
+    if (r.count === 1) {
+      if (terminal) out.failed++;
+      else out.recovered++;
+    }
+  });
 }
 
 /** Saklama süresi dolmuş terminal satırları sil (saatlik derin blok). Bayrak kapalıyken no-op. */
