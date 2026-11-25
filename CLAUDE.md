@@ -129,7 +129,7 @@ Bu dosyaya token/anahtar/parola yazma.
 
 ## Teknik mimari
 - Next.js 15 App Router · Prisma 6 · PostgreSQL · Railway (branch `claude/great-edison-3zqpZ` oto-deploy,
-  "Wait for CI" AÇIK → kırmızı CI deploy'u atlar). Boot: `migrate deploy && npm run start`; prestart
+  "Wait for CI" AÇIK → kırmızı CI deploy'u atlar). Boot: `verify-env && migrate deploy && npm run start` (ortam kontrolü migration'dan ÖNCE — 11-25, K19); prestart
   `scripts/verify-env.mjs` tek env-doğrulama kaynağı. `/api/health` readiness; `?strict=1` ops. Yalnız "1" ile açılan bayraklar
   (`STRICT_ONE_FLAGS`, kaynakla pinli) başka yazımla ("true") verilirse açılışta UYARI (A7 #1; davranış aynı — KB_* "true"yu kabul eder).
 - Multi-tenancy `Organization`; superadmin (`SUPERADMIN_EMAILS`) impersonation ile girer (JWT
