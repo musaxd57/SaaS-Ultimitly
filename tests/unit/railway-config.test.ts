@@ -105,3 +105,27 @@ describe("Dockerfile runner stage — scripts/ allowlist (G2)", () => {
     expect([...copiedScripts()].sort()).toEqual(closure);
   });
 });
+
+// K27-K19 (Codex 11-25): açılış zinciri ortam doğrulamasını migration'dan ÖNCE koşar. Eskiden `migrate deploy` önce koşuyordu: eksik /
+// bozuk ortamda yeni şema veritabanına uygulanıyor, sonra `prestart` kapısı açılışı reddediyordu → trafik eski sürümde ama veritabanı yeni
+// şemada kalıyordu. Kapı (`verify-env.mjs` → saf `env-check.mjs`) veritabanına dokunmaz; reddederse migration HİÇ koşmaz.
+describe("Dockerfile CMD — açılış sırası (K27-K19)", () => {
+  const dockerfile = readFileSync(join(process.cwd(), "Dockerfile"), "utf8");
+  const cmdLines = dockerfile.split("\n").filter((l) => /^CMD\b/.test(l));
+  const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+
+  it("tek CMD: önce ortam kapısı, sonra migration, sonra uygulama (her adım && ile — biri düşerse sonrakiler koşmaz)", () => {
+    expect(cmdLines).toHaveLength(1);
+    const steps = JSON.parse(cmdLines[0].slice(3).trim()).at(-1).split("&&").map((x: string) => x.trim());
+    expect(steps).toEqual(["node scripts/verify-env.mjs", "npx prisma migrate deploy", "npm run start"]);
+  });
+
+  it("kapı veritabanına dokunmaz: verify-env yalnız env-check'i, env-check hiçbir şeyi import etmez; prestart aynı kapıyı koşar", () => {
+    const verify = readFileSync(join(process.cwd(), "scripts/verify-env.mjs"), "utf8");
+    const check = readFileSync(join(process.cwd(), "scripts/env-check.mjs"), "utf8");
+    expect([...verify.matchAll(/^import .* from ["']([^"']+)["']/gm)].map((m) => m[1])).toEqual(["./env-check.mjs"]);
+    expect(check).not.toMatch(/^\s*import\s/m);
+    expect(check).not.toMatch(/\brequire\(|\bimport\(/);
+    expect(pkg.scripts.prestart).toBe("node scripts/verify-env.mjs");
+  });
+});

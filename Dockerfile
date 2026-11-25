@@ -125,7 +125,8 @@ USER node
 
 EXPOSE 3000
 
-# At startup: apply any pending migrations (prisma/migrations/), then serve.
+# At startup: check the environment, apply any pending migrations
+# (prisma/migrations/), then serve.
 # `next start` binds to Railway's injected $PORT automatically.
 #
 # `npm run start` ALWAYS runs the `prestart` hook first (npm lifecycle) =
@@ -142,4 +143,11 @@ EXPOSE 3000
 # surprise diffing. Prod was one-time baselined (`migrate resolve --applied
 # 0_init`) before this flipped, so this run is a no-op until a NEW migration is
 # added. See docs/MIGRATION_CUTOVER.md for the full cutover + rollback.
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+# K27-K19 (Codex 11-25): the env gate runs FIRST, before `migrate deploy`. It
+# used to run only as `prestart`, i.e. AFTER the migration: a misconfigured
+# deploy applied the new schema and THEN refused to start, leaving traffic on the
+# old release against the new schema. The gate is pure (no DB, no imports beyond
+# env-check.mjs), so a rejection now means the migration never runs. `npm run
+# start` still runs it again as `prestart` (same result, harmless) so a start
+# without this CMD stays gated. Pinned: tests/unit/railway-config.test.ts.
+CMD ["sh", "-c", "node scripts/verify-env.mjs && npx prisma migrate deploy && npm run start"]
