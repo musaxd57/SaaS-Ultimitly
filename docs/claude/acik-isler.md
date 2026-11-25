@@ -348,3 +348,14 @@ evet) · **T-3** sayımda "kim yaptı" = atanan kişi (bugün) mi, "bitti"yi iş
 sayılsın mı (bugün hayır) · **T-5** sıra önerisi temizlikçinin kendi gün görünümünde de çıksın mı (bugün yalnız Girişler / yönetici).
 Fikir planından kalan: Meta (WhatsApp) kurulumu · yorumlardan "bilinen sorunlar" öne alınsın mı · QR'da Wi-Fi adı kartı · Hospitable'sız
 denemede "ödeme anı" (`docs/PLAN-2026-11-25-urun-fikirleri-iki-ajan.md`).
+
+**11-25 (3) — Codex ikinci rapordan kurucuya sorular (örnekli hâlleri `docs/INCELEME-2026-11-25-k27-*.md`):** **K1-S1** kuyruk okuması 15 dk
+sürekli okunamıyorsa strict yoklama 503 versin mi · **K3-S2** kilit `syncHospitable` içinde de yenilensin mi, önce süre mi ölçülsün ·
+**K2-S** sohbet ekranı son 50 mesajla açılsın, "Daha eski mesajları göster" düğmesi olsun mu · **K8-a** silme doğrulaması tamamlanamayınca ekran
+metni ("Misafir verisi silindi. Son kontrol tamamlanamadı; bir kez daha deneyin.") · **K11-1** EXIF / GPS: dokunma · yalnız GPS'i sıfırla ·
+yeniden kodla (yeni bağımlılık) · **K11-2** piksel tavanı 268 MP kalsın mı · **K11-3** çok büyük görsele ayrı metin · **K13-2** OAuth token
+adresi yalnız `auth.hospitable.com` olsun mu (önce Railway değeri görülmeli) · **K15-3** elle "hepsini eşitle" 60 sn'de dursun mu · **K16-1**
+dışa verilen takvimin başlığı genel olsun mu ("Lixus AI takvimi") · **K17-2** ödeme ekranı kurulu ama ödeme zorunlu değilken webhook anahtarı
+eksikse uyarı · **K22-2** öteki geç yazıcılar (taslak izi, konuşma öğesi konusu, WhatsApp sorusu, taslak bağı, misafire söz) aynı sınırla
+kapatılsın mı · **K25** bileşik "aynı işletme" kısıtı (önce iki tabloya işletme sütunu) · **K26** büyük işletmede dışa aktarma parça parça mı.
+**Açılış notu (C1):** `QR_PIN_ENABLED` açıldıktan sonra Ayarlar'da "sohbet kodu iste" bir kez yeniden kaydedilir (eski cihaz bağları o zaman düşer).

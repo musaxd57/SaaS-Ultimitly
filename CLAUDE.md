@@ -581,7 +581,7 @@ Bu dosyaya token/anahtar/parola yazma.
 bakıp bakıp ilerle") · `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md` · `docs/KURUCU-TALIMATI-2026-11-19-gece-raporuna-cevap.md` ·
 `docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md` · `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md` ·
 `docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md` ·
-`docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md`.
+`docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md` · `docs/KURUCU-TALIMATI-2026-11-25-aksam-codex-ikinci-rapor.md`.
 **Çalışma düzeni (kurucu 11-18):** Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude
 yazar; kontrollerde alt ajan; acele yok.
 
@@ -600,7 +600,8 @@ son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · 
 sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 kurucu sorusu) · EMB pilotu · F-4 QR — özet `durum.md` (13) —
 11-21 gece turu (CI 1841, metinler, gece sayısı geçici kuralı) — 11-25 Codex raporu: on iddia teyit, ödeme iptali üç değerli + tek işlem,
 şifre sıfırlama / IP kovaları / günlük 2FA / kanal doğrulama düzeltmeleri, üç tasarım kurucu sorusunda — özet `durum.md` (14) · akşam: iki
-ajanlı ürün fikirleri planı + üç küçük iş (çıkıştan önce açık konu · son bakım işi notu · temizlikçi gün sırası + ay sayımı) — `durum.md` (15).
+ajanlı ürün fikirleri planı + üç küçük iş (çıkıştan önce açık konu · son bakım işi notu · temizlikçi gün sırası + ay sayımı) — `durum.md` (15) ·
+gece: Codex ikinci rapor (26 madde, altı paket; hükümler talimat belgesinde) — `durum.md` (16).
 
 **Turlardan kurallar (Durum satırlarından, AYNEN):**
 - (11-11) Bağlantıyı / veriyi düşüren "kesin ret" kararı münhasırlık ister (kilit elde değilse ret belirsizdir — OAuth yenileme); uzunluk engeli

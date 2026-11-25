@@ -915,3 +915,13 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   emoji bölünmez. Sert inceleme `docs/INCELEME-2026-11-25-uc-kucuk-is-sert-kontrol.md` (P1 yok).
 - Aynı gün: depo bir süre private kaldı → CI işleri çalıştırıcısız 2 sn'de düştü (kurucu public yaptı); CI 1845 kırmızısı sabit 50 ms
   bekleyen bildirim testiydi (`vi.waitFor`).
+
+## (16) 11-25 gece — Codex ikinci rapor (K27, 26 madde)
+
+- Talimat + kurucu cevapları AYNEN `docs/KURUCU-TALIMATI-2026-11-25-aksam-codex-ikinci-rapor.md` (madde tablosu ve hükümler orada).
+- Düzen (kurucu: "kodları opus 5.5 agentlarına yazdır … arkada haiku ajanı … önce doğrulasınlar"): altı paket (A ödeme · B kuyruk / e-posta /
+  senkron · C1 QR kod + görsel · C2 OAuth / WhatsApp / takvim / demo talepleri · D misafir silme + üyelik · E sohbet sırası / Windows testi /
+  açılış kontrolü / Dockerfile), her biri önce iddiayı kırmızı testle yeniden üretti; Haiku risk notları `k27/<paket>-riskler.md` (oturum).
+- Kurucu kararları gece: silme ekranı metni · QR'da yeniden kod · `BILLING_ENFORCED` + webhook anahtarı eksikse açılış durur · migration izni
+  (kullanılmadı) · kontrol / izleme araçları için soru gitmez.
+- Açılış sırası değişti: `verify-env → migrate deploy → start` (Dockerfile; CLAUDE.md "Teknik mimari").

@@ -104,7 +104,36 @@ kodları opus 5.5 agentlarına yazdır ama bak bu turda çok hata yaptın beni h
 
 ## Uygulama durumu
 
-(dalga ilerledikçe doldurulur — her iddianın teyidi + ne yapıldı / ne soruya döndü)
+26 maddenin hepsi ÇALIŞTIRILARAK doğrulandı (altı Opus 5.5 ajanı yazdı; her birinin yanında Haiku risk taraması; ana oturum her diff'i
+okudu ve testleri kendi veritabanında yeniden koştu; iki Haiku dar incelemesi). Paket notları: `docs/INCELEME-2026-11-25-k27-{A,B,C1,C2,D,E}.md`.
+
+| # | Hüküm | Sonuç |
+|---|---|---|
+| K1 | Kısmen | Strict gövdede yeni `delayed` (200); normal yoklama ve `stalled` aynı; `unknown` → 503 SORU |
+| K2 | Doğru | Sohbet ekranı `(createdAt, id)`; "son 50 mesaj + daha eski" SORU |
+| K3 | Doğru | Kilit işletme içi aşama sınırlarında da yenilenir; kayıpta kalan aşamalar koşmaz; tek aşamanın 15 dk'yı aşması SORU |
+| K4, K20, K21 | — | Tasarım notu (B ve E belgelerinde) |
+| K5 | Doğru | Sonuçlanmamış ödemede hesap silme 409 ile bekletilir; metin kurucu onaylı |
+| K6 | Doğru | Ödeme süpürgesi kalıcı imleçle sürer, başa sarar; sınır alarmı yalnız gerçekten fazla kayıtta |
+| K7 | Doğru | E-posta kurtarmasında satır hatası satırda kalır; kurtarma ve gönderim bağımsız |
+| K8 | Doğru | Silme tekrarında ikinci denetim kaydı yok; doğrulama arızasında 503 + `erased: true`; ekran metni SORU |
+| K9 | Kısmen | Ana yol (11-25 sabah) zaten doğruydu; uzlaştırma teşhisi kaydın son durumundan |
+| K10 | Doğru | Kod değişince / "kod iste" açılınca eski cihaz bağı silinir; Wi-Fi yalnız güncel kodla bağlanmış cihaza (kurucu kararı) |
+| K11 | Doğru | Görsel yapısı denetlenir (bağımlılıksız) + piksel tavanı; EXIF / GPS SORU |
+| K12 | Doğru | Dört yapısal testte yol ayracı normalleştirildi |
+| K13 | Doğru | OAuth token isteğinde `redirect: "error"`; kesin ana makine listesi SORU |
+| K14 | Doğru | WhatsApp webhook'unda ev sahibi işleyicisi önce |
+| K15 | Doğru | DNS ön kontrolü tek toplam süre içinde; elle senkron SORU |
+| K16 | Doğru | Demo talepleri süzgeç + sayfa; iCal başlığı SORU (UID'ye dokunulmaz) |
+| K17 | Doğru | `BILLING_ENFORCED` + webhook anahtarı eksik → açılış HATA (kurucu kararı) |
+| K18 | Doğru, bilinçli | Uyarılar kaldı; CRON_SECRET başka sırla aynıysa yeni uyarı |
+| K19 | Doğru | Dockerfile: ortam kontrolü → migration → başlat |
+| K22 | Doğru (daha geniş) | İç not + anlam okuması yazıcıları silinmiş konaklamaya yazmaz; gölge aday sorguları seçmez; öteki yazıcılar listede (ikinci adım) |
+| K23 | Kısmen | Bugün istismar edilemiyor; WhatsApp yetkisi + hesap silme artık üyelik satırından |
+| K24 | Savunma | Sunucu bağı başka işletmeyi gösteren ödeme olayı silmede budanmaz |
+| K25, K26 | Doğru | Tasarım notu + SORU (migration yazılmadı) |
+
+Migration YOK, yeni ortam anahtarı YOK, yeni bağımlılık YOK. Sorular: `docs/claude/acik-isler.md` "11-25 (3)".
 
 ## Kurucu cevapları — 25 Kasım gece (AYNEN)
 
