@@ -27,6 +27,8 @@ const { paddle } = vi.hoisted(() => ({
     missing: new Set<string>(),
     /** GET durum okumasından hemen sonra çalışır (yarış penceresi: okuma ile yeniden verme arasında niyet kapanır). */
     afterGet: null as null | (() => Promise<void>),
+    /** İptal isteği geldiği anda çalışır (yarış: müşteri tam o sırada eski ekrandan ödemeyi tamamlar → iptal reddedilir). */
+    onCancel: null as null | (() => void),
   },
 }));
 vi.mock("@/lib/payments/paddle", async (orig) => {
@@ -45,6 +47,7 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
       const m = path.match(/^\/transactions\/(txn_\d+)$/);
       if (m && paddle.missing.has(m[1]!)) throw new Error("Paddle HTTP 404 (entity_not_found) env=sandbox resource=transactions");
       if (m && init?.method === "PATCH") {
+        if (paddle.onCancel) paddle.onCancel();
         if (paddle.failCancel) throw new Error("Paddle HTTP 400 (transaction_immutable) env=sandbox resource=transactions");
         paddle.canceled.push(m[1]!);
         paddle.statuses.set(m[1]!, "canceled");
@@ -137,6 +140,7 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     paddle.statuses.clear();
     paddle.missing.clear();
     paddle.afterGet = null;
+    paddle.onCancel = null;
     Object.assign(pending, { failMark: false, onMark: null, afterActiveCheck: null });
     vi.mocked(reportError).mockClear();
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -407,19 +411,124 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId, openKey: { not: null } } })).toBe(0);
   });
 
-  it("🚨 Opus B2: süresi dolmuş + iptal edilemeyen işlem YENİDEN VERİLMEZ (409); mutlak üst sınırda kapanır ve operatöre haber gider", async () => {
+  it("🚨 Opus B2 → Codex 11-25: süresi dolmuş + iptal edilemeyen ama Paddle'da hâlâ AÇIK işlem aynı pakette YENİDEN VERİLİR; üst sınırda KAPANMAZ, operatöre haber gider", async () => {
+    // Eski sözleşme (10-21): 409 + üst sınırda doğrulanmadan kapanış. Yeni (kurucu talimatı 11-25): aynı ödeme ekranına devam; niyet yalnız
+    // kanıtla kapanır (24 saat ödeme kanıtı değildir).
     await POST(postReq(), ctx);
     paddle.failCancel = true;
     await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() - 60_000) } });
     const res = await POST(postReq(), ctx);
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as Body).transactionId).toBe("txn_1");
     expect(paddle.created).toBe(1);
     const created = (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).createdAt;
     await sweepCheckoutIntents(new Date(created.getTime() + CHECKOUT_INTENT_MAX_AGE_MS - 60_000));
     expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
+    expect(vi.mocked(reportError).mock.calls.some(([where]) => where === "checkout-intent-unverified")).toBe(false); // sınırdan önce alarm yok
     await sweepCheckoutIntents(new Date(created.getTime() + CHECKOUT_INTENT_MAX_AGE_MS + 60_000));
-    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "expired", openKey: null });
-    expect(vi.mocked(reportError).mock.calls.some(([where]) => where === "checkout-intent-unverified-close")).toBe(true);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open", openKey: orgId });
+    expect(vi.mocked(reportError).mock.calls.filter(([where]) => where === "checkout-intent-unverified")).toHaveLength(1);
+  });
+
+  // ── Codex 11-25 (kurucu talimatı `docs/KURUCU-TALIMATI-2026-11-25-…`): "24 saat ödeme izni veren bir kural olmamalı" ─────────────────────
+  // Paddle'ın doğruladığı durum → davranış: ödeme yok + işlem kapalı → hemen yenisi · ödeme yok + aynı paket + işlem kullanılabilir → aynı
+  // işlem · ödeme alınmış → yeni ödeme YOK, mevcut ödeme bağlanır · sonuç doğrulanamıyor → yeni işlem YOK, yeniden doğrulanır (operatöre haber).
+  describe("24 saat sınırı ödeme kanıtı değildir (Codex 11-25)", () => {
+    const ageIntent = (ms: number) =>
+      prisma.checkoutIntent.updateMany({
+        where: { organizationId: orgIdOf() },
+        data: { createdAt: new Date(Date.now() - ms), expiresAt: new Date(Date.now() - 60_000) },
+      });
+    const orgIdOf = () => orgId;
+
+    it("🚨 iptal sırasında müşteri eski ekrandan ÖDEDİ (iptal reddedildi, yeniden okuma 'ödendi') → 24 saat dolmuş olsa da yeni işlem AÇILMAZ; kayıt 'ödeme alındı'", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(CHECKOUT_INTENT_MAX_AGE_MS + 60_000);
+      // İlk okuma "ready"; iptal isteği geldiği anda ödeme tamamlanır → iptal reddedilir, ikinci okuma "paid".
+      paddle.onCancel = () => {
+        paddle.statuses.set("txn_1", "paid");
+        paddle.failCancel = true;
+      };
+      const res = await POST(postReq(), ctx);
+      expect(paddle.created).toBe(1); // ikinci ödeme ekranı yok
+      expect(res.status).toBe(400); // "ödemeniz işleniyor"
+      expect(((await res.json()) as Body).transactionId).toBeUndefined();
+      const rows = await prisma.checkoutIntent.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: "asc" } });
+      expect(rows.map((r) => r.status)).toEqual(["completed"]);
+      expect(await checkoutPendingActive(orgId, new Date())).toBe(true);
+    });
+
+    it("🚨 aynı yarış SÜPÜRGEDE: iptal reddedildi + yeniden okuma 'ödendi' → niyet 'ödeme alındı' olur ('expired' diye kapanmaz)", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(CHECKOUT_INTENT_MAX_AGE_MS + 60_000);
+      paddle.onCancel = () => {
+        paddle.statuses.set("txn_1", "paid");
+        paddle.failCancel = true;
+      };
+      await sweepCheckoutIntents();
+      expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("completed");
+    });
+
+    it("🚨 eski işlem hâlâ ÖDENEBİLİR (iptal edilemedi, durum 'ready') + 24 saat doldu → yeni işlem AÇILMAZ, yer korunur, operatöre haber (bir kez)", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(CHECKOUT_INTENT_MAX_AGE_MS + 60_000);
+      paddle.failCancel = true;
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(409);
+      expect(paddle.created).toBe(1);
+      expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open", openKey: orgId });
+      // İkinci deneme + süpürge: hâlâ tek işlem; alarm geçiş tabanlı (aynı niyet için tekrar tekrar e-posta yok).
+      await POST(postReq(), ctx);
+      await sweepCheckoutIntents();
+      expect(paddle.created).toBe(1);
+      expect(await prisma.systemLock.count({ where: { name: { contains: "checkout-intent-unverified" } } })).toBe(1);
+      // Operatör işlemi Paddle'da iptal edince (kapanış DOĞRULANDI) sonraki deneme HEMEN yenisini açar — 24 saat bekletme yok.
+      paddle.statuses.set("txn_1", "canceled");
+      expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+      expect(await prisma.systemLock.count({ where: { name: { contains: "checkout-intent-unverified" } } })).toBe(0);
+    });
+
+    it("🚨 sonuç DOĞRULANAMIYOR (iptal düştü, durum okunamıyor) + 24 saat doldu → yeni işlem AÇILMAZ, yer korunur", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(CHECKOUT_INTENT_MAX_AGE_MS + 60_000);
+      paddle.failCancel = true;
+      paddle.statuses.set("txn_1", ""); // durum alanı okunamadı
+      expect((await POST(postReq(), ctx)).status).toBe(409);
+      expect(paddle.created).toBe(1);
+      expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
+    });
+
+    it("ödeme yok + aynı paket + işlem hâlâ kullanılabilir (süresi doldu, iptal edilemedi, 24 saatin İÇİNDE) → AYNI ödeme ekranına devam; ikinci işlem yok", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(4 * 60 * 60_000);
+      paddle.failCancel = true;
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(201);
+      expect(((await res.json()) as Body).transactionId).toBe("txn_1");
+      expect(paddle.created).toBe(1);
+      // Yeniden verilen işlem süpürgeye karşı en az 30 dk korunur (B3 ile aynı kural).
+      const row = await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } });
+      expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now() + CHECKOUT_INTENT_REUSE_GRACE_MS - 60_000);
+    });
+
+    it("farklı pakete geçerken iptal sırasında eski işlem ÖDENDİ → yeni işlem AÇILMAZ; kayıt 'ödeme alındı'", async () => {
+      await POST(postReq(), ctx);
+      paddle.onCancel = () => {
+        paddle.statuses.set("txn_1", "paid");
+        paddle.failCancel = true;
+      };
+      const res = await POST(postReq("pri_isletme", "business"), ctx);
+      expect(res.status).toBe(400); // "ödemeniz işleniyor"
+      expect(paddle.created).toBe(1);
+      expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("completed");
+    });
+
+    it("KONTROL: ödeme yok + iptal BAŞARILI → 24 saat dolmuş olsa da HEMEN yeni işlem (bekletme yok)", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(CHECKOUT_INTENT_MAX_AGE_MS + 60_000);
+      expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+      expect(paddle.canceled).toEqual(["txn_1"]);
+    });
   });
 
   it("Opus B2: anahtar KAPALIYKEN mutlak üst sınırı aşmış takılı niyet eski yolu KİLİTLEMEZ", async () => {
