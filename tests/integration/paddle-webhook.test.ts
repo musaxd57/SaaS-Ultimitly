@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
-import { Prisma } from "@prisma/client";
 import { prisma, resetDb } from "../helpers/db";
 import { interceptTxOperation } from "../helpers/tx-intercept";
 import { POST } from "@/app/api/webhooks/paddle/route";
