@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { rm, readdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { FakeStorageAdapter } from "../helpers/fake-storage";
@@ -47,8 +48,8 @@ function stubStorageEnv(flagOn: boolean) {
   vi.stubEnv("STORAGE_ENABLED", flagOn ? "1" : "");
 }
 
-// A tiny REAL PNG header so sniffImageExt accepts the bytes.
-const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+// A tiny REAL PNG (K27-K11: the upload route now walks the file structure, so a bare header is no longer accepted).
+const PNG_BYTES = new Uint8Array(readFileSync(join(process.cwd(), "tests/fixtures/images/rgba.png")));
 
 function uploadReq(opts: { bytes?: Uint8Array; type?: string; taskId?: string | null; name?: string } = {}) {
   const fd = new FormData();
@@ -156,6 +157,29 @@ describe("upload — flag ON: task-bound, org-owned, fail-closed validation", ()
     const oversize = await uploadPOST(uploadReq({ taskId, bytes: big }), noCtx);
     expect(oversize.status).toBe(400);
     expect(fake.puts.length).toBe(0);
+  });
+
+  it("🚨 K27-K11: doğru başlık + çöp gövde (JPEG / PNG / WebP) → 400, kovaya hiçbir şey yazılmaz; gerçek dosya kabul", async () => {
+    const { taskId } = await seed("owner");
+    stubStorageEnv(true);
+    const garbage = new Uint8Array(3000).map((_, i) => (i * 131 + 17) & 0xff);
+    const webpHead = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0xbc, 0x0b, 0, 0, 0x57, 0x45, 0x42, 0x50]); // "RIFF" + 3004 + "WEBP"
+    const cases: Array<[Uint8Array, string, string]> = [
+      [new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...garbage]), "image/jpeg", "a.jpg"],
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...garbage]), "image/png", "a.png"],
+      [new Uint8Array([...webpHead, ...garbage]), "image/webp", "a.webp"],
+    ];
+    for (const [bytes, type, name] of cases) {
+      const res = await uploadPOST(uploadReq({ taskId, bytes, type, name }), noCtx);
+      expect(res.status, name).toBe(400);
+      expect((await res.json()).fields?.file, name).toBe("Geçerli bir görsel değil (yalnızca JPG, PNG veya WebP)");
+    }
+    expect(fake.puts.length).toBe(0);
+    for (const [file, type] of [["phone-exif-gps-progressive.jpg", "image/jpeg"], ["rgba.png", "image/png"], ["animated.webp", "image/webp"]] as const) {
+      const bytes = new Uint8Array(readFileSync(join(process.cwd(), "tests/fixtures/images", file)));
+      expect((await uploadPOST(uploadReq({ taskId, bytes, type, name: file }), noCtx)).status, file).toBe(200);
+    }
+    expect(fake.puts.length).toBe(3);
   });
 });
 

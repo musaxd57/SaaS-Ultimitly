@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
@@ -51,7 +53,8 @@ function importReq(propertyId: string, csv: string) {
   return new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form });
 }
 
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+// Gerçek küçük PNG (K27-K11: yükleme biçimin kabuğunu yürür; çıplak başlık artık kabul edilmez).
+const PNG = readFileSync(join(process.cwd(), "tests/fixtures/images/rgba.png"));
 function uploadReq(taskId: string) {
   const form = new FormData();
   form.set("file", new File([PNG], "p.png", { type: "image/png" }));

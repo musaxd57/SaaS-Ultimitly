@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, forbidden, serverError, canManage, tooManyRequests, readFormDataCapped, payloadTooLarge, BodyTooLargeError } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { withAuth } from "@/lib/route-guard";
-import { sniffImageExt } from "@/lib/image-validation";
+import { sniffImageExt, validateImageStructure } from "@/lib/image-validation";
 import { storageUploadsEnabled } from "@/lib/storage/config";
 import { getStorageAdapter } from "@/lib/storage/adapter";
 import { buildTaskPhotoKey, photoUrlForKey } from "@/lib/storage/keys";
@@ -58,7 +58,8 @@ export const POST = withAuth(async (session, req) => {
   // derive the extension from them. Reject anything that isn't a real image.
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = sniffImageExt(buffer);
-  if (!ext) {
+  // K27-K11: başlık doğru olsa da biçimin kabuğu sağlam olmalı (bozuk / kesik gövde, aşırı piksel ilanı) — AYNI ret metni.
+  if (!ext || !validateImageStructure(buffer, ext).ok) {
     return badRequest({ file: "Geçerli bir görsel değil (yalnızca JPG, PNG veya WebP)" });
   }
 

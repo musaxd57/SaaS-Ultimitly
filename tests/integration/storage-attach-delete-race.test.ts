@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
@@ -24,7 +26,8 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { PATCH as taskPATCH } from "@/app/api/tasks/[id]/route";
 
 let fake = new FakeStorageAdapter();
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+// Gerçek küçük PNG (K27-K11: yükleme biçimin kabuğunu yürür; çıplak başlık artık kabul edilmez).
+const PNG = new Uint8Array(readFileSync(join(process.cwd(), "tests/fixtures/images/rgba.png")));
 const later = () => new Date(Date.now() + 25 * 60 * 60_000);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
