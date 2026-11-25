@@ -94,6 +94,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 > hemen tahsil) kutu YOK → o anahtar (zaten kapalı kalanlar listesinde, kurucu SG3) bu kutu eklenmeden ya da avukatın b-6 cevabı gelmeden
 > AÇILMAZ (`docs/claude/acik-isler.md` "11-13 akşam").
 
+> 🚨 **11-25 gece (K27-K17, kurucu "açılış dursun"):** `BILLING_ENFORCED` açıkken (`true` ya da `1`) `PADDLE_WEBHOOK_SECRET` boşsa
+> açılış kontrolü (`scripts/env-check.mjs`) üretimde uygulamayı BAŞLATMAZ — anahtarsız webhook her Paddle olayına 200 dönüp olayı işlemiyordu
+> (ödeme alınır, abonelik yazılmaz). Açmadan önce Railway'de anahtarın dolu olduğuna bakın.
+
 `AUTO_REPLY_ENABLED` · `GUEST_CHAT_ENABLED` · `REGISTRATION_OPEN` · `LANDING_DEMO_ENABLED` · `TRIAL_EMAILS_ENABLED` · `BILLING_ENFORCED` ·
 `PADDLE_PLAN_CHANGE_ENABLED` · `SHADOW_AI_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
 `HOUSE_RULES_CARD_ENABLED` · `AI_HOUSE_RULES_SHADOW` · `KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `EMAIL_OUTBOX_ENABLED` ·

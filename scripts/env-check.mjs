@@ -416,6 +416,13 @@ export function checkProductionEnv(env) {
     // boot'u durduracak bir kural uretim degeri dogrulanmadan eklenmez (kural).
     warnings.push("CRON_SECRET is shorter than 32 characters — /api/cron/* is not rate-limited; use a long random secret.");
   }
+  // K27-K18 (11-25): cron sirri dis zamanlayicinin ayarina da yazilir; oturum imzasi / sifreleme anahtariyla AYNIYSA o ayarin sizmasi
+  // oturum taklidi ya da kayitli sirlarin cozulmesi demektir. UYARI (kurucu 11-25 gece: zayif ayarlar acilisi durdurmaz); deger basilmaz.
+  if (cronSecret && (cronSecret === authSecret || cronSecret === encKey)) {
+    warnings.push(
+      `CRON_SECRET is the same value as ${cronSecret === authSecret ? "AUTH_SECRET" : "ENCRYPTION_KEY"} — anyone who sees the cron configuration could also forge sessions or decrypt stored secrets. Set CRON_SECRET to its own long random value.`,
+    );
+  }
 
   // DEPLOYMENT LOCALE / BILLING CURRENCY. Both are OPTIONAL — unset means the
   // shipped .com defaults (tr-TR / TRY) and nothing changes. But a value that IS
@@ -584,6 +591,15 @@ export function checkProductionEnv(env) {
   if (billingOn && (!checkoutToken || !anyPriceId)) {
     warnings.push(
       "BILLING_ENFORCED is on but checkout is not configured (NEXT_PUBLIC_PADDLE_CLIENT_TOKEN or every PADDLE_PRICE_* is missing) — expired trials are limited while the billing page has nothing to buy.",
+    );
+  }
+  // K27-K17 (kurucu karari 11-25 gece: "Acilis dursun") — HATA, bu dosyadaki "odeme yapilandirmasi uyaridir" kuralinin TEK istisnasi:
+  // odeme zorunluyken PADDLE_WEBHOOK_SECRET yoksa webhook rotasi her Paddle olayina 200 doner ve olayi ISLEMEZ (bilincli, pinli —
+  // `paddle-webhook.test.ts` "DORMANT"; alarm `paddle-webhook-dormant`). 200 Paddle'a "teslim edildi" der → olay BIR DAHA DENENMEZ:
+  // musteri oder, abonelik / yetki yazilmaz. Okuma calisma zamaniyla AYNI: `billingEnforced()` "true" | "1", `getPaddleWebhookSecret()` trim.
+  if (billingOn && !(env.PADDLE_WEBHOOK_SECRET ?? "").trim()) {
+    errors.push(
+      "BILLING_ENFORCED is on but PADDLE_WEBHOOK_SECRET is missing — Paddle events would be acknowledged and dropped, so paid subscriptions would never be recorded. Set PADDLE_WEBHOOK_SECRET (Paddle > Developer tools > Notifications > the destination's secret key) or turn BILLING_ENFORCED off.",
     );
   }
   const paddleEnvOf = (v) => ((v ?? "").trim() === "production" ? "production" : "sandbox");

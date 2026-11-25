@@ -574,6 +574,69 @@ describe("ödeme yapılandırması tutarlılığı (gece-4 S2-07) — uyarı, a�
     expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox" })).toMatch(/PADDLE_ENV \(production\) and NEXT_PUBLIC_PADDLE_ENV \(sandbox\) disagree/);
     expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "production" })).not.toMatch(/disagree/);
     expect(warns({ PADDLE_ENV: "production" })).not.toMatch(/disagree/);
-    expect(checkProductionEnv({ ...base, PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox", BILLING_ENFORCED: "true" }).errors).toEqual([]);
+    // Ortam uyuşmazlığı UYARIDIR, hata değil (webhook anahtarı verilir: anahtarsız ödeme zorunluluğu K27-K17'den beri ayrı bir hata).
+    expect(
+      checkProductionEnv({ ...base, PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox", BILLING_ENFORCED: "true", PADDLE_WEBHOOK_SECRET: "pdl_ntfset_x" }).errors,
+    ).toEqual([]);
+  });
+});
+
+describe("K27-K17 (kurucu 11-25 gece: \"açılış dursun\"): ödeme zorunluyken Paddle webhook imza anahtarı ŞART", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+  const webhookErrors = (env: Record<string, string>) =>
+    checkProductionEnv({ ...base, ...env }).errors.filter((e) => e.includes("PADDLE_WEBHOOK_SECRET"));
+
+  it("BILLING_ENFORCED açık (\"true\" ya da \"1\" — çalışma zamanı `billingEnforced` ile aynı okuma) + anahtar yok/boşluk → HATA, metin değişkeni adlandırır", () => {
+    for (const on of ["true", "1"]) {
+      expect(webhookErrors({ BILLING_ENFORCED: on }), on).toEqual([expect.stringMatching(/^BILLING_ENFORCED is on but PADDLE_WEBHOOK_SECRET is missing/)]);
+      expect(webhookErrors({ BILLING_ENFORCED: on, PADDLE_WEBHOOK_SECRET: "   " }), on).toHaveLength(1);
+    }
+  });
+
+  it("KONTROL: anahtar varken ya da ödeme zorunlu değilken hata yok (bugünkü açılış aynı)", () => {
+    expect(webhookErrors({ BILLING_ENFORCED: "true", PADDLE_WEBHOOK_SECRET: "pdl_ntfset_x" })).toEqual([]);
+    expect(webhookErrors({ BILLING_ENFORCED: "1", PADDLE_WEBHOOK_SECRET: "pdl_ntfset_x" })).toEqual([]);
+    for (const off of ["", "0", "false", "TRUE", "yes"]) expect(webhookErrors({ BILLING_ENFORCED: off }), off).toEqual([]);
+    expect(webhookErrors({})).toEqual([]);
+  });
+
+  it("üretim açılışı gerçekten durur (verify-env çıkış kodu 1), anahtar eklenince açılır; değer basılmaz", () => {
+    const blocked = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND, BILLING_ENFORCED: "true", PADDLE_WEBHOOK_SECRET: "" });
+    expect(blocked.status).toBe(1);
+    expect(blocked.stderr).toContain("PADDLE_WEBHOOK_SECRET");
+    const ok = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND, BILLING_ENFORCED: "true", PADDLE_WEBHOOK_SECRET: "pdl_ntfset_gizli_deger" });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(`${ok.stdout}${ok.stderr}`).not.toContain("pdl_ntfset_gizli_deger");
+  });
+});
+
+describe("K27-K18: açılışta yalnız UYARI olan zayıf ayarlar (kurucu 11-25 gece: uyarı kalır, açılış durmaz) — tablo pinleri", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND, EMAIL_OUTBOX_ENABLED: "1", CRON_SECRET: "c".repeat(40) };
+  const run = (env: Record<string, string>) => checkProductionEnv({ ...base, ...env });
+
+  it("kısa AUTH_SECRET / ENCRYPTION_KEY → uyarı, hata değil", () => {
+    const r = run({ AUTH_SECRET: "kisa-ama-gercek-sir", ENCRYPTION_KEY: "baska-kisa-anahtar" });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.join("\n")).toMatch(/AUTH_SECRET is shorter than 32/);
+    expect(r.warnings.join("\n")).toMatch(/ENCRYPTION_KEY is shorter than 32/);
+  });
+
+  it("Turnstile açık + anahtarlardan biri eksik → uyarı, hata değil; ikisi de varken uyarı yok", () => {
+    for (const keys of [{}, { TURNSTILE_SITE_KEY: "s" }, { TURNSTILE_SECRET_KEY: "k" }]) {
+      const r = run({ SIGNUP_TURNSTILE_ENABLED: "1", ...keys });
+      expect(r.errors).toEqual([]);
+      expect(r.warnings.filter((w) => w.startsWith("SIGNUP_TURNSTILE_ENABLED is 1 but"))).toHaveLength(1);
+    }
+    expect(run({ SIGNUP_TURNSTILE_ENABLED: "1", TURNSTILE_SITE_KEY: "s", TURNSTILE_SECRET_KEY: "k" }).warnings.join("\n")).not.toMatch(/TURNSTILE/);
+  });
+
+  it("CRON_SECRET oturum sırrıyla ya da şifreleme anahtarıyla AYNI → uyarı (sızan cron ayarı oturum imzasını da verir); farklıysa uyarı yok", () => {
+    for (const same of [REAL_AUTH, REAL_ENC]) {
+      const r = run({ CRON_SECRET: same });
+      expect(r.errors).toEqual([]);
+      expect(r.warnings.filter((w) => w.startsWith("CRON_SECRET is the same value as"))).toHaveLength(1);
+      expect(r.warnings.join("\n")).not.toContain(same);
+    }
+    expect(run({}).warnings.join("\n")).not.toMatch(/CRON_SECRET/);
   });
 });
