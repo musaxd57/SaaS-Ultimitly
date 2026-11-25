@@ -3,17 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
+import { LEAD_STATUS_OPTIONS } from "@/lib/admin/lead-page";
 
 // Mini sales-pipeline controls for one lead row in the operator panel:
 // status select + follow-up date + note, saved via PATCH /api/admin/leads/[id].
 
-const STATUS_OPTIONS = [
-  { value: "new", label: "Yeni" },
-  { value: "contacted", label: "Arandı" },
-  { value: "demo", label: "Demo verildi" },
-  { value: "won", label: "Kazanıldı" },
-  { value: "lost", label: "Kaybedildi" },
-];
+// Durum seçenekleri tek kaynaktan (panel süzgeci de aynı listeyi kullanır — K27-K16a).
+const STATUS_OPTIONS = LEAD_STATUS_OPTIONS;
 
 const STATUS_STYLE: Record<string, string> = {
   new: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300",

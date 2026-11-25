@@ -24,6 +24,8 @@ import { QualityAuditCard } from "@/components/admin/quality-audit-card";
 import { qualityAuditConfigured } from "@/lib/quality-audit";
 import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
 import { LeadActions } from "@/components/admin/lead-actions";
+import Link from "next/link";
+import { LEAD_STATUS_OPTIONS, leadPageHref, leadPageQuery, parseLeadPageParams, splitLeadPage } from "@/lib/admin/lead-page";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
 import { queueHealth, QUEUE_LAG_WARN_MS } from "@/lib/outbox/health";
@@ -32,7 +34,11 @@ import { PAYMENT_REVIEW_ACTION, paddleApiKeyAlertPhrase, paddleApiKeyAlerts, pay
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await requireAuth();
   // SUPER-ADMIN ONLY. Anyone else is sent back to their dashboard.
   if (!isSuperAdmin(session)) redirect("/dashboard");
@@ -49,7 +55,9 @@ export default async function AdminPage() {
     );
   }
 
-  const [orgs, leads, auditLogs, shadowRows] = await Promise.all([
+  // Demo talepleri: durum süzgeci + "daha eski" imleci (K27-K16a) — bozuk parametre ilk sayfaya düşer.
+  const leadParams = parseLeadPageParams((await searchParams) ?? {});
+  const [orgs, leadRows, auditLogs, shadowRows] = await Promise.all([
     prisma.organization.findMany({
       orderBy: { createdAt: "asc" },
       select: {
@@ -65,7 +73,7 @@ export default async function AdminPage() {
         _count: { select: { properties: true, users: true } },
       },
     }),
-    prisma.lead.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.lead.findMany(leadPageQuery(leadParams)),
     prisma.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -98,6 +106,7 @@ export default async function AdminPage() {
       },
     }),
   ]);
+  const { rows: leads, nextCursor: leadNextCursor } = splitLeadPage(leadRows);
 
   // Gölge pilot özeti: uyum oranı + iki yönlü ayrışma sayısı (Aşama-2 ham girdisi).
   // YALNIZ AKTİF MODELİN satırları özetlenir — model değiştiğinde (GLM → Luna) iki
@@ -469,13 +478,33 @@ export default async function AdminPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Demo Talepleri ({leads.length})</CardTitle>
+      <Card id="talepler">
+        <CardHeader className="space-y-3">
+          <CardTitle className="text-base">Demo Talepleri ({leads.length}{leadNextCursor ? "+" : ""})</CardTitle>
+          <div className="flex flex-wrap gap-2">
+            {[{ value: null, label: "Tümü" }, ...LEAD_STATUS_OPTIONS].map((o) => {
+              const active = leadParams.status === o.value;
+              return (
+                <Link
+                  key={o.value ?? "all"}
+                  href={leadPageHref(o.value, null)}
+                  className={
+                    active
+                      ? "rounded-full border border-primary bg-primary px-3 py-1 text-xs text-primary-foreground"
+                      : "rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:bg-accent"
+                  }
+                >
+                  {o.label}
+                </Link>
+              );
+            })}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {leads.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Henüz demo talebi yok.</p>
+            <p className="px-4 py-6 text-sm text-muted-foreground">
+              {leadParams.status || leadParams.before ? "Bu süzgeçte demo talebi yok." : "Henüz demo talebi yok."}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-max text-sm">
@@ -525,6 +554,20 @@ export default async function AdminPage() {
               </table>
             </div>
           )}
+          {leadParams.before || leadNextCursor ? (
+            <div className="flex flex-wrap items-center gap-4 border-t px-4 py-3 text-sm">
+              {leadParams.before ? (
+                <Link href={leadPageHref(leadParams.status, null)} className="text-primary hover:underline">
+                  En yeni taleplere dön
+                </Link>
+              ) : null}
+              {leadNextCursor ? (
+                <Link href={leadPageHref(leadParams.status, leadNextCursor)} className="ml-auto text-primary hover:underline">
+                  Daha eski talepler
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
