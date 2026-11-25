@@ -92,7 +92,10 @@ async function heldItem(s: Stay, over: { kind?: string; sensitivity?: string } =
   });
 }
 
-async function openCommitment(s: Stay, over: { topic?: string | null; dueInHours?: number } = {}) {
+async function openCommitment(
+  s: Stay,
+  over: { topic?: string | null; dueInHours?: number; duePrecision?: "part" | "day"; dayPart?: string } = {},
+) {
   await prisma.guestCommitment.create({
     data: {
       organizationId: s.orgId,
@@ -100,6 +103,7 @@ async function openCommitment(s: Stay, over: { topic?: string | null; dueInHours
       kind: "maintenance",
       topic: over.topic === undefined ? "hot_water" : over.topic,
       dueAt: new Date(Date.now() + (over.dueInHours ?? 5) * HOUR),
+      ...(over.duePrecision ? { duePrecision: over.duePrecision, dayPart: over.dayPart ?? null } : {}),
       status: "open",
     },
   });
@@ -190,6 +194,28 @@ describe("Çıkıştan önce açık konu — tek satır", () => {
     ]);
     expect(items[0].departureOpen?.topics).toHaveLength(2);
     expect(text(items[0])[1]).toMatch(new RegExp(`^sıcak su ${WHEN}, ödeme / fatura konuları açık · misafir 3 saattir cevap bekliyor$`));
+  });
+
+  it("saatsiz söz (gün dilimi) → söz saati UYDURULMAZ: parantez yok", async () => {
+    const s = await stay({ departureInDays: 1, answered: true });
+    await openCommitment(s, { duePrecision: "part", dayPart: "evening" });
+    const items = await findAttentionItems(s.orgId);
+    expect(departureRows(items)).toHaveLength(1);
+    expect(text(items[0])[1]).toBe("sıcak su konusu açık");
+  });
+
+  it("🚨 yutulan söz, söz satırı tavanında (3) yer tutmaz: öteki konaklamaların üç sözü de görünür", async () => {
+    // Çıkışı yarın olan konaklamanın sözü GECİKMİŞ (en önemli); öteki üç konaklamanın sözü yaklaşıyor (daha az önemli).
+    const leaving = await stay({ departureInDays: 1, answered: true });
+    await openCommitment(leaving, { dueInHours: -2 });
+    for (const name of ["Lale 4", "Lale 5", "Lale 6"]) {
+      const other = await stay({ departureInDays: 5, answered: true, orgId: leaving.orgId, propertyName: name });
+      await openCommitment(other, { dueInHours: 1 });
+    }
+    const items = await findAttentionItems(leaving.orgId);
+    expect(departureRows(items)).toHaveLength(1);
+    // Yutulan söz tavanda yer tutsaydı öteki üç sözden biri düşerdi (2 satır).
+    expect(items.filter((i) => i.kind === "commitment_due")).toHaveLength(3);
   });
 
   it("🚨 (e) iptal edilmiş rezervasyon → birleşik satır yok (söz satırı bugünkü gibi)", async () => {
