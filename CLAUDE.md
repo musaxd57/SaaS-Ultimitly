@@ -642,7 +642,9 @@ sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 k
 - (11-20) Yeni bir "iptal" vetosu eklerken rezervasyon geri dönerse aynı anahtarın bir daha gönderilip gönderilemeyeceği sorulur (kuyruk yolu
   doğrudan yoldan ayrışmaz).
 - (11-21, CI 1841) Prisma'nın sorgu olayı sonuçtan SONRA gelebilir ve havuzun `SELECT 1` yoklaması da olay üretir (ölçüldü) → sorgu sayan test
-  sayacı kapatmadan önce `flushQueryEvents` (`tests/helpers/query-event-barrier.ts`) çağırır; sabit bekleme yazılmaz.
+  sayacı kapatmadan önce `flushQueryEvents` (`tests/helpers/query-event-barrier.ts`) çağırır; sabit bekleme yazılmaz. (11-25, tam kapıda bir
+  kez kırmızı) Aynı gecikme BAŞTA da olur: hazırlığın son sorgusunun olayı açılmış sayaca düşer → sayaç `beginQueryCount` ile açılır
+  (pin `tests/unit/query-count-arming.test.ts`); bir sınıfın bir ucunu kapatınca öbür ucu da ölçülür.
 - (11-25) Bir yazımı etkileşimli işleme alınca genel temsilciye kurulu casuslar SAHTE YEŞİL kalabilir (kırmızıya dönmez) → o modele casus kuran
   bütün testler taranır, araya girme `tests/helpers/tx-intercept.ts` ile kurulur ve her kanca ÇALIŞTIĞINI iddia eder.
 - (11-25) Ajanın sondayla "bulduğu" hata, sondanın kurduğu durum üründe oluşabiliyor mu diye ölçülür (çıplak mesaj satırı eklemek panelden cevap

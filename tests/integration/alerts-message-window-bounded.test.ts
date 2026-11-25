@@ -25,7 +25,7 @@ vi.mock("@/lib/db", async () => {
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) } }));
 
 import { prisma, resetDb, makeOrgWithProperty, makeUser } from "../helpers/db";
-import { flushQueryEvents } from "../helpers/query-event-barrier";
+import { beginQueryCount, flushQueryEvents } from "../helpers/query-event-barrier";
 import { latestMessagesByConversation, sendDueAlerts } from "@/lib/automation";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 
@@ -103,8 +103,7 @@ describe("latestMessagesByConversation — eski iç içe okumayla birebir pencer
   });
 
   it("boş liste: sorgu atılmaz", async () => {
-    counter.rows = [];
-    counter.on = true;
+    await beginQueryCount(prisma, counter); // önceki sorguların geç olayları ölçüme karışmasın (11-25)
     const got = await latestMessagesByConversation([], HISTORY_MESSAGE_CAP);
     await flushQueryEvents(prisma, counter); // geç gelen olay da sayılsın ("sorgu yok" iddiası boş kalmasın)
     counter.on = false;
@@ -125,8 +124,7 @@ describe("sendDueAlerts — mesaj okuması sınırlı", () => {
     const flaggedId = await seedConversation(propertyId, 60, { lastAt: new Date(now - 9 * MIN), tag: "f", lastDirection: "outbound" });
     await prisma.conversation.update({ where: { id: flaggedId }, data: { status: "problem", skippedReason: "complaint" } });
 
-    counter.rows = [];
-    counter.on = true;
+    await beginQueryCount(prisma, counter); // önceki sorguların geç olayları ölçüme karışmasın (11-25)
     const res = await sendDueAlerts(orgId);
     await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     counter.on = false;
@@ -135,7 +133,8 @@ describe("sendDueAlerts — mesaj okuması sınırlı", () => {
     expect(messageReads.length).toBe(2); // aday + işaretli küme (eskisi gibi iki okuma)
     for (const q of messageReads) expect(q).toMatch(/LIMIT/i);
     // Toplam sorgu: org · kullanıcı · (konuşma · mülk · mesaj) × 2 — eskiyle aynı.
-    expect(counter.rows).toHaveLength(8);
+    // Sayı tutmazsa hangi sorguların sayıldığı hata iletisinde görünür (11-25: tam kapıda bir kez 9 sayıldı, tek başına yeşil).
+    expect(counter.rows, counter.rows.map((q, i) => `${i + 1}. ${q.slice(0, 160)}`).join("\n")).toHaveLength(8);
   });
 
   it("davranış aynı: uzun thread'in 25'lik penceresindeki cevapsız şikâyet uyarılır, pencerenin dışındaki eski şikâyet uyarılmaz", async () => {

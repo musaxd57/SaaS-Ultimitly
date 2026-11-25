@@ -899,4 +899,7 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   görülmemiş ev sahibi cevabı talebin kendisinde. Yeni anahtar / migration YOK. Mutasyon 45 / 45.
 - Üç tasarım (kod yok): operatör taze 2FA · gönderim öncesi yetki kontrolü (önce gölge) · acil durdurma kapsamı. Sorular
   `docs/claude/acik-isler.md` "11-25".
-- Test altyapısı: `tests/helpers/tx-intercept.ts` (işlem istemcisine araya girer; her kanca çalıştığını iddia eder).
+- Test altyapısı: `tests/helpers/tx-intercept.ts` (işlem istemcisine araya girer; her kanca çalıştığını iddia eder) · sorgu sayan testlerde
+  BAŞ bariyeri (`beginQueryCount`): ilk tam kapıda `alerts-message-window-bounded` bir kez 8 yerine 9 sorgu saydı — fazladan satır sayaç
+  açılmadan önceki fikstür `UPDATE`inin geç gelen olayıydı (yük altında 200 turda 1 yakalandı; düzeltmeyle 800 turda 0). Aynı açık
+  `query-probe.ts`te de vardı (sonda sabit 20 ms, başta hiçbir şey) — iki uç bariyerli. Ürün kodu değişmedi.

@@ -21,7 +21,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
-import { flushQueryEvents } from "../helpers/query-event-barrier";
+import { beginQueryCount, flushQueryEvents } from "../helpers/query-event-barrier";
 import { canonicalReservation } from "../helpers/fake-ingest";
 import { upsertCanonicalReservation } from "@/lib/ingest/write-service";
 
@@ -39,8 +39,7 @@ function op(q: string): string {
 
 async function upsertCounted(propertyId: string, organizationId: string, r: ReturnType<typeof R>) {
   const ctx = { organizationId, provider: "hospitable" as const, connectionId: null };
-  counter.rows = [];
-  counter.on = true;
+  await beginQueryCount(prisma, counter); // önceki sorguların geç olayları ölçüme karışmasın (11-25)
   try {
     const id = await prisma.$transaction(async (tx) => upsertCanonicalReservation(tx, propertyId, r, ctx));
     await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)

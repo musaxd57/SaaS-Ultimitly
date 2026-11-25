@@ -1,4 +1,6 @@
+import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { flushQueryEvents } from "./query-event-barrier";
 
 // ---------------------------------------------------------------------------
 // SORGU SONDASI (optimizasyon turu 11-19, yalnız test). Bir işin veritabanına kaç kez gittiğini ve en uzun ARDIŞIK bekleme zincirini
@@ -14,6 +16,9 @@ import { prisma } from "@/lib/db";
 //    Sınır: bir çağrı, sonucunu beklediği çağrıdan `quietMs`ten uzun süre sonra (veritabanı dışı bir beklemeyle) verilirse ayrı tura
 //    düşebilir; istek yolunda böyle bir bekleme yok.
 // Ara katman ve dinleyici süreç başına BİR kez kurulur (Prisma kaldırma yolu vermez); ölçüm dışında çağrıyı olduğu gibi geçirir.
+//  · Ölçümün iki ucu bariyerlidir (11-25): sorgu olayı sonuçtan SONRA gelebilir — ölçümden önceki hazırlık sorgusunun olayı ölçüme
+//    düşmesin (+1), son sorgunun olayı da kaçmasın (−1) diye başta ve sonda işaret sorgusu atılıp olayı beklenir
+//    (`query-event-barrier.ts`; eskiden sonda sabit 20 ms bekleniyordu, başta hiçbir şey yoktu). İşaret çağrısı sayılmaz (`bypass`).
 // ---------------------------------------------------------------------------
 
 export interface ProbeOp {
@@ -50,6 +55,8 @@ interface ActiveProbe {
   sql: string[];
   ops: ProbeOp[];
   rounds: boolean;
+  /** İşaret (bariyer) sorgusu atılırken ara katman çağrıyı saymaz / tura koymaz. */
+  bypass: boolean;
   quietMs: number;
   released: number;
   inFlight: number;
@@ -127,7 +134,7 @@ function install(): void {
   });
   client.$use(async (params, next) => {
     const probe = active;
-    if (!probe) return next(params);
+    if (!probe || probe.bypass) return next(params);
     const op = `${params.model ?? "$raw"}.${params.action}`;
     if (!probe.rounds) {
       const rec: ProbeOp = { op, round: 1, start: performance.now(), end: 0 };
@@ -157,6 +164,7 @@ export async function probeQueries<T>(fn: () => Promise<T>, opts: { depth?: bool
     sql: [],
     ops: [],
     rounds: opts.depth === true,
+    bypass: true,
     quietMs: opts.quietMs ?? 15,
     released: 0,
     inFlight: 0,
@@ -165,11 +173,17 @@ export async function probeQueries<T>(fn: () => Promise<T>, opts: { depth?: bool
     timer: null,
   };
   active = probe;
+  const client = prisma as unknown as PrismaClient;
   let result: T;
   try {
+    // Baş bariyer: ölçümden ÖNCEKİ sorguların geç gelen olayları burada tüketilir ve atılır.
+    await flushQueryEvents(client, { rows: probe.sql });
+    probe.sql.length = 0;
+    probe.bypass = false;
     result = await fn();
-    // Sorgu olayı motorun geri çağrısıyla gelir; son çağrının olayı sonucu birkaç an geçebilir.
-    await new Promise((r) => setTimeout(r, 20));
+    // Son bariyer: son sorgunun olayı sonuçtan sonra gelebilir — işaretin olayı görülene kadar beklenir (sabit bekleme değil).
+    probe.bypass = true;
+    await flushQueryEvents(client, { rows: probe.sql });
   } finally {
     active = null;
     drain(probe);

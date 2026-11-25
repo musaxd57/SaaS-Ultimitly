@@ -8,6 +8,9 @@ import type { PrismaClient } from "@prisma/client";
 // beklenir — olaylar motorun sırasıyla gelir, işaret görüldüğünde ondan önceki her sorgunun olayı gelmiştir. İşaret satırı listeden silinir.
 // İkinci sapma (aynı ölçüm, 1.500 çağrıda 4 kez): bağlantı havuzunun KENDİ yoklama sorgusu (çıplak `SELECT 1`) de olay üretir ve sayıma
 // karışır — ölçülen işin sorgusu değildir, listeden çıkarılır (ürün kodu ölçülen işlerde çıplak `SELECT 1` atmaz).
+// Üçüncü sapma (11-25, tam kapıda bir kez; yük altında 200 turda 1): aynı gecikme sayacın BAŞINDA da olur — sayaç açılmadan hemen ÖNCE
+// koşan hazırlık sorgusunun (fikstürün son `UPDATE`i) olayı sayaç açıldıktan sonra gelir ve ölçülen işe yazılır (8 yerine 9 sorgu). Sayaç
+// bu yüzden `beginQueryCount` ile açılır: sayaç açık, bir bariyer atılır, bariyerden önce gelen her şey (önceki işlerin geç olayları) atılır.
 // ---------------------------------------------------------------------------
 
 const BARRIER_TAG = "lixus_query_event_barrier";
@@ -29,4 +32,11 @@ export async function flushQueryEvents(client: PrismaClient, counter: { rows: st
     if (Date.now() > deadline) throw new Error("sorgu olayı bariyeri gelmedi — sayaç açık mı, istemci sorgu olayı yayıyor mu?");
     await new Promise((r) => setTimeout(r, 2));
   }
+}
+
+/** Sayacı açar ve ölçümden ÖNCEKİ sorguların geç gelen olaylarını tüketir: dönüşte liste boş, sayaç açık. `counter.on = true` yerine kullanılır. */
+export async function beginQueryCount(client: PrismaClient, counter: { on: boolean; rows: string[] }, timeoutMs = 10_000): Promise<void> {
+  counter.on = true;
+  await flushQueryEvents(client, counter, timeoutMs);
+  counter.rows.length = 0;
 }

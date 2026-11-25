@@ -22,7 +22,7 @@ vi.mock("@/lib/db", async () => {
 });
 
 import { prisma, resetDb } from "../helpers/db";
-import { flushQueryEvents } from "../helpers/query-event-barrier";
+import { beginQueryCount, flushQueryEvents } from "../helpers/query-event-barrier";
 import { ANON_BODY } from "@/lib/data-retention";
 import { reactivateBlockedOutbox, CHANNEL_PAUSED_STALE_MARK } from "@/lib/outbox/worker";
 
@@ -113,8 +113,7 @@ async function newOrg(name: string) {
 }
 
 async function countQueries<T>(fn: () => Promise<T>): Promise<{ result: T; queries: string[] }> {
-  counter.rows = [];
-  counter.on = true;
+  await beginQueryCount(prisma, counter); // önceki sorguların geç olayları ölçüme karışmasın (11-25)
   try {
     const result = await fn();
     await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)

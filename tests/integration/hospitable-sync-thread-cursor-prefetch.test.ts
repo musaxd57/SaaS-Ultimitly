@@ -24,7 +24,7 @@ vi.mock("@/lib/report-error", () => ({
 }));
 
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
-import { flushQueryEvents } from "../helpers/query-event-barrier";
+import { beginQueryCount, flushQueryEvents } from "../helpers/query-event-barrier";
 import { FakeIngestProvider, canonicalMessage, canonicalReservation } from "../helpers/fake-ingest";
 import { __setIngestAdapterForTest } from "@/lib/channels/ingest";
 import { syncHospitable } from "@/lib/hospitable-sync";
@@ -74,8 +74,7 @@ describe("syncHospitable — thread imleci ilan başına toplu okunur", () => {
     const first = await syncHospitable(orgId);
     expect(first).toMatchObject({ conversations: 6, messages: 6 });
 
-    counter.rows = [];
-    counter.on = true;
+    await beginQueryCount(prisma, counter); // önceki sorguların geç olayları ölçüme karışmasın (11-25)
     const again = await syncHospitable(orgId);
     await flushQueryEvents(prisma, counter); // son sorgunun olayı sonuçtan sonra gelebilir (CI 1841)
     counter.on = false;
