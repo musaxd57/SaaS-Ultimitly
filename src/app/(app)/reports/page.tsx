@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Trophy,
   BedDouble,
+  Sparkle,
 } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { prisma } from "@/lib/db";
@@ -15,6 +16,7 @@ import {
   getTopTopics,
   getHostPerformanceScore,
   getOccupancyByProperty,
+  getCleanerMonthCounts,
   TOP_TOPICS_WINDOW_DAYS,
   PERF_MIN_CONVERSATIONS,
 } from "@/lib/reports";
@@ -103,7 +105,7 @@ export default async function ReportsPage() {
   ];
   // 🚀 Üç tur tek turda (optimizasyon turu 11-19): risk kayıtları, risk türleri ve rapor bölümleri birbirine bakmıyor — eskiden sırayla
   // bekleniyordu.
-  const [riskRows, heldRows, heldResolved, riskTypeRows, ai, topics, score, occupancy, channelConnected] = await Promise.all([
+  const [riskRows, heldRows, heldResolved, riskTypeRows, ai, topics, score, occupancy, channelConnected, cleanings] = await Promise.all([
     prisma.riskEvent.groupBy({
       by: ["riskLevel"],
       where: { organizationId, occurredAt: { gte: since30 }, riskLevel: { not: null } },
@@ -141,6 +143,7 @@ export default async function ReportsPage() {
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
     hasMessagingConnection(organizationId),
+    getCleanerMonthCounts(organizationId),
   ]);
   const riskCount = (lvl: string) =>
     riskRows.find((r) => r.riskLevel === lvl)?._count._all ?? 0;
@@ -503,6 +506,40 @@ export default async function ReportsPage() {
                     </div>
                   </div>
                 ))}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Temizlikçi başına ay sayımı (plan madde 10-B, kurucu 11-25: "Ayşe — 23 temizlik"). Yalnız "bitti" işaretlenenler; para alanı yok. */}
+        <Card className="lg:col-span-2" data-cleaner-month>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkle className="size-4 text-muted-foreground" /> Temizlikler ({cleanings.monthLabel})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {cleanings.rows.length === 0 && cleanings.unassigned === 0 ? (
+              <EmptyState title="Bu ay “bitti” işaretlenen temizlik yok" className="py-6" />
+            ) : (
+              <>
+                <div className="divide-y divide-border rounded-lg border border-border">
+                  {cleanings.rows.map((r) => (
+                    <div key={r.userId} className="flex items-center justify-between gap-2 px-3 py-2">
+                      <span className="min-w-0 truncate font-medium">{r.name ?? "Ekip üyesi"}</span>
+                      <span className="shrink-0 tabular-nums">{r.count} temizlik</span>
+                    </div>
+                  ))}
+                  {cleanings.unassigned > 0 ? (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 text-muted-foreground">
+                      <span>Kimseye atanmamış</span>
+                      <span className="shrink-0 tabular-nums">{cleanings.unassigned} temizlik</span>
+                    </div>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Yalnız bu ay “bitti” işaretlenen temizlikler sayılır; her temizlik, görevin atandığı kişinin satırına yazılır.
+                </p>
               </>
             )}
           </CardContent>

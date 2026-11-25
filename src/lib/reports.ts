@@ -375,6 +375,63 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
 }
 
 // ---------------------------------------------------------------------------
+// Temizlikçi başına ay sayımı (plan madde 10-B, kurucu 11-25 örneği "Ayşe — 23 temizlik"; tasarım
+// `docs/TASARIM-2026-11-25-temizlikci-gun-sirasi-ve-ay-sayimi.md`). Lixus para tutmaz: ücret / tutar alanı YOK.
+// ---------------------------------------------------------------------------
+
+export interface CleanerMonthRow {
+  userId: string;
+  /** Kullanıcı satırı bu işletmede okunamazsa `null` (ekran "Ekip üyesi" yazar). */
+  name: string | null;
+  count: number;
+}
+
+export interface CleanerMonthCounts {
+  monthLabel: string;
+  rows: CleanerMonthRow[];
+  /** Kimseye atanmamış (ya da atanan kullanıcısı silinmiş) bitmiş temizlik sayısı. */
+  unassigned: number;
+}
+
+/**
+ * Bu ay (işletme saat diliminde, `getMonthlyReport` ile aynı ay penceresi) "bitti" işaretlenen temizlik görevleri, ATANAN kişiye göre.
+ * Sayılan: türü `cleaning`, ŞU AN durumu "bitti" ve bu ay yazılmış bir "bitti" kaydı (`TaskUpdate.status = done` — "bitti" yalnız görev
+ * rotasından, durumla AYNI işlemde yazılır) olan görev; görev başına bir. `updatedAt` OKUNMAZ (sonradan yazılan not / saklama temizliği
+ * görevi yanlış aya taşırdı). "Kim yaptı" = atanan kişi: personel yalnız kendisine atalı görevi bitirebilir; yönetici onun adına bitirse de
+ * işi yapan atanandır. Tek gruplu sorgu + adlar için tek sorgu. Salt okuma; yalnız yönetici sayfası (Raporlar) çağırır.
+ */
+export async function getCleanerMonthCounts(orgId: string, now: Date = new Date()): Promise<CleanerMonthCounts> {
+  const tz = await reportTz(orgId);
+  const [locYear, locMonth] = dayKeyTz(now, tz).split("-").map(Number);
+  const monthStart = zonedDateStart(locYear, locMonth, 1, tz);
+  const monthEnd = zonedDateStart(locYear, locMonth + 1, 1, tz);
+  const grouped = await prisma.task.groupBy({
+    by: ["assignedToId"],
+    where: {
+      ...propertyScope(orgId),
+      type: "cleaning",
+      status: "done",
+      updates: { some: { status: "done", createdAt: { gte: monthStart, lt: monthEnd } } },
+    },
+    _count: { _all: true },
+  });
+  const ids = grouped.map((g) => g.assignedToId).filter((x): x is string => x !== null);
+  const users = ids.length
+    ? await prisma.user.findMany({ where: { id: { in: ids }, organizationId: orgId }, select: { id: true, name: true } })
+    : [];
+  const nameOf = new Map(users.map((u) => [u.id, u.name]));
+  const rows = grouped
+    .filter((g): g is typeof g & { assignedToId: string } => g.assignedToId !== null)
+    .map((g) => ({ userId: g.assignedToId, name: nameOf.get(g.assignedToId) ?? null, count: g._count._all }))
+    .sort((a, b) => b.count - a.count || (a.name ?? "").localeCompare(b.name ?? "", "tr") || (a.userId < b.userId ? -1 : 1));
+  return {
+    monthLabel: now.toLocaleDateString("tr-TR", { month: "long", year: "numeric", timeZone: tz }),
+    rows,
+    unassigned: grouped.find((g) => g.assignedToId === null)?._count._all ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Occupancy by Property
 // ---------------------------------------------------------------------------
 

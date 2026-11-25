@@ -6,6 +6,9 @@ import { wallClockMoment } from "@/lib/early-checkin/readiness";
 import { addNights } from "@/modules/availability/core";
 import { prisma } from "@/lib/db";
 import { canManageChannel } from "@/components/connect-channel-button";
+import { CleaningOrderCard } from "@/components/arrivals/cleaning-order";
+import { loadCleaningDayOrders, type CleaningDayOrders } from "@/lib/tasks/day-order-load";
+import { reportError } from "@/lib/report-error";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,15 @@ function dayLabel(dayKey: string, todayKey: string, tz: string): string {
 export default async function ArrivalsPage() {
   const session = await requireManagerSession();
   const data = await loadArrivalReadiness(session.organizationId, new Date());
+  // Temizlik sırası önerisi (plan madde 10-A): yalnız öneri, aynı üç günlük pencere. Okunamazsa kart yok, sayfa düşmez.
+  const dayOrders: CleaningDayOrders = await loadCleaningDayOrders(session.organizationId, {
+    fromKey: data.fromKey,
+    toKey: data.toKey,
+    timeZone: data.timeZone,
+  }).catch((err) => {
+    void reportError("arrivals.cleaning-day-order", err);
+    return { groups: [], truncated: false };
+  });
   const rows: ArrivalsListRow[] = data.rows.map((r) => ({
     reservationId: r.reservationId,
     propertyId: r.propertyId,
@@ -53,6 +65,11 @@ export default async function ArrivalsPage() {
       <PageHeader
         title="Girişler"
         description="Bugün ve sonraki iki gün. Temizlik yalnız çıkıştan sonraki “bitti” kaydıyla hazır sayılır; bilinmeyen hazır gösterilmez."
+      />
+      <CleaningOrderCard
+        groups={dayOrders.groups}
+        truncated={dayOrders.truncated}
+        dayLabels={Object.fromEntries(days.map((d) => [d.key, d.label]))}
       />
       <ArrivalsList
         rows={rows}

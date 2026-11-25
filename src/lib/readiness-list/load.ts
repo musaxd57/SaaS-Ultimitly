@@ -45,8 +45,8 @@ export const READINESS_LIST_DAYS = 3;
 export const READINESS_LIST_MAX = 120;
 const CONCURRENCY = 4;
 
-/** Onaylı / gönderilmiş erken giriş kararı (geç çıkış yükleyicisiyle aynı durum kümesi). */
-const DECIDED_STATUSES = ["approved", "resolved_by_policy", "send_unverified", "sending"];
+/** Onaylı / gönderilmiş erken giriş kararı (geç çıkış yükleyicisiyle aynı durum kümesi; temizlik gün sırası da okur — `tasks/day-order-load`). */
+export const DECIDED_STATUSES = ["approved", "resolved_by_policy", "send_unverified", "sending"];
 
 export interface ArrivalRow {
   reservationId: string;
