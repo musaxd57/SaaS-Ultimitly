@@ -10,10 +10,9 @@ import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
 import { normalizeSourceReference } from "@/lib/import/source-ref";
 import { reconcileLegacySourceReferences } from "@/lib/import/legacy-source-ref";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
-import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { recordVerifiedCalendarIdentity } from "@/lib/billing/trial-identity";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
-import { fetchFeedText } from "@/lib/net/pinned-fetch";
+import { fetchPublicFeedWithin } from "@/lib/net/feed-fetch-within";
 import { ANON_NAME } from "@/lib/data-retention";
 import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
@@ -32,6 +31,8 @@ export interface SyncResult {
 }
 
 const FEED_MAX_BYTES = 10 * 1024 * 1024;
+/** Bir beslemenin TOPLAM süresi: DNS ön kontrolü + bağlantı + gövde (K27-K15). */
+const FEED_TOTAL_TIMEOUT_MS = 15_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // #23 Feed-disappearance reconciliation (FAZ 2) — DEFAULT OFF.
@@ -276,16 +277,14 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     // or a hostname that currently RESOLVES private. The AUTHORITATIVE guard is
     // fetchFeedText's pinned lookup, which validates the address the socket
     // actually connects to (closing the DNS-rebind TOCTOU this pre-check can't).
-    const feedHost = new URL(feedUrl).hostname;
-    if (isPrivateHost(feedHost) || (await resolvesToPrivate(feedHost))) {
-      throw new Error("blocked private host");
-    }
     // node:https/http GET with: pinned public-only IP, NO redirect following
     // (a 3xx is a failure, nothing to re-resolve), a declared + streamed byte
-    // cap, and a 15s timeout. HTTPS keeps full cert validation.
-    text = await fetchFeedText(feedUrl, {
+    // cap. 🚨 TEK TOPLAM SÜRE 15 sn (K27-K15): DNS ön kontrolü de bu sürenin
+    // İÇİNDE (eskiden ön kontrol süresiz bekleniyor, besleme yine tam 15 sn
+    // alıyordu) — `fetchPublicFeedWithin` kalan süreyi `fetchFeedText`e verir.
+    text = await fetchPublicFeedWithin(feedUrl, {
+      totalMs: FEED_TOTAL_TIMEOUT_MS,
       maxBytes: FEED_MAX_BYTES,
-      timeoutMs: 15000,
       userAgent: "Lixus-AI/1.0",
     });
   } catch (err) {
@@ -1152,7 +1151,7 @@ export interface ScheduledIcalResult {
  * ⚠️ `deadline` KOŞAN İŞİ KESMEZ — JS tek iş parçacıklı, `syncCalendarSource`
  * bizim açımızdan bölünemez. Sağladığı şey YENİ İŞ BAŞLATMAMAKTIR; bu, deponun
  * `PASS_BUDGET_MS`/`ORG_BUDGET_MS` disipliniyle BİREBİR aynı sözleşmedir.
- * Tek kaynağın kendi tavanı `fetchFeedText`in 15 sn'lik toplam deadline'ıdır
+ * Tek kaynağın kendi tavanı `fetchFeedText`in 15 sn'lik toplam deadline'ıdır (DNS ön kontrolü dahil — K27-K15, `fetchPublicFeedWithin`)
  * (artı ayrıştırma + satır yazımları).
  */
 export async function syncDueCalendarSourcesForOrg(
