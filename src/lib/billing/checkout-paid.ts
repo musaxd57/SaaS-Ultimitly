@@ -47,14 +47,46 @@ const CHECKOUT_ORIGINS: ReadonlySet<string> = new Set(["web", "api"]);
 /** Bu kadar süredir bağlanmayan ödeme operatöre bildirilir (abonelik olayı normalde saniyeler içinde gelir). */
 export const PAID_CHECKOUT_ALERT_AFTER_MS = 15 * 60_000;
 /**
- * Süpürgenin bir turda gezdiği kayıt: sayfa boyu × sayfa sayısı (1.000). Sıra kimlikle ve her tur baştan: tur içinde kayıt atlanmaz, ama
- * 1.000'den çok kayıt beklemeye devam ederse arkadakiler gezilmez → sınır aşılırsa operatöre ayrıca haber verilir (sessiz sınır yok).
- * Bin takılı ödeme zaten genel bir arızadır.
+ * Süpürgenin bir turda gezdiği kayıt: sayfa boyu × sayfa sayısı (1.000). Sıra kimlikle; tur sınıra çarparsa kaldığı yer KALICI imleçe
+ * yazılır ve sonraki tur ORADAN sürer, listenin sonuna gelince başa sarar (K6, Codex 11-25 ikinci rapor: eskiden her tur baştan
+ * başlıyordu — 1.000'den çok kayıt beklerken arkadakiler HİÇ gezilmiyordu). Sınır aşımı alarmı yalnız gezilmemiş kayıt GERÇEKTEN
+ * kaldıysa (bir fazla okuma); tam 1.000 kayıtta alarm yok. Bin takılı ödeme zaten genel bir arızadır.
  */
 const SWEEP_PAGE = 50;
 const SWEEP_MAX_PAGES = 20;
 /** Onay rotasında art arda uzlaştırılan en çok kayıt (beklenen: 1). */
 const BLOCK_MAX_RECONCILES = 10;
+/**
+ * Süpürgenin kalıcı ilerleme imleci (`SystemLock` satırı genel durum deposu olarak — `scheduled-sync.ts` "scheduled-sync:resume-from"
+ * emsali; `holder` = son gezilen kaydın kimliği, `lockedUntil` anlamsız). Satır yalnız tur sınıra çarptığında olur; tam tur bitince silinir.
+ * En iyi çaba: okunamazsa tur baştan başlar (bugünkü davranış), yazılamazsa sonraki tur aynı yeri yeniden gezer (kayıp yok, yalnız tekrar).
+ */
+export const PAID_SWEEP_CURSOR_NAME = "checkout-paid-sweep:after";
+
+async function readPaidSweepCursor(): Promise<string | null> {
+  try {
+    const row = await prisma.systemLock.findUnique({ where: { name: PAID_SWEEP_CURSOR_NAME }, select: { holder: true } });
+    return row?.holder || null;
+  } catch {
+    return null;
+  }
+}
+
+async function writePaidSweepCursor(after: string | null): Promise<void> {
+  try {
+    if (after === null) {
+      await prisma.systemLock.deleteMany({ where: { name: PAID_SWEEP_CURSOR_NAME } });
+    } else {
+      await prisma.systemLock.upsert({
+        where: { name: PAID_SWEEP_CURSOR_NAME },
+        create: { name: PAID_SWEEP_CURSOR_NAME, lockedUntil: new Date(0), holder: after },
+        update: { holder: after },
+      });
+    }
+  } catch {
+    /* en iyi çaba — ↑ */
+  }
+}
 
 /** Operatör alarm durumunun anahtarı (kayıt başına; bağlanınca / bırakılınca silinir). */
 export const paidCheckoutAlertKey = (intentId: string): string => `checkout-paid-unlinked:${intentId}`;
@@ -135,8 +167,8 @@ export async function recordPaidCheckout(input: {
       status = CHECKOUT_PAID_STATUS;
     }
     if (status === CHECKOUT_PAID_STATUS && linkedOrg === existing.organizationId) {
-      await closePaidCheckout(existing, CHECKOUT_FULFILLED_STATUS, "transaction_subscription_linked");
-      return "fulfilled";
+      // Sonuç kapanışın KENDİSİNDEN (K9): kaydı bu arada başka işlem kapattıysa bu çağrı "bağladı" demez.
+      return (await closePaidCheckout(existing, CHECKOUT_FULFILLED_STATUS, "transaction_subscription_linked")) ? "fulfilled" : "exists";
     }
     return "exists";
   }
@@ -250,6 +282,19 @@ export interface PaidCheckoutVerdict {
 }
 
 /**
+ * Koşullu kapanış 0 satır güncelledi (K9, Codex 11-25 ikinci rapor): kaydı bu arada BAŞKA bir işlem değiştirdi (abonelik olayı bağladı,
+ * operatör bıraktı). Karar bu uzlaştırmanın Paddle okumasından değil, kaydın SON durumundan verilir — "bırakıldı" kaydı "bağlandı"
+ * diye raporlanmaz. Kayıt yoksa (işletmeyle silindi) bekleyen bir şey de yoktur; hâlâ bekliyorsa (beklenmez) bekler.
+ */
+async function currentVerdict(intentId: string): Promise<PaidCheckoutVerdict> {
+  const now = await prisma.checkoutIntent.findUnique({ where: { id: intentId }, select: { status: true } });
+  if (now?.status === CHECKOUT_FULFILLED_STATUS) return { outcome: "fulfilled", paddle: "kaydı başka bir işlem bağladı" };
+  if (now?.status === CHECKOUT_RELEASED_STATUS) return { outcome: "released", paddle: "kaydı başka bir işlem serbest bıraktı" };
+  if (now === null) return { outcome: "released", paddle: "kayıt artık yok" };
+  return { outcome: "awaiting", paddle: `kayıt kapatılamadı (durum ${now.status})` };
+}
+
+/**
  * Bekleyen ödemeyi Paddle'la uzlaştırır (en çok iki okuma: işlem → abonelik). Yalnız KANITLA kapatır; okunamayan / bulunamayan /
  * uyuşmayan her durumda kayıt bekler.
  */
@@ -268,8 +313,10 @@ export async function reconcilePaidCheckout(row: PaidCheckoutRow): Promise<PaidC
     if ((await readTransactionRefund(row.providerRef)) === "full_refund_approved") {
       const again = await readPaddleTransaction(row.providerRef);
       if (again !== null && again !== PADDLE_TXN_NOT_FOUND && !again.subscriptionId) {
-        await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded");
-        return { outcome: "released", paddle: `işlem ${row.providerRef} tam iade edilmiş (onaylı), abonelik yok` };
+        if (await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded")) {
+          return { outcome: "released", paddle: `işlem ${row.providerRef} tam iade edilmiş (onaylı), abonelik yok` };
+        }
+        return currentVerdict(row.id);
       }
       return { outcome: "awaiting", paddle: `işlem ${row.providerRef} tam iade edilmiş ama abonelik durumu yeniden doğrulanamadı` };
     }
@@ -277,8 +324,10 @@ export async function reconcilePaidCheckout(row: PaidCheckoutRow): Promise<PaidC
   }
   const local = await prisma.subscription.findUnique({ where: { organizationId: row.organizationId }, select: { provider: true, providerRef: true } });
   if (local?.provider === "paddle" && local.providerRef === txn.subscriptionId) {
-    await closePaidCheckout(row, CHECKOUT_FULFILLED_STATUS, "reconciled_linked");
-    return { outcome: "fulfilled", paddle: `abonelik ${txn.subscriptionId} hesaba bağlı` };
+    if (await closePaidCheckout(row, CHECKOUT_FULFILLED_STATUS, "reconciled_linked")) {
+      return { outcome: "fulfilled", paddle: `abonelik ${txn.subscriptionId} hesaba bağlı` };
+    }
+    return currentVerdict(row.id);
   }
   const sub = await getSubscriptionStatus(txn.subscriptionId);
   // İki kanıt BİRLİKTE: para geri verildi (onaylı tam iade) VE abonelik etkin değil (iptal). Biri eksikse kayıt bekler — iade edilmiş ama
@@ -286,8 +335,10 @@ export async function reconcilePaidCheckout(row: PaidCheckoutRow): Promise<PaidC
   if (sub?.status === "canceled") {
     const refund = await readTransactionRefund(row.providerRef);
     if (refund === "full_refund_approved") {
-      await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded_and_canceled");
-      return { outcome: "released", paddle: `abonelik ${txn.subscriptionId} iptal, işlem tam iade edilmiş (onaylı)` };
+      if (await closePaidCheckout(row, CHECKOUT_RELEASED_STATUS, "refunded_and_canceled")) {
+        return { outcome: "released", paddle: `abonelik ${txn.subscriptionId} iptal, işlem tam iade edilmiş (onaylı)` };
+      }
+      return currentVerdict(row.id);
     }
     return {
       outcome: "awaiting",
@@ -317,7 +368,8 @@ export async function paidCheckoutBlock(organizationId: string): Promise<{ paidA
 
 /**
  * Saatlik süpürge: 15 dakikadır bağlanmayan her ödeme önce uzlaştırılır; hâlâ bekliyorsa operatöre geçiş tabanlı alarm (kayıt başına bir
- * kez + 24 saatte hatırlatma). Bütün kayıtlar kimlik sırasıyla sayfalanır — alarm verilmiş eski kayıtlar yenilerin önünü kesmez.
+ * kez + 24 saatte hatırlatma). Bütün kayıtlar kimlik sırasıyla sayfalanır — alarm verilmiş eski kayıtlar yenilerin önünü kesmez. Tur
+ * kalıcı imleçten başlar (yoksa baştan): önce imleçten SONRAKİ kayıtlar, liste biterse sınır elverdiğince başa sarıp imlece KADAR olanlar.
  */
 export async function sweepPaidCheckouts(
   now: Date = new Date(),
@@ -326,18 +378,28 @@ export async function sweepPaidCheckouts(
   const maxPages = opts.maxPages ?? SWEEP_MAX_PAGES;
   const result = { checked: 0, closed: 0, alerted: 0 };
   const cutoff = new Date(now.getTime() - PAID_CHECKOUT_ALERT_AFTER_MS);
-  let after: string | null = null;
-  for (let page = 0; page < maxPages; page++) {
+  const base: Prisma.CheckoutIntentWhereInput = { status: CHECKOUT_PAID_STATUS, OR: [{ closedAt: null }, { closedAt: { lte: cutoff } }] };
+  // Süzgeç SORGUDA, ilerleme KALICI (K6): bölüm 1 = imleçten sonrası (imleç yoksa hepsi); bölüm 2 = başa sarıp imlece kadar.
+  const start = await readPaidSweepCursor();
+  let wrapped = start === null; // imleç yoksa tek bölüm vardır
+  let after: string | null = start;
+  const rangeOf = (from: string | null): Prisma.CheckoutIntentWhereInput => {
+    const upTo = wrapped && start ? start : null;
+    if (from && upTo) return { id: { gt: from, lte: upTo } };
+    if (from) return { id: { gt: from } };
+    if (upTo) return { id: { lte: upTo } };
+    return {};
+  };
+  let finished = false; // bölümler bitti: gezilmemiş kayıt kalmadı
+  let page = 0;
+  while (page < maxPages) {
     const rows: PaidCheckoutRow[] = await prisma.checkoutIntent.findMany({
-      where: {
-        status: CHECKOUT_PAID_STATUS,
-        OR: [{ closedAt: null }, { closedAt: { lte: cutoff } }],
-        ...(after ? { id: { gt: after } } : {}),
-      },
+      where: { AND: [base, rangeOf(after)] },
       orderBy: { id: "asc" },
       take: SWEEP_PAGE,
       select: ROW,
     });
+    page++;
     for (const row of rows) {
       result.checked++;
       const verdict = await reconcilePaidCheckout(row);
@@ -377,17 +439,41 @@ export async function sweepPaidCheckouts(
       );
       if (alerted === "alerted") result.alerted++;
     }
-    if (rows.length < SWEEP_PAGE) break;
-    after = rows[rows.length - 1]!.id;
-    if (page === maxPages - 1) {
-      await alertOnTransition(
-        "checkout-paid-sweep-cap",
-        "paddle-paid-not-linked-backlog",
-        new Error(`${SWEEP_PAGE * maxPages} kayıttan fazla ödeme abonelik bekliyor — süpürge hepsini gezemedi (genel bir ödeme arızası olabilir).`),
-        { now },
-      );
+    if (rows.length > 0) after = rows[rows.length - 1]!.id;
+    if (rows.length < SWEEP_PAGE) {
+      if (wrapped) {
+        finished = true;
+        break;
+      }
+      // Bölüm 1 bitti (imleçten sonrası): başa sar, imlece kadar olanları gez.
+      wrapped = true;
+      after = null;
     }
   }
+  if (finished) {
+    await writePaidSweepCursor(null);
+    return result;
+  }
+  // Sınıra çarpıldı: gezilmemiş kayıt GERÇEKTEN var mı (bir fazla okuma)? Kalan aralık: bölüm 2'deysek `after` ile imleç arası; bölüm
+  // 1'deysek `after`dan sonrası + imlece kadar olanların hepsi.
+  const remaining: Prisma.CheckoutIntentWhereInput =
+    wrapped && start
+      ? { id: { gt: after ?? "", lte: start } }
+      : start
+        ? { OR: [{ id: { gt: after ?? start } }, { id: { lte: start } }] }
+        : { id: { gt: after ?? "" } };
+  const more = await prisma.checkoutIntent.findFirst({ where: { AND: [base, remaining] }, select: { id: true } });
+  if (!more) {
+    await writePaidSweepCursor(null);
+    return result;
+  }
+  await writePaidSweepCursor(after);
+  await alertOnTransition(
+    "checkout-paid-sweep-cap",
+    "paddle-paid-not-linked-backlog",
+    new Error(`${SWEEP_PAGE * maxPages} kayıttan fazla ödeme abonelik bekliyor — süpürge bir turda hepsini gezemedi, sonraki tur kaldığı yerden sürer (genel bir ödeme arızası olabilir).`),
+    { now },
+  );
   return result;
 }
 

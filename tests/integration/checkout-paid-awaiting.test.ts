@@ -28,6 +28,9 @@ const { paddle } = vi.hoisted(() => ({
     calls: [] as string[],
     /** "İşlem aç" çağrısı dönmeden hemen önce bir kez çalışır (dış çağrı sürerken olan olayı kurmak için). */
     onCreate: null as null | (() => Promise<void>),
+    /** İşlem OKUMASI (GET) dönmeden hemen önce bir kez çalışır (uzlaştırma Paddle'ı okurken başka işlemin kaydı değiştirmesi — K9). */
+    onTxnRead: null as null | (() => Promise<void>),
+    onTxnReadRan: 0,
   },
 }));
 // Onay kapısının "bekleyen ödeme var mı" bakışından hemen SONRA bir kez çalışır (yarış penceresi: kapı geçildi, ödeme o arada tamamlandı).
@@ -94,6 +97,12 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
         return { data: { id, status: "canceled" } };
       }
       paddle.reads.push(id);
+      const readHook = paddle.onTxnRead;
+      paddle.onTxnRead = null;
+      if (readHook) {
+        paddle.onTxnReadRan++;
+        await readHook();
+      }
       return { data: { id, ...row } };
     }
     const adj = path.match(/^\/adjustments\?(.*)$/);
@@ -153,6 +162,7 @@ import {
   paidCheckoutAlertKey,
   paidCheckoutAwaiting,
   paidCheckoutsAwaitingSummary,
+  reconcilePaidCheckout,
   recordPaidCheckout,
   releasePaidCheckoutByOperator,
   sweepPaidCheckouts, __checkoutPaidHooks } from "@/lib/billing/checkout-paid";
@@ -248,6 +258,8 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
     paddle.reads.length = 0;
     paddle.calls.length = 0;
     paddle.onCreate = null;
+    paddle.onTxnRead = null;
+    paddle.onTxnReadRan = 0;
     Object.assign(gate, { afterBlockCheck: null, failFulfilOnce: false, failRecordOnce: false });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -755,6 +767,37 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(paddle.reads).toEqual(["txn_c1"]); // abonelik Paddle'a sorulmadı — yerel eşleşme yetti
     });
 
+    it("🚨 K9: uzlaştırma Paddle'ı okurken kaydı operatör serbest bırakırsa koşullu kapanış 0 satır yazar → karar SON durumdan ('bırakıldı'), 'bağlandı' DEĞİL", async () => {
+      const consentId = await awaiting();
+      await prisma.subscription.upsert({
+        where: { organizationId: orgId },
+        create: { organizationId: orgId, provider: "paddle", providerRef: "sub_k9", status: "active", planCode: "pro" },
+        update: { provider: "paddle", providerRef: "sub_k9", status: "active" },
+      });
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_k9", custom_data: { consentId }, origin: "web" });
+      const row = (await paidCheckoutAwaiting(orgId))!;
+      paddle.onTxnRead = async () => {
+        expect((await releasePaidCheckoutByOperator(row.id)).ok).toBe(true);
+      };
+      const verdict = await reconcilePaidCheckout(row);
+      expect(paddle.onTxnReadRan).toBe(1);
+      expect(verdict.outcome).toBe("released");
+      expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("released");
+    });
+
+    it("K9 KONTROL: araya kimse girmezse aynı uzlaştırma kaydı 'bağlandı' yapar", async () => {
+      const consentId = await awaiting();
+      await prisma.subscription.upsert({
+        where: { organizationId: orgId },
+        create: { organizationId: orgId, provider: "paddle", providerRef: "sub_k9", status: "active", planCode: "pro" },
+        update: { provider: "paddle", providerRef: "sub_k9", status: "active" },
+      });
+      paddle.txns.set("txn_c1", { status: "completed", subscription_id: "sub_k9", custom_data: { consentId }, origin: "web" });
+      const row = (await paidCheckoutAwaiting(orgId))!;
+      expect((await reconcilePaidCheckout(row)).outcome).toBe("fulfilled");
+      expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("fulfilled");
+    });
+
     it("kapanış anı kaydın KAPANDIĞI andır (ödeme anı değil): eski ödemenin bırakılan kaydı saklama süpürgesinde hemen silinmez", async () => {
       await awaiting();
       const row = (await intentOf(orgId))!;
@@ -987,6 +1030,60 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       reportErrorMock.mockClear();
       await sweepPaidCheckouts(new Date(), { maxPages: 3 });
       expect(backlog()).toHaveLength(0);
+    });
+
+    /** Bekleyen (60 dk önce ödenmiş, Paddle'da bulunamayan → bekler) n kayıt. */
+    async function backlogRows(n: number, prefix: string): Promise<void> {
+      const consent = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      await prisma.checkoutIntent.createMany({
+        data: Array.from({ length: n }, (_, i) => ({
+          organizationId: orgId,
+          consentId: consent.id,
+          planCode: "pro",
+          priceId: "pri_pro",
+          providerRef: `txn_${prefix}${i}`,
+          status: "completed",
+          expiresAt: new Date(),
+          closedAt: new Date(Date.now() - 60 * MIN),
+        })),
+      });
+    }
+    const backlogAlarms = () => reportErrorMock.mock.calls.filter(([context]) => context === "paddle-paid-not-linked-backlog");
+    const cursorRow = () => prisma.systemLock.findUnique({ where: { name: "checkout-paid-sweep:after" } });
+
+    it("🚨 K6: kayıt sayısı TAM sınır kadarsa (50 kayıt, 1 sayfa) sınır alarmı YOK — gezilmemiş kayıt kalmadı", async () => {
+      await backlogRows(50, "e");
+      const r = await sweepPaidCheckouts(new Date(), { maxPages: 1 });
+      expect(r.checked).toBe(50);
+      expect(alarms()).toHaveLength(50);
+      expect(backlogAlarms()).toHaveLength(0);
+      expect(await cursorRow()).toBeNull();
+    });
+
+    it("🚨 K6: sınırın ARKASINDAKİ kayıt sonraki turda gezilir (51 kayıt, tur başına 1 sayfa): imleç kalıcı, 51. kayıt da bildirilir", async () => {
+      await backlogRows(51, "k");
+      const first = await sweepPaidCheckouts(new Date(), { maxPages: 1 });
+      expect(first.checked).toBe(50);
+      expect(alarms()).toHaveLength(50);
+      expect(backlogAlarms()).toHaveLength(1);
+      expect((await cursorRow())?.holder).toBeTruthy();
+      const second = await sweepPaidCheckouts(new Date(), { maxPages: 1 });
+      expect(second.checked).toBe(1); // eskiden ilk 50'yi yeniden okuyordu
+      expect(alarms()).toHaveLength(51);
+      const lastId = (await prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: { startsWith: "txn_k" } }, orderBy: { id: "desc" } })).id;
+      expect(String((alarms()[50]![1] as Error).message)).toContain(
+        (await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: lastId } })).providerRef!,
+      );
+    });
+
+    it("K6: imleçten sonrası bitince tur başa sarar ve imlece kadar olanları da gezer; tam tur bitince imleç silinir", async () => {
+      await backlogRows(51, "w");
+      await sweepPaidCheckouts(new Date(), { maxPages: 1 });
+      expect(await cursorRow()).not.toBeNull();
+      const second = await sweepPaidCheckouts(new Date(), { maxPages: 3 });
+      expect(second.checked).toBe(51);
+      expect(await cursorRow()).toBeNull();
+      expect(backlogAlarms()).toHaveLength(1); // yalnız ilk turunki
     });
 
     it("🚨 saklama süresi 'ödeme alındı' kaydını SİLMEZ (silinseydi ikinci ödeme yine açılırdı); bağlanmış eski kayıt silinir", async () => {
