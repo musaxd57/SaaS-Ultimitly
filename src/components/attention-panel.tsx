@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
+import { departureOpenDetail, departureOpenHeadline } from "@/modules/intelligence/incidents/departure-open";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
@@ -105,6 +106,8 @@ function headline(item: AttentionItem): string {
     case "feed_broken":
       return `${item.sourceLabel ?? "Takvim"} bağlantısı güncellenemiyor`;
     case "departing_unanswered":
+      // Çıkıştan önce açık konu (plan madde 7): "Lale 3 yarın 11:00'de çıkıyor".
+      if (item.departureOpen) return departureOpenHeadline(item.propertyName, item.departureOpen);
       return `Çıkışı yaklaşan misafir ${item.hoursWaiting ?? 0} saattir cevap bekliyor`;
     case "unanswered_aging":
       return `${item.hoursWaiting ?? 0} saattir cevapsız misafir mesajı`;
@@ -148,6 +151,8 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
       // Ne olduğunu DEĞİL, host için ne anlama geldiğini söyler.
       return `${item.propertyName} · bu kanaldan yeni rezervasyon gelmiyor olabilir`;
     case "departing_unanswered":
+      // Birleşik satırda daire adı başlıkta; alt satır açık konular ("sıcak su konusu açık · misafir 3 saattir cevap bekliyor").
+      return item.departureOpen ? departureOpenDetail(item.departureOpen) : item.propertyName;
     case "unanswered_aging":
       return item.propertyName;
     case "recurring_issue":

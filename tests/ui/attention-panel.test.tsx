@@ -56,6 +56,26 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/Lale · konuşmayı kanaldan kontrol edin/)).toBeTruthy();
   });
 
+  it("çıkıştan önce açık konu (plan madde 7): başlık 'Lale 3 yarın 11:00'de çıkıyor', alt satır açık konular; birleşik alan yoksa eski satır", () => {
+    const items: AttentionItem[] = [
+      {
+        ...base,
+        propertyName: "Lale 3",
+        kind: "departing_unanswered",
+        certainty: "observed",
+        severity: 90,
+        href: "/inbox/c1",
+        departureOpen: { day: "tomorrow", time: "11:00", topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water" }], problem: false },
+      },
+      { ...base, propertyId: "p2", propertyName: "Lale", kind: "departing_unanswered", certainty: "observed", severity: 93, href: "/inbox/c2", hoursWaiting: 3 },
+    ];
+    render(<AttentionPanel items={items} />);
+    expect(screen.getByText("Lale 3 yarın 11:00'de çıkıyor")).toBeTruthy();
+    expect(screen.getByText("sıcak su konusu açık")).toBeTruthy();
+    expect(screen.getByText("Çıkışı yaklaşan misafir 3 saattir cevap bekliyor")).toBeTruthy();
+    expect(screen.getByText("Lale")).toBeTruthy();
+  });
+
   it("misafire verilen söz satırı: yaklaşan söz 'söz verildi … kaldı', geciken söz 'gecikti'; tür etiketi ve işletme saati", () => {
     const items: AttentionItem[] = [
       { ...base, kind: "commitment_due", certainty: "observed", severity: 96, href: "/inbox/c1", commitmentKind: "towels", minutesLeft: -30, commitmentTime: "14:30" },

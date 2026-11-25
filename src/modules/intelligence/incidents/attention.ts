@@ -31,6 +31,7 @@ import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { hasRecipientWhere } from "@/lib/internal-record";
 import { activeBookingConflicts, BOOKING_CONFLICT_ROW_CAP, type ActiveBookingConflict } from "@/lib/booking-property-conflict";
 import { autoSendStoppedByConflict } from "@/lib/booking-conflict-auto-send";
+import { isClockText, type DepartureOpen, type DepartureTopic } from "@/modules/intelligence/incidents/departure-open";
 
 // ---------------------------------------------------------------------------
 // V2.1 — "DİKKAT GEREKTİRENLER". Salt-okuma; hiçbir şey YAZMAZ (okuduğu tablolar başka dilimlerin migration'larıyla geldi).
@@ -272,6 +273,12 @@ export interface AttentionItem {
    * `lib/booking-conflict-auto-send.ts`). Yoksa (durdurmuyor ya da okunamadı) "Otomatik gönderim durduruldu" yazılmaz.
    */
   autoSendStopped?: boolean;
+  /**
+   * Yalnız `departing_unanswered`, ÇIKIŞTAN ÖNCE AÇIK KONU birleşik satırı (plan madde 7, `docs/TASARIM-2026-11-25-cikistan-once-acik-konu.md`):
+   * çıkışı penceredeki konaklamanın açık konuları (bırakılan istek · açık söz · Sorunlu) — o konaklamanın istek / söz / cevapsız satırları
+   * bu satıra toplanır (aynı konu iki satırda görünmez). Yoksa satır bugünkü "çıkışı yaklaşan misafir cevap bekliyor" satırıdır.
+   */
+  departureOpen?: DepartureOpen;
 }
 
 export interface FindAttentionOptions {
@@ -306,11 +313,12 @@ export async function findAttentionItems(
 
   const properties = await prisma.property.findMany({
     where: { organizationId, ...scope },
-    select: { id: true, name: true },
+    select: { id: true, name: true, checkOutTime: true },
   });
   if (properties.length === 0) return [];
   const propertyIds = properties.map((p) => p.id);
   const nameById = new Map(properties.map((p) => [p.id, p.name]));
+  const checkOutTimeById = new Map(properties.map((p) => [p.id, p.checkOutTime]));
 
   const windowStart = new Date(now.getTime() - ATTENTION_WINDOW_DAYS * 24 * HOUR);
   const recurringSince = new Date(now.getTime() - RECURRING_FRESH_DAYS * 24 * HOUR);
@@ -382,7 +390,7 @@ export async function findAttentionItems(
             skippedReason: true,
             autoReplyAttemptedAt: true,
             lastMessageAt: true,
-            reservation: { select: { departureDate: true, status: true } },
+            reservation: { select: { id: true, departureDate: true, status: true, sourceReference: true } },
             messages: {
               // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz; otomatik şablon mesajı (K7) cevap değildir —
               // misafirin cevapsız sorusunu gizlemesin.
@@ -445,7 +453,9 @@ export async function findAttentionItems(
           duePrecision: true,
           dayPart: true,
           conversationId: true,
-          conversation: { select: { propertyId: true, channel: true } },
+          conversation: {
+            select: { propertyId: true, channel: true, reservation: { select: { id: true, departureDate: true, status: true, sourceReference: true } } },
+          },
         },
       })
       .catch((err) => {
@@ -519,6 +529,50 @@ export async function findAttentionItems(
 
   const items: AttentionItem[] = [];
 
+  // ÇIKIŞTAN ÖNCE AÇIK KONU (plan madde 7): çıkışı penceredeki konaklama başına grup. Konu (bırakılan istek · açık söz · Sorunlu) olan grubun
+  // satırları sonda TEK satıra toplanır; konusu olmayan grupta hiçbir şey değişmez (yalnız cevapsız mesaj → bugünkü satır aynen).
+  // Aynı rezervasyon iki dairede etkin kayıtlıysa grup kurulmaz (daire tahmin edilmez; "iki dairede kayıtlı" satırı ayrı uyarır).
+  const twoPropertyRefs = new Set(twoProperties.conflicts.map((c) => c.sourceReference));
+  const departureGroups = new Map<string, DepartureGroup>();
+  const departingStay = (res: StayRef | null | undefined, propertyId: string, tz: string): DepartureGroup | null => {
+    if (!res || (res.status !== "confirmed" && res.status !== "completed")) return null;
+    if (res.sourceReference && twoPropertyRefs.has(res.sourceReference)) return null;
+    if (!departingWithinSoonWindow(res.departureDate, now, tz)) return null;
+    const existing = departureGroups.get(res.id);
+    if (existing) return existing;
+    const { key, anchor } = calendarDateOf(res.departureDate, tz);
+    const storedClock = checkOutTimeById.get(propertyId);
+    const time =
+      anchor === "instant"
+        ? res.departureDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz, hourCycle: "h23" })
+        : isClockText(storedClock)
+          ? storedClock
+          : null;
+    const group: DepartureGroup = {
+      reservationId: res.id,
+      propertyId,
+      day: key === todayKey(now, tz) ? "today" : "tomorrow",
+      time: isClockText(time) ? time : null,
+      topics: [],
+      problem: null,
+      absorbed: [],
+      hoursWaiting: undefined,
+    };
+    departureGroups.set(res.id, group);
+    return group;
+  };
+  const addTopic = (g: DepartureGroup, t: DepartureTopic) => {
+    const same = (x: DepartureTopic) =>
+      x.source === t.source && x.kind === t.kind && (x.source !== "commitment" || t.source !== "commitment" || x.topic === t.topic);
+    if (!g.topics.some(same)) g.topics.push(t);
+  };
+  // Acil / erişim kaybı bırakılan isteği olan konuşma: kendi satırı kalır (yutulmaz) ve Sorunlu işareti birleşik satıra girmez (çift olmasın).
+  const urgentHeldConversationIds = new Set(held.filter((h) => h.emergency || h.urgent).map((h) => h.conversationId));
+  // Konuşma → rezervasyon (zaten okunan aday konuşmalar ve sözlerden; bırakılan istekte eksik kalanlar ↓ tek okumayla).
+  const stayOfConversation = new Map<string, StayRef | null>();
+  for (const c of conversations) stayOfConversation.set(c.id, c.reservation);
+  for (const c of commitments) if (!stayOfConversation.has(c.conversationId)) stayOfConversation.set(c.conversationId, c.conversation.reservation);
+
   // KANAL BAĞLANTISI SAĞLIĞI (V0 §2f; sağlayıcıdan bağımsız — bağlantı satırının okuma kaydı). İşletme düzeyi satır: mülke daraltılmış
   // çağrıda gösterilmez. Ölçüm yoksa (yazıcı anahtarı kapalı) satır yok. Kalıcı hata hemen; geçici hata / bayat okuma yalnız bayatsa.
   if (!options.propertyId) {
@@ -582,16 +636,24 @@ export async function findAttentionItems(
   const departureTz = conversations.some((c) => c.reservation?.departureDate) ? orgTimezone(decisionTz ?? (await storedTimezone())) : null;
   for (const convo of conversations) {
     const last = convo.messages[0];
+    // Çıkışı penceredeki konaklama grubu (yalnız açık konu varsa sonda tek satıra döner).
+    const group = departureTz !== null ? departingStay(convo.reservation, convo.propertyId, departureTz) : null;
+    // "Sorunlu" konuşma (son sözü bizde olsa da) çıkıştan önce açık konudur; acil istek satırı onu zaten gösteriyorsa girmez.
+    if (group && convo.status === "problem" && !urgentHeldConversationIds.has(convo.id) && !group.problem) {
+      group.problem = { conversationId: convo.id, channel: convo.channel, at: last?.createdAt ?? convo.lastMessageAt };
+    }
     // Görünür mesajı olmayan ya da son sözü BİZDE olan konuşma cevapsız değildir.
     if (!last || last.direction !== "inbound") continue;
     // Misafirin son sözü yalnız teşekkür/kapanıştı ve bilerek cevap verilmedi — bekleyen iş değil.
     if (isClosingHandled(convo)) continue;
-    // Ev sahibine bırakılmış istek satırı bu konuşmayı zaten gösteriyor (daha özgül; çift satır olmasın).
-    if (heldConversationIds.has(convo.id)) continue;
 
     const waitedMs = now.getTime() - last.createdAt.getTime();
     if (waitedMs < 0) continue;
     const hoursWaiting = Math.floor(waitedMs / HOUR);
+    // Birleşik satır cevapsızlığı da söyler (bırakılan istek satırının yuttuğu konuşmada da): bugünkü çıkış eşiğiyle.
+    if (group && hoursWaiting >= DEPARTING_UNANSWERED_HOURS) group.hoursWaiting = Math.max(group.hoursWaiting ?? 0, hoursWaiting);
+    // Ev sahibine bırakılmış istek satırı bu konuşmayı zaten gösteriyor (daha özgül; çift satır olmasın).
+    if (heldConversationIds.has(convo.id)) continue;
 
     const departure = convo.reservation?.departureDate ?? null;
     const departingSoon =
@@ -602,7 +664,7 @@ export async function findAttentionItems(
 
     if (departingSoon) {
       if (hoursWaiting < DEPARTING_UNANSWERED_HOURS) continue;
-      items.push({
+      const row: AttentionItem = {
         kind: "departing_unanswered",
         certainty: "observed",
         propertyId: convo.propertyId,
@@ -613,7 +675,9 @@ export async function findAttentionItems(
         occurredAt: last.createdAt,
         href: conversationHref(convo.id, convo.channel),
         hoursWaiting,
-      });
+      };
+      items.push(row);
+      group?.absorbed.push(row);
       continue;
     }
 
@@ -675,7 +739,7 @@ export async function findAttentionItems(
               : `${c.dueAt.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz })} `;
       // Dilim / gün sözünde saat UYDURULMAZ (kurucu 10-17): "yarın akşam", "bugün (saat belirtilmedi)".
       const whenText = precise ? `${dayWord}${clock}` : storedCommitmentWhen(c, now, tz);
-      commitmentRows.push({
+      const row: AttentionItem = {
         kind: "commitment_due",
         // GÖZLEM: söz ev sahibinin AÇIK işaretinden doğdu (yorum yok).
         certainty: "observed",
@@ -693,7 +757,15 @@ export async function findAttentionItems(
         commitmentTime: whenText,
         commitmentPrecise: precise,
         ...(autoOn && minutesLeft <= -COMMITMENT_REMIND_AFTER_MIN ? { commitmentReminder: true } : {}),
-      });
+      };
+      // Çıkışı penceredeki konaklamanın sözü birleşik satıra gider (söz tavanında yer tutmaz — o satırda zaten görünür).
+      const group = departingStay(c.conversation.reservation, c.conversation.propertyId, tz);
+      if (group) {
+        addTopic(group, { source: "commitment", kind: c.kind, topic: c.topic });
+        group.absorbed.push(row);
+        continue;
+      }
+      commitmentRows.push(row);
     }
     // En önemli `COMMITMENT_MAX_ROWS` satır (eşitlikte son an sırası korunur), son an sırasıyla eklenir.
     const keep = new Set(
@@ -706,8 +778,25 @@ export async function findAttentionItems(
     items.push(...commitmentRows.filter((row) => keep.has(row)));
   }
 
+  // Bırakılan isteği olan ama aday listesinde olmayan konuşmaların rezervasyonu (aday tavanı) — yalnız gerektiğinde TEK okuma.
+  const missingHeld = held.filter((h) => !h.emergency && !h.urgent && !stayOfConversation.has(h.conversationId)).map((h) => h.conversationId);
+  if (missingHeld.length > 0) {
+    const rows = await prisma.conversation
+      .findMany({
+        where: { id: { in: missingHeld }, propertyId: { in: propertyIds } },
+        select: { id: true, reservation: { select: { id: true, departureDate: true, status: true, sourceReference: true } } },
+      })
+      .catch((err) => {
+        void alertOnTransition("attention:departure-open", "attention departure_open", err).catch(() => {});
+        return [];
+      });
+    for (const r of rows) stayOfConversation.set(r.id, r.reservation);
+  }
+  const heldTz = held.some((h) => stayOfConversation.get(h.conversationId)) ? orgTimezone(decisionTz ?? (await storedTimezone())) : null;
   for (const h of held) {
-    items.push({
+    const group =
+      heldTz !== null && !h.emergency && !h.urgent ? departingStay(stayOfConversation.get(h.conversationId), h.propertyId, heldTz) : null;
+    const row: AttentionItem = {
       kind: "held_request",
       // 🚨 ÇIKARIM: istek türü anlama katmanı + kelime ağıyla sınıflandırıldı → "otomatik sınıflandırma, doğrulayın".
       certainty: "inferred",
@@ -720,7 +809,12 @@ export async function findAttentionItems(
       href: conversationHref(h.conversationId, h.channel),
       requestKinds: h.kinds,
       requestCount: h.count,
-    });
+    };
+    items.push(row);
+    if (group) {
+      for (const kind of h.kinds) addTopic(group, { source: "held", kind });
+      group.absorbed.push(row);
+    }
   }
 
   for (const p of patterns) {
@@ -907,12 +1001,63 @@ export async function findAttentionItems(
     });
   }
 
+  // ÇIKIŞTAN ÖNCE AÇIK KONU — birleşik satır (konu ya da Sorunlu işareti olan grup). Yutulan satırlar listeden çıkar.
+  for (const g of departureGroups.values()) {
+    if (g.topics.length === 0 && !g.problem) continue;
+    const absorbed = new Set(g.absorbed);
+    for (let i = items.length - 1; i >= 0; i--) if (absorbed.has(items[i])) items.splice(i, 1);
+    const lead = [...g.absorbed].sort((a, b) => b.severity - a.severity || a.occurredAt.getTime() - b.occurredAt.getTime())[0];
+    const href = lead ? lead.href : conversationHref(g.problem!.conversationId, g.problem!.channel);
+    const occurredAt = new Date(Math.min(...g.absorbed.map((r) => r.occurredAt.getTime()), ...(g.problem ? [g.problem.at.getTime()] : [])));
+    items.push({
+      kind: "departing_unanswered",
+      // Bırakılan isteğin türü sınıflandırmadan → o varsa çıkarım (bugünkü istek satırıyla aynı uyarı); söz / Sorunlu / cevapsız gözlem.
+      certainty: g.absorbed.some((r) => r.certainty === "inferred") ? "inferred" : "observed",
+      propertyId: g.propertyId,
+      propertyName: nameById.get(g.propertyId) ?? "",
+      // Yutulan satırların en önemlisi; en az bugünkü çıkış satırının tabanı (misafir gidiyor).
+      severity: Math.max(90, ...g.absorbed.map((r) => r.severity), g.hoursWaiting !== undefined ? 90 + Math.min(9, g.hoursWaiting) : 0),
+      occurredAt,
+      href,
+      rowKey: `departure:${g.reservationId}`,
+      ...(g.hoursWaiting !== undefined ? { hoursWaiting: g.hoursWaiting } : {}),
+      departureOpen: {
+        day: g.day,
+        time: g.time,
+        topics: g.topics,
+        problem: g.problem !== null,
+        ...(g.hoursWaiting !== undefined ? { hoursWaiting: g.hoursWaiting } : {}),
+      },
+    });
+  }
+
   items.sort((a, b) => {
     if (b.severity !== a.severity) return b.severity - a.severity;
     // Eşit önemde ESKİ olan üstte: daha uzun süredir bekliyor.
     return a.occurredAt.getTime() - b.occurredAt.getTime();
   });
   return items.slice(0, ATTENTION_MAX_ITEMS);
+}
+
+/** Çıkış penceresi grubu için okunan rezervasyon alanları. */
+interface StayRef {
+  id: string;
+  departureDate: Date;
+  status: string;
+  sourceReference: string | null;
+}
+
+/** Çıkışı penceredeki tek konaklamanın toplanan parçaları (ÇIKIŞTAN ÖNCE AÇIK KONU). */
+interface DepartureGroup {
+  reservationId: string;
+  propertyId: string;
+  day: "today" | "tomorrow";
+  time: string | null;
+  topics: DepartureTopic[];
+  problem: { conversationId: string; channel: string; at: Date } | null;
+  /** Birleşik satır çıkarsa listeden kalkacak satırlar (cevapsız · bırakılan istek · söz). */
+  absorbed: AttentionItem[];
+  hoursWaiting: number | undefined;
 }
 
 class BookingTwoPropertiesCapExceeded extends Error {
