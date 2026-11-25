@@ -135,6 +135,16 @@ describe("login — günlük hatalı-TOTP tavanı eşzamanlı istekte de kesin",
     expect((await POST(loginReq({ email: EMAIL, password: PASSWORD, code: totp(secret) }, "9.7.7.2"))).status).toBe(429);
     expect(await dayCount()).toBe(20);
   });
+  it("aynı geçerli kodun İKİNCİ kullanımı (tekrar oynatma) hatalı denemedir: 401 ve günlük sayaç tam bir artar", { timeout: 30_000 }, async () => {
+    // Aynı kod dizesi iki kez: adım dönümüne denk gelse de ikinci istek AYNI adımı yakmaya çalışır (kabul penceresi ±1 adım).
+    const code = totp(secret);
+    const first = await POST(loginReq({ email: EMAIL, password: PASSWORD, code }, "9.7.9.1"));
+    expect(first.status).toBe(200);
+    expect(await dayCount()).toBe(0); // doğru kod hakkı iade etti
+    const replay = await POST(loginReq({ email: EMAIL, password: PASSWORD, code }, "9.7.9.2"));
+    expect(replay.status).toBe(401);
+    expect(await dayCount()).toBe(1); // tekrar oynatma hakkı HARCAR (iade edilmez)
+  });
   it("KONTROL: doğrulama TAMAMLANAMAZSA (adım yakımı veritabanı hatası) hak iade edilir — hata sayılmaz", { timeout: 30_000 }, async () => {
     await prisma.rateLimitCounter.create({ data: { key: dayKey, count: 5, resetAt: new Date(Date.now() + DAY_MS) } });
     const spy = vi.spyOn(prisma.user, "updateMany").mockRejectedValueOnce(new Error("connection lost (test)"));
