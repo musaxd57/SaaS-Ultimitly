@@ -886,6 +886,66 @@ export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise
 }
 
 /**
+ * K24: Pass 1 adaylarından, sunucunun doğruladığı bağı (onay kaydı / abonelik / fatura / ödeme kaydı kimliği) BAŞKA bir işletmeyi gösteren
+ * olay satırlarının kimlikleri. Yalnız yerel okuma (Paddle'a gitmez — silme işleminin içinde). Toplu üç sorgu; aday yoksa sorgu yok.
+ */
+async function foreignAnchoredKeys(
+  db: Prisma.TransactionClient | typeof prisma,
+  organizationId: string,
+  rows: ReadonlyArray<{ id: string; payloadJson: string }>,
+): Promise<Set<string>> {
+  const perRow = new Map<string, { consentId: string | null; refs: string[] }>();
+  const consentIds = new Set<string>();
+  const refs = new Set<string>();
+  for (const r of rows) {
+    try {
+      const d = (JSON.parse(r.payloadJson) as { data?: Record<string, unknown> })?.data;
+      if (!d || typeof d !== "object") continue;
+      const cd = d.custom_data && typeof d.custom_data === "object" ? (d.custom_data as Record<string, unknown>) : null;
+      const consentId = typeof cd?.consentId === "string" && cd.consentId.length > 0 ? cd.consentId : null;
+      const ids = [d.id, d.subscription_id].filter((v): v is string => typeof v === "string" && v.length > 0);
+      if (!consentId && ids.length === 0) continue;
+      perRow.set(r.id, { consentId, refs: ids });
+      if (consentId) consentIds.add(consentId);
+      for (const id of ids) refs.add(id);
+    } catch {
+      // ayrıştırılamayan satır Pass 1'de zaten atlanır
+    }
+  }
+  if (perRow.size === 0) return new Set();
+  const other = { not: organizationId };
+  const [consents, subs, invoices, intents] = await Promise.all([
+    consentIds.size > 0
+      ? db.checkoutConsent.findMany({ where: { id: { in: [...consentIds] }, organizationId: other }, select: { id: true } })
+      : Promise.resolve([]),
+    refs.size > 0
+      ? db.subscription.findMany({ where: { providerRef: { in: [...refs] }, organizationId: other }, select: { providerRef: true } })
+      : Promise.resolve([]),
+    refs.size > 0
+      ? db.invoice.findMany({ where: { providerRef: { in: [...refs] }, organizationId: other }, select: { providerRef: true } })
+      : Promise.resolve([]),
+    refs.size > 0
+      ? db.checkoutIntent.findMany({
+          where: { OR: [{ providerRef: { in: [...refs] } }, { subscriptionRef: { in: [...refs] } }], organizationId: other },
+          select: { providerRef: true, subscriptionRef: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const foreignConsents = new Set(consents.map((c) => c.id));
+  const foreignRefs = new Set<string>();
+  for (const x of [...subs, ...invoices]) if (x.providerRef) foreignRefs.add(x.providerRef);
+  for (const x of intents) {
+    if (x.providerRef) foreignRefs.add(x.providerRef);
+    if (x.subscriptionRef) foreignRefs.add(x.subscriptionRef);
+  }
+  const out = new Set<string>();
+  for (const [id, a] of perRow) {
+    if ((a.consentId && foreignConsents.has(a.consentId)) || a.refs.some((ref) => foreignRefs.has(ref))) out.add(id);
+  }
+  return out;
+}
+
+/**
  * Minimize customer PII in Paddle WebhookEvent rows for a deleted org. WebhookEvent
  * has NO org FK (so it doesn't cascade — it's the surviving financial trail once
  * Invoice/Subscription cascade away). Linked only via payloadJson custom_data.
@@ -926,6 +986,12 @@ async function redactPaddleWebhooksForOrg(
     where: { provider: "paddle", payloadJson: { contains: organizationId } },
     select: { id: true, payloadJson: true },
   });
+  // 🚨 SUNUCU BAĞI BAŞKA İŞLETMEYİ GÖSTERİYORSA DOKUNULMAZ (K24, Codex 11-25 ikinci rapor — savunma derinliği). `custom_data` niyet anahtarı
+  // kapalıyken ödeme ekranını açan TARAYICIDA kurulur: bir işletme kendi ödemesine başka işletmenin kimliğini yazabilir. O olayın gerçek
+  // sahibi sunucunun doğruladığı bağdır (onay kaydı satırı, abonelik / fatura / ödeme kaydı kimliği) — `custom_data` eşleşmesi tek başına
+  // o sahibin (belki henüz işlenmemiş, incelemedeki) olayını "işlendi" işaretleyip budayamaz. Bağı OLMAYAN eski satır bugünkü gibi
+  // budanır (KVKK davranışı aynı); yalnız bağı BAŞKA işletmeyi gösteren satır atlanır (Pass 2'nin kiracı korumasıyla aynı yön).
+  const foreign = await foreignAnchoredKeys(db, organizationId, rows);
   for (const r of rows) {
     let belongs = false;
     try {
@@ -951,7 +1017,7 @@ async function redactPaddleWebhooksForOrg(
     } catch {
       belongs = false; // unparseable → not attributable to this org, skip
     }
-    if (!belongs) continue;
+    if (!belongs || foreign.has(r.id)) continue;
     await db.webhookEvent.update({
       where: { id: r.id },
       data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },

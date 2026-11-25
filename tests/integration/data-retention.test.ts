@@ -453,6 +453,46 @@ describe("deleteAccountData (KVKK erasure)", () => {
     expect(other!.payloadJson).toBe(payloadB);
   });
 
+  it("🚨 K24: custom_data BU işletmeyi gösterse de sunucu bağı (onay kaydı / abonelik kimliği) BAŞKA işletmenin olan olay işlenmiş sayılmaz, budanmaz", async () => {
+    // custom_data niyet anahtarı kapalıyken ödeme ekranını açan tarayıcıda kurulur: A işletmesi kendi ödemesine B'nin kimliğini yazabilir.
+    // B silinince A'nın İNCELEMEDEKİ (henüz işlenmemiş) olayı "processed" işaretlenirse Paddle'ın yeniden gönderimi kopya sayılır, A'nın
+    // ödemesi hiç bağlanmaz. Gerçek sahip sunucunun doğruladığı bağdır.
+    const a = await seedStay({ orgName: "Org A", departedMonthsAgo: 2, guestName: "A Guest", body: "msg A" });
+    const b = await seedStay({ orgName: "Org B", departedMonthsAgo: 2, guestName: "B Guest", body: "msg B" });
+    const consentA = await prisma.checkoutConsent.create({ data: { organizationId: a.orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+    const consentB = await prisma.checkoutConsent.create({ data: { organizationId: b.orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+    await prisma.subscription.create({ data: { organizationId: a.orgId, provider: "paddle", providerRef: "sub_a", status: "active", planCode: "pro" } });
+    const event = (id: string, data: Record<string, unknown>) =>
+      JSON.stringify({ event_id: id, event_type: "transaction.completed", data: { customer: { email: `${id}@x.com` }, ...data } });
+    // (1) onay kaydı A'nın, damga B
+    const viaConsent = event("evt_k24_1", { id: "txn_k24_1", custom_data: { organizationId: b.orgId, consentId: consentA.id } });
+    // (2) abonelik kimliği A'nın, damga B
+    const viaSub = event("evt_k24_2", { id: "txn_k24_2", subscription_id: "sub_a", custom_data: { organizationId: b.orgId } });
+    const review = { status: "error", error: "needs_review: unlinked" };
+    const r1 = await prisma.webhookEvent.create({ data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_k24_1", payloadJson: viaConsent, ...review } });
+    const r2 = await prisma.webhookEvent.create({ data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_k24_2", payloadJson: viaSub, ...review } });
+    // KONTROL (aşırı uygulama yok): B'nin KENDİ onayıyla damgalı satır ve hiçbir bağı olmayan eski satır bugünkü gibi budanır.
+    const own = event("evt_k24_3", { id: "txn_k24_3", custom_data: { organizationId: b.orgId, consentId: consentB.id } });
+    const legacy = event("evt_k24_4", { id: "txn_k24_4", custom_data: { organizationId: b.orgId } });
+    const r3 = await prisma.webhookEvent.create({ data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_k24_3", payloadJson: own, ...review } });
+    const r4 = await prisma.webhookEvent.create({ data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_k24_4", payloadJson: legacy, ...review } });
+
+    await deleteAccountData(b.orgId);
+
+    for (const [r, payload] of [[r1, viaConsent], [r2, viaSub]] as const) {
+      const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: r.id } });
+      expect(row.status).toBe("error");
+      expect(row.error).toBe("needs_review: unlinked");
+      expect(row.payloadJson).toBe(payload);
+    }
+    for (const r of [r3, r4]) {
+      const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: r.id } });
+      expect(row.status).toBe("processed");
+      expect(row.payloadJson).toContain("kvkk-erasure");
+      expect(row.payloadJson).not.toContain("@x.com");
+    }
+  });
+
   it("NEVER redacts another tenant's rows through a SHARED customer_id (cross-tenant guard)", async () => {
     // Paddle dedups customers by billing email — two orgs CAN end up pointing at
     // the same ctm_x (e.g. a checkout typed with another host's email). Erasing
