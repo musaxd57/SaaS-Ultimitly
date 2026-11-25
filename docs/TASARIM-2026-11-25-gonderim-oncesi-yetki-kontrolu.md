@@ -203,12 +203,13 @@ Gölge sonuçları görülmeden önerilmez.
 
 ## 6. Kurucuya sorular (önce / sonra örnekli)
 
-**S1 — Satır içi yol, kuyruğun zaten uyguladığı üç kuralı da uygulasın mı?** (AI durdurma · ev sahibinin elle cevabı · konaklama bitti; yeni sistem
-değil, iki yolu eşitler.)
-- Önce: misafir "Wi-Fi şifresi ne?" yazar; model düşünürken siz panelden "Şifremiz deniz2024" diye elle cevap verirsiniz → misafire iki mesaj gider
-  (sizinki + AI'nınki).
-- Sonra: sizin cevabınız gider, AI'nın cevabı gönderilmez (konuşmada iz kalır).
-Böyle yapalım mı?
+**S1 — (11-25 güncellendi) Konaklama model düşünürken biterse satır içi yol da cevabı tutsun mu?** Bu sorunun ilk hâli üç kuralı soruyordu;
+ikisi aynı gün kapandı ve soru olmaktan çıktı (`6f33a939`): model düşünürken otomatik cevabı kapatırsanız cevap gitmez; kanalın kendi
+uygulamasından yazdığınız cevap o sırada içeri alınırsa AI'nın cevabı gitmez. (Lixus panelinden yazdığınız cevapta iki mesaj ZATEN oluşmuyordu —
+ilk taslaktaki örnek yanlıştı, yukarıdaki "Ana oturum düzeltmesi" notu.) Kalan tek bacak:
+- Önce: misafirin çıkışı bugün 11:00; 10:59:58'de "Çöpü nereye bırakayım?" yazar, model 5 saniye düşünür → cevap 11:00:03'te gider (bugün).
+- Sonra (kuyruktaki kuralın eşi): konaklama o anda bitmiş sayılır, cevap gönderilmez, konuşma size kalır.
+Saniyelik bir pencere; önerim DOKUNMAMAK (çıkış anındaki misafire cevap vermek zarar değil). Kuyrukla birebir eşitlik isterseniz eklenir.
 
 **S2 — "Hassas" yalnız kaynağın türüyle mi belirlensin?** Öneri: Wi-Fi / giriş kategorisi isteme girdiyse VE (model o kategoriyi kaynak gösterdi YA DA
 cevapta o kalemdeki değer birebir geçiyor).
