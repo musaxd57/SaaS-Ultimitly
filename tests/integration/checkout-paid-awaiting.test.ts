@@ -155,8 +155,7 @@ import {
   paidCheckoutsAwaitingSummary,
   recordPaidCheckout,
   releasePaidCheckoutByOperator,
-  sweepPaidCheckouts,
-} from "@/lib/billing/checkout-paid";
+  sweepPaidCheckouts, __checkoutPaidHooks } from "@/lib/billing/checkout-paid";
 import { CHECKOUT_PAID_AWAITING_MESSAGE, CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { CHECKOUT_CONSENT_FLAGS } from "../helpers/checkout-consent";
 
@@ -836,6 +835,48 @@ describe("ödeme alındı, abonelik bekleniyor — süreyle kapanmayan durum", (
       expect(await postEvent("subscription.created", subData("sub_1", "active", first.body.consentId!))).toBe(200);
       expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).toMatchObject({ providerRef: "sub_1", status: "active" });
       expect((await intentOf(orgId))!.status).toBe("fulfilled");
+    });
+
+    it("🚨 abonelik satırına YAZILMAYAN (sıra korumasının düşürdüğü bayat) olay kaydı KAPATMAZ — kapanış yalnız abonelik yazıldıysa", async () => {
+      // Canlı abonelik sub_1 (başka bir onayla, taze olay). Sonra A onayının ödemesi bekliyor.
+      const consentB = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      expect(await postEvent("subscription.created", subData("sub_1", "active", consentB.id))).toBe(200);
+      // (Canlı abonelik varken onay rotası yeni ödeme açmaz — A onayı doğrudan yazılır; senaryo: ikinci ödeme başka yoldan tamamlandı.)
+      const consentA = await prisma.checkoutConsent.create({ data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "v" } });
+      await postEvent("transaction.completed", txnData("txn_a", consentA.id));
+      const rowA = () => prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: "txn_a" } });
+      expect((await rowA()).status).toBe("completed");
+      // A onayını taşıyan ama kayıtlı olaydan ESKİ olay: abonelik satırına yazılmaz (0 satır) → kayıt beklemeye devam eder.
+      expect(await postEvent("subscription.updated", subData("sub_1", "active", consentA.id), 10 * MIN)).toBe(200);
+      expect((await rowA()).status).toBe("completed");
+    });
+
+    it("🚨 kimliksiz abonelik olayı (abonelik kimliği yok) onay taşısa da kaydı KAPATMAZ (bağ, satırdaki abonelik kimliğidir)", async () => {
+      const a = await openCheckout();
+      await postEvent("transaction.completed", txnData("txn_a", a.body.consentId!));
+      const { id: _omit, ...noId } = subData("sub_x", "active", a.body.consentId!);
+      void _omit;
+      await postEvent("subscription.created", noId);
+      expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: "txn_a" } })).status).toBe("completed");
+    });
+
+    it("🚨 kapanış KOŞULLU: okuma ile yazma arasında operatör kaydı serbest bıraktıysa abonelik olayı onu 'bağlandı'ya ÇEVİRMEZ", async () => {
+      const a = await openCheckout();
+      await postEvent("transaction.completed", txnData("txn_a", a.body.consentId!));
+      const row = await prisma.checkoutIntent.findFirstOrThrow({ where: { providerRef: "txn_a" } });
+      let ran = 0;
+      __checkoutPaidHooks.beforeFulfilWrite = async () => {
+        ran++;
+        // Ayrı bağlantıda, işlemin dışında: operatör bıraktı.
+        await prisma.checkoutIntent.update({ where: { id: row.id }, data: { status: "released" } });
+      };
+      try {
+        expect(await postEvent("subscription.created", subData("sub_1", "active", a.body.consentId!))).toBe(200);
+      } finally {
+        __checkoutPaidHooks.beforeFulfilWrite = null;
+      }
+      expect(ran).toBe(1);
+      expect((await prisma.checkoutIntent.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("released");
     });
 
     it.each(["open", "opening", "expired", "canceled"])(

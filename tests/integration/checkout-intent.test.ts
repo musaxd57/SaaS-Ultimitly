@@ -511,6 +511,34 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
       expect(row.expiresAt.getTime()).toBeGreaterThan(Date.now() + CHECKOUT_INTENT_REUSE_GRACE_MS - 60_000);
     });
 
+    it("🚨 süresi dolmuş + iptal edilemedi + durum OKUNAMIYOR (24 saatin içinde) → işlem yeniden VERİLMEZ, yenisi de açılmaz (açık mı kapalı mı bilinmiyor)", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(4 * 60 * 60_000);
+      paddle.failCancel = true;
+      paddle.statuses.set("txn_1", ""); // durum alanı okunamadı
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as Body).transactionId).toBeUndefined();
+      expect(paddle.created).toBe(1);
+    });
+
+    it("🚨 kapanmış niyetin işlemi sonradan ödendi; bu arada açılan YENİ işlem de iptal sırasında ödenmiş çıktı → o da 'ödeme alındı' olur (açık kalmaz)", async () => {
+      await POST(postReq(), ctx);
+      await ageIntent(4 * 60 * 60_000);
+      expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2"); // txn_1 iptal edildi, niyeti kapandı
+      // Eski işlemin "ödendi" olayı gelir (Paddle iptali uygulamamış / gecikmiş); öteki açık işlem iptal edilirken o da ödenmiş çıkar.
+      paddle.onCancel = () => {
+        paddle.statuses.set("txn_2", "paid");
+        paddle.failCancel = true;
+      };
+      await completeCheckoutIntent("txn_1");
+      const rows = await prisma.checkoutIntent.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: "asc" } });
+      expect(rows.map((r) => [r.providerRef, r.status, r.openKey])).toEqual([
+        ["txn_1", "completed", null],
+        ["txn_2", "completed", null],
+      ]);
+    });
+
     it("farklı pakete geçerken iptal sırasında eski işlem ÖDENDİ → yeni işlem AÇILMAZ; kayıt 'ödeme alındı'", async () => {
       await POST(postReq(), ctx);
       paddle.onCancel = () => {
