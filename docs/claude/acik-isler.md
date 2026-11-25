@@ -330,3 +330,11 @@ doğrulanamadı · konuşmayı kontrol edin" (düğme yok) · **EMB-S1** ilk haf
 mesajı varsa bu cevabı yazma" kontrolü yok (kanal yolunda var) — eklensin mi (misafire gideni değiştirir, örnekli soru) · **R-1…R-6** rezervasyon
 detay ekranı (`docs/TASARIM-2026-11-20-rezervasyon-detay-ekrani.md` §10) · **A4 (bilgi)** "durduruldu" yazısı abonelik kapısına bakmıyor
 (faturalandırma uygulaması bugün kapalı; Girişler de aynı).
+
+**11-25 — Codex raporundan kurucuya sorular (örnekli hâlleri tasarım belgelerinde; özet `docs/INCELEME-2026-11-25-codex-raporu.md` §7):**
+**OP-S1…S5** operatör taze 2FA (kapsam: 2FA sıfırlama · hesaba giriş · tam dışa aktarma; izin 5 dk tek kullanım; hatırlanan cihaz operatör
+hesabında kodu atlatsın mı) `docs/TASARIM-2026-11-25-operator-taze-2fa.md` · **GÖ-S1…S5** gönderim öncesi kontrol (gölge ölçüm açılışla
+başlasın mı; kapı kodu model düşünürken değişirse cevap bir kez yeniden üretilsin mi; uzun vadede kapı kodu / Wi-Fi ayrı alanda mı)
+`docs/TASARIM-2026-11-25-gonderim-oncesi-yetki-kontrolu.md` · **AD-S1…S4** acil durdurma (salt okunur kapsam tablosu; genel anahtar kapalıyken
+QR'daki yapay zekâ da sussun mu; tek şalter) `docs/TASARIM-2026-11-25-acil-durdurma-kapsami.md` · **IP-1** ortak ağda şifre kodu isteme tavanı
+12 → 5 (doğrulamaya 7 ayrıldı) uygun mu · **ÖD-4** yeni ödeme sözleşmesinin gerçek Paddle sandbox denemesi (açılışta, kurucuyla).

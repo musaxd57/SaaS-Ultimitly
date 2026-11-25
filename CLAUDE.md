@@ -579,7 +579,8 @@ Bu dosyaya token/anahtar/parola yazma.
 
 **Kurucu talimatları AYNEN — o işte her dilimden ÖNCE okunur:** `docs/KURUCU-TALIMATI-2026-11-18-codex-raporu-ve-orkestrasyon.md` (kurucu: "oraya
 bakıp bakıp ilerle") · `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md` · `docs/KURUCU-TALIMATI-2026-11-19-gece-raporuna-cevap.md` ·
-`docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md` · `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md`.
+`docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md` · `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md` ·
+`docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md`.
 **Çalışma düzeni (kurucu 11-18):** Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude
 yazar; kontrollerde alt ajan; acele yok.
 
@@ -595,7 +596,9 @@ anlamsal karar mimarisi tasarımı · zaman yolculuğu aracı · "Bugün" ilk di
 tutulur) · söz okuyucusu (model okur, anahtar KAPALI) · migration 98 — 11-19 dalga C · ödeme "yalnız tam iadeyle" · kanal uzlaştırması (anahtar
 KAPALI) · beş ajanlı optimizasyon / hata ayıklama turu — 11-20 şablon listesi 30'luk + sınır 500 · anlamsal arama bütçesi (üç anahtar KAPALI) ·
 son kontrol (model düşünürken iptal → cevap gitmez) · kuyruk diriltme · Ö-1 · F-1 adım 1 · F-2 · Dikkat satırı üç satır · öğlen: CLAUDE.md
-sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 kurucu sorusu) · EMB pilotu · F-4 QR — özet `durum.md` (13).
+sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 kurucu sorusu) · EMB pilotu · F-4 QR — özet `durum.md` (13) —
+11-21 gece turu (CI 1841, metinler, gece sayısı geçici kuralı) — 11-25 Codex raporu: on iddia teyit, ödeme iptali üç değerli + tek işlem,
+şifre sıfırlama / IP kovaları / günlük 2FA / kanal doğrulama düzeltmeleri, üç tasarım kurucu sorusunda — özet `durum.md` (14).
 
 **Turlardan kurallar (Durum satırlarından, AYNEN):**
 - (11-11) Bağlantıyı / veriyi düşüren "kesin ret" kararı münhasırlık ister (kilit elde değilse ret belirsizdir — OAuth yenileme); uzunluk engeli
@@ -640,3 +643,7 @@ sadeleştirme 4 · ajan turu kapandı · sert kontrol (A1–A2 düzeltildi, A3 k
   doğrudan yoldan ayrışmaz).
 - (11-21, CI 1841) Prisma'nın sorgu olayı sonuçtan SONRA gelebilir ve havuzun `SELECT 1` yoklaması da olay üretir (ölçüldü) → sorgu sayan test
   sayacı kapatmadan önce `flushQueryEvents` (`tests/helpers/query-event-barrier.ts`) çağırır; sabit bekleme yazılmaz.
+- (11-25) Bir yazımı etkileşimli işleme alınca genel temsilciye kurulu casuslar SAHTE YEŞİL kalabilir (kırmızıya dönmez) → o modele casus kuran
+  bütün testler taranır, araya girme `tests/helpers/tx-intercept.ts` ile kurulur ve her kanca ÇALIŞTIĞINI iddia eder.
+- (11-25) Ajanın sondayla "bulduğu" hata, sondanın kurduğu durum üründe oluşabiliyor mu diye ölçülür (çıplak mesaj satırı eklemek panelden cevap
+  yazmak DEĞİLDİR — panel konuşma durumunu da değiştirir).

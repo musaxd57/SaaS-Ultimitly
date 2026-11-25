@@ -885,3 +885,18 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   başına tek satır.
 - Sorular `docs/claude/acik-isler.md` "11-20 öğlen". Kural: iki ayrı kuralın "aynı şeyi" söylediği yerde (gönderici ↔ ekran yazısı) yazı tarafı
   göndericinin KENDİ ön elemesini çağırır, kopyasını yazmaz (A1: kopya kural kuyruk sahipliğini unutmuştu).
+
+## (14) 11-21 → 11-25 — gece turu yayını + Codex 11-25 raporu
+
+- **11-21 (yayın `16a8ae3f`):** kurucu sabah cevapları AYNEN `docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · gece son tur
+  `docs/KURUCU-TALIMATI-2026-11-21-gece-son-tur.md`. CI 1841 kırmızısı = Prisma sorgu olayı sonuçtan sonra geliyor (`flushQueryEvents`) ·
+  günlük rapor tekilleştirme · sahipsiz kuyruk satırı saklama · metin düzeltmeleri (kurucu "hepsini uygula") · müsaitlikte gece sayısı geçici
+  kuralı (`mentionsStayLengthOrEnd`) · cevap dili gölgesi. Konuşma özeti migration'ı (99a) ALINMADI (17 tetikleyici anahtarsız — kurucu kararı).
+- **11-25 Codex raporu (talimat AYNEN `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md`; kayıt
+  `docs/INCELEME-2026-11-25-codex-raporu.md`):** on iddia çalıştırılarak teyit edildi. Düzeltilenler: kanal doğrulamasında geri pay yok ·
+  abonelik yazımı + ödeme kaydı kapanışı tek işlem · iptal sonucu üç değerli ("kapandı / ödendi / açık"), üst sınır ödeme kanıtı değil ·
+  şifre sıfırlama kaydı + e-posta tek işlem · iki IP kovası (5 + 7) · günlük 2FA hakkı atomik · satır içi oto-yanıtta işletme anahtarı ve
+  görülmemiş ev sahibi cevabı talebin kendisinde. Yeni anahtar / migration YOK. Mutasyon 45 / 45.
+- Üç tasarım (kod yok): operatör taze 2FA · gönderim öncesi yetki kontrolü (önce gölge) · acil durdurma kapsamı. Sorular
+  `docs/claude/acik-isler.md` "11-25".
+- Test altyapısı: `tests/helpers/tx-intercept.ts` (işlem istemcisine araya girer; her kanca çalıştığını iddia eder).

@@ -60,7 +60,15 @@ kanca çalıştığını ayrıca iddia eder (CLAUDE.md "Çalışma dersleri" 11-
 
 ## 6. Yayın
 
-(tam kapı ve mutasyon bitince doldurulur)
+- Mutasyon (commit edilmiş ağacın ayrık kopyasında, M0 kontrol koşuları yeşil): ödeme listesi 19 mutanttan 14'ü ilk koşuda öldü; yaşayan
+  beşi eksik pindi (aynı paket + durum okunamıyor → yeniden kullanılmaz · öteki pakette iptal sırasında ödenmiş işlem · eski abonelik olayı
+  kaydı kapatmaz · onay kimliği taşımayan olay kapatmaz · koşullu kapanış) → beş test eklendi, ikinci liste (bu beşi + satır içi son kontrol)
+  10 / 10. Opus ajanının dört işi 15 mutanttan 14; yaşayan tek mutant (aynı kodun ikinci kullanımında hak iadesi) için test eklendi → 1 / 1.
+  Toplam 45 mutant, hepsi öldürüldü.
+- Tam kapı: yayın commit'i üzerinde koşulur; yeşil olmadan push yok (kural). Sayılar ve CI sonucu `docs/claude/durum.md` (14)'e DEĞİL oturum
+  raporuna yazılır (kapıdan sonra dosya değişmesin diye — "tam kapı en son hâlde koşar, tek push").
+- Anahtarlar: yeni anahtar YOK, migration YOK. `PADDLE_CHECKOUT_INTENT_ENABLED` ve `CHANNEL_SEND_RECONCILE_ENABLED` hâlâ KAPALI; şifre
+  sıfırlama, IP kovaları, günlük 2FA bütçesi ve satır içi son kontrol anahtarsız (hata düzeltmesi).
 
 ## 7. Kurucuya sorular (özet — örnekli hâlleri tasarım belgelerinde)
 

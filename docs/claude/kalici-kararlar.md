@@ -500,6 +500,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   işlemi kayıt açmaz (köken `web` / `api` şartı). Saklama süpürgesi "completed" satırı silmez. Web kancasında kayıt adımları hata
   YUTMAZ (olay yeniden gelir) ve yazımdan önceki satıra bağlı alarmlardan SONRA koşar. Kural: **süreyle düşen bir kilit "ödeme alındı"
   gibi kalıcı bir gerçeği taşıyamaz; kalıcı gerçek kalıcı kayıt ister ve yalnız kanıtla açılıp kapanır.**
+  🚨 **İPTAL SONUCU ÜÇ DEĞERLİ + ÜST SINIR KANIT DEĞİL (Codex 11-25; `checkout-intent.ts cancelAndResolve`):** "kapandı" (iptal oldu / işlem
+  kapalı) · "ödendi" (iptal sırasında ödenmiş — kayıt "ödeme alındı"ya döner, yeni işlem YOK) · "açık" (doğrulanamadı — yer TUTULUR, yeni
+  işlem YOK; her deneme + saatlik süpürge yeniden doğrular; 24 saati aşınca niyet başına bir kez operatör alarmı). Eski "üst sınırda iptali
+  doğrulanmadan kapat" kuralı (10-21 B2) KALKTI. Aynı paket + işlem hâlâ açık + 24 saatin içinde → aynı ödeme ekranı (süresi dolmuş olsa da).
+  Abonelik yazımı ile kaydın `fulfilled` kapanışı TEK veritabanı işlemidir (`fulfilPaidCheckoutsInTx`; koşullu kapanış — satır o arada
+  değiştiyse dokunmaz); yan etkiler (alarm temizliği, günlük) işlemden SONRA.
 - **Yeniden işleme vadesi OLAYIN KENDİ SATIRINDA (11-18 akşam, migration 98; `payments/paddle-replay.ts`, `paddle-replay-schedule.ts`):**
   "en eski N kaydı oku, sonra süz" yok — aday `nextAttemptAt <= şimdi` ile sorguda seçilir, en uzun bekleyen önce. İşleyici ilk vadeyi
   yazar (alınış + 15 dk), işlenince / incelemeye düşünce siler; her denemeden sonra sayaç, son deneme anı ve sıradaki eşik yazılır (eşik

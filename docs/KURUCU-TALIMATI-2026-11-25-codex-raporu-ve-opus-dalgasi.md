@@ -50,4 +50,14 @@ kodları opus 5.5'e yazdırt zorluları sen yaz her kodlarını kontrol et didik
 
 ## Uygulama durumu
 
-(dalga ilerledikçe doldurulur — her iddianın teyidi + ne yapıldı / ne soruya döndü: `docs/INCELEME-2026-11-25-codex-raporu.md`)
+On iddianın onu da ÇALIŞTIRILARAK teyit edildi (tablo: `docs/INCELEME-2026-11-25-codex-raporu.md` §1).
+- **Düzeltildi (kod + kırmızı-önce test + mutasyon 45 / 45):** (1) kanal doğrulamasında 2 dakikalık geri pay kalktı · (2) abonelik yazımı +
+  ödeme kaydı kapanışı tek işlem · (3) iptal sonucu üç değerli, 24 saat ödeme kanıtı değil (dört durum tablosu §3) · (5) şifre sıfırlama kaydı +
+  e-posta kuyruğu tek işlem, arızada iki dal aynı cevap · (6) kod isteme / kod doğrulama ayrı IP kovası · (7) günlük 2FA hakkı doğrulamadan
+  önce atomik ayrılır · (8)'in iki bacağı: model düşünürken işletme otomatik cevabı kapatırsa ya da kanaldan ev sahibi cevabı içeri alınırsa
+  cevap gitmez.
+- **Tasarım + kurucu sorusu (kod YOK — "sormadan sistem kurulmaz"):** (4) operatör taze 2FA `docs/TASARIM-2026-11-25-operator-taze-2fa.md` ·
+  (8) / (9) gönderim öncesi yetki kontrolü + kaynak sürümü, önce gölge `docs/TASARIM-2026-11-25-gonderim-oncesi-yetki-kontrolu.md` ·
+  (10) acil durdurma kapsamı `docs/TASARIM-2026-11-25-acil-durdurma-kapsami.md`.
+- **Düzen:** ödeme + satır içi son kontrol ana oturumda; kanal doğrulama + kimlik akışları Opus 5.5 (satır satır okundu, bir eksik pin ana
+  oturumda eklendi); üç tasarım Opus 5.5 (bir bulgusu — "panelden yazan ev sahibine iki cevap" — ölçülünce YANLIŞ çıktı, belge düzeltildi).
