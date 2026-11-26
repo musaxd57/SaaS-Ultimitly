@@ -931,4 +931,7 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   bugünkü sözde yalnız saati yazar; söz "şimdi + 5 saat" kurulduğu için akşam koşan iki tam kapı yalnız "yarın" dalını gördü, CI gece 01:35'te
   (İstanbul) öteki dala düştü. Kalıp düzeltildi; son turda eklenen 57 test dosyası sabah 06:20'de (İstanbul) yeniden koşuldu — 858 / 858.
 - İki Opus ajanı (salt okuma + sonda): P1 / P2 yok; küçükler ve bir kurucu sorusu `acik-isler.md` "11-26 gece".
+- Tur 2 (G3, G4): bir P2 — daire silme, referansı başka dairede yaşayan otomatik mesaj satırını kalıcı iptal ediyordu (kalıcı kuyruk açıkken
+  misafire giriş bilgisi hiç gitmezdi). Ajanın denemesi ana oturumda kırmızı teste çevrildi (4 kırmızı → düzeltme → 6 yeşil), mutasyon listesi
+  `g4daire`. G1'in QR önerisi G3'ün okumasıyla YANLIŞ çıktı (uygulanmadı). İzin sorusu çıkaran komut kalıbı `calisma-ortami.md`ye yazıldı.
 

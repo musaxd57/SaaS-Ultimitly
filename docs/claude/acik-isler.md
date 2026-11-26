@@ -371,3 +371,13 @@ Türkçe harfle ("GİRİŞ") tanınmıyor, satırlar sessizce atlanıyor (CSV ya
 `User.organizationId`yi okuyor (bugün ulaşılamaz; "ekipten çıkarma" gelince üç yer birlikte). **Kurucu sorusu GM-1:** giriş bilgisi mesajı
 varıştan 4 gün önce, ilk fırsatta gidiyor — Hospitable tarihi gece yarısı (UTC) olduğu için bu İstanbul'da gece ~03:00'e denk geliyor;
 gündüz saatine (ör. 10:00) ertelensin mi?
+
+**11-26 gece (2) — tur 2 (G3: QR, bilgi bankası, yükleme; G4: saklama kapsamı, kuyruk, birleştirme, raporlar, daire silme):** bir P2 bulundu ve
+DÜZELTİLDİ (daire silme → başka dairede yaşayan rezervasyonun otomatik mesajı; `kalici-kararlar.md`). **QR kod yarışı için doğru tasarım
+(uygulanmadı, misafir yolu — ayrı tur):** ilk ajanın önerdiği `chatPinHash: null` koşulu YANLIŞ (kod girme yolu aynı sahiplenmeyi kullanır →
+doğru kodu giren misafir "başka cihaza bağlı" görürdü); doğrusu sahiplenmenin, isteğin karar verdiği andaki `chatPinSetAt` değerini koşul
+alması (kaybedince `unclaimed` + `pinRequired`), ayrıntı oturum notu `gece1126/G3-bulgular.md` Konu 1. Küçükler (P3): `getOccupancyForecast`
+çıkış gününü dolu sayıyor (çağıranı yok) · `getMonthlyReport` biten görevi `updatedAt` ile sayıyor (yalnız API) · `VerifiedAnswer.query`
+misafir silmesinde kalıyor, 90 günde siliniyor (anahtar kapalı — **soru VA-1:** silmede de silinsin mi) · **Railway açılınca bakılacak sayım:**
+eski QR konuşmalarında `reservationId` boş satır var mı (varsa açık silme onları bulmaz):
+`SELECT count(*) FROM "Conversation" WHERE channel='chat' AND "externalReservationId" LIKE 'qr-chat:%' AND "reservationId" IS NULL`.

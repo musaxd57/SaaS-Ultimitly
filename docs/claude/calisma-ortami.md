@@ -60,3 +60,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   varsayılan kipte ≈ 60 sn).
 - **Kural dosyası** ajan isteminin ilk satırıdır: yasak dosyalar, push / şema / `npm install` yasağı, kanıt sözleşmesi (kırmızı-önce çıktısı,
   kontrol testi, mutasyon listesi), "yeni müşteri metni yazma", rapor biçimi ("yapılmayan / emin olmadıklarım" zorunlu).
+- 🚨 **İzin sorusu çıkaran komut YAZILMAZ (kurucu 11-26: "bana soru olarak sorma, iznin var"):** `bash -c "…; rm …"` gibi içinde silme geçen
+  iç içe kabuk satırı izin listesinden geçmez (Bash izinli olsa da ayrı güvenlik denetimi "denetlenemedi" der) ve kurucuya soru olarak
+  düşer; kurucu uyurken iş saatlerce durur (11-25 gecesi 4 saat). Kapı + bayrak temizliği tek betiktedir
+  (`scratchpad/codex-1117/tools/kapi-tam.sh [mutasyon listeleri]`); arka plan işi betik DOSYASI olarak başlatılır, komut satırına `rm`
+  yazılmaz. CI kontrolü, izleme ve ajan araçları için soru gitmez. Uyandırıcı yalnız kurucunun söylediği saate kurulur.
+

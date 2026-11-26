@@ -320,6 +320,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`LIFECYCLE_STATUS_HOLD`, 20 dk; deneme sayılmaz, hata bilgisi yazılmaz): iptal + rezervasyon başına tek anahtar mesajı kalıcı yutardı.
   Sonsuz erteleme yok: giriş / çıkış var olan pencere hükmüyle, karşılama "varış günü geçti ve hâlâ onaylı değil" ile iptal olur. Satırın
   kendi kopyası bekliyorken başka dairedeki onaylı kardeş kopyaya GEÇİLMEZ (başka dairenin metni / kapı kodu giderdi).
+- **Daire silme, referansı başka dairede yaşayan otomatik mesaj satırını yutmaz (11-26, hata ayıklama ajanı G4; `api/properties/[id]` DELETE):**
+  aynı sağlayıcı rezervasyonu işletmenin başka bir dairesinde de kayıtlıysa, o rezervasyonun yaşam döngüsü satırı (a) öteki dairenin
+  rezervasyonuna aitse DOKUNULMAZ, (b) silinen dairenin rezervasyonuna aitse diriltilebilir `reservation_gone` koduyla iptal edilir (gövdesi
+  silinen dairenin metninden kurulduğu için o gövde gitmez; gönderici doğru dairenin metniyle aynı satırı yeniden bekleyen yapar). Yanıt
+  satırları ve referansı başka dairede yaşamayan satırlar eskisi gibi `property_deleted`. Koşul olumlu yazılır (nullable kolonda `NOT` boş
+  referanslı yanıt satırını iptalden kaçırırdı). Pin `tests/integration/property-delete-shared-booking-outbox.test.ts`.
 - **Otomatik mesaj aday taraması (11-18, Codex 11-17 D2; `automation.ts prepareLifecycleCandidates`, `lib/lifecycle-scan-cursor.ts`):** bu türde
   metni olmayan dairenin rezervasyonu aday sorgusuna GİRMEZ (kural `loadAutoMessage` ile aynı). Geçiş başına okuma yine ≤ 200: ilk dört sayfa
   her geçişte baştan (en erken gelen önce), kalan dört sayfa `SystemLock` satırındaki kalıcı imlecin ardından; imleç kuyruk sayfalarında
