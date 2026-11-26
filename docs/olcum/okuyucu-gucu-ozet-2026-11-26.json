@@ -1,0 +1,1587 @@
+{
+ "meta": {
+  "model": "gpt-5.1",
+  "served": "gpt-5.1-2025-11-13",
+  "reasoningEffort": null,
+  "runs": 3,
+  "calls": 1089,
+  "costUsd": 1.15,
+  "budgetUsd": 3.8,
+  "stoppedByBudget": false,
+  "jobs": 315,
+  "done": 315,
+  "merged": true,
+  "conflictExtra": "notes_conflict = true when two of the NOTES give different, incompatible values or rules for the thing this part talks about (two different passwords, two different opening hours, free in one note and charged in another, collected on some days in one note and every day in another). false when the notes agree, repeat the same value, or only add to each other (a general rule and its exception, a rule and its fee).",
+  "langExtra": "in_guest_language = true when the part is written in the language the guest wrote this turn's message in (names, addresses, codes and passwords do not count). false when the part, or any sentence of it, is in another language (a part in Turkish to a guest who wrote in French)."
+ },
+ "agg": {
+  "celiski|urun": {
+   "cases": 31,
+   "calls": 93,
+   "correct": 26.666666666666664,
+   "unstable": 2,
+   "wrongPassCases": 5,
+   "wrongPassCalls": 13,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-2",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-4",
+     "passed": "3/3",
+     "part": "Garbage is collected every evening; just leave it outside the door."
+    },
+    {
+     "id": "cf-wifi-3",
+     "passed": "2/3",
+     "part": "The Wi-Fi network is LaleKonak and the password is lale1234 or gul5678."
+    },
+    {
+     "id": "cf-key-1",
+     "passed": "2/3",
+     "part": "La clé est à récupérer à la réception."
+    }
+   ],
+   "unstableIds": [
+    "cf-wifi-3",
+    "cf-key-1"
+   ]
+  },
+  "celiski|urun|dil:tr": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 6,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-2",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": []
+  },
+  "celiski|urun|beklenen:tut": {
+   "cases": 23,
+   "calls": 69,
+   "correct": 18.666666666666664,
+   "unstable": 2,
+   "wrongPassCases": 5,
+   "wrongPassCalls": 13,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-2",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-4",
+     "passed": "3/3",
+     "part": "Garbage is collected every evening; just leave it outside the door."
+    },
+    {
+     "id": "cf-wifi-3",
+     "passed": "2/3",
+     "part": "The Wi-Fi network is LaleKonak and the password is lale1234 or gul5678."
+    },
+    {
+     "id": "cf-key-1",
+     "passed": "2/3",
+     "part": "La clé est à récupérer à la réception."
+    }
+   ],
+   "unstableIds": [
+    "cf-wifi-3",
+    "cf-key-1"
+   ]
+  },
+  "celiski|celiski_soru": {
+   "cases": 31,
+   "calls": 93,
+   "correct": 29.333333333333332,
+   "unstable": 1,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 5,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-2",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-2"
+   ]
+  },
+  "celiski|celiski_soru|dil:tr": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 5.333333333333333,
+   "unstable": 1,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 5,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-2",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-2"
+   ]
+  },
+  "celiski|celiski_soru|beklenen:tut": {
+   "cases": 23,
+   "calls": 69,
+   "correct": 21.333333333333332,
+   "unstable": 1,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 5,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "3/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    },
+    {
+     "id": "cf-cop-2",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; her akşam çöpü kapının önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-2"
+   ]
+  },
+  "celiski|urun|dil:en": {
+   "cases": 10,
+   "calls": 30,
+   "correct": 8.333333333333332,
+   "unstable": 1,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 5,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-4",
+     "passed": "3/3",
+     "part": "Garbage is collected every evening; just leave it outside the door."
+    },
+    {
+     "id": "cf-wifi-3",
+     "passed": "2/3",
+     "part": "The Wi-Fi network is LaleKonak and the password is lale1234 or gul5678."
+    }
+   ],
+   "unstableIds": [
+    "cf-wifi-3"
+   ]
+  },
+  "celiski|celiski_soru|dil:en": {
+   "cases": 10,
+   "calls": 30,
+   "correct": 10,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:de": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|celiski_soru|dil:de": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:fr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 2.333333333333333,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-key-1",
+     "passed": "2/3",
+     "part": "La clé est à récupérer à la réception."
+    }
+   ],
+   "unstableIds": [
+    "cf-key-1"
+   ]
+  },
+  "celiski|celiski_soru|dil:fr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|celiski_soru|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:es": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|celiski_soru|dil:es": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:ar": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|celiski_soru|dil:ar": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|beklenen:gecir": {
+   "cases": 8,
+   "calls": 24,
+   "correct": 8,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|celiski_soru|beklenen:gecir": {
+   "cases": 8,
+   "calls": 24,
+   "correct": 8,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun": {
+   "cases": 22,
+   "calls": 66,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 16,
+   "wrongPassCalls": 48,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-1",
+     "passed": "3/3",
+     "part": "Klima kumandası TV ünitesinin çekmecesinde bulunuyor."
+    },
+    {
+     "id": "dil-2",
+     "passed": "3/3",
+     "part": "Plaj havlusu sağlamıyorum."
+    },
+    {
+     "id": "dil-3",
+     "passed": "3/3",
+     "part": "Saç kurutma makinesi banyo çekmecesinde."
+    },
+    {
+     "id": "dil-4",
+     "passed": "3/3",
+     "part": "Çıkış saati 11:00."
+    },
+    {
+     "id": "dil-5",
+     "passed": "3/3",
+     "part": "Anahtar kapının yanındaki şifreli kutuda."
+    },
+    {
+     "id": "dil-6",
+     "passed": "3/3",
+     "part": "Havuz 1 Haziran - 30 Eylül arası 09:00-19:00 açık."
+    },
+    {
+     "id": "dil-7",
+     "passed": "3/3",
+     "part": "The pool is open from 09:00 to 19:00 between 1 June and 30 September."
+    },
+    {
+     "id": "dil-9",
+     "passed": "3/3",
+     "part": "The nearest supermarket is 200 metres away at the corner of the street, open daily 08:00-22:00."
+    },
+    {
+     "id": "dil-8",
+     "passed": "3/3",
+     "part": "The air conditioning remote is in the TV unit drawer."
+    },
+    {
+     "id": "dil-10",
+     "passed": "3/3",
+     "part": "Le supermarché le plus proche est à 200 mètres, au coin de la rue, ouvert tous les jours de 8h à 22h."
+    },
+    {
+     "id": "dil-11",
+     "passed": "3/3",
+     "part": "Bonjour, klima kumandası TV ünitesinin çekmecesinde. Bonne journée !"
+    },
+    {
+     "id": "dil-12",
+     "passed": "3/3",
+     "part": "Hello! Plaja yürüyerek 10 dakika. Enjoy your stay!"
+    },
+    {
+     "id": "dil-13",
+     "passed": "3/3",
+     "part": "¡Hola! Market 200 metre ileride, sokağın köşesinde."
+    },
+    {
+     "id": "dil-14",
+     "passed": "3/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    },
+    {
+     "id": "dil-15",
+     "passed": "3/3",
+     "part": "Hallo! Havaalanı transferi 25 Euro, en az bir gün önce rezerve edilmeli. Viele Grüße"
+    },
+    {
+     "id": "dil-16",
+     "passed": "3/3",
+     "part": "Check-out is at 11:00."
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|urun|dil:fr": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 3,
+   "wrongPassCalls": 9,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-1",
+     "passed": "3/3",
+     "part": "Klima kumandası TV ünitesinin çekmecesinde bulunuyor."
+    },
+    {
+     "id": "dil-8",
+     "passed": "3/3",
+     "part": "The air conditioning remote is in the TV unit drawer."
+    },
+    {
+     "id": "dil-11",
+     "passed": "3/3",
+     "part": "Bonjour, klima kumandası TV ünitesinin çekmecesinde. Bonne journée !"
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|urun|beklenen:tut": {
+   "cases": 16,
+   "calls": 48,
+   "correct": 0,
+   "unstable": 0,
+   "wrongPassCases": 16,
+   "wrongPassCalls": 48,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-1",
+     "passed": "3/3",
+     "part": "Klima kumandası TV ünitesinin çekmecesinde bulunuyor."
+    },
+    {
+     "id": "dil-2",
+     "passed": "3/3",
+     "part": "Plaj havlusu sağlamıyorum."
+    },
+    {
+     "id": "dil-3",
+     "passed": "3/3",
+     "part": "Saç kurutma makinesi banyo çekmecesinde."
+    },
+    {
+     "id": "dil-4",
+     "passed": "3/3",
+     "part": "Çıkış saati 11:00."
+    },
+    {
+     "id": "dil-5",
+     "passed": "3/3",
+     "part": "Anahtar kapının yanındaki şifreli kutuda."
+    },
+    {
+     "id": "dil-6",
+     "passed": "3/3",
+     "part": "Havuz 1 Haziran - 30 Eylül arası 09:00-19:00 açık."
+    },
+    {
+     "id": "dil-7",
+     "passed": "3/3",
+     "part": "The pool is open from 09:00 to 19:00 between 1 June and 30 September."
+    },
+    {
+     "id": "dil-9",
+     "passed": "3/3",
+     "part": "The nearest supermarket is 200 metres away at the corner of the street, open daily 08:00-22:00."
+    },
+    {
+     "id": "dil-8",
+     "passed": "3/3",
+     "part": "The air conditioning remote is in the TV unit drawer."
+    },
+    {
+     "id": "dil-10",
+     "passed": "3/3",
+     "part": "Le supermarché le plus proche est à 200 mètres, au coin de la rue, ouvert tous les jours de 8h à 22h."
+    },
+    {
+     "id": "dil-11",
+     "passed": "3/3",
+     "part": "Bonjour, klima kumandası TV ünitesinin çekmecesinde. Bonne journée !"
+    },
+    {
+     "id": "dil-12",
+     "passed": "3/3",
+     "part": "Hello! Plaja yürüyerek 10 dakika. Enjoy your stay!"
+    },
+    {
+     "id": "dil-13",
+     "passed": "3/3",
+     "part": "¡Hola! Market 200 metre ileride, sokağın köşesinde."
+    },
+    {
+     "id": "dil-14",
+     "passed": "3/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    },
+    {
+     "id": "dil-15",
+     "passed": "3/3",
+     "part": "Hallo! Havaalanı transferi 25 Euro, en az bir gün önce rezerve edilmeli. Viele Grüße"
+    },
+    {
+     "id": "dil-16",
+     "passed": "3/3",
+     "part": "Check-out is at 11:00."
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|urun|dil:es": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 3,
+   "wrongPassCalls": 9,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-2",
+     "passed": "3/3",
+     "part": "Plaj havlusu sağlamıyorum."
+    },
+    {
+     "id": "dil-7",
+     "passed": "3/3",
+     "part": "The pool is open from 09:00 to 19:00 between 1 June and 30 September."
+    },
+    {
+     "id": "dil-13",
+     "passed": "3/3",
+     "part": "¡Hola! Market 200 metre ileride, sokağın köşesinde."
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|dil_soru": {
+   "cases": 22,
+   "calls": 66,
+   "correct": 22,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:fr": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|dil_soru|beklenen:tut": {
+   "cases": 16,
+   "calls": 48,
+   "correct": 16,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:es": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 0,
+   "unstable": 0,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 6,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-3",
+     "passed": "3/3",
+     "part": "Saç kurutma makinesi banyo çekmecesinde."
+    },
+    {
+     "id": "dil-12",
+     "passed": "3/3",
+     "part": "Hello! Plaja yürüyerek 10 dakika. Enjoy your stay!"
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|urun|dil:de": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 3,
+   "wrongPassCalls": 9,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-4",
+     "passed": "3/3",
+     "part": "Çıkış saati 11:00."
+    },
+    {
+     "id": "dil-10",
+     "passed": "3/3",
+     "part": "Le supermarché le plus proche est à 200 mètres, au coin de la rue, ouvert tous les jours de 8h à 22h."
+    },
+    {
+     "id": "dil-15",
+     "passed": "3/3",
+     "part": "Hallo! Havaalanı transferi 25 Euro, en az bir gün önce rezerve edilmeli. Viele Grüße"
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:de": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 6,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-5",
+     "passed": "3/3",
+     "part": "Anahtar kapının yanındaki şifreli kutuda."
+    },
+    {
+     "id": "dil-14",
+     "passed": "3/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:ar": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 2,
+   "wrongPassCalls": 6,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-6",
+     "passed": "3/3",
+     "part": "Havuz 1 Haziran - 30 Eylül arası 09:00-19:00 açık."
+    },
+    {
+     "id": "dil-16",
+     "passed": "3/3",
+     "part": "Check-out is at 11:00."
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:ar": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:tr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 3,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-9",
+     "passed": "3/3",
+     "part": "The nearest supermarket is 200 metres away at the corner of the street, open daily 08:00-22:00."
+    }
+   ],
+   "unstableIds": []
+  },
+  "dil|dil_soru|dil:tr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|beklenen:gecir": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|dil_soru|beklenen:gecir": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz": {
+   "cases": 12,
+   "calls": 36,
+   "correct": 12,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:ru": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|beklenen:gecir": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 7,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun": {
+   "cases": 12,
+   "calls": 36,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 6,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:ru": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|beklenen:gecir": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 6,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:tr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:tr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:es": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:de": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:de": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:es": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 0,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:fr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:fr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|beklenen:tut": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|beklenen:tut": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|maskesiz|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun": {
+   "cases": 23,
+   "calls": 69,
+   "correct": 22,
+   "unstable": 0,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 3,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "eks-13",
+     "passed": "3/3",
+     "part": "Записи о кофемашине у меня нет."
+    }
+   ],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:tr": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|beklenen:tut": {
+   "cases": 17,
+   "calls": 51,
+   "correct": 16,
+   "unstable": 0,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 3,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "eks-13",
+     "passed": "3/3",
+     "part": "Записи о кофемашине у меня нет."
+    }
+   ],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:de": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 3,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "eks-13",
+     "passed": "3/3",
+     "part": "Записи о кофемашине у меня нет."
+    }
+   ],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:es": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:fr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:en": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 7,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:ar": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|beklenen:gecir": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun": {
+   "cases": 99,
+   "calls": 297,
+   "correct": 96,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:en": {
+   "cases": 32,
+   "calls": 96,
+   "correct": 32,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|beklenen:tut": {
+   "cases": 46,
+   "calls": 138,
+   "correct": 46,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:hakli-tutma": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:fr": {
+   "cases": 15,
+   "calls": 45,
+   "correct": 15,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|beklenen:gecir": {
+   "cases": 53,
+   "calls": 159,
+   "correct": 50,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:dogru-cevap-yanlis-alarm": {
+   "cases": 24,
+   "calls": 72,
+   "correct": 22,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:tr": {
+   "cases": 19,
+   "calls": 57,
+   "correct": 19,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:ru": {
+   "cases": 11,
+   "calls": 33,
+   "correct": 11,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:es": {
+   "cases": 8,
+   "calls": 24,
+   "correct": 8,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:de": {
+   "cases": 10,
+   "calls": 30,
+   "correct": 8,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|dil:de": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|beklenen:gecir": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|etiket:dogru-cevap-yanlis-alarm": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:ters-cevap": {
+   "cases": 43,
+   "calls": 129,
+   "correct": 43,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|beklenen:tut": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|etiket:ters-cevap": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:dogru-cevap": {
+   "cases": 29,
+   "calls": 87,
+   "correct": 28,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|dil:ar": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|maskesiz|etiket:dogru-cevap": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:ar": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  }
+ },
+ "combined": {
+  "urun|bugun": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 28,
+   "meanCorrect": "71.7%",
+   "wrongPassIds": [],
+   "byCode": 40,
+   "byReader": 6
+  },
+  "urun|A1_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "meanCorrect": "97.0%",
+   "wrongPassIds": [],
+   "byCode": 14,
+   "byReader": 32
+  },
+  "urun|A2_yan_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "meanCorrect": "97.0%",
+   "wrongPassIds": [],
+   "byCode": 12,
+   "byReader": 34
+  },
+  "urun|A3_cumle_tek_yon_ayni_dil": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "meanCorrect": "97.0%",
+   "wrongPassIds": [],
+   "byCode": 0,
+   "byReader": 46
+  },
+  "urun|A4_kalem_tek_yonluyse": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 9,
+   "meanCorrect": "90.9%",
+   "wrongPassIds": [],
+   "byCode": 22,
+   "byReader": 24
+  },
+  "maskesiz_varsa|bugun": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 28,
+   "meanCorrect": "71.7%",
+   "wrongPassIds": [],
+   "byCode": 40,
+   "byReader": 6
+  },
+  "maskesiz_varsa|A1_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 14,
+   "byReader": 32
+  },
+  "maskesiz_varsa|A2_yan_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "meanCorrect": "100.0%",
+   "wrongPassIds": [],
+   "byCode": 12,
+   "byReader": 34
+  },
+  "maskesiz_varsa|A3_cumle_tek_yon_ayni_dil": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "meanCorrect": "100.0%",
+   "wrongPassIds": [],
+   "byCode": 0,
+   "byReader": 46
+  },
+  "maskesiz_varsa|A4_kalem_tek_yonluyse": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 9,
+   "meanCorrect": "90.9%",
+   "wrongPassIds": [],
+   "byCode": 22,
+   "byReader": 24
+  }
+ }
+}
