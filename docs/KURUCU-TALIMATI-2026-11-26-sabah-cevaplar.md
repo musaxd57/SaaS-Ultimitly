@@ -79,3 +79,21 @@ S-2 ("var / yok" kontrolü yalnız emin olduğunda tutsun) ve S-3 (geç mesaj an
 | 13 | NEDEN DEFTERİ: her "gitmedi" ve her "yanlış gitti" vakasının sebebi kalıcı bir veri dosyasında birikir | `docs/olcum/neden-defteri.jsonl` + araç |
 | 14 | Railway: plan alınacak; açılışta önce `AUTO_REPLY_ENABLED=0`, yedek, sonra web servisi (ana oturumun önerdiği sıra — kurucu henüz onaylamadı) | `docs/RAILWAY-ACILIS-2026-10-15.md` §0 |
 | — | S-1 (okuyucuya maskesiz şifre) cevaplanmadı — açık soru | — |
+
+## Akşamüstü — okuyucu gücü ölçümüne cevap (AYNEN)
+
+Bağlam: ana oturum "var / yok kararında model koddan belirgin biçimde daha iyi" dedi ve S-1, S-2 ile okuyucuya iki ek soruyu sordu.
+
+> model koddan belirgin biçimde daha iyi.  bu ne demek tabiki modeli kullanmak demek aq ama herşeyi modele bırakmamlıyız gibide anlama
+> katmanı önemli modeller orda gelişmiş bağlam anlam amaç anlam konusunda tekrar test S-1 MASKesiz olsun o zaman
+>
+> okuyucuya 2 soru koyabilirsin testte et
+
+### Ana oturumun okuması (kurucunun metni DEĞİL)
+
+| # | Karar | İş |
+|---|---|---|
+| 15 | S-1: kontrol eden model (parça okuyucusu) bilgi tabanı notlarını ve parçayı MASKESİZ görür | `ai/semantic/part-reader.ts` |
+| 16 | S-2: "var / yok" anlam kararında model kullanılır; AMA her şey modele bırakılmaz — kod dar ve kesin durumda tutmaya devam eder (10-23 kararının güncellenmesi: tek hüküm değil, kod + okuyucu birlikte) | `ai/answer-binding.ts` (yalnız okuyucu koşarken) |
+| 17 | Okuyucuya iki soru: cevap misafirin dilinde mi · notlar bu konuda kendi aralarında çelişiyor mu → "hayır / evet" ise tut | `part-reader.ts` + ölçüm |
+| 18 | Anlama katmanı (bağlam / anlam / amaç) yeniden ölçülür | görülmemiş anlama seti |
