@@ -1,0 +1,2411 @@
+{
+ "version": 1,
+ "created": "2026-11-26",
+ "note": "Görev A olumluluk tablosu. (a) üç parça koşusundaki 27 polarity_mismatch reddi birebir; (b) yanlış alarm çiftlerinin gerçekten ters çevrilmiş hâlleri; (c) ek dürüst satırlar. expect: gecir = doğru cevap (kod tutmamalı) · tut = ters / misafire gitmemeli. Ölçer: tests/eval/polarity-table-replay.ts.",
+ "kbSets": {
+  "bahce": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: LaleBahce_5G, şifre: menekse2024"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Sitede açık yüzme havuzu var; 1 Haziran - 30 Eylül arası, 09:00-19:00 açık."
+   },
+   {
+    "category": "amenities",
+    "title": "Makineler",
+    "content": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur."
+   },
+   {
+    "category": "rules",
+    "title": "Sigara",
+    "content": "Sigara içmek yasaktır, balkonda da içilmez."
+   },
+   {
+    "category": "rules",
+    "title": "Sessizlik",
+    "content": "Saat 23:00'ten sonra yüksek sesle müzik yasaktır."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market 200 metre ileride, sokağın köşesinde; her gün 08:00-22:00 açık."
+   },
+   {
+    "category": "local",
+    "title": "Plaj",
+    "content": "Plaja yürüyerek 10 dakika."
+   },
+   {
+    "category": "checkin",
+    "title": "Anahtar",
+    "content": "Anahtar kapının yanındaki şifreli kutuda; kutu şifresi giriş günü mesajla gönderilir."
+   },
+   {
+    "category": "general",
+    "title": "Bebek yatağı",
+    "content": "Bebek yatağı ücretsiz verilir, önceden haber verin."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış",
+    "content": "Çıkışta anahtarı kutuya geri koyun, çöpleri bina girişindeki konteynere bırakın."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesinde."
+   },
+   {
+    "category": "general",
+    "title": "Havaalanı transferi",
+    "content": "Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli."
+   },
+   {
+    "category": "general",
+    "title": "Temizlik",
+    "content": "7 geceden uzun konaklamalarda haftada bir ücretsiz temizlik yapılır."
+   }
+  ],
+  "konak_celiski": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Wi-Fi: LaleKonak, şifre lale1234"
+   },
+   {
+    "category": "wifi",
+    "title": "İnternet",
+    "content": "İnternet şifresi: gul5678 (ağ adı LaleKonak)"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina otoparkı misafirler için ücretsizdir."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark ücreti",
+    "content": "Otopark kullanımı günlük 150 TL'dir."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 08:00-20:00 arası açık."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz saatleri",
+    "content": "Havuz saatleri: 10:00-18:00."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler salı ve cuma akşamı toplanır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp toplama",
+    "content": "Çöp her akşam alınır, kapının önüne bırakın."
+   },
+   {
+    "category": "checkin",
+    "title": "Anahtar",
+    "content": "Anahtar resepsiyondan alınır."
+   },
+   {
+    "category": "local",
+    "title": "Eczane",
+    "content": "En yakın eczane 300 metre, ana caddede."
+   },
+   {
+    "category": "appliances",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyoda, deterjan dolabın üstünde."
+   },
+   {
+    "category": "local",
+    "title": "Fırın",
+    "content": "Fırın sabah 06:30'da açılıyor, binanın karşısında."
+   },
+   {
+    "category": "amenities",
+    "title": "Ütü",
+    "content": "Ütü ve ütü masası koridordaki dolapta."
+   }
+  ],
+  "mini": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Network: LaleNest, password: sunflower88"
+   },
+   {
+    "category": "checkin",
+    "title": "Self check-in",
+    "content": "The key is in the lockbox next to the door; the code is sent on the morning of arrival day."
+   },
+   {
+    "category": "parking",
+    "title": "Parking",
+    "content": "Free street parking in front of the building."
+   }
+  ],
+  "teras_olumsuz": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Network: Lale_Terrace, password: olive2026"
+   },
+   {
+    "category": "amenities",
+    "title": "Elevator",
+    "content": "There is no elevator; the flat is on the 3rd floor."
+   },
+   {
+    "category": "parking",
+    "title": "Parking",
+    "content": "No parking on site. Public paid car park 400 m away, 3 EUR per hour."
+   },
+   {
+    "category": "general",
+    "title": "Airport",
+    "content": "We don't provide airport pickup."
+   },
+   {
+    "category": "amenities",
+    "title": "TV",
+    "content": "There is no TV in the apartment."
+   },
+   {
+    "category": "rules",
+    "title": "Smoking",
+    "content": "Smoking is not allowed anywhere, including the terrace."
+   },
+   {
+    "category": "rules",
+    "title": "Parties",
+    "content": "Parties and events are not allowed."
+   },
+   {
+    "category": "amenities",
+    "title": "Towels",
+    "content": "Towels and bed linen are provided. Beach towels are not provided."
+   },
+   {
+    "category": "amenities",
+    "title": "Hair dryer",
+    "content": "Hair dryer is in the bathroom drawer."
+   },
+   {
+    "category": "appliances",
+    "title": "Coffee",
+    "content": "Capsule coffee machine in the kitchen; capsules are not included."
+   },
+   {
+    "category": "local",
+    "title": "Bakery & pharmacy",
+    "content": "Bakery on the corner opens at 07:00. Pharmacy is 600 m away on the main street."
+   },
+   {
+    "category": "local",
+    "title": "Bus",
+    "content": "Bus stop 150 m from the building; line 12 goes to the old town."
+   },
+   {
+    "category": "amenities",
+    "title": "Laundry",
+    "content": "Washing machine available; no dryer."
+   },
+   {
+    "category": "general",
+    "title": "Garbage",
+    "content": "Bins are at the end of the street; glass goes in the green bin."
+   }
+  ],
+  "ek_olumluluk": [
+   {
+    "category": "rules",
+    "title": "Evcil hayvan",
+    "content": "Evcil hayvan kabul edilmez."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz misafirler için ücretsizdir."
+   },
+   {
+    "category": "amenities",
+    "title": "Asansör",
+    "content": "Binada asansör var."
+   },
+   {
+    "category": "rules",
+    "title": "Sigara",
+    "content": "Dairede sigara içmek yasaktır, balkonda içilebilir."
+   },
+   {
+    "category": "general",
+    "title": "Breakfast",
+    "content": "Breakfast is not included in the price."
+   },
+   {
+    "category": "amenities",
+    "title": "Air conditioning",
+    "content": "Every room has air conditioning."
+   },
+   {
+    "category": "appliances",
+    "title": "Kitchen",
+    "content": "There is a kettle; there is no toaster."
+   },
+   {
+    "category": "rules",
+    "title": "Parti",
+    "content": "Parti ve etkinlik yapılamaz."
+   },
+   {
+    "category": "amenities",
+    "title": "Bisiklet",
+    "content": "Misafirlerimize ücretsiz bisiklet veriyoruz."
+   },
+   {
+    "category": "amenities",
+    "title": "Ütü",
+    "content": "Dairede ütü yok."
+   }
+  ],
+  "ek_olumluluk_en": [
+   {
+    "category": "rules",
+    "title": "Pets",
+    "content": "Pets are allowed."
+   }
+  ]
+ },
+ "rows": [
+  {
+   "id": "a-g3-nt6-R2",
+   "group": "a",
+   "origin": "g3/nt6/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri araç park",
+    "query_original": "where can we park the car"
+   },
+   "part": "You can park your car on the free street parking in front of the building; there is no covered parking garage.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g3-en1-R1",
+   "group": "a",
+   "origin": "g3/en1/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark park yeri",
+    "query_original": "Kapalı otopark"
+   },
+   "part": "Binanın önünde ücretsiz sokak üzeri park yeri bulunuyor, ancak kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing",
+    "unsupported_content"
+   ],
+   "form": "ayni-dil",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g3-en4-R1",
+   "group": "a",
+   "origin": "g3/en4/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "part": "There is a washing machine available in the apartment, but there is no tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing"
+   ],
+   "form": "ayni-dil",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g3-ne2-R1",
+   "group": "a",
+   "origin": "g3/ne2/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Do you have a high chair for our baby?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "bebek mama sandalyesi bebek ekipmanı",
+    "query_original": "high chair for baby"
+   },
+   "part": "We can provide a baby cot free of charge if we know in advance. A high chair is not listed among the available baby equipment.",
+   "evidence": "Bebek yatağı: Bebek yatağı ücretsiz verilir, önceden haber verin.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "reason": "Parça \"mama sandalyesi listede yok\" diyor: bu bir ters olumluluk değil, misafire giden \"bilgilerde yok\" anlatımı (kurucu kuralı: bilgim yok misafire gitmez). Tutmak doğru, ama sebep olumluluk değil.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g3-hp4-R2",
+   "group": "a",
+   "origin": "g3/hp4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "où se gare-t-on parking"
+   },
+   "part": "Pour le stationnement, vous pouvez utiliser gratuitement les places de parking dans la rue devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g3-m4-R2",
+   "group": "a",
+   "origin": "g3/m4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içme kuralı",
+    "query_original": "règles fumer sur le balcon"
+   },
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g3-m6-R1",
+   "group": "a",
+   "origin": "g3/m6/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "где парковаться парковка"
+   },
+   "part": "Парковаться можно бесплатно перед зданием на улице, закрытого паркинга нет.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-nt6-R2",
+   "group": "a",
+   "origin": "g4/nt6/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "park the car Parkplatz"
+   },
+   "part": "You can park your car for free on the street in front of the building.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-en1-R1",
+   "group": "a",
+   "origin": "g4/en1/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark var mı park yeri",
+    "query_original": "Kapalı otopark var mı?"
+   },
+   "part": "Binanın önünde ücretsiz sokak parkı var, ancak kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "ayni-dil",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-en4-R1",
+   "group": "a",
+   "origin": "g4/en4/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "part": "There is a washing machine available in the apartment, but there is no tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing"
+   ],
+   "form": "ayni-dil",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4-en6-R1",
+   "group": "a",
+   "origin": "g4/en6/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "¿Ponéis toallas de playa?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "plaj havlusu veriliyor mu",
+    "query_original": "toallas de playa"
+   },
+   "part": "Playa toallas no están incluidas; proporcionamos toallas de baño y ropa de cama, pero no toallas de playa.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "partLang": "es",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4-ne2-R1",
+   "group": "a",
+   "origin": "g4/ne2/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Do you have a high chair for our baby?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "bebek mama sandalyesi var mı",
+    "query_original": "high chair for baby"
+   },
+   "part": "We offer a baby cot free of charge if you let us know in advance. A high chair is not specifically listed among the amenities.",
+   "evidence": "Bebek yatağı: Bebek yatağı ücretsiz verilir, önceden haber verin.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "reason": "Parça \"mama sandalyesi listede yok\" diyor: bu bir ters olumluluk değil, misafire giden \"bilgilerde yok\" anlatımı (kurucu kuralı: bilgim yok misafire gitmez). Tutmak doğru, ama sebep olumluluk değil.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-hp4-R2",
+   "group": "a",
+   "origin": "g4/hp4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri nerede",
+    "query_original": "où se gare-t-on parking"
+   },
+   "part": "Pour vous garer, il y a un stationnement gratuit dans la rue juste devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-c11-R1",
+   "group": "a",
+   "origin": "g4/c11/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Darf man auf der Terrasse rauchen?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "terasta sigara içme kuralı",
+    "query_original": "auf der Terrasse rauchen Hausregel"
+   },
+   "part": "Rauchen ist in der gesamten Unterkunft, einschließlich der Terrasse, nicht erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "partLang": "de",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4-m4-R2",
+   "group": "a",
+   "origin": "g4/m4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içme kuralı",
+    "query_original": "règles fumer sur le balcon"
+   },
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4-m6-R1",
+   "group": "a",
+   "origin": "g4/m6/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "Где парковаться"
+   },
+   "part": "Парковаться можно бесплатно перед зданием на улице.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-nt5-R1",
+   "group": "a",
+   "origin": "g4b/nt5/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Est-ce que la piscine est chauffée ?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "havuz ısıtmalı mı",
+    "query_original": "piscine chauffée"
+   },
+   "part": "La piscine n’est pas indiquée comme étant chauffée dans les informations du logement.",
+   "evidence": "Havuz: Sitede açık yüzme havuzu var; 1 Haziran - 30 Eylül arası, 09:00-19:00 açık.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "reason": "Parça \"havuzun ısıtmalı olduğu belirtilmemiş\" diyor: \"bilgilerde yok\" anlatımı (misafire gitmemeli). Tutmak doğru, sebep olumluluk değil.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing",
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-nt6-R2",
+   "group": "a",
+   "origin": "g4b/nt6/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "park the car parking"
+   },
+   "part": "You can park your car using the free street parking in front of the building.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-en1-R1",
+   "group": "a",
+   "origin": "g4b/en1/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark park yeri var mı",
+    "query_original": "Kapalı otopark var mı?"
+   },
+   "part": "Binanın önünde ücretsiz sokak parkı var, kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "ayni-dil",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-en4-R1",
+   "group": "a",
+   "origin": "g4b/en4/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "part": "There is a washing machine available in the apartment, but we do not have a tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing"
+   ],
+   "form": "ayni-dil",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4b-en6-R1",
+   "group": "a",
+   "origin": "g4b/en6/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "¿Ponéis toallas de playa?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "plaj havlusu var mı sağlanıyor mu",
+    "query_original": "toallas de playa"
+   },
+   "part": "No, no proporcionamos toallas de playa; en el alojamiento solo hay toallas de baño y ropa de cama.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "partLang": "es",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4b-en7-R1",
+   "group": "a",
+   "origin": "g4b/en7/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Çamaşır kurutma makinesi var mı? Bulaşık makinesi de var mı?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "Çamaşır kurutma makinesi var mı"
+   },
+   "part": "Çamaşır makinesi var, ancak çamaşır kurutma makinesi yoktur.",
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "ayni-dil",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-en8-R1",
+   "group": "a",
+   "origin": "g4b/en8/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Можно ли устроить небольшую вечеринку в квартире?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "dairede küçük parti etkinlik kuralları",
+    "query_original": "небольшую вечеринку в квартире правила"
+   },
+   "part": "К сожалению, устраивать даже небольшие вечеринки и любые мероприятия в квартире не разрешается.",
+   "evidence": "Parties and events are not allowed.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [
+    "subject_missing",
+    "unsupported_content"
+   ],
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4b-hp4-R2",
+   "group": "a",
+   "origin": "g4b/hp4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "où se gare-t-on parking"
+   },
+   "part": "Pour garer votre voiture, il y a un parking gratuit dans la rue juste devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-c11-R1",
+   "group": "a",
+   "origin": "g4b/c11/R1",
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Darf man auf der Terrasse rauchen?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "teras sigara içme kuralı",
+    "query_original": "auf der Terrasse rauchen erlaubt"
+   },
+   "part": "Rauchen ist in der gesamten Unterkunft, einschließlich der Terrasse, nicht erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "partLang": "de",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "id": "a-g4b-m4-R2",
+   "group": "a",
+   "origin": "g4b/m4/R2",
+   "kbSet": "bahce",
+   "guestMessage": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içme kuralı",
+    "query_original": "règles fumer sur le balcon"
+   },
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "[RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "id": "a-g4b-m6-R1",
+   "group": "a",
+   "origin": "g4b/m6/R1",
+   "kbSet": "bahce",
+   "guestMessage": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "парковка где парковаться"
+   },
+   "part": "Парковаться можно бесплатно перед зданием на улице.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "reason": "Parça notla aynı yönde (elle okundu); kodun \"var / yok\" denetimi yanlış alarm verdi.",
+   "observedIssues": [
+    "polarity_mismatch"
+   ],
+   "observedAdvisory": [],
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri araç park",
+    "query_original": "where can we park the car"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-01-g3-nt6-R2",
+   "group": "b",
+   "origin": "ters:a-g3-nt6-R2",
+   "part": "You can park your car on the free street parking in front of the building; there is also a covered parking garage.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Kapalı otopark yok\" diyor; parça kapalı otopark VAR diyor.",
+   "form": "iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri araç park",
+    "query_original": "where can we park the car"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-02-g3-nt6-R2",
+   "group": "b",
+   "origin": "ters:a-g3-nt6-R2",
+   "part": "You can park in the covered parking garage of the building; there is no street parking in front of it.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "İki yön yer değiştirmiş: sokak parkı var / kapalı otopark yok.",
+   "form": "iki-yon-takas",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "park the car Parkplatz"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "id": "b-03-g4-nt6-R2",
+   "group": "b",
+   "origin": "ters:a-g4-nt6-R2",
+   "part": "Street parking in front of the building is not available.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"binanın önünde ücretsiz sokak parkı var\" diyor; parça yok diyor.",
+   "form": "tek-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Is there an iron I could use? And where can we park the car?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "park the car Parkplatz"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "id": "b-04-g4-nt6-R2",
+   "group": "b",
+   "origin": "ters:a-g4-nt6-R2",
+   "part": "Street parking in front of the building is paid.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem ücretsiz diyor; parça ücretli diyor.",
+   "form": "ucret",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark var mı park yeri",
+    "query_original": "Kapalı otopark var mı?"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-05-g4-en1-R1",
+   "group": "b",
+   "origin": "ters:a-g4-en1-R1",
+   "part": "Binanın önünde ücretsiz sokak parkı var, kapalı otopark da var.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Kapalı otopark yok\"; parça var diyor.",
+   "form": "iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark var mı park yeri",
+    "query_original": "Kapalı otopark var mı?"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-06-g4-en1-R1",
+   "group": "b",
+   "origin": "ters:a-g4-en1-R1",
+   "part": "Binanın önünde sokak parkı yok, ancak kapalı otopark var.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "İki yön ters çevrilmiş.",
+   "form": "iki-yon-takas",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Kapalı otopark var mı?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "kapalı otopark park yeri",
+    "query_original": "Kapalı otopark"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-07-g3-en1-R1",
+   "group": "b",
+   "origin": "ters:a-g3-en1-R1",
+   "part": "Binanın önünde ücretsiz sokak üzeri park yeri bulunuyor, kapalı otopark da bulunuyor.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Kapalı otopark yok\"; parça bulunuyor diyor.",
+   "form": "iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "id": "b-08-g3-en4-R1",
+   "group": "b",
+   "origin": "ters:a-g3-en4-R1",
+   "part": "There is a washing machine and a tumble dryer in the apartment.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"no dryer\"; parça kurutma makinesi var diyor.",
+   "form": "iki-yon",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "id": "b-09-g3-en4-R1",
+   "group": "b",
+   "origin": "ters:a-g3-en4-R1",
+   "part": "There is no washing machine in the apartment, but there is a tumble dryer.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "İki yön yer değiştirmiş.",
+   "form": "iki-yon-takas",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Do you have a tumble dryer?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "tumble dryer"
+   },
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "id": "b-10-g4b-en4-R1",
+   "group": "b",
+   "origin": "ters:a-g4b-en4-R1",
+   "part": "There is a washing machine available in the apartment, and we also have a tumble dryer.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"no dryer\"; parça var diyor.",
+   "form": "iki-yon",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "¿Ponéis toallas de playa?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "plaj havlusu veriliyor mu",
+    "query_original": "toallas de playa"
+   },
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "id": "b-11-g4-en6-R1",
+   "group": "b",
+   "origin": "ters:a-g4-en6-R1",
+   "part": "Sí, proporcionamos toallas de playa, además de toallas de baño y ropa de cama.",
+   "partLang": "es",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Beach towels are not provided\"; parça veriyoruz diyor (diller arası).",
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "¿Ponéis toallas de playa?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "plaj havlusu veriliyor mu",
+    "query_original": "toallas de playa"
+   },
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "id": "b-12-g4-en6-R1",
+   "group": "b",
+   "origin": "ters:a-g4-en6-R1",
+   "part": "Las toallas de playa están incluidas.",
+   "partLang": "es",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem dahil değil diyor; parça dahil diyor.",
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri nerede",
+    "query_original": "où se gare-t-on parking"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-13-g4-hp4-R2",
+   "group": "b",
+   "origin": "ters:a-g4-hp4-R2",
+   "part": "Il n’y a pas de stationnement dans la rue devant l’immeuble.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem ücretsiz sokak parkı var diyor; parça yok diyor (diller arası).",
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Peut-on rester une nuit de plus ? Et où se gare-t-on ?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri nerede",
+    "query_original": "où se gare-t-on parking"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-14-g4-hp4-R2",
+   "group": "b",
+   "origin": "ters:a-g4-hp4-R2",
+   "part": "Il y a un parking couvert dans l’immeuble.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Kapalı otopark yok\"; parça kapalı otopark var diyor.",
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Darf man auf der Terrasse rauchen?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "terasta sigara içme kuralı",
+    "query_original": "auf der Terrasse rauchen Hausregel"
+   },
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "id": "b-15-g4-c11-R1",
+   "group": "b",
+   "origin": "ters:a-g4-c11-R1",
+   "part": "Rauchen ist auf der Terrasse erlaubt.",
+   "partLang": "de",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem terasta da yasak diyor; parça izin var diyor.",
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Darf man auf der Terrasse rauchen?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "terasta sigara içme kuralı",
+    "query_original": "auf der Terrasse rauchen Hausregel"
+   },
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "id": "b-16-g4-c11-R1",
+   "group": "b",
+   "origin": "ters:a-g4-c11-R1",
+   "part": "Rauchen ist in der Unterkunft nicht erlaubt, auf der Terrasse aber erlaubt.",
+   "partLang": "de",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"including the terrace\" diyor; parça terasa izin veriyor.",
+   "form": "diller-arasi-iki-yon",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içme kuralı",
+    "query_original": "règles fumer sur le balcon"
+   },
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "id": "b-17-g4-m4-R2",
+   "group": "b",
+   "origin": "ters:a-g4-m4-R2",
+   "part": "Vous pouvez fumer sur le balcon.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"balkonda da içilmez\"; parça balkonda içilebilir diyor.",
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Bonjour ! À quelle heure est l'arrivée, peut-on fumer sur le balcon, et y a-t-il un fer à repasser ?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içme kuralı",
+    "query_original": "règles fumer sur le balcon"
+   },
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "id": "b-18-g4-m4-R2",
+   "group": "b",
+   "origin": "ters:a-g4-m4-R2",
+   "part": "Il est interdit de fumer dans le logement, mais vous pouvez fumer sur le balcon.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem balkonu da yasaklıyor; parça balkona izin veriyor.",
+   "form": "diller-arasi-iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "где парковаться парковка"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-19-g3-m6-R1",
+   "group": "b",
+   "origin": "ters:a-g3-m6-R1",
+   "part": "Парковаться можно бесплатно перед зданием на улице, есть также закрытый паркинг.",
+   "partLang": "ru",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Kapalı otopark yok\"; parça var diyor.",
+   "form": "diller-arasi-iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Где парковаться, во сколько выезд и есть ли в квартире кофемашина?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark park yeri",
+    "query_original": "Где парковаться"
+   },
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "id": "b-20-g4-m6-R1",
+   "group": "b",
+   "origin": "ters:a-g4-m6-R1",
+   "part": "Парковаться перед зданием нельзя.",
+   "partLang": "ru",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem sokak parkı var diyor; parça yasak diyor.",
+   "form": "diller-arasi",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Çamaşır kurutma makinesi var mı? Bulaşık makinesi de var mı?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "Çamaşır kurutma makinesi var mı"
+   },
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "id": "b-21-g4b-en7-R1",
+   "group": "b",
+   "origin": "ters:a-g4b-en7-R1",
+   "part": "Çamaşır makinesi ve çamaşır kurutma makinesi var.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem \"Çamaşır kurutma makinesi yoktur\"; parça var diyor.",
+   "form": "iki-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Çamaşır kurutma makinesi var mı? Bulaşık makinesi de var mı?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "çamaşır kurutma makinesi var mı",
+    "query_original": "Çamaşır kurutma makinesi var mı"
+   },
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "id": "b-22-g4b-en7-R1",
+   "group": "b",
+   "origin": "ters:a-g4b-en7-R1",
+   "part": "Çamaşır kurutma makinesi var.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem kurutma makinesi yok diyor; parça var diyor.",
+   "form": "tek-yon",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Можно ли устроить небольшую вечеринку в квартире?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "dairede küçük parti etkinlik kuralları",
+    "query_original": "небольшую вечеринку в квартире правила"
+   },
+   "evidence": "Parties and events are not allowed.",
+   "id": "b-23-g4b-en8-R1",
+   "group": "b",
+   "origin": "ters:a-g4b-en8-R1",
+   "part": "Небольшие вечеринки в квартире разрешаются.",
+   "partLang": "ru",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem parti yasak diyor; parça izin var diyor.",
+   "form": "diller-arasi",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Binada asansör var mı?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "asansör var mı",
+    "query_original": "Binada asansör var mı"
+   },
+   "part": "Evet, binada asansör var.",
+   "evidence": "Asansör: Binada asansör var.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumlu ↔ olumlu, aynı dil.",
+   "form": "ayni-dil-olumlu",
+   "id": "c-01",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Do the rooms have air conditioning?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "odalarda klima var mı",
+    "query_original": "rooms air conditioning"
+   },
+   "part": "Yes, every room has air conditioning.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumlu ↔ olumlu, aynı dil.",
+   "form": "ayni-dil-olumlu",
+   "id": "c-02",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Bisiklet kullanabilir miyiz?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "bisiklet var mı",
+    "query_original": "Bisiklet kullanabilir miyiz"
+   },
+   "part": "Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumlu ↔ olumlu, aynı dil.",
+   "form": "ayni-dil-olumlu",
+   "id": "c-03",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk_en",
+   "guestMessage": "Can we bring our dog?",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu köpek",
+    "query_original": "bring our dog pets allowed"
+   },
+   "part": "Yes, pets are allowed.",
+   "evidence": "Pets: Pets are allowed.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumlu ↔ olumlu, aynı dil.",
+   "form": "ayni-dil-olumlu",
+   "id": "c-04",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Köpeğimizi getirebilir miyiz?",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu köpek",
+    "query_original": "Köpeğimizi getirebilir miyiz"
+   },
+   "part": "Maalesef evcil hayvan kabul etmiyoruz.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-05",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Dairede ütü var mı?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "ütü var mı",
+    "query_original": "Dairede ütü var mı"
+   },
+   "part": "Dairede ütü bulunmuyor.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-06",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is breakfast included?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "kahvaltı dahil mi",
+    "query_original": "is breakfast included"
+   },
+   "part": "Breakfast is not included in the price.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-07",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Doğum günü partisi yapabilir miyiz?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "parti yapılabilir mi",
+    "query_original": "Doğum günü partisi yapabilir miyiz"
+   },
+   "part": "Daire içinde parti ve etkinlik yapılamıyor.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-08",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Is there a TV?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "televizyon var mı",
+    "query_original": "is there a TV"
+   },
+   "part": "There is no TV in the apartment.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-09",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Is there an elevator?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "asansör var mı",
+    "query_original": "is there an elevator"
+   },
+   "part": "There is no elevator; the flat is on the 3rd floor.",
+   "evidence": "Elevator: There is no elevator; the flat is on the 3rd floor.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Olumsuz ↔ olumsuz, aynı dil.",
+   "form": "ayni-dil-olumsuz",
+   "id": "c-10",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is there a kettle and a toaster?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "su ısıtıcısı ve tost makinesi var mı",
+    "query_original": "kettle and toaster"
+   },
+   "part": "There is a kettle, but no toaster.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Kalemde iki şey iki yön; parça ikisini de doğru yönde veriyor.",
+   "form": "iki-yon",
+   "id": "c-11",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is there a kettle and a toaster?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "su ısıtıcısı ve tost makinesi var mı",
+    "query_original": "kettle and toaster"
+   },
+   "part": "There is a toaster, but no kettle.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "İki yön yer değiştirmiş.",
+   "form": "iki-yon-takas",
+   "id": "c-12",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is there a kettle and a toaster?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "su ısıtıcısı ve tost makinesi var mı",
+    "query_original": "kettle and toaster"
+   },
+   "part": "There is a kettle and a toaster.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem tost makinesi yok diyor.",
+   "form": "iki-yon",
+   "id": "c-13",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is there a kettle?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "su ısıtıcısı var mı",
+    "query_original": "is there a kettle"
+   },
+   "part": "Yes, there is a kettle.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "İki yönlü kalemden yalnız sorulan olumlu yarı.",
+   "form": "iki-yon-tek-yari",
+   "id": "c-14",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Balkonda sigara içebilir miyiz?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içilebilir mi",
+    "query_original": "Balkonda sigara içebilir miyiz"
+   },
+   "part": "Dairede sigara içmek yasak, balkonda içebilirsiniz.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Karışık kalem (tek cümle), parça iki yönü de doğru taşıyor.",
+   "form": "karisik-kalem",
+   "id": "c-15",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Balkonda sigara içebilir miyiz?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içilebilir mi",
+    "query_original": "Balkonda sigara içebilir miyiz"
+   },
+   "part": "Balkonda da sigara içilmiyor.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem balkonda içilebilir diyor; parça yasak diyor.",
+   "form": "karisik-kalem",
+   "id": "c-16",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Balkonda sigara içebilir miyiz?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "balkonda sigara içilebilir mi",
+    "query_original": "Balkonda sigara içebilir miyiz"
+   },
+   "part": "Dairede sigara içilebilir, balkonda yasak.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "İki yön yer değiştirmiş.",
+   "form": "iki-yon-takas",
+   "id": "c-17",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Is there a coffee machine?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "kahve makinesi var mı",
+    "query_original": "is there a coffee machine"
+   },
+   "part": "There is a capsule coffee machine in the kitchen, but capsules are not included.",
+   "evidence": "Coffee: Capsule coffee machine in the kitchen; capsules are not included.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "İki yönlü kalem, doğru iki yön.",
+   "form": "iki-yon",
+   "id": "c-18",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Is there a coffee machine?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "kahve makinesi var mı",
+    "query_original": "is there a coffee machine"
+   },
+   "part": "There is a capsule coffee machine in the kitchen and capsules are included.",
+   "evidence": "Coffee: Capsule coffee machine in the kitchen; capsules are not included.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem kapsül dahil değil diyor.",
+   "form": "iki-yon",
+   "id": "c-19",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Dürfen wir unseren Hund mitbringen?",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu köpek",
+    "query_original": "Hund mitbringen"
+   },
+   "part": "Haustiere sind bei uns leider nicht erlaubt.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "partLang": "de",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-20",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Dürfen wir unseren Hund mitbringen?",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu köpek",
+    "query_original": "Hund mitbringen"
+   },
+   "part": "Haustiere sind bei uns erlaubt.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "partLang": "de",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem kabul edilmez; parça izin var.",
+   "form": "diller-arasi",
+   "id": "c-21",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "La piscine est-elle payante ?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "havuz ücretli mi",
+    "query_original": "la piscine est-elle payante"
+   },
+   "part": "La piscine est gratuite pour nos hôtes.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası ücretsiz ↔ ücretsiz.",
+   "form": "diller-arasi-ucret",
+   "id": "c-22",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "La piscine est-elle payante ?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "havuz ücretli mi",
+    "query_original": "la piscine est-elle payante"
+   },
+   "part": "La piscine est payante.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem ücretsiz; parça ücretli.",
+   "form": "diller-arasi-ucret",
+   "id": "c-23",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is the pool free?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "havuz ücretsiz mi",
+    "query_original": "is the pool free"
+   },
+   "part": "The pool is free for guests.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası ücretsiz ↔ ücretsiz.",
+   "form": "diller-arasi-ucret",
+   "id": "c-24",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Is the pool free?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "havuz ücretsiz mi",
+    "query_original": "is the pool free"
+   },
+   "part": "Using the pool costs extra.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem ücretsiz; parça ücretli.",
+   "form": "diller-arasi-ucret",
+   "id": "c-25",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "¿El edificio tiene ascensor?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "asansör var mı",
+    "query_original": "el edificio tiene ascensor"
+   },
+   "part": "Sí, el edificio tiene ascensor.",
+   "evidence": "Asansör: Binada asansör var.",
+   "partLang": "es",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumlu ↔ olumlu.",
+   "form": "diller-arasi",
+   "id": "c-26",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "¿El edificio tiene ascensor?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "asansör var mı",
+    "query_original": "el edificio tiene ascensor"
+   },
+   "part": "El edificio no tiene ascensor.",
+   "evidence": "Asansör: Binada asansör var.",
+   "partLang": "es",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem var; parça yok.",
+   "form": "diller-arasi",
+   "id": "c-27",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Завтрак включён?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "kahvaltı dahil mi",
+    "query_original": "завтрак включён"
+   },
+   "part": "Завтрак не входит в стоимость.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-28",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Завтрак включён?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "kahvaltı dahil mi",
+    "query_original": "завтрак включён"
+   },
+   "part": "Завтрак включён в стоимость.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "partLang": "ru",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem dahil değil; parça dahil.",
+   "form": "diller-arasi",
+   "id": "c-29",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "هل يمكن التدخين في التراس؟",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "terasta sigara içilebilir mi",
+    "query_original": "التدخين في التراس"
+   },
+   "part": "التدخين غير مسموح في أي مكان، بما في ذلك التراس.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "partLang": "ar",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz (Arapça).",
+   "form": "diller-arasi",
+   "id": "c-30",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "هل يمكن التدخين في التراس؟",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "terasta sigara içilebilir mi",
+    "query_original": "التدخين في التراس"
+   },
+   "part": "يُسمح بالتدخين في التراس.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "partLang": "ar",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem yasak; parça izin var (Arapça).",
+   "form": "diller-arasi",
+   "id": "c-31",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "هل تقبلون الحيوانات الأليفة؟",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu",
+    "query_original": "الحيوانات الأليفة"
+   },
+   "part": "لا نقبل الحيوانات الأليفة.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "partLang": "ar",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz (Arapça).",
+   "form": "diller-arasi",
+   "id": "c-32",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "هل تقبلون الحيوانات الأليفة؟",
+   "request": {
+    "intent": "pets",
+    "query_tr": "evcil hayvan kabul ediliyor mu",
+    "query_original": "الحيوانات الأليفة"
+   },
+   "part": "نرحب بالحيوانات الأليفة.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "partLang": "ar",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem kabul edilmez; parça hoş geldiniz.",
+   "form": "diller-arasi",
+   "id": "c-33",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Can we have a small birthday party?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "parti yapılabilir mi",
+    "query_original": "small birthday party"
+   },
+   "part": "Parties and events are not allowed in the apartment.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-34",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Can we have a small birthday party?",
+   "request": {
+    "intent": "house_rules",
+    "query_tr": "parti yapılabilir mi",
+    "query_original": "small birthday party"
+   },
+   "part": "Small parties are allowed in the apartment.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem yasak; parça izin var.",
+   "form": "diller-arasi",
+   "id": "c-35",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Haben die Zimmer eine Klimaanlage?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "odalarda klima var mı",
+    "query_original": "Zimmer Klimaanlage"
+   },
+   "part": "Jedes Zimmer hat eine Klimaanlage.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "partLang": "de",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumlu ↔ olumlu.",
+   "form": "diller-arasi",
+   "id": "c-36",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Haben die Zimmer eine Klimaanlage?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "odalarda klima var mı",
+    "query_original": "Zimmer Klimaanlage"
+   },
+   "part": "Die Zimmer haben keine Klimaanlage.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "partLang": "de",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem var; parça yok.",
+   "form": "diller-arasi",
+   "id": "c-37",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Est-ce qu’on peut avoir des vélos ?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "bisiklet var mı",
+    "query_original": "avoir des vélos"
+   },
+   "part": "Nous prêtons gratuitement des vélos à nos hôtes.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "partLang": "fr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumlu ↔ olumlu.",
+   "form": "diller-arasi",
+   "id": "c-38",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "Est-ce qu’on peut avoir des vélos ?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "bisiklet var mı",
+    "query_original": "avoir des vélos"
+   },
+   "part": "Nous ne proposons pas de vélos.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "partLang": "fr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem veriyoruz; parça vermiyoruz.",
+   "form": "diller-arasi",
+   "id": "c-39",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "В квартире есть телевизор?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "televizyon var mı",
+    "query_original": "есть телевизор"
+   },
+   "part": "В квартире нет телевизора.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "partLang": "ru",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-40",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "В квартире есть телевизор?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "televizyon var mı",
+    "query_original": "есть телевизор"
+   },
+   "part": "В квартире есть телевизор.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "partLang": "ru",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem yok; parça var.",
+   "form": "diller-arasi",
+   "id": "c-41",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "¿Hay plancha en el apartamento?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "ütü var mı",
+    "query_original": "hay plancha"
+   },
+   "part": "No hay plancha en el apartamento.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "partLang": "es",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-42",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "ek_olumluluk",
+   "guestMessage": "¿Hay plancha en el apartamento?",
+   "request": {
+    "intent": "amenities",
+    "query_tr": "ütü var mı",
+    "query_original": "hay plancha"
+   },
+   "part": "Hay una plancha en el apartamento.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "partLang": "es",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem yok; parça var.",
+   "form": "diller-arasi",
+   "id": "c-43",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Havalimanından bizi alabilir misiniz?",
+   "request": {
+    "intent": "directions_transport",
+    "query_tr": "havalimanı karşılama transfer",
+    "query_original": "Havalimanından bizi alabilir misiniz"
+   },
+   "part": "Havalimanı karşılama hizmeti vermiyoruz.",
+   "evidence": "Airport: We don't provide airport pickup.",
+   "partLang": "tr",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası olumsuz ↔ olumsuz.",
+   "form": "diller-arasi",
+   "id": "c-44",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Havalimanından bizi alabilir misiniz?",
+   "request": {
+    "intent": "directions_transport",
+    "query_tr": "havalimanı karşılama transfer",
+    "query_original": "Havalimanından bizi alabilir misiniz"
+   },
+   "part": "Havalimanından sizi alabiliriz.",
+   "evidence": "Airport: We don't provide airport pickup.",
+   "partLang": "tr",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem hizmet yok; parça var.",
+   "form": "diller-arasi",
+   "id": "c-45",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Gibt es einen Parkplatz am Haus?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark var mı",
+    "query_original": "Parkplatz am Haus"
+   },
+   "part": "Es gibt keinen Parkplatz am Haus; ein öffentliches Parkhaus ist 400 m entfernt und kostet 3 EUR pro Stunde.",
+   "evidence": "Parking: No parking on site. Public paid car park 400 m away, 3 EUR per hour.",
+   "partLang": "de",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası iki yön (yok + ücretli var), doğru.",
+   "form": "diller-arasi-iki-yon",
+   "id": "c-46",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "teras_olumsuz",
+   "guestMessage": "Gibt es einen Parkplatz am Haus?",
+   "request": {
+    "intent": "parking",
+    "query_tr": "otopark var mı",
+    "query_original": "Parkplatz am Haus"
+   },
+   "part": "Es gibt einen Parkplatz direkt am Haus.",
+   "evidence": "Parking: No parking on site. Public paid car park 400 m away, 3 EUR per hour.",
+   "partLang": "de",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem yerinde otopark yok; parça var.",
+   "form": "diller-arasi",
+   "id": "c-47",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "en"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "How much is the airport transfer?",
+   "request": {
+    "intent": "directions_transport",
+    "query_tr": "havaalanı transferi ücreti",
+    "query_original": "airport transfer price"
+   },
+   "part": "The airport transfer costs 25 Euro and must be booked at least one day in advance.",
+   "evidence": "Havaalanı transferi: Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli.",
+   "partLang": "en",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "reason": "Diller arası ücretli ↔ ücretli.",
+   "form": "diller-arasi-ucret",
+   "id": "c-48",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  },
+  {
+   "kbSet": "bahce",
+   "guestMessage": "Is the airport transfer free?",
+   "request": {
+    "intent": "directions_transport",
+    "query_tr": "havaalanı transferi ücretsiz mi",
+    "query_original": "airport transfer free"
+   },
+   "part": "The airport transfer is free.",
+   "evidence": "Havaalanı transferi: Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli.",
+   "partLang": "en",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "reason": "Kalem ücretli; parça ücretsiz.",
+   "form": "diller-arasi-ucret",
+   "id": "c-49",
+   "group": "c",
+   "origin": "ek",
+   "kbLang": "tr"
+  }
+ ]
+}

@@ -1,0 +1,151 @@
+From 0b584c0b30c05173615bef54c0657250693e0272 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 23:04:34 +0000
+Subject: [PATCH] =?UTF-8?q?HAZIR=20(onay=20bekliyor,=20Sabah=20Kararlari?=
+ =?UTF-8?q?=2067):=20U29=20=E2=80=94=20sayfa=20yolunda=20dogrulanamayan=20?=
+ =?UTF-8?q?oturum=20sayfa=20ACMAZ=20(hata=20ekrani,=20cikis=20yok);=20F06?=
+ =?UTF-8?q?=20fail-open=20degisir?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Codex 10-07: veritabani arizasinda rol bellekte personele indirilip sayfa render ediliyordu; gelen kutusu rol denetlemeden okuyor →
+iptal edilmis (surumu artmis) oturum kismi arizada misafir konusmalarini salt-okuma gorebiliyordu. Artik AuthUnverifiedError → hata
+sinirinda 'tekrar deneyin'; oturum cerezi aynen (kitlesel cikis yok), veritabani donunce ayni cerezle sayfa acilir.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ src/lib/auth/index.ts                      | 34 ++++++++++------------
+ tests/unit/require-auth-failclosed.test.ts | 32 ++++++++++----------
+ 2 files changed, 31 insertions(+), 35 deletions(-)
+
+diff --git a/src/lib/auth/index.ts b/src/lib/auth/index.ts
+index b6214f2..3b18bad 100644
+--- a/src/lib/auth/index.ts
++++ b/src/lib/auth/index.ts
+@@ -130,29 +130,27 @@ export async function requireAuth(): Promise<SessionPayload> {
+     // kaldırıldığında yukarıda ZATEN yapılan şeyin aynısı.
+     if (session.actorUserId && !isSuperAdmin(session)) invalid = true;
+   } catch {
+-    // DB blip: keep the (signature-valid) session alive — no mass-logout — but we
+-    // could NOT confirm the DB-authoritative role, so fail CLOSED on capability by
+-    // clamping to the least-privileged role. Manager/owner-gated UI + role-scoped
+-    // reads stay hidden until the DB recovers and the real role is read back.
+-    session.role = "staff";
+-    // 🚨 OPERATÖR İDDİASI DA DÜŞER (Codex F06, P1). Eski yorum "super-admin
+-    // e-posta+env tabanlı, bu rolden etkilenmez" diyordu — 08-05'ten beri YANLIŞ:
+-    // `isSuperAdmin` `mfa === true` ister ve o iddia yukarıda DB'den (aktörün /
+-    // kişinin `twoFactorEnabledAt`ı) doğrulanır. Doğrulama KOŞAMADIYSA iddia
+-    // korunursa `/admin` sayfası DB'nin teyit etmediği bir oturumla TAM RENDER
+-    // olur (her org, abonelik, lead, denetim satırı) — API yolu (`requireSession`)
+-    // aynı hâlde fail-closed, sayfa yolu asimetrikti. Doğrulanamayan ayrıcalık
+-    // ayrıcalık değildir: oturum yaşar, yetki iki eksende kısılır.
+-    session.mfa = false;
+-    // IMPERSONATION oturumu tanım gereği ayrıcalıklı bağlamdır: aktör epoch'u /
+-    // allowlist'i / faktörü teyit edilemediyse müşteri org'unda "staff" olarak bile
+-    // kalmaz → çıkış. (Normal müşteri oturumu fail-open kalır — kitlesel çıkış yok.)
+-    if (session.actorUserId) invalid = true;
++    // 🚨 U29 (Codex 10-07, HAZIR DAL — F06 kuralını değiştirir, kurucu kararı): oturum DOĞRULANAMADIYSA sayfa AÇILMAZ — "tekrar
++    // deneyin" hata ekranı (çıkış YOK: oturum çerezi aynen kalır, kitlesel çıkış olmaz). Eskiden rol bellekte personele indirilip sayfa
++    // RENDER ediliyordu; ama gelen kutusu gibi sayfalar rol denetlemeden okuyor → iptal edilmiş (sürümü artmış) bir oturum kısmi
++    // veritabanı arızasında misafir konuşmalarını salt-okuma görebiliyordu. Veritabanı gerçekten düştüyse sayfanın kendi sorguları
++    // da düşeceği için pratik fark küçük; güvenli yön doğrulanamayan oturuma veri göstermemektir.
++    // Eski davranış (F06, kurucu korumayı seçerse geri gelir): rol "staff"a, `mfa` false'a indirilir, bürünme oturumu çıkışa düşer,
++    // sayfa render olurdu. Bürünme oturumu artık da hata ekranına düşer (veri gösterilmez); çıkış bir sonraki başarılı doğrulamada.
++    throw new AuthUnverifiedError();
+   }
+   if (invalid) redirect("/api/auth/logout");
+   return session;
+ }
+ 
++/** Sayfa yolunda oturum veritabanından doğrulanamadı (U29): hata sınırı "tekrar deneyin" gösterir; çerez SİLİNMEZ. */
++export class AuthUnverifiedError extends Error {
++  constructor() {
++    super("Oturum şu an doğrulanamadı. Lütfen birazdan tekrar deneyin.");
++    this.name = "AuthUnverifiedError";
++  }
++}
++
+ export async function setSessionCookie(payload: SessionPayload): Promise<void> {
+   const token = await signSession(payload);
+   const store = await cookies();
+diff --git a/tests/unit/require-auth-failclosed.test.ts b/tests/unit/require-auth-failclosed.test.ts
+index 7c54e03..083d1a0 100644
+--- a/tests/unit/require-auth-failclosed.test.ts
++++ b/tests/unit/require-auth-failclosed.test.ts
+@@ -24,7 +24,7 @@ vi.mock("next/navigation", () => ({
+   },
+ }));
+ 
+-import { requireAuth } from "@/lib/auth";
++import { AuthUnverifiedError, requireAuth } from "@/lib/auth";
+ import { signSession } from "@/lib/auth/session";
+ import { isSuperAdmin } from "@/lib/admin-core";
+ 
+@@ -43,11 +43,12 @@ describe("requireAuth — fail-open session, fail-closed capability", () => {
+     TOKEN = await signSession(base);
+   });
+ 
+-  it("clamps role to staff when the DB role read throws (capability fail-closed, session kept)", async () => {
++  // U29 (Codex 10-07, HAZIR DAL — F06 kuralını değiştirir): doğrulanamayan oturum sayfa AÇMAZ (hata ekranı, "tekrar deneyin");
++  // çıkış YOK. Eskiden rol bellekte personele indirilip sayfa render oluyordu → gelen kutusu rol denetlemeden okuyordu.
++  it("🚨 U29: DB rol okuması düşerse sayfa AÇILMAZ (hata ekranı) — çıkışa da yönlenmez", async () => {
+     findUnique.mockRejectedValue(new Error("db down"));
+-    const s = await requireAuth();
+-    expect(s.role).toBe("staff"); // no stale "manager" during the blip
+-    expect(s.organizationId).toBe("o1"); // session stays alive — not logged out
++    await expect(requireAuth()).rejects.toBeInstanceOf(AuthUnverifiedError); // ⬅️ ESKİDE oturum "staff" olarak döner, sayfa açılırdı
++    await expect(requireAuth()).rejects.not.toThrow("REDIRECT");
+   });
+ 
+   it("🚨 rolü DEĞİŞMİŞ oturum (düşürülen yönetici → personel) çıkışa yönlenir (Codex 09-30 B2)", async () => {
+@@ -285,12 +286,9 @@ describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
+   // Doğrulanamayan ayrıcalık ayrıcalık DEĞİLDİR: oturum yaşar (kitlesel çıkış
+   // yok), yetki İKİ eksende kısılır — rol staff, operatör iddiası düşer.
+   // -------------------------------------------------------------------------
+-  it("🚨 DB arızasında iddia DÜŞER — oturum yaşar, operatör yetkisi kapanır", async () => {
++  it("🚨 DB arızasında operatör sayfası da açılmaz (U29: doğrulanamayan oturum hiç oturum döndürmez — iddia sızamaz)", async () => {
+     findUnique.mockRejectedValue(new Error("db down"));
+-    const s = await requireAuth();
+-    expect(s.role).toBe("staff");
+-    expect(s.organizationId).toBe("o1"); // kimse çıkışa atılmadı
+-    expect(s.mfa).toBe(false); // ⬅️ ARIZADA: true (doğrulanmamış ayrıcalık korunuyordu)
++    await expect(requireAuth()).rejects.toBeInstanceOf(AuthUnverifiedError);
+   });
+ });
+ 
+@@ -306,8 +304,7 @@ describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)",
+   it("🚨 Codex kanıtı: izinli kurucu oturumu + DB lookup hatası → isSuperAdmin FALSE (sayfa yetki vermez)", async () => {
+     // `/admin/page.tsx` tam olarak bunu yapar: requireAuth → isSuperAdmin → değilse redirect.
+     findUnique.mockRejectedValue(new Error("db down"));
+-    const s = await requireAuth();
+-    expect(isSuperAdmin(s)).toBe(false); // ⬅️ ARIZADA: true — çapraz-kiracı veri okunurdu
++    await expect(requireAuth()).rejects.toBeInstanceOf(AuthUnverifiedError); // U29: oturum hiç dönmez → isSuperAdmin'e ulaşılmaz
+   });
+ 
+   it("KONTROL: DB sağlıklı + 2FA açıkken kurucu yetkisi KORUNUR (aşırı-uygulama değil)", async () => {
+@@ -335,14 +332,15 @@ describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)",
+       impersonatedAt: Math.floor(Date.now() / 1000),
+       mfa: true,
+     } as SessionPayload);
+-    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
++    // U29: bürünme oturumu da hata ekranına düşer (veri gösterilmez); çıkış bir sonraki başarılı doğrulamada.
++    await expect(requireAuth()).rejects.toBeInstanceOf(AuthUnverifiedError);
+   });
+ 
+-  it("KONTROL: normal müşteri oturumu DB arızasında YAŞAR (fail-open korunur, kitlesel çıkış yok)", async () => {
++  it("KONTROL: normal müşteri oturumu DB arızasında ÇIKIŞA atılmaz (kitlesel çıkış yok) — yalnız sayfa hata ekranı (U29)", async () => {
+     findUnique.mockRejectedValue(new Error("db down"));
+     TOKEN = await signSession(base); // actorUserId YOK, superadmin değil
+-    const s = await requireAuth();
+-    expect(s.userId).toBe("u1");
+-    expect(s.role).toBe("staff");
++    await expect(requireAuth()).rejects.toBeInstanceOf(AuthUnverifiedError);
++    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "manager", organizationId: "o1", twoFactorEnabledAt: null });
++    expect((await requireAuth()).userId).toBe("u1"); // veritabanı dönünce aynı çerezle sayfa açılır
+   });
+ });
+-- 
+2.43.0
+

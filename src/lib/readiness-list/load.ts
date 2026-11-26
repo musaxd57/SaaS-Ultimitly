@@ -1,0 +1,607 @@
+import "server-only";
+
+import { prisma } from "@/lib/db";
+import { orgTimezone } from "@/lib/timezone";
+import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
+import { reservationDayRangeWhere } from "@/lib/day-where";
+import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
+import { wallClockMoment } from "@/lib/early-checkin/readiness";
+import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
+import { commitmentLabel, isCommitmentKind } from "@/lib/guest-commitments-core";
+import { isItemKind } from "@/lib/conversation-items/core";
+import { itemKindLabel } from "@/lib/conversation-items/view";
+import { reportError } from "@/lib/report-error";
+import { TASK_TYPE } from "@/lib/constants";
+import { reservationMessagingCapable } from "@/lib/channels/capability";
+// Kayıtlı sağlayıcı ancak kanal katmanının GİRİŞİNDEN alınırsa vardır (`channels/index.ts` kaydı yan etkiyle yapar) — doğrudan
+// `channels/access`tan almak boş kayıt → her zaman "bağlantı yok" derdi (Gönderilenler / Mülkler / Raporlar da böyle alır).
+import { hasMessagingConnection } from "@/lib/channels";
+import { lifecycleBaselineWhere } from "@/lib/automation";
+import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
+import { autoMessageIssue } from "@/lib/auto-messages/render";
+import { loadErasureGuard } from "@/lib/erasure";
+import { UNRESOLVED_DELIVERY_STATUSES } from "@/lib/outbox/state";
+import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
+import { checklistTouched, WORK_TRACE_TASK_UPDATE_WHERE } from "@/lib/tasks/cancelled-leftovers";
+import { loadBackupCleaners } from "@/lib/tasks/default-cleaner";
+
+// UX-10 D3: görevde kişi izi (temizlikçi değişimindeki aktarımla AYNI tanım: kişinin kaydı / fotoğraf ya da işaretli kontrol listesi maddesi).
+// Girişler'den atamanın "başladı" izi — rotanın kilitli kontrolüyle AYNI dar tanım (kurucu 11-13; onarımın geniş tanımı değil).
+const TOUCHING_UPDATE_WHERE = WORK_TRACE_TASK_UPDATE_WHERE;
+const taskTouched = (t: { checklistJson: string | null; _count: { updates: number } }): boolean => t._count.updates > 0 || checklistTouched(t.checklistJson);
+
+// ---------------------------------------------------------------------------
+// GİRİŞ HAZIRLIĞI LİSTESİ — YÜKLEYİCİ (salt-okuma; org kapsamlı; model çağrısı ve yazma YOK).
+//
+// 🚨 Temizlik hükmü konaklama başına BUGÜNKÜ tek-konaklama yükleyicisinden (`loadEarlyCheckinFacts`) gelir — misafire giden
+// "erken giriş onayı" kararıyla AYNI kanıt yolu; devir seçimi, görev kümesi ve "bitti" kanıtı burada YENİDEN YAZILMAZ (ikinci bir kopya
+// zamanla ayrışırdı). Burada yalnız GÖSTERİM ayrıntısı (kim atandı / başladı, kimin "bitti" dediği) ve hükme girmeyen ek faktörler
+// (söz, ihtiyaç, giriş talimatı) toplu sorgularla eklenir. Ölçü: konaklama başına ~6-8 sorgu; eşzamanlılık sınırlı.
+// ---------------------------------------------------------------------------
+
+/** Liste penceresi: bugün + sonraki iki gün (işletme saat dilimiyle). */
+export const READINESS_LIST_DAYS = 3;
+/** Bir sayfada en çok bu kadar giriş (aşan kısım listenin altında söylenir — sessiz kesme yok). */
+export const READINESS_LIST_MAX = 120;
+const CONCURRENCY = 4;
+
+/** Onaylı / gönderilmiş erken giriş kararı (geç çıkış yükleyicisiyle aynı durum kümesi; temizlik gün sırası da okur — `tasks/day-order-load`). */
+export const DECIDED_STATUSES = ["approved", "resolved_by_policy", "send_unverified", "sending"];
+
+export interface ArrivalRow {
+  reservationId: string;
+  propertyId: string;
+  propertyName: string;
+  guestName: string | null;
+  dayKey: string;
+  checkInTime: string | null;
+  conversationId: string | null;
+  readiness: StayReadiness;
+}
+
+export interface ArrivalReadinessList {
+  timeZone: string;
+  fromKey: string;
+  toKey: string;
+  rows: ArrivalRow[];
+  /** Pencerede olup listeye sığmayan giriş sayısı (0 = hepsi listede). */
+  truncated: number;
+}
+
+async function pool<T, R>(items: readonly T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+export async function loadArrivalReadiness(
+  organizationId: string,
+  now: Date,
+  opts: { days?: number; max?: number } = {},
+): Promise<ArrivalReadinessList> {
+  const days = opts.days ?? READINESS_LIST_DAYS;
+  const max = opts.max ?? READINESS_LIST_MAX;
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { timezone: true, autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true },
+  });
+  const tz = orgTimezone(org?.timezone);
+  const fromKey = todayKey(now, tz);
+  const toKey = addNights(fromKey, Math.max(1, days) - 1);
+  const where = {
+    property: { organizationId },
+    status: { in: ["confirmed", "completed"] },
+    AND: [reservationDayRangeWhere("arrivalDate", { from: fromKey, to: toKey }, tz)],
+  };
+  const [arrivals, total] = await Promise.all([
+    prisma.reservation.findMany({
+      where,
+      select: {
+        id: true,
+        propertyId: true,
+        guestName: true,
+        arrivalDate: true,
+        // Otomatik giriş mesajı bu rezervasyona gider mi / gitti mi (gönderici `sendDueCheckins` ile aynı şartlar — Opus 11-06 N2).
+        checkinSentAt: true,
+        status: true,
+        sourceReference: true,
+        calendarSourceId: true,
+        channel: true,
+        createdAt: true,
+        property: { select: { name: true, checkInTime: true } },
+      },
+      orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+      take: max,
+    }),
+    prisma.reservation.count({ where }),
+  ]);
+  if (arrivals.length === 0) return { timeZone: tz, fromKey, toKey, rows: [], truncated: 0 };
+
+  const arrivalIds = arrivals.map((a) => a.id);
+  const propertyIds = [...new Set(arrivals.map((a) => a.propertyId))];
+
+  // 🚀 ÜÇ BAĞIMSIZ KOL AYNI ANDA (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`). Eskiden sıra: konaklama
+  // olguları → hepsine bağlı toplu okuma → söz / ihtiyaç → kişi adları → gönderim zinciri (bağlantı → silme kaydı → açılış tabanı → iki
+  // daire → kuyruk). Olgulara bağlı olan yalnız görev / işaret / not / çakışma okumaları ve kişi adları; konuşma → söz / ihtiyaç, karar /
+  // bilgi tabanı / otomatik mesaj / yedek temizlikçi ve gönderim zinciri yalnız işletme + giriş listesine bakar → olgu havuzuyla aynı anda
+  // başlar. Hepsi salt okuma, ortak istemci (işlem yok). Bağlantı denetimi ve silme kaydı bu çağrıda en çok BİR kez okunur (eskiden otomatik
+  // giriş ve elle gönderim düğmesi için iki kez). Önceden başlayan kolların olası hatası, beklenene kadar işlenmemiş ret sayılmasın diye
+  // işaretlenir; beklenince bugünkü gibi çağırana çıkar.
+
+  // Temizlik hükmü: konaklama başına BUGÜNKÜ yükleyici (aynı kanıt yolu). Bir konaklamanın hatası sayfayı düşürmez: o satır "okunamadı"
+  // (bilinmiyor — asla yeşil değil) olur, hata raporlanır.
+  const failed = new Set<number>();
+  const factsRead = pool(arrivals.map((a, i) => ({ a, i })), CONCURRENCY, async ({ a, i }) => {
+    try {
+      return await loadEarlyCheckinFacts({
+        organizationId,
+        propertyId: a.propertyId,
+        reservationId: a.id,
+        now,
+        requested: { time: null, sources: 0, conflict: false },
+        singleIntent: true,
+      });
+    } catch (err) {
+      failed.add(i);
+      void reportError("readiness-list.stay", err);
+      return null;
+    }
+  });
+
+  // Olgulardan bağımsız okumalar.
+  const independentRead = Promise.all([
+    (async () => {
+      const conversations = await prisma.conversation.findMany({
+        where: { reservationId: { in: arrivalIds }, property: { organizationId } },
+        select: { id: true, reservationId: true },
+        orderBy: { createdAt: "asc" },
+      });
+      const convIds = conversations.map((c) => c.id);
+      const [commitments, items] = await Promise.all([
+        convIds.length
+          ? prisma.guestCommitment.findMany({
+              where: { organizationId, conversationId: { in: convIds }, status: "open" },
+              select: {
+                id: true,
+                conversationId: true,
+                kind: true,
+                topic: true,
+                dueAt: true,
+                taskId: true,
+                task: {
+                  select: {
+                    status: true,
+                    assignedToId: true,
+                    checklistJson: true,
+                    _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
+                    assignedTo: { select: { name: true } },
+                  },
+                },
+              },
+              orderBy: { dueAt: "asc" },
+            })
+          : Promise.resolve([]),
+        convIds.length
+          ? prisma.conversationItem.findMany({
+              where: { conversationId: { in: convIds }, status: { in: ["open", "pending_host"] } },
+              select: { id: true, conversationId: true, kind: true, status: true, createdAt: true },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            })
+          : Promise.resolve([]),
+      ]);
+      return { conversations, commitments, items };
+    })(),
+    prisma.decisionRequest.findMany({
+      where: { organizationId, reservationId: { in: arrivalIds }, kind: "early_checkin", status: { in: DECIDED_STATUSES }, decidedTime: { not: null } },
+      select: { reservationId: true, decidedTime: true },
+    }),
+    prisma.knowledgeBaseItem.findMany({
+      where: { propertyId: { in: propertyIds }, category: "checkin", isActive: true, property: { organizationId } },
+      select: { id: true, propertyId: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    // Misafire GİDECEK otomatik giriş mesajı (Codex 11-05; bilgi tabanından ayrı). Metin okunur ama yalnız boş mu diye — gösterilmez.
+    prisma.autoMessageTemplate.findMany({
+      where: { organizationId, propertyId: { in: propertyIds }, kind: "checkin" },
+      select: { id: true, propertyId: true, body: true, needsReview: true, lastSkipReason: true, updatedAt: true },
+    }),
+    // Dairenin YEDEK temizlikçisi (kurucu 11-13): yalnız atama kutusunun ön seçimi — okunamazsa öneri yok, sayfa düşmez, hüküm değişmez.
+    loadBackupCleaners(prisma, organizationId, propertyIds).catch((err) => {
+      void reportError("readiness-list.backup-cleaner", err);
+      return new Map<string, string>();
+    }),
+  ]);
+  void independentRead.catch(() => undefined);
+
+  // 🚨 "Hazır" demeden önce gönderici GERÇEKTEN gönderecek mi (Opus 11-06 N2): gönderici (`sendDueCheckins`) ayrıca genel anahtarı,
+  // işletmenin kanal bağlantısını, açılış tabanını (daire başına) ve rezervasyonun kanaldan mesajlaşabilir olmasını ister. Aynı yapı
+  // taşları kullanılır (ikinci kural yok): `reservationMessagingCapable` (SQL parçasıyla doğruluk tablosu pinli) · `lifecycleBaselineWhere`
+  // · `hasMessagingConnection` (belirteç çekmez, yenilemez).
+  let connectionRead: Promise<boolean> | null = null;
+  const connected = () => (connectionRead ??= hasMessagingConnection(organizationId).catch(() => false));
+  let erasureRead: ReturnType<typeof loadErasureGuard> | null = null;
+  const erasureGuard = () => (erasureRead ??= loadErasureGuard(organizationId));
+  const sendingRead = Promise.all([
+    (async () => {
+      const orgOff: "kill_switch" | "no_connection" | "no_baseline" | null = !org?.autoCheckin
+        ? null
+        : process.env.AUTO_REPLY_ENABLED !== "1"
+          ? "kill_switch"
+          : !(await connected())
+            ? "no_connection"
+            : !org.autoCheckinEnabledAt
+              ? "no_baseline"
+              : null;
+      const autoOn = Boolean(org?.autoCheckin) && !orgOff;
+      const enabledAt = org?.autoCheckinEnabledAt ?? null;
+      const [erasure, afterBaseline, twoProperties] = await Promise.all([
+        // Gönderici açıkça SİLİNEN (KVKK) misafire de göndermez (Haiku 11-06) — aynı kapı.
+        autoOn ? erasureGuard() : null,
+        autoOn && enabledAt
+          ? (async () => {
+              const rows = await prisma.reservation.findMany({
+                where: { id: { in: arrivalIds }, AND: [await lifecycleBaselineWhere(organizationId, enabledAt)] },
+                select: { id: true },
+              });
+              return new Set(rows.map((r) => r.id));
+            })()
+          : new Set<string>(),
+        // Gönderici iki FARKLI dairede etkin kaydı olan rezervasyona göndermez (kurucu 11-18 akşam) — aynı yüklem, tek sorgu.
+        autoOn
+          ? bookingRefsInMultipleProperties(prisma, {
+              organizationId,
+              refs: arrivals.flatMap((a) => (a.sourceReference ? [a.sourceReference] : [])),
+              now,
+            })
+          : new Set<string>(),
+      ]);
+      return { orgOff, erasure, afterBaseline, twoProperties };
+    })(),
+    (async () => {
+      // UX-10 D5: giriş mesajı ELLE gönderilebilir mi (yalnız düğmenin görünürlüğü; sunucu `prepareCheckinNow` her şartı yeniden okur). Acil
+      // durdurma açıkken hiç yok; bağlantı bir kez okunur (belirteç çekmez).
+      const manualConnection = process.env.AUTO_REPLY_ENABLED === "1" ? await connected() : false;
+      // Kuyrukta bu rezervasyonun giriş mesajı satırı varsa (uçuşta / gönderildi / doğrulanamadı) düğme SUNULMAZ — dokunuş "zaten gönderim
+      // sırasında" derdi (Haiku D5 #5). Kesin başarısız ya da iptal satır misafire ulaşmadı: elle gönderim doğrudan yoldan gider (Opus B1) →
+      // düğme kalır (`sendCheckinNow` ile aynı küme).
+      // İstisna (Opus 11-18 B-2): rezervasyon iki dairede kayıtlıysa kuyruk işçisi BEKLEYEN satırı tutar, mesaj kendiliğinden gitmez — düğme
+      // kalır; ev sahibi doğru dairenin satırından gönderince `sendCheckinNow` bekleyen satırı iptal edip doğrudan yoldan gönderir. Uçuşta /
+      // gönderildi / doğrulanamadı satır bu istisnaya girmez.
+      const queuedCheckinRefs = new Set<string>();
+      const queuedBeyondPendingRefs = new Set<string>();
+      // G1 tur 4 T4-B2: kuyrukta SON durumda başarısız kalmış giriş mesajı — gönderici bu rezervasyonu bir daha kuyruğa almaz; ekran "hazır"
+      // dememeli (↓`autoCheckinStateOf` "gitmez" + elle gönderim).
+      const failedCheckinRefs = new Set<string>();
+      // G1 tur 5 T5-B2: gönderimi doğrulanamayan giriş mesajı gitmiş OLABİLİR — "hazır" denmez, düğme de sunulmaz (↑queued kümesinde kalır). Küme
+      // teslim sonucunun tek kaynağı (`UNRESOLVED_DELIVERY_STATUSES`: belirsiz · uzlaştırılıyor · inceleme — sert kontrol 11-20 A1-c).
+      const unverifiedCheckinRefs = new Map<string, "checking" | "unverified">();
+      const refs = manualConnection ? [...new Set(arrivals.map((a) => a.sourceReference).filter((ref): ref is string => Boolean(ref)))] : [];
+      const [manualErasure, owned] = await Promise.all([
+        manualConnection ? erasureGuard() : null,
+        refs.length > 0
+          ? prisma.messageOutbox.findMany({
+              where: { organizationId, messageType: "checkin", externalReservationId: { in: refs }, status: { not: "canceled" } },
+              select: { externalReservationId: true, status: true },
+            })
+          : [],
+      ]);
+      for (const o of owned) {
+        if (!o.externalReservationId) continue;
+        if (o.status === "failed") {
+          failedCheckinRefs.add(o.externalReservationId);
+          continue;
+        }
+        queuedCheckinRefs.add(o.externalReservationId);
+        if (o.status !== "pending") queuedBeyondPendingRefs.add(o.externalReservationId);
+        // Kurucu 11-20 öğlen G-2: uzlaştırma sürerken "kontrol ediliyor", inceleme (kontrol bitti, hâlâ belirsiz) "doğrulanamadı".
+        if ((UNRESOLVED_DELIVERY_STATUSES as readonly string[]).includes(o.status)) {
+          unverifiedCheckinRefs.set(o.externalReservationId, o.status === "review" ? "unverified" : "checking");
+        }
+      }
+      return { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs, unverifiedCheckinRefs };
+    })(),
+  ]);
+  void sendingRead.catch(() => undefined);
+
+  const facts = await factsRead;
+  // Gösterilen görevler = hükmün okuduğu görevler (çekirdeğin kümesi; bağsız devir günü görevi dahil — Haiku 11-05).
+  const cleaningIds = [...new Set(facts.flatMap((f) => f?.cleaningTaskIds ?? []))];
+  const readyMarkIds = facts.map((f) => f?.readyMark?.id).filter((x): x is string => !!x);
+  // Engel / bilgi satırlarının dayanağı (çekirdeğin aynı kümeleri — Opus 11-05 F7; kurucu: "her durumun dayanağı anlaşılsın").
+  // `?.` basisIds'te de: dayanağı olmayan bir sonuç (eski / taklit) satırı düşürmez, bütün listeyi hiç düşürmez (Haiku 11-05).
+  const issueIds = [...new Set(facts.flatMap((f) => [...(f?.basisIds?.issueTaskIds ?? []), ...(f?.basisIds?.maintenanceTaskIds ?? [])]))];
+  const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds?.noteTaskIds ?? []))];
+  const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds?.overlapReservationIds ?? []))];
+
+  const [cleaningTasks, readyUpdates, issueTasks, noteUpdates, overlapStays] = await Promise.all([
+    cleaningIds.length
+      ? prisma.task.findMany({
+          where: { id: { in: cleaningIds }, property: { organizationId } },
+          select: {
+            id: true,
+            reservationId: true,
+            status: true,
+            assignedToId: true,
+            checklistJson: true,
+            _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
+            assignedTo: { select: { name: true } },
+            updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true, note: true } },
+          },
+        })
+      : Promise.resolve([]),
+    readyMarkIds.length
+      ? prisma.taskUpdate.findMany({ where: { id: { in: readyMarkIds }, task: { property: { organizationId } } }, select: { id: true, userId: true } })
+      : Promise.resolve([]),
+    issueIds.length
+      ? prisma.task.findMany({
+          where: { id: { in: issueIds }, property: { organizationId } },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            dueAt: true,
+            dueAtPrecision: true,
+            priority: true,
+            reservationId: true,
+            reservation: { select: { arrivalDate: true, departureDate: true } },
+            status: true,
+            assignedToId: true,
+            checklistJson: true,
+            _count: { select: { updates: { where: TOUCHING_UPDATE_WHERE } } },
+            assignedTo: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
+    // Notun yalnız yazanı + anı (İÇERİK seçilmez). Çekirdeğin saydığı kümeyle aynı koşul: kimlikli not kaydı; en yenisi önce.
+    noteTaskIds.length
+      ? prisma.taskUpdate.findMany({
+          where: { taskId: { in: noteTaskIds }, note: { not: null }, userId: { not: null }, task: { property: { organizationId } } },
+          select: { id: true, taskId: true, userId: true, createdAt: true },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+      : Promise.resolve([]),
+    overlapIds.length
+      ? prisma.reservation.findMany({
+          where: { id: { in: overlapIds }, property: { organizationId } },
+          select: { id: true, guestName: true, arrivalDate: true, departureDate: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Kişi adları (org kapsamlı): başlayan / bitiren kullanıcı.
+  const userIds = new Set<string>();
+  for (const t of cleaningTasks) for (const u of t.updates) if (u.userId) userIds.add(u.userId);
+  for (const u of readyUpdates) if (u.userId) userIds.add(u.userId);
+  for (const u of noteUpdates) if (u.userId) userIds.add(u.userId);
+  const users = userIds.size
+    ? await prisma.user.findMany({ where: { id: { in: [...userIds] }, organizationId }, select: { id: true, name: true } })
+    : [];
+  const [{ conversations, commitments, items }, earlyDecisions, kbItems, autoCheckins, backups] = await independentRead;
+  const [{ orgOff, erasure, afterBaseline, twoProperties }, { manualConnection, manualErasure, queuedCheckinRefs, queuedBeyondPendingRefs, failedCheckinRefs, unverifiedCheckinRefs }] =
+    await sendingRead;
+
+  const convByReservation = new Map<string, string[]>();
+  for (const c of conversations) {
+    if (!c.reservationId) continue;
+    convByReservation.set(c.reservationId, [...(convByReservation.get(c.reservationId) ?? []), c.id]);
+  }
+  const nameOf = new Map(users.map((u) => [u.id, u.name]));
+  const readyUserOf = new Map(readyUpdates.map((u) => [u.id, u.userId ? (nameOf.get(u.userId) ?? null) : null]));
+  const earlyOf = new Map<string, string>();
+  for (const d of earlyDecisions) {
+    const t = normalizeHhmm(d.decidedTime);
+    if (!d.reservationId || !t) continue;
+    const prev = earlyOf.get(d.reservationId);
+    if (!prev || t < prev) earlyOf.set(d.reservationId, t);
+  }
+  const accessOf = new Map<string, { id: string; at: Date }>();
+  for (const k of kbItems) if (!accessOf.has(k.propertyId)) accessOf.set(k.propertyId, { id: k.id, at: k.updatedAt });
+  const issueById = new Map(issueTasks.map((t) => [t.id, t]));
+  const autoCheckinOf = new Map(autoCheckins.map((a) => [a.propertyId, a]));
+  const autoCheckinStateOf = (a: (typeof arrivals)[number]): NonNullable<StayReadinessInput["autoCheckin"]> => {
+    if (a.checkinSentAt) return { state: "sent", at: a.checkinSentAt };
+    if (!org?.autoCheckin) return { state: "disabled" };
+    if (orgOff) return { state: "not_sending", reason: orgOff };
+    const t = autoCheckinOf.get(a.propertyId);
+    if (!t || t.body.trim() === "") return { state: "missing" };
+    if (!reservationMessagingCapable(a)) return { state: "not_sending", reason: "no_channel" };
+    // Gönderici yalnız "onaylı" rezervasyonu ve silinmemiş kaynak kimliğini aday yapar (Haiku 11-06).
+    if (a.status !== "confirmed") return { state: "not_sending", reason: "no_baseline" };
+    if (erasure?.blocksSourceReference(a.sourceReference)) return { state: "not_sending", reason: "erased" };
+    if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
+    // Gönderimi belirsiz mesaj iki dairede kayıttan ÖNCE okunur (sert kontrol 11-20 A1-b): mesaj gitmiş olabilir, "giriş bilgisini siz gönderin"
+    // denmez (sonradan eklenen kopya bunu değiştirmez).
+    const unresolved = a.sourceReference ? unverifiedCheckinRefs.get(a.sourceReference) : undefined;
+    if (unresolved) return { state: "unverified", phase: unresolved };
+    if (a.sourceReference && twoProperties.has(a.sourceReference)) return { state: "not_sending", reason: "two_properties" };
+    if (a.sourceReference && failedCheckinRefs.has(a.sourceReference)) return { state: "not_sending", reason: "queue_failed" };
+    // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
+    const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);
+    if (issue && issue !== "empty") return { state: "skipped", reason: issue };
+    if (t.needsReview) return { state: "review", id: t.id, at: t.updatedAt };
+    return { state: "ready", id: t.id, at: t.updatedAt };
+  };
+  const checkinManualSendableOf = (a: (typeof arrivals)[number]): boolean => {
+    if (!manualConnection || a.checkinSentAt || a.status !== "confirmed" || !reservationMessagingCapable(a)) return false;
+    if (a.sourceReference && queuedCheckinRefs.has(a.sourceReference)) {
+      const heldForTwoProperties = twoProperties.has(a.sourceReference) && !queuedBeyondPendingRefs.has(a.sourceReference);
+      if (!heldForTwoProperties) return false;
+    }
+    if (manualErasure?.blocksSourceReference(a.sourceReference)) return false;
+    const t = autoCheckinOf.get(a.propertyId);
+    if (!t || t.body.trim() === "") return false;
+    return !autoMessageIssue(t.body, a.property.name, org?.aiSignature ?? undefined);
+  };
+  const overlapById = new Map(overlapStays.map((r) => [r.id, r]));
+
+  const rows: ArrivalRow[] = arrivals.map((a, i) => {
+    const loaded = facts[i];
+    const dayKey = calendarDateOf(a.arrivalDate, tz).key;
+    const dayEnd = wallClockMoment(addNights(dayKey, 1), "00:00", tz);
+    const convs = convByReservation.get(a.id) ?? [];
+    const f = loaded?.facts;
+    const referenceId = loaded?.referenceId ?? null;
+    const ownTaskIds = new Set(loaded?.cleaningTaskIds ?? []);
+    const tasks = cleaningTasks
+      .filter((t) => ownTaskIds.has(t.id))
+      .map((t) => {
+        // Çekirdekle (`markOfTask`) aynı kural: EN SON durum kaydı ve kimlikli kişiden (Opus 11-05 F8 — eskiden herhangi bir "bitti").
+        const latest = t.updates[0];
+        const started = latest && latest.status === "in_progress" && latest.userId ? latest : null;
+        const done = latest && latest.status === "done" && latest.userId ? latest : null;
+        // "Yapamıyorum" (kurucu 11-05 gece): en son durum kaydı "Yapılamıyor" → kim · ne zaman · neden.
+        const blocked = latest && latest.status === "blocked" ? latest : null;
+        return {
+          id: t.id,
+          open: t.status !== "done",
+          assignee: t.assignedTo?.name ?? null,
+          assigneeId: t.assignedToId,
+          status: t.status,
+          touched: taskTouched(t),
+          startedAt: started?.createdAt ?? null,
+          startedBy: started?.userId ? (nameOf.get(started.userId) ?? null) : null,
+          lastDoneAt: done?.createdAt ?? null,
+          blocked: blocked ? { at: blocked.createdAt, by: blocked.userId ? (nameOf.get(blocked.userId) ?? null) : null, reason: blocked.note } : null,
+        };
+      })
+      // Açık görev önce (engelleyen o).
+      .sort((x, y) => Number(y.open) - Number(x.open));
+    const cleaning: CleaningInput = {
+      unavailable: failed.has(i),
+      status: f?.readiness ?? "unknown",
+      note: f?.readinessNote ?? null,
+      previousKnown: referenceId !== null,
+      // Hükmün ölçüldüğü devrin çıkışı (aynı gün ya da önceki bir gün — Opus 11-05 N6); eski / taklit sonuçta aynı gün çıkışına düşer.
+      previousCheckout: loaded?.referenceCheckout?.time ?? f?.previousSameDay?.checkoutTime ?? null,
+      previousCheckoutDay: loaded?.referenceCheckout?.dayKey ?? null,
+      readyMark: loaded?.readyMark
+        ? {
+            id: loaded.readyMark.id,
+            at: loaded.readyMark.at,
+            by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null,
+            ...(loaded.readyMark.beforeCheckout ? { beforeCheckout: true } : {}),
+          }
+        : null,
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        assignee: t.assignee,
+        assigneeId: t.assigneeId,
+        status: t.status,
+        touched: t.touched,
+        startedAt: t.startedAt,
+        startedBy: t.startedBy,
+        lastDoneAt: t.lastDoneAt,
+        blocked: t.blocked,
+      })),
+      backupUserId: backups.get(a.propertyId) ?? null,
+    };
+    const basisIds = loaded?.basisIds;
+    const noteTasks = new Set(basisIds?.noteTaskIds ?? []);
+    const note = noteUpdates.find((u) => noteTasks.has(u.taskId)) ?? null;
+    const readiness = evaluateStay({
+      timeZone: tz,
+      now,
+      arrivalDayKey: dayKey,
+      cleaning,
+      cleaningNote: f?.cleaningNote === true,
+      cleaningNoteBy: note ? { updateId: note.id, by: note.userId ? (nameOf.get(note.userId) ?? null) : null, at: note.createdAt } : null,
+      openIssue: f?.openIssue === true,
+      maintenanceOpen: f?.maintenanceOpen === true,
+      issueTasks: [...new Set([...(basisIds?.issueTaskIds ?? []), ...(basisIds?.maintenanceTaskIds ?? [])])]
+        .map((id) => issueById.get(id))
+        .filter((t): t is NonNullable<typeof t> => !!t)
+        .map((t) => {
+          // Çekirdeğin kümesi ilişkiyi söyler: devir kümesi → bu devre bağlı; mülk kümesi → bağsız ya da BAŞKA konaklamaya bağlı. GELEN
+          // konaklamanın kendi görevi her zaman devrindir (Opus 11-06 N4: önceki konaklaması olmayan dairede mülk kümesine düşüyor, "eski
+          // konaklamadan" yazılıyordu).
+          const turnover = (basisIds?.issueTaskIds ?? []).includes(t.id) || t.reservationId === a.id;
+          const relation: "turnover" | "unlinked" | "other_stay" = turnover ? "turnover" : t.reservationId ? "other_stay" : "unlinked";
+          const stayKeys = t.reservation
+            ? { arrivalKey: calendarDateOf(t.reservation.arrivalDate, tz).key, departureKey: calendarDateOf(t.reservation.departureDate, tz).key }
+            : null;
+          return {
+            id: t.id,
+            title: t.title,
+            kindLabel: TASK_TYPE.label(t.type),
+            assignee: t.assignedTo?.name ?? null,
+            assigneeId: t.assignedToId,
+            status: t.status,
+            touched: taskTouched(t),
+            dueAt: t.dueAt,
+            dueAtPrecision: t.dueAtPrecision,
+            relation,
+            priority: t.priority,
+            // Konaklama varıştan ÖNCE bittiyse "eski", varıştan SONRA başlıyorsa "sonraki", yoksa "başka" (Opus 11-06 N4).
+            stay:
+              relation === "other_stay" && stayKeys
+                ? {
+                    ...stayKeys,
+                    when:
+                      stayKeys.departureKey <= dayKey
+                        ? ("past" as const)
+                        : stayKeys.arrivalKey > dayKey
+                          ? ("later" as const)
+                          : ("overlap" as const),
+                  }
+                : null,
+          };
+        }),
+      issueTasksMore: basisIds?.maintenanceMore === true,
+      overlaps: f?.otherOverlaps ?? 0,
+      overlapStays: (basisIds?.overlapReservationIds ?? [])
+        .map((id) => overlapById.get(id))
+        .filter((r): r is NonNullable<typeof r> => !!r)
+        .map((r) => ({
+          id: r.id,
+          guestName: r.guestName,
+          arrivalKey: calendarDateOf(r.arrivalDate, tz).key,
+          departureKey: calendarDateOf(r.departureDate, tz).key,
+        })),
+      commitments: commitments
+        .filter((c) => convs.includes(c.conversationId) && (dayEnd === null || c.dueAt < dayEnd))
+        .map((c) => ({
+          id: c.id,
+          label: isCommitmentKind(c.kind) ? commitmentLabel(c.kind, c.topic) : c.kind,
+          dueAt: c.dueAt,
+          assignee: c.task?.assignedTo?.name ?? null,
+          taskId: c.taskId,
+          taskAssigneeId: c.task?.assignedToId ?? null,
+          taskStatus: c.task?.status ?? null,
+          taskTouched: c.task ? taskTouched(c.task) : undefined,
+        })),
+      needs: items
+        .filter((it) => convs.includes(it.conversationId))
+        .map((it) => ({
+          id: it.id,
+          label: isItemKind(it.kind) ? itemKindLabel(it.kind) : "diğer",
+          status: it.status === "pending_host" ? ("pending_host" as const) : ("open" as const),
+          at: it.createdAt,
+        })),
+      accessInstructions: accessOf.get(a.propertyId) ?? null,
+      autoCheckin: autoCheckinStateOf(a),
+      checkinManualSendable: checkinManualSendableOf(a),
+      checkInTime: earlyOf.get(a.id) ?? normalizeHhmm(a.property.checkInTime),
+    });
+    return {
+      reservationId: a.id,
+      propertyId: a.propertyId,
+      propertyName: a.property.name,
+      guestName: a.guestName,
+      dayKey,
+      checkInTime: earlyOf.get(a.id) ?? normalizeHhmm(a.property.checkInTime),
+      conversationId: convs[0] ?? null,
+      readiness,
+    };
+  });
+  // Gün anahtarına göre sırala (Opus 11-05 F8): ham varış anı karışık kaynaklarda (gece yarısı / öğle / an) batı saat dilimlerinde gün
+  // sırasıyla aynı değil — gün bölümleri bölünmesin.
+  rows.sort((a, b) => (a.dayKey === b.dayKey ? 0 : a.dayKey < b.dayKey ? -1 : 1));
+  return { timeZone: tz, fromKey, toKey, rows, truncated: Math.max(0, total - arrivals.length) };
+}

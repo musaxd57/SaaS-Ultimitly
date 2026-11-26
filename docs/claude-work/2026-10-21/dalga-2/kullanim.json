@@ -1,0 +1,20 @@
+{
+  "model": "claude-sonnet-5-5",
+  "budget": 35,
+  "total": 10.551793499999997,
+  "byTask": {
+    "ping": 0.0317192,
+    "judge2": 0.3010672,
+    "p2_recheck": 5.163212000000002,
+    "probe": 0.6134611,
+    "code_review_ui": 3.1592606,
+    "market": 1.2830734
+  },
+  "calls": 161,
+  "searches": 44,
+  "refusals": 0,
+  "errors": 0,
+  "inTok": 3288963,
+  "outTok": 253583,
+  "cacheRead": 1435000
+}

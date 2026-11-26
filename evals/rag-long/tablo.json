@@ -1,0 +1,1137 @@
+{
+ "version": 1,
+ "split": "tablo",
+ "author": "ayrı yazar (Sonnet, tablo ağırlıklı kör set), sistemi görmedi",
+ "note": "Tablo ağırlıklı uzun belge seti: 5 Markdown belge (her biri en az 3 tablo, en az 2 uzun tablo: 1.200+ karakter, 12+ satır), belge başına 16 soru (toplam 80). Sezon/ücret, cihaz, atık takvimi, ulaşım saatleri, havuz/tesis saatleri (yaz/kış), kişi sayısına göre ücret, ek hizmet, iki dilli (TR/EN) tablo; '—' ve 'Yapılmıyor' hücreleri. requiredSpans belgeden birebir: tablo satırı + başlık satırı + tabloya gönderme yapan tanım cümlesi. Belge başına 2 soru cevapsız (requiredSpans boş). Kurgusal daireler (Lale 1-5).",
+ "documents": [
+  {
+   "id": "T1",
+   "property": "Lale 1",
+   "title": "Lale 1 — Misafir Rehberi: Sezonlar, Ücretler ve Ek Hizmetler",
+   "format": "markdown",
+   "text": "# Lale 1 — Misafir Rehberi: Sezonlar, Ücretler ve Ek Hizmetler\n\nBu rehber, Lale 1 dairesinde konaklayacak misafirlerimiz için hazırlanmıştır. Daire, Lale Sitesi'nin B Blok 3. katındadır; iki yatak odası, bir salon, bir mutfak ve bir balkondan oluşur ve en fazla 6 kişiyi ağırlar. Aşağıdaki tablolar, rezervasyon sırasında size bildirilen tutarın nasıl hesaplandığını gösterir. Bir rakamdan emin olmazsanız bize yazabilirsiniz; bu rehberde yer almayan hiçbir ücret sizden önceden haber verilmeden tahsil edilmez.\n\n## 1. Giriş ve çıkış\n\nGiriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır. Anahtar kutusu B Blok girişindedir; kutunun şifresi giriş gününün sabahı mesajla gönderilir. Geç saatte varacaksanız lütfen en az iki saat önceden haber verin. Çıkışta anahtarı kutuya geri bırakın, balkon kapısını ve ana kapıyı kilitleyin, klimaları ve ışıkları kapatın. Erken giriş ve geç çıkış, daire o gün boşsa onaylanır; ücretleri Tablo 2'de verilmiştir.\n\n## 2. Sezonlar ve gecelik fiyatlar\n\nSezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır. Bayram dönemi, resmî dinî bayramların arife gününden bayramın son gününe kadar olan süredir ve hangi sezona denk gelirse gelsin ayrı fiyatla satılır. Yılbaşı dönemi 28 Aralık – 3 Ocak arasıdır ve ayrı fiyatla satılır.\n\nTablo 1'deki tutarlar gecelik fiyattır. Fiyatlar kişi başı değil daire başıdır; yani 2 kişi de 6 kişi de aynı daire fiyatını öder. Fiyatlara KDV ve konaklama vergisi dahildir. Çıkış temizlik ücreti tek seferliktir, 750 TL'dir ve Tablo 1'deki gecelik fiyata dahil değildir. Konaklama iki sezona yayılırsa bile tüm geceler, konaklamanın başladığı sezonun sütunundan hesaplanır. Satır, toplam gece sayısına göre seçilir. Bir hücrede \"—\" işareti varsa o süre o dönemde satılmıyor demektir: yüksek sezonda en az 3, en çok 29 gece; bayram ve yılbaşı dönemlerinde en az 3, en çok 7 gece konaklanabilir.\n\n**Tablo 1 — Gecelik daire fiyatı (TL, daire başı, KDV dahil)**\n\n| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |\n|---|---|---|---|---|---|---|\n| 1 gece | 1.400 TL | 1.850 TL | — | — | — | Yalnız düşük ve orta sezonda satılır; diğer dönemlerde en az 3 gece gerekir |\n| 2 gece | 1.350 TL | 1.800 TL | — | — | — | Yalnız düşük ve orta sezonda satılır; diğer dönemlerde en az 3 gece gerekir |\n| 3 gece | 1.300 TL | 1.750 TL | 2.600 TL | 3.200 TL | 3.000 TL | Yüksek sezon, bayram ve yılbaşında en kısa süre |\n| 4 gece | 1.280 TL | 1.700 TL | 2.550 TL | 3.150 TL | 2.950 TL | Standart fiyat, tüm dönemlerde satılır |\n| 5 gece | 1.250 TL | 1.650 TL | 2.500 TL | 3.100 TL | 2.900 TL | Standart fiyat, tüm dönemlerde satılır |\n| 6 gece | 1.220 TL | 1.620 TL | 2.450 TL | 3.050 TL | 2.850 TL | Standart fiyat, tüm dönemlerde satılır |\n| 7 gece | 1.150 TL | 1.550 TL | 2.300 TL | 3.000 TL | 2.800 TL | Haftalık indirimli fiyat; bayram ve yılbaşında en uzun süre |\n| 8–10 gece | 1.100 TL | 1.500 TL | 2.200 TL | — | — | Uzun konaklama indirimi; bayram ve yılbaşında satılmaz |\n| 11–13 gece | 1.050 TL | 1.450 TL | 2.100 TL | — | — | Uzun konaklama indirimi; bayram ve yılbaşında satılmaz |\n| 14–20 gece | 980 TL | 1.350 TL | 1.950 TL | — | — | Uzun konaklama indirimi; bayram ve yılbaşında satılmaz |\n| 21–29 gece | 900 TL | 1.250 TL | 1.800 TL | — | — | Uzun konaklama indirimi; bayram ve yılbaşında satılmaz |\n| 30 gece ve üzeri | 780 TL | 1.100 TL | — | — | — | Aylık fiyat; yüksek sezon, bayram ve yılbaşında satılmaz |\n\n## 3. Ek hizmetler\n\nEk hizmetler Tablo 2'de verilmiştir. Ücretler tek seferliktir ve daire başıdır; yalnızca \"kişi başı\" yazan satır bunun dışındadır. Sütunlar sezon gruplarını gösterir: \"Düşük ve orta sezon\" sütunu düşük sezonu ve orta sezonu, \"Yüksek sezon\" sütunu yüksek sezonu, \"Bayram ve yılbaşı\" sütunu bayram dönemini ve yılbaşı dönemini kapsar. \"Yapılmıyor\" yazan hizmet sunulmaz. \"Ön bildirim\" sütunu, hizmeti en geç ne kadar önce istemeniz gerektiğini gösterir.\n\n**Tablo 2 — Ek hizmetler ve ücretleri (TL, tek seferlik)**\n\n| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |\n|---|---|---|---|---|---|\n| Erken giriş (12:00'den itibaren) | 500 TL | 750 TL | 1.000 TL | 2 gün önce | Önceki gece daire boşsa onaylanır |\n| Erken giriş (09:00'dan itibaren) | 900 TL | 1.300 TL | 1.800 TL | 3 gün önce | Önceki gece daire boşsa onaylanır |\n| Geç çıkış (14:00'e kadar) | 500 TL | 800 TL | 1.000 TL | 2 gün önce | Aynı gün yeni giriş yoksa onaylanır |\n| Geç çıkış (18:00'e kadar) | 1.000 TL | 1.500 TL | 2.000 TL | 3 gün önce | Aynı gün yeni giriş yoksa onaylanır |\n| Ara temizlik (7 geceden uzun konaklamada) | 450 TL | 600 TL | 600 TL | 1 gün önce | 10:00–14:00 arasında yapılır |\n| Ek havlu ve çarşaf takımı (kişi başı) | 150 TL | 150 TL | 200 TL | 1 gün önce | Takımlar dairede dolapta bulunur |\n| Bebek yatağı | Ücretsiz | Ücretsiz | 300 TL | 3 gün önce | 2 yaşına kadar kullanılabilir |\n| Mama sandalyesi | Ücretsiz | Ücretsiz | Ücretsiz | 1 gün önce | Katlanır modeldir |\n| Ek yatak (tek kişilik, katlanır) | 250 TL | 350 TL | 450 TL | 2 gün önce | Salona kurulur |\n| Havalimanı karşılama (4 kişiye kadar) | 1.600 TL | 1.900 TL | 2.400 TL | 3 gün önce | Bagaj dahildir |\n| Havalimanı karşılama (5–6 kişi) | 2.200 TL | 2.600 TL | 3.200 TL | 3 gün önce | Minibüsle yapılır |\n| Valiz saklama (giriş öncesi veya çıkış sonrası) | Ücretsiz | Ücretsiz | 200 TL | Gerekmez | Valizler site deposunda saklanır |\n| Başlangıç market paketi (ürün bedeli ayrı) | 300 TL | 300 TL | 400 TL | 2 gün önce | Süt, ekmek, yumurta ve meyve alınır |\n| Evcil hayvan konaklaması | Yapılmıyor | Yapılmıyor | Yapılmıyor | — | Dairede kabul edilmez |\n\n## 4. İptal ve iade\n\nİade oranları Tablo 3'te verilmiştir ve toplam konaklama bedeli üzerinden hesaplanır; çıkış temizlik ücreti ve ek hizmet bedelleri iade edilmez. Kalan süre, iptal mesajınızın bize ulaştığı andan giriş gününe kadar geçen takvim günüdür. Tarih değişikliği, giriş gününe 15 günden fazla varsa ücretsizdir.\n\n**Tablo 3 — İptal ve iade oranları**\n\n| Giriş tarihine kalan süre | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı |\n|---|---|---|---|\n| 30 gün ve daha fazla | %100 iade | %100 iade | %75 iade |\n| 15–29 gün | %75 iade | %50 iade | %25 iade |\n| 8–14 gün | %50 iade | %25 iade | İade yok |\n| 4–7 gün | %25 iade | İade yok | İade yok |\n| 0–3 gün veya gelmeme | İade yok | İade yok | İade yok |\n\n## 5. Ödeme planı\n\nÖdeme planı Tablo 4'tedir. Hasar depozitosu, çıkışta daire kontrol edildikten sonra en geç 3 gün içinde iade edilir. Ödemeler yalnızca tabloda yazan yöntemlerle yapılır.\n\n**Tablo 4 — Ödeme planı**\n\n| Ödeme adımı | Ne zaman | Tutar | Yöntem |\n|---|---|---|---|\n| Ön ödeme | Rezervasyon onaylandığında | Toplam konaklama bedelinin %30'u | Banka havalesi veya ödeme bağlantısı |\n| Kalan bedel | Girişten 7 gün önce | Toplam konaklama bedelinin %70'i | Banka havalesi veya ödeme bağlantısı |\n| Çıkış temizlik ücreti | Kalan bedelle birlikte | 750 TL | Banka havalesi veya ödeme bağlantısı |\n| Hasar depozitosu | Giriş gününde | 3.000 TL | Kart provizyonu |\n| Nakit ödeme | — | Yapılmıyor | — |\n\n## 6. Dairede neler var\n\nMutfakta buzdolabı, ocak, fırın, mikrodalga, kapsüllü kahve makinesi, su ısıtıcı ve bulaşık makinesi vardır. Banyoda çamaşır makinesi ve saç kurutma makinesi bulunur. Salonda ve iki yatak odasında klima vardır. Çay, kahve, şeker, zeytinyağı ve temel baharatlar ücretsizdir ve her misafirden sonra yenilenir. Çarşaf ve havlular ilk gün hazır bulunur; 7 geceden uzun konaklamalarda ara temizlikte yenilenir. Balkonda iki sandalye ve küçük bir masa bulunur.\n\n## 7. Daire ve site hakkında kısa notlar\n\nWi-Fi ağ adı Lale1-Misafir'dir; şifre buzdolabının üzerindeki karta yazılıdır. Çöpler her akşam site girişindeki konteynere bırakılır. Sessizlik saatleri 23:00 – 08:00 arasıdır. Dairede ve balkonda sigara içilmez; kapalı alanda sigara içilirse 2.000 TL temizlik bedeli alınır. Rezervasyonda bildirilenden fazla kişi konaklayamaz. Bir sorun yaşarsanız mesaj yoluyla bize yazın; acil durumlarda site güvenliği 7/24 görevdedir.\n"
+  },
+  {
+   "id": "T2",
+   "property": "Lale 2",
+   "title": "Lale 2 — Daire Kullanım Kılavuzu: Cihazlar, Atık Takvimi ve Isıtma-Soğutma",
+   "format": "markdown",
+   "text": "# Lale 2 — Daire Kullanım Kılavuzu: Cihazlar, Atık Takvimi ve Isıtma-Soğutma\n\nLale 2, Lale Sitesi'nin A Blok zemin katındaki bahçeli dairedir; bir yatak odası, bir salon ve bir mutfaktan oluşur ve en fazla 4 kişi kalabilir. Bu kılavuz dairedeki cihazların nasıl kullanılacağını, atıkların nereye ve hangi gün bırakılacağını, ısıtma ve soğutmanın nasıl ayarlanacağını ve bir arıza olduğunda ne yapılacağını anlatır. Cihaz kullanım kitapçıkları salondaki TV sehpasının alt çekmecesindedir.\n\n## 1. Cihazlar\n\nDairedeki cihazlar Tablo 1'de listelenmiştir. \"Yer\" sütunu cihazın dairedeki konumunu, \"Nasıl kullanılır\" sütunu kısa kullanım adımlarını, \"Dikkat\" sütunu cihazın zarar görmemesi için uyulacak kuralı verir. Bir cihaz çalışmazsa önce fişini ve sigortasını kontrol edin, sonra Tablo 4'e bakın.\n\n**Tablo 1 — Cihazlar, yerleri ve kullanımları**\n\n| Cihaz | Yer | Nasıl kullanılır | Dikkat |\n|---|---|---|---|\n| Çamaşır makinesi | Banyo, lavabonun solunda | Çamaşırı yerleştirip kapağı kapatın, program düğmesini \"Karışık 40\" konumuna getirin ve Başlat'a basın. | Deterjanı çekmecenin ortadaki gözüne koyun; tamburu tam doldurmayın. |\n| Kurutma makinesi | Banyo, çamaşır makinesinin üstünde | \"Pamuklu\" programını seçin, süreyi 60 dakikaya ayarlayın ve Başlat'a basın. | Filtreyi her kullanımdan sonra temizleyin; yün ve ipek kurutmayın. |\n| Bulaşık makinesi | Mutfak, evyenin sağında | Bir tablet atın, sepetleri yerleştirin, \"Eko\" programını seçin ve kapağı kapatın. | Tahta ve alüminyum kapları koymayın; bulaşıkları önceden çalkalamanız gerekmez. |\n| Fırın | Mutfak, ocağın altında | Isı düğmesini 180 dereceye, fonksiyon düğmesini \"Alt-üst\" konumuna getirin. | Cam kapağı sıcakken ıslak bezle silmeyin; tepsiye alüminyum folyo sermeyin. |\n| Ocak (cam seramik) | Mutfak, fırının üstünde | Dokunmatik panelde açma tuşuna 3 saniye basın, gözü seçin ve ısıyı 1 ile 9 arasında ayarlayın. | Sıcak göz soğuyana kadar üzerine eşya koymayın; çocuk kilidi kilit simgesiyle açılır. |\n| Mikrodalga fırın | Mutfak, buzdolabının üstünde | Kabı yerleştirin, gücü ve süreyi seçin, Başlat'a basın. | Metal kap ve alüminyum folyo koymayın; yumurtayı kabuğuyla ısıtmayın. |\n| Kapsüllü kahve makinesi | Mutfak tezgâhı | Su haznesini doldurun, kapsülü yerleştirip kolu indirin, fincanı koyun ve tuşa basın. | Kapsül kutusu üst dolaptadır; kullanılmış kapsülü Tablo 2'de yazılan konteynere atın. |\n| Su ısıtıcı | Mutfak tezgâhı, kahve makinesinin yanında | Haznesini doldurup tabanına oturtun ve düğmeyi aşağı bastırın. | Hazneye en az yarım litre su koyun; boş çalıştırmayın. |\n| Buzdolabı | Mutfak, kapının karşısında | Isı kadranı 3 konumundadır; değiştirmenize gerek yoktur. | Kapıyı açık bırakmayın; çıkışta içindekileri boşaltın. |\n| Klima — salon | Salon, balkon kapısının üstünde | Kumandada Mod tuşuyla Soğutma ya da Isıtma seçin ve ısıyı ayarlayın. | Pencere ve kapı açıkken çalıştırmayın; soğutmada ısıyı 24 dereceden aşağı indirmeyin. |\n| Klima — yatak odası | Yatak odası, yatağın karşısında | Kumandada Uyku tuşuna basın; klima gece boyunca ısıyı kendisi ayarlar. | Kumandayı yatağın üzerine bırakmayın; filtre kapağını açmayın. |\n| Kombi | Mutfak balkonundaki kapalı dolap | Kombi sıcak suyu ve radyatörleri çalıştırır; ayar için salondaki duvar termostatını kullanın. | Kombi basıncı 1 ile 1,5 bar arasında olmalıdır; dolabın kapağını kilitli tutun. |\n| Televizyon | Salon | Kumandanın kırmızı tuşuyla açın; kanal ve uygulama listesi ana menüdedir. | Kendi hesabınızla giriş yaptıysanız çıkışta oturumu kapatın. |\n| Ütü ve ütü masası | Yatak odası, gardırobun yanındaki dolap | Ütüyü fişe takın, ısıyı kumaşa göre seçin; ışık sönünce kullanın. | Açık ütüyü başında bırakıp gitmeyin; su haznesine yalnızca musluk suyu koyun. |\n| Saç kurutma makinesi | Banyo, lavabonun altındaki çekmece | Fişe takın ve yan düğmeyle ısı kademesini seçin. | Banyoda suyun yakınında fişte bırakmayın. |\n| Robot süpürge | Salon, TV sehpasının yanı | Üzerindeki Başlat tuşuna basın; işi bitince kendi şarj yuvasına döner. | Çorap ve kabloları yerden kaldırın; bahçe kapısını açık bırakmayın. |\n| Kasa | Yatak odası, gardırobun üst rafı | Kapıyı kapatıp kendi 4 haneli kodunuzu girin ve # tuşuna basın. | Kodu çıkışta sıfırlayın; kasada nakit saklamak sorumluluğunuzdadır. |\n\n## 2. Atık ayrıştırma ve toplama takvimi\n\nAtık toplama takvimi Tablo 2'dedir. Gün adları tam yazılmıştır. Evsel atık her gün toplanır; Pazar günü ve resmî tatillerde yalnızca evsel atık toplanır, diğer atıklar bir sonraki toplama gününe kalır. Toplama saatleri belediye ekiplerine aittir ve yarım saate kadar değişebilir. \"Yapılmıyor\" yazan atık türü için sitede toplama yoktur.\n\n**Tablo 2 — Atık türleri, konteynerler ve toplama günleri**\n\n| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |\n|---|---|---|---|---|\n| Evsel (karışık) atık | Siyah konteyner, A Blok girişinin sağında | Her gün | 19:00 | Poşeti sıkıca bağlayın; keskin nesneleri kâğıda sarın. |\n| Yemek artığı | Siyah konteyner (evsel atıkla birlikte) | Her gün | 19:00 | Sıvı artıkları lavaboya dökün. |\n| Kahve kapsülü (kullanılmış) | Siyah konteyner (evsel atık) | Her gün | 19:00 | Plastik konteynere atmayın; kapsüller geri dönüşüme alınmaz. |\n| Tiftik ve süpürge tozu | Siyah konteyner (evsel atık) | Her gün | 19:00 | Kurutma makinesi filtresindeki tiftik de buraya atılır. |\n| Kırık cam ve seramik | Siyah konteyner (evsel atık) | Her gün | 19:00 | Kâğıda sarıp üzerine kırık cam yazın. |\n| Plastik ve ambalaj | Sarı konteyner, bahçe kapısının yanında | Pazartesi, Çarşamba, Cuma | 08:00 | Kapları durulayıp ezerek atın. |\n| Cam şişe ve kavanoz | Yeşil konteyner, bahçe çıkışında | Salı | 09:00 | Kapakları çıkarın; kırık cam bu konteynere atılmaz. |\n| Kâğıt ve karton | Mavi konteyner, bahçe kapısının yanında | Perşembe | 09:00 | Kutuları düzleştirin; yağlı kutular evsel atığa gider. |\n| Bahçe atığı (yaprak, dal) | Kahverengi bidon, bahçenin köşesinde | Cumartesi | 08:00 | Poşetsiz bırakın; dalları 1 metreyi geçmeyecek şekilde kesin. |\n| Pil | Kırmızı kutu, A Blok girişinde | Ayın ilk Cumartesisi | 10:00 | Yalnızca küçük piller; araç aküsü kabul edilmez. |\n| Bitkisel atık yağ | — | Yapılmıyor | — | Sitede toplanmaz; belediye toplama noktasına götürülür. |\n| Elektronik atık | — | Yapılmıyor | — | Sitede toplama noktası yoktur; belediye hizmet noktasına bırakılır. |\n| Büyük eşya | — | Yapılmıyor | — | Dairede bırakılmaz; bir sorun varsa bize bildirin. |\n| İlaç | — | Yapılmıyor | — | Eczanedeki atık ilaç kutusuna bırakılır. |\n\n## 3. Isıtma ve soğutma\n\nDönemler: ısıtma dönemi 15 Ekim – 15 Nisan, soğutma dönemi 1 Haziran – 15 Eylül tarihleri arasındadır; aradaki günler ara dönemdir. Tablo 3, her dönem için önerilen ayarları verir. Ayarlar misafirin konforu ve faturası için önerilir; değiştirmeniz gerekirse yukarıdaki cihaz tablosundaki kurallara uyun.\n\n**Tablo 3 — Dönemlere göre önerilen ayarlar**\n\n| Dönem | Cihaz | Önerilen ayar | Çalışma saati | Not |\n|---|---|---|---|---|\n| Isıtma dönemi | Kombi (radyatörler) | 21 derece | 07:00–23:00 | Gece termostat kendiliğinden 18 dereceye düşer. |\n| Isıtma dönemi | Klima — salon | Isıtma modu, 22 derece | İstediğiniz saatler | Yalnız kombi yetmezse kullanın. |\n| Isıtma dönemi | Klima — yatak odası | Isıtma modu, 21 derece | Uyku modu | Gece Uyku tuşunu kullanın. |\n| Soğutma dönemi | Klima — salon | Soğutma modu, 24 derece | İstediğiniz saatler | Pencere ve kapılar kapalı olmalı. |\n| Soğutma dönemi | Klima — yatak odası | Soğutma modu, 25 derece | 22:00–07:00 | Uyku modunda çalıştırın. |\n| Soğutma dönemi | Kombi | Kapalı | — | Sıcak su çalışmaya devam eder. |\n| Ara dönem | Kombi | Yalnızca sıcak su | — | Radyatör ısıtması yapılmıyor. |\n| Ara dönem | Klima (salon ve yatak odası) | En çok 23 derece | İstediğiniz saatler | Gerekirse açın; pencereleri kapatın. |\n\n## 4. Arıza olursa\n\nBir arıza olduğunda Tablo 4'teki ilk adımı uygulayın, sonra bize mesaj yazın. Müdahale süreleri mesajınızın bize ulaştığı andan başlar ve hafta sonları sıcak su, elektrik ve kapı kilidi dışındaki arızalar için bir sonraki iş gününe kalabilir.\n\n**Tablo 4 — Sık görülen arızalar ve müdahale süreleri**\n\n| Sorun | İlk adım | Sonra ne yapılır | Müdahale süresi |\n|---|---|---|---|\n| Klima su damlatıyor | Klimayı kapatın ve altına bir kap koyun | Damlayan yerin fotoğrafını bize gönderin | Hafta içi 24 saat içinde servis |\n| Sıcak su yok | Kombi ekranındaki hata kodunu ve basınç göstergesini kontrol edin | Hata kodunu bize yazın | Aynı gün 4 saat içinde |\n| Elektrik yok | Girişteki sigorta panosunda düşen sigortayı kaldırın | Sigorta tekrar düşerse bize bildirin | Aynı gün 2 saat içinde |\n| İnternet yok | Modemin fişini 30 saniye çekip yeniden takın | Işıklar yanmıyorsa bize yazın | Aynı gün 3 saat içinde |\n| Çamaşır makinesi su almıyor | Musluğun açık olduğunu ve kapağın kapandığını kontrol edin | Ekranda E18 yazıyorsa bize bildirin | Ertesi gün |\n| Kapı kilidi açılmıyor | Kapıyı kendinize doğru çekerek anahtarı çevirin | Açılmazsa hemen bize yazın | 1 saat içinde |\n\n## 5. Bahçe ve genel notlar\n\nBahçedeki masa ve sandalyeler misafirlerimizin kullanımına açıktır; akşam 23:00'ten sonra bahçede sessiz olun ve ışıkları kapatın. Wi-Fi ağ adı Lale2-Misafir'dir; şifre modemin altındaki etikette yazılıdır. Sessizlik saatleri 23:00 – 08:00 arasıdır. Giriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır; anahtar kutusu bahçe kapısının solundadır. Dairede sigara içilmez. Çıkışta çamaşır makinesinin ve bulaşık makinesinin boş olduğundan, buzdolabının boşaltıldığından ve klimaların kapalı olduğundan emin olun.\n"
+  },
+  {
+   "id": "T3",
+   "property": "Lale 3",
+   "title": "Lale 3 — Ulaşım, Havuz ve Tesis Saatleri Rehberi",
+   "format": "markdown",
+   "text": "# Lale 3 — Ulaşım, Havuz ve Tesis Saatleri Rehberi\n\nLale 3, Lale Sitesi'nin C Blok 2. katındaki dairedir; iki yatak odası ve geniş bir terasa sahiptir, en fazla 4 kişi kalabilir. Sitenin havuzları ve sosyal tesisleri daireye yürüyerek iki dakika uzaklıktadır. Bu rehber toplu ulaşım saatlerini, havalimanı servisini, tesislerin çalışma saatlerini ve yakın yerlerin uzaklığını bir arada verir. Saatler mümkün olduğunca güncel tutulur; yine de önemli bir yolculuktan önce resepsiyondan teyit almanızı öneririz.\n\n## 1. Tarifeler\n\nTarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir. Tablolardaki \"Yaz\" ve \"Kış\" sütunları bu tarihlere göredir. Otobüs hattı 12 saatleri (Tablo 1) tüm yıl aynıdır; yaz ve kış farkı yoktur.\n\n## 2. Otobüs hattı 12\n\nHat 12, Lale Sitesi durağı ile Çarşı merkezi arasında çalışır. Tablo 1'de \"siteden\" sütunları Lale Sitesi durağından Çarşı merkezine kalkış saatlerini, \"çarşıdan\" sütunları Çarşı merkezinden siteye dönüş kalkış saatlerini verir. Dönüş seferi, aynı numaralı seferin siteden kalkışından 40 dakika sonra çarşıdan kalkar. Hafta içi, Pazartesi'den Cuma'ya kadar olan günlerdir; resmî tatiller Pazar tarifesine tabidir. Bir hücrede \"—\" işareti varsa o gün o sefer yoktur.\n\n**Tablo 1 — Hat 12 kalkış saatleri**\n\n| Sefer | Hafta içi (siteden) | Cumartesi (siteden) | Pazar ve resmî tatil (siteden) | Hafta içi (çarşıdan) | Cumartesi (çarşıdan) | Pazar ve resmî tatil (çarşıdan) |\n|---|---|---|---|---|---|---|\n| 1. sefer | 06:30 | 07:30 | — | 07:10 | 08:10 | — |\n| 2. sefer | 07:00 | 08:30 | 09:00 | 07:40 | 09:10 | 09:40 |\n| 3. sefer | 07:30 | 09:30 | — | 08:10 | 10:10 | — |\n| 4. sefer | 08:00 | 10:30 | 11:00 | 08:40 | 11:10 | 11:40 |\n| 5. sefer | 09:00 | 11:30 | — | 09:40 | 12:10 | — |\n| 6. sefer | 10:00 | 12:30 | 13:00 | 10:40 | 13:10 | 13:40 |\n| 7. sefer | 11:00 | 13:30 | — | 11:40 | 14:10 | — |\n| 8. sefer | 12:00 | 14:30 | 15:00 | 12:40 | 15:10 | 15:40 |\n| 9. sefer | 13:00 | 15:30 | — | 13:40 | 16:10 | — |\n| 10. sefer | 14:00 | 16:30 | 17:00 | 14:40 | 17:10 | 17:40 |\n| 11. sefer | 15:00 | 17:30 | — | 15:40 | 18:10 | — |\n| 12. sefer | 16:00 | 18:30 | 19:00 | 16:40 | 19:10 | 19:40 |\n| 13. sefer | 17:00 | 19:30 | — | 17:40 | 20:10 | — |\n| 14. sefer | 18:00 | 20:30 | 21:00 | 18:40 | 21:10 | 21:40 |\n| 15. sefer | 19:30 | — | — | 20:10 | — | — |\n| 16. sefer | 21:00 | — | — | 21:40 | — | — |\n| 17. sefer | 22:00 | — | — | 22:40 | — | — |\n\nLale Sitesi durağı ana kapının karşısındadır. Otobüste nakit para kabul edilmez; kartla ya da temassız ödeme ile binilir.\n\n## 3. Havalimanı ring servisi\n\nHavalimanı ring servisi siteden kalkar ve havalimanına yaklaşık 60 dakikada ulaşır. Tablo 2 kalkış saatlerini ve kişi başı ücreti verir. \"Yapılmıyor\" yazan servis hiç yapılmaz; \"—\" işareti o tarifede o servis olmadığını ya da o hücrenin boş olduğunu gösterir. 0–6 yaş çocuklar ücretsizdir ve kucakta seyahat eder.\n\n**Tablo 2 — Havalimanı ring servisi (siteden kalkış)**\n\n| Servis | Yaz tarifesi | Kış tarifesi | Ücret (kişi başı) | Araç | Biniş noktası | Not |\n|---|---|---|---|---|---|---|\n| Gece servisi (00:00–03:00) | Yapılmıyor | Yapılmıyor | — | — | — | Gece için özel transfer resepsiyondan sorulabilir |\n| 1. servis | 04:30 | 05:30 | 180 TL | Minibüs | Ana kapı önü | Yalnız önceden rezervasyonla; kalkıştan 20 dakika önce gelin |\n| 2. servis | 06:00 | 07:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |\n| 3. servis | 08:00 | 09:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |\n| 4. servis | 10:00 | 11:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |\n| 5. servis | 12:00 | 13:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |\n| 6. servis | 14:00 | — | 160 TL | Otobüs | Resepsiyon önü | Kışın yapılmaz |\n| 7. servis | 16:00 | 16:30 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |\n| 8. servis | 18:00 | 18:00 | 180 TL | Minibüs | Ana kapı önü | Akşam tarifesi; kalkıştan 15 dakika önce gelin |\n| 9. servis | 20:00 | — | 180 TL | Minibüs | Ana kapı önü | Kışın yapılmaz |\n| 10. servis | 22:00 | — | 200 TL | Minibüs | Ana kapı önü | Kışın yapılmaz |\n| 11. servis | 23:30 | — | 220 TL | Minibüs | Ana kapı önü | Yalnız Cuma ve Cumartesi geceleri |\n\n## 4. Havuz ve tesis saatleri\n\nTesislerin çalışma saatleri Tablo 3'tedir. \"Haftalık kapalı gün\" sütunundaki \"—\" işareti tesisin haftanın her günü açık olduğunu gösterir. \"Kapalı\" yazan hücre, o tarifede tesisin hizmet vermediği anlamına gelir. Açık havuz ve çocuk havuzu her Cuma 13:00 – 14:00 arasında temizlik nedeniyle kapanır. Havuzlara giriş için resepsiyondan alınan misafir bilekliği gerekir.\n\n**Tablo 3 — Tesis saatleri (yaz ve kış tarifesi)**\n\n| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |\n|---|---|---|---|---|\n| Açık havuz | 09:00–20:00 | Kapalı | — | Bone zorunludur; şezlonglar ücretsizdir |\n| Çocuk havuzu | 09:00–19:00 | Kapalı | — | Yetişkin refakati şarttır; derinlik 40 cm |\n| Kapalı havuz | 10:00–18:00 | 08:00–21:00 | Pazartesi | Bone zorunludur; su sıcaklığı 28 derecedir |\n| Sauna | Kapalı | 16:00–22:00 | Çarşamba | 16 yaş altına kapalıdır; havlu verilir |\n| Hamam | Kapalı | 15:00–21:00 | Salı | Randevu gerekmez; havlu verilir |\n| Spor salonu | 07:00–22:00 | 07:00–22:00 | — | Spor ayakkabısı şarttır; 14 yaş altına kapalıdır |\n| Çocuk oyun alanı | 09:00–21:00 | 10:00–18:00 | — | 3–12 yaş arası çocuklar içindir |\n| Tenis kortu | 08:00–22:00 | 09:00–17:00 | Pazar (yalnız kış) | Raket resepsiyondan alınır; saatlik rezervasyon |\n| Site marketi | 08:00–23:00 | 09:00–21:00 | — | Nakit ve kartla ödeme; ekmek sabah gelir |\n| Kafe | 09:00–01:00 | 10:00–22:00 | — | Havuz kenarında servis yapılır |\n| Restoran | 12:00–23:00 | Kapalı | — | Akşam yemeği için rezervasyon önerilir |\n| Resepsiyon | 24 saat | 08:00–24:00 | — | Kış gecesi güvenlik görevlisine başvurun |\n| Plaj servis aracı | 09:30–18:30 | Yapılmıyor | — | Yarım saatte bir kalkar; resepsiyon önünden biner |\n| Çamaşırhane | 07:00–22:00 | 07:00–22:00 | — | Jeton resepsiyondan alınır; kurutma ayrı jetondur |\n\n## 5. Yakın yerler ve mesafeler\n\nTablo 4, çevredeki başlıca yerlere süreyi dakika olarak verir. \"Hat 12 ile\" sütunu sitedeki duraktan otobüsle gidiş süresidir; \"—\" işareti o yere o ulaşım türüyle gidilmediğini gösterir.\n\n**Tablo 4 — Yakın yerler ve süreler (dakika)**\n\n| Yer | Yürüyerek | Araçla | Hat 12 ile | Not |\n|---|---|---|---|---|\n| Çarşı merkezi | 40 dk | 10 dk | 18 dk | Perşembe günü pazar kurulur |\n| Halk plajı | 12 dk | 4 dk | — | Yazın plaj servis aracı da gider |\n| Eczane | 6 dk | 2 dk | — | Hafta içi 08:30–19:30 açıktır |\n| Devlet hastanesi | — | 15 dk | 25 dk | Acil servis 24 saat açıktır |\n| Otogar | — | 20 dk | 30 dk | Şehirler arası otobüsler |\n| Havalimanı | — | 50 dk | — | Ring servisi Tablo 2'dedir |\n| Balık pazarı | 25 dk | 8 dk | 15 dk | Sabahları daha zengindir |\n| Fırın ve market | 3 dk | 1 dk | — | Sabah 07:00'de açılır |\n\n## 6. Havuz kuralları\n\nHavuzda bone takmak zorunludur; bone resepsiyonda 150 TL'ye satılır. Havuz bilekliği kaybolursa yenisi için 100 TL alınır. Havuz kenarında cam kap kullanılmaz. Çocuklar yetişkin gözetimi olmadan havuza giremez. Havuzdan sonra sauna ve hamama girmeden önce duş almak gerekir. Giriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır.\n\n## 7. Dairede ulaşımla ilgili pratik bilgiler\n\nAnahtar kutusu C Blok girişindedir; şifresi giriş gününün sabahı mesajla gönderilir. Araçla gelenler için siteye ait ücretsiz açık otopark vardır; daire başına bir araç park edebilir. Şehir içi gezileriniz için resepsiyondan harita alabilirsiniz. Wi-Fi ağ adı Lale3-Misafir'dir; şifre dairenin girişindeki kartta yazılıdır. Sessizlik saatleri 23:00 – 08:00 arasıdır.\n"
+  },
+  {
+   "id": "T4",
+   "property": "Lale 4",
+   "title": "Lale 4 — Aile Dairesi Rehberi: Kişi Sayısına Göre Ücret, Ev Kuralları ve Temizlik Düzeni (House Guide)",
+   "format": "markdown",
+   "text": "# Lale 4 — Aile Dairesi Rehberi: Kişi Sayısına Göre Ücret, Ev Kuralları ve Temizlik Düzeni (House Guide)\n\nLale 4, Lale Sitesi'nin D Blok 1. katındaki geniş aile dairesidir; üç yatak odası, iki banyo ve bir salondan oluşur, en fazla 8 kişiyi (bebekler hariç) ağırlar. Bu rehber ücretlerin kişi sayısına göre nasıl değiştiğini, ev kurallarını Türkçe ve İngilizce olarak ve temizlik ile çarşaf-havlu değişim düzenini açıklar. This guide explains how the nightly price changes with the number of guests, the house rules in Turkish and English, and the cleaning and linen schedule.\n\n## 1. Sezonlar, kişi tanımı ve ücretler\n\nSezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır. Bayram dönemi, bayramın arife gününden son gününe kadar olan süredir ve ayrı sütunda gösterilir.\n\nKişi sayısı şöyle sayılır: 13 yaş ve üzeri yetişkin sayılır, 3–12 yaş arası çocuktur, 0–2 yaş arası bebekler kişi sayısına dahil edilmez ve ücretsizdir. Tablo 1'deki fiyatlar gecelik ve daire başıdır; fiyat, konaklayan kişi sayısına göre değişir. Çıkış temizliği fiyata dahildir. Son sütun, ücrete göre kullanıma açılan yatak odası sayısıdır; temizlik ve çarşaf hazırlığı buna göre yapılır.\n\n**Tablo 1 — Kişi sayısına göre gecelik ücret (TL, daire başı)**\n\n| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |\n|---|---|---|---|---|---|\n| 1 yetişkin | 1.500 TL | 1.900 TL | 2.600 TL | 3.100 TL | 1 yatak odası |\n| 2 yetişkin | 1.700 TL | 2.100 TL | 2.900 TL | 3.400 TL | 1 yatak odası |\n| 2 yetişkin + 1 çocuk | 1.850 TL | 2.300 TL | 3.150 TL | 3.650 TL | 2 yatak odası |\n| 2 yetişkin + 2 çocuk | 2.000 TL | 2.450 TL | 3.350 TL | 3.850 TL | 2 yatak odası |\n| 3 yetişkin | 1.950 TL | 2.400 TL | 3.300 TL | 3.800 TL | 2 yatak odası |\n| 3 yetişkin + 1 çocuk | 2.100 TL | 2.600 TL | 3.550 TL | 4.050 TL | 2 yatak odası |\n| 3 yetişkin + 2 çocuk | 2.250 TL | 2.750 TL | 3.750 TL | 4.250 TL | 3 yatak odası |\n| 4 yetişkin | 2.200 TL | 2.700 TL | 3.700 TL | 4.200 TL | 2 yatak odası |\n| 4 yetişkin + 1 çocuk | 2.350 TL | 2.900 TL | 3.950 TL | 4.450 TL | 3 yatak odası |\n| 4 yetişkin + 2 çocuk | 2.500 TL | 3.050 TL | 4.150 TL | 4.650 TL | 3 yatak odası |\n| 5 yetişkin | 2.450 TL | 3.000 TL | 4.100 TL | 4.600 TL | 3 yatak odası |\n| 6 yetişkin | 2.700 TL | 3.300 TL | 4.500 TL | 5.000 TL | 3 yatak odası |\n| 7 yetişkin | 2.950 TL | 3.600 TL | 4.900 TL | 5.400 TL | 3 yatak odası |\n| 8 yetişkin | 3.200 TL | 3.900 TL | 5.300 TL | 5.800 TL | 3 yatak odası |\n| Bebek (0–2 yaş) | Ücretsiz | Ücretsiz | Ücretsiz | Ücretsiz | Bebek yatağı ücretsiz verilir |\n\n## 2. Ev kuralları / House rules\n\nEv kuralları Tablo 2'de Türkçe ve İngilizce olarak verilmiştir. \"Kural\" ve \"Rule\" sütunları başlıktır; \"Ayrıntı\" ve \"Details\" sütunları aynı kuralın Türkçe ve İngilizce açıklamasıdır. The rules apply to all guests, including visitors.\n\n**Tablo 2 — Ev kuralları (Türkçe / English)**\n\n| Kural | Rule | Ayrıntı | Details |\n|---|---|---|---|\n| Sessizlik saatleri | Quiet hours | 23:00 – 08:00 arasında ses seviyesini düşük tutun. | Keep noise low between 23:00 and 08:00. |\n| Sigara | Smoking | Dairede ve balkonda sigara içilmez. | No smoking inside the apartment or on the balcony. |\n| Evcil hayvan | Pets | Evcil hayvan kabul edilmez. | Pets are not allowed. |\n| Parti ve etkinlik | Parties and events | Parti, toplantı ve organizasyon yapılamaz. | Parties, gatherings and events are not permitted. |\n| Ziyaretçi | Visitors | Ziyaretçiler en geç 22:00'ye kadar kalabilir; aynı anda en fazla 2 ziyaretçi gelebilir. | Visitors may stay until 22:00 at the latest; no more than 2 visitors at a time. |\n| Çöp | Rubbish | Çöpü her akşam 20:00'ye kadar site girişindeki konteynere bırakın. | Take the rubbish to the containers at the site entrance by 20:00 every evening. |\n| Anahtar kaybı | Lost key | Kayıp anahtarın bedeli Tablo 4'e göre alınır. | The cost of a lost key is charged as listed in Table 4. |\n| Giriş kartı | Access card | Site giriş kartı çıkışta resepsiyona teslim edilir. | Return the site access card to the reception on departure. |\n| Havlu | Towels | Daire havluları plajda kullanılmaz. | Do not use the apartment towels at the beach. |\n| Balkon | Balcony | Balkonda çamaşır asılmaz. | Do not hang laundry on the balcony. |\n| Ütü | Iron | Açık ütüyü başında bırakıp gitmeyin. | Never leave a hot iron unattended. |\n| Çıkış | Departure | Çıkarken klimaları ve ışıkları kapatın. | Switch off the air conditioners and lights when you leave. |\n| Otopark | Parking | Daire başına bir araç park hakkı vardır; ikinci araç için yer ayrılamaz. | One parking space per apartment; a second space cannot be allocated. |\n| Geç varış | Late arrival | Gece 00:00'dan sonra varış önceden bildirilmelidir. | Arrivals after midnight must be notified in advance. |\n\n## 3. Temizlik ve çarşaf-havlu değişimi\n\nAra temizlik ve değişimler konaklama süresine göre Tablo 3'teki gibi ücretsiz yapılır; \"Yapılmıyor\" yazan hizmet o süre için sunulmaz. Gün sayıları konaklamanın başladığı geceden itibaren sayılır. Ara temizlik 10:00 – 14:00 arasında yapılır ve evde olmanız gerekmez. Tablonun son iki satırı isteğe bağlı ücretli hizmetlerdir.\n\n**Tablo 3 — Ara temizlik ve değişim düzeni**\n\n| Konaklama süresi | Ara temizlik | Çarşaf değişimi | Havlu değişimi | Ek ücret |\n|---|---|---|---|---|\n| 1–3 gece | Yapılmıyor | Yapılmıyor | Yapılmıyor | — |\n| 4–6 gece | Yapılmıyor | 4. günde | 3 günde bir | Ücretsiz |\n| 7–9 gece | 1 kez (5. gün) | 5. günde | 3 günde bir | Ücretsiz |\n| 10–13 gece | 2 kez | 5 günde bir | 3 günde bir | Ücretsiz |\n| 14–20 gece | Haftada 1 kez | 7 günde bir | 3 günde bir | Ücretsiz |\n| 21–29 gece | Haftada 1 kez | 7 günde bir | 2 günde bir | Ücretsiz |\n| 30 gece ve üzeri | Haftada 2 kez | 7 günde bir | 2 günde bir | Ücretsiz |\n| İlave temizlik talebi | Talep üzerine | — | — | 700 TL (kez başı) |\n| Ek havlu takımı | — | — | Talep üzerine | 100 TL (kişi başı) |\n\n## 4. Hasar ve kayıp bedelleri\n\nAşağıdaki bedeller eşyanın kaybolması, kırılması ya da kullanılamaz hâle gelmesi durumunda çıkışta kontrol sonrası tahsil edilir. Bedeller adet başınadır; Tablo 4'te yazmayan bir eşya için fatura bedeli esas alınır.\n\n**Tablo 4 — Kayıp ve hasar bedelleri**\n\n| Eşya | Bedel | Not |\n|---|---|---|\n| Daire anahtarı | 500 TL | Kayıp ya da kırılma |\n| Site giriş kartı | 250 TL | Resepsiyonda yenisi verilir |\n| TV kumandası | 300 TL | Pille birlikte teslim edilir |\n| Klima kumandası | 200 TL | Her iki klima için aynı bedel |\n| Havlu | 250 TL | Kaybolan ya da lekeli |\n| Çarşaf takımı | 400 TL | Lekeli ya da yırtık |\n| Bardak veya tabak | 60 TL | Parça başı |\n| Tava veya tencere | 350 TL | Parça başı |\n| Sigara kokusu temizliği | 2.500 TL | Dairede sigara içilmişse |\n\n## 5. Giriş, çıkış ve internet\n\nGiriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır. Anahtar, D Blok girişindeki anahtar kutusundadır. Wi-Fi ağ adı Lale4-Misafir'dir; şifre salondaki TV sehpasının üstündeki karta yazılıdır. Banyolarda ve mutfakta her misafir için havlu, sabun ve bulaşık deterjanı bırakılır. Dairede iki klima, çamaşır makinesi, kurutma makinesi ve bulaşık makinesi bulunur; kullanım kitapçıkları salondaki çekmecededir. Çocuklar için iki yüksek sandalye ve bir oyun matı ayrıca istenebilir ve ücretsizdir. Bir sorun olursa mesajla yazın; acil durumda site güvenliği 7/24 görevdedir. Çıkışta anahtarı anahtar kutusuna bırakın ve site giriş kartını resepsiyona teslim edin. Bu rehberdeki ücretler, bedeller ve düzenler, rezervasyon onayında size bildirilen koşullarla birlikte geçerlidir.\n"
+  },
+  {
+   "id": "T5",
+   "property": "Lale 5",
+   "title": "Lale 5 — Konuk Kılavuzu: Giriş-Çıkış, Ek Hizmetler, Restoran ve Tesis Saatleri",
+   "format": "markdown",
+   "text": "# Lale 5 — Konuk Kılavuzu: Giriş-Çıkış, Ek Hizmetler, Restoran ve Tesis Saatleri\n\nLale 5, Lale Sitesi'nin D Blok zemin katındaki teraslı dairedir; iki yatak odası ve bir salondan oluşur, en fazla 5 kişi kalabilir. Geniş terası havuz alanına bakar. Bu kılavuz giriş-çıkış saatlerini, ek hizmetleri, site içindeki restoran ve tesislerin saatlerini ve acil durum numaralarını verir. Kurz auf Deutsch: Der Check-in ist ab 15:00 Uhr möglich und der Check-out bis 11:00 Uhr; samstags und im Juli und August gelten andere Zeiten laut Tabelle 1. In short (English): check-in starts at 15:00 and check-out is at 11:00 on most days, with different times on Saturdays and Sundays as shown in Table 1.\n\n## 1. Giriş ve çıkış saatleri\n\nYüksek dönem 1 Temmuz – 31 Ağustos tarihleri arasıdır. Tablo 1'deki \"normal dönem\" sütunları yılın geri kalan günlerini kapsar. Bayram günlerinde Cumartesi saatleri uygulanır. Anahtar kutusu D Blok girişindedir ve şifresi giriş gününün sabahı mesajla gönderilir. Erken giriş ve geç çıkış ücretlidir ve Tablo 2'de verilmiştir.\n\n**Tablo 1 — Giriş ve çıkış saatleri**\n\n| Gün | Giriş (normal dönem) | Giriş (1 Temmuz – 31 Ağustos) | Çıkış (normal dönem) | Çıkış (1 Temmuz – 31 Ağustos) |\n|---|---|---|---|---|\n| Pazartesi | 15:00 | 15:00 | 11:00 | 11:00 |\n| Salı | 15:00 | 15:00 | 11:00 | 11:00 |\n| Çarşamba | 15:00 | 15:00 | 11:00 | 11:00 |\n| Perşembe | 15:00 | 15:00 | 11:00 | 11:00 |\n| Cuma | 15:00 | 16:00 | 11:00 | 11:00 |\n| Cumartesi | 16:00 | 17:00 | 10:00 | 10:00 |\n| Pazar | 15:00 | 15:00 | 12:00 | 11:00 |\n\n## 2. Ek hizmetler\n\nEk hizmetler Tablo 2'dedir. Ücretler daire başıdır; \"/ saat\", \"/ kg\", \"/ parça\" veya \"/ bisiklet\" yazan satırlarda birim ücret verilmiştir. \"Önceden bildirim\" sütunu, hizmeti en geç ne zaman istemeniz gerektiğini gösterir. \"Yapılmıyor\" yazan hizmet sunulmaz ve \"—\" işareti o hücrenin bu hizmet için geçerli olmadığını belirtir.\n\n**Tablo 2 — Ek hizmetler ve ücretleri**\n\n| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |\n|---|---|---|---|---|\n| Kahvaltı sepeti (2 kişilik) | 450 TL | Bir gün önce 18:00'e kadar | 08:00–10:00 arası kapıya teslim | Sepet bir gün önceden sipariş edilir |\n| Kahvaltı sepeti (4 kişilik) | 800 TL | Bir gün önce 18:00'e kadar | 08:00–10:00 arası kapıya teslim | 5 kişi için iki sepet sipariş edin |\n| Çocuk bakıcısı | 350 TL / saat | İki gün önce | 09:00–22:00 | En az 3 saat; 0–10 yaş çocuklar için |\n| Özel şef yemeği (4 kişiye kadar) | 3.500 TL | Üç gün önce | 19:00'da başlar | Malzeme dahildir; 5. kişi için 600 TL ek |\n| Evde masaj | Yapılmıyor | — | — | Masaj için site spasından randevu alın |\n| Çamaşır yıkama ve kurutma | 120 TL / kg | Aynı gün 10:00'a kadar | Ertesi gün 18:00'de teslim | Pazar günü teslim alınmaz |\n| Ütü hizmeti | 80 TL / parça | Aynı gün 12:00'ye kadar | Aynı gün 20:00'de teslim | En az 5 parça |\n| Market alışverişi teslimi | 250 TL servis (ürün bedeli ayrı) | Bir gün önce 20:00'ye kadar | 10:00–12:00 arası teslim | Liste mesajla gönderilir |\n| Erken giriş (13:00'ten itibaren) | 600 TL | İki gün önce | — | Daire boşsa onaylanır |\n| Geç çıkış (15:00'e kadar) | 700 TL | İki gün önce | — | Daire boşsa onaylanır |\n| Bisiklet kiralama (günlük) | 250 TL / bisiklet | Bir gün önce | 09:00–18:00 | Kask ücretsizdir |\n| Doğum günü süsleme paketi | 1.200 TL | Üç gün önce | Gün içinde kurulur | Pasta dahil değildir |\n| Bebek yatağı | Ücretsiz | İki gün önce | — | 2 yaşına kadar |\n| Ek yatak (tek kişilik) | 300 TL | İki gün önce | — | Salona kurulur |\n| Tekne turu bileti | Yapılmıyor | — | — | Resepsiyon broşür verir |\n\n## 3. Restoran ve tesis saatleri\n\nDönemler: yaz dönemi 1 Mayıs – 30 Eylül, kış dönemi 1 Ekim – 30 Nisan tarihleri arasındadır. Tablo 3 mekânların saatlerini bu iki döneme göre verir. \"Kapalı gün\" sütunundaki \"—\" işareti mekânın haftanın her günü açık olduğunu gösterir. \"Kapalı\" ya da \"Yapılmıyor\" yazan hücre, o dönemde hizmet verilmediği anlamına gelir. Tablo 1'deki \"1 Temmuz – 31 Ağustos\" dönemi yalnızca giriş-çıkış saatleri içindir; bu tablo ile ilgisi yoktur.\n\n**Tablo 3 — Restoran ve tesis saatleri (yaz ve kış)**\n\n| Mekân | Yaz dönemi | Kış dönemi | Kapalı gün | Not |\n|---|---|---|---|---|\n| Restoran (akşam yemeği) | 18:30–23:00 | 18:00–22:00 | Pazartesi | Rezervasyon önerilir; çocuk menüsü vardır |\n| Restoran (öğle yemeği) | 12:00–15:30 | Kapalı | — | Yalnız yaz döneminde açıktır; menü günlük değişir |\n| Sahil kafesi | 09:00–00:00 | 10:00–20:00 | — | Kış döneminde yalnız hafta sonu tam hizmet |\n| Havuz barı | 10:00–19:00 | Kapalı | — | Yalnız yaz döneminde açıktır; içecek ve hafif atıştırmalık |\n| Spa (hamam, sauna, masaj) | 10:00–20:00 | 12:00–21:00 | Salı | Randevuyla; hamam ve sauna havlusu verilir |\n| Çocuk kulübü | 10:00–13:00 ve 16:00–20:00 | Yapılmıyor | Pazar | 4–12 yaş arası çocuklar içindir; ebeveyn kayıt yaptırır |\n| Site marketi | 08:00–23:00 | 09:00–21:00 | — | Nakit ve kartla ödeme; ekmek ve süt sabah gelir |\n| Fırın | 06:30–20:00 | 07:00–18:00 | — | Sabah simit ve poğaça çıkar |\n| Çamaşırhane (kendi kendine) | 07:00–22:00 | 07:00–22:00 | — | Jeton resepsiyondan alınır; deterjan makinede hazırdır |\n| Resepsiyon | 24 saat | 08:00–24:00 | — | Kış gecesi güvenlik görevlisine başvurun |\n| Spor salonu | 07:00–23:00 | 08:00–21:00 | — | Spor ayakkabısı şarttır; 14 yaş altına kapalıdır |\n| Teras barbekü alanı | 17:00–23:00 | Kapalı | — | Önceden rezervasyon gerekir; kömür resepsiyondan alınır |\n| Mini golf | 10:00–22:00 | Yapılmıyor | — | 6 yaş altı yetişkinle birlikte oynar; sopa ve top verilir |\n\n## 4. Acil durum ve faydalı numaralar\n\nAcil durumda önce Tablo 4'teki uygun numarayı arayın. \"Dahili\" yazan numaralar dairedeki telefon ahizesinden çevrilir. Telefon ahizesi mutfaktaki duvar panelindedir.\n\n**Tablo 4 — Acil durum ve faydalı numaralar**\n\n| Kurum | Numara | Ne zaman aranır | Not |\n|---|---|---|---|\n| Ambulans | 112 | Sağlık acili | 7/24 |\n| İtfaiye | 110 | Yangın | 7/24 |\n| Polis | 155 | Hırsızlık, kavga | 7/24 |\n| Jandarma | 156 | Site dışındaki acil durumlar | 7/24 |\n| Zehir danışma | 114 | Zehirlenme şüphesi | 7/24 |\n| Site güvenliği | Dahili 100 | Site içindeki her türlü acil durum | 7/24 |\n| Resepsiyon | Dahili 9 | Anahtar, arıza ve genel sorular | Saatler Tablo 3'tedir |\n| Site sağlık odası | Dahili 120 | Hafif rahatsızlıklar | Yalnız yaz döneminde 09:00–17:00 |\n\n## 5. Teras ve genel notlar\n\nDairenin terası 23:00'ten sonra yalnızca sessiz kullanım içindir; teras mobilyaları geceleri içeri alınmaz ama örtüleri kapatın. Wi-Fi ağ adı Lale5-Misafir'dir; şifre modemin üstündeki etikette yazılıdır. Dairede en fazla 5 kişi konaklayabilir. Terasta mangal yakılmaz; barbekü için site içindeki barbekü alanını kullanın. Çıkışta çöpleri site girişindeki konteynere bırakın. Daire zemin kattadır ve terasın havuz alanına bakan tarafı çitle ayrılmıştır; küçük çocukların teras kapısından tek başına çıkmaması için kapı kilidi çocuk emniyetlidir. Havuz alanı ve plaj yolu daireden yürüyerek beş dakika uzaklıktadır. Dairede klima, çamaşır makinesi, bulaşık makinesi ve kapsüllü kahve makinesi bulunur; kullanım adımları cihazların üzerindeki etiketlerde yazılıdır. Sessizlik saatleri 23:00 – 08:00 arasıdır. Dairede sigara içilmez.\n"
+  }
+ ],
+ "questions": [
+  {
+   "id": "T1-Q01",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Ağustos'ta 5 gece kalmak istiyoruz. Gecelik fiyat ne olur?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Fiyatlar kişi başı değil daire başıdır; yani 2 kişi de 6 kişi de aynı daire fiyatını öder.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 5 gece | 1.250 TL | 1.650 TL | 2.500 TL | 3.100 TL | 2.900 TL | Standart fiyat, tüm dönemlerde satılır |"
+   ],
+   "goldAnswer": "Ağustos yüksek sezondur (1 Haziran – 30 Eylül). 5 gecelik konaklamada yüksek sezon sütunu 2.500 TL gecelik, daire başıdır; kişi sayısıyla çarpılmaz. Çıkış temizlik ücreti 750 TL ayrıdır."
+  },
+  {
+   "id": "T1-Q02",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "10 Aralık'ta girip 20 Aralık'ta çıkacağız. Gecelik ücret nedir?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Yılbaşı dönemi 28 Aralık – 3 Ocak arasıdır ve ayrı fiyatla satılır.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 8–10 gece | 1.100 TL | 1.500 TL | 2.200 TL | — | — | Uzun konaklama indirimi; bayram ve yılbaşında satılmaz |"
+   ],
+   "goldAnswer": "10 gecelik konaklama düşük sezondadır (1 Kasım – 31 Mart) ve yılbaşı dönemine (28 Aralık – 3 Ocak) girmez. '8–10 gece' satırı düşük sezon sütunu: gecelik 1.100 TL."
+  },
+  {
+   "id": "T1-Q03",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Haziran'da sadece 2 gece kalmak istiyoruz, mümkün mü?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Bir hücrede \"—\" işareti varsa o süre o dönemde satılmıyor demektir: yüksek sezonda en az 3, en çok 29 gece; bayram ve yılbaşı dönemlerinde en az 3, en çok 7 gece konaklanabilir.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 2 gece | 1.350 TL | 1.800 TL | — | — | — | Yalnız düşük ve orta sezonda satılır; diğer dönemlerde en az 3 gece gerekir |"
+   ],
+   "goldAnswer": "Hayır. Haziran yüksek sezondur ve 2 gece satırında yüksek sezon hücresi '—' (satılmıyor). Yüksek sezonda en az 3 gece kalınır; 3 gece için gecelik 2.600 TL."
+  },
+  {
+   "id": "T1-Q04",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Ağustos'ta çıkış saatini 18:00'e kadar uzatmak istersek ne kadar öderiz?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Sütunlar sezon gruplarını gösterir: \"Düşük ve orta sezon\" sütunu düşük sezonu ve orta sezonu, \"Yüksek sezon\" sütunu yüksek sezonu, \"Bayram ve yılbaşı\" sütunu bayram dönemini ve yılbaşı dönemini kapsar.",
+    "| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |",
+    "| Geç çıkış (18:00'e kadar) | 1.000 TL | 1.500 TL | 2.000 TL | 3 gün önce | Aynı gün yeni giriş yoksa onaylanır |"
+   ],
+   "goldAnswer": "Ağustos yüksek sezondur; Geç çıkış (18:00'e kadar) yüksek sezon sütununda 1.500 TL (tek seferlik, daire başı). 3 gün önceden bildirmek gerekir."
+  },
+  {
+   "id": "T1-Q05",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "31 Mayıs'ta girip 4 gece kalacağız. Hangi sezon fiyatı geçerli, gecelik ne kadar?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Konaklama iki sezona yayılırsa bile tüm geceler, konaklamanın başladığı sezonun sütunundan hesaplanır.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 4 gece | 1.280 TL | 1.700 TL | 2.550 TL | 3.150 TL | 2.950 TL | Standart fiyat, tüm dönemlerde satılır |"
+   ],
+   "goldAnswer": "31 Mayıs orta sezondur. Konaklama yüksek sezona taşsa da tüm geceler başladığı sezonun (orta sezon) sütunundan hesaplanır; 4 gece satırı orta sezon: gecelik 1.700 TL."
+  },
+  {
+   "id": "T1-Q06",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Nisan'da 4 gece kalıp 09:00'dan itibaren erken giriş yapmak istiyoruz. Çıkış temizliği dahil toplam ne öderiz?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 4 gece | 1.280 TL | 1.700 TL | 2.550 TL | 3.150 TL | 2.950 TL | Standart fiyat, tüm dönemlerde satılır |",
+    "Sütunlar sezon gruplarını gösterir: \"Düşük ve orta sezon\" sütunu düşük sezonu ve orta sezonu, \"Yüksek sezon\" sütunu yüksek sezonu, \"Bayram ve yılbaşı\" sütunu bayram dönemini ve yılbaşı dönemini kapsar.",
+    "| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |",
+    "| Erken giriş (09:00'dan itibaren) | 900 TL | 1.300 TL | 1.800 TL | 3 gün önce | Önceki gece daire boşsa onaylanır |",
+    "Çıkış temizlik ücreti tek seferliktir, 750 TL'dir ve Tablo 1'deki gecelik fiyata dahil değildir."
+   ],
+   "goldAnswer": "Nisan orta sezondur: 4 gece x 1.700 TL = 6.800 TL. Erken giriş (09:00'dan) düşük ve orta sezon sütunu 900 TL. Çıkış temizlik ücreti 750 TL. Toplam 8.450 TL."
+  },
+  {
+   "id": "T1-Q07",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Bayram döneminde 4 gece kalıp bebek yatağı da isteyeceğiz. Konaklama ve bebek yatağı için toplam ne kadar?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Bayram dönemi, resmî dinî bayramların arife gününden bayramın son gününe kadar olan süredir ve hangi sezona denk gelirse gelsin ayrı fiyatla satılır.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 4 gece | 1.280 TL | 1.700 TL | 2.550 TL | 3.150 TL | 2.950 TL | Standart fiyat, tüm dönemlerde satılır |",
+    "Sütunlar sezon gruplarını gösterir: \"Düşük ve orta sezon\" sütunu düşük sezonu ve orta sezonu, \"Yüksek sezon\" sütunu yüksek sezonu, \"Bayram ve yılbaşı\" sütunu bayram dönemini ve yılbaşı dönemini kapsar.",
+    "| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |",
+    "| Bebek yatağı | Ücretsiz | Ücretsiz | 300 TL | 3 gün önce | 2 yaşına kadar kullanılabilir |"
+   ],
+   "goldAnswer": "Bayram dönemi 4 gece: 3.150 TL x 4 = 12.600 TL. Bebek yatağı 'Bayram ve yılbaşı' sütununda 300 TL. Toplam 12.900 TL (750 TL çıkış temizlik ücreti hariç)."
+  },
+  {
+   "id": "T1-Q08",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Köpeğimizle gelebilir miyiz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |",
+    "| Evcil hayvan konaklaması | Yapılmıyor | Yapılmıyor | Yapılmıyor | — | Dairede kabul edilmez |",
+    "\"Yapılmıyor\" yazan hizmet sunulmaz."
+   ],
+   "goldAnswer": "Hayır; evcil hayvan konaklaması tüm sezonlarda 'Yapılmıyor' yazıyor, yani sunulmaz (dairede kabul edilmez)."
+  },
+  {
+   "id": "T1-Q09",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Yüksek sezonda rezervasyon yaptırdık; girişe 20 gün kala iptal edersek yüzde kaç iade alırız?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Giriş tarihine kalan süre | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı |",
+    "| 15–29 gün | %75 iade | %50 iade | %25 iade |",
+    "İade oranları Tablo 3'te verilmiştir ve toplam konaklama bedeli üzerinden hesaplanır; çıkış temizlik ücreti ve ek hizmet bedelleri iade edilmez."
+   ],
+   "goldAnswer": "'15–29 gün' satırı, yüksek sezon sütunu: %50 iade. Çıkış temizlik ücreti ve ek hizmet bedelleri iade edilmez."
+  },
+  {
+   "id": "T1-Q10",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "2 Ocak'a denk gelen konaklamamızı girişe 12 gün kala iptal edersek iade alır mıyız?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Yılbaşı dönemi 28 Aralık – 3 Ocak arasıdır ve ayrı fiyatla satılır.",
+    "| Giriş tarihine kalan süre | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı |",
+    "| 8–14 gün | %50 iade | %25 iade | İade yok |"
+   ],
+   "goldAnswer": "2 Ocak yılbaşı dönemindedir (28 Aralık – 3 Ocak). '8–14 gün' satırı, 'Bayram ve yılbaşı' sütunu: İade yok."
+  },
+  {
+   "id": "T1-Q11",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Rezervasyon onaylanınca ne kadar ön ödeme yapmamız gerekiyor?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Ödeme adımı | Ne zaman | Tutar | Yöntem |",
+    "| Ön ödeme | Rezervasyon onaylandığında | Toplam konaklama bedelinin %30'u | Banka havalesi veya ödeme bağlantısı |"
+   ],
+   "goldAnswer": "Rezervasyon onaylandığında toplam konaklama bedelinin %30'u ön ödenir; kalan %70 girişten 7 gün önce ödenir."
+  },
+  {
+   "id": "T1-Q12",
+   "docId": "T1",
+   "lang": "en",
+   "text": "What is the nightly rate for a 7-night stay in October?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "| Konaklama süresi | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Yılbaşı dönemi | Not |",
+    "| 7 gece | 1.150 TL | 1.550 TL | 2.300 TL | 3.000 TL | 2.800 TL | Haftalık indirimli fiyat; bayram ve yılbaşında en uzun süre |"
+   ],
+   "goldAnswer": "October is mid season (orta sezon, 1-31 October). For 7 nights the rate is 1,550 TL per night for the whole apartment."
+  },
+  {
+   "id": "T1-Q13",
+   "docId": "T1",
+   "lang": "de",
+   "text": "Was kostet ein später Check-out bis 14:00 Uhr im Juli?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 1 Kasım – 31 Mart, orta sezon 1 Nisan – 31 Mayıs ile 1 – 31 Ekim, yüksek sezon 1 Haziran – 30 Eylül tarihleri arasıdır.",
+    "Sütunlar sezon gruplarını gösterir: \"Düşük ve orta sezon\" sütunu düşük sezonu ve orta sezonu, \"Yüksek sezon\" sütunu yüksek sezonu, \"Bayram ve yılbaşı\" sütunu bayram dönemini ve yılbaşı dönemini kapsar.",
+    "| Hizmet | Düşük ve orta sezon | Yüksek sezon | Bayram ve yılbaşı | Ön bildirim | Not |",
+    "| Geç çıkış (14:00'e kadar) | 500 TL | 800 TL | 1.000 TL | 2 gün önce | Aynı gün yeni giriş yoksa onaylanır |"
+   ],
+   "goldAnswer": "Juli gehört zur Hochsaison (yüksek sezon). Später Check-out bis 14:00 Uhr kostet 800 TL (einmalig, pro Wohnung)."
+  },
+  {
+   "id": "T1-Q14",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Sitede havuz var mı, hangi saatlerde açık?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede havuz bilgisi yok."
+  },
+  {
+   "id": "T1-Q15",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Kahvaltı servisi var mı, ücreti nedir?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede kahvaltı servisi bilgisi yok."
+  },
+  {
+   "id": "T1-Q16",
+   "docId": "T1",
+   "lang": "tr",
+   "text": "Giriş ve çıkış saatleri nedir?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır."
+   ],
+   "goldAnswer": "Giriş 15:00'ten sonra, çıkış 11:00'e kadar."
+  },
+  {
+   "id": "T2-Q01",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Bulaşık makinesine tahta kaşıkları ve kesme tahtasını koyabilir miyim?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Bulaşık makinesi | Mutfak, evyenin sağında | Bir tablet atın, sepetleri yerleştirin, \"Eko\" programını seçin ve kapağı kapatın. | Tahta ve alüminyum kapları koymayın; bulaşıkları önceden çalkalamanız gerekmez. |"
+   ],
+   "goldAnswer": "Hayır; dikkat sütununa göre tahta ve alüminyum kapları koymayın. Bulaşıkları önceden çalkalamanız gerekmez."
+  },
+  {
+   "id": "T2-Q02",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Fırını nasıl çalıştırırım ve nelere dikkat etmeliyim?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Fırın | Mutfak, ocağın altında | Isı düğmesini 180 dereceye, fonksiyon düğmesini \"Alt-üst\" konumuna getirin. | Cam kapağı sıcakken ıslak bezle silmeyin; tepsiye alüminyum folyo sermeyin. |"
+   ],
+   "goldAnswer": "Isı düğmesini 180 dereceye, fonksiyon düğmesini 'Alt-üst' konumuna getirin. Cam kapağı sıcakken ıslak bezle silmeyin, tepsiye alüminyum folyo sermeyin."
+  },
+  {
+   "id": "T2-Q03",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Kurutma makinesinde yün kazak kurutabilir miyim?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Kurutma makinesi | Banyo, çamaşır makinesinin üstünde | \"Pamuklu\" programını seçin, süreyi 60 dakikaya ayarlayın ve Başlat'a basın. | Filtreyi her kullanımdan sonra temizleyin; yün ve ipek kurutmayın. |"
+   ],
+   "goldAnswer": "Hayır; yün ve ipek kurutulmaz. Filtre her kullanımdan sonra temizlenmelidir."
+  },
+  {
+   "id": "T2-Q04",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Pazar günü plastik atıklarımı sarı konteynere koyarsam toplanır mı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Evsel atık her gün toplanır; Pazar günü ve resmî tatillerde yalnızca evsel atık toplanır, diğer atıklar bir sonraki toplama gününe kalır.",
+    "| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |",
+    "| Plastik ve ambalaj | Sarı konteyner, bahçe kapısının yanında | Pazartesi, Çarşamba, Cuma | 08:00 | Kapları durulayıp ezerek atın. |"
+   ],
+   "goldAnswer": "Hayır; plastik ve ambalaj Pazartesi, Çarşamba ve Cuma 08:00'de toplanır. Pazar günü ve resmî tatillerde yalnızca evsel atık toplanır."
+  },
+  {
+   "id": "T2-Q05",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Kullanılmış bitkisel yağı nereye bırakabilirim?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |",
+    "| Bitkisel atık yağ | — | Yapılmıyor | — | Sitede toplanmaz; belediye toplama noktasına götürülür. |",
+    "\"Yapılmıyor\" yazan atık türü için sitede toplama yoktur."
+   ],
+   "goldAnswer": "Sitede toplanmaz ('Yapılmıyor'); belediye toplama noktasına götürülür."
+  },
+  {
+   "id": "T2-Q06",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Temmuz'da salon kliması kaç dereceye ayarlanmalı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: ısıtma dönemi 15 Ekim – 15 Nisan, soğutma dönemi 1 Haziran – 15 Eylül tarihleri arasındadır; aradaki günler ara dönemdir.",
+    "| Dönem | Cihaz | Önerilen ayar | Çalışma saati | Not |",
+    "| Soğutma dönemi | Klima — salon | Soğutma modu, 24 derece | İstediğiniz saatler | Pencere ve kapılar kapalı olmalı. |"
+   ],
+   "goldAnswer": "Temmuz soğutma dönemindedir (1 Haziran – 15 Eylül). Salon kliması Soğutma modu, 24 derece, istediğiniz saatlerde; pencere ve kapılar kapalı olmalı."
+  },
+  {
+   "id": "T2-Q07",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "20 Ekim'de kombi radyatörleri çalıştırıyor mu, hangi sıcaklığa ve saatlere ayarlı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: ısıtma dönemi 15 Ekim – 15 Nisan, soğutma dönemi 1 Haziran – 15 Eylül tarihleri arasındadır; aradaki günler ara dönemdir.",
+    "| Dönem | Cihaz | Önerilen ayar | Çalışma saati | Not |",
+    "| Isıtma dönemi | Kombi (radyatörler) | 21 derece | 07:00–23:00 | Gece termostat kendiliğinden 18 dereceye düşer. |"
+   ],
+   "goldAnswer": "20 Ekim ısıtma dönemindedir (15 Ekim – 15 Nisan). Kombi radyatörleri 21 derece, 07:00–23:00 arasında çalışır; gece termostat 18 dereceye düşer."
+  },
+  {
+   "id": "T2-Q08",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "10 Mayıs'ta kombi radyatörleri ısıtıyor mu?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: ısıtma dönemi 15 Ekim – 15 Nisan, soğutma dönemi 1 Haziran – 15 Eylül tarihleri arasındadır; aradaki günler ara dönemdir.",
+    "| Dönem | Cihaz | Önerilen ayar | Çalışma saati | Not |",
+    "| Ara dönem | Kombi | Yalnızca sıcak su | — | Radyatör ısıtması yapılmıyor. |"
+   ],
+   "goldAnswer": "10 Mayıs ara dönemdir (ısıtma ve soğutma dönemleri dışında). Ara dönemde kombi yalnızca sıcak su verir; radyatör ısıtması yapılmıyor."
+  },
+  {
+   "id": "T2-Q09",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Kullanılmış kahve kapsüllerini hangi konteynere atmalıyım ve kapsül kutusu nerede?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Kapsüllü kahve makinesi | Mutfak tezgâhı | Su haznesini doldurun, kapsülü yerleştirip kolu indirin, fincanı koyun ve tuşa basın. | Kapsül kutusu üst dolaptadır; kullanılmış kapsülü Tablo 2'de yazılan konteynere atın. |",
+    "| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |",
+    "| Kahve kapsülü (kullanılmış) | Siyah konteyner (evsel atık) | Her gün | 19:00 | Plastik konteynere atmayın; kapsüller geri dönüşüme alınmaz. |"
+   ],
+   "goldAnswer": "Kapsül kutusu mutfaktaki üst dolaptadır. Kullanılmış kapsül siyah konteynere (evsel atık) atılır; plastik konteynere atılmaz."
+  },
+  {
+   "id": "T2-Q10",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Kurutma makinesinin filtresini temizleyince çıkan tiftik nereye atılır?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Kurutma makinesi | Banyo, çamaşır makinesinin üstünde | \"Pamuklu\" programını seçin, süreyi 60 dakikaya ayarlayın ve Başlat'a basın. | Filtreyi her kullanımdan sonra temizleyin; yün ve ipek kurutmayın. |",
+    "| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |",
+    "| Tiftik ve süpürge tozu | Siyah konteyner (evsel atık) | Her gün | 19:00 | Kurutma makinesi filtresindeki tiftik de buraya atılır. |"
+   ],
+   "goldAnswer": "Filtre her kullanımdan sonra temizlenir; tiftik siyah konteynere (evsel atık) atılır, her gün 19:00'da toplanır."
+  },
+  {
+   "id": "T2-Q11",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Sıcak su gelmiyor; ne yapmalıyım ve kombi basıncı kaç bar olmalı?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Sorun | İlk adım | Sonra ne yapılır | Müdahale süresi |",
+    "| Sıcak su yok | Kombi ekranındaki hata kodunu ve basınç göstergesini kontrol edin | Hata kodunu bize yazın | Aynı gün 4 saat içinde |",
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Kombi | Mutfak balkonundaki kapalı dolap | Kombi sıcak suyu ve radyatörleri çalıştırır; ayar için salondaki duvar termostatını kullanın. | Kombi basıncı 1 ile 1,5 bar arasında olmalıdır; dolabın kapağını kilitli tutun. |"
+   ],
+   "goldAnswer": "Kombi ekranındaki hata kodunu ve basınç göstergesini kontrol edip hata kodunu bize yazın (aynı gün 4 saat içinde müdahale). Kombi basıncı 1 ile 1,5 bar arasında olmalıdır."
+  },
+  {
+   "id": "T2-Q12",
+   "docId": "T2",
+   "lang": "en",
+   "text": "How do I use the washing machine and where does the detergent go?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Cihaz | Yer | Nasıl kullanılır | Dikkat |",
+    "| Çamaşır makinesi | Banyo, lavabonun solunda | Çamaşırı yerleştirip kapağı kapatın, program düğmesini \"Karışık 40\" konumuna getirin ve Başlat'a basın. | Deterjanı çekmecenin ortadaki gözüne koyun; tamburu tam doldurmayın. |"
+   ],
+   "goldAnswer": "Put the laundry in and close the door, turn the programme dial to 'Karışık 40' and press Start (Başlat). Put the detergent in the middle compartment of the drawer and do not fill the drum completely."
+  },
+  {
+   "id": "T2-Q13",
+   "docId": "T2",
+   "lang": "de",
+   "text": "An welchem Tag wird das Altglas abgeholt und in welchen Container gehört es?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Atık türü | Konteyner (renk ve yer) | Toplama günü | Toplama saati | Not |",
+    "| Cam şişe ve kavanoz | Yeşil konteyner, bahçe çıkışında | Salı | 09:00 | Kapakları çıkarın; kırık cam bu konteynere atılmaz. |"
+   ],
+   "goldAnswer": "Glasflaschen und Gläser: Dienstag (Salı) um 09:00 Uhr, grüner Container am Gartenausgang. Deckel entfernen; zerbrochenes Glas gehört nicht in diesen Container."
+  },
+  {
+   "id": "T2-Q14",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Dairede jakuzi veya sauna var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede jakuzi veya sauna bilgisi yok."
+  },
+  {
+   "id": "T2-Q15",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Bebek arabası ya da mama sandalyesi ödünç alabilir miyiz?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede bebek arabası veya mama sandalyesi bilgisi yok."
+  },
+  {
+   "id": "T2-Q16",
+   "docId": "T2",
+   "lang": "tr",
+   "text": "Wi-Fi şifresini nerede bulurum?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Wi-Fi ağ adı Lale2-Misafir'dir; şifre modemin altındaki etikette yazılıdır."
+   ],
+   "goldAnswer": "Şifre modemin altındaki etikette yazılıdır; ağ adı Lale2-Misafir."
+  },
+  {
+   "id": "T3-Q01",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Temmuz'da açık havuz akşam kaça kadar açık?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |",
+    "| Açık havuz | 09:00–20:00 | Kapalı | — | Bone zorunludur; şezlonglar ücretsizdir |"
+   ],
+   "goldAnswer": "Temmuz yaz tarifesindedir (1 Haziran – 30 Eylül); açık havuz 09:00–20:00 arası açıktır."
+  },
+  {
+   "id": "T3-Q02",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Ağustos'ta Cuma günü saat 13:30'da açık havuza girebilir miyiz?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "Açık havuz ve çocuk havuzu her Cuma 13:00 – 14:00 arasında temizlik nedeniyle kapanır.",
+    "| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |",
+    "| Açık havuz | 09:00–20:00 | Kapalı | — | Bone zorunludur; şezlonglar ücretsizdir |"
+   ],
+   "goldAnswer": "Hayır. Ağustos yaz tarifesinde açık havuz 09:00–20:00 açıktır ancak her Cuma 13:00–14:00 arası temizlik nedeniyle kapanır; 13:30'da giriş yapılamaz."
+  },
+  {
+   "id": "T3-Q03",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Mayıs'ın son haftasında sauna hangi saatlerde açık ve hangi gün kapalı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |",
+    "| Sauna | Kapalı | 16:00–22:00 | Çarşamba | 16 yaş altına kapalıdır; havlu verilir |"
+   ],
+   "goldAnswer": "Mayıs kış tarifesindedir (1 Ekim – 31 Mayıs). Sauna 16:00–22:00 arası açık, Çarşamba günü kapalıdır; 16 yaş altına kapalıdır."
+  },
+  {
+   "id": "T3-Q04",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Cumartesi akşamı siteden çarşıya giden son otobüs kaçta kalkıyor?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Sefer | Hafta içi (siteden) | Cumartesi (siteden) | Pazar ve resmî tatil (siteden) | Hafta içi (çarşıdan) | Cumartesi (çarşıdan) | Pazar ve resmî tatil (çarşıdan) |",
+    "| 14. sefer | 18:00 | 20:30 | 21:00 | 18:40 | 21:10 | 21:40 |",
+    "| 15. sefer | 19:30 | — | — | 20:10 | — | — |",
+    "Bir hücrede \"—\" işareti varsa o gün o sefer yoktur."
+   ],
+   "goldAnswer": "Cumartesi (siteden) sütununda son sefer 14. sefer, 20:30. 15.–17. seferlerde Cumartesi hücresi '—' yani sefer yok."
+  },
+  {
+   "id": "T3-Q05",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Pazar günü siteden çarşıya ilk otobüs kaçta kalkıyor?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Sefer | Hafta içi (siteden) | Cumartesi (siteden) | Pazar ve resmî tatil (siteden) | Hafta içi (çarşıdan) | Cumartesi (çarşıdan) | Pazar ve resmî tatil (çarşıdan) |",
+    "| 1. sefer | 06:30 | 07:30 | — | 07:10 | 08:10 | — |",
+    "| 2. sefer | 07:00 | 08:30 | 09:00 | 07:40 | 09:10 | 09:40 |"
+   ],
+   "goldAnswer": "Pazar ve resmî tatil (siteden) sütununda 1. sefer '—' (yok); ilk sefer 2. sefer, 09:00."
+  },
+  {
+   "id": "T3-Q06",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Hafta içi çarşıdan siteye dönen son otobüs saat kaçta kalkıyor?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tablo 1'de \"siteden\" sütunları Lale Sitesi durağından Çarşı merkezine kalkış saatlerini, \"çarşıdan\" sütunları Çarşı merkezinden siteye dönüş kalkış saatlerini verir.",
+    "Dönüş seferi, aynı numaralı seferin siteden kalkışından 40 dakika sonra çarşıdan kalkar.",
+    "| Sefer | Hafta içi (siteden) | Cumartesi (siteden) | Pazar ve resmî tatil (siteden) | Hafta içi (çarşıdan) | Cumartesi (çarşıdan) | Pazar ve resmî tatil (çarşıdan) |",
+    "| 17. sefer | 22:00 | — | — | 22:40 | — | — |"
+   ],
+   "goldAnswer": "Hafta içi (çarşıdan) sütununda 17. sefer 22:40'ta çarşıdan kalkar (siteden 22:00 kalkışından 40 dakika sonra)."
+  },
+  {
+   "id": "T3-Q07",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Haziran'da sabah 08:00'de havalimanına ring servisi var mı, kişi başı ücreti ne?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Servis | Yaz tarifesi | Kış tarifesi | Ücret (kişi başı) | Araç | Biniş noktası | Not |",
+    "| 3. servis | 08:00 | 09:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |"
+   ],
+   "goldAnswer": "Haziran yaz tarifesindedir. 3. servis yaz tarifesinde 08:00'de kalkar; ücret kişi başı 160 TL."
+  },
+  {
+   "id": "T3-Q08",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Kasım'da akşam 20:00'de havalimanı servisi var mı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Servis | Yaz tarifesi | Kış tarifesi | Ücret (kişi başı) | Araç | Biniş noktası | Not |",
+    "| 9. servis | 20:00 | — | 180 TL | Minibüs | Ana kapı önü | Kışın yapılmaz |"
+   ],
+   "goldAnswer": "Hayır. Kasım kış tarifesindedir; 9. servis (20:00) yalnızca yaz tarifesinde var, kış tarifesi sütunu '—' ve not 'Kışın yapılmaz'."
+  },
+  {
+   "id": "T3-Q09",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Gece 02:00'de havalimanına ring servisi var mı?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Servis | Yaz tarifesi | Kış tarifesi | Ücret (kişi başı) | Araç | Biniş noktası | Not |",
+    "| Gece servisi (00:00–03:00) | Yapılmıyor | Yapılmıyor | — | — | — | Gece için özel transfer resepsiyondan sorulabilir |",
+    "\"Yapılmıyor\" yazan servis hiç yapılmaz; \"—\" işareti o tarifede o servis olmadığını ya da o hücrenin boş olduğunu gösterir."
+   ],
+   "goldAnswer": "Hayır; gece servisi (00:00–03:00) hem yaz hem kış tarifesinde Yapılmıyor. Gece için özel transfer resepsiyondan sorulabilir."
+  },
+  {
+   "id": "T3-Q10",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Kasım'da Cumartesi günü 14:00'ten sonraki ilk otobüsle çarşıya gitmek istiyoruz. Otobüs kaçta kalkar, çarşıya kaç dakikada varırız?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Otobüs hattı 12 saatleri (Tablo 1) tüm yıl aynıdır; yaz ve kış farkı yoktur.",
+    "| Sefer | Hafta içi (siteden) | Cumartesi (siteden) | Pazar ve resmî tatil (siteden) | Hafta içi (çarşıdan) | Cumartesi (çarşıdan) | Pazar ve resmî tatil (çarşıdan) |",
+    "| 7. sefer | 11:00 | 13:30 | — | 11:40 | 14:10 | — |",
+    "| 8. sefer | 12:00 | 14:30 | 15:00 | 12:40 | 15:10 | 15:40 |",
+    "| Yer | Yürüyerek | Araçla | Hat 12 ile | Not |",
+    "| Çarşı merkezi | 40 dk | 10 dk | 18 dk | Perşembe günü pazar kurulur |"
+   ],
+   "goldAnswer": "Hat 12 saatleri tüm yıl aynıdır. Cumartesi 14:00'ten sonraki ilk kalkış 8. sefer, 14:30 (7. sefer 13:30'da). Çarşı merkezine Hat 12 ile 18 dakikada varılır."
+  },
+  {
+   "id": "T3-Q11",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Ağustos'ta plaja yürüyerek ne kadar sürer ve plaj servis aracı kaçta başlıyor?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Yer | Yürüyerek | Araçla | Hat 12 ile | Not |",
+    "| Halk plajı | 12 dk | 4 dk | — | Yazın plaj servis aracı da gider |",
+    "| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |",
+    "| Plaj servis aracı | 09:30–18:30 | Yapılmıyor | — | Yarım saatte bir kalkar; resepsiyon önünden biner |"
+   ],
+   "goldAnswer": "Halk plajına yürüyerek 12 dakika. Plaj servis aracı yaz tarifesinde (Ağustos) 09:30–18:30 arası çalışır ve yarım saatte bir kalkar."
+  },
+  {
+   "id": "T3-Q12",
+   "docId": "T3",
+   "lang": "en",
+   "text": "Is the sauna open on Wednesdays in winter?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Tesis | Yaz tarifesi | Kış tarifesi | Haftalık kapalı gün | Not |",
+    "| Sauna | Kapalı | 16:00–22:00 | Çarşamba | 16 yaş altına kapalıdır; havlu verilir |"
+   ],
+   "goldAnswer": "No. In the winter schedule (1 Oct – 31 May) the sauna is open 16:00–22:00 but it is closed on Wednesdays."
+  },
+  {
+   "id": "T3-Q13",
+   "docId": "T3",
+   "lang": "de",
+   "text": "Wie viel kostet der Flughafenbus im Sommer um 10 Uhr pro Person?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Tarifeler: yaz tarifesi 1 Haziran – 30 Eylül, kış tarifesi 1 Ekim – 31 Mayıs tarihleri arasında geçerlidir.",
+    "| Servis | Yaz tarifesi | Kış tarifesi | Ücret (kişi başı) | Araç | Biniş noktası | Not |",
+    "| 4. servis | 10:00 | 11:00 | 160 TL | Otobüs | Resepsiyon önü | Bagaj ücretsizdir; kalkıştan 15 dakika önce gelin |"
+   ],
+   "goldAnswer": "Der 4. Service fährt im Sommer um 10:00 Uhr ab und kostet 160 TL pro Person."
+  },
+  {
+   "id": "T3-Q14",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Kano veya bisiklet kiralama yapılıyor mu?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede kano veya bisiklet kiralama bilgisi yok."
+  },
+  {
+   "id": "T3-Q15",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Daireye çocuk araç koltuğu verilir mi?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede çocuk araç koltuğu bilgisi yok."
+  },
+  {
+   "id": "T3-Q16",
+   "docId": "T3",
+   "lang": "tr",
+   "text": "Havuzda bone takmak zorunlu mu, nereden alınır?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Havuzda bone takmak zorunludur; bone resepsiyonda 150 TL'ye satılır."
+   ],
+   "goldAnswer": "Evet, zorunludur; bone resepsiyonda 150 TL'ye satılır."
+  },
+  {
+   "id": "T4-Q01",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Temmuz'da 2 yetişkin ve 5 ile 9 yaşlarında iki çocukla kalacağız. Gecelik ücret nedir?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır.",
+    "Kişi sayısı şöyle sayılır: 13 yaş ve üzeri yetişkin sayılır, 3–12 yaş arası çocuktur, 0–2 yaş arası bebekler kişi sayısına dahil edilmez ve ücretsizdir.",
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 2 yetişkin + 2 çocuk | 2.000 TL | 2.450 TL | 3.350 TL | 3.850 TL | 2 yatak odası |"
+   ],
+   "goldAnswer": "Temmuz yüksek sezondur (15 Mayıs – 14 Ekim); 5 ve 9 yaş çocuk sayılır (3–12 yaş). '2 yetişkin + 2 çocuk' satırı, yüksek sezon: 3.350 TL gecelik (daire başı)."
+  },
+  {
+   "id": "T4-Q02",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "20 Mart'ta 4 yetişkin olarak gelirsek gecelik ücret nedir?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır.",
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 4 yetişkin | 2.200 TL | 2.700 TL | 3.700 TL | 4.200 TL | 2 yatak odası |"
+   ],
+   "goldAnswer": "20 Mart orta sezondur (15 Mart – 14 Mayıs); 4 yetişkin, orta sezon: 2.700 TL gecelik."
+  },
+  {
+   "id": "T4-Q03",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "10 Kasım'da 3 yetişkin ve 14 yaşında bir gençle kalacağız. Gecelik ücret ne olur?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır.",
+    "Kişi sayısı şöyle sayılır: 13 yaş ve üzeri yetişkin sayılır, 3–12 yaş arası çocuktur, 0–2 yaş arası bebekler kişi sayısına dahil edilmez ve ücretsizdir.",
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 4 yetişkin | 2.200 TL | 2.700 TL | 3.700 TL | 4.200 TL | 2 yatak odası |"
+   ],
+   "goldAnswer": "14 yaş yetişkin sayılır (13 yaş ve üzeri), yani 4 yetişkin. 10 Kasım orta sezondur (15 Ekim – 14 Kasım): 4 yetişkin, orta sezon 2.700 TL gecelik."
+  },
+  {
+   "id": "T4-Q04",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Ağustos'ta 2 yetişkin ve 1 yaşındaki bebekle geleceğiz. Gecelik ücret nedir?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır.",
+    "Kişi sayısı şöyle sayılır: 13 yaş ve üzeri yetişkin sayılır, 3–12 yaş arası çocuktur, 0–2 yaş arası bebekler kişi sayısına dahil edilmez ve ücretsizdir.",
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 2 yetişkin | 1.700 TL | 2.100 TL | 2.900 TL | 3.400 TL | 1 yatak odası |"
+   ],
+   "goldAnswer": "Ağustos yüksek sezondur; 0–2 yaş bebekler kişi sayısına dahil edilmez ve ücretsizdir. '2 yetişkin' satırı, yüksek sezon: 2.900 TL gecelik."
+  },
+  {
+   "id": "T4-Q05",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Temmuz'da 4 yetişkin 10 gece kalırsak gecelik ücret nedir ve kaç kez ara temizlik yapılır?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Sezonlar: düşük sezon 15 Kasım – 14 Mart, orta sezon 15 Mart – 14 Mayıs ile 15 Ekim – 14 Kasım, yüksek sezon 15 Mayıs – 14 Ekim tarihleri arasıdır.",
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 4 yetişkin | 2.200 TL | 2.700 TL | 3.700 TL | 4.200 TL | 2 yatak odası |",
+    "| Konaklama süresi | Ara temizlik | Çarşaf değişimi | Havlu değişimi | Ek ücret |",
+    "| 10–13 gece | 2 kez | 5 günde bir | 3 günde bir | Ücretsiz |"
+   ],
+   "goldAnswer": "Temmuz yüksek sezon: 4 yetişkin için gecelik 3.700 TL. 10 gece '10–13 gece' satırına girer: ara temizlik 2 kez, ücretsiz."
+  },
+  {
+   "id": "T4-Q06",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Yüksek sezonda 5 yetişkin 7 gece kalıp bir de ilave temizlik isterlerse toplam kaç TL öderler?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Misafir sayısı | Düşük sezon | Orta sezon | Yüksek sezon | Bayram dönemi | Kullanıma açılan yatak odası |",
+    "| 5 yetişkin | 2.450 TL | 3.000 TL | 4.100 TL | 4.600 TL | 3 yatak odası |",
+    "| Konaklama süresi | Ara temizlik | Çarşaf değişimi | Havlu değişimi | Ek ücret |",
+    "| 7–9 gece | 1 kez (5. gün) | 5. günde | 3 günde bir | Ücretsiz |",
+    "| İlave temizlik talebi | Talep üzerine | — | — | 700 TL (kez başı) |"
+   ],
+   "goldAnswer": "5 yetişkin yüksek sezon 4.100 TL x 7 gece = 28.700 TL. 7–9 gece içindeki 1 ara temizlik ücretsiz; ilave temizlik talebi 700 TL. Toplam 29.400 TL."
+  },
+  {
+   "id": "T4-Q07",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Dairede sigara içilebilir mi?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Kural | Rule | Ayrıntı | Details |",
+    "| Sigara | Smoking | Dairede ve balkonda sigara içilmez. | No smoking inside the apartment or on the balcony. |"
+   ],
+   "goldAnswer": "Hayır; dairede ve balkonda sigara içilmez."
+  },
+  {
+   "id": "T4-Q08",
+   "docId": "T4",
+   "lang": "en",
+   "text": "Are pets allowed in the apartment?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Kural | Rule | Ayrıntı | Details |",
+    "| Evcil hayvan | Pets | Evcil hayvan kabul edilmez. | Pets are not allowed. |"
+   ],
+   "goldAnswer": "No, pets are not allowed (Evcil hayvan kabul edilmez)."
+  },
+  {
+   "id": "T4-Q09",
+   "docId": "T4",
+   "lang": "en",
+   "text": "What do we pay if we lose the apartment key?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Kural | Rule | Ayrıntı | Details |",
+    "| Anahtar kaybı | Lost key | Kayıp anahtarın bedeli Tablo 4'e göre alınır. | The cost of a lost key is charged as listed in Table 4. |",
+    "| Eşya | Bedel | Not |",
+    "| Daire anahtarı | 500 TL | Kayıp ya da kırılma |"
+   ],
+   "goldAnswer": "The cost of a lost key is charged as listed in Table 4: Daire anahtarı costs 500 TL."
+  },
+  {
+   "id": "T4-Q10",
+   "docId": "T4",
+   "lang": "de",
+   "text": "Bis wann dürfen Besucher in der Wohnung bleiben und wie viele dürfen gleichzeitig kommen?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Kural | Rule | Ayrıntı | Details |",
+    "| Ziyaretçi | Visitors | Ziyaretçiler en geç 22:00'ye kadar kalabilir; aynı anda en fazla 2 ziyaretçi gelebilir. | Visitors may stay until 22:00 at the latest; no more than 2 visitors at a time. |"
+   ],
+   "goldAnswer": "Besucher dürfen höchstens bis 22:00 Uhr bleiben, und es dürfen maximal 2 Besucher gleichzeitig kommen."
+  },
+  {
+   "id": "T4-Q11",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "14 gece kalacağız; çarşafları kaç günde bir değiştirirsiniz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Ara temizlik ve değişimler konaklama süresine göre Tablo 3'teki gibi ücretsiz yapılır; \"Yapılmıyor\" yazan hizmet o süre için sunulmaz.",
+    "| Konaklama süresi | Ara temizlik | Çarşaf değişimi | Havlu değişimi | Ek ücret |",
+    "| 14–20 gece | Haftada 1 kez | 7 günde bir | 3 günde bir | Ücretsiz |"
+   ],
+   "goldAnswer": "'14–20 gece' satırı: çarşaf 7 günde bir değişir (havlu 3 günde bir, ara temizlik haftada 1 kez); ücretsiz."
+  },
+  {
+   "id": "T4-Q12",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "3 gecelik kalışta ara temizlik yapılıyor mu?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Ara temizlik ve değişimler konaklama süresine göre Tablo 3'teki gibi ücretsiz yapılır; \"Yapılmıyor\" yazan hizmet o süre için sunulmaz.",
+    "| Konaklama süresi | Ara temizlik | Çarşaf değişimi | Havlu değişimi | Ek ücret |",
+    "| 1–3 gece | Yapılmıyor | Yapılmıyor | Yapılmıyor | — |"
+   ],
+   "goldAnswer": "Hayır; 1–3 gece konaklamada ara temizlik, çarşaf ve havlu değişimi Yapılmıyor."
+  },
+  {
+   "id": "T4-Q13",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Site giriş kartını kaybedersek ne kadar öderiz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Eşya | Bedel | Not |",
+    "| Site giriş kartı | 250 TL | Resepsiyonda yenisi verilir |"
+   ],
+   "goldAnswer": "Site giriş kartı 250 TL; resepsiyonda yenisi verilir."
+  },
+  {
+   "id": "T4-Q14",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Dairede şömine var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede şömine bilgisi yok."
+  },
+  {
+   "id": "T4-Q15",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Erken giriş yapmak istersek ücreti nedir?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede erken giriş ücreti bilgisi yok."
+  },
+  {
+   "id": "T4-Q16",
+   "docId": "T4",
+   "lang": "tr",
+   "text": "Giriş ve çıkış saatleri nedir?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00'ten sonradır, çıkış saati 11:00'e kadardır."
+   ],
+   "goldAnswer": "Giriş 15:00'ten sonra, çıkış 11:00'e kadar."
+  },
+  {
+   "id": "T5-Q01",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Ağustos'ta Cumartesi günü giriş saati kaçta?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Yüksek dönem 1 Temmuz – 31 Ağustos tarihleri arasıdır.",
+    "Tablo 1'deki \"normal dönem\" sütunları yılın geri kalan günlerini kapsar.",
+    "| Gün | Giriş (normal dönem) | Giriş (1 Temmuz – 31 Ağustos) | Çıkış (normal dönem) | Çıkış (1 Temmuz – 31 Ağustos) |",
+    "| Cumartesi | 16:00 | 17:00 | 10:00 | 10:00 |"
+   ],
+   "goldAnswer": "Ağustos 1 Temmuz – 31 Ağustos yüksek dönemindedir; Cumartesi giriş saati bu dönemde 17:00 (normal dönemde 16:00)."
+  },
+  {
+   "id": "T5-Q02",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Nisan'da Pazar günü çıkış saati kaçta?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Yüksek dönem 1 Temmuz – 31 Ağustos tarihleri arasıdır.",
+    "Tablo 1'deki \"normal dönem\" sütunları yılın geri kalan günlerini kapsar.",
+    "| Gün | Giriş (normal dönem) | Giriş (1 Temmuz – 31 Ağustos) | Çıkış (normal dönem) | Çıkış (1 Temmuz – 31 Ağustos) |",
+    "| Pazar | 15:00 | 15:00 | 12:00 | 11:00 |"
+   ],
+   "goldAnswer": "Nisan yüksek dönemde değildir, normal dönemdir; Pazar çıkış saati 12:00 (1 Temmuz – 31 Ağustos arasında 11:00)."
+  },
+  {
+   "id": "T5-Q03",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Mayıs'ta restoranda akşam yemeği saat kaçta başlıyor, hangi gün kapalı?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: yaz dönemi 1 Mayıs – 30 Eylül, kış dönemi 1 Ekim – 30 Nisan tarihleri arasındadır.",
+    "| Mekân | Yaz dönemi | Kış dönemi | Kapalı gün | Not |",
+    "| Restoran (akşam yemeği) | 18:30–23:00 | 18:00–22:00 | Pazartesi | Rezervasyon önerilir; çocuk menüsü vardır |"
+   ],
+   "goldAnswer": "Mayıs yaz dönemindedir (1 Mayıs – 30 Eylül); restoran akşam yemeği 18:30–23:00 arasıdır, Pazartesi kapalıdır."
+  },
+  {
+   "id": "T5-Q04",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Ekim'de spa açık mı, hangi saatlerde?",
+   "category": "tablo_tanim",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: yaz dönemi 1 Mayıs – 30 Eylül, kış dönemi 1 Ekim – 30 Nisan tarihleri arasındadır.",
+    "| Mekân | Yaz dönemi | Kış dönemi | Kapalı gün | Not |",
+    "| Spa (hamam, sauna, masaj) | 10:00–20:00 | 12:00–21:00 | Salı | Randevuyla; hamam ve sauna havlusu verilir |"
+   ],
+   "goldAnswer": "Ekim kış dönemindedir (1 Ekim – 30 Nisan); spa 12:00–21:00 arası açıktır, Salı kapalıdır ve randevuyla çalışır."
+  },
+  {
+   "id": "T5-Q05",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Evde masaj hizmeti alabilir miyiz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |",
+    "| Evde masaj | Yapılmıyor | — | — | Masaj için site spasından randevu alın |",
+    "\"Yapılmıyor\" yazan hizmet sunulmaz ve \"—\" işareti o hücrenin bu hizmet için geçerli olmadığını belirtir."
+   ],
+   "goldAnswer": "Hayır; evde masaj Yapılmıyor. Masaj için site spasından randevu alınabilir."
+  },
+  {
+   "id": "T5-Q06",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "4 kişilik kahvaltı sepeti kaç TL ve ne zamana kadar sipariş vermeliyiz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |",
+    "| Kahvaltı sepeti (4 kişilik) | 800 TL | Bir gün önce 18:00'e kadar | 08:00–10:00 arası kapıya teslim | 5 kişi için iki sepet sipariş edin |"
+   ],
+   "goldAnswer": "800 TL; bir gün önce 18:00'e kadar sipariş edilir; 08:00–10:00 arası kapıya teslim edilir."
+  },
+  {
+   "id": "T5-Q07",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Çamaşır yıkama hizmetinin ücreti nedir, ne zaman teslim edilir?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |",
+    "| Çamaşır yıkama ve kurutma | 120 TL / kg | Aynı gün 10:00'a kadar | Ertesi gün 18:00'de teslim | Pazar günü teslim alınmaz |"
+   ],
+   "goldAnswer": "120 TL / kg; aynı gün 10:00'a kadar bildirilir, ertesi gün 18:00'de teslim edilir; Pazar günü teslim alınmaz."
+  },
+  {
+   "id": "T5-Q08",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Ambulansı hangi numaradan ararız?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Kurum | Numara | Ne zaman aranır | Not |",
+    "| Ambulans | 112 | Sağlık acili | 7/24 |"
+   ],
+   "goldAnswer": "112 (sağlık acili, 7/24)."
+  },
+  {
+   "id": "T5-Q09",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Ağustos'ta Cumartesi günü giriş yapacağız ve ilk akşam özel şef yemeği istiyoruz. Giriş saati ve yemeğin ücreti nedir?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Yüksek dönem 1 Temmuz – 31 Ağustos tarihleri arasıdır.",
+    "| Gün | Giriş (normal dönem) | Giriş (1 Temmuz – 31 Ağustos) | Çıkış (normal dönem) | Çıkış (1 Temmuz – 31 Ağustos) |",
+    "| Cumartesi | 16:00 | 17:00 | 10:00 | 10:00 |",
+    "| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |",
+    "| Özel şef yemeği (4 kişiye kadar) | 3.500 TL | Üç gün önce | 19:00'da başlar | Malzeme dahildir; 5. kişi için 600 TL ek |"
+   ],
+   "goldAnswer": "Ağustos yüksek dönemdedir: Cumartesi giriş 17:00. Özel şef yemeği (4 kişiye kadar) 3.500 TL, üç gün önce bildirilir, 19:00'da başlar; 5. kişi için 600 TL ek."
+  },
+  {
+   "id": "T5-Q10",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Kışın gece 23:30'da resepsiyona ulaşabilir miyiz, hangi numarayı ararız?",
+   "category": "iki_tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "Dönemler: yaz dönemi 1 Mayıs – 30 Eylül, kış dönemi 1 Ekim – 30 Nisan tarihleri arasındadır.",
+    "| Mekân | Yaz dönemi | Kış dönemi | Kapalı gün | Not |",
+    "| Resepsiyon | 24 saat | 08:00–24:00 | — | Kış gecesi güvenlik görevlisine başvurun |",
+    "| Kurum | Numara | Ne zaman aranır | Not |",
+    "| Resepsiyon | Dahili 9 | Anahtar, arıza ve genel sorular | Saatler Tablo 3'tedir |"
+   ],
+   "goldAnswer": "Kış döneminde (1 Ekim – 30 Nisan) resepsiyon 08:00–24:00 arası açıktır, yani 23:30'da ulaşılabilir; numara Dahili 9."
+  },
+  {
+   "id": "T5-Q11",
+   "docId": "T5",
+   "lang": "en",
+   "text": "What time is check-out on Sunday in August?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Yüksek dönem 1 Temmuz – 31 Ağustos tarihleri arasıdır.",
+    "| Gün | Giriş (normal dönem) | Giriş (1 Temmuz – 31 Ağustos) | Çıkış (normal dönem) | Çıkış (1 Temmuz – 31 Ağustos) |",
+    "| Pazar | 15:00 | 15:00 | 12:00 | 11:00 |"
+   ],
+   "goldAnswer": "In the 1 July – 31 August period Sunday check-out is at 11:00 (12:00 in the normal period)."
+  },
+  {
+   "id": "T5-Q12",
+   "docId": "T5",
+   "lang": "de",
+   "text": "Gibt es einen Babysitter-Service und was kostet er pro Stunde?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Ücret | Önceden bildirim | Hizmet saati | Not |",
+    "| Çocuk bakıcısı | 350 TL / saat | İki gün önce | 09:00–22:00 | En az 3 saat; 0–10 yaş çocuklar için |"
+   ],
+   "goldAnswer": "Ja: Çocuk bakıcısı 350 TL pro Stunde, mindestens 3 Stunden, 2 Tage vorher anmelden, 09:00–22:00 Uhr, für Kinder von 0–10 Jahren."
+  },
+  {
+   "id": "T5-Q13",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Dairede şömine var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede şömine bilgisi yok."
+  },
+  {
+   "id": "T5-Q14",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Vale hizmeti ücretli mi?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "goldAnswer": "Belgede vale hizmeti bilgisi yok."
+  },
+  {
+   "id": "T5-Q15",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Terasta mangal yakabilir miyiz?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Terasta mangal yakılmaz; barbekü için site içindeki barbekü alanını kullanın."
+   ],
+   "goldAnswer": "Hayır; terasta mangal yakılmaz, barbekü için site içindeki barbekü alanı kullanılır."
+  },
+  {
+   "id": "T5-Q16",
+   "docId": "T5",
+   "lang": "tr",
+   "text": "Daire kaçıncı katta ve en fazla kaç kişi kalabilir?",
+   "category": "tablo_disi",
+   "answerable": true,
+   "requiredSpans": [
+    "Lale 5, Lale Sitesi'nin D Blok zemin katındaki teraslı dairedir; iki yatak odası ve bir salondan oluşur, en fazla 5 kişi kalabilir."
+   ],
+   "goldAnswer": "D Blok zemin kattadır ve en fazla 5 kişi kalabilir."
+  }
+ ]
+}

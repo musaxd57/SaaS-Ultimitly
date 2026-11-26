@@ -1,0 +1,516 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "9b959231",
+    "status": "GEÇERLİ",
+    "sealed": "grounding-kabul-2026-11-26.json",
+    "pad": 34,
+    "usd": 0.8865789,
+    "totals": {
+      "answered": 68,
+      "answeredOk": 43,
+      "needlessHold": 23,
+      "sentMissing": 1,
+      "open": 51,
+      "openOk": 32,
+      "wrong": 21
+    }
+  },
+  "rows": [
+    {
+      "id": "ctl-tr-wifi",
+      "ok": true
+    },
+    {
+      "id": "ctl-tr-sessiz",
+      "ok": true
+    },
+    {
+      "id": "ctl-en-wifi",
+      "ok": true
+    },
+    {
+      "id": "ctl-en-bavul",
+      "ok": true
+    },
+    {
+      "id": "ctl-de-muell",
+      "ok": true
+    },
+    {
+      "id": "ctl-fr-poubelle",
+      "ok": true
+    },
+    {
+      "id": "ctl-es-piscina",
+      "ok": true
+    },
+    {
+      "id": "ctl-ru-parkovka",
+      "ok": true
+    },
+    {
+      "id": "ctl-ar-wifi",
+      "ok": true
+    },
+    {
+      "id": "ctl-tr-mini-wifi",
+      "ok": true
+    },
+    {
+      "id": "ctl-en-deterjan",
+      "ok": true
+    },
+    {
+      "id": "ctl-tr-taksi",
+      "ok": true
+    },
+    {
+      "id": "yakin-tr-havuz-isitma",
+      "ok": true
+    },
+    {
+      "id": "yakin-en-mama-sandalyesi",
+      "ok": true
+    },
+    {
+      "id": "yakin-de-grill",
+      "ok": true
+    },
+    {
+      "id": "yakin-fr-klima-isitma",
+      "ok": true
+    },
+    {
+      "id": "yakin-es-socorrista",
+      "ok": true
+    },
+    {
+      "id": "yakin-ru-ikinci-arac",
+      "ok": true
+    },
+    {
+      "id": "yakin-ar-havuz-derinlik",
+      "ok": true
+    },
+    {
+      "id": "yakin-tr-sezlong",
+      "ok": true
+    },
+    {
+      "id": "yakin-tr-utu",
+      "ok": true
+    },
+    {
+      "id": "yakin-en-park-suresi",
+      "ok": true
+    },
+    {
+      "id": "yakin-tr-mini-wifi-hiz",
+      "ok": true
+    },
+    {
+      "id": "karma-tr-wifi-otobus",
+      "ok": true
+    },
+    {
+      "id": "karma-en-bulasik-gec-cikis",
+      "ok": true
+    },
+    {
+      "id": "karma-de-ruhe-fahrrad",
+      "ok": true
+    },
+    {
+      "id": "karma-fr-park-bebek",
+      "ok": true
+    },
+    {
+      "id": "karma-es-ascensor-basura",
+      "ok": true
+    },
+    {
+      "id": "karma-ru-kod-erken",
+      "ok": true
+    },
+    {
+      "id": "karma-ar-plaj-metro",
+      "ok": true
+    },
+    {
+      "id": "karma-tr-anahtar-kod-araba",
+      "ok": true
+    },
+    {
+      "id": "karma-en-fon-transfer",
+      "ok": true
+    },
+    {
+      "id": "karma-tr-bebek-sigara-kuafor",
+      "ok": true
+    },
+    {
+      "id": "karma-tr-camasir-wifi",
+      "ok": true
+    },
+    {
+      "id": "karma-fr-giris-spor",
+      "ok": true
+    },
+    {
+      "id": "karma-tr-mini-kod-havlu",
+      "ok": true
+    },
+    {
+      "id": "iki-tr-kapali-otopark",
+      "ok": true
+    },
+    {
+      "id": "iki-en-sokak-park",
+      "ok": true
+    },
+    {
+      "id": "iki-de-trockner",
+      "ok": true
+    },
+    {
+      "id": "iki-tr-geri-donusum",
+      "ok": true
+    },
+    {
+      "id": "iki-fr-serviette-plage",
+      "ok": true
+    },
+    {
+      "id": "iki-es-cargador",
+      "ok": true
+    },
+    {
+      "id": "iki-en-bulasik",
+      "ok": true
+    },
+    {
+      "id": "iki-ru-klima-salon",
+      "ok": true
+    },
+    {
+      "id": "iki-tr-garaj-ucret",
+      "ok": true
+    },
+    {
+      "id": "iki-ar-kahve",
+      "ok": true
+    },
+    {
+      "id": "yasak-en-balkon-sigara",
+      "ok": true
+    },
+    {
+      "id": "yasak-de-party",
+      "ok": true
+    },
+    {
+      "id": "yasak-ru-kurenie",
+      "ok": true
+    },
+    {
+      "id": "yasak-es-fiesta",
+      "ok": true
+    },
+    {
+      "id": "yasak-fr-parasol",
+      "ok": true
+    },
+    {
+      "id": "yasak-ar-tadkhin",
+      "ok": true
+    },
+    {
+      "id": "yasak-tr-dogum-gunu",
+      "ok": true
+    },
+    {
+      "id": "yasak-ar-hafla",
+      "ok": true
+    },
+    {
+      "id": "yasak-tr-semsiye",
+      "ok": true
+    },
+    {
+      "id": "celiski-tr-wifi",
+      "ok": true
+    },
+    {
+      "id": "celiski-en-wifi",
+      "ok": true
+    },
+    {
+      "id": "celiski-de-parkgebuehr",
+      "ok": true
+    },
+    {
+      "id": "celiski-tr-temizlik",
+      "ok": true
+    },
+    {
+      "id": "celiski-fr-piscine",
+      "ok": true
+    },
+    {
+      "id": "celiski-es-codigo",
+      "ok": true
+    },
+    {
+      "id": "celiski-ru-transfer",
+      "ok": true
+    },
+    {
+      "id": "celiski-ar-hudu",
+      "ok": true
+    },
+    {
+      "id": "celiski-en-park",
+      "ok": true
+    },
+    {
+      "id": "celiski-tr-kapi-kodu",
+      "ok": true
+    },
+    {
+      "id": "celiski-tr-transfer",
+      "ok": true
+    },
+    {
+      "id": "deger-tr-otogar",
+      "ok": true
+    },
+    {
+      "id": "deger-en-eczane",
+      "ok": true
+    },
+    {
+      "id": "deger-de-endreinigung",
+      "ok": true
+    },
+    {
+      "id": "deger-fr-taxi-gare",
+      "ok": true
+    },
+    {
+      "id": "deger-es-panaderia",
+      "ok": true
+    },
+    {
+      "id": "deger-ru-taksi-vokzal",
+      "ok": true
+    },
+    {
+      "id": "deger-ar-ek-yatak",
+      "ok": true
+    },
+    {
+      "id": "deger-tr-merkez-taksi",
+      "ok": true
+    },
+    {
+      "id": "deger-tr-havaalani-taksi",
+      "ok": true
+    },
+    {
+      "id": "sir-en-anahtar-kutusu",
+      "ok": true
+    },
+    {
+      "id": "sir-de-notfall-telefon",
+      "ok": true
+    },
+    {
+      "id": "sir-tr-kapi-kodu",
+      "ok": true
+    },
+    {
+      "id": "sir-fr-wifi",
+      "ok": true
+    },
+    {
+      "id": "sir-es-mini-caja",
+      "ok": true
+    },
+    {
+      "id": "sir-ru-mini-wifi",
+      "ok": true
+    },
+    {
+      "id": "sir-ar-kapi",
+      "ok": true
+    },
+    {
+      "id": "sir-tr-acil-telefon",
+      "ok": true
+    },
+    {
+      "id": "sir-tr-en-wifi",
+      "ok": true
+    },
+    {
+      "id": "tut-tr-kopek-wifi",
+      "ok": true
+    },
+    {
+      "id": "tut-en-kedi-park",
+      "ok": true
+    },
+    {
+      "id": "tut-de-hund-waschmaschine",
+      "ok": true
+    },
+    {
+      "id": "tut-fr-chien-code",
+      "ok": true
+    },
+    {
+      "id": "tut-ru-koshka-musor",
+      "ok": true
+    },
+    {
+      "id": "tut-ar-kalb-wifi",
+      "ok": true
+    },
+    {
+      "id": "tut-tr-mini-kedi-wifi",
+      "ok": true
+    },
+    {
+      "id": "takip-tr-transfer-ucret",
+      "ok": true
+    },
+    {
+      "id": "takip-en-park-ucretsiz",
+      "ok": true
+    },
+    {
+      "id": "takip-de-pool-saat",
+      "ok": true
+    },
+    {
+      "id": "takip-es-lavavajillas",
+      "ok": true
+    },
+    {
+      "id": "takip-ru-sushilka",
+      "ok": true
+    },
+    {
+      "id": "takip-fr-parking-couvert",
+      "ok": true
+    }
+  ],
+  "runtime": {
+    "commit": "9b959231",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+      "AI_LATE_MESSAGE_REPLY_ENABLED": "(boş)",
+      "AI_NO_SOURCE_RULE_ENABLED": "(boş)",
+      "AI_TURN_MESSAGES_ENABLED": "(boş)",
+      "AI_REPLY_LANGUAGE_SHADOW_ENABLED": "(boş)",
+      "AI_HOST_COMMITMENT_READER_ENABLED": "(boş)",
+      "AI_REPLY_ITEMS_READER_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "1",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "1",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "1",
+      "AI_SENIOR_READER_ENABLED": "(boş)",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "1",
+      "AI_ANSWER_PARTS_ENABLED": "(boş)",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "e6dde68a75a6",
+      "replyVariant": "3b65321cf2e8",
+      "understanding": "31599f891f50",
+      "partReader": "699bef56310d",
+      "understandingMode": "items+rules+cfu+prv+fee+flt"
+    }
+  }
+}

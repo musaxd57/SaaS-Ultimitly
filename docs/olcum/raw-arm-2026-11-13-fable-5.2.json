@@ -1,0 +1,2301 @@
+{
+  "label": "fable-5.2",
+  "sets": {
+    "grounding-dev": {
+      "scenarios": 43,
+      "missing": 0,
+      "malformed": 0,
+      "requests": 63,
+      "metrics": {
+        "raw": {
+          "answered": 34,
+          "answeredOk": 34,
+          "needlessHold": 0,
+          "sentMissing": 0,
+          "open": 28,
+          "openOk": 28,
+          "wrong": 0
+        },
+        "mechanical": {
+          "answered": 34,
+          "answeredOk": 34,
+          "needlessHold": 0,
+          "sentMissing": 0,
+          "open": 28,
+          "openOk": 28,
+          "wrong": 0
+        },
+        "declared": {
+          "answered": 34,
+          "answeredOk": 34,
+          "needlessHold": 0,
+          "sentMissing": 0,
+          "open": 28,
+          "openOk": 28,
+          "wrong": 0
+        }
+      },
+      "issueCounts": {},
+      "detail": [
+        {
+          "id": "a-kahvalti-yalniz",
+          "class": "near_topic_no_answer",
+          "message": "Kahvaltı veriyor musunuz?",
+          "checks": [
+            {
+              "request": "Kahvaltı veriliyor mu?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "a-wifi-kahvalti",
+          "class": "near_topic_no_answer",
+          "message": "Wi-Fi şifresi ne? Kahvaltı dahil mi?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Kahvaltı dahil mi?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "a-havuz-bari",
+          "class": "near_topic_no_answer",
+          "message": "Havuz barı kaça kadar açık?",
+          "checks": [
+            {
+              "request": "Havuz barı kaça kadar açık?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "a-sarj",
+          "class": "near_topic_no_answer",
+          "message": "Elektrikli araç şarj istasyonu var mı?",
+          "checks": [
+            {
+              "request": "Elektrikli araç şarj istasyonu var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "a-de-fruehstueck",
+          "class": "near_topic_no_answer",
+          "message": "Gibt es Frühstück in der Unterkunft?",
+          "checks": [
+            {
+              "request": "Konaklama yerinde kahvaltı var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "a-en-gym-pool",
+          "class": "near_topic_no_answer",
+          "message": "Is there a gym? And what time does the pool open?",
+          "checks": [
+            {
+              "request": "Spor salonu var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Havuz saat kaçta açılıyor?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! The pool opens at 09:00 every day and stays open until 20:00.",
+              "needs": [
+                "amenities:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "The pool opens at 09:00 every day and stays open until 20:00.",
+              "needs": [
+                "amenities:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": "The pool opens at 09:00 every day and stays open until 20:00.",
+              "needs": [
+                "amenities:answered✔",
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b-kurutma",
+          "class": "explicit_no",
+          "message": "Kurutma makinesi var mı?",
+          "checks": [
+            {
+              "request": "Kurutma makinesi var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba, maalesef kurutma makinemiz yok.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Maalesef kurutma makinemiz yok.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Maalesef kurutma makinemiz yok.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b-kahvalti-acik-yok",
+          "class": "explicit_no",
+          "message": "Kahvaltı veriyor musunuz?",
+          "checks": [
+            {
+              "request": "Kahvaltı veriliyor mu?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Kahvaltı servisimiz yok, ancak mutfağımız tam donanımlıdır; kahvaltınızı rahatlıkla kendiniz hazırlayabilirsiniz.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Kahvaltı servisimiz yok, ancak mutfağımız tam donanımlıdır.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Kahvaltı servisimiz yok, ancak mutfağımız tam donanımlıdır.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b-en-dryer-wifi",
+          "class": "explicit_no",
+          "message": "Is there a tumble dryer? And what is the wifi password?",
+          "checks": [
+            {
+              "request": "Kurutma makinesi var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! There's no tumble dryer, I'm afraid. The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "amenities:answered✔",
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "There's no tumble dryer, I'm afraid. The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "amenities:answered✔",
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "There's no tumble dryer, I'm afraid. The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "amenities:answered✔",
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "c-otopark-celiski",
+          "class": "conflict",
+          "message": "Otopark ücretli mi?",
+          "checks": [
+            {
+              "request": "Otopark ücretli mi?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "c-wifi-otopark-celiski",
+          "class": "conflict",
+          "message": "Wi-Fi şifresi ne? Otopark ücretli mi?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Otopark ücretli mi?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d-eczane",
+          "class": "near_entity",
+          "message": "Yakında eczane var mı?",
+          "checks": [
+            {
+              "request": "Yakında eczane var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d-sauna",
+          "class": "near_entity",
+          "message": "Sauna kaçta açılıyor?",
+          "checks": [
+            {
+              "request": "Sauna kaçta açılıyor?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d-en-atm-shop",
+          "class": "near_entity",
+          "message": "Is there an ATM nearby? Also, where is the nearest shop?",
+          "checks": [
+            {
+              "request": "Yakınlarda ATM var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "En yakın market/dükkan nerede?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! The nearest shop is a market about 150 metres up the street from the building.",
+              "needs": [
+                "local_recommendations:answered✔",
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "The nearest shop is a market about 150 metres up the street from the building.",
+              "needs": [
+                "local_recommendations:answered✔",
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": "The nearest shop is a market about 150 metres up the street from the building.",
+              "needs": [
+                "local_recommendations:answered✔",
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d-firin",
+          "class": "near_entity",
+          "message": "En yakın fırın nerede?",
+          "checks": [
+            {
+              "request": "En yakın fırın nerede?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e-otogar-transfer",
+          "class": "value_transfer",
+          "message": "Otogardan transfer ayarlıyor musunuz, ne kadar?",
+          "checks": [
+            {
+              "request": "Otogardan transfer ayarlıyor musunuz, ücreti ne kadar?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "directions_transport:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "directions_transport:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "directions_transport:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e-market-saat",
+          "class": "value_transfer",
+          "message": "Market kaça kadar açık?",
+          "checks": [
+            {
+              "request": "Market kaça kadar açık?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e-havuz-ucret",
+          "class": "value_transfer",
+          "message": "Havuz ücretli mi?",
+          "checks": [
+            {
+              "request": "Havuz ücretli mi?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e-en-pool-heated",
+          "class": "value_transfer",
+          "message": "Is the pool heated?",
+          "checks": [
+            {
+              "request": "Havuz ısıtmalı mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e-restoran-mesafe",
+          "class": "value_transfer",
+          "message": "Deniz Lokantası kaç metre uzakta?",
+          "checks": [
+            {
+              "request": "Deniz Lokantası kaç metre uzakta?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "f-tr-kedi-wifi",
+          "class": "held_plus_answer",
+          "message": "Kedimizle gelebilir miyiz? Wi-Fi şifresi ne?",
+          "checks": [
+            {
+              "request": "Kedimizle gelebilir miyiz?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Wi-Fi şifresi ne?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "f-de-hund-parken",
+          "class": "held_plus_answer",
+          "message": "Dürfen wir unseren Hund mitbringen? Und gibt es einen Parkplatz?",
+          "checks": [
+            {
+              "request": "Köpeğimizi getirebilir miyiz?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hallo! Ja, hinter dem Gebäude gibt es einen offenen Parkplatz, den unsere Gäste kostenlos nutzen können.",
+              "needs": [
+                "pets:open✔",
+                "parking:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Ja, hinter dem Gebäude gibt es einen offenen Parkplatz, den unsere Gäste kostenlos nutzen können.",
+              "needs": [
+                "pets:open✔",
+                "parking:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Ja, hinter dem Gebäude gibt es einen offenen Parkplatz, den unsere Gäste kostenlos nutzen können.",
+              "needs": [
+                "pets:open✔",
+                "parking:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "f-fr-chien-poubelles",
+          "class": "held_plus_answer",
+          "message": "Peut-on venir avec notre chien ? Et où jeter les poubelles ?",
+          "checks": [
+            {
+              "request": "Köpeğimizle gelebilir miyiz?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Çöpleri nereye atmalıyız?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Bonjour ! Les poubelles se jettent dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "pets:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Les poubelles se jettent dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "pets:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Les poubelles se jettent dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "pets:open✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "f-en-early-wifi",
+          "class": "held_plus_answer",
+          "message": "Can we check in at 10am? Also what's the wifi password?",
+          "checks": [
+            {
+              "request": "Saat 10:00'da (erken) giriş yapabilir miyiz?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "early_checkin:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "early_checkin:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "early_checkin:open✔",
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "g-kahvalti-wifi",
+          "class": "order",
+          "message": "Kahvaltı dahil mi? Wi-Fi şifresi ne?",
+          "checks": [
+            {
+              "request": "Kahvaltı dahil mi?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Wi-Fi şifresi ne?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "amenities:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "amenities:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "amenities:open✔",
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "g-havuz-eczane",
+          "class": "order",
+          "message": "Havuz kaçta açılıyor, bir de yakında eczane var mı?",
+          "checks": [
+            {
+              "request": "Havuz kaçta açılıyor?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Yakında eczane var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Havuz her gün 09:00'da açılıyor ve 20:00'ye kadar açık.",
+              "needs": [
+                "amenities:answered✔",
+                "local_recommendations:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Havuz her gün 09:00'da açılıyor ve 20:00'ye kadar açık.",
+              "needs": [
+                "amenities:answered✔",
+                "local_recommendations:open✔"
+              ]
+            },
+            "declared": {
+              "text": "Havuz her gün 09:00'da açılıyor ve 20:00'ye kadar açık.",
+              "needs": [
+                "amenities:answered✔",
+                "local_recommendations:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "g-eczane-havuz",
+          "class": "order",
+          "message": "Yakında eczane var mı, bir de havuz kaçta açılıyor?",
+          "checks": [
+            {
+              "request": "Yakında eczane var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Havuz kaçta açılıyor?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Havuzumuz her gün 09:00'da açılıyor ve 20:00'ye kadar kullanılabiliyor.",
+              "needs": [
+                "local_recommendations:open✔",
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Havuzumuz her gün 09:00'da açılıyor ve 20:00'ye kadar kullanılabiliyor.",
+              "needs": [
+                "local_recommendations:open✔",
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Havuzumuz her gün 09:00'da açılıyor ve 20:00'ye kadar kullanılabiliyor.",
+              "needs": [
+                "local_recommendations:open✔",
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-wifi",
+          "class": "control",
+          "message": "Wi-Fi şifresi ne?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi şifremiz Lale2024, ağ adı ise Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi şifremiz Lale2024, ağ adı ise Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi şifremiz Lale2024, ağ adı ise Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-otopark",
+          "class": "control",
+          "message": "Otopark var mı?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Evet, binanın arkasında açık otoparkımız var ve misafirlerimize ücretsizdir.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, binanın arkasında açık otoparkımız var ve misafirlerimize ücretsizdir.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, binanın arkasında açık otoparkımız var ve misafirlerimize ücretsizdir.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-havuz-saat",
+          "class": "control",
+          "message": "Havuz kaçta kapanıyor?",
+          "checks": [
+            {
+              "request": "Havuz kaçta kapanıyor?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Havuzumuz her gün 09:00–20:00 arası açık, yani 20:00'de kapanıyor.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Havuzumuz her gün 09:00–20:00 arası açık, yani 20:00'de kapanıyor.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Havuzumuz her gün 09:00–20:00 arası açık, yani 20:00'de kapanıyor.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-en-trash",
+          "class": "control",
+          "message": "Where do we put the trash?",
+          "checks": [
+            {
+              "request": "Çöpleri nereye atmalıyız?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-cikis",
+          "class": "control",
+          "message": "Çıkış saati kaç?",
+          "checks": [
+            {
+              "request": "Çıkış saati kaç?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Çıkış saatimiz 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Çıkış saatimiz 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Çıkış saatimiz 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-de-wlan",
+          "class": "control",
+          "message": "Wie lautet das WLAN-Passwort?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hallo! Das WLAN-Passwort lautet Lale2024, das Netzwerk heißt Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Das WLAN-Passwort lautet Lale2024, das Netzwerk heißt Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Das WLAN-Passwort lautet Lale2024, das Netzwerk heißt Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-market",
+          "class": "control",
+          "message": "En yakın market nerede?",
+          "checks": [
+            {
+              "request": "En yakın market nerede?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! En yakın market binanın 150 metre ilerisinde.",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "En yakın market binanın 150 metre ilerisinde.",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "En yakın market binanın 150 metre ilerisinde.",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-transfer",
+          "class": "control",
+          "message": "Havalimanı transferi ayarlıyor musunuz? Ücreti ne kadar?",
+          "checks": [
+            {
+              "request": "Havalimanı transferi ayarlıyor musunuz?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Havalimanı transferinin ücreti ne kadar?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Evet, havalimanı transferini biz ayarlıyoruz. Ücreti tek yön 900 TL'dir.",
+              "needs": [
+                "directions_transport:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, havalimanı transferini biz ayarlıyoruz. Ücreti tek yön 900 TL'dir.",
+              "needs": [
+                "directions_transport:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, havalimanı transferini biz ayarlıyoruz. Ücreti tek yön 900 TL'dir.",
+              "needs": [
+                "directions_transport:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-camasir",
+          "class": "control",
+          "message": "Çamaşır makinesi var mı?",
+          "checks": [
+            {
+              "request": "Çamaşır makinesi var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Evet, çamaşır makinemiz var; banyoda bulunuyor, deterjan da lavabonun altındaki dolapta. Kurutma makinemiz ise yok.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, çamaşır makinemiz var; banyoda bulunuyor, deterjan da lavabonun altındaki dolapta.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, çamaşır makinemiz var; banyoda bulunuyor, deterjan da lavabonun altındaki dolapta.",
+              "needs": [
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-restoran",
+          "class": "control",
+          "message": "Yakında restoran önerir misiniz?",
+          "checks": [
+            {
+              "request": "Yakında restoran önerisi",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Tabii, yürüme mesafesindeki önerilerimiz Deniz Lokantası (balık) ve Köşe Pide. Afiyet olsun!",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Yürüme mesafesindeki önerilerimiz Deniz Lokantası (balık) ve Köşe Pide.",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Yürüme mesafesindeki önerilerimiz Deniz Lokantası (balık) ve Köşe Pide.",
+              "needs": [
+                "local_recommendations:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h-uc-soru",
+          "class": "control",
+          "message": "Wi-Fi şifresi ne, otopark ücretli mi, çöpü nereye atıyoruz?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Otopark ücretli mi?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çöpü nereye atıyoruz?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adı Lale_Home, şifre Lale2024. Bina arkasındaki açık otopark misafirlerimize ücretsizdir. Çöpleri de bina girişinin sağındaki konteynere atabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024. Bina arkasındaki açık otopark misafirlerimize ücretsizdir. Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024. Bina arkasındaki açık otopark misafirlerimize ücretsizdir. Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "i-uc-soru-bir-bilinmeyen",
+          "class": "mixed",
+          "message": "Wi-Fi şifresi ne, otopark var mı, bir de saç düzleştirici var mı?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Saç düzleştirici var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifresi Lale2024. Otoparkımız var; binanın arkasındaki açık otoparkı ücretsiz kullanabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024. Otoparkımız var; binanın arkasındaki açık otoparkı ücretsiz kullanabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024. Otoparkımız var; binanın arkasındaki açık otoparkı ücretsiz kullanabilirsiniz.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:answered✔",
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "i-en-two-known-one-unknown",
+          "class": "mixed",
+          "message": "What's the wifi password, where do we leave the trash, and do you have a baby high chair?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çöpü nereye bırakmalıyız?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Bebek mama sandalyesi var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hi! The Wi-Fi network is Lale_Home and the password is Lale2024. Trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "wifi:answered✔",
+                "trash:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "The Wi-Fi network is Lale_Home and the password is Lale2024. Trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "wifi:answered✔",
+                "trash:answered✔",
+                "amenities:open✔"
+              ]
+            },
+            "declared": {
+              "text": "The Wi-Fi network is Lale_Home and the password is Lale2024. Trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "wifi:answered✔",
+                "trash:answered✔",
+                "amenities:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "j-mini-otopark",
+          "class": "tiny_kb",
+          "message": "Otopark var mı?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            },
+            "declared": {
+              "text": null,
+              "needs": [
+                "parking:open✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "j-mini-wifi",
+          "class": "tiny_kb",
+          "message": "Wi-Fi şifresi ne?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi ne?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi şifremiz Lale2024, ağ adı da Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi şifremiz Lale2024, ağ adı da Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi şifremiz Lale2024, ağ adı da Lale_Home.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "j-mini-wifi-otopark",
+          "class": "tiny_kb",
+          "message": "Wi-Fi şifresi ne? Otopark var mı?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresi ne?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Otopark var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "wifi:answered✔",
+                "parking:open✔"
+              ]
+            }
+          }
+        }
+      ],
+      "models": [
+        "claude-fable-5-2"
+      ]
+    },
+    "turn-messages-dev": {
+      "scenarios": 16,
+      "missing": 0,
+      "malformed": 0,
+      "requests": 29,
+      "metrics": {
+        "raw": {
+          "answered": 24,
+          "answeredOk": 24,
+          "needlessHold": 0,
+          "sentMissing": 0,
+          "open": 4,
+          "openOk": 4,
+          "wrong": 0
+        },
+        "mechanical": {
+          "answered": 24,
+          "answeredOk": 23,
+          "needlessHold": 1,
+          "sentMissing": 1,
+          "open": 4,
+          "openOk": 4,
+          "wrong": 0
+        },
+        "declared": {
+          "answered": 24,
+          "answeredOk": 23,
+          "needlessHold": 1,
+          "sentMissing": 1,
+          "open": 4,
+          "openOk": 4,
+          "wrong": 0
+        }
+      },
+      "issueCounts": {
+        "quote_too_short": 1
+      },
+      "detail": [
+        {
+          "id": "tm-tr-iki-bilinen",
+          "class": "two_known",
+          "message": "Bir de çıkış saati kaç?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çıkış saati kaç?",
+              "decision": "answer",
+              "issues": [
+                "quote_too_short"
+              ]
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır. Çıkış saatimiz 11:00'dir.",
+              "needs": [
+                "parking:answered✔",
+                "checkout_time:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔",
+                "checkout_time:answered✖"
+              ]
+            },
+            "declared": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔",
+                "checkout_time:answered✖"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-two-known",
+          "class": "two_known",
+          "message": "And where do we leave the trash?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çöpü nereye bırakıyoruz?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Yes, there is free parking behind the building. The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Yes, there is free parking behind the building. The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Yes, there is free parking behind the building. The trash goes in the container to the right of the building entrance.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-de-zwei-bekannt",
+          "class": "two_known",
+          "message": "Und bis wann ist der Pool geöffnet?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Havuz saat kaça kadar açık?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hallo! Ja, es gibt einen kostenlosen Parkplatz, er befindet sich hinter dem Gebäude. Der Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.",
+              "needs": [
+                "parking:answered✔",
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Ja, es gibt einen kostenlosen Parkplatz, er befindet sich hinter dem Gebäude. Der Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.",
+              "needs": [
+                "parking:answered✔",
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Ja, es gibt einen kostenlosen Parkplatz, er befindet sich hinter dem Gebäude. Der Pool ist täglich von 09:00 bis 20:00 Uhr geöffnet.",
+              "needs": [
+                "parking:answered✔",
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-fr-deux-connues",
+          "class": "two_known",
+          "message": "Et où jeter les poubelles ?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çöpler nereye atılır?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Bonjour ! Oui, il y a un parking gratuit, situé à l'arrière de l'immeuble. Pour les poubelles, vous pouvez les déposer dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Oui, il y a un parking gratuit, situé à l'arrière de l'immeuble. Pour les poubelles, vous pouvez les déposer dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Oui, il y a un parking gratuit, situé à l'arrière de l'immeuble. Pour les poubelles, vous pouvez les déposer dans le conteneur situé à droite de l'entrée de l'immeuble.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-uc-bilinen",
+          "class": "three_known",
+          "message": "Havuz kaça kadar açık?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çöpü nereye atıyoruz?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Havuz kaça kadar açık?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Havuz her gün 09:00–20:00 arası açıktır. Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır. Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔",
+                "amenities:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır. Çöpleri bina girişinin sağındaki konteynere atabilirsiniz. Havuz her gün 09:00–20:00 arası açıktır.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔",
+                "amenities:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır. Çöpleri bina girişinin sağındaki konteynere atabilirsiniz. Havuz her gün 09:00–20:00 arası açıktır.",
+              "needs": [
+                "parking:answered✔",
+                "trash:answered✔",
+                "amenities:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-three-known",
+          "class": "three_known",
+          "message": "What time is check-out?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Wi-Fi şifresi nedir?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Çıkış saati kaçta?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Check-out is at 11:00. Yes, there is free parking behind the building. The Wi-Fi network is Lale_Home and the password is Lale2024.",
+              "needs": [
+                "parking:answered✔",
+                "wifi:answered✔",
+                "checkout_time:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Yes, there is free parking behind the building. The Wi-Fi network is Lale_Home and the password is Lale2024. Check-out is at 11:00.",
+              "needs": [
+                "parking:answered✔",
+                "wifi:answered✔",
+                "checkout_time:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Yes, there is free parking behind the building. The Wi-Fi network is Lale_Home and the password is Lale2024. Check-out is at 11:00.",
+              "needs": [
+                "parking:answered✔",
+                "wifi:answered✔",
+                "checkout_time:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-soru-sonra-tesekkur",
+          "class": "known_then_thanks",
+          "message": "Şimdiden teşekkürler",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Rica ederiz! Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır. Yarın görüşmek üzere.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-question-then-thanks",
+          "class": "known_then_thanks",
+          "message": "Thanks in advance!",
+          "checks": [
+            {
+              "request": "Çöpleri nereye bırakmalıyız?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "You're welcome! You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-unknown-then-known",
+          "class": "unknown_then_known",
+          "message": "Where do we leave the trash?",
+          "checks": [
+            {
+              "request": "Ütü var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Çöpü nereye bırakmalıyız?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Hello! You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "amenities:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "amenities:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "amenities:open✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-bilinmeyen-sonra-bilinen",
+          "class": "unknown_then_known",
+          "message": "Otopark var mı?",
+          "checks": [
+            {
+              "request": "Yakında eczane var mı?",
+              "decision": "no_source",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "local_recommendations:open✔",
+                "parking:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "local_recommendations:open✔",
+                "parking:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "local_recommendations:open✔",
+                "parking:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-evcil-sonra-wifi",
+          "class": "sensitive_then_known",
+          "message": "Wi-Fi şifresi ne?",
+          "checks": [
+            {
+              "request": "Köpeğimizi getirebilir miyiz?",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Wi-Fi şifresi ne?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba, Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adımız Lale_Home, şifresi Lale2024.",
+              "needs": [
+                "pets:open✔",
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-latecheckout-then-trash",
+          "class": "sensitive_then_known",
+          "message": "Where do we leave the trash?",
+          "checks": [
+            {
+              "request": "Çıkışı saat 11:00 yerine 14:00'te yapabilir miyiz? (geç çıkış talebi)",
+              "decision": "host_decides",
+              "issues": [
+                "not_answer"
+              ]
+            },
+            {
+              "request": "Çöpü nereye bırakmalıyız?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "late_checkout:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "late_checkout:open✔",
+                "trash:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "You can leave the trash in the container to the right of the building entrance.",
+              "needs": [
+                "late_checkout:open✔",
+                "trash:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-ayni-soru-iki-kez",
+          "class": "same_twice",
+          "message": "Wi-Fi şifresini alabilir miyim?",
+          "checks": [
+            {
+              "request": "Wi-Fi şifresini öğrenmek istiyor.",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba, tabii ki! Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+              "needs": [
+                "wifi:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-tek-mesaj",
+          "class": "control_single",
+          "message": "Otopark var mı?",
+          "checks": [
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Evet, otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "parking:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-en-single",
+          "class": "control_single",
+          "message": "What time is check-out?",
+          "checks": [
+            {
+              "request": "Çıkış (check-out) saati kaçta?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Check-out is at 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Check-out is at 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Check-out is at 11:00.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            }
+          }
+        },
+        {
+          "id": "tm-tr-dun-sonra-bugun",
+          "class": "other_day",
+          "message": "Çıkış saati kaç?",
+          "checks": [
+            {
+              "request": "Çıkış saati kaç?",
+              "decision": "answer",
+              "issues": []
+            },
+            {
+              "request": "Otopark var mı?",
+              "decision": "answer",
+              "issues": []
+            }
+          ],
+          "arms": {
+            "raw": {
+              "text": "Merhaba! Çıkış saatimiz 11:00. Otoparkımız da var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "mechanical": {
+              "text": "Çıkış saatimiz 11:00. Otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            },
+            "declared": {
+              "text": "Çıkış saatimiz 11:00. Otoparkımız var; ücretsizdir ve binanın arkasındadır.",
+              "needs": [
+                "checkout_time:answered✔"
+              ]
+            }
+          }
+        }
+      ],
+      "models": [
+        "claude-fable-5-2"
+      ]
+    }
+  }
+}

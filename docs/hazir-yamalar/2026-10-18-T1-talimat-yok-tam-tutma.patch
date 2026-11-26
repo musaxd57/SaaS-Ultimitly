@@ -1,0 +1,108 @@
+diff --git a/src/lib/ai/index.ts b/src/lib/ai/index.ts
+index 2bacb648..4b8ead5d 100644
+--- a/src/lib/ai/index.ts
++++ b/src/lib/ai/index.ts
+@@ -3,7 +3,6 @@ import "server-only";
+ import { createHash } from "node:crypto";
+ import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
+ import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+-import { stripNoInstructionFiller } from "./no-instruction-filler";
+ import { kbFeeRuleEnabled } from "./kb-fee-rule";
+ import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
+ import { accessCodeCompleteEnabled } from "./access-code-complete";
+@@ -552,10 +551,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
+           // Cap every free-text field the model returns — an over-long value would
+           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
+           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
+-          // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı.
+-          reply: codeGreetingEnabled()
+-            ? codeGreetingReply(stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)), input, parsed.detectedLanguage)
+-            : stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)),
++          // T1 (kurucu 10-18: "talimat yok hiçbir şey anlamına gelmiyor, belirsiz olduğunu gösterir; uydurma kural olanağı vermemeli"):
++          // "talimatımız yok" taşıyan cevap SİLİNMEZ, bütünüyle "bilgim yok" kuralına kalır (ev sahibi cevaplar). 10-17'deki yan cümle silici
++          // (`no-instruction-filler.ts`) cevap yolundan çıkarıldı: ardındaki kural / saat / izin çoğu zaman uydurmaydı.
++          reply: codeGreetingEnabled() ? codeGreetingReply(cappedReply.text, input, parsed.detectedLanguage) : cappedReply.text,
+           risk:
+             typeof parsed.risk === "string" && parsed.risk.trim()
+               ? parsed.risk.slice(0, 300)
+diff --git a/tests/unit/no-instruction-filler-reply.test.ts b/tests/unit/no-instruction-filler-reply.test.ts
+index 08c87030..31b52756 100644
+--- a/tests/unit/no-instruction-filler-reply.test.ts
++++ b/tests/unit/no-instruction-filler-reply.test.ts
+@@ -1,9 +1,9 @@
+ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+ 
+ // ---------------------------------------------------------------------------
+-// BAĞLANTI PİNİ (CLAUDE.md "yüklem var, argüman yok" dersi): `stripNoInstructionFiller` saf fonksiyon olarak doğru olsa da cevap yoluna
+-// bağlı değilse misafire yine "Çıkış için özel talimatımız yok, …" gider. `suggestReply` (kanal, QR, "AI öner", Ayarlar testi, demo hepsi
+-// buradan geçer) model cevabını silip döndürmeli — kodla selam açıkken de (selamdan ÖNCE silinir).
++// T1 (kurucu 10-18: "talimat yok hiçbir şey anlamına gelmiyor, belirsiz olduğunu gösterir; uydurma kural olanağı vermemeli AI'ımıza"):
++// `suggestReply` (kanal, QR, "AI öner", Ayarlar testi, demo hepsi buradan geçer) "talimatımız yok" taşıyan model cevabını SİLMEDEN döndürür;
++// cevabın tamamını "bilgim yok" kuralı tutar, ev sahibi cevaplar. 10-17'deki yan cümle silici cevap yolunda DEĞİL (kodla selam açıkken de).
+ // ---------------------------------------------------------------------------
+ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
+ 
+@@ -46,38 +46,54 @@ function modelSays(reply: string) {
+   );
+ }
+ 
+-describe("suggestReply — 'talimat yok' yan cümlesi misafire yazılmaz (kurucu 10-17)", () => {
++describe("suggestReply — 'talimat yok' taşıyan cevap silinmez, bütünüyle tutulur (kurucu T1, 10-18)", () => {
+   beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+   afterEach(() => {
+     vi.unstubAllEnvs();
+     vi.unstubAllGlobals();
+   });
+ 
+-  it("🚨 kurucunun örneği: yan cümle silinir, yönerge kalır", async () => {
++  it("🚨 10-17 örneği de artık tutulur: yan cümle silinmez, 'bilgim yok' kuralı cevabı tutar", async () => {
+     modelSays("Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.");
+     const r = await suggestReply(input);
+-    expect(r.reply).toBe("Anahtarı masaya bırakmanız yeterli."); // ⬅️ ESKİDE yan cümle aynen gidiyordu
+-    expect(admitsMissingKnowledge(r.reply)).toBe(false);
++    expect(r.reply).toBe("Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli."); // ⬅️ 10-17 → 10-18: "Anahtarı masaya …" gidiyordu
++    expect(admitsMissingKnowledge(r.reply)).toBe(true);
++  });
++
++  it("🚨 'talimat yok' ardındaki uydurma kural / saat / izin misafire gitmez (gece-4 S4-02 örnekleri)", async () => {
++    for (const text of [
++      "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir.",
++      "Çıkış için özel talimatımız yok, saat 14:00'e kadar kalabilirsiniz.",
++      "Çıkış için özel talimatımız yok, depozito iadesi 3 gün içinde yapılır.",
++      "Kahvaltı için özel talimatımız yok, kahvaltı 09:00-11:00 arasında servis edilir.",
++      "Check-out is at 11:00. There are no special instructions for check-out.",
++    ]) {
++      modelSays(text);
++      const r = await suggestReply(input);
++      expect(r.reply, text).toBe(text);
++      expect(admitsMissingKnowledge(r.reply), text).toBe(true);
++    }
+   });
+ 
+-  it("kodla selam AÇIK: selam eklenir, yan cümle yine silinir", async () => {
++  it("kodla selam AÇIK: selam eklenir, cevap yine silinmez ve tutulur", async () => {
+     vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+     modelSays("Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.");
+     const r = await suggestReply(input);
+-    expect(r.reply).toContain("Anahtarı masaya bırakmanız yeterli.");
+-    expect(r.reply).not.toMatch(/talimat/i);
++    expect(r.reply).toContain("Çıkış için özel talimatımız yok");
++    expect(admitsMissingKnowledge(r.reply)).toBe(true);
+   });
+ 
+-  it("cihaz bilgisizliği silinmez: cevap aynen döner ve 'bilgim yok' kuralı onu tutar", async () => {
++  it("cihaz bilgisizliği de aynen döner ve tutulur", async () => {
+     modelSays("Televizyonla ilgili ayrı bir talimatım bulunmuyor, ev sahibinize ileteceğim.");
+     const r = await suggestReply(input);
+     expect(r.reply).toBe("Televizyonla ilgili ayrı bir talimatım bulunmuyor, ev sahibinize ileteceğim.");
+     expect(admitsMissingKnowledge(r.reply)).toBe(true);
+   });
+ 
+-  it("KONTROL: 'talimat yok' taşımayan cevap değişmez", async () => {
++  it("KONTROL: 'talimat yok' taşımayan cevap değişmez ve tutulmaz", async () => {
+     modelSays("Anahtarı masaya bırakmanız yeterli, iyi yolculuklar.");
+     const r = await suggestReply(input);
+     expect(r.reply).toBe("Anahtarı masaya bırakmanız yeterli, iyi yolculuklar.");
++    expect(admitsMissingKnowledge(r.reply)).toBe(false);
+   });
+ });

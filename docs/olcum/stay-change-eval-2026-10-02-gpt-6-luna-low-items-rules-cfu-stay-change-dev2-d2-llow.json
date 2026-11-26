@@ -1,0 +1,4750 @@
+{
+  "suite": "stay-change",
+  "version": 1,
+  "meta": {
+    "status": "GEÇERLİ",
+    "failures": 0,
+    "enabled": true
+  },
+  "rows": [
+    {
+      "layer": "guard-req",
+      "id": "e-q001",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q003",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q002",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q000",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q001",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q001",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q003",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q003",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q000",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q000",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q004",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q005",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q002",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q002",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q006",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q007",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q004",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q004",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q005",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q005",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q008",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q007",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q007",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q006",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q006",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q009",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q010",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q008",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities",
+        "other"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q008",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q011",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q009",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q009",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q012",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q010",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q010",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q011",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities",
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q011",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q013",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q015",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q014",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q012",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q012",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q013",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q013",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q016",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q017",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q015",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "local_recommendations"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q015",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q014",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "wifi",
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q014",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q016",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q016",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q019",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q017",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q017",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q018",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q020",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q021",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q019",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q019",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q022",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q020",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q020",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q021",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "parking"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q021",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q023",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q018",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin",
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q018",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q022",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q022",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q024",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q023",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q023",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q026",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q025",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q024",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q024",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q027",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q028",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q025",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q025",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q026",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "parking",
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q026",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q027",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q027",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q029",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q030",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q031",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q028",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin",
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q028",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q030",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q030",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q032",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q031",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q031",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q029",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q029",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q033",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q034",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q035",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q032",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q032",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q033",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q033",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q036",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q034",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q034",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q035",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "directions_transport"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q035",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q037",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q038",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q039",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q038",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q038",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q039",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q039",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q036",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "house_rules",
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q036",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q037",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q037",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q040",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q041",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q042",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q040",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q040",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q043",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q041",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q041",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q042",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "cancellation_refund"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q042",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q044",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q043",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q043",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q045",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q046",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q047",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q044",
+      "truth": false,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q044",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q046",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q046",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q045",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q045",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q048",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q050",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q049",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q047",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q047",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q051",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q048",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q048",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q049",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q049",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q050",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q050",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q052",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q051",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q051",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q053",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q054",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q055",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q052",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q052",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q053",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q053",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q054",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "directions_transport"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q054",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q056",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q055",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q055",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q057",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q058",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q056",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "local_recommendations",
+        "directions_transport"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q056",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q059",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q057",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q057",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q058",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q058",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q060",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q061",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q062",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q059",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q059",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q060",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q060",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q063",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q061",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q061",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q064",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q065",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q062",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "local_recommendations",
+        "local_recommendations"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q062",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q063",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q063",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q066",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q064",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q064",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q065",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q065",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q067",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q068",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q069",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q066",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q066",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q067",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q067",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q070",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q071",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q069",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q069",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q068",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q068",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q072",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q070",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "parking"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q070",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q073",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q071",
+      "truth": true,
+      "said": false,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q071",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q074",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q072",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q072",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q075",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q073",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q073",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q076",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q077",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q075",
+      "truth": true,
+      "said": false,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q075",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q074",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q074",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q078",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q079",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q077",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q077",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q076",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q076",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q080",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q081",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q078",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "other",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q078",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q079",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time",
+        "cleaning_linen"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q079",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q083",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q082",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q080",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q080",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q082",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q082",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q081",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help",
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q081",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q083",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "parking"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q083",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q084",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q086",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q087",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q085",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q084",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q084",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q086",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q086",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q088",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q085",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q085",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q089",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q087",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q087",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q088",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q088",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q090",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q091",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q089",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q089",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q092",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q093",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q090",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "wifi",
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q090",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q091",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q091",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q092",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "amenities",
+        "amenities"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q092",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q093",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q093",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q095",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q094",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q096",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q097",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q094",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q094",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q095",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "human_request"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q095",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q097",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q097",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q096",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q096",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q098",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q099",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q101",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q100",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q098",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q098",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q100",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q100",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q101",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q101",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q099",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q099",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q102",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q104",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q103",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q105",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q102",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q102",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q104",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q104",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q105",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q105",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q106",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q103",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q103",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q107",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q108",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q109",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q106",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q106",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q107",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "parking"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q107",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q110",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q109",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q109",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q108",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "greeting_thanks"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q108",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q111",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q112",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q113",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q110",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q110",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q111",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q111",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q114",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q113",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q113",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q115",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q112",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time",
+        "cleaning_linen"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q112",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q114",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q114",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q116",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q117",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q118",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q117",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q117",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q115",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "greeting_thanks"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q115",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q116",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q116",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q120",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q119",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q121",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q118",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "other"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q118",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q120",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q120",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q122",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q121",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q121",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q119",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q119",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q123",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q125",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q124",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q122",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q122",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q125",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q125",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q123",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q123",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q126",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q127",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q128",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q124",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q124",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q126",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q126",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q128",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q128",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q130",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q129",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q127",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q127",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q129",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q129",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q131",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q132",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q133",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q130",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "other"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q130",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q132",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q132",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q131",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q131",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q133",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q133",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q134",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q136",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q137",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q135",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q137",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q137",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q134",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q134",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q136",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "parking"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q136",
+      "truth": false,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q135",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q135",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q139",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q138",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q140",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q141",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q139",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q139",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q140",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "early_checkin"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q140",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q138",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q138",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q142",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q141",
+      "truth": true,
+      "said": false,
+      "intents": [
+        "luggage"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q141",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q143",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q144",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q145",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q142",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q142",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q143",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "late_checkout"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q143",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q145",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time",
+        "checkout_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q145",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q144",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "availability"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q144",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q146",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q148",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q149",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q146",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "date_change"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q146",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q147",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q148",
+      "truth": true,
+      "said": true,
+      "intents": [
+        "extend_stay"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q148",
+      "truth": true,
+      "said": true
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q149",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q149",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q150",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q147",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q147",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q152",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-req",
+      "id": "e-q151",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q150",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkin_time"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q150",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q152",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "other",
+        "local_recommendations"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q152",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "nlu-req",
+      "id": "e-q151",
+      "truth": false,
+      "said": false,
+      "intents": [
+        "checkout_time",
+        "access_keys"
+      ]
+    },
+    {
+      "layer": "union-req",
+      "id": "e-q151",
+      "truth": false,
+      "said": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r002",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r000",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r001",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r003",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r005",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r006",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r007",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r004",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r008",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r010",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r009",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r011",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r012",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r014",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r013",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r015",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r016",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r018",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r017",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r019",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r021",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r020",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r022",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r024",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r025",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r023",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r026",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r027",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r029",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r028",
+      "label": "deferral",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r030",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r031",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r032",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r033",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r034",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r035",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r036",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r038",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r037",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r039",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r040",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r042",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r041",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r043",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r044",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r047",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r045",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r046",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r048",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r049",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r050",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r051",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r052",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r054",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r053",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r057",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r055",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r056",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r058",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r062",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r060",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r061",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r059",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r064",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r063",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r066",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r065",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r067",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r068",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r069",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r070",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r073",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r071",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r072",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r074",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r075",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r077",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r076",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r079",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r078",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r081",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r080",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r082",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r083",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r084",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r087",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r085",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r086",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r088",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r089",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r091",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r092",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r090",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r094",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r093",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r095",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r096",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r097",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r098",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r099",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r100",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r101",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r102",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r103",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r104",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r105",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r106",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r107",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r108",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r109",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r112",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r110",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r113",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r111",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r115",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r114",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r117",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r116",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r120",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r118",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r119",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r121",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r122",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r123",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r124",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r125",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r128",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r127",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r126",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r129",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r131",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r130",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r132",
+      "label": "deferral",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r134",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r135",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r133",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r136",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r137",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r138",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r139",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r140",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r141",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r144",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r143",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r145",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r146",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r147",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r142",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r148",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r149",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r150",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r151",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r152",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r154",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r153",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r156",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r155",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r157",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r158",
+      "label": "refusal",
+      "blocked": false,
+      "defers": false,
+      "refuses": true
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r159",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r160",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r161",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r162",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r164",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r165",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r163",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r166",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r168",
+      "label": "offer",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r167",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r169",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r171",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r172",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r173",
+      "label": "claim",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r174",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r170",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r175",
+      "label": "deferral",
+      "blocked": false,
+      "defers": true,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r177",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r179",
+      "label": "neutral",
+      "blocked": false,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r176",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    },
+    {
+      "layer": "guard-reply",
+      "id": "e-r178",
+      "label": "grant",
+      "blocked": true,
+      "defers": false,
+      "refuses": false
+    }
+  ],
+  "runtime": {
+    "commit": "112e514",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "understanding": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "translate": {
+        "model": "gpt-5.1"
+      },
+      "style": {
+        "model": "gpt-5.1"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "(boş)",
+      "KB_RERANK_ENABLED": "(boş)",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "(boş)",
+      "AI_HOUSE_RULES_SHADOW": "(boş)",
+      "AI_KB_FEE_RULE_ENABLED": "(boş)",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+      "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "f756008250f0",
+      "understanding": "7110591352fb",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}

@@ -1,0 +1,291 @@
+From b99b57aa5ddf04d8f318c0f4c71f27462e66ae53 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 22:58:51 +0000
+Subject: [PATCH] =?UTF-8?q?HAZIR=20(onay=20bekliyor,=20Sabah=20Kararlari?=
+ =?UTF-8?q?=2064):=20Y5=20=E2=80=94=20gorev=20tekillestirme=20konusu=20cih?=
+ =?UTF-8?q?az=20/=20esya=20/=20tehlike=20turu,=20yoksa=20kaynak=20mesaj?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Codex 10-07: konu ilk eslesen ariza sozcuguydu → ayni gun 'Klima bozuk' ile 'Musluk bozuk', 'TV not working' ile 'Fridge not
+working', gaz ile yangin TEK gorevde birlesiyordu. Konu = BREAKDOWN_DEVICES envanteri (+ yalniz konu icin Ingilizce cihaz adlari),
+acilde tehlike turu; bulunamazsa kaynak mesaj kimligi. Baslik da cihaz adini tasir ('Bakim: klima').
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ src/lib/ai/fallback.ts                      | 15 +++++
+ src/lib/tasks/create.ts                     |  1 +
+ src/lib/tasks/detect.ts                     | 64 ++++++++++++++++++---
+ tests/integration/task-from-message.test.ts |  8 +++
+ tests/unit/task-detect.test.ts              | 57 +++++++++++++++++-
+ 5 files changed, 134 insertions(+), 11 deletions(-)
+
+diff --git a/src/lib/ai/fallback.ts b/src/lib/ai/fallback.ts
+index e9a6103..3627f30 100644
+--- a/src/lib/ai/fallback.ts
++++ b/src/lib/ai/fallback.ts
+@@ -1515,6 +1515,21 @@ function detectIntent(message: string): Intent {
+   return "general";
+ }
+ 
++/**
++ * Y5 (Codex 10-07, HAZIR DAL): metindeki İLK arıza cihazının KANONİK adı (`BREAKDOWN_DEVICES` envanteri, çekimli biçim dahil; ünsüz
++ * yumuşaması kökü sert biçime döner: "musluğ" → "musluk", "kilid" → "kilit"). Yalnız GÖREV KONUSU için — sınıflandırma kararına girmez.
++ */
++export function breakdownDeviceOf(text: string): string | null {
++  for (const tok of text.split(/[^\p{L}\p{N}]+/u)) {
++    if (tok === "") continue;
++    const hit = BREAKDOWN_DEVICES.find((d) => matchesInflectedWord(tok, [d]));
++    if (!hit) continue;
++    const hard = hit.replace(/ğ$/u, "k").replace(/d$/u, "t").replace(/b$/u, "p").replace(/g$/u, "k");
++    return hard !== hit && BREAKDOWN_DEVICES.includes(hard) ? hard : hit;
++  }
++  return null;
++}
++
+ export function classifyFallback(message: string): ClassifyResult {
+   const intent = detectIntent(message);
+   const isComplaint = intent === "complaint";
+diff --git a/src/lib/tasks/create.ts b/src/lib/tasks/create.ts
+index 8f0fbe9..d034566 100644
+--- a/src/lib/tasks/create.ts
++++ b/src/lib/tasks/create.ts
+@@ -40,6 +40,7 @@ export async function createOperationalTaskFromMessage(ctx: {
+     message: ctx.message,
+     now: ctx.now,
+     timezone: orgTimezone(property?.organization?.timezone),
++    sourceMessageId: ctx.sourceMessageId ?? null,
+   });
+ 
+   // Intra-day dedupe: skip if an OPEN task with the same key already exists. Non-
+diff --git a/src/lib/tasks/detect.ts b/src/lib/tasks/detect.ts
+index 17ea96d..f9f4d25 100644
+--- a/src/lib/tasks/detect.ts
++++ b/src/lib/tasks/detect.ts
+@@ -1,4 +1,4 @@
+-import { matchesIntentKeywords, detectRiskType, classifyFallback } from "@/lib/ai/fallback";
++import { matchesIntentKeywords, detectRiskType, classifyFallback, breakdownDeviceOf } from "@/lib/ai/fallback";
+ import { TASK_TYPE } from "@/lib/constants";
+ 
+ // Smart operational-task routing (Faz A). Turns an escalating guest message into
+@@ -25,6 +25,11 @@ export interface DetectedTask {
+   priority: "urgent" | "standard";
+   /** Short, PII-free topic word for the title (a matched keyword, never a name). */
+   topic: string;
++  /**
++   * Y5 (HAZIR DAL): tekilleştirme konusu — aynı GÜN aynı daire için iki farklı sorun tek görevde birleşmesin. Cihaz / eşya adı ya da
++   * tehlike türü; bulunamazsa `null` → kaynak mesaj kimliği (çağıran verirse), o da yoksa eski konu sözcüğü.
++   */
++  dedupeTopic: string | null;
+   /** Hours from "now" until the task is due (SLA). */
+   slaHours: number;
+ }
+@@ -89,6 +94,40 @@ function firstHit(msg: string, words: string[]): string | null {
+   return null;
+ }
+ 
++// Y5 (HAZIR DAL): GÖREV KONUSU için İngilizce cihaz adları (sınıflandırıcıya / kapıya GİRMEZ; yalnız başlık + tekilleştirme). Çok
++// sözcüklü ad önce ("washing machine" "washer"dan önce).
++const EN_DEVICE_TOPICS: readonly [string, string][] = [
++  ["washing machine", "washing machine"], ["dishwasher", "dishwasher"], ["air conditioning", "air conditioner"], ["air conditioner", "air conditioner"],
++  ["refrigerator", "fridge"], ["fridge", "fridge"], ["freezer", "freezer"], ["microwave", "microwave"], ["oven", "oven"], ["stove", "stove"],
++  ["hob", "hob"], ["kettle", "kettle"], ["coffee machine", "coffee machine"], ["dryer", "dryer"], ["washer", "washing machine"],
++  ["heater", "heater"], ["heating", "heating"], ["radiator", "radiator"], ["boiler", "boiler"], ["water heater", "water heater"],
++  ["shower", "shower"], ["toilet", "toilet"], ["sink", "sink"], ["tap", "tap"], ["faucet", "tap"], ["drain", "drain"],
++  ["tv", "tv"], ["television", "tv"], ["remote", "remote"], ["router", "router"], ["modem", "modem"],
++  ["light", "light"], ["lamp", "lamp"], ["socket", "socket"], ["outlet", "socket"], ["door", "door"], ["lock", "lock"],
++  ["key", "key"], ["window", "window"], ["elevator", "elevator"], ["lift", "elevator"], ["iron", "iron"], ["jacuzzi", "jacuzzi"],
++];
++function englishDeviceOf(msg: string): string | null {
++  for (const [word, canon] of EN_DEVICE_TOPICS) if (wordRe(word).test(msg)) return canon;
++  return null;
++}
++
++// Tehlike türü (acil görev tekilleştirmesi): gaz ile yangın aynı gün TEK görevde birleşmesin. İlk eşleşen tür; yoksa null (→ kaynak
++// mesaj). Kısa sözcükler TAM sözcük ("mağaza", "Gazipaşa", "fireplace" tehlike türü değil).
++const B = "(?<![\\p{L}\\p{N}])";
++const E = "(?![\\p{L}\\p{N}])";
++const HAZARD_FAMILIES: readonly [string, RegExp][] = [
++  ["yangın", new RegExp(`${B}(?:yang[ıi]n\\p{L}*|duman\\p{L}*|alev\\p{L}*|fire|smoke|flames?|feuer|rauch|incendio|humo|пожар\\p{L}*|дым\\p{L}*|حريق|دخان)${E}`, "iu")],
++  ["gaz", new RegExp(`${B}(?:gaz|gaz[ıi]|gaz kok\\p{L}*|do[ğg]algaz\\p{L}*|gas|газ\\p{L}*|غاز)${E}`, "iu")],
++  ["su baskını", new RegExp(`${B}(?:su bask[ıi]n\\p{L}*|flood\\p{L}*|überschwemm\\p{L}*|inondation|inundaci[oó]n|потоп\\p{L}*)${E}`, "iu")],
++  ["elektrik", new RegExp(`${B}(?:elektrik [çc]arp\\p{L}*|k[ıi]v[ıi]lc[ıi]m\\p{L}*|electric(?:al)? shock|sparks?)${E}`, "iu")],
++  ["kilitli kalma", new RegExp(`${B}(?:kilitli kald\\p{L}*|i[çc]eride kald\\p{L}*|d[ıi][şs]ar[ıi]da kald\\p{L}*|locked (?:out|in))${E}`, "iu")],
++  ["yaralanma", new RegExp(`${B}(?:yaralan\\p{L}*|kan[ıi]yor|injur\\p{L}*|bleeding|ambulans\\p{L}*|ambulance)${E}`, "iu")],
++];
++function hazardFamilyOf(msg: string): string | null {
++  for (const [family, re] of HAZARD_FAMILIES) if (re.test(msg)) return family;
++  return null;
++}
++
+ // Risk signals that are NOT physical operations — those escalate to the host via
+ // the conversation "problem" flag + email, never a maintenance/cleaning task.
+ const NON_OPERATIONAL_RISK = new Set([
+@@ -121,19 +160,20 @@ export function detectOperationalTask(
+ 
+   // 1) Safety emergency (gas / fire / lockout / injury) → urgent, tight SLA.
+   if (riskType === "safety_emergency") {
+-    return { type: "maintenance", priority: "urgent", topic: "acil güvenlik", slaHours: 2 };
++    return { type: "maintenance", priority: "urgent", topic: "acil güvenlik", slaHours: 2, dedupeTopic: hazardFamilyOf(msg) };
+   }
+ 
+   // 2) Explicit physical breakage / fault → maintenance.
+   const breakage = firstHit(msg, BREAKAGE_WORDS);
+   if (breakage) {
+-    return { type: "maintenance", priority: "standard", topic: breakage, slaHours: 24 };
++    const device = breakdownDeviceOf(message) ?? englishDeviceOf(msg);
++    return { type: "maintenance", priority: "standard", topic: device ?? breakage, slaHours: 24, dedupeTopic: device };
+   }
+ 
+   // 3) Consumable depletion → restock (item AND lack signal).
+   const item = firstHit(msg, RESTOCK_ITEMS);
+   if (item && firstHit(msg, RESTOCK_LACK)) {
+-    return { type: "restock", priority: "standard", topic: item, slaHours: 24 };
++    return { type: "restock", priority: "standard", topic: item, slaHours: 24, dedupeTopic: item };
+   }
+ 
+   // Rules 4–5 reuse TOPIC nets (amenity / cleaning) that also match neutral
+@@ -147,12 +187,13 @@ export function detectOperationalTask(
+   // 4) Appliance/amenity complaint → maintenance. Reuses the existing safety-net
+   //    "amenity" keywords (klima / buzdolabı / çamaşır makinesi / fırın / tv…).
+   if (isComplaint && matchesIntentKeywords(message, "amenity")) {
+-    return { type: "maintenance", priority: "standard", topic: "cihaz/olanak", slaHours: 24 };
++    const device = breakdownDeviceOf(message) ?? englishDeviceOf(msg);
++    return { type: "maintenance", priority: "standard", topic: device ?? "cihaz/olanak", slaHours: 24, dedupeTopic: device };
+   }
+ 
+   // 5) Cleanliness complaint → cleaning. Reuses the existing "cleaning" net.
+   if (isComplaint && matchesIntentKeywords(message, "cleaning")) {
+-    return { type: "cleaning", priority: "standard", topic: "temizlik", slaHours: 12 };
++    return { type: "cleaning", priority: "standard", topic: "temizlik", slaHours: 12, dedupeTopic: "temizlik" };
+   }
+ 
+   return null;
+@@ -179,7 +220,7 @@ function dayKey(now: Date, tz: string): string {
+  */
+ export function buildOperationalTaskData(
+   detected: DetectedTask,
+-  ctx: { propertyId: string; message: string; now?: Date; timezone?: string },
++  ctx: { propertyId: string; message: string; now?: Date; timezone?: string; sourceMessageId?: string | null },
+ ): OperationalTaskData {
+   const now = ctx.now ?? new Date();
+   const tz = ctx.timezone ?? DEFAULT_TIMEZONE;
+@@ -194,6 +235,13 @@ export function buildOperationalTaskData(
+     // issue on the same day collapses (guest re-sends "musluk akıtıyor"), but two
+     // DISTINCT same-category problems ("klima bozuk" + "musluk akıtıyor", or
+     // "havlu eksik" + "şampuan bitti") stay separate, each an actionable task.
+-    dedupeKey: `${ctx.propertyId}:${detected.type}:${detected.topic.replace(/\s+/g, "-")}:${dayKey(now, tz)}`,
++    // Y5 (HAZIR DAL): konu = cihaz / eşya / tehlike türü; bulunamazsa KAYNAK MESAJ (eskiden ilk eşleşen arıza sözcüğü — "klima bozuk"
++    // ile "musluk bozuk", "TV not working" ile "fridge not working", gaz ile yangın aynı gün TEK görevde birleşiyordu).
++    dedupeKey: `${ctx.propertyId}:${detected.type}:${dedupeTopicOf(detected, ctx.sourceMessageId)}:${dayKey(now, tz)}`,
+   };
+ }
++
++function dedupeTopicOf(detected: DetectedTask, sourceMessageId: string | null | undefined): string {
++  const topic = detected.dedupeTopic ?? (sourceMessageId ? `msg-${sourceMessageId}` : detected.topic);
++  return topic.replace(/\s+/g, "-");
++}
+diff --git a/tests/integration/task-from-message.test.ts b/tests/integration/task-from-message.test.ts
+index d094411..fd1a7c9 100644
+--- a/tests/integration/task-from-message.test.ts
++++ b/tests/integration/task-from-message.test.ts
+@@ -55,6 +55,14 @@ describe("createOperationalTaskFromMessage", () => {
+     expect(await prisma.task.count({ where: { propertyId, type: "maintenance" } })).toBe(2);
+   });
+ 
++  it("🚨 Y5 (HAZIR DAL): aynı arıza SÖZCÜĞÜYLE iki farklı cihaz aynı gün İKİ görev ('Klima bozuk' + 'Musluk bozuk')", async () => {
++    const now = new Date("2026-07-10T09:00:00.000Z");
++    await createOperationalTaskFromMessage({ propertyId, message: "Klima bozuk", sourceMessageId: "m1", now });
++    await createOperationalTaskFromMessage({ propertyId, message: "Musluk bozuk", sourceMessageId: "m2", now });
++    expect(await prisma.task.count({ where: { propertyId, type: "maintenance" } })).toBe(2); // ⬅️ ESKİDE 1 ("bozuk" anahtarı)
++    expect((await prisma.task.findMany({ where: { propertyId }, orderBy: { createdAt: "asc" } })).map((t) => t.title)).toEqual(["Bakım: klima", "Bakım: musluk"]);
++  });
++
+   it("re-opens a task the next day once the previous one is done", async () => {
+     const day1 = new Date("2026-07-10T09:00:00.000Z");
+     const day2 = new Date("2026-07-11T09:00:00.000Z");
+diff --git a/tests/unit/task-detect.test.ts b/tests/unit/task-detect.test.ts
+index 6c40a9c..43c5310 100644
+--- a/tests/unit/task-detect.test.ts
++++ b/tests/unit/task-detect.test.ts
+@@ -68,7 +68,8 @@ describe("buildOperationalTaskData", () => {
+     expect(data.type).toBe("maintenance");
+     expect(data.title.startsWith("Bakım:")).toBe(true);
+     expect(data.title).not.toContain("Ahmet"); // guest name stays out of the title
+-    expect(data.dedupeKey).toBe("prop-1:maintenance:akıtıyor:2026-07-10");
++    // Y5 (HAZIR DAL): konu cihaz adı ("musluk"; eskiden ilk arıza sözcüğü "akıtıyor").
++    expect(data.dedupeKey).toBe("prop-1:maintenance:musluk:2026-07-10");
+     // full text is preserved in the description for context
+     expect(data.description).toContain("Ahmet");
+   });
+@@ -99,9 +100,12 @@ describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)
+   it("KONTROL: gerçek sözcük + İngilizce çekim eki / Türkçe ek hâlâ eşleşir", () => {
+     expect(detectOperationalTask("The towels are missing.", {})?.topic).toBe("towel");
+     expect(detectOperationalTask("We ran out of tea.", {})?.topic).toBe("tea");
+-    expect(detectOperationalTask("The sink keeps leaking.", {})?.topic).toBe("leaking");
++    // Arıza sözcüğü ekli biçimiyle hâlâ eşleşir (görev açılır); konu artık cihaz adı (Y5, HAZIR DAL; eskiden "leaking").
++    expect(detectOperationalTask("The sink keeps leaking.", {})?.topic).toBe("sink");
++    expect(detectOperationalTask("Something keeps leaking.", {})?.topic).toBe("leaking");
+     expect(detectOperationalTask("Havlular bitmiş.", {})?.topic).toBe("havlu");
+-    expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("bozulmuş");
++    expect(detectOperationalTask("Klima bozulmuş.", {})?.topic).toBe("klima"); // Y5 (HAZIR DAL): konu cihaz; eskiden "bozulmuş"
++    expect(detectOperationalTask("Her şey bozulmuş.", {})?.topic).toBe("bozulmuş"); // cihazsız: arıza sözcüğü eşleşmesi aynen
+   });
+ 
+   it("🚨 Türkçe sözcük BAŞI şartı: sözcük içindeki eşleşme görev açmaz (\"ko-CAY-a\" çay değildir); sözcük başındaki ekli biçim açar", () => {
+@@ -109,3 +113,50 @@ describe("15 ajan A11 — görev ağı alt dize eşleştirmez (sahte görev yok)
+     expect(detectOperationalTask("Bitmiş çaylar var mı?", {})?.topic).toBe("çay");
+   });
+ });
++
++// ---------------------------------------------------------------------------
++// Y5 (Codex 10-07, HAZIR DAL — kurucu kararı bekliyor, Sabah Kararları 64): görev tekilleştirme konusu cihaz / eşya / tehlike türü;
++// bulunamazsa KAYNAK MESAJ. Eskiden ilk eşleşen arıza sözcüğüydü → aynı gün "klima bozuk" ile "musluk bozuk" TEK görev.
++// ---------------------------------------------------------------------------
++describe("Y5 — görev tekilleştirme konusu", () => {
++  const NOW = new Date("2026-10-07T09:00:00Z");
++  const key = (message: string, sourceMessageId: string, riskType?: string) => {
++    const d = detectOperationalTask(message, riskType ? { riskType } : {});
++    if (!d) throw new Error(`görev yok: ${message}`);
++    return buildOperationalTaskData(d, { propertyId: "p1", message, now: NOW, timezone: "Europe/Istanbul", sourceMessageId }).dedupeKey;
++  };
++
++  it.each([
++    ["Klima bozuk", "Musluk bozuk"],
++    ["Klima çalışmıyor", "Buzdolabı çalışmıyor"],
++    ["The TV is not working", "The fridge is not working"],
++    ["Gaz kokusu var, acil!", "Mutfakta yangın var!"],
++  ])("🚨 '%s' ile '%s' aynı gün AYRI görev", (a, b) => {
++    const risk = /gaz|yangın/i.test(a) ? "safety_emergency" : undefined;
++    expect(key(a, "m1", risk)).not.toBe(key(b, "m2", risk)); // ⬅️ ESKİDE aynı anahtar (tek görev)
++  });
++
++  it.each([
++    ["Klima bozuk", "Klima hâlâ bozuk, bakar mısınız?"],
++    ["Musluk akıtıyor", "Musluğu tamir edecek biri gelecek mi? Hâlâ akıtıyor"],
++    ["The TV is broken", "TV still not working"],
++  ])("KONTROL: aynı cihaz farklı mesajda → AYNI anahtar (tekrar görev yok): '%s' / '%s'", (a, b) => {
++    expect(key(a, "m1")).toBe(key(b, "m2"));
++  });
++
++  it("cihaz bulunamazsa kaynak mesaj kimliği; o da yoksa eski konu sözcüğü", () => {
++    expect(key("Bir şey bozuk", "m9")).toContain(":msg-m9:");
++    const d = detectOperationalTask("Bir şey bozuk", {})!;
++    expect(buildOperationalTaskData(d, { propertyId: "p1", message: "Bir şey bozuk", now: NOW }).dedupeKey).toContain(":bozuk:");
++  });
++
++  it("başlık cihaz adını taşır (personel görünümü 'Bakım: klima')", () => {
++    const d = detectOperationalTask("Klima çalışmıyor", {})!;
++    expect(buildOperationalTaskData(d, { propertyId: "p1", message: "Klima çalışmıyor", now: NOW }).title).toBe("Bakım: klima");
++  });
++
++  it("tehlike türü tam sözcük: 'mağaza' / 'Gazipaşa' gaz değil", () => {
++    expect(key("Mağazanın önünde yangın var!", "m1", "safety_emergency")).toContain(":yangın:");
++    expect(key("Gazipaşa yolunda duman var, yangın!", "m1", "safety_emergency")).toContain(":yangın:");
++  });
++});
+-- 
+2.43.0
+

@@ -1,0 +1,1877 @@
+{
+  "version": 1,
+  "_about": "Sealed blind acceptance set for the pet-split rule (pet question left to host, other answerable question auto-answered).",
+  "property": {
+    "name": "Lale – bahçeli iki oda bir salon daire",
+    "guestDisplayName": "Lale Bahçe Evi",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Narçiçeği Sokak No: 7, Daire 3",
+    "city": "Antalya"
+  },
+  "kbSets": {
+    "pet_none": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Wi-Fi ağ adı: Lale_Bahce. Şifre: Bahar7429Zeytin. Modem salondaki kitaplığın üst rafında."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arka tarafında misafirlerimize ait ücretsiz açık otopark var, 2 araç sığar. Rezervasyon gerekmez."
+      },
+      {
+        "category": "amenities",
+        "title": "Yüzme havuzu",
+        "content": "Sitede açık yüzme havuzu var; her gün 09:00–21:00 arası açık. Havlular dairedeki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Klima kumandası TV ünitesinin sağ çekmecesinde. Çalıştırmadan önce duvardaki şalteri açın."
+      },
+      {
+        "category": "checkout",
+        "title": "Giriş ve çıkış saatleri",
+        "content": "Giriş saatimiz 15:00, çıkış saatimiz 11:00. Anahtar girişteki şifreli kutuda; kodu giriş günü gönderiyoruz."
+      },
+      {
+        "category": "local",
+        "title": "En yakın market",
+        "content": "En yakın market binadan 300 metre uzakta, ana caddenin köşesinde; her gün 08:00–23:00 arası açık."
+      },
+      {
+        "category": "rules",
+        "title": "Çöpler",
+        "content": "Çöpleri bina girişinin solundaki yeşil konteynere atabilirsiniz; geri dönüşüm için yanında mavi kutu var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde sigara içilmez. 23:00'ten sonra sessizlik rica ediyoruz."
+      }
+    ],
+    "pet_fee": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Wi-Fi ağ adı: Lale_Bahce. Şifre: Bahar7429Zeytin. Modem salondaki kitaplığın üst rafında."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arka tarafında misafirlerimize ait ücretsiz açık otopark var, 2 araç sığar. Rezervasyon gerekmez."
+      },
+      {
+        "category": "amenities",
+        "title": "Yüzme havuzu",
+        "content": "Sitede açık yüzme havuzu var; her gün 09:00–21:00 arası açık. Havlular dairedeki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Klima kumandası TV ünitesinin sağ çekmecesinde. Çalıştırmadan önce duvardaki şalteri açın."
+      },
+      {
+        "category": "checkout",
+        "title": "Giriş ve çıkış saatleri",
+        "content": "Giriş saatimiz 15:00, çıkış saatimiz 11:00. Anahtar girişteki şifreli kutuda; kodu giriş günü gönderiyoruz."
+      },
+      {
+        "category": "local",
+        "title": "En yakın market",
+        "content": "En yakın market binadan 300 metre uzakta, ana caddenin köşesinde; her gün 08:00–23:00 arası açık."
+      },
+      {
+        "category": "rules",
+        "title": "Çöpler",
+        "content": "Çöpleri bina girişinin solundaki yeşil konteynere atabilirsiniz; geri dönüşüm için yanında mavi kutu var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde sigara içilmez. 23:00'ten sonra sessizlik rica ediyoruz."
+      },
+      {
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Evcil hayvan: en fazla 1 hayvan, 10 kg altı köpek veya kedi kabul ediyoruz. Gecelik 150 TL temizlik ücreti ve 1.000 TL iade edilen depozito alınır. Gelmeden önce mutlaka haber verilmelidir."
+      }
+    ],
+    "pet_banned": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Wi-Fi ağ adı: Lale_Bahce. Şifre: Bahar7429Zeytin. Modem salondaki kitaplığın üst rafında."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arka tarafında misafirlerimize ait ücretsiz açık otopark var, 2 araç sığar. Rezervasyon gerekmez."
+      },
+      {
+        "category": "amenities",
+        "title": "Yüzme havuzu",
+        "content": "Sitede açık yüzme havuzu var; her gün 09:00–21:00 arası açık. Havlular dairedeki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Klima kumandası TV ünitesinin sağ çekmecesinde. Çalıştırmadan önce duvardaki şalteri açın."
+      },
+      {
+        "category": "checkout",
+        "title": "Giriş ve çıkış saatleri",
+        "content": "Giriş saatimiz 15:00, çıkış saatimiz 11:00. Anahtar girişteki şifreli kutuda; kodu giriş günü gönderiyoruz."
+      },
+      {
+        "category": "local",
+        "title": "En yakın market",
+        "content": "En yakın market binadan 300 metre uzakta, ana caddenin köşesinde; her gün 08:00–23:00 arası açık."
+      },
+      {
+        "category": "rules",
+        "title": "Çöpler",
+        "content": "Çöpleri bina girişinin solundaki yeşil konteynere atabilirsiniz; geri dönüşüm için yanında mavi kutu var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde sigara içilmez. 23:00'ten sonra sessizlik rica ediyoruz."
+      },
+      {
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Evcil hayvan kabul etmiyoruz."
+      }
+    ],
+    "pet_free": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Wi-Fi ağ adı: Lale_Bahce. Şifre: Bahar7429Zeytin. Modem salondaki kitaplığın üst rafında."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arka tarafında misafirlerimize ait ücretsiz açık otopark var, 2 araç sığar. Rezervasyon gerekmez."
+      },
+      {
+        "category": "amenities",
+        "title": "Yüzme havuzu",
+        "content": "Sitede açık yüzme havuzu var; her gün 09:00–21:00 arası açık. Havlular dairedeki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Klima kumandası TV ünitesinin sağ çekmecesinde. Çalıştırmadan önce duvardaki şalteri açın."
+      },
+      {
+        "category": "checkout",
+        "title": "Giriş ve çıkış saatleri",
+        "content": "Giriş saatimiz 15:00, çıkış saatimiz 11:00. Anahtar girişteki şifreli kutuda; kodu giriş günü gönderiyoruz."
+      },
+      {
+        "category": "local",
+        "title": "En yakın market",
+        "content": "En yakın market binadan 300 metre uzakta, ana caddenin köşesinde; her gün 08:00–23:00 arası açık."
+      },
+      {
+        "category": "rules",
+        "title": "Çöpler",
+        "content": "Çöpleri bina girişinin solundaki yeşil konteynere atabilirsiniz; geri dönüşüm için yanında mavi kutu var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde sigara içilmez. 23:00'ten sonra sessizlik rica ediyoruz."
+      },
+      {
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Evcil hayvanlar ücretsiz kabul edilir; hiçbir koşul, ek ücret veya depozito yoktur."
+      }
+    ],
+    "pet_tricky": [
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Wi-Fi ağ adı: Lale_Bahce. Şifre: Bahar7429Zeytin. Modem salondaki kitaplığın üst rafında."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arka tarafında misafirlerimize ait ücretsiz açık otopark var, 2 araç sığar. Rezervasyon gerekmez."
+      },
+      {
+        "category": "amenities",
+        "title": "Yüzme havuzu",
+        "content": "Sitede açık yüzme havuzu var; her gün 09:00–21:00 arası açık. Havlular dairedeki dolapta."
+      },
+      {
+        "category": "appliances",
+        "title": "Klima",
+        "content": "Klima kumandası TV ünitesinin sağ çekmecesinde. Çalıştırmadan önce duvardaki şalteri açın."
+      },
+      {
+        "category": "checkout",
+        "title": "Giriş ve çıkış saatleri",
+        "content": "Giriş saatimiz 15:00, çıkış saatimiz 11:00. Anahtar girişteki şifreli kutuda; kodu giriş günü gönderiyoruz."
+      },
+      {
+        "category": "local",
+        "title": "En yakın market",
+        "content": "En yakın market binadan 300 metre uzakta, ana caddenin köşesinde; her gün 08:00–23:00 arası açık."
+      },
+      {
+        "category": "rules",
+        "title": "Çöpler",
+        "content": "Çöpleri bina girişinin solundaki yeşil konteynere atabilirsiniz; geri dönüşüm için yanında mavi kutu var."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Daire içinde sigara içilmez. 23:00'ten sonra sessizlik rica ediyoruz."
+      },
+      {
+        "category": "rules",
+        "title": "Evcil hayvan",
+        "content": "Kediler ücretsiz kabul edilir. Köpek kabul etmiyoruz."
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "ps-tr-01",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "Merhaba, köpeğimizi getirebilir miyiz? Bir de wifi şifresi nedir?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-02",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_fee",
+      "message": "Yarın kedimizle geliyoruz. Giriş saati kaçta?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-03",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_banned",
+      "message": "otopark ücretsiz mi bi de karamel de bizimle gelecek sorun olur mu",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "karamel"
+            ]
+          },
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "ücretsiz|free|kostenlos|gratuit|gratis|бесплатн|مجان"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-04",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_tricky",
+      "message": "Çıkış saati kaçta? Bir de 2 kedimiz ve 1 köpeğimiz var, onları da getirsek olur mu?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-05",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "Havuz kaçta açılıyor kaçta kapanıyor? Tavşanımızı da yanımızda getirmek istiyoruz.",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "tavşan"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "0?9[:.]00|9 ?a\\.? ?m|9 ?h|٩",
+              "21[:.]00|9 ?p\\.? ?m|21 ?h|٢١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-06",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_fee",
+      "message": "Evcil hayvan ücreti ne kadar? Ayrıca wifi şifresini alabilir miyim?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "ücret(?!siz)",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-07",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_banned",
+      "message": "Muhabbet kuşumuz var, kafesinde duruyor, getirebilir miyiz? Çöpleri nereye atıyoruz?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "muhabbet|kafes"
+            ]
+          },
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "yeşil|green|grün|vert|verde|зелен|أخضر|الخضراء"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-08",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_none",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Selam, 8 kiloluk bir golden retrieverımız var, yanımızda getirebilir miyiz?"
+        }
+      ],
+      "message": "Klimanın kumandası nerede acaba?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "golden|retriever"
+            ]
+          },
+          {
+            "kind": "appliance_help",
+            "want": "answered",
+            "all": [
+              "çekmece|drawer|schublade|tiroir|cajón|cajon|ящик|درج"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-09",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_tricky",
+      "message": "Markete yürüme mesafesi ne kadar? Boncuk'u da getiriyoruz, haber vereyim dedim.",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "boncuk"
+            ]
+          },
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "(^|\\D)300(\\D|$)|üç yüz|three hundred"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-10",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_fee",
+      "message": "1) giriş saati kaç 2) otopark var mı 3) köpek kabul ediyor musunuz? 12 kg civarı",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "12 ?kg",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          },
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "arka|behind|back of|ücretsiz|free"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-11",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_banned",
+      "message": "Merhaba! Wifi şifresi ne? Fındık da bizimle geliyor, onun için yapmamız gereken bir şey var mı? Teşekkürler",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "fındık"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-12",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "kopegimiz var getirebilirmiyiz cikis kacta",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-tr-13",
+      "class": "pet_split",
+      "lang": "tr",
+      "kb": "pet_fee",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Kedi için depozito alıyor musunuz?"
+        }
+      ],
+      "message": "Bir de havuz var mı?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "havuz|pool|schwimmbad|piscine|piscina|бассейн|مسبح|حمام سباحة"
+            ],
+            "forbid": [
+              "havuz(umuz)? yok|there is no pool|no pool|kein (pool|schwimmbad)|pas de piscine|no hay piscina|нет бассейна|لا يوجد مسبح"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-01",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_none",
+      "message": "Hi! Can we bring our dog? Also what's the wifi password?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-02",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_fee",
+      "message": "We're arriving tomorrow with our two cats. What time is check-in?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-03",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_banned",
+      "message": "Is parking free? And is it ok if Biscuit comes along, he's a small terrier",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "biscuit|terrier"
+            ]
+          },
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "ücretsiz|free|kostenlos|gratuit|gratis|бесплатн|مجان"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-04",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_tricky",
+      "message": "what time do we need to check out, also how much do you charge for pets?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "charge|fee"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-05",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_none",
+      "message": "Where do we throw the garbage? We'll have our rabbit with us btw",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b"
+            ]
+          },
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "yeşil|green|grün|vert|verde|зелен|أخضر|الخضراء"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-06",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_fee",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hello, we have a 9 kg beagle, is that fine?"
+        }
+      ],
+      "message": "How far is the nearest supermarket?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "beagle|9 ?kg",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "local_recommendations",
+            "want": "answered",
+            "all": [
+              "(^|\\D)300(\\D|$)|üç yüz|three hundred"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-en-07",
+      "class": "pet_split",
+      "lang": "en",
+      "kb": "pet_banned",
+      "message": "Pool hours? And our puppy Luna — can she stay in the apartment while we're at the beach?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "luna"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "0?9[:.]00|9 ?a\\.? ?m|9 ?h|٩",
+              "21[:.]00|9 ?p\\.? ?m|21 ?h|٢١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-de-01",
+      "class": "pet_split",
+      "lang": "de",
+      "kb": "pet_fee",
+      "message": "Hallo, dürfen wir unseren Hund Bello mitbringen? Und wie lautet das WLAN-Passwort?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\bhund(e|es|en)?\\b|hündchen|\\bkatze[n]?\\b|haustier|\\btier(e|en)?\\b|kaninchen|vogel|welpe",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "erlaubt|gestattet|mitbringen|mitnehmen|verboten|zugelassen|akzeptier|nicht möglich",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\bleider\\b|kein problem|bedauerlich",
+              "(^|[.!?]\\s*)nein([\\s.,!]|$)",
+              "\\b(ja|klar|natürlich|selbstverständlich|gerne)\\b",
+              "bello",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-de-02",
+      "class": "pet_split",
+      "lang": "de",
+      "kb": "pet_none",
+      "message": "Wir kommen morgen mit unserer Katze an. Ab wann ist der Check-in?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\bhund(e|es|en)?\\b|hündchen|\\bkatze[n]?\\b|haustier|\\btier(e|en)?\\b|kaninchen|vogel|welpe",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "erlaubt|gestattet|mitbringen|mitnehmen|verboten|zugelassen|akzeptier|nicht möglich",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\bleider\\b|kein problem|bedauerlich",
+              "(^|[.!?]\\s*)nein([\\s.,!]|$)",
+              "\\b(ja|klar|natürlich|selbstverständlich|gerne)\\b"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-de-03",
+      "class": "pet_split",
+      "lang": "de",
+      "kb": "pet_banned",
+      "message": "Ist der Parkplatz kostenlos? Wir reisen mit zwei kleinen Hunden (je 5 kg).",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\bhund(e|es|en)?\\b|hündchen|\\bkatze[n]?\\b|haustier|\\btier(e|en)?\\b|kaninchen|vogel|welpe",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "erlaubt|gestattet|mitbringen|mitnehmen|verboten|zugelassen|akzeptier|nicht möglich",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\bleider\\b|kein problem|bedauerlich",
+              "(^|[.!?]\\s*)nein([\\s.,!]|$)",
+              "5 ?kg"
+            ]
+          },
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "ücretsiz|free|kostenlos|gratuit|gratis|бесплатн|مجان"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-fr-01",
+      "class": "pet_split",
+      "lang": "fr",
+      "kb": "pet_tricky",
+      "message": "Bonjour, à quelle heure est le check-out ? Et notre chat Minou peut venir ?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(chiens?|chats?|chiots?|chatons?|animal|animaux|lapins?|oiseaux?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "autoris|accept|admis|interdit|amener|emmener|venir avec|bienvenus",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "malheureusement|désol|pas de (problème|souci)|avec plaisir",
+              "(^|[.!?]\\s*)non([\\s.,!]|$)",
+              "\\boui\\b|bien s[uû]r|volontiers|absolument|certainement",
+              "minou"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-fr-02",
+      "class": "pet_split",
+      "lang": "fr",
+      "kb": "pet_fee",
+      "message": "Combien coûte le supplément pour un chien ? Et où se trouve la télécommande de la clim ?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(chiens?|chats?|chiots?|chatons?|animal|animaux|lapins?|oiseaux?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "autoris|accept|admis|interdit|amener|emmener|venir avec|bienvenus",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "malheureusement|désol|pas de (problème|souci)|avec plaisir",
+              "(^|[.!?]\\s*)non([\\s.,!]|$)",
+              "\\boui\\b|bien s[uû]r|volontiers|absolument|certainement",
+              "supplément",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "appliance_help",
+            "want": "answered",
+            "all": [
+              "çekmece|drawer|schublade|tiroir|cajón|cajon|ящик|درج"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-fr-03",
+      "class": "pet_split",
+      "lang": "fr",
+      "kb": "pet_none",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Nous voyageons avec notre lapin nain, ça pose un souci ?"
+        }
+      ],
+      "message": "La piscine est ouverte jusqu'à quelle heure ?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(chiens?|chats?|chiots?|chatons?|animal|animaux|lapins?|oiseaux?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "autoris|accept|admis|interdit|amener|emmener|venir avec|bienvenus",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "malheureusement|désol|pas de (problème|souci)|avec plaisir",
+              "(^|[.!?]\\s*)non([\\s.,!]|$)",
+              "\\boui\\b|bien s[uû]r|volontiers|absolument|certainement",
+              "nain"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "answered",
+            "all": [
+              "21[:.]00|9 ?p\\.? ?m|21 ?h|٢١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-es-01",
+      "class": "pet_split",
+      "lang": "es",
+      "kb": "pet_banned",
+      "message": "¡Hola! Viajamos con nuestro perro Toby, ¿hay problema? ¿Y cuál es la contraseña del wifi?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(perr[oa]s?|perrit[oa]s?|gat[oa]s?|gatit[oa]s?|mascotas?|animal(es)?|conejos?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "permit|admit|aceptamos|aceptan|prohibid|traer|bienvenidos",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "lamentablemente|desafortunadamente|lo siento|sin problema|no hay problema",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "(^|[\\s.,!¡¿])sí([\\s.,!]|$)|claro|por supuesto|desde luego",
+              "toby"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-es-02",
+      "class": "pet_split",
+      "lang": "es",
+      "kb": "pet_fee",
+      "message": "a que hora es el check in?? llevamos dos gatos",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(perr[oa]s?|perrit[oa]s?|gat[oa]s?|gatit[oa]s?|mascotas?|animal(es)?|conejos?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "permit|admit|aceptamos|aceptan|prohibid|traer|bienvenidos",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "lamentablemente|desafortunadamente|lo siento|sin problema|no hay problema",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "(^|[\\s.,!¡¿])sí([\\s.,!]|$)|claro|por supuesto|desde luego",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-ru-01",
+      "class": "pet_split",
+      "lang": "ru",
+      "kb": "pet_none",
+      "message": "Здравствуйте! Можно ли приехать с котом Барсиком? И какой пароль от wi-fi?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "собак|собач|кошк|(^|[\\s.,!?])кот(а|ом|у|ик|ов|ы)?([\\s.,!?]|$)|питом|животн|щен|кролик|птиц",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "разреш|допуска|принима|запрещ|нельзя|можно (взять|привезти|приехать)|приветству",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "к сожалению|увы|без проблем",
+              "(^|[.!?]\\s*)нет([\\s.,!]|$)",
+              "(^|[\\s.,!?])(да|конечно|разумеется)([\\s.,!?]|$)",
+              "барсик"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-ru-02",
+      "class": "pet_split",
+      "lang": "ru",
+      "kb": "pet_tricky",
+      "message": "Парковка бесплатная? Мы приедем с собакой, она маленькая.",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "собак|собач|кошк|(^|[\\s.,!?])кот(а|ом|у|ик|ов|ы)?([\\s.,!?]|$)|питом|животн|щен|кролик|птиц",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "разреш|допуска|принима|запрещ|нельзя|можно (взять|привезти|приехать)|приветству",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "к сожалению|увы|без проблем",
+              "(^|[.!?]\\s*)нет([\\s.,!]|$)",
+              "маленьк"
+            ]
+          },
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "ücretsiz|free|kostenlos|gratuit|gratis|бесплатн|مجان"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-ar-01",
+      "class": "pet_split",
+      "lang": "ar",
+      "kb": "pet_fee",
+      "message": "مرحبا، هل يمكننا إحضار قطتنا؟ وما هو موعد تسجيل الدخول؟",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "كلب|قطة|قطط|قطتي|قطتنا|القط([\\s.,!؟،]|$)|حيوان|أليف|طائر|أرنب",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "مسموح|يسمح|السماح|نقبل|مقبول|يقبل|ممنوع|يمنع|إحضار|احضار|اصطحاب|نرحب",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "للأسف|مع الأسف|لا مشكلة|عذرا|عذراً",
+              "(^|[.!؟]\\s*)لا([\\s.,!،]|$)",
+              "(^|[\\s.,!؟،])(نعم|بالتأكيد|بالطبع|طبعا|طبعاً)([\\s.,!؟،]|$)",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ps-ar-02",
+      "class": "pet_split",
+      "lang": "ar",
+      "kb": "pet_banned",
+      "message": "ما هي كلمة مرور الواي فاي؟ ومعنا كلب صغير",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "كلب|قطة|قطط|قطتي|قطتنا|القط([\\s.,!؟،]|$)|حيوان|أليف|طائر|أرنب",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "مسموح|يسمح|السماح|نقبل|مقبول|يقبل|ممنوع|يمنع|إحضار|احضار|اصطحاب|نرحب",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "للأسف|مع الأسف|لا مشكلة|عذرا|عذراً",
+              "(^|[.!؟]\\s*)لا([\\s.,!،]|$)",
+              "(^|[\\s.,!؟،])(نعم|بالتأكيد|بالطبع|طبعا|طبعاً)([\\s.,!؟،]|$)",
+              "صغير"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "as-tr-01",
+      "class": "assist_split",
+      "lang": "tr",
+      "kb": "pet_free",
+      "message": "Görme engelliyim, rehber köpeğimle geleceğim. Giriş saati kaçta?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "rehber|ücretsiz"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "as-tr-02",
+      "class": "assist_split",
+      "lang": "tr",
+      "kb": "pet_banned",
+      "message": "Oğlumun duygusal destek hayvanı var, bir kedi, yanımızda olacak. Wifi şifresi?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)",
+              "duygusal|destek"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "as-en-01",
+      "class": "assist_split",
+      "lang": "en",
+      "kb": "pet_fee",
+      "message": "I have a service dog, he's trained and certified. Also where's the AC remote?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "service (dog|animal)|assistance|certified",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "appliance_help",
+            "want": "answered",
+            "all": [
+              "çekmece|drawer|schublade|tiroir|cajón|cajon|ящик|درج"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "as-de-01",
+      "class": "assist_split",
+      "lang": "de",
+      "kb": "pet_none",
+      "message": "Ich bin auf einen Assistenzhund angewiesen. Wann ist der Check-out?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\bhund(e|es|en)?\\b|hündchen|\\bkatze[n]?\\b|haustier|\\btier(e|en)?\\b|kaninchen|vogel|welpe",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "erlaubt|gestattet|mitbringen|mitnehmen|verboten|zugelassen|akzeptier|nicht möglich",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\bleider\\b|kein problem|bedauerlich",
+              "(^|[.!?]\\s*)nein([\\s.,!]|$)",
+              "\\b(ja|klar|natürlich|selbstverständlich|gerne)\\b",
+              "assistenzhund|blindenhund|hund"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "as-ar-01",
+      "class": "assist_split",
+      "lang": "ar",
+      "kb": "pet_free",
+      "message": "لدي كلب مرشد لأنني كفيف. أين أرمي القمامة؟",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "كلب|قطة|قطط|قطتي|قطتنا|القط([\\s.,!؟،]|$)|حيوان|أليف|طائر|أرنب",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "مسموح|يسمح|السماح|نقبل|مقبول|يقبل|ممنوع|يمنع|إحضار|احضار|اصطحاب|نرحب",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "للأسف|مع الأسف|لا مشكلة|عذرا|عذراً",
+              "(^|[.!؟]\\s*)لا([\\s.,!،]|$)",
+              "(^|[\\s.,!؟،])(نعم|بالتأكيد|بالطبع|طبعا|طبعاً)([\\s.,!؟،]|$)",
+              "مرشد|مجان"
+            ]
+          },
+          {
+            "kind": "trash",
+            "want": "answered",
+            "all": [
+              "yeşil|green|grün|vert|verde|зелен|أخضر|الخضراء"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "po-tr-01",
+      "class": "pet_only",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "Köpeğimizi getirebilir miyiz?",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "po-en-01",
+      "class": "pet_only",
+      "lang": "en",
+      "kb": "pet_fee",
+      "message": "Do you allow cats? We have one indoor cat.",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "po-fr-01",
+      "class": "pet_only",
+      "lang": "fr",
+      "kb": "pet_banned",
+      "message": "Est-ce qu'on peut venir avec notre chien ?",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(chiens?|chats?|chiots?|chatons?|animal|animaux|lapins?|oiseaux?)\\b",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "autoris|accept|admis|interdit|amener|emmener|venir avec|bienvenus",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "malheureusement|désol|pas de (problème|souci)|avec plaisir",
+              "(^|[.!?]\\s*)non([\\s.,!]|$)",
+              "\\boui\\b|bien s[uû]r|volontiers|absolument|certainement"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "po-ru-01",
+      "class": "pet_only",
+      "lang": "ru",
+      "kb": "pet_fee",
+      "message": "Можно приехать с собакой?",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "собак|собач|кошк|(^|[\\s.,!?])кот(а|ом|у|ик|ов|ы)?([\\s.,!?]|$)|питом|животн|щен|кролик|птиц",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "разреш|допуска|принима|запрещ|нельзя|можно (взять|привезти|приехать)|приветству",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "к сожалению|увы|без проблем",
+              "(^|[.!?]\\s*)нет([\\s.,!]|$)",
+              "(^|[\\s.,!?])(да|конечно|разумеется)([\\s.,!?]|$)",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fb-tr-01",
+      "class": "free_both",
+      "lang": "tr",
+      "kb": "pet_free",
+      "message": "Köpeğimizi getirebilir miyiz? Wifi şifresi nedir?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "answered",
+            "all": [
+              "kabul|getirebilir|izin|ücretsiz"
+            ],
+            "forbid": [
+              "kabul (edilmez|etmiyoruz)|getiremez|yasak|maalesef|\\d+ ?(TL|₺|lira)|depozito (alınır|gerek|alıyoruz)"
+            ]
+          },
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fb-en-01",
+      "class": "free_both",
+      "lang": "en",
+      "kb": "pet_free",
+      "message": "Are cats ok? And what time is check-out?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "answered",
+            "all": [
+              "welcome|allowed|accept|bring|free of charge|no (extra )?(fee|charge)"
+            ],
+            "forbid": [
+              "not (allowed|accepted|permitted)|unfortunately|\\d+ ?(TL|₺|lira|try)|deposit (is|of)|deposit required"
+            ]
+          },
+          {
+            "kind": "checkout_time",
+            "want": "answered",
+            "all": [
+              "11[:.]00|11 ?a\\.? ?m|11 ?h|11 ?uhr|١١"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fb-de-01",
+      "class": "free_both",
+      "lang": "de",
+      "kb": "pet_free",
+      "message": "Dürfen wir unseren Hund mitbringen? Und wann ist Check-in?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "answered",
+            "all": [
+              "erlaubt|willkommen|mitbringen|gestattet|kostenlos|akzeptiert"
+            ],
+            "forbid": [
+              "nicht (erlaubt|gestattet|möglich)|leider|\\d+ ?(TL|₺|lira)|kaution (beträgt|von)"
+            ]
+          },
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "io-tr-01",
+      "class": "info_only",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "wifi şifresi ne?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "wifi",
+            "want": "answered",
+            "all": [
+              "Bahar7429Zeytin"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "io-en-01",
+      "class": "info_only",
+      "lang": "en",
+      "kb": "pet_fee",
+      "message": "What time is check-in?",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "checkin_time",
+            "want": "answered",
+            "all": [
+              "15[:.]00|3 ?p\\.? ?m|15 ?h|15 ?uhr|١٥"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "io-ar-01",
+      "class": "info_only",
+      "lang": "ar",
+      "kb": "pet_banned",
+      "message": "هل موقف السيارات مجاني؟",
+      "expect": {
+        "autoSend": "yes",
+        "needs": [
+          {
+            "kind": "parking",
+            "want": "answered",
+            "all": [
+              "ücretsiz|free|kostenlos|gratuit|gratis|бесплатн|مجان"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ou-tr-01",
+      "class": "other_not_auto",
+      "lang": "tr",
+      "kb": "pet_none",
+      "message": "Klima çalışmıyor, içerisi çok sıcak! Bir de kedimizi getirebilir miydik, sormayı unuttuk.",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          },
+          {
+            "kind": "complaint_issue",
+            "want": "open",
+            "forbid": [
+              "teknisyen (geliyor|gönder|yolda)|düzel(ttik|tildi)|tamir (ettik|edildi)|çözüldü"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ou-en-01",
+      "class": "other_not_auto",
+      "lang": "en",
+      "kb": "pet_fee",
+      "message": "If we cancel next week, do we get a full refund? Also can our dog come with us?",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\b(unfortunately|sorry|no problem|sadly|i'?m afraid)\\b",
+              "(^|[.!?]\\s*)no([\\s.,!]|$)",
+              "\\b(yes|sure|of course|certainly|absolutely|definitely)\\b",
+              "(^|\\D)150(\\D|$)",
+              "1[.,]?000",
+              "depozit|deposit|kaution|caution|dépôt|depósito|fianza|залог|تأمين|عربون",
+              "10 ?(kg|кг|kilo)"
+            ]
+          },
+          {
+            "kind": "cancellation_refund",
+            "want": "open",
+            "forbid": [
+              "full refund|refund (will|is|of)|you will (get|receive)|refundable|non-refundable|no refund"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ou-tr-02",
+      "class": "other_not_auto",
+      "lang": "tr",
+      "kb": "pet_banned",
+      "message": "Bebek beşiğiniz var mı? Köpeğimiz de var bu arada.",
+      "expect": {
+        "autoSend": "any",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "köpe|kopek|kopeg|kedi|evcil|hayvan|(^|[\\s.,!?'])kuş|tavşan|patili|yavru",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "izin|kabul|yasak|getirebilir|getiremez|getirmeniz|serbest|sakınca|olur mu",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "maalesef|ne yazık ki|sorun (değil|yok|olmaz)|(^|[.!?]\\s*)hayır([\\s.,!]|$)",
+              "(^|[\\s.,!?])(evet|tabii|tabi|elbette|memnuniyetle)([\\s.,!?]|$)"
+            ]
+          },
+          {
+            "kind": "amenities",
+            "want": "open",
+            "forbid": [
+              "beşi[ğk](imiz)? (var|mevcut|bulun)|beşiğimiz|beşik (yok|bulunmuyor)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ou-de-01",
+      "class": "other_not_auto",
+      "lang": "de",
+      "kb": "pet_tricky",
+      "message": "Die Wohnung ist schmutzig, das Bad wurde nicht geputzt! Und darf unsere Katze aufs Sofa?",
+      "expect": {
+        "autoSend": "no",
+        "needs": [
+          {
+            "kind": "pets",
+            "want": "open",
+            "forbid": [
+              "\\bhund(e|es|en)?\\b|hündchen|\\bkatze[n]?\\b|haustier|\\btier(e|en)?\\b|kaninchen|vogel|welpe",
+              "\\b(dogs?|cats?|pets?|pupp(y|ies)|kittens?|animals?|rabbits?|bunny|birds?|parrots?|budgies?)\\b",
+              "erlaubt|gestattet|mitbringen|mitnehmen|verboten|zugelassen|akzeptier|nicht möglich",
+              "\\b(allowed|allow|permitted|permit|accepted|accept|forbidden|prohibited|banned|can bring|may bring|welcome to bring)\\b|pets? (are|is) welcome|pet[- ]friendly",
+              "\\bleider\\b|kein problem|bedauerlich",
+              "(^|[.!?]\\s*)nein([\\s.,!]|$)",
+              "\\b(ja|klar|natürlich|selbstverständlich|gerne)\\b",
+              "sofa"
+            ]
+          },
+          {
+            "kind": "complaint_issue",
+            "want": "open",
+            "forbid": [
+              "wir schicken|kommt (gleich|sofort|heute)|reinigungskraft|wurde gereinigt|ist sauber"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

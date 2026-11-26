@@ -1,0 +1,115 @@
+import { SELLER, SELLER_TAX_LABEL } from "@/lib/legal-entity";
+// Ödeme ekranındaki cayma onayı cümlesi tek kaynaktan: sayfada alıntılanan cümle kutudakiyle harfi harfine aynı kalır (kurucu 11-13).
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+
+export interface Section {
+  title: string;
+  body?: string[];
+  list?: string[];
+}
+
+export const SECTIONS: Section[] = [
+  {
+    title: "1. Satıcı / Hizmet Sağlayıcı Bilgileri",
+    body: [
+      "Satıcı, İtalya'da kayıtlı bir şahıs işletmesidir.",
+      `Ünvan: ${SELLER.unvan}`,
+      `Adres: ${SELLER.adres}`,
+      `${SELLER_TAX_LABEL}: ${SELLER.vergiNo}`,
+      `Telefon: ${SELLER.telefon}`,
+      `E-posta: ${SELLER.eposta}`,
+    ],
+  },
+  {
+    title: "2. Hizmetin Temel Nitelikleri",
+    body: [
+      "Lixus AI, kısa dönem kiralama işletmeleri için misafir mesajlarını yapay zekâ ile yanıtlayan, görev ve operasyon takibi sağlayan bir yazılım (SaaS) hizmetidir. Hizmet, seçilen abonelik planına göre internet üzerinden sunulur; fiziksel bir ürün teslimi yapılmaz.",
+      "Hizmet; Hospitable entegrasyonu aracılığıyla rezervasyon ve misafir mesajlarının senkronize edilmesi, bilgi tabanı oluşturulması, AI yanıt önerileri hazırlanması, uygun ayarlarda düşük riskli mesajların otomatik yanıtlanması, orta/yüksek riskli mesajların insan incelemesine bırakılması, görev/operasyon takibi, QR misafir sohbeti ve temel raporlama özelliklerini içerebilir. Hizmetin kapsamı seçilen plana, bağlı entegrasyonlara, Müşteri’nin bilgi tabanı doluluğuna ve otomasyon ayarlarına göre değişebilir.",
+      "Planlar: Başlangıç (1–2 daire), Pro (3–7 daire) ve İşletme (8–25 daire). Planların güncel içerikleri, sınırları ve fiyatları satın alma anında fiyatlandırma sayfasında gösterilir.",
+    ],
+  },
+  {
+    title: "3. Yapay Zekâ Özelliklerinin Sınırları",
+    body: [
+      "Lixus AI, misafir mesajlarına yanıt önerileri üretir; ancak hukuki, finansal, tıbbi, güvenlik veya platform kuralları bakımından nihai karar vermez. İade, iptal, depozito, ceza, hasar, kötü yorum tehdidi, ayrımcılık, güvenlik/acil durum ve platform dışı ödeme gibi konular insan incelemesine bırakılabilir. AI yanıtlarının doğruluğu, Müşteri’nin bilgi tabanına eklediği bilgilerin güncelliğine ve bağlı entegrasyonlardan gelen verilere bağlıdır.",
+    ],
+  },
+  {
+    title: "4. Üçüncü Taraf Entegrasyonlara Bağımlılık",
+    body: [
+      "Hizmetin bazı özellikleri Hospitable, Airbnb, Booking.com, Paddle, OpenAI, Resend ve benzeri üçüncü taraf hizmetlerin çalışmasına bağlıdır. Bu hizmetlerdeki kesinti, API değişikliği, erişim kısıtı veya platform politikası değişiklikleri Lixus AI’nin bazı özelliklerini geçici olarak etkileyebilir.",
+    ],
+  },
+  {
+    title: "5. Platform Mesajlaşması ve Spam/Politika Etiketleri",
+    body: [
+      "Airbnb, Booking.com ve benzeri platformlar; mesaj içerikleri, gönderim sıklığı, otomasyon kullanımı, kullanıcı şikayetleri ve kendi iç politika/algoritmalarına göre mesajları spam, riskli, uygunsuz veya politika ihlali olarak sınıflandırabilir.",
+      "Lixus AI, bu platformların spam, kalite, güvenlik, görünürlük, hesap veya ilan kararlarını kontrol etmez ve garanti etmez. Müşteri; gönderdiği veya otomasyonla gönderilmesine izin verdiği mesajların içeriğinden, sıklığından, doğruluğundan ve bağlı platformların kurallarına uygunluğundan sorumludur. Lixus AI’den kaynaklanan açık teknik hata hariç olmak üzere, platformların mesaj, hesap, ilan, spam veya politika etiketlemelerinden doğabilecek sonuçlar Müşteri’nin sorumluluğundadır.",
+    ],
+  },
+  {
+    title: "6. Hizmet Bedeli, Vergiler ve Toplam Tutar",
+    body: [
+      "Tüm planlar, fiyatlandırma sayfasında belirtilen ve seçilen faturalandırma dönemine (aylık veya yıllık) ait bedel üzerinden ücretlendirilir. Yıllık planlarda bedelin tamamı peşin tahsil edilir ve abonelik bir yıllık dönem için yenilenir. İlan edilen fiyatlara vergiler dâhildir; ödeme adımında tahsil edilecek toplam tutar, vergiler dâhil olarak açıkça gösterilir.",
+      "Yeni hesaplara, ücretli bir plan seçmeden önce 14 gün ücretsiz Pro denemesi sunulur; deneme için kart bilgisi alınmaz.",
+    ],
+  },
+  {
+    title: "7. Ödeme Şekli ve Araçları",
+    body: [
+      "Ödemeler, anlaşmalı ödeme hizmeti sağlayıcısı (Paddle) altyapısı üzerinden kredi/banka kartı ile alınır; Paddle satış işleminde kayıtlı satıcı (Merchant of Record) olarak yer alabilir ve uygulanabilir vergileri tahsil edebilir. Kart bilgileriniz Satıcı tarafından saklanmaz.",
+    ],
+  },
+  {
+    title: "8. Sözleşme Süresi ve Yenilenme",
+    body: [
+      "Abonelik, seçtiğiniz faturalandırma dönemi (aylık veya yıllık) boyunca geçerlidir ve iptal edilmediği sürece dönem sonunda aynı süre için ve aynı koşullarla otomatik olarak yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan ödeme döneminin (yıllık planda yıllık dönemin) sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz.",
+    ],
+  },
+  {
+    title: "9. İfa ve Hizmete Erişim",
+    body: [
+      "Hizmet dijitaldir ve elektronik ortamda ifa edilir. Ödemenin onaylanmasının ardından ilgili plan özelliklerine erişim derhal sağlanır.",
+    ],
+  },
+  {
+    title: "10. Cayma Hakkı ve Kullanımı",
+    body: [
+      "Sözleşmenin kurulduğu günden itibaren 14 gün içinde gerekçe göstermeden ve cezai şart ödemeden cayma hakkınız vardır. Ancak ödeme ekranında ücretli planın bu süre dolmadan hemen başlamasını ayrıca onaylarsanız, 11. madde uyarınca cayma hakkınız sona erer. Cayma bildiriminizi yukarıda belirtilen e-posta adresine açık bir beyanla iletebilirsiniz.",
+    ],
+  },
+  {
+    title: "11. Cayma Hakkının İstisnası (Dikkat)",
+    body: [
+      "Mesafeli Sözleşmeler Yönetmeliği’nin 15 inci maddesinin birinci fıkrasının (h) bendi uyarınca, cayma süresi dolmadan tüketicinin onayıyla ifasına başlanan hizmetlerde cayma hakkı kullanılamaz.",
+      `Ödeme ekranında “${CHECKOUT_CONSENT_COPY.immediateStart.text}” kutusunu işaretlerseniz ücretli plan ödemenin onaylandığı anda başlar ve cayma hakkınız sona erer.`,
+      "Satın almadan önce hizmeti denemek isterseniz 14 günlük ücretsiz deneme süresini kullanabilirsiniz. Cayma hakkının sona ermesi, aboneliğinizi istediğiniz zaman iptal etme hakkınızı etkilemez; iptal, içinde bulunulan ödeme döneminin sonunda geçerli olur.",
+    ],
+  },
+  {
+    title: "12. Tüketicinin Yükümlülükleri",
+    list: [
+      "Kayıt ve ödeme sırasında verdiği bilgilerin doğru ve güncel olmasını sağlamak.",
+      "Hesap güvenliğini korumak ve giriş bilgilerini gizli tutmak.",
+      "Hizmeti yasalara ve bağlı platformların (Airbnb, Booking.com vb.) kurallarına uygun kullanmak.",
+    ],
+  },
+  {
+    title: "13. Fiyat Değişiklikleri",
+    body: [
+      "Güncel fiyatlar fiyatlandırma sayfasında yayımlanır. Fiyatlarda yapılabilecek değişiklikler, yürürlüğe girmeden önce makul biçimde bildirilir ve yalnızca bir sonraki yenileme döneminde uygulanır; mevcut döneminizi etkilemez.",
+    ],
+  },
+  {
+    title: "14. Kişisel Verilerin Korunması",
+    body: [
+      "Kişisel verileriniz, Gizlilik Politikası ve KVKK Aydınlatma Metni’nde açıklandığı şekilde işlenir. Bu metinler bilgilendirme amaçlıdır; bu formun parçası değildir.",
+    ],
+  },
+  {
+    title: "15. Şikayet ve Uyuşmazlık Çözümü",
+    body: [
+      "Talep ve şikayetlerinizi yukarıdaki e-posta adresine iletebilirsiniz. Uyuşmazlık hâlinde, Ticaret Bakanlığınca ilan edilen parasal sınırlar dâhilinde yerleşim yerinizdeki Tüketici Hakem Heyetlerine veya Tüketici Mahkemelerine başvurabilirsiniz.",
+    ],
+  },
+];

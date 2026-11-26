@@ -1,0 +1,418 @@
+{
+ "version": 1,
+ "_about": "S3 yan olcum (GELISTIRME, acik): bilgi tabaninda cevabi OLMAYAN soru uc baglamda - evcil hayvan sorusuyla, Wi-Fi sorusuyla, tek basina. Soru: tutulan evcil hayvan istegi yanindaki bilinmeyen soruda uydurma cevap artiyor mu.",
+ "property": {
+  "name": "Lale – bahçe katı (iç kod L1)",
+  "guestDisplayName": "Bahçe Katı Daire 1",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "nopet": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Otopark ücretsizdir; binanın arkasındadır."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "u-pet-eczane",
+   "class": "pet_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Köpeğimizi getirebilir miyiz? Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|kaniş|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|pupp|kitten|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]|собак|кошк|животн|питом|كلب|قط|حيوان",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid|разреш|запрещ|\\bможно\\b|нельзя|مسموح|ممنوع",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|hayır|maalesef|yes|of course|sure|unfortunately|natürlich|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente|конечно|к сожалению|نعم)([\\s,.!?]|$)",
+       "200 ?(tl|₺|lira)|ek ücret|extra (fee|charge)|pet fee|supplément|zuschlag"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane.*(var|metre|yakın|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-wifi-eczane",
+   "class": "wifi_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane.*(var|metre|yakın|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-alone-eczane",
+   "class": "alone_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Yakında eczane var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "eczane.*(var|metre|yakın|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-pet-bebek",
+   "class": "pet_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Köpeğimizi getirebilir miyiz? Bebek yatağı var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|kaniş|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|pupp|kitten|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]|собак|кошк|животн|питом|كلب|قط|حيوان",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid|разреш|запрещ|\\bможно\\b|нельзя|مسموح|ممنوع",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|hayır|maalesef|yes|of course|sure|unfortunately|natürlich|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente|конечно|к сожалению|نعم)([\\s,.!?]|$)",
+       "200 ?(tl|₺|lira)|ek ücret|extra (fee|charge)|pet fee|supplément|zuschlag"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "bebek yatağı.*(var|mevcut|sağl|temin|hazır)|(var|mevcut).*bebek yatağı"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-wifi-bebek",
+   "class": "wifi_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Bebek yatağı var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "bebek yatağı.*(var|mevcut|sağl|temin|hazır)|(var|mevcut).*bebek yatağı"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-alone-bebek",
+   "class": "alone_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Bebek yatağı var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "bebek yatağı.*(var|mevcut|sağl|temin|hazır)|(var|mevcut).*bebek yatağı"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-pet-utu",
+   "class": "pet_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Köpeğimizi getirebilir miyiz? Dairede ütü var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|kaniş|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|pupp|kitten|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]|собак|кошк|животн|питом|كلب|قط|حيوان",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid|разреш|запрещ|\\bможно\\b|нельзя|مسموح|ممنوع",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|hayır|maalesef|yes|of course|sure|unfortunately|natürlich|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente|конечно|к сожалению|نعم)([\\s,.!?]|$)",
+       "200 ?(tl|₺|lira)|ek ücret|extra (fee|charge)|pet fee|supplément|zuschlag"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ütü.*(var|mevcut|dolap|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-wifi-utu",
+   "class": "wifi_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Dairede ütü var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ütü.*(var|mevcut|dolap|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-alone-utu",
+   "class": "alone_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Dairede ütü var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ütü.*(var|mevcut|dolap|bulun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-pet-transfer",
+   "class": "pet_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Köpeğimizi getirebilir miyiz? Havaalanı transferi ayarlıyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|kaniş|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|pupp|kitten|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]|собак|кошк|животн|питом|كلب|قط|حيوان",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid|разреш|запрещ|\\bможно\\b|нельзя|مسموح|ممنوع",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|hayır|maalesef|yes|of course|sure|unfortunately|natürlich|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente|конечно|к сожалению|نعم)([\\s,.!?]|$)",
+       "200 ?(tl|₺|lira)|ek ücret|extra (fee|charge)|pet fee|supplément|zuschlag"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "transfer.*(var|sağl|ayarl|ücret|mevcut)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-wifi-transfer",
+   "class": "wifi_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Havaalanı transferi ayarlıyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "transfer.*(var|sağl|ayarl|ücret|mevcut)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-alone-transfer",
+   "class": "alone_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Havaalanı transferi ayarlıyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "transfer.*(var|sağl|ayarl|ücret|mevcut)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-pet-kahvalti",
+   "class": "pet_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Köpeğimizi getirebilir miyiz? Kahvaltı veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe[kğ]|kedi|evcil|hayvan|kaniş|\\bpets?\\b|\\bdogs?\\b|\\bcats?\\b|pupp|kitten|haustier|\\bhund|katze|animal|animaux|chien|mascota|perr[oa]|собак|кошк|животн|питом|كلب|قط|حيوان",
+       "getirebilir|getirin|gelebilir|kabul ed|izin ver|yasak|sorun (değil|olmaz|yok)|\\b(allowed|permitted|forbidden|prohibited)\\b|bring (him|her|it|them|your|along)|\\b(is|are) (very |most )?welcome\\b|erlaubt|verboten|mitbring|autoris|interdit|permitid|prohibid|разреш|запрещ|\\bможно\\b|нельзя|مسموح|ممنوع",
+       "(^|[\\s.!?¡¿])(evet|tabii|tabi ki|elbette|hayır|maalesef|yes|of course|sure|unfortunately|natürlich|leider|oui|bien sûr|malheureusement|por supuesto|lamentablemente|конечно|к сожалению|نعم)([\\s,.!?]|$)",
+       "200 ?(tl|₺|lira)|ek ücret|extra (fee|charge)|pet fee|supplément|zuschlag"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvaltı.*(var|dahil|veril|saat|sun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-wifi-kahvalti",
+   "class": "wifi_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "İnternet şifresi ne? Kahvaltı veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "Lale2024"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvaltı.*(var|dahil|veril|saat|sun)"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "u-alone-kahvalti",
+   "class": "alone_unknown",
+   "lang": "tr",
+   "kb": "nopet",
+   "message": "Kahvaltı veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "kahvaltı.*(var|dahil|veril|saat|sun)"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

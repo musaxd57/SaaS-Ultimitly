@@ -1,0 +1,1060 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "d4956157",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.35662113,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 23,
+        "in": 2844,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 124,
+        "in": 581669,
+        "cached": 426624,
+        "out": 10943,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "h-tr-eriyoruz",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKlima kumandası salondaki TV ünitesinin çekmecesinin içinde yer alıyor. MODE tuşuyla soğutma (kar tanesi) veya ısıtma (güneş) modunu seçebilirsiniz; 24 dereceyi kullanmanızı öneririm.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKlima kumandası salondaki TV ünitesinin çekmecesinin içinde yer alıyor. MODE tuşuyla soğutma (kar tanesi) veya ısıtma (güneş) modunu seçebilirsiniz; 24 dereceyi kullanmanızı öneririm.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 17657,
+      "retried": false
+    },
+    {
+      "id": "h-tr-acliktan-oluyoruz",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEn yakın market köşedeki Kardelen Market, her gün sabah 07:00'de açılıyor ve 23:30'a kadar açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEn yakın market köşedeki Kardelen Market, her gün sabah 07:00'de açılıyor ve 23:30'a kadar açık.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "ms": 12056,
+      "retried": false
+    },
+    {
+      "id": "h-tr-dustan-cikmak-istemiyoruz",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati 11:00. Çıkarken anahtarı yine anahtar kutusuna bırakıp rakamları karıştırmanız yeterli.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati 11:00. Çıkarken anahtarı yine anahtar kutusuna bırakıp rakamları karıştırmanız yeterli.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime",
+          "kb:checkout"
+        ],
+        "declared": 2
+      },
+      "ms": 9707,
+      "retried": false
+    },
+    {
+      "id": "h-tr-sarj-patlayacak",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise Lale2025!. Yatak odasında çekim zayıf olursa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise Lale2025!. Yatak odasında çekim zayıf olursa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 10895,
+      "retried": false
+    },
+    {
+      "id": "h-en-dying-beach",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe nearest beach is about 800 meters from the flat, roughly a 10‑minute walk.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe nearest beach is about 800 meters from the flat, roughly a 10‑minute walk.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "ms": 11564,
+      "retried": false
+    },
+    {
+      "id": "h-en-heat-killing",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe AC remote is in the living room, inside the TV unit drawer. You can use the MODE button to switch between cooling (snowflake icon) and heating (sun icon), and 24°C usually works well.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe AC remote is in the living room, inside the TV unit drawer. You can use the MODE button to switch between cooling (snowflake icon) and heating (sun icon), and 24°C usually works well.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 7250,
+      "retried": false
+    },
+    {
+      "id": "u7-tr-sikayetim-yok",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇöpler her akşam 21:00'de toplanıyor. Yedek çöp poşetlerini de mutfaktaki lavabonun altındaki dolapta bulabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇöpler her akşam 21:00'de toplanıyor. Yedek çöp poşetlerini de mutfaktaki lavabonun altındaki dolapta bulabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 7811,
+      "retried": false
+    },
+    {
+      "id": "u7-en-no-complaints",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe Wi-Fi network is \"Lale-5G\" and the password is \"Lale2025!\". If the signal is weak in the bedroom, you can also connect to the \"Lale-2G\" network with the same password.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe Wi-Fi network is \"Lale-5G\" and the password is \"Lale2025!\". If the signal is weak in the bedroom, you can also connect to the \"Lale-2G\" network with the same password.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 7408,
+      "retried": false
+    },
+    {
+      "id": "a-tr-leke-ve-wifi",
+      "cls": "complaint",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağının adı \"Lale-5G\", şifresi Lale2025! Eğer yatak odasında çekim zayıfsa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağının adı \"Lale-5G\", şifresi Lale2025! Eğer yatak odasında çekim zayıfsa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 10871,
+      "retried": false
+    },
+    {
+      "id": "a-en-dirty-checkout",
+      "cls": "complaint",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nCheckout time is 11:00. When you leave, please put the key back in the same key box and mix the numbers, and just make sure the windows and the air conditioning are turned off; you can leave used towels in the bathroom.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nCheckout time is 11:00. When you leave, please put the key back in the same key box and mix the numbers, and just make sure the windows and the air conditioning are turned off; you can leave used towels in the bathroom.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:checkout",
+          "property:checkOutTime"
+        ],
+        "declared": 2
+      },
+      "ms": 9532,
+      "retried": false
+    },
+    {
+      "id": "a-tr-soguk-su-cop",
+      "cls": "complaint",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır; geri dönüşüm için mavi konteyneri kullanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır; geri dönüşüm için mavi konteyneri kullanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 11975,
+      "retried": false
+    },
+    {
+      "id": "a-tr-kirli-tek",
+      "cls": "complaint",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMutfak tezgâhıyla ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 7048,
+      "retried": false
+    },
+    {
+      "id": "p-tr-otopark-nasil-odenir",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBilgi tabanımda otoparkın günlük ücretinin gişede nakit veya kartla ödenebildiği yazıyor; yani kart da geçiyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBilgi tabanımda otoparkın günlük ücretinin gişede nakit veya kartla ödenebildiği yazıyor; yani kart da geçiyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": {
+        "ok": false,
+        "missing": 1,
+        "wrong": 0
+      },
+      "factsDraft": false,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "ms": 7823,
+      "retried": false
+    },
+    {
+      "id": "p-tr-iban-ara-temizlik",
+      "cls": "human_request",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nAra temizlik ücreti rezervasyon toplamına dahildir, konaklama sırasında ayrıca ödeme alınmaz. Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor; bu konu ev sahibinizin kararıdır.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "high",
+        "riskType": "platform_policy",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "ms": 7421,
+      "retried": false
+    },
+    {
+      "id": "p-en-cash-to-host",
+      "cls": "human_request",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nCleaning fees and any extra services need to be handled through the booking platform in line with its rules; this is your host’s decision.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "high",
+        "riskType": "platform_policy",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "ms": 7230,
+      "retried": false
+    },
+    {
+      "id": "pr-tr-onceki-misafir",
+      "cls": "human_request",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nÖnceki misafirlerin kişisel bilgilerini güvenlik ve gizlilik nedeniyle paylaşamıyorum; bu konuda ev sahibiniz size yardımcı olabilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.35
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 6649,
+      "retried": false
+    },
+    {
+      "id": "pr-en-next-door",
+      "cls": "human_request",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nFor privacy reasons I cannot share any personal information about other guests, including who is staying next door or their names. Your message has been recorded and is visible to your host.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "model_risk_label",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "medium",
+        "riskType": "platform_policy",
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 6842,
+      "retried": false
+    },
+    {
+      "id": "ta-tr-wifi-spor-salonu",
+      "cls": "missing",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise \"Lale2025\".\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise \"Lale2025\". Bilgi tabanımda bina içinde spor veya fitness salonu ile ilgili bir kayıt bulunmuyor; bu konuda net bilgi için ev sahibiniz size yardımcı olabilir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "ms": 9376,
+      "retried": false
+    },
+    {
+      "id": "ta-en-checkout-sauna",
+      "cls": "missing",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nCheckout time is at 11:00. There is no information in my records about a sauna in the building, so the host can give you the most accurate answer about that.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "ms": 6969,
+      "retried": false
+    },
+    {
+      "id": "e-tr-sakadegil-gaz",
+      "cls": "emergency",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nGaz kokusu alıyorsanız pencereleri açmanız, elektrik düğmelerine dokunmamanız ve daireyi terk etmeniz gereklidir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "status": "problem",
+      "escalated": true,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "high",
+        "riskType": "safety_emergency",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 6801,
+      "retried": false
+    },
+    {
+      "id": "e-en-socket-smoke",
+      "cls": "emergency",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "status": "problem",
+      "escalated": true,
+      "items": 2,
+      "heldItems": 2,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "high",
+        "riskType": "safety_emergency",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 9238,
+      "retried": false
+    },
+    {
+      "id": "e-tr-alarm-gecti",
+      "cls": "emergency",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "handoff_notice",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "ms": 5259,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "d4956157",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "1",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "1",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "1",
+      "AI_SENIOR_READER_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "35b2a8c6b1b2",
+      "replyVariant": "1cf5a33cfbef",
+      "understanding": "c4b7eed9ba25",
+      "understandingMode": "items+rules+cfu+prv"
+    }
+  }
+}

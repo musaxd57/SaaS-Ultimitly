@@ -1,0 +1,924 @@
+{
+  "suite": "understanding-breakdown",
+  "version": 1,
+  "meta": {
+    "arm": "ariza-cumlesi",
+    "rounds": 2,
+    "provenance": {
+      "head": "fc58607",
+      "dirty": true,
+      "srcDiff": "2f14041582ad"
+    }
+  },
+  "rows": [
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-tost-wifi",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-espresso-wifi",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-bulaşık",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-saç-kurutma",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-de-wasserkocher",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-çamaşır-kapak",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-tv-remote",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-mikrodalga",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-fridge",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-çaydanlık-başka",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-internet-reset",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-tost-nasıl",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-en-espresso-how",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-saç-kurutma-nerede",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-çamaşır-program",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-de-wasserkocher-wie",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-tablet",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "amenities"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-kumanda-bulamadık",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-kahve-su",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-en-oven-preheat",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-tost-wifi",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-espresso-wifi",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-bulaşık",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-saç-kurutma",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-de-wasserkocher",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-çamaşır-kapak",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-tv-remote",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-mikrodalga",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-en-fridge",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-çaydanlık-başka",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "b-tr-internet-reset",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-tost-nasıl",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-en-espresso-how",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-saç-kurutma-nerede",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-çamaşır-program",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-de-wasserkocher-wie",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-tablet",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "amenities"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-kumanda-bulamadık",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-tr-kahve-su",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "canli-oge-iliski",
+      "id": "h-en-oven-preheat",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-tost-wifi",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-espresso-wifi",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-bulaşık",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-saç-kurutma",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-de-wasserkocher",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-çamaşır-kapak",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-tv-remote",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-mikrodalga",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-fridge",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-çaydanlık-başka",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-internet-reset",
+      "round": 0,
+      "ok": false,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": [
+        "eksik wifi"
+      ]
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-tost-nasıl",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-en-espresso-how",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-saç-kurutma-nerede",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-çamaşır-program",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-de-wasserkocher-wie",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-tablet",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "amenities"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-kumanda-bulamadık",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-kahve-su",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-en-oven-preheat",
+      "round": 0,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-tost-wifi",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-espresso-wifi",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue",
+        "wifi"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-bulaşık",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-saç-kurutma",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-de-wasserkocher",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-çamaşır-kapak",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-tv-remote",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-mikrodalga",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-en-fridge",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-çaydanlık-başka",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "b-tr-internet-reset",
+      "round": 1,
+      "ok": false,
+      "intents": [
+        "complaint_issue"
+      ],
+      "fails": [
+        "eksik wifi"
+      ]
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-tost-nasıl",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-en-espresso-how",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-saç-kurutma-nerede",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-çamaşır-program",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-de-wasserkocher-wie",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-tablet",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "amenities"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-kumanda-bulamadık",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-tr-kahve-su",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    },
+    {
+      "mode": "temel",
+      "id": "h-en-oven-preheat",
+      "round": 1,
+      "ok": true,
+      "intents": [
+        "appliance_help"
+      ],
+      "fails": []
+    }
+  ],
+  "runtime": {
+    "commit": "fc58607",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "(boş)",
+      "KB_RERANK_ENABLED": "(boş)",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "(boş)",
+      "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "(boş)",
+      "AI_HOUSE_RULES_SHADOW": "(boş)",
+      "AI_KB_FEE_RULE_ENABLED": "(boş)",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+      "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "f68615f7bc1b",
+      "replyVariant": "b3b1f227a75a",
+      "understanding": "2823c0513403",
+      "understandingMode": "temel"
+    }
+  }
+}

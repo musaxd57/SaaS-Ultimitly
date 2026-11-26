@@ -1,0 +1,1322 @@
+[
+  {
+    "file": "src/app/(app)/guest-chats/page.tsx",
+    "line": 107,
+    "current": "Daireye asılan QR'dan gelen sohbetler — misafirin sorusu, AI'ın yanıtı ve sizin yanıtlarınız.",
+    "suggested": "Daireye asılan QR'dan gelen sohbetler — misafirin sorusu, AI'ın cevabı ve sizin cevaplarınız.",
+    "reason": "Sitenin geri kalanında 'cevap' kullanılıyor; 'yanıt' ile 'cevap' karışık kullanılıyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 380,
+    "current": "Airbnb / Booking bağlantısı kurulu değil — otomatik yanıt gönderilemiyor. Ayarlar'dan bağlantınızı kontrol edin.",
+    "suggested": "Airbnb / Booking bağlantısı kurulu değil — otomatik cevap gönderilemiyor. Ayarlar'dan bağlantınızı kontrol edin.",
+    "reason": "'yanıt'/'cevap' tutarsızlığı; sayfanın diğer metinleri 'cevap' diyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 374,
+    "current": "Rezervasyon iptal edilmiş — yapay zekâ cevap vermiyor, yapay zekâ kullanımınızdan da düşülmüyor",
+    "suggested": "Rezervasyon iptal edilmiş — yapay zekâ cevap vermiyor, AI işlem hakkınızdan da düşülmüyor",
+    "reason": "Kural: 'AI işlemi' terimi kullanılmalı; 'yapay zekâ kullanımı' belirsiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 378,
+    "current": "Günlük AI sınırınıza ulaşıldı — bu konuşma sınır yenilenince otomatik yanıtlanacak",
+    "suggested": "Günlük AI işlem sınırınıza ulaşıldı — sınır yenilenince bu konuşmaya otomatik cevap verilecek",
+    "reason": "Kart dili 'AI işlemi' der; 'AI sınırı' belirsiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 384,
+    "current": "AI servisine geçici olarak ulaşılamadı — bağlantı düzelince bu konuşma otomatik olarak yeniden denenecek",
+    "suggested": "AI servisine şu an ulaşılamıyor — bu konuşma kısa süre sonra kendiliğinden yeniden denenecek",
+    "reason": "Kesin zaman/bağlantı iddiası ve uzatma; sade dil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 396,
+    "current": "Oto-yanıtın aktif saat aralığı dışında — Ayarlar → AI ve Otomasyon'dan aralığı 7/24 yapabilirsiniz",
+    "suggested": "Otomatik cevap saatleri dışında — Ayarlar → AI ve Otomasyon bölümünden saatleri 7/24 yapabilirsiniz",
+    "reason": "Sade ve tutarlı dil; 'oto-yanıt' kısaltması yerine 'otomatik cevap'.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 408,
+    "current": "Kanal bağlantınızın aboneliği pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilendikten sonra en geç birkaç saat içinde yeniden denenir.",
+    "suggested": "Kanal bağlantınızın aboneliği pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilenince mesaj yeniden denenir.",
+    "reason": "'en geç birkaç saat' belirsiz ve mutlak bir söz; sadeleştirilmeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 404,
+    "current": "Otomatik deneme yaklaşık 4 saat sonra tekrarlanır; acilse mesajı elle yanıtlayın.",
+    "suggested": "Otomatik deneme yaklaşık 4 saat sonra tekrarlanır; acilse mesajı elle cevaplayın.",
+    "reason": "'yanıt'/'cevap' tutarlılığı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/[id]/page.tsx",
+    "line": 392,
+    "current": "Mesaj çok uzun (8.000 karakterden fazla) — yapay zekâ cevap üretmedi; lütfen mesajı okuyup elle yanıtlayın",
+    "suggested": "Mesaj çok uzun — yapay zekâ cevap üretmedi. Mesajı okuyup elle cevaplayın.",
+    "reason": "Teknik sınır (karakter sayısı) gereksiz; 'lütfen' ve 'yanıt/cevap' tutarsızlığı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/page.tsx",
+    "line": 265,
+    "current": "AI'ın %75+ emin olduğu BASİT sorulara",
+    "suggested": "AI'ın emin olduğu basit sorulara",
+    "reason": "Teknik eşik değeri müşteriye gösterilmez; büyük harf vurgusu sade değil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/page.tsx",
+    "line": 265,
+    "current": "Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır.",
+    "suggested": "Şikayet, iade, riskli ve belirsiz mesajlar size bırakılır.",
+    "reason": "Mutlak iddia ('HER ZAMAN') kural dışı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/dashboard/page.tsx",
+    "line": 166,
+    "current": "şikayet gibi riskli konular her zaman size bırakılır. Otomatik yanıt ücretli planlara dâhildir",
+    "suggested": "şikayet gibi riskli konular size bırakılır. Otomatik cevap ücretli planlara dahildir",
+    "reason": "Mutlak iddia ('her zaman'); 'dâhil' yazımı yaygın değil; 'yanıt/cevap' tutarlılığı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/dashboard/page.tsx",
+    "line": 160,
+    "current": "Otomatik yanıtı açın",
+    "suggested": "Otomatik cevabı açın",
+    "reason": "Ürün genelinde 'cevap' kullanılıyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/dashboard/page.tsx",
+    "line": 133,
+    "current": "AI misafire buradaki bilgilerden cevap verir — Wi-Fi, giriş, otopark, kurallar.",
+    "suggested": "AI, misafirlere buradaki bilgilere göre cevap verir: Wi-Fi, giriş, otopark, kurallar.",
+    "reason": "Daha sade ve akıcı ifade.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/dashboard/page.tsx",
+    "line": 140,
+    "current": "misafire sizin üslubunuzla yazsın.",
+    "suggested": "misafirlere sizin üslubunuzla yazar.",
+    "reason": "Emir/dilek kipi yerine sade bildirim; ürün cümlesi tutarlı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/dashboard/page.tsx",
+    "line": 123,
+    "current": "Daireleriniz hazır olsun",
+    "suggested": "Dairelerinizi kontrol edin",
+    "reason": "Başlık belirsiz; ne yapılacağı anlaşılmıyor.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/properties/[id]/page.tsx",
+    "line": 274,
+    "current": "Bunlardan otomatik mesajlar (karşılama, giriş, çıkış) bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez.",
+    "suggested": "Bu yüzden otomatik mesajlar (karşılama, giriş, çıkış) bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez.",
+    "reason": "'Bunlardan' belirsiz; neden-sonuç bağı net değil.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/guest-chats/page.tsx",
+    "line": 122,
+    "current": "Güvenlik için kapı kodu QR'da paylaşılmaz; Wi-Fi bilgisi yalnız konaklamaya bağlanmış cihazdaki misafire verilir.",
+    "suggested": "Güvenlik için kapı kodu QR üzerinden paylaşılmaz; Wi-Fi bilgisi yalnız konaklamayla eşleşen cihazdaki misafire verilir.",
+    "reason": "'konaklamaya bağlanmış cihaz' teknik ve belirsiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/guest-chats/[id]/page.tsx",
+    "line": 172,
+    "current": "Tek sayfada en fazla 1000 mesaj gösterilir (tarayıcıyı kilitlememek için). Daha eskisi silinmedi, yalnız burada görüntülenmiyor.",
+    "suggested": "Bu sayfada en fazla 1000 mesaj gösterilir. Daha eski mesajlar silinmedi, yalnız burada görünmüyor.",
+    "reason": "Teknik açıklama ('tarayıcıyı kilitlememek') müşteriye gitmemeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/guest-chats/[id]/page.tsx",
+    "line": 211,
+    "current": "Lixus AI yeniden etkinleştirildi",
+    "suggested": "Lixus AI yeniden açıldı",
+    "reason": "Daha sade fiil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/cancellations/page.tsx",
+    "line": 157,
+    "current": "Bunlar panel, doluluk ve otomatik yanıttan zaten dışlanır; iptal olunca bekleyen temizlik/giriş görevleri otomatik kaldırılır. Bu sayfa yalnızca bilgilendirme amaçlıdır.",
+    "suggested": "İptaller panele, doluluğa ve otomatik cevaba dahil edilmez; bekleyen temizlik ve giriş görevleri otomatik kaldırılır. Bu sayfa yalnızca bilgi içindir.",
+    "reason": "Uzun ve ağır cümle; sadeleştirilmeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/cancellations/page.tsx",
+    "line": 208,
+    "current": "Bir rezervasyon iptal/red/süresi-dolmuş olduğunda burada dairesine göre listelenir.",
+    "suggested": "İptal edilen, reddedilen ya da süresi dolan rezervasyonlar burada daireye göre listelenir.",
+    "reason": "Eğik çizgili kısaltmalı cümle okunaksız.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/hazirlik/page.tsx",
+    "line": 123,
+    "current": "Bu aralıkta ekstra bir şey almanıza/hazırlamanıza gerek yok.",
+    "suggested": "Bu aralıkta ekstra bir şey almanıza ya da hazırlamanıza gerek yok.",
+    "reason": "Eğik çizgi yerine 'ya da'.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/hazirlik/page.tsx",
+    "line": 107,
+    "current": "Mülkler → daire → “Malzeme Profili”nden giriş başına adetleri girin, liste burada oluşsun.",
+    "suggested": "Mülkler → daire → “Malzeme Profili” bölümünden giriş başına adetleri girin; liste burada oluşur.",
+    "reason": "Sade ve net anlatım; dilek kipi gereksiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/calendar/page.tsx",
+    "line": 235,
+    "current": "Rezervasyon geldikçe bu listede görünecek.",
+    "suggested": "Rezervasyon geldikçe bu listede görünür.",
+    "reason": "Sitenin geri kalanında geniş zaman kullanılıyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/page.tsx",
+    "line": 413,
+    "current": "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar.",
+    "suggested": "Airbnb / Booking bağlantısını kurunca misafir mesajları burada görünür.",
+    "reason": "'akar' mecazı sade değil; otomatik iddiası gereksiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/inbox/page.tsx",
+    "line": 399,
+    "current": "Bu durumda bekleyen bir konuşmanız yok. Diğer sekmelere bakabilir ya da filtreyi temizleyebilirsiniz.",
+    "suggested": "Bu durumda konuşmanız yok. Diğer sekmelere bakın ya da filtreyi temizleyin.",
+    "reason": "Gereksiz uzatma; emir kipi tutarlılığı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/guest-chats/[id]/misafir-ekrani/page.tsx",
+    "line": 28,
+    "current": "Karekod sohbeti şu an kapalı: misafir “Bu sohbet şu anda kullanılamıyor” ekranını görür.",
+    "suggested": "QR sohbeti şu an kapalı: misafir “Bu sohbet şu anda kullanılamıyor” ekranını görür.",
+    "reason": "Ürünün başka yerlerinde 'QR' kullanılıyor; 'Karekod' tutarsız.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/guest-chats/[id]/page.tsx",
+    "line": 125,
+    "current": "QR üzerinden gelen misafir sohbeti. Buradan misafire siz de yazabilirsiniz.",
+    "suggested": "QR üzerinden gelen misafir sohbeti. Buradan misafire siz de yazabilirsiniz.",
+    "reason": "Sorun yok; sadece tutarlılık kontrolü.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/error.tsx",
+    "line": 45,
+    "current": "Beklenmedik bir hata oluştu. Verilerinizde bir kayıp yok — tekrar deneyebilir ya da panele dönebilirsiniz.",
+    "suggested": "Beklenmedik bir hata oluştu. Tekrar deneyin ya da panele dönün.",
+    "reason": "Mutlak iddia ('kayıp yok') ve gereksiz uzatma.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/not-found.tsx",
+    "line": 30,
+    "current": "Aradığınız kayıt silinmiş olabilir ya da bağlantı artık geçerli değil. Menüden devam edebilirsiniz.",
+    "suggested": "Aradığınız kayıt silinmiş olabilir ya da bağlantı geçerli değil. Menüden devam edin.",
+    "reason": "Emir kipi '-in' tutarlılığı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/reports/page.tsx",
+    "line": 183,
+    "current": "AI Cevapları",
+    "suggested": "AI İşlemleri",
+    "reason": "Ürün kuralı: 'AI yanıtı/cevabı' değil 'AI işlemi' denir.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 244,
+    "current": "Açıkken, misafirin <strong>yazdığı mesaja</strong> AI cevap üretir ve güvenlik kapısından geçen düşük riskli cevaplar otomatik gider.",
+    "suggested": "Açıkken AI, misafirin yazdığı mesaja cevap hazırlar; güvenli bulunan cevaplar otomatik gönderilir. Riskli veya belirsiz mesajlar size bırakılır.",
+    "reason": "'Güvenlik kapısı' iç terimdir; müşteri metni sade olmalı.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 255,
+    "current": "Açıkken: misafirin yazdığı mesaja AI cevap üretir; güvenlik kapısından geçen düşük riskli cevaplar otomatik gider.",
+    "suggested": "Açıkken: AI misafirin mesajına cevap hazırlar; güvenli bulunanlar otomatik gönderilir.",
+    "reason": "İç terim ('güvenlik kapısı'); metin sade olmalı.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 263,
+    "current": "Karşılama, giriş ve çıkış mesajları AI'dan geçmez — sizin Bilgi Tabanı'na yazdığınız metin aynen gider. Bu anahtar kapalıyken de, kendi anahtarları açıksa gönderilirler.",
+    "suggested": "Karşılama, giriş ve çıkış mesajları AI tarafından değiştirilmez; yazdığınız metin aynen gönderilir. Bu anahtar kapalıyken de kendi anahtarları açıksa gönderilirler.",
+    "reason": "Gereksiz uzatma. Ayrıca bu metinler artık Bilgi Tabanı'ndan değil mülkün 'Otomatik mesajlar' kaydından geliyor; mevcut metin yanlış yönlendiriyor.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 280,
+    "current": "<strong>Karşılama Mesajı</strong> bilgi tabanı girişi <strong>tek sefer</strong> gönderilir",
+    "suggested": "<strong>Karşılama Mesajı</strong> <strong>bir kez</strong> gönderilir",
+    "reason": "Kaynak artık bilgi tabanı değil (Otomatik mesajlar kaydı); eski bilgi yanlış. Aynı hata giriş/çıkış bölümlerinde ve ipuçlarında da var.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 321,
+    "current": "Açıkken: girişe 4 gün kala, Bilgi Tabanı'ndaki Giriş Talimatı misafire bir kez otomatik gider. AI anahtarından bağımsızdır.",
+    "suggested": "Açıkken: girişe 4 gün kala giriş talimatı misafire bir kez otomatik gönderilir. AI anahtarından bağımsızdır.",
+    "reason": "Mesaj kaynağı artık Otomatik mesajlar; Bilgi Tabanı atfı yanlış.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 427,
+    "current": "anında uyarı maili gider (uyurken bile kaçırmazsınız)",
+    "suggested": "hemen uyarı e-postası gider",
+    "reason": "Mutlak/abartılı iddia ve gereksiz uzatma; 'maili' gündelik dil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 463,
+    "current": "Kurucu hesabı — dahili erişim.",
+    "suggested": "Dahili hesap — tüm özellikler açık.",
+    "reason": "İç kavram ('kurucu', 'dahili erişim') müşteri ekranında anlamsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/settings/page.tsx",
+    "line": 562,
+    "current": "Şifreler, 2FA anahtarları ve kanal bağlantı anahtarları hiçbir zaman dâhil edilmez.",
+    "suggested": "Şifreler ve bağlantı anahtarları dosyaya eklenmez.",
+    "reason": "Teknik terim (2FA anahtarı) ve mutlak ifade ('hiçbir zaman').",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(app)/sent/page.tsx",
+    "line": 123,
+    "current": "Oto-yanıt",
+    "suggested": "Otomatik yanıt",
+    "reason": "Kısaltma yerine sade ifade; ekran içinde tutarlı olmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/sent/page.tsx",
+    "line": 335,
+    "current": "Elle yazdığınız cevaplar burada görünmez (onlar konuşma ekranındadır).",
+    "suggested": "Elle yazdığınız cevaplar burada görünmez; onları konuşma ekranında görebilirsiniz.",
+    "reason": "Daha akıcı, sade anlatım.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/sent/queue/page.tsx",
+    "line": 34,
+    "current": "Sağlayıcıdan doğrulanamadı — misafire ulaşmış olabilir; kopya riski nedeniyle otomatik yeniden gönderilmez.",
+    "suggested": "Teslim doğrulanamadı. Mesaj misafire ulaşmış olabilir; aynı mesaj iki kez gitmesin diye otomatik yeniden gönderilmez.",
+    "reason": "'Sağlayıcı' ve 'kopya riski' teknik dil.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/app/(app)/sent/queue/page.tsx",
+    "line": 115,
+    "current": "Bir mesaj gönderilemediyse sebebini burada görür, tekrar deneyebilirsiniz.",
+    "suggested": "Bir mesaj gönderilemediyse nedenini burada görebilir ve tekrar deneyebilirsiniz.",
+    "reason": "Fiil uyumu hatalı ('görür' ile 'deneyebilirsiniz' karışık).",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(app)/sent/queue/page.tsx",
+    "line": 47,
+    "current": "Kanal bağlantısının aboneliği pasif — bağlantı yeniden kurulunca otomatik olarak bir kez denenecek.",
+    "suggested": "Aboneliğiniz aktif olmadığı için mesaj gönderilemedi. Abonelik yeniden etkinleşince otomatik olarak bir kez denenir.",
+    "reason": "Anlam belirsiz; müşteri ne yapacağını anlamıyor.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/admin/trial-end-button.tsx",
+    "line": 43,
+    "current": "Bağlantı hatası.",
+    "suggested": "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.",
+    "reason": "Diğer ekranlardaki bağlantı hata metniyle tutarsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/auth/forgot-password-form.tsx",
+    "line": 109,
+    "current": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "suggested": "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.",
+    "reason": "Ürün genelindeki standart bağlantı hatası metniyle tutarsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/auth/forgot-password-form.tsx",
+    "line": 243,
+    "current": "Doğrulama kodunu o bağlantının açtığı sayfada gireceksiniz — kodu bu ekrana yazamazsınız.",
+    "suggested": "Kodu bağlantının açtığı sayfada gireceksiniz.",
+    "reason": "Gereksiz uzatma.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/auth/forgot-password-form.tsx",
+    "line": 311,
+    "current": "En az 8 karakter",
+    "suggested": "En az 8 karakterlik bir şifre oluşturun",
+    "reason": "Şifre oluşturulur; kural dili tutarlı olmalı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/auth/login-form.tsx",
+    "line": 171,
+    "current": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "suggested": "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.",
+    "reason": "Standart bağlantı hatası metniyle tutarsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/auth/login-form.tsx",
+    "line": 245,
+    "current": "Authenticator uygulamasındaki 6 haneli kod",
+    "suggested": "Doğrulama uygulamasındaki 6 haneli kod",
+    "reason": "Yabancı terim; sade Türkçe tercih edilmeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/auth/login-form.tsx",
+    "line": 298,
+    "current": "Doğrula ve Gir",
+    "suggested": "Doğrula ve giriş yap",
+    "reason": "Büyük harfli 'Gir' yazım tutarsızlığı; 'Giriş Yap' ile birlikte ifade tutarsız.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/auth/register-form.tsx",
+    "line": 160,
+    "current": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "suggested": "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.",
+    "reason": "Standart bağlantı hatası metniyle tutarsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/auth/register-form.tsx",
+    "line": 170,
+    "current": "Hesabınız oluşturuldu — son bir adım kaldı! 📧",
+    "suggested": "Hesabınız oluşturuldu — son bir adım kaldı",
+    "reason": "Ünlem ve emoji; sade ton.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/auth/register-form.tsx",
+    "line": 173,
+    "current": "gönderdik. Maildeki butona tıklayın ve az önce belirlediğiniz şifreyi girin.",
+    "suggested": "gönderdik. E-postadaki düğmeye tıklayın ve az önce oluşturduğunuz şifreyi girin.",
+    "reason": "Şifre 'belirlenmez', oluşturulur; 'mail/buton' gündelik dil.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/auth/verify-email-form.tsx",
+    "line": 50,
+    "current": "Şifre hatalı. Kayıt olurken belirlediğiniz şifreyi girin.",
+    "suggested": "Şifre hatalı. Kayıt olurken oluşturduğunuz şifreyi girin.",
+    "reason": "Şifre 'belirlenmez', oluşturulur.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/auth/verify-email-form.tsx",
+    "line": 163,
+    "current": "Güvenliğiniz için son bir adım: kayıt olurken belirlediğiniz şifreyi girin. Böylece bu hesabın gerçekten size ait olduğundan emin oluyoruz.",
+    "suggested": "Son adım: kayıt olurken oluşturduğunuz şifreyi girin.",
+    "reason": "Şifre oluşturulur; ayrıca gereksiz uzatma.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/app/(auth)/layout.tsx",
+    "line": 41,
+    "current": "Kurallara uygun, sağlam, uzun ömürlü operasyon platformu.",
+    "suggested": "Kısa ve net bir ürün tanımı (örn. 'Kiralık daire operasyonunuz tek yerde.').",
+    "reason": "Abartılı ve belirsiz iddia.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(auth)/e-posta-dogrula/page.tsx",
+    "line": 13,
+    "current": "Son adım: hesabın size ait olduğunu şifrenizle doğrulayın.",
+    "suggested": "Son adım: hesabın size ait olduğunu şifrenizi girerek doğrulayın.",
+    "reason": "Daha açık anlatım.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/app/(legal)/entegrasyonlar/page.tsx",
+    "line": 17,
+    "current": "AI 7/24, misafirin dilinde yanıtlar.",
+    "suggested": "AI misafirin dilinde yanıt hazırlar.",
+    "reason": "Mutlak iddia (7/24); ayrıca riskli mesajlar size bırakılıyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(legal)/entegrasyonlar/page.tsx",
+    "line": 56,
+    "current": "Lixus AI misafir mesajlarınızı okur ve sizin adınıza güvenle yanıtlar.",
+    "suggested": "Lixus AI misafir mesajlarınızı okur ve sizin adınıza yanıt hazırlar.",
+    "reason": "Mutlak iddia ('güvenle').",
+    "severity": "ton"
+  },
+  {
+    "file": "src/app/(legal)/entegrasyonlar/page.tsx",
+    "line": 27,
+    "current": "Gelir/ödeme verinize erişmeyiz",
+    "suggested": "Gelir ve ödeme bilgilerinizi kullanmayız",
+    "reason": "Mutlak iddia; 'erişmeyiz' doğrulanabilir değil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/admin/add-customer-form.tsx",
+    "line": 62,
+    "current": "Müşteri için bir hesap ve giriş bilgisi oluştur.",
+    "suggested": "Müşteri için bir hesap ve giriş bilgisi oluşturun.",
+    "reason": "Hitap emir kipinde '-in' olmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/admin/add-customer-form.tsx",
+    "line": 75,
+    "current": "Geçici şifre (en az 8 karakter)",
+    "suggested": "Geçici şifre (en az 8 karakterlik bir şifre oluşturun)",
+    "reason": "Şifre oluşturulur; ifade tutarlı olmalı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/admin/reset-2fa-form.tsx",
+    "line": 59,
+    "current": "2FA'sını sıfırla",
+    "suggested": "2FA'sını sıfırlayın",
+    "reason": "Hitap emir kipinde '-in' olmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/billing/limited-mode-banner.tsx",
+    "line": 33,
+    "current": "Kart bilgilerinizi güncelleyerek hemen yeniden açabilirsiniz.",
+    "suggested": "Kart bilgilerinizi güncelleyin.",
+    "reason": "Gereksiz uzatma; 'hemen' abartılı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/guest-chat/guest-chat-thread.tsx",
+    "line": 31,
+    "current": "Otomatik asistan + ev sahibi. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz.",
+    "suggested": "Yanıtları asistan ve ev sahibi hazırlar. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz.",
+    "reason": "Cümle yarım ve anlamsız duruyor.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 482,
+    "current": "Ücretsiz dene → hesap aç → e-posta onayı → bağlantıyı kur → token'ı yapıştır. Hepsi bu.",
+    "suggested": "Ücretsiz deneyin → hesap açın → e-postanızı onaylayın → bağlantıyı kurun → bağlantı anahtarını yapıştırın. Hepsi bu.",
+    "reason": "Teknik terim (token), tutarsız hitap (emir kipinde '-in' değil) ve Türkçe ek hatası.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 57,
+    "current": "Soruların sizin üslubunuzla yanıtlanır.",
+    "suggested": "Soruları sizin üslubunuzla yanıtlanır.",
+    "reason": "Dilbilgisi: 'Sorular sizin üslubunuzla yanıtlanır' olmalı; 'Soruların' yanlış.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 94,
+    "current": "Platform dışı ödeme = kırmızı çizgi. AI asla kabul etmez, sizi uyarır.",
+    "suggested": "Platform dışı ödeme kabul edilmez. AI bu teklife cevap vermez, durumu size iletir.",
+    "reason": "Mutlak iddia ('asla') ve uyarı dili; ürün kuralı abartılı iddiayı yasaklıyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 154,
+    "current": "Şikayet, iade veya iptal mesajlarını asla kendi başına sonuçlandırmaz",
+    "suggested": "Şikayet, iade veya iptal mesajlarını kendi başına sonuçlandırmaz",
+    "reason": "Mutlak iddia ('asla') kuralına aykırı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 250,
+    "current": "Şikayet, iade, iptal gibi hassas mesajları asla otomatik sonuçlandırmaz",
+    "suggested": "Şikayet, iade, iptal gibi hassas mesajları otomatik sonuçlandırmaz",
+    "reason": "Mutlak iddia ('asla').",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 495,
+    "current": "Üstelik riskli mesajı asla tek başına yanıtlamaz.",
+    "suggested": "Üstelik riskli mesajı tek başına yanıtlamaz.",
+    "reason": "Mutlak iddia ('asla').",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 246,
+    "current": "Hayır, hesabınız güvende.",
+    "suggested": "Hayır. Lixus AI yalnızca misafir mesajlarınızı okur ve yanıtlar.",
+    "reason": "Mutlak güvenlik iddiası; kısa ve ölçülü ifade tercih edilmeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 691,
+    "current": "size anında e-posta ile haber verilir ve yanıt taslağı hazır bekler — ama son sözü asla yazılım söylemez.",
+    "suggested": "size e-posta ile haber verilir ve yanıt taslağı hazır bekler; son sözü siz söylersiniz.",
+    "reason": "Mutlak iddia ('anında', 'asla'); daha sade ifade.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 291,
+    "current": "Yanıt Sürenizi Kısaltır",
+    "suggested": "Yanıt sürenizi kısaltır",
+    "reason": "Diğer çiplerle tutarsız büyük harf kullanımı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 308,
+    "current": "AI’a soru sorar",
+    "suggested": "AI’ya soru sorar",
+    "reason": "Yazım: kısaltma ekinde 'AI'ya' (okunuşa göre 'ey-ay'ya').",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 669,
+    "current": "Lixus AI’ın kurucusu",
+    "suggested": "Lixus AI’nın kurucusu",
+    "reason": "Ek hatası: ünlüyle biten sözcükte 'nın' kullanılır.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 199,
+    "current": "Günde 150 AI işlemi (otomatik yanıt · öneri · çeviri)",
+    "suggested": "Günde 150 AI işlemi (otomatik yanıt, öneri, çeviri)",
+    "reason": "Orta nokta ayracı yerine standart noktalama daha sade.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-page.tsx",
+    "line": 234,
+    "current": "AI her yanıtta en güncel 30'unu okur",
+    "suggested": "AI her yanıtta en güncel 30 kaydı okur",
+    "reason": "Kaydı belirsiz bırakan ek; sade ifade.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/account-card.tsx",
+    "line": 123,
+    "current": "Yeni şifre (en az 8 karakter)",
+    "suggested": "Yeni şifre (en az 8 karakter)",
+    "reason": "Şifre 'seçilmez, oluşturulur' kuralı: alan yönergesi 'Yeni şifre oluşturun' şeklinde olmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 128,
+    "current": "Token artık geçerli değil (401/403).",
+    "suggested": "Bağlantı anahtarı artık geçerli değil.",
+    "reason": "Teknik kod ve 'token' terimi müşteri metninde kullanılmaz.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 161,
+    "current": "Hospitable Personal Access Token",
+    "suggested": "Hospitable bağlantı anahtarı",
+    "reason": "Teknik terim (token); metnin geri kalanı 'bağlantı anahtarı' diyor.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 175,
+    "current": "Token <strong>şifreli</strong> saklanıyor",
+    "suggested": "Bağlantı anahtarı güvenle saklanıyor",
+    "reason": "Teknik terim (token) ve tutarsız adlandırma.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 242,
+    "current": "🔒 Token <strong>uçtan uca şifreli</strong> saklanır",
+    "suggested": "🔒 Bağlantı anahtarı güvenle saklanır",
+    "reason": "Teknik terim ve abartılı güvenlik iddiası (uçtan uca).",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 260,
+    "current": "Hospitable access token",
+    "suggested": "Hospitable bağlantı anahtarı",
+    "reason": "Yer tutucuda teknik terim.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/hospitable-connect-card.tsx",
+    "line": 125,
+    "current": "Bağlantı sağlayıcı tarafından reddedildi.",
+    "suggested": "Bağlantı Hospitable tarafından reddedildi.",
+    "reason": "'Sağlayıcı' belirsiz, müşteri hangisinden söz edildiğini bilmez.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/alert-email-form.tsx",
+    "line": 86,
+    "current": "Bağlantı onaylanınca uyarılar bu adrese gider.",
+    "suggested": "Bağlantıyı onaylayınca uyarılar bu adrese gelir.",
+    "reason": "Daha doğal ifade; ayrıca ne yapılacağı net.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/ai-test-card.tsx",
+    "line": 183,
+    "current": "Güvenlik kapısı temiz + güven yüksek → oto-yanıt açıkken bu mesaj",
+    "suggested": "Güvenlik kontrolünden geçti ve güven yüksek. Otomatik yanıt açıkken bu mesaj",
+    "reason": "'Güvenlik kapısı', 'oto-yanıt' ve ok işareti teknik/jargon.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/ai-test-card.tsx",
+    "line": 199,
+    "current": "Güvenlik kapısı bu mesajı otomatik yanıta uygun bulmadı → gönderilmez",
+    "suggested": "Bu mesaj otomatik yanıta uygun bulunmadı; gönderilmez",
+    "reason": "'Güvenlik kapısı' jargonu.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/ai-test-card.tsx",
+    "line": 157,
+    "current": "güven: %{Math.round(result.confidence * 100)}",
+    "suggested": "Güven: %{Math.round(result.confidence * 100)}",
+    "reason": "Diğer rozetlerle tutarsız küçük harf.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/ai-test-card.tsx",
+    "line": 144,
+    "current": "AI cevabını gör",
+    "suggested": "AI cevabını gör",
+    "reason": "Metin 'AI cevabı' diyor; kural gereği 'AI işlemi' / sade ifade tutarlı kullanılmalı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/ai-voice-form.tsx",
+    "line": 131,
+    "current": "AI yanıtlarını sizin tonunuza yaklaştırmak için kullanılır.",
+    "suggested": "AI cevaplarını sizin tonunuza yaklaştırmak için kullanılır.",
+    "reason": "'AI yanıtı' ifadesi kural dışı.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/settings/automation-prefs-form.tsx",
+    "line": 249,
+    "current": "Mesaj çözümlemesi kusursuz değildir; bu yüzden varsayılan KAPALI — açmak sizin tercihiniz.",
+    "suggested": "Mesajlar her zaman doğru anlaşılmayabilir; bu yüzden varsayılan olarak kapalıdır.",
+    "reason": "Gereksiz uzatma, büyük harf vurgu.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/automation-prefs-form.tsx",
+    "line": 168,
+    "current": "Kapalıyken (varsayılan) davranış bugünkü gibidir.",
+    "suggested": "Kapalıyken bu mesajlara yanıt verilmez.",
+    "reason": "Belirsiz ('bugünkü gibi'); ne olduğu açıkça söylenmeli.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/calendar-sources.tsx",
+    "line": 110,
+    "current": "Senkronizasyon başarısız: ${data.errors[0]}",
+    "suggested": "Takvim güncellenemedi. Bağlantıyı kontrol edip tekrar deneyin.",
+    "reason": "Ham sunucu hata metni müşteriye gösterilmemeli; teknik sözcük.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/calendar-sources.tsx",
+    "line": 173,
+    "current": "Senkronla",
+    "suggested": "Şimdi güncelle",
+    "reason": "'Senkron' jargon; başka yerde 'Şimdi güncelle' kullanılıyor.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/guest-erasure-control.tsx",
+    "line": 98,
+    "current": "Senkron bu veriyi bir daha İÇERİ ALMAZ (kalıcı koruma kaydı).",
+    "suggested": "Bu veri bir daha içeri alınmaz.",
+    "reason": "Teknik açıklama ve gereksiz uzatma.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/history-learn-panel.tsx",
+    "line": 661,
+    "current": "Serbest talimat (yalnız operatör)",
+    "suggested": "Serbest talimat",
+    "reason": "İç rol ifadesi ('operatör') müşteri ekranında anlamsız.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/supply-profile-form.tsx",
+    "line": 161,
+    "current": "Bir giriş (turnover) başına ortalama tüketim.",
+    "suggested": "Her misafir girişi için ortalama tüketim.",
+    "reason": "İngilizce jargon (turnover).",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/properties/early-checkin-rule-form.tsx",
+    "line": 158,
+    "current": "yabancı misafirleriniz çoksa İngilizce yazabilirsiniz.",
+    "suggested": "yabancı misafirleriniz çoksa İngilizce yazabilirsiniz.",
+    "reason": "Cümle 'çoksa' yerine 'çok ise/çoksa' doğru; ancak noktalama: iki bağımsız cümle ';' ile ayrılmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/properties/auto-messages-card.tsx",
+    "line": 173,
+    "current": "Gönderimi açıp kapatmak Ayarlar'dadır.",
+    "suggested": "Gönderimi Ayarlar'dan açıp kapatabilirsiniz.",
+    "reason": "Daha doğal, eylem odaklı ifade.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/guest-chats/reply-box.tsx",
+    "line": 119,
+    "current": "“AI yanıtlarını yeniden başlat”",
+    "suggested": "“AI işlemini yeniden başlat”",
+    "reason": "Ürün kuralı: 'AI yanıtı' değil 'AI işlemi' denir.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/guest-chats/resume-ai-button.tsx",
+    "line": 44,
+    "current": "🤖 AI yanıtlarını yeniden başlat",
+    "suggested": "🤖 AI işlemini yeniden başlat",
+    "reason": "Ürün kuralı: 'AI yanıtı' değil 'AI işlemi' denir. Düğme metni reply-box.tsx'teki metinle de tutarlı olmalı.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/guest-chat/guest-chat.tsx",
+    "line": 300,
+    "current": "Sohbeti başlatmak için ev sahibinizin size verdiği giriş kodunu girin.",
+    "suggested": "Sohbeti başlatmak için ev sahibinin size verdiği giriş kodunu girin.",
+    "reason": "Misafir ekranında 'ev sahibiniz' yerine ev sahibi denmesi daha doğal; ancak asıl sorun 'sizin' tekrarı. Kısa ve sade tutulmalı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/guest-chat/guest-chat.tsx",
+    "line": 284,
+    "current": "Kod hatalı. Ev sahibinizin verdiği giriş kodunu kontrol edin.",
+    "suggested": "Kod hatalı. Ev sahibinin verdiği giriş kodunu kontrol edin.",
+    "reason": "Tutarlılık: aynı ekranda başka bir metinle aynı ifade kullanılmalı.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/guest-chat/guest-chat.tsx",
+    "line": 264,
+    "current": "Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.",
+    "suggested": "Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin.",
+    "reason": "Daha doğal ve sade; 'Lütfen' gereksiz uzatma.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-toggle.tsx",
+    "line": 92,
+    "current": "{label}: {locked ? \"yükseltin\" : on ? \"Açık\" : \"Kapalı\"}",
+    "suggested": "{label}: {locked ? \"Plan gerekli\" : on ? \"Açık\" : \"Kapalı\"}",
+    "reason": "Durum rozetinde emir kipi ('yükseltin') etiket durumunu anlatmıyor, anlamı belirsiz; Açık/Kapalı ile tutarsız büyük-küçük harf.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 215,
+    "current": "Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length} — yapay zekâ cevap yazmaz. Kısa teşekkür cevabı ayarınız açıksa yalnız o gider.",
+    "suggested": "Cevap gerekmeyenler (yalnız teşekkür/kapanış): {noReplyNeeded.length}. AI bunlara cevap yazmaz; kısa teşekkür ayarınız açıksa yalnız o gönderilir.",
+    "reason": "Daha sade; AI terimi sitenin geri kalanıyla tutarlı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 189,
+    "current": "Cevap bekleyen (misafirin son yazdığı) konuşma yok. Önce \"Mesajları çek\"e basın.",
+    "suggested": "Cevap bekleyen konuşma yok. Önce “Mesajları çek” düğmesine basın.",
+    "reason": "Parantez açıklaması gereksiz; 'çek'e basın' yazımı hatalı ve düz tırnak kullanılmış.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 249,
+    "current": "emin değil / riskli",
+    "suggested": "AI emin değil / riskli",
+    "reason": "Özne belirsiz; 'emin değil' kimin emin olmadığı anlaşılmıyor. Ayrıca 'şikayet' yazımı 'şikâyet' olmalı (satır 251).",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 251,
+    "current": "şikayet",
+    "suggested": "şikâyet",
+    "reason": "Yazım: şikâyet (düzeltme işaretiyle); diğer yerlerde yapay zekâ yazımı kullanılıyor.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 97,
+    "current": "Önizleme başarısız oldu.",
+    "suggested": "Önizleme hazırlanamadı. Lütfen tekrar deneyin.",
+    "reason": "Hata mesajı ne yapılacağını söylemiyor; diğer hata metinleriyle tutarsız.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 101,
+    "current": "İstek gönderilemedi.",
+    "suggested": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "reason": "Sitenin geri kalanındaki bağlantı hatası metniyle tutarsız ve yönlendirmesiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 124,
+    "current": "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin.",
+    "suggested": "Aboneliğiniz aktif değil. Açmak için Ayarlar'dan bir plan seçin.",
+    "reason": "Düğme ipucunda uzun çizgi yerine nokta; kısa cümle daha sade.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 155,
+    "current": "Hiçbir mesaj gönderilmedi — sadece AI'ın ne göndereceği gösteriliyor.",
+    "suggested": "Hiçbir mesaj gönderilmedi. Yalnızca AI'ın ne göndereceği gösteriliyor.",
+    "reason": "'sadece' yerine 'yalnızca' (sitenin geri kalanı) ve sade cümle.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/conversation-form.tsx",
+    "line": 71,
+    "current": "Konuşma oluşturulamadı",
+    "suggested": "Konuşma oluşturulamadı. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarsız; kullanıcıya ne yapacağı söylenmiyor.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/conversation-form.tsx",
+    "line": 97,
+    "current": "Rezervasyon (opsiyonel)",
+    "suggested": "Rezervasyon (isteğe bağlı)",
+    "reason": "Türkçe karşılık tercih edilir.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/inbox/conversation-thread.tsx",
+    "line": 342,
+    "current": "Güncellenemedi. Yetkiniz yoksa yöneticinize danışın.",
+    "suggested": "Güncellenemedi. Lütfen tekrar deneyin.",
+    "reason": "Hata nedeni yetki varsayımı yapıyor; çoğu zaman yanıltıcı olur.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/inbox/conversation-thread.tsx",
+    "line": 1189,
+    "current": "Misafire yanıt gönderme yetkisi yalnızca sahip/yönetici rolündedir.",
+    "suggested": "Misafire yalnızca sahip veya yönetici yanıt gönderebilir.",
+    "reason": "Daha sade ve doğal anlatım.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/conversation-thread.tsx",
+    "line": 302,
+    "current": "Mesaj gönderilemedi.",
+    "suggested": "Mesaj gönderilemedi. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarlılık; ne yapılacağı söylenmeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/conversation-thread.tsx",
+    "line": 976,
+    "current": "AI bu cevaptan emin",
+    "suggested": "AI bu cevaptan emin görünüyor",
+    "reason": "Mutlak iddia kuralı: yapay zekânın kesin emin olduğunu söylemek abartılı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/conversation-thread.tsx",
+    "line": 1008,
+    "current": "İnsan incelemesi:",
+    "suggested": "İnceleme gerekli:",
+    "reason": "Daha sade ve anlaşılır etiket.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/decision-panel.tsx",
+    "line": 311,
+    "current": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "suggested": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "reason": "Değişiklik gerekmiyor; yalnız tutarlılık notu.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/inbox/decision-panel.tsx",
+    "line": 634,
+    "current": "Mesajı yapay zekâ yazdı; saat, gün ve ücret karar kaydıyla kontrol edildi. Göndermeden önce okuyun.",
+    "suggested": "Mesajı AI hazırladı; saat, gün ve ücret karar kaydınızla karşılaştırıldı. Göndermeden önce okuyun.",
+    "reason": "'Kontrol edildi' mutlak güvence izlenimi veriyor; 'AI' terimi diğer ekranlarla tutarlı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/decision-panel.tsx",
+    "line": 631,
+    "current": "Yapay zekâ mesajı yazıyor…",
+    "suggested": "AI mesajı hazırlıyor…",
+    "reason": "Sitenin geri kalanında 'AI' kullanılıyor; tutarlılık.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/hospitable-sync-button.tsx",
+    "line": 36,
+    "current": "mülk plan limiti nedeniyle eklenmedi (planınızı yükseltin)",
+    "suggested": "mülk plan sınırı nedeniyle eklenmedi (planınızı yükseltin)",
+    "reason": "Diğer ekranlar 'plan sınırı' diyor; 'limit' tutarsız.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/inbox/hospitable-sync-button.tsx",
+    "line": 56,
+    "current": "Airbnb / Booking konuşmalarını kanal bağlantınızdan çek (sadece okuma — hiçbir şey gönderilmez)",
+    "suggested": "Airbnb / Booking konuşmalarını kanal bağlantınızdan çekin (yalnızca okunur, hiçbir şey gönderilmez)",
+    "reason": "Emir kipi '-in' olmalı ('çek' değil 'çekin').",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/inbox/auto-reply-test-button.tsx",
+    "line": 125,
+    "current": "Oto-yanıtın şu an ne göndereceğini göster — hiçbir şey gönderilmez (test).",
+    "suggested": "Oto-yanıtın şu an ne göndereceğini gösterin. Hiçbir şey gönderilmez.",
+    "reason": "Emir kipi '-in' olmalı.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/guest-chats/reply-box.tsx",
+    "line": 98,
+    "current": "Misafire yanıt yaz (Enter gönderir, Shift+Enter yeni satır)…",
+    "suggested": "Misafire yanıt yazın (Enter gönderir, Shift+Enter yeni satır)…",
+    "reason": "Emir kipi '-in' olmalı.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/guest-chats/reply-box.tsx",
+    "line": 125,
+    "current": "Kapı kodu, Wi-Fi şifresi ve kişisel/hassas bilgileri buraya yazmayın — bunları Airbnb/Booking mesajından iletin.",
+    "suggested": "Kapı kodu, Wi-Fi şifresi ve kişisel bilgileri buraya yazmayın. Bunları Airbnb veya Booking mesajıyla iletin.",
+    "reason": "Daha sade ve tutarlı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/guest-chats/resume-ai-button.tsx",
+    "line": 25,
+    "current": "Yapılamadı. Lütfen tekrar deneyin.",
+    "suggested": "AI yeniden başlatılamadı. Lütfen tekrar deneyin.",
+    "reason": "Hangi işlemin başarısız olduğu belirsiz.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/knowledge/kb-gaps-panel.tsx",
+    "line": 46,
+    "current": "Bu konuda bir kayıt yazılmış ama onayınızı bekliyor — yapay zekâ onu kullanmıyor.",
+    "suggested": "Bu konuda bir kayıt yazılmış ama onayınızı bekliyor. AI onu henüz kullanmıyor.",
+    "reason": "Sade ve tutarlı; 'AI' terimi.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-gaps-panel.tsx",
+    "line": 49,
+    "current": "Kayıt var ve yanıt verilirken okundu; ancak son ${g.questionCount} soruda yanıt bu kayda dayanmadı. Yeni kayıt eklemek bunu çözmeyebilir; mevcut kaydın soruyu gerçekten karşılayıp karşılamadığına bakın.",
+    "suggested": "Bu konuda kayıt var ama son ${g.questionCount} soruda AI cevabını bu kayda dayandırmadı. Mevcut kaydın soruyu karşılayıp karşılamadığına bakın.",
+    "reason": "Fazla uzun ve 'yanıt' tekrarı; sadeleştirme.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-manager.tsx",
+    "line": 220,
+    "current": "Bilgi eklenemedi",
+    "suggested": "Bilgi eklenemedi. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarlılık.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-manager.tsx",
+    "line": 345,
+    "current": "Kopyalanamadı",
+    "suggested": "Kopyalanamadı. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarlılık.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-manager.tsx",
+    "line": 408,
+    "current": "Kaydedilemedi",
+    "suggested": "Kaydedilemedi. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarlılık.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-manager.tsx",
+    "line": 633,
+    "current": "AI bir yanıtta <strong>en fazla {KB_ITEM_CAP}</strong> tanesini okur",
+    "suggested": "AI bir cevapta <strong>en fazla {KB_ITEM_CAP}</strong> tanesini kullanır",
+    "reason": "'AI yanıtı' ifadesinden kaçınma kuralı; 'okur' yerine kullanır daha sade.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/knowledge/kb-manager.tsx",
+    "line": 85,
+    "current": "gürültü yapmayınız",
+    "suggested": "gürültü yapmayın",
+    "reason": "Hitap kuralı: emir kipinde '-in', '-iniz' değil.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/knowledge/kb-past-answers.tsx",
+    "line": 166,
+    "current": "— bu metinleri zaten yazmışsınız, ama asistan şablonları göremiyor. Eklerseniz görür.",
+    "suggested": "— bu metinler misafire gider ama AI onları göremez. Bilgi tabanına eklerseniz kullanabilir.",
+    "reason": "'Asistan' ürün dilinde AI olarak geçiyor; daha net ve tutarlı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/knowledge/kb-template-suggestions.tsx",
+    "line": 155,
+    "current": "Şablonlarınızdaki metinler misafire <strong>aynen</strong> gider ama asistan onları göremez. Buradan eklerseniz görür — metin sizin cümlenizdir, doldurmanız gereken bir şey yok.",
+    "suggested": "Şablonlarınızdaki metinler misafire gider ama AI onları göremez. Buradan eklerseniz AI kullanabilir. Doldurmanız gereken bir şey yok.",
+    "reason": "'Aynen' mutlak iddia (şablon değişkenleri ikame edilir); 'asistan' yerine AI.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/marketing/landing-demo.tsx",
+    "line": 84,
+    "current": "AI'ın gerçek cevabını ve riskli mesajı nasıl size bıraktığını görün.",
+    "suggested": "AI'ın verdiği cevabı ve riskli bir mesajı size nasıl bıraktığını görün.",
+    "reason": "Daha akıcı ve 'gerçek' vurgusu gereksiz.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/marketing/landing-demo.tsx",
+    "line": 156,
+    "current": "Güvenlik kapısı tam olarak böyle çalışır.",
+    "suggested": "",
+    "reason": "Mutlak/abartılı iddia ve teknik jargon; kaldırılmalı.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/marketing/landing-demo.tsx",
+    "line": 149,
+    "current": "güvenlik kapısı riskli/hassas konu tespit etti",
+    "suggested": "mesaj riskli ya da hassas bir konu içeriyor",
+    "reason": "'Güvenlik kapısı' teknik dil, müşteriye gitmemeli.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/marketing/landing-demo.tsx",
+    "line": 67,
+    "current": "İstek gönderilemedi.",
+    "suggested": "Bağlantı hatası. Lütfen tekrar deneyin.",
+    "reason": "Diğer hata metinleriyle tutarsız.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 49,
+    "current": "Bu e-posta otomatik olarak oluşturulmuştur. Lütfen yanıtlamayınız.",
+    "suggested": "Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayın.",
+    "reason": "Hitap kuralı: emir kipinde '-in' kullanılır, '-iniz' değil.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 521,
+    "current": "AI'nın misafirlerinize sizin yerinize, 7/24 yanıt vermesini yeniden açmak için bir plan seçin:",
+    "suggested": "Otomatik misafir yanıtlarını yeniden açmak için bir plan seçin:",
+    "reason": "Gereksiz uzatma ve iddialı '7/24' ifadesi; sade dil gerekir.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 495,
+    "current": "(oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.",
+    "suggested": "(otomatik yanıt, karşılama, giriş/çıkış mesajları ve QR misafir sohbeti) <strong>kapanır</strong>.",
+    "reason": "'oto-yanıt' ve 'concierge' müşteri diline uymuyor; ürünün diğer yerlerinde 'QR misafir sohbeti' kullanılıyor.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 523,
+    "current": "Plan seç & devam et",
+    "suggested": "Planları görün",
+    "reason": "Aynı akışın diğer e-postasındaki düğmeyle tutarsız; emir kipi '-in' kuralı ('seç' yerine 'seçin').",
+    "severity": "ton"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 265,
+    "current": "mülkünüzdeki bir misafir mesajını yapay zekâ size bıraktı.",
+    "suggested": "mülkünüzdeki bir misafir mesajı sizin yanıtınızı bekliyor.",
+    "reason": "'yapay zekâ size bıraktı' belirsiz ve teknik; sade söylenmeli.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/lib/email-templates.ts",
+    "line": 555,
+    "current": "Yapay zekâ cevap vermedi ve yapay zekâ kullanımınızdan düşülmedi; yazana yalnız \"sohbet kapalı\" gösterildi.",
+    "suggested": "Yapay zekâ cevap vermedi ve AI işlem hakkınızdan düşülmedi; yazana yalnız \"sohbet kapalı\" gösterildi.",
+    "reason": "Terim tutarlılığı: 'AI işlemi' deyimi kullanılmalı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/two-factor-card.tsx",
+    "line": 260,
+    "current": "Şifrene ek bir güvenlik katmanı.",
+    "suggested": "Şifrenize ek bir güvenlik katmanı.",
+    "reason": "Hitap 'siz' olmalı; aynı paragrafın geri kalanı 'siz' kullanıyor.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/settings/two-factor-card.tsx",
+    "line": 262,
+    "current": "Şifreniz çalınsa bile telefonunuz olmadan kimse giremez.",
+    "suggested": "Şifreniz çalınsa bile telefonunuz olmadan hesabınıza girmek çok zorlaşır.",
+    "reason": "Mutlak iddia.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/two-factor-card.tsx",
+    "line": 249,
+    "current": "Doğrula ve aç",
+    "suggested": "Doğrulayın ve açın",
+    "reason": "Emir kipi '-in' tutarlılığı; diğer düğmeler de aynı biçimde.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/test-email-button.tsx",
+    "line": 56,
+    "current": "Gelen kutunu kontrol et.",
+    "suggested": "Gelen kutunuzu kontrol edin.",
+    "reason": "Hitap 'siz' ve '-in' kuralı.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/tasks/task-board.tsx",
+    "line": 599,
+    "current": "Temizlikçine WhatsApp'tan gönder ya da kopyalayıp yapıştır.",
+    "suggested": "Temizlikçinize WhatsApp'tan gönderin ya da kopyalayıp yapıştırın.",
+    "reason": "Hitap 'siz' ve '-in' kuralı.",
+    "severity": "hata"
+  },
+  {
+    "file": "src/components/ui/slow-load-notice.tsx",
+    "line": 51,
+    "current": "Sayfa'nın açılması uzun sürdü. Sayfayı yenilemeyi deneyin.",
+    "suggested": "Sayfa açılması uzun sürdü. Yenilemeyi deneyin.",
+    "reason": "'Sayfa'nın' kesmesi yanlış (cins isim); yinelenen 'sayfa' gereksiz.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/timezone-form.tsx",
+    "line": 65,
+    "current": "Raporlar, \"Bugün\" gün sınırları ve otomatik mesaj saat pencereleri bu dilime göre hesaplanır.",
+    "suggested": "Raporlar, \"Bugün\" görünümü ve otomatik mesaj saatleri bu saat dilimine göre hesaplanır.",
+    "reason": "Sade dil; 'saat pencereleri' teknik, cümle kafa karıştırıcı.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/settings/timezone-form.tsx",
+    "line": 72,
+    "current": "Saat dilimi (IANA)",
+    "suggested": "Saat dilimi",
+    "reason": "Teknik terim müşteriye gösterilmemeli.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/two-factor-card.tsx",
+    "line": 104,
+    "current": "2FA kapatıldı.",
+    "suggested": "İki adımlı doğrulama kapatıldı.",
+    "reason": "Kısaltma yerine tutarlı terim.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/two-factor-card.tsx",
+    "line": 235,
+    "current": "Telefonunuzda Google Authenticator ya da Authy uygulamasını açın → \"Hesap ekle\" → \"Kurulum anahtarı gir\" seçin",
+    "suggested": "Telefonunuzda Google Authenticator ya da Authy uygulamasını açın, hesap eklemeyi seçin, ardından kurulum anahtarını girin",
+    "reason": "Sade dil; uygulamadaki ifadelere bağımlı.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/paddle-plans.tsx",
+    "line": 628,
+    "current": "görmeniz gerekir — lütfen “Vazgeç” deyip tekrar deneyin.",
+    "suggested": "görmeniz gerekir. “Vazgeç”e basıp tekrar deneyin.",
+    "reason": "Gereksiz uzatma ('lütfen') ve daha sade ifade.",
+    "severity": "ton"
+  },
+  {
+    "file": "src/components/settings/resume-subscription.tsx",
+    "line": 123,
+    "current": "// Bağlantı istek yolda koptu",
+    "suggested": "",
+    "reason": "Yorum, müşteriye görünmez; bulgu değil.",
+    "severity": "yazim"
+  },
+  {
+    "file": "src/components/settings/resume-subscription.tsx",
+    "line": 96,
+    "current": "Aboneliğiniz devam ettirildi. Birkaç saniye içinde açılacak.",
+    "suggested": "Aboneliğiniz devam ettirildi. Birkaç saniye içinde etkinleşecek.",
+    "reason": "'açılacak' belirsiz (ne açılacak); 'etkinleşecek' daha net.",
+    "severity": "kafa_karistirici"
+  },
+  {
+    "file": "src/components/templates/template-manager.tsx",
+    "line": 257,
+    "current": "Yer tutucular: {{guestName}} (ya da {isim}), {{checkInTime}}, {{checkOutTime}}, {{propertyName}}, {{wifiInfo}} — değerler eklenirken otomatik doldurulur.",
+    "suggested": "Metne {{guestName}} (ya da {isim}), {{checkInTime}}, {{checkOutTime}}, {{propertyName}} ve {{wifiInfo}} yazabilirsiniz; mesaj gönderilirken gerçek bilgilerle değişir.",
+    "reason": "'Yer tutucu' teknik; ne zaman dolduğu belirsiz.",
+    "severity": "kafa_karistirici"
+  }
+]

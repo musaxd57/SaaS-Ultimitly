@@ -1,0 +1,864 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "53898d9a",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.22710669,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 17,
+        "in": 2447,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 104,
+        "in": 529315,
+        "cached": 468992,
+        "out": 9303,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "is-tr-otopark-kart",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBinanın kendi otoparkı yok, 200 metre ileride Gül Sokak üzerindeki ücretli açık otoparkı kullanabilirsiniz. Günlük ücret 150 TL, ödemeyi gişede nakit ya da kartla yapabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBinanın kendi otoparkı yok, 200 metre ileride Gül Sokak üzerindeki ücretli açık otoparkı kullanabilirsiniz. Günlük ücret 150 TL, ödemeyi gişede nakit ya da kartla yapabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 11802,
+      "retried": false
+    },
+    {
+      "id": "is-tr-wifi-emin",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise Lale2025!. Aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre ise Lale2025!. Aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 8216,
+      "retried": false
+    },
+    {
+      "id": "is-tr-cikis-sistem",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati 11:00. Çıkarken anahtarı tekrar anahtar kutusuna bırakıp rakamları karıştırmanız yeterli.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati 11:00. Çıkarken anahtarı tekrar anahtar kutusuna bırakıp rakamları karıştırmanız yeterli.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime",
+          "kb:checkout"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7910,
+      "retried": false
+    },
+    {
+      "id": "is-tr-havlu-kayit",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavlular 3 günde bir ücretsiz olarak değiştiriliyor. Ayrıca yatak odasındaki dolabın üst rafında yedek havlular da bulunuyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavlular 3 günde bir ücretsiz olarak değiştiriliyor. Ayrıca yatak odasındaki dolabın üst rafında yedek havlular da bulunuyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7684,
+      "retried": false
+    },
+    {
+      "id": "is-tr-market-bilgi",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEn yakın market köşedeki Kardelen Market, her gün 07:00-23:30 arasında açık. Bu saati size daireyle ilgili hazırlanmış bilgilere göre paylaşıyorum.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_internal_source",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "internalSource"
+      ],
+      "ms": 9399,
+      "retried": false
+    },
+    {
+      "id": "is-en-wifi-source",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nThe Wi‑Fi network is \"Lale-5G\" and the password is \"Lale2025!\". I only use the information that your host has provided for this apartment, such as the check-in details and Wi‑Fi credentials.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_internal_source",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "internalSource"
+      ],
+      "ms": 9894,
+      "retried": false
+    },
+    {
+      "id": "is-en-parking-system",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThere is no private parking for the building. About 200 meters away on Gül Sokak there is a paid open car park with a daily fee of 150 TL, payable in cash or by card at the booth, and parking directly in front of the building is not allowed.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThere is no private parking for the building. About 200 meters away on Gül Sokak there is a paid open car park with a daily fee of 150 TL, payable in cash or by card at the booth, and parking directly in front of the building is not allowed.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 8817,
+      "retried": false
+    },
+    {
+      "id": "is-en-checkout-records",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nCheckout time is 11:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nCheckout time is 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime",
+          "kb:checkout"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6831,
+      "retried": false
+    },
+    {
+      "id": "is-en-bot-how",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nQuiet hours are from 23:00 to 08:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nQuiet hours are from 23:00 to 08:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6718,
+      "retried": false
+    },
+    {
+      "id": "is-de-wlan-quelle",
+      "cls": "grounded",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nDas WLAN-Netz heißt „Lale-5G“, das Passwort ist Lale2025!. Dieselben Zugangsdaten gelten auch für „Lale-2G“. Zu Ihrer zweiten Frage kann ich nur die Informationen selbst mitteilen, nicht deren genaue Herkunft erläutern.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "internalSource"
+      ],
+      "ms": 10318,
+      "retried": false
+    },
+    {
+      "id": "pn-tr-daire-adi",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nDairenizin adı \"Kat 3 Daire 12\" ve adresi Menekşe Sokak No: 14, Alsancak / İzmir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nDairenizin adı \"Kat 3 Daire 12\" ve adresi Menekşe Sokak No: 14, Alsancak / İzmir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:name",
+          "property:address"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 2,
+      "rw": [
+        "internalSource"
+      ],
+      "ms": 10255,
+      "retried": false
+    },
+    {
+      "id": "pn-en-apartment-name",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe apartment name shown for your stay is \"Kat 3 Daire 12\". You can share it with the delivery together with the address Menekşe Sokak No: 14, Alsancak / İzmir.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe apartment name shown for your stay is \"Kat 3 Daire 12\". You can share it with the delivery together with the address Menekşe Sokak No: 14, Alsancak / İzmir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:name",
+          "property:address"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7575,
+      "retried": false
+    },
+    {
+      "id": "pn-tr-kurye",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nDaire 3. kattadır, kapı numarası 12. Kurye bu bilgiyi adresle birlikte paylaştığınızda daireyi kolayca bulabilir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nDaire 3. kattadır, kapı numarası 12. Kurye bu bilgiyi adresle birlikte paylaştığınızda daireyi kolayca bulabilir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:checkin"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7022,
+      "retried": false
+    },
+    {
+      "id": "c-tr-wifi",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre Lale2025!. Yatak odasında sinyal zayıf olursa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı \"Lale-5G\", şifre Lale2025!. Yatak odasında sinyal zayıf olursa aynı şifreyle \"Lale-2G\" ağına da bağlanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 8543,
+      "retried": false
+    },
+    {
+      "id": "c-en-checkin",
+      "cls": "grounded",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nCheck-in time is from 15:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nCheck-in time is from 15:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkin",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7588,
+      "retried": false
+    },
+    {
+      "id": "c-tr-cop",
+      "cls": "grounded",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇöpleri binanın arka tarafındaki, otopark girişinin yanındaki konteynerlere atabilirsiniz. Geri dönüşüm için mavi konteyneri kullanabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇöpleri binanın arka tarafındaki, otopark girişinin yanındaki konteynerlere atabilirsiniz. Geri dönüşüm için mavi konteyneri kullanabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7251,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "53898d9a",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "1",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "1",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "1",
+      "AI_SENIOR_READER_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "1e56c2312243",
+      "replyVariant": "5f64e1fa7c8a",
+      "understanding": "dbf61aecd3d8",
+      "understandingMode": "items+rules+cfu+prv"
+    }
+  }
+}

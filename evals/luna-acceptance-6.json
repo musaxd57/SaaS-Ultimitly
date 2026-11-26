@@ -1,0 +1,920 @@
+{
+  "version": 6,
+  "note": "Kor kabul seti 6 (10-01 ogleden sonra) — karisik ariza + soru, tarif kurali, kaynak atfi; gelistirmede KULLANILMADI; yalniz kabulde bir kez kosulur.",
+  "property": {
+    "name": "Begonvil Konakları",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Hükümet Caddesi, Begonvil Sokak No: 7, Kaş / Antalya",
+    "city": "Kaş"
+  },
+  "kbSets": {
+    "full": [
+      {
+        "category": "checkin",
+        "title": "Giriş ve anahtar teslimi",
+        "content": "Giriş saati 15:00'ten itibarendir. Anahtarlar bahçe kapısının hemen içindeki mavi anahtar dolabındadır; dolabın şifresi varış günü sabah ayrı bir mesajla gönderilir. Geç varış: 22:00'den sonra gelen misafirlerin anahtarı aynı dolapta, kapağında B-17 yazan bölmededir; gece de aynı şifreyle açılır, kimseyi beklemenize gerek yoktur."
+      },
+      {
+        "category": "checkout",
+        "title": "Çıkış",
+        "content": "Çıkış saati en geç 11:00'dir. Çıkarken anahtarları mutfak tezgâhındaki seramik kâseye bırakın, klimayı ve ışıkları kapatıp kapıyı çekmeniz yeterli. Bulaşıkları yıkamanız gerekmez."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark yeri",
+        "content": "Binanın arkasındaki kapalı otoparkta size ayrılmış yer P-14 numaralı alandır (asansörün tam karşısı). Otopark ücretsizdir; kapı uzaktan kumandayla açılır, kumanda anahtarlıkta asılıdır."
+      },
+      {
+        "category": "parking",
+        "title": "Otopark kapısı kumandası çalışmazsa",
+        "content": "Kapıyı açmak için kumandadaki büyük gri düğmeye 2 saniye basılı tutun ve kapıya en fazla 10 metre yaklaşın. Kapı tepki vermiyor ve kumandanın küçük kırmızı ışığı yanıp sönmüyorsa pil bitmiştir: arka kapağı bozuk parayla çevirerek açın, içindeki CR2032 pili değiştirin (yedek pil anahtarlıktaki küçük şeffaf poşette). Pil yeni olduğu hâlde kapı açılmıyorsa gri düğmeye 2 kez kısa basın, ardından 2 saniye basılı tutun."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp ve geri dönüşüm",
+        "content": "Evsel çöpleri sokağın başındaki C-7 numaralı yeşil konteynere atın; cam, plastik ve kâğıt için hemen yanında C-8 numaralı mavi geri dönüşüm konteyneri var. Belediye çöpleri her sabah 07:00'de topluyor; çöp poşetlerini gece balkonda bırakmayın, kediler dağıtıyor."
+      },
+      {
+        "category": "location",
+        "title": "Adres ve havalimanı ulaşımı",
+        "content": "Adres: Hükümet Caddesi, Begonvil Sokak No: 7, Kaş / Antalya. En yakın havalimanı Dalaman (DLM), yaklaşık 150 km ve 2 saat. Havalimanından Kaş'a KAS-12 numaralı servis minibüsü gelen yolcu çıkışından günde 4 sefer kalkar (10:30, 13:30, 17:00, 20:30); dönüşte aynı KAS-12 servisi Kaş otogarından havalimanına gider. Taksiyle yol yaklaşık 2 saat sürer. Antalya Havalimanı (AYT) yaklaşık 3,5 saat uzaklıktadır."
+      },
+      {
+        "category": "local_tips",
+        "title": "Eczane",
+        "content": "En yakın eczane Yaprakdere Eczanesi; evden yürüyerek 5 dakika, Hastane Caddesi üzerinde. Hafta içi 08:30–20:00, cumartesi 09:00–19:00 açıktır. Pazar günleri ve geceleri nöbetçi eczane listesi eczanenin kapısında asılıdır."
+      },
+      {
+        "category": "local_tips",
+        "title": "Market",
+        "content": "En yakın market Mandalin Market; sahil yolunda 200 m ileride, her gün 07:00–24:00 açık. Cuma günleri Kaş pazarında taze sebze ve meyve bulabilirsiniz."
+      },
+      {
+        "category": "local_tips",
+        "title": "Plaj ve yüzme",
+        "content": "En yakın yüzme yeri Mavikum Koyu; evden yürüyerek 8 dakika. Merdivenle inilen küçük çakıllı bir koydur, şezlong yoktur, deniz ayakkabısı önerilir. Plaj havluları yatak odası dolabının üst rafındadır."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "Dairenin içinde ve balkonda sigara içilmez. Evcil hayvan kabul edilmez. 23:00–08:00 arası sessizlik saatleridir; parti ve etkinlik yapılamaz. Rezervasyondaki kişi sayısı aşılamaz."
+      },
+      {
+        "category": "wifi",
+        "title": "Wi-Fi ağı ve şifresi",
+        "content": "Ağ adı: Begonvil_Guest · Şifre: KasLikya!729 (büyük-küçük harfe dikkat edin)."
+      },
+      {
+        "category": "cleaning",
+        "title": "Temizlik ve havlular",
+        "content": "Daire her girişten önce profesyonel olarak temizlenir. 4 geceden uzun konaklamalarda 4. gün ara temizlik yapılır; çarşaf ve havlular değiştirilir. Her misafir için 1 büyük ve 1 küçük banyo havlusu bulunur."
+      },
+      {
+        "category": "faq",
+        "title": "TV",
+        "content": "Ekranda 'Sinyal yok' yazıyorsa TV kumandasındaki SOURCE tuşuna basın ve listeden HDMI 2'yi seçin (uydu alıcısı HDMI 2'ye bağlıdır). Görüntü hâlâ gelmiyorsa uydu alıcısının ön ışığına bakın: kırmızıysa alıcının küçük siyah kumandasındaki POWER tuşuna basın ve 30 saniye bekleyin. Ses yoksa TV kumandasındaki MUTE tuşuna bir kez basın."
+      },
+      {
+        "category": "general",
+        "title": "Klima",
+        "content": "Klimayı kumandanın ON/OFF tuşuyla açın, MODE tuşuna basarak kar tanesi simgesini (COOL) seçin ve sıcaklığı 24 °C'ye ayarlayın; ekranda güneş simgesi varsa klima ısıtma modundadır. Kumanda ekranı boşsa pilleri değiştirin: yedek AAA piller TV ünitesinin üst çekmecesindedir. Klima açılıp birkaç dakika sonra kendiliğinden duruyorsa balkon kapısını kapatın (kapı açıkken sensör klimayı durdurur), kumandadan kapatıp 3 dakika bekleyin ve yeniden açın."
+      },
+      {
+        "category": "faq",
+        "title": "Sık sorulanlar",
+        "content": "Çamaşır deterjanı nerede? Banyo lavabosunun altındaki dolapta.\nÇamaşır makinesinin kapağı açılmıyor: Program bittikten sonra kapak kilidi 2 dakika kapalı kalır. 2 dakika bekleyin; açılmazsa START/PAUSE tuşuna 3 saniye basılı tutun, kilit simgesi sönünce kapağı açın.\nÇamaşır makinesinde su kaldıysa: Programı 'Sıkma' (800 devir) seçip START/PAUSE ile başlatın; su yine boşalmazsa makinenin sağ alt köşesindeki küçük kapağı açın, altına bir kap koyup pompa filtresini saat yönünün tersine çevirerek yavaşça çıkarın.\nÇamaşır askısı nerede? Balkonda, katlanmış hâlde duvara yaslı."
+      },
+      {
+        "category": "general",
+        "title": "Ev rehberi",
+        "content": "Hoş geldiniz! Evi kullanırken işinize yarayacak notlar:\n• Bulaşık makinesi çalışmıyorsa: kapağı 'klik' sesi gelene kadar bastırarak kapatın, ON/OFF tuşuna basın, P3 programını seçip START tuşuna basın. Hiçbir ışık tepki vermiyorsa ON/OFF tuşuna 5 saniye basılı tutarak makineyi sıfırlayın ve programı yeniden seçin.\n• Bulaşık makinesinin dibinde su kalıyorsa ya da ekranda E24 yazıyorsa: alt sepeti çıkarın, tabandaki silindir filtreyi saat yönünün tersine çevirip çıkarın, musluk altında yıkayıp yerine takın; ardından P3 programını yeniden başlatın.\n• Bulaşık tabletleri eviyenin altındaki dolaptadır.\n• Balkon kapısını kilitlemek için kolu yukarı kaldırın."
+      },
+      {
+        "category": "wifi",
+        "title": "İnternet çalışmazsa",
+        "content": "Modem TV ünitesinin arkasındaki raftadır. İnternet yoksa modemin arkasındaki siyah ON/OFF düğmesine basarak kapatın, 60 saniye bekleyin ve tekrar açın; ön paneldeki WAN ışığı 3 dakika içinde yeşile dönmelidir. WAN ışığı 5 dakika sonra hâlâ kırmızıysa modemin yanındaki küçük beyaz fiber kutusunu da aynı şekilde kapatıp 60 saniye sonra açın, ardından modemi bir kez daha yeniden başlatın."
+      },
+      {
+        "category": "faq",
+        "title": "Induction hob",
+        "content": "The kitchen hob is induction. If it beeps but no zone heats up, the child lock is on: touch and hold the key symbol for 3 seconds until the small red dot next to it goes out, then switch the hob on with the ON/OFF field. If a zone shows 'U' and keeps beeping, the pan is not suitable for induction: use the pans in the left drawer under the hob (they have a coil symbol on the bottom)."
+      },
+      {
+        "category": "general",
+        "title": "Ceiling fans",
+        "content": "Both bedrooms have ceiling fans with a white remote in the bedside drawer. Press POWER, then SPEED 1, 2 or 3. If the fan does not react at all, open the battery cover of the remote and check the four small DIP switches: they must be set to 0101, the same code as the fan receiver. Set them to 0101 if needed, close the cover and press POWER again. If only the fan light flickers, press LIGHT twice."
+      },
+      {
+        "category": "faq",
+        "title": "Mikrodalga",
+        "content": "Mikrodalga çalışmıyorsa önce kapağı 'klik' sesi gelene kadar kapatın. Ekranda saat yanıp sönüyorsa STOP tuşuna 2 kez basın, süreyi girip START tuşuna basın. Cam tabla dönmüyorsa tablayı kaldırın, altındaki üç tekerlekli halkayı ortadaki yuvaya oturtun ve tablayı yerine koyun."
+      },
+      {
+        "category": "faq",
+        "title": "Kahve makinesi",
+        "content": "Mutfak tezgâhında kapsüllü kahve makinesi vardır. Kapsüller üst dolabın sol rafındaki ahşap kutudadır; ilk 10 kapsül ikramımızdır."
+      },
+      {
+        "category": "general",
+        "title": "Ütü",
+        "content": "Ütü ve ütü masası koridordaki gömme dolabın içindedir."
+      },
+      {
+        "category": "general",
+        "title": "Saç kurutma makinesi",
+        "content": "Saç kurutma makinesi banyoda, lavabonun altındaki çekmecededir."
+      },
+      {
+        "category": "faq",
+        "title": "Buzdolabı",
+        "content": "Buzdolabı mutfaktadır; derin dondurucu bölmesi alttaki iki çekmecedir. Buz kalıpları dondurucunun üst çekmecesindedir."
+      },
+      {
+        "category": "general",
+        "title": "Çay makinesi",
+        "content": "Mutfakta iki katlı çay makinesi vardır; çay, şeker ve ince belli bardaklar ocağın sağındaki dolaptadır."
+      },
+      {
+        "category": "faq",
+        "title": "Blender",
+        "content": "Blender ve el mikseri tezgâh altındaki sağ dolaptadır."
+      },
+      {
+        "category": "general",
+        "title": "Sigorta kutusu ve elektrik kesintisi",
+        "content": "Sigorta kutusu giriş kapısının arkasında, beyaz kapaklı paneldedir; içinde 6 şalter ve bir kaçak akım rölesi vardır. Elektrik kesilirse paneli açın, aşağı inmiş şalteri bulun ve yukarı kaldırın. TEST yazan kaçak akım rölesi inmişse önce bütün şalterleri indirin, röleyi kaldırın, sonra şalterleri tek tek kaldırın; röle yine atarsa son kaldırdığınız şalteri kapalı bırakın. Sokakta da elektrik yoksa bölgesel bir kesintidir."
+      },
+      {
+        "category": "general",
+        "title": "Kombi ve sıcak su",
+        "content": "Kombi mutfak balkonundaki dolaptadır. Sıcak su gelmiyorsa ve ekranda alev simgesinin üzerinde çarpı varsa RESET düğmesine 3 saniye basılı tutun. Basınç göstergesi 1 bar'ın altındaysa kombinin altındaki mavi musluğu yavaşça açın, ibre 1,5 bar'a gelince kapatın ve RESET düğmesine tekrar basın."
+      },
+      {
+        "category": "general",
+        "title": "Gaz kokusu",
+        "content": "Gaz kokusu alırsanız hiçbir elektrik düğmesine dokunmayın, çakmak veya kibrit yakmayın. Kombinin altındaki sarı kollu ana gaz vanasını kapatın, pencereleri açın, daireden çıkın ve 187 Doğalgaz Acil hattını arayın."
+      }
+    ],
+    "sparse": [
+      {
+        "category": "checkin",
+        "title": "Giriş",
+        "content": "Giriş saati 15:00'ten itibarendir. Anahtarlar bahçe kapısının içindeki mavi anahtar dolabındadır; şifre varış günü ayrı mesajla gönderilir. 22:00'den sonra gelen misafirlerin anahtarı dolapta B-17 yazan bölmededir."
+      },
+      {
+        "category": "checkout",
+        "title": "Çıkış",
+        "content": "Çıkış saati en geç 11:00'dir. Anahtarları mutfak tezgâhındaki seramik kâseye bırakmanız yeterli."
+      },
+      {
+        "category": "wifi",
+        "title": "Wi-Fi",
+        "content": "Ağ adı: Begonvil_Guest · Şifre: KasLikya!729"
+      },
+      {
+        "category": "parking",
+        "title": "Otopark",
+        "content": "Binanın arkasındaki otoparkta size ayrılan yer P-14 numaralı alandır. Otopark ücretsizdir."
+      },
+      {
+        "category": "trash",
+        "title": "Çöp",
+        "content": "Evsel çöpler sokağın başındaki C-7 numaralı yeşil konteynere; cam, plastik ve kâğıt yanındaki C-8 numaralı mavi konteynere atılır."
+      },
+      {
+        "category": "location",
+        "title": "Adres ve ulaşım",
+        "content": "Hükümet Caddesi, Begonvil Sokak No: 7, Kaş / Antalya. Dalaman Havalimanı (DLM) yaklaşık 2 saat uzaklıktadır; havalimanından Kaş'a KAS-12 numaralı servis minibüsü günde 4 sefer çalışır."
+      },
+      {
+        "category": "local_tips",
+        "title": "Yakın çevre",
+        "content": "Yaprakdere Eczanesi yürüyerek 5 dakika (hafta içi 08:30–20:00). Mandalin Market sahil yolunda, her gün 07:00–24:00 açık. En yakın yüzme yeri Mavikum Koyu, yürüyerek 8 dakika."
+      },
+      {
+        "category": "rules",
+        "title": "Ev kuralları",
+        "content": "İçeride ve balkonda sigara içilmez, evcil hayvan kabul edilmez, 23:00–08:00 arası sessizlik saatleridir."
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "k6-01",
+      "class": "mixed_norecipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Merhaba, kahve makinasi calismiyor, dugmeye basinca isigi yanip sonuyor ama kahve akmiyor. Bir de arabayi nereye park edecegiz?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "P-14"
+        ],
+        "forbidden": [
+          "kahve makinesi",
+          "kapsül"
+        ]
+      }
+    },
+    {
+      "id": "k6-02",
+      "class": "mixed_norecipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Buzdolabi hic sogutmuyor, icindeki sular ilik kalmis. Bu arada cikis saati kacti, unuttum.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "11:00"
+        ],
+        "forbidden": [
+          "buzdolabı",
+          "dondurucu"
+        ]
+      }
+    },
+    {
+      "id": "k6-03",
+      "class": "mixed_norecipe_question",
+      "lang": "tr",
+      "kb": "sparse",
+      "message": "Telvizyonda goruntu yok, sadece siyah ekran var. Copleri nereye atiyoruz?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "C-7"
+        ],
+        "forbidden": [
+          "televizyon",
+          "TV"
+        ]
+      }
+    },
+    {
+      "id": "k6-04",
+      "class": "mixed_norecipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "message": "En yakin eczane nerede acaba? Bir de tost makinasi hic isinmiyor, kapagini kapatinca da bir sey olmuyor.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "Yaprakdere"
+        ],
+        "forbidden": [
+          "tost makinesi",
+          "tost makinası"
+        ]
+      }
+    },
+    {
+      "id": "k6-05",
+      "class": "mixed_norecipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, dün akşam yerleştik, ev çok güzel."
+        },
+        {
+          "direction": "outbound",
+          "body": "Hoş geldiniz, beğenmenize çok sevindik! Bir ihtiyacınız olursa buradan yazabilirsiniz."
+        }
+      ],
+      "message": "Cay makinesinin ust demligi hic isinmiyor, alttaki su kaynasa da ustu soguk kaliyor. Bir de esim bu gece 23:30 gibi ayri ucakla gelecek, anahtari nereden alacak?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "B-17"
+        ],
+        "forbidden": [
+          "çay makinesi",
+          "demlik"
+        ]
+      }
+    },
+    {
+      "id": "k6-06",
+      "class": "mixed_norecipe_question",
+      "lang": "en",
+      "kb": "full",
+      "message": "Hi! The hair-dryer in the bathroom only blows cold air now. Also, could you remind me of the wifi password?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "KasLikya!729"
+        ],
+        "forbidden": [
+          "hair dryer",
+          "hairdryer",
+          "saç kurutma"
+        ]
+      }
+    },
+    {
+      "id": "k6-07",
+      "class": "mixed_norecipe_question",
+      "lang": "de",
+      "kb": "full",
+      "message": "Hallo! Der kabellose Lautspecher im Wohnzimmer verbindet sich mit keinem unserer Handys. Und welche Badestelle ist von hier aus am nächsten?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "Mavikum"
+        ],
+        "forbidden": [
+          "Lautsprecher",
+          "hoparlör"
+        ]
+      }
+    },
+    {
+      "id": "k6-08",
+      "class": "mixed_norecipe_question",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Bonjour, le fer a repasser ne chauffe plus du tout. Par ailleurs, comment rejoindre l'aéroport de Dalaman en transport en commun ?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "KAS-12"
+        ],
+        "forbidden": [
+          "fer à repasser",
+          "ütü"
+        ]
+      }
+    },
+    {
+      "id": "k6-09",
+      "class": "mixed_norecipe_question",
+      "lang": "es",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hola, ¿a qué hora es el check-in?"
+        },
+        {
+          "direction": "outbound",
+          "body": "¡Hola! El check-in es a partir de las 15:00."
+        }
+      ],
+      "message": "Hola, la licudora de la cocina no arranca, no hace nada al pulsar el botón. ¿Hay algún supermercado cerca que abra hasta tarde?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "Mandalin"
+        ],
+        "forbidden": [
+          "licuadora",
+          "batidora",
+          "blender"
+        ]
+      }
+    },
+    {
+      "id": "k6-10",
+      "class": "mixed_norecipe_question",
+      "lang": "es",
+      "kb": "sparse",
+      "message": "¿Dónde podemos aparcar el coche? Y otra cosa: la labadora se paró a mitad del programa y la ropa sigue mojada dentro.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "P-14"
+        ],
+        "forbidden": [
+          "lavadora",
+          "çamaşır makinesi"
+        ]
+      }
+    },
+    {
+      "id": "k6-11",
+      "class": "mixed_norecipe_question",
+      "lang": "ru",
+      "kb": "sparse",
+      "message": "Здравствуйте! Вайфай не работает уже около часа, на коробочке мигает красная лампочка. И до скольки нужно освободить квартиру в день выезда?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "11:00"
+        ],
+        "forbidden": [
+          "Wi-Fi",
+          "интернет",
+          "роутер",
+          "модем",
+          "modem",
+          "KasLikya!729"
+        ]
+      }
+    },
+    {
+      "id": "k6-12",
+      "class": "mixed_norecipe_question",
+      "lang": "ar",
+      "kb": "full",
+      "message": "مرحباً، كولر الماء في المطبخ لا يبرّد الماء أبداً منذ أمس. وما هي كلمة مرور الواي فاي من فضلك؟",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "KasLikya!729"
+        ],
+        "forbidden": [
+          "موزع الماء",
+          "مبرد الماء",
+          "su sebili"
+        ]
+      }
+    },
+    {
+      "id": "k6-13",
+      "class": "mixed_recipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wifi'ye bağlandık, teşekkürler!"
+        },
+        {
+          "direction": "outbound",
+          "body": "Rica ederiz, iyi tatiller dileriz!"
+        }
+      ],
+      "message": "Salondaki televizyonda 'Sinyal yok' yazıyor, hiçbir kanal gelmiyor. Bir de denize girmek için en yakın koy hangisi?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "HDMI 2",
+          "Mavikum"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "bilgi bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-14",
+      "class": "mixed_recipe_question",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Bulaşık makinesi çalışmıyor; kapağı kapatıp düğmeye basıyoruz ama hiçbir program başlamıyor. Bir de cam şişeleri ayrı bir yere mi atıyoruz?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "P3",
+          "C-8"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "elimde bilgi yok"
+        ]
+      }
+    },
+    {
+      "id": "k6-15",
+      "class": "mixed_recipe_question",
+      "lang": "de",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Guten Tag, wir sind gut angekommen, vielen Dank!"
+        },
+        {
+          "direction": "outbound",
+          "body": "Herzlich willkommen! Melden Sie sich gerne, wenn Sie etwas brauchen."
+        }
+      ],
+      "message": "Hallo, die Klimaanlage im Schlafzimmer läuft, aber es kommt nur warme Luft heraus. Bis wann müssen wir am Abreisetag auschecken?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "MODE",
+          "11:00"
+        ],
+        "forbidden": [
+          "keine Informationen",
+          "keine Anleitung"
+        ]
+      }
+    },
+    {
+      "id": "k6-16",
+      "class": "mixed_recipe_question",
+      "lang": "es",
+      "kb": "full",
+      "message": "Hola, la puerta de la lavadora no se abre y el programa terminó hace un buen rato. ¿Hay alguna farmacia cerca?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "START/PAUSE",
+          "Yaprakdere"
+        ],
+        "forbidden": [
+          "no tengo información",
+          "no dispongo de información"
+        ]
+      }
+    },
+    {
+      "id": "k6-17",
+      "class": "mixed_recipe_question",
+      "lang": "ru",
+      "kb": "full",
+      "message": "Добрый день! Потолочный вентилятор в спальне вообще не реагирует на пульт. И подскажите, пожалуйста, пароль от вайфая.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "0101",
+          "KasLikya!729"
+        ],
+        "forbidden": [
+          "нет информации",
+          "у меня нет"
+        ]
+      }
+    },
+    {
+      "id": "k6-18",
+      "class": "fix_report_recipe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Merhaba, yarım saattir internet yok, modemin önündeki ışıklardan biri kırmızı yanıyor.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "60 saniye"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "bilgi bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-19",
+      "class": "fix_report_recipe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Otopark kapisi kumandayla acilmiyor, kumandadaki kucuk kirmizi isik da artik yanip sonmuyor.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "CR2032"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "elimde bilgi yok"
+        ]
+      }
+    },
+    {
+      "id": "k6-20",
+      "class": "fix_report_recipe",
+      "lang": "en",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "outbound",
+          "body": "Welcome to Begonvil Konakları! Let us know if you need anything during your stay."
+        },
+        {
+          "direction": "inbound",
+          "body": "Thanks, we arrived safely and the place looks great."
+        }
+      ],
+      "message": "Hi, the cooktop beeps every time we touch it but none of the zones heat up.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "key symbol",
+          "3 seconds"
+        ],
+        "forbidden": [
+          "I don't have",
+          "no information"
+        ]
+      }
+    },
+    {
+      "id": "k6-21",
+      "class": "fix_report_recipe",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Bonjour, la télé affiche « Aucun signal » depuis ce matin, impossible d'avoir les chaînes.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "HDMI 2"
+        ],
+        "forbidden": [
+          "je n'ai pas d'information",
+          "pas d'informations"
+        ]
+      }
+    },
+    {
+      "id": "k6-22",
+      "class": "fix_report_recipe",
+      "lang": "ru",
+      "kb": "full",
+      "message": "Здравствуйте, кондиционер в гостиной включается, но дует только тёплым воздухом.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "MODE"
+        ],
+        "forbidden": [
+          "нет информации"
+        ]
+      }
+    },
+    {
+      "id": "k6-23",
+      "class": "fix_report_recipe",
+      "lang": "ar",
+      "kb": "full",
+      "message": "مرحباً، انتهى برنامج الغسالة منذ فترة لكن بابها لا يُفتح والملابس ما زالت بداخلها.",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "START/PAUSE"
+        ],
+        "forbidden": [
+          "ليس لدي معلومات",
+          "لا تتوفر لدي معلومات"
+        ]
+      }
+    },
+    {
+      "id": "k6-24",
+      "class": "fix_question_recipe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Klima kumandasının ekranı tamamen boş, hiçbir tuşa tepki vermiyor. Ne yapmamız lazım?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "AAA"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "bilgi bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-25",
+      "class": "fix_question_recipe",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Bulasik makinesinin dibinde kirli su kaldi, ekranda da E24 yaziyor. Ne yapalim?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "filtre"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "elimde bilgi yok"
+        ]
+      }
+    },
+    {
+      "id": "k6-26",
+      "class": "fix_question_recipe",
+      "lang": "en",
+      "kb": "full",
+      "message": "The ceiling fan in the kids' room won't respond to the remote at all. What can we do?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "0101"
+        ],
+        "forbidden": [
+          "I don't have",
+          "no information"
+        ]
+      }
+    },
+    {
+      "id": "k6-27",
+      "class": "fix_question_recipe",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Bonjour, plus d'internet depuis une heure, un voyant rouge clignote sur le modem. Que faut-il faire ?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "60"
+        ],
+        "forbidden": [
+          "je n'ai pas d'information",
+          "pas d'informations"
+        ]
+      }
+    },
+    {
+      "id": "k6-28",
+      "class": "fix_norecipe_only",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Ocagin ustundeki davlumbazin lambasi yaniyor ama fani donmuyor, buhar hic cekmiyor.",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "bilgim yok",
+          "talimat bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-29",
+      "class": "fix_norecipe_only",
+      "lang": "tr",
+      "kb": "sparse",
+      "message": "Klima calismiyor, kumandaya basinca bip sesi geliyor ama hic sogutmuyor.",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "bilgim yok",
+          "bilgi bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-30",
+      "class": "fix_norecipe_only",
+      "lang": "de",
+      "kb": "full",
+      "message": "Die Kaffeemaschine pumpt nur noch Wasser durch, es kommt kein Kaffee raus, obwohl eine neue Kapsel drin ist.",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "keine Informationen",
+          "keine Anleitung"
+        ]
+      }
+    },
+    {
+      "id": "k6-31",
+      "class": "fix_norecipe_only",
+      "lang": "es",
+      "kb": "full",
+      "message": "El proyector del salón no muestra imagen, solo se ve una lucecita naranja.",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "no tengo información",
+          "no dispongo de instrucciones"
+        ]
+      }
+    },
+    {
+      "id": "k6-32",
+      "class": "fix_norecipe_only",
+      "lang": "ar",
+      "kb": "full",
+      "message": "مرحباً، الثلاجة لا تبرد منذ الصباح والحليب أصبح دافئاً.",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "ليس لدي معلومات"
+        ]
+      }
+    },
+    {
+      "id": "k6-33",
+      "class": "fix_hazard",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Evde elektrik gitti, prizlerin hicbiri calismiyor. Sigorta kutusu nerede, ne yapmamiz lazim?",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "şalter",
+          "kaçak akım"
+        ]
+      }
+    },
+    {
+      "id": "k6-34",
+      "class": "fix_hazard",
+      "lang": "en",
+      "kb": "full",
+      "message": "There's no hot water this morning and the boiler display shows a flame with a cross through it. What should we do?",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "RESET",
+          "1.5 bar",
+          "1,5 bar"
+        ]
+      }
+    },
+    {
+      "id": "k6-35",
+      "class": "fix_hazard",
+      "lang": "ru",
+      "kb": "full",
+      "message": "Добрый вечер! Возле котла на балконе сильно пахнет газом. Что нам делать?",
+      "expect": {
+        "autoSend": "no",
+        "forbidden": [
+          "вентиль",
+          "vana",
+          "187"
+        ]
+      }
+    },
+    {
+      "id": "k6-36",
+      "class": "nonfault_complaint",
+      "lang": "tr",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, saat 15:00 gibi giriş yaptık."
+        },
+        {
+          "direction": "outbound",
+          "body": "Hoş geldiniz! Keyifli bir konaklama dileriz."
+        }
+      ],
+      "message": "Dört kişiyiz ama banyoda sadece iki havlu var, çarşafların birinde de leke var. Ek havlu ve temiz çarşaf getirebilir misiniz?",
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "k6-37",
+      "class": "nonfault_complaint",
+      "lang": "de",
+      "kb": "full",
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hallo, gestern Abend war es oben auch schon ziemlich laut."
+        }
+      ],
+      "message": "Die Nachbarn über uns feiern seit Mitternacht laut mit Musik, wir können nicht schlafen. Das ist wirklich inakzeptabel.",
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "k6-38",
+      "class": "nonfault_complaint",
+      "lang": "ar",
+      "kb": "full",
+      "message": "الشخص الذي استقبلنا كان وقحاً جداً، والشقة لم تكن نظيفة عند وصولنا. نطالب باسترداد جزء من المبلغ.",
+      "expect": {
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "k6-39",
+      "class": "regression",
+      "lang": "tr",
+      "kb": "full",
+      "message": "Merhaba, Wi-Fi şifresini bir kez daha yazabilir misiniz? Bir de en yakın market kaça kadar açık?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "KasLikya!729",
+          "Mandalin"
+        ],
+        "forbidden": [
+          "bilgim yok",
+          "bilgi bulunmuyor"
+        ]
+      }
+    },
+    {
+      "id": "k6-40",
+      "class": "regression",
+      "lang": "fr",
+      "kb": "full",
+      "message": "Bonjour ! Où pouvons-nous garer la voiture, et où faut-il jeter les poubelles ?",
+      "expect": {
+        "autoSend": "yes",
+        "facts": [
+          "P-14",
+          "C-7"
+        ],
+        "forbidden": [
+          "je n'ai pas d'information",
+          "pas d'informations"
+        ]
+      }
+    }
+  ]
+}

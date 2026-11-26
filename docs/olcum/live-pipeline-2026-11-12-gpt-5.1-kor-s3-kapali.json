@@ -1,0 +1,325 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "74f5f543",
+    "status": "GEÇERLİ",
+    "sealed": "held-pet-kabul-2026-11-12.json",
+    "pad": 34,
+    "usd": 0.44608095000000003,
+    "totals": {
+      "answered": 47,
+      "answeredOk": 3,
+      "needlessHold": 44,
+      "open": 49,
+      "openOk": 49,
+      "wrong": 0
+    }
+  },
+  "rows": [
+    {
+      "id": "ps-tr-01",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-02",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-03",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-04",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-05",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-06",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-07",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-08",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-09",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-10",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-11",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-12",
+      "ok": true
+    },
+    {
+      "id": "ps-tr-13",
+      "ok": true
+    },
+    {
+      "id": "ps-en-01",
+      "ok": true
+    },
+    {
+      "id": "ps-en-02",
+      "ok": true
+    },
+    {
+      "id": "ps-en-03",
+      "ok": true
+    },
+    {
+      "id": "ps-en-04",
+      "ok": true
+    },
+    {
+      "id": "ps-en-05",
+      "ok": true
+    },
+    {
+      "id": "ps-en-06",
+      "ok": true
+    },
+    {
+      "id": "ps-en-07",
+      "ok": true
+    },
+    {
+      "id": "ps-de-01",
+      "ok": true
+    },
+    {
+      "id": "ps-de-02",
+      "ok": true
+    },
+    {
+      "id": "ps-de-03",
+      "ok": true
+    },
+    {
+      "id": "ps-fr-01",
+      "ok": true
+    },
+    {
+      "id": "ps-fr-02",
+      "ok": true
+    },
+    {
+      "id": "ps-fr-03",
+      "ok": true
+    },
+    {
+      "id": "ps-es-01",
+      "ok": true
+    },
+    {
+      "id": "ps-es-02",
+      "ok": true
+    },
+    {
+      "id": "ps-ru-01",
+      "ok": true
+    },
+    {
+      "id": "ps-ru-02",
+      "ok": true
+    },
+    {
+      "id": "ps-ar-01",
+      "ok": true
+    },
+    {
+      "id": "ps-ar-02",
+      "ok": true
+    },
+    {
+      "id": "as-tr-01",
+      "ok": true
+    },
+    {
+      "id": "as-tr-02",
+      "ok": true
+    },
+    {
+      "id": "as-en-01",
+      "ok": true
+    },
+    {
+      "id": "as-de-01",
+      "ok": true
+    },
+    {
+      "id": "as-ar-01",
+      "ok": true
+    },
+    {
+      "id": "po-tr-01",
+      "ok": true
+    },
+    {
+      "id": "po-en-01",
+      "ok": true
+    },
+    {
+      "id": "po-fr-01",
+      "ok": true
+    },
+    {
+      "id": "po-ru-01",
+      "ok": true
+    },
+    {
+      "id": "fb-tr-01",
+      "ok": true
+    },
+    {
+      "id": "fb-en-01",
+      "ok": true
+    },
+    {
+      "id": "fb-de-01",
+      "ok": true
+    },
+    {
+      "id": "io-tr-01",
+      "ok": true
+    },
+    {
+      "id": "io-en-01",
+      "ok": true
+    },
+    {
+      "id": "io-ar-01",
+      "ok": true
+    },
+    {
+      "id": "ou-tr-01",
+      "ok": true
+    },
+    {
+      "id": "ou-en-01",
+      "ok": true
+    },
+    {
+      "id": "ou-tr-02",
+      "ok": true
+    },
+    {
+      "id": "ou-de-01",
+      "ok": true
+    }
+  ],
+  "runtime": {
+    "commit": "74f5f543",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "(boş)",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "(boş)",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "d409de06877e",
+      "replyVariant": "5f75f4706871",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

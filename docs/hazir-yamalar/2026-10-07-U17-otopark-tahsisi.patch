@@ -1,0 +1,174 @@
+From 0b939ca81cb2096967426ba40730ead1f4782059 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 22:55:57 +0000
+Subject: [PATCH] =?UTF-8?q?HAZIR=20(onay=20bekliyor,=20Sabah=20Kararlari?=
+ =?UTF-8?q?=2063):=20U17=20=E2=80=94=20otopark=20tahsisi=20muafiyeti=20yal?=
+ =?UTF-8?q?niz=20misafire=20ait,=20olumlu,=20kosulsuz=20ve=20ayni=20numara?=
+ =?UTF-8?q?li=20KB=20cumleciginde?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Codex 10-07: 'size ayrilmis degildir', 'komsu daireye', '4 numarali daireye', '5 numarali yer dairenize… 2 numarali yer komsunundur',
+'talep uzerine tahsis edilebilir' bilgi tabanlari '2 numarali yer dairenize ayrilmis' cevabini gonderiyordu. Tahsis cumlecigi 2. sahis
+yararlanan + olumsuzluk / kip / baska yararlanan yok + numara ayni cumlecikte.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ src/lib/ai/availability-claims.ts             | 93 ++++++++++++++++++-
+ .../availability-parking-assignment.test.ts   | 30 ++++++
+ 2 files changed, 121 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib/ai/availability-claims.ts b/src/lib/ai/availability-claims.ts
+index c9968c0..8ad7f39 100644
+--- a/src/lib/ai/availability-claims.ts
++++ b/src/lib/ai/availability-claims.ts
+@@ -918,7 +918,94 @@ export function kbFactsOf(
+   return (items ?? []).map((i) => `${i.title ?? ""}\n${i.content ?? ""}`).filter((t) => t.trim() !== "");
+ }
+ 
+-/** Bilgi tabanında otopark sözcüğünün yakınındaki AÇIK tahsis pencereleri (katlanmış). Boş = dayanak yok. */
++// 🚨 U17 (Codex 10-07, HAZIR DAL — kurucu kararı bekliyor): tahsis sözcüğü tek başına yetmiyordu. "2 numaralı yer size ayrılmış
++// DEĞİLDİR", "komşu daireye ayrılmıştır", "4 numaralı daireye ayrılmıştır", "5 numaralı yer dairenize…, 2 numaralı yer komşunundur",
++// "talep üzerine tahsis edilebilir" bilgi tabanları "2 numaralı yer dairenize ayrılmış" cevabını gönderiyordu. Artık tahsisin geçtiği
++// CÜMLECİK (nokta / noktalı virgül / virgül / satır sonu arası) misafire (2. şahıs) ait, olumsuzlanmamış, koşulsuz ve başka bir daireye /
++// kişiye yönelmemiş olmalı; cevaptaki yer numarası AYNI cümlecikte geçmeli. Listeler katlanmış biçimde (küçük harf + Türkçe ASCII).
++const KB_ASSIGNEE_YOU = new RegExp(
++  [
++    `${NL}(?:dairenize|daireniz|size|sizin|sizlere|evinize|konaklamaniza)${NR}`,
++    `${NL}(?:your|you)${NR}`,
++    `${NL}(?:ihre[mnrs]?|ihnen)${NR}`,
++    `${NL}(?:votre|vos|vous)${NR}`,
++    // İspanyolca çıplak "su" Türkçe "su" (water) ile çakışır → yalnız yer / konaklama adıyla.
++    `${NL}(?:vuestr[oa]s?|usted(?:es)?|sus?\\s+(?:plaza|apartamento|piso|vivienda|alojamiento|reserva)s?)${NR}`,
++    `${NL}(?:ваш${LB}|вам|вас)${NR}`,
++    `(?:لك|لكم|شقتك|شقتكم)`,
++  ].join("|"),
++  "iu",
++);
++const KB_ASSIGNMENT_NEGATED = new RegExp(
++  [
++    `${NL}(?:degil${L}|olmayan${L}|yoktur|yok|ayrilmamis${L}|tahsis\\s+edilmemis${L}|edilmez|ayrilmaz)${NR}`,
++    `${NL}(?:not|no|never)${NR}|n't${NR}`,
++    `${NL}(?:nicht|kein${L})${NR}`,
++    `${NL}(?:pas|jamais)${NR}`,
++    `${NL}(?:no|nunca)${NR}`,
++    `${NL}(?:не|нет)${NR}`,
++    `(?:ليس|غير|لا\\s)`,
++  ].join("|"),
++  "iu",
++);
++const KB_ASSIGNMENT_CONDITIONAL = new RegExp(
++  [
++    `(?:ebilir|abilir|ebilmekte|abilmekte)${NR}`,
++    `${NL}(?:mumkun${L}|talep\\s+uzerine|istek\\s+uzerine|musaitse|musaitlige|musaitlik\\s+durumuna)${NR}`,
++    `${NL}(?:can|could|may|might|upon\\s+request|on\\s+request|if\\s+available|subject\\s+to)${NR}`,
++    `${NL}(?:kann|konnen|können|auf\\s+anfrage|nach\\s+verf(?:u|ü)gbarkeit)${NR}`,
++    `${NL}(?:peut|peuvent|sur\\s+demande|selon\\s+(?:la\\s+)?disponibilit${L})${NR}`,
++    `${NL}(?:puede|pueden|bajo\\s+petici(?:o|ó)n|seg(?:u|ú)n\\s+disponibilidad)${NR}`,
++    `${NL}(?:может|могут|по\\s+запросу)${NR}`,
++    `(?:يمكن|حسب)`,
++  ].join("|"),
++  "iu",
++);
++const KB_ASSIGNEE_OTHER = new RegExp(
++  [
++    `${NL}(?:komsu${L}|diger\\s+daire${L}|baska\\s+daire${L}|yan\\s+daire${L}|ev\\s+sahib${L}|\\S{1,8}\\s+numarali\\s+daire${L})`,
++    `${NL}(?:neighbo(?:u)?r${L}|other\\s+(?:apartment|flat|unit|guest)s?|another|owner|host)${NR}`,
++    `${NL}(?:nachbar${L}|andere${L})`,
++    `${NL}(?:voisin${L}|autre${L})`,
++    `${NL}(?:vecin[oa]s?|otr[oa]s?)${NR}`,
++    `${NL}(?:сосед${LB}|друг${LB})`,
++    `(?:جار|آخر|أخرى)`,
++  ].join("|"),
++  "iu",
++);
++const KB_CLAUSE_BREAK = /[.!?;,\n]/u;
++
++/** `i`deki karakter cümlecik sınırı mı. Nokta, rakamın hemen ardından ("-2. kat") ya da rakamdan hemen önce ("No. 2") sınır DEĞİL. */
++function isClauseBreak(fact: string, i: number): boolean {
++  const c = fact[i];
++  if (!KB_CLAUSE_BREAK.test(c)) return false;
++  if (c !== ".") return true;
++  return !/\p{N}/u.test(fact[i - 1] ?? "") && !/^\s?\p{N}/u.test(fact.slice(i + 1, i + 3));
++}
++
++/** Tahsis sözcüğünü içeren cümlecik (katlanmış metinde, eşleşmeden iki yöne en yakın sınıra). */
++function clauseAround(fact: string, at: number, len: number): string {
++  let start = at;
++  while (start > 0 && !isClauseBreak(fact, start - 1)) start--;
++  let end = at + len;
++  while (end < fact.length && !isClauseBreak(fact, end)) end++;
++  return fact.slice(start, end);
++}
++
++/** Tahsis cümleciği misafirin yerini KOŞULSUZ ve OLUMLU anlatıyor mu (U17). */
++function assignsToGuest(clause: string): boolean {
++  return (
++    KB_ASSIGNEE_YOU.test(clause) &&
++    !KB_ASSIGNMENT_NEGATED.test(clause) &&
++    !KB_ASSIGNMENT_CONDITIONAL.test(clause) &&
++    !KB_ASSIGNEE_OTHER.test(clause)
++  );
++}
++
++/**
++ * Bilgi tabanında otopark sözcüğünün yakınındaki AÇIK ve misafire ait tahsis CÜMLECİKLERİ (katlanmış). Boş = dayanak yok. Otopark adı
++ * tahsisin ±120 karakterinde (başlık dahil) aranır; numara eşleşmesi için yalnız tahsisin kendi cümleciği döner (U17).
++ */
+ function parkingAssignmentWindows(kbFacts: readonly string[] | null | undefined): string[] {
+   const out: string[] = [];
+   for (const raw of kbFacts ?? []) {
+@@ -927,7 +1014,9 @@ function parkingAssignmentWindows(kbFacts: readonly string[] | null | undefined)
+     for (const m of fact.matchAll(KB_ASSIGNMENT)) {
+       const at = m.index ?? 0;
+       const w = fact.slice(Math.max(0, at - PARKING_WINDOW), at + m[0].length + PARKING_WINDOW);
+-      if (KB_PARKING_NOUN.test(w)) out.push(w);
++      if (!KB_PARKING_NOUN.test(w)) continue;
++      const clause = clauseAround(fact, at, m[0].length);
++      if (assignsToGuest(clause)) out.push(clause);
+       if (out.length >= PARKING_WINDOW_CAP) return out;
+     }
+   }
+diff --git a/tests/unit/availability-parking-assignment.test.ts b/tests/unit/availability-parking-assignment.test.ts
+index 0cb2966..77cece0 100644
+--- a/tests/unit/availability-parking-assignment.test.ts
++++ b/tests/unit/availability-parking-assignment.test.ts
+@@ -168,3 +168,33 @@ describe("24 EK — uzun girdide süre", () => {
+     expect(performance.now() - t0).toBeLessThan(1_500);
+   });
+ });
++
++// ---------------------------------------------------------------------------
++// U17 (Codex 10-07, HAZIR DAL — kurucu kararı bekliyor, Sabah Kararları 63): olumsuz / komşu / başka numara / koşullu bilgi tabanı
++// "2 numaralı yer dairenize ayrılmış" cevabını göndermez; olumlu tahsis eskisi gibi gider.
++// ---------------------------------------------------------------------------
++describe("U17 — tahsis cümleciği misafire ait, olumlu, koşulsuz ve aynı numarayı taşımalı", () => {
++  const kb = (content: string) => kbFactsOf([{ title: "Otopark", content }]);
++  const REPLY = "Arabanızı binanın arkasındaki otoparka bırakabilirsiniz; 2 numaralı yer dairenize ayrılmış durumda.";
++
++  it.each([
++    ["olumsuz", "Binanın arkasındaki açık otopark ücretsizdir; 2 numaralı yer size ayrılmış değildir."],
++    ["komşu", "Otopark ücretsizdir; 2 numaralı yer komşu daireye ayrılmıştır."],
++    ["başka daire", "Otopark ücretsizdir; 2 numaralı yer 4 numaralı daireye ayrılmıştır."],
++    ["başka numara", "Otopark ücretsizdir; 5 numaralı yer dairenize ayrılmıştır, 2 numaralı yer komşunundur."],
++    ["koşullu", "Otopark ücretsizdir; 2 numaralı yer talep üzerine dairenize tahsis edilebilir."],
++    ["İngilizce olumsuz", "Free parking behind the building; space 2 is not reserved for your apartment."],
++    ["İngilizce koşullu", "Free parking behind the building; space 2 can be reserved for your apartment on request."],
++  ])("🚨 %s bilgi tabanı → cevap iddia sayılır (gönderilmez)", (_n, content) => {
++    expect(claims(REPLY, kb(content))).toBe(true); // ⬅️ HAZIR DAL ÖNCESİ false (gidiyordu)
++  });
++
++  it.each([
++    ["Türkçe", "Binanın arkasındaki açık otopark ücretsizdir; 2 numaralı yer dairenize ayrılmıştır."],
++    ["iki nokta, 'evinize'", "Otopark: 2 numaralı yer evinize ayrılmıştır."],
++    ["No. biçimi", "Parking space No. 2 is reserved for your apartment."],
++  ])("KONTROL: olumlu tahsis (%s) → gider", (_n, content) => {
++    const reply = _n === "No. biçimi" ? "Parking space 2 is reserved for your apartment." : REPLY;
++    expect(claims(reply, kb(content))).toBe(false);
++  });
++});
+-- 
+2.43.0
+

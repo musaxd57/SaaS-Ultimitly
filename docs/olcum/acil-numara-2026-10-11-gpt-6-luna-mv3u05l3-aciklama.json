@@ -1,0 +1,138 @@
+{
+ "source": "acil-numara-2026-10-11-gpt-6-luna-mv3u05l3.json",
+ "model": "gpt-6-luna",
+ "out": [
+  {
+   "id": "h1",
+   "rep": 1,
+   "kind": "yanlış",
+   "intents": [
+    "emergency"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Ev sahibi depozitomu vermiyor",
+     "polisi arayacağım",
+     "Numara ne?"
+    ],
+    "whyEmergency": "'Polisi arayacağım' ve 'Numara ne?' ifadeleri acil durum gibi yorumlanmış olabilir; ancak mesajda acil tehlike veya yardım gerektiren bir durum belirtilmiyor.",
+    "whyNoHostComplaint": "Ev sahibinin depozitoyu vermediği açıkça bir ev sahibi şikâyeti ve depozito iadesi talebi içeriyor; bu nedenle complaint_issue ve cancellation_refund etiketleri verilmeliydi. Polis numarasını sorması, tek başına bir insanla görüşme talebi değil.",
+    "betterLabels": [
+     "complaint_issue",
+     "cancellation_refund"
+    ]
+   }
+  },
+  {
+   "id": "h4",
+   "rep": 0,
+   "kind": "yanlış",
+   "intents": [
+    "access_keys",
+    "emergency"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Kapı kodu çalışmıyor",
+     "2 saattir dışarıdayız",
+     "Polisi arayacağız, numara ne?"
+    ],
+    "whyEmergency": "Kapı kodu çalışmadığı için misafir iki saattir dışarıda kaldığını söylüyor ve polisi aramaktan söz ediyor; acil erişim sorunu var.",
+    "whyNoHostComplaint": "İade veya özellikle ev sahibiyle görüşme talebi yok. Ancak kapı kodunun çalışmaması bir erişim arızası/şikâyetidir; complaint_issue etiketi de uygun olur. Polis numarasını sorması tek başına insan talebi değildir.",
+    "betterLabels": [
+     "access_keys",
+     "emergency",
+     "complaint_issue"
+    ]
+   }
+  },
+  {
+   "id": "h4",
+   "rep": 1,
+   "kind": "yanlış",
+   "intents": [
+    "access_keys",
+    "emergency"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Kapı kodu çalışmıyor",
+     "2 saattir dışarıdayız",
+     "Polisi arayacağız",
+     "numara ne?"
+    ],
+    "whyEmergency": "Kapı kodunun çalışmaması nedeniyle iki saattir dışarıda kaldıklarını ve polisi arayacaklarını söylüyorlar; bu, acil erişim ve güvenlik durumu izlenimi veriyor.",
+    "whyNoHostComplaint": "Erişim sorunu bildiriliyor ancak ev sahibini doğrudan suçlama, şikâyet veya iade talebi yok. İnsanla görüşme talebi de açıkça belirtilmemiş; sorulan numara polis numarası gibi görünüyor.",
+    "betterLabels": [
+     "access_keys",
+     "emergency"
+    ]
+   }
+  },
+  {
+   "id": "h12",
+   "rep": 1,
+   "kind": "yanlış",
+   "intents": [
+    "emergency"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Ev sahibi rezervasyonumu son anda iptal etti",
+     "polise gideceğim",
+     "Numara?"
+    ],
+    "whyEmergency": "'Polise gideceğim' ifadesi acil durum gibi yorumlanmış olabilir; ancak mesajda yakın bir tehlike veya acil yardım ihtiyacı belirtilmiyor, bu yüzden emergency etiketi uygun görünmüyor.",
+    "whyNoHostComplaint": "Ev sahibinin rezervasyonu son anda iptal ettiği açıkça bir ev sahibi şikâyeti; complaint_issue verilmeliydi. İade açıkça istenmediği için cancellation_refund uygun değil. 'Numara?' bir telefon numarası talebi gibi görünüyor; ancak kimin numarasını istediği belirsiz olduğundan human_request etiketi bağlama göre düşünülebilir.",
+    "betterLabels": [
+     "complaint_issue",
+     "human_request"
+    ]
+   }
+  },
+  {
+   "id": "h1",
+   "rep": 0,
+   "kind": "kontrol",
+   "intents": [
+    "complaint_issue",
+    "emergency"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Ev sahibi depozitomu vermiyor",
+     "polisi arayacağım",
+     "Numara ne?"
+    ],
+    "whyEmergency": "'Polisi arayacağım' sözü acil durum izlenimi vermiş olabilir; ancak mesajda doğrudan bir tehlike veya acil yardım ihtiyacı belirtilmiyor.",
+    "whyNoHostComplaint": "complaint_issue verilmiş; misafir depozitonun iade edilmemesinden şikâyet ediyor. cancellation_refund verilmemiş çünkü açıkça iptal veya iade talep etmiyor. human_request verilmemiş çünkü ev sahibiyle ya da bir görevliyle görüşmek istemiyor; polis numarasını soruyor.",
+    "betterLabels": [
+     "complaint_issue"
+    ]
+   }
+  },
+  {
+   "id": "h2",
+   "rep": 0,
+   "kind": "kontrol",
+   "intents": [
+    "complaint_issue",
+    "other"
+   ],
+   "explanation": {
+    "influencedBy": [
+     "Daire ilandaki gibi değil",
+     "dolandırıldık",
+     "Polis numarasını verin",
+     "şikâyet edeceğim"
+    ],
+    "whyEmergency": "Acil tehlike, yaralanma veya hemen müdahale gerektiren bir durum belirtilmiyor; polis numarası istemesi tek başına emergency etiketi için yeterli değil.",
+    "whyNoHostComplaint": "“Daire ilandaki gibi değil” ve “dolandırıldık” ev sahibi/konaklama hakkında şikâyet bildirdiği için complaint_issue verildi. İptal veya para iadesi istemediği için cancellation_refund verilmedi. Polis numarasını istiyor; ev sahibiyle ya da bir insanla görüştürülmeyi istemediği için human_request verilmedi.",
+    "betterLabels": [
+     "complaint_issue",
+     "other"
+    ]
+   }
+  }
+ ]
+}

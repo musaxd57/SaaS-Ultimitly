@@ -1,0 +1,137 @@
+import type { HostContactRemoval } from "@/lib/ai/host-contact-filler";
+import { isSubstantiveSentence, replySentencesOf } from "@/lib/ai/no-instruction-filler";
+import { distinctiveTokens, needTerms, overlapLoose, overlapStrict } from "./topic-absence";
+import { topicsWithSymptomsOf } from "./relation";
+import { asksHypotheticalSituation } from "@/lib/ai/absence";
+
+// ---------------------------------------------------------------------------
+// K-1029-A (kurucu 10-29 gece): "ev sahibinize yazın" cümlesi silinince o cümlenin cevapladığı istek AÇIK kalır — ASLA "cevaplandı" değil.
+//
+// TEK "cevaplandı" kuralı (her yolda; tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` A2): bir istek ancak üçü birden
+// doğruysa kapanır — (a) model cevapladığını söyledi, (b) silinen başvurma metni o isteğe AİT DEĞİL, (c) misafire GİDEN metin o isteği
+// AYIRT EDİCİ konu / sözcükle karşılıyor. Şüphede istek açık kalır. Doğru cevaplar yine gider (göndermek ile kapatmak ayrı kararlar).
+//   1. Silme yoksa → değişiklik yok (bugünkü akış birebir).
+//   2. Her silmenin SAHİPLERİ: konusu örtüşen istekler + kök örtüşmesi en yüksek istek(ler) (eşitlikte hepsi; yan cümle silmeleri de).
+//   3. Sahipsiz GENEL OLMAYAN silme → beyan edilen her istek açılır (neyi cevapladığı bilinmiyor).
+//      Konusuz / göndergesel silme ("Detaylar için …") birden çok istek varken de sahipsiz sayılır (konusu yalnız tahmin, 10-30 gece C).
+//   4. Kapsama HER ZAMAN koşar: beyan edilen ve açılmamış istek, olasılık / arıza sorusuysa ("internet giderse?") ya da giden metin onu
+//      AYIRT EDİCİ biçimde (başka istekle paylaşılmayan konu / sözcükle) karşılamıyorsa açılır.
+//   5. Geriye içerik kalmadıysa hepsi açılır.
+//   6. Çıktı: `refs` = beyan − açılan; `openRefs` = açılan ama giden metnin yine de değdiği istekler (gitti ama açık) ∪ önceki `openRefs`.
+// Saf, doğrusal (istek ve silme sayısı küçük).
+// ---------------------------------------------------------------------------
+
+export interface SettleNeed {
+  ref: string;
+  topics: readonly string[];
+  terms: readonly string[];
+  /** Misafir bu istekte bir olasılık / arıza durumunu soruyor ("Wi-Fi bozulursa ne yapmalıyım?") — yalnız AÇMA yönünde okunur. */
+  contingency: boolean;
+}
+
+export interface SettleOutcome {
+  refs: string[];
+  openRefs: string[];
+  /** İz için yalnız sayılar: silme · açılan · sahipsiz. */
+  trace: { n: number; o: number; u: number };
+}
+
+function ownersOf(removal: HostContactRemoval, needs: readonly SettleNeed[]): string[] {
+  const owners = new Set(needs.filter((r) => r.topics.some((t) => removal.topics.includes(t))).map((r) => r.ref));
+  const scores = needs.map((r) => ({ ref: r.ref, n: overlapLoose(r.terms, removal.stems) }));
+  const best = Math.max(0, ...scores.map((x) => x.n));
+  if (best > 0) for (const x of scores) if (x.n === best) owners.add(x.ref);
+  return [...owners];
+}
+
+/** İstek giden metinde AYIRT EDİCİ biçimde karşılanıyor mu: başka bir istekle paylaşılmayan konu ya da sözcük metinde geçiyor. */
+function distinctivelyCovered(need: SettleNeed, others: readonly SettleNeed[], keptTopics: readonly string[], keptStems: readonly string[]): boolean {
+  const otherTopics = new Set(others.flatMap((o) => o.topics));
+  const otherTerms = others.flatMap((o) => o.terms);
+  const ownTopics = need.topics.filter((t) => !otherTopics.has(t));
+  const ownTerms = need.terms.filter((t) => overlapStrict([t], otherTerms) === 0);
+  if (ownTopics.length === 0 && ownTerms.length === 0) return false;
+  return ownTopics.some((t) => keptTopics.includes(t)) || (ownTerms.length > 0 && overlapStrict(ownTerms, keptStems) > 0);
+}
+
+function substantiveLeft(text: string): boolean {
+  return text.split("\n").some((l) => replySentencesOf(l).some((s) => isSubstantiveSentence(s)));
+}
+
+export function settleHostContactRemovals(input: {
+  removals: readonly HostContactRemoval[];
+  /** Misafire gidecek metin (silmeden SONRA). */
+  keptText: string;
+  needs: readonly SettleNeed[];
+  declared: { refs: readonly string[]; openRefs?: readonly string[] };
+}): SettleOutcome {
+  const { removals, needs, declared } = input;
+  const previousOpen = [...(declared.openRefs ?? [])];
+  if (removals.length === 0) return { refs: [...declared.refs], openRefs: previousOpen, trace: { n: 0, o: 0, u: 0 } };
+  const declaredNeeds = needs.filter((r) => declared.refs.includes(r.ref));
+  const opened = new Set<string>();
+  let unattributed = 0;
+  for (const removal of removals) {
+    const owners = ownersOf(removal, needs);
+    for (const o of owners) opened.add(o);
+    if (owners.length === 0 && !removal.generic) unattributed++;
+    // Göndergesel silme ("Detaylar için ev sahibinize yazın") konusunu önceki cümleden tahmin eder; birden çok beyanlı istek varken sahibi
+    // belirsizdir → hiçbiri kapanmaz (inceleme 10-30 gece C: "Binada sauna var. Wi-Fi şifresi … Detaylar için …" sauna SAATİNİ kapatıp cevaplanan
+    // Wi-Fi'yi açıyordu). Bilgi yine gider; yalnız "cevaplandı" kaydı yazılmaz.
+    if (removal.anaphoric && declaredNeeds.length > 1) unattributed++;
+  }
+  if (unattributed > 0 || !substantiveLeft(input.keptText)) for (const r of declared.refs) opened.add(r);
+  const keptTopics = topicsWithSymptomsOf(input.keptText);
+  const keptStems = distinctiveTokens(input.keptText);
+  for (const need of declaredNeeds) {
+    if (opened.has(need.ref)) continue;
+    const others = needs.filter((o) => o.ref !== need.ref);
+    if (need.contingency || !distinctivelyCovered(need, others, keptTopics, keptStems)) opened.add(need.ref);
+  }
+  // Beyanda olup plan ihtiyacı bulunmayan kimlik (olmamalı) kapsanmış sayılmaz.
+  for (const r of declared.refs) if (!needs.some((n) => n.ref === r)) opened.add(r);
+  const refs = declared.refs.filter((r) => !opened.has(r));
+  const touched = [...opened].filter((r) => {
+    if (!declared.refs.includes(r)) return false;
+    const need = needs.find((n) => n.ref === r);
+    if (!need) return false;
+    return need.topics.some((t) => keptTopics.includes(t)) || overlapLoose(need.terms, keptStems) > 0;
+  });
+  const openRefs = [...new Set([...previousOpen, ...touched])].filter((r) => !refs.includes(r)).sort();
+  return { refs, openRefs, trace: { n: removals.length, o: opened.size, u: unattributed } };
+}
+
+/**
+ * İstek defteri OLMAYAN yolda (QR, öğe kipi kapalı kanal) silinen başvurma bir soruyu cevapsız bırakmış olabilir mi: genel olmayan silme,
+ * misafirin olasılık / arıza sorusu, anlama katmanının hiç koşmaması ya da bir isteğin giden metinde ayırt edici karşılığı olmaması. Evet →
+ * kanal turu tutar (+ ev sahibine e-posta), QR kalan doğru cevabı gönderir ve ev sahibine devreder.
+ */
+export function hostContactOpenWithoutLedger(input: {
+  removals: readonly HostContactRemoval[];
+  keptText: string;
+  guestAskedContingency: boolean;
+  /** Anlama katmanının istekleri (`null` = koşmadı / bilinmiyor). */
+  needs: readonly SettleNeed[] | null;
+}): boolean {
+  if (input.removals.length === 0) return false;
+  if (input.removals.some((r) => !r.generic)) return true;
+  if (input.guestAskedContingency) return true;
+  if (input.needs === null || input.needs.length === 0) return true;
+  if (!substantiveLeft(input.keptText)) return true;
+  const keptTopics = topicsWithSymptomsOf(input.keptText);
+  const keptStems = distinctiveTokens(input.keptText);
+  return input.needs.some((n) => n.contingency || !distinctivelyCovered(n, input.needs!.filter((o) => o.ref !== n.ref), keptTopics, keptStems));
+}
+
+/** Defter olmayan yolda anlama katmanının isteklerinden "cevaplandı" kuralının ihtiyaçları (sıra kimliği; olasılık sorusu yalnız AÇMA yönünde). */
+export function needsFromUnderstanding(requests: readonly { queryTr: string; queryOriginal: string }[]): SettleNeed[] {
+  return requests.map((r, i) => {
+    const queries = [r.queryTr, r.queryOriginal].filter((q) => q.trim());
+    return {
+      ref: `U${i + 1}`,
+      topics: topicsWithSymptomsOf(queries.join(" ")),
+      terms: needTerms(queries),
+      contingency: queries.some((q) => asksHypotheticalSituation(q)),
+    };
+  });
+}

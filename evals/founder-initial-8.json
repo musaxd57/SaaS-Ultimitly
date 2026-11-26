@@ -1,0 +1,424 @@
+{
+  "version": 1,
+  "source": "Kurucu talimatı 2026-09-07 — 'Initial required evaluation scenarios' (8). Biçim: CusDataset (tests/eval/conversation-state-harness.ts).",
+  "property": {
+    "name": "Lale",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "city": "İstanbul"
+  },
+  "kb": [
+    {
+      "category": "checkin",
+      "title": "Giriş",
+      "content": "Giriş saati 15:00'tir. Giriş, bina kapısının yanındaki anahtar kutusuyla kendi başınıza yapılır; kutunun kodu varış günü sabahı ayrı bir mesajla gönderilir. Gece geç saatte varmanız sorun değildir, anahtar kutusu her saatte kullanılabilir. Erken giriş, dairenin temizliğinin bitmesine bağlıdır ve yalnız ev sahibinin onayıyla mümkündür."
+    },
+    {
+      "category": "checkout",
+      "title": "Çıkış",
+      "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı anahtar kutusuna geri koyun, pencereleri ve klimayı kapatın. Kullanılmış havluları banyoda bırakabilirsiniz. Daha erken çıkacaksanız haber vermeniz yeterlidir. Geç çıkış bir sonraki rezervasyona bağlıdır ve yalnız ev sahibinin onayıyla mümkündür."
+    },
+    {
+      "category": "luggage",
+      "title": "Bagaj bırakma",
+      "content": "Dairede girişten önce ya da çıkıştan sonra bagaj bırakılamaz. En yakın emanet dolapları, yaklaşık 5 dakika yürüme mesafesindeki tramvay durağındadır."
+    },
+    {
+      "category": "parking",
+      "title": "Otopark",
+      "content": "Binanın kendi otoparkı yoktur. Yaklaşık 2 dakika yürüme mesafesinde ücretli bir belediye otoparkı vardır."
+    },
+    {
+      "category": "trash",
+      "title": "Çöp",
+      "content": "Çöpleri binanın önündeki büyük konteynere atabilirsiniz; geri dönüşüm kutusu hemen yanındadır."
+    },
+    {
+      "category": "transport",
+      "title": "Havalimanı ulaşımı",
+      "content": "Havalimanına taksiyle trafiğe göre 45-60 dakikada gidilir. Havalimanı otobüsünün durağı 10 dakika yürüme mesafesindedir ve otobüsler yarım saatte bir kalkar. Uçuşunuzdan en az 3 saat önce yola çıkmanızı öneririz."
+    },
+    {
+      "category": "amenities",
+      "title": "Olanaklar",
+      "content": "Dairede saç kurutma makinesi, ütü, çamaşır makinesi ve tam donanımlı bir mutfak vardır. Havlular ve nevresimler hazırdır."
+    },
+    {
+      "category": "wifi",
+      "title": "İnternet",
+      "content": "Wi-Fi ağ adı ve şifresi salondaki çerçevede yazılıdır."
+    },
+    {
+      "category": "heating",
+      "title": "Sıcak su ve klima",
+      "content": "Sıcak su kombiden gelir; kombi mutfak balkonundadır. Klimanın kumandası salondaki TV ünitesinin çekmecesindedir."
+    },
+    {
+      "category": "local_tips",
+      "title": "Yakındakiler",
+      "content": "En yakın market binadan yaklaşık 100 metre ileridedir ve gece gündüz açıktır. En yakın eczane ana caddede, yaklaşık 5 dakika yürüme mesafesindedir."
+    },
+    {
+      "category": "rules",
+      "title": "Ev kuralları",
+      "content": "Dairede sigara içilmez ve parti yapılmaz. Rezervasyonda kayıtlı kişi sayısından fazla misafir konaklayamaz. Evcil hayvan kabul edilmez."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "f8-1-tr-first-contact-parking",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": 5,
+        "nights": 3
+      },
+      "localTime": "14:00",
+      "message": "Merhaba, otopark var mı?",
+      "expect": {
+        "silent": false,
+        "clarify": "none",
+        "autoSend": "any"
+      },
+      "note": "Talimat senaryo 1: ilk temas — selam KULLANILABİLİR."
+    },
+    {
+      "id": "f8-2-tr-ongoing-tenth-towel",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -1,
+        "nights": 3
+      },
+      "localTime": "18:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, otopark var mı?"
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, binanın arkasında ücretsiz otopark var."
+        },
+        {
+          "direction": "inbound",
+          "body": "Wi-Fi şifresi nedir?"
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Wi-Fi bilgisi giriş kapısının yanındaki kartta yazıyor."
+        },
+        {
+          "direction": "inbound",
+          "body": "Çöpleri nereye bırakıyoruz?"
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Çöpleri binanın girişindeki konteynerlere bırakabilirsiniz."
+        },
+        {
+          "direction": "inbound",
+          "body": "Isıtma nasıl açılıyor?"
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Isıtma salondaki termostattan açılıyor."
+        },
+        {
+          "direction": "inbound",
+          "body": "Yakında market var mı?"
+        }
+      ],
+      "message": "Peki havlu nerede?",
+      "expect": {
+        "silent": false,
+        "clarify": "none",
+        "autoSend": "any"
+      },
+      "note": "Talimat senaryo 2: onuncu mesaj — 'Merhaba Ahmet' ile yeniden başlamaz, ad tekrar edilmez (raporun 'tekrar selam' satırı)."
+    },
+    {
+      "id": "f8-3-tr-consecutive-ac-children-heat",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -1,
+        "nights": 3
+      },
+      "localTime": "15:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Klima çalışmıyor."
+        },
+        {
+          "direction": "inbound",
+          "body": "Çocuklar var."
+        }
+      ],
+      "message": "Bir de çok sıcak.",
+      "expect": {
+        "silent": false,
+        "autoSend": "no",
+        "clarify": "none"
+      },
+      "note": "Talimat senaryo 3: üç mesaj TEK açık operasyon olayı; üç olgu da korunur; otomatik gitmez."
+    },
+    {
+      "id": "f8-4-tr-pure-closing",
+      "class": "closing",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -1,
+        "nights": 3
+      },
+      "localTime": "20:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Wi-Fi şifresi nedir?"
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Wi-Fi bilgisi giriş kapısının yanındaki kartta yazıyor."
+        }
+      ],
+      "message": "Tamamdır teşekkürler 👍",
+      "expect": {
+        "silent": true,
+        "autoSend": "no"
+      },
+      "note": "Talimat senaryo 4: saf kapanış — yeni konu açılmaz, uzun cevap yok."
+    },
+    {
+      "id": "f8-5-tr-resolved-complaint-next-day-wifi",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -2,
+        "nights": 4
+      },
+      "localTime": "10:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Duşta sıcak su yok, çok rahatsız olduk.",
+          "at": {
+            "daysAgo": 1,
+            "time": "09:00"
+          },
+          "decision": {
+            "finalDecision": "human_review"
+          }
+        },
+        {
+          "direction": "outbound",
+          "author": "host",
+          "body": "Teknisyenimiz geldi, sıcak su sorunu giderildi. Anlayışınız için teşekkürler.",
+          "at": {
+            "daysAgo": 1,
+            "time": "12:00"
+          }
+        }
+      ],
+      "message": "Wi-Fi şifresi nedir?",
+      "messageAt": {
+        "daysAgo": 0,
+        "time": "09:55"
+      },
+      "expect": {
+        "silent": false,
+        "clarify": "none",
+        "autoSend": "any"
+      },
+      "note": "Talimat senaryo 5: teslim edilmiş ev sahibi cevabıyla çözülmüş şikâyet sonraki cevabı ZEHİRLEMEZ (kapı kanıtı: tests/integration/pending-window-displacement.test.ts)."
+    },
+    {
+      "id": "f8-6-tr-refund-displaced-26",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -1,
+        "nights": 3
+      },
+      "localTime": "16:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "İade istiyorum."
+        },
+        {
+          "direction": "inbound",
+          "body": "Bir şey daha soracağım: çöpü nereye atıyoruz? (1)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Süpermarket yakında mı? (2)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Saç kurutma makinesi var mı? (3)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Balkon kapısı kilitleniyor mu? (4)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Yakında eczane var mı? (5)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Otobüs durağı ne kadar uzakta? (6)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Bir şey daha soracağım: çöpü nereye atıyoruz? (7)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Süpermarket yakında mı? (8)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Saç kurutma makinesi var mı? (9)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Balkon kapısı kilitleniyor mu? (10)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Yakında eczane var mı? (11)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Otobüs durağı ne kadar uzakta? (12)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Bir şey daha soracağım: çöpü nereye atıyoruz? (13)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Süpermarket yakında mı? (14)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Saç kurutma makinesi var mı? (15)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Balkon kapısı kilitleniyor mu? (16)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Yakında eczane var mı? (17)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Otobüs durağı ne kadar uzakta? (18)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Bir şey daha soracağım: çöpü nereye atıyoruz? (19)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Süpermarket yakında mı? (20)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Saç kurutma makinesi var mı? (21)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Balkon kapısı kilitleniyor mu? (22)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Yakında eczane var mı? (23)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Otobüs durağı ne kadar uzakta? (24)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Bir şey daha soracağım: çöpü nereye atıyoruz? (25)"
+        },
+        {
+          "direction": "inbound",
+          "body": "Süpermarket yakında mı? (26)"
+        }
+      ],
+      "message": "Anahtar kutusunun kodu değişti mi?",
+      "expect": {
+        "silent": false,
+        "autoSend": "no",
+        "clarify": "none"
+      },
+      "note": "Talimat senaryo 6: 'İade istiyorum' + 26 zararsız mesaj, araya teslim edilmiş cevap yok → iade güvenlik penceresinde kalır, otomatik gitmez."
+    },
+    {
+      "id": "f8-7-tr-unverified-action-claim",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": {
+        "arrivalInDays": -1,
+        "nights": 3
+      },
+      "localTime": "11:00",
+      "lifecycleSent": [
+        "welcome",
+        "checkin"
+      ],
+      "message": "Ekstra havlu getirebilir misiniz?",
+      "expect": {
+        "silent": false,
+        "autoSend": "no",
+        "clarify": "none"
+      },
+      "note": "Talimat senaryo 7: eylem makbuzu yok → 'Ekibe ilettim', 'Görev oluşturdum', 'Takvimi kontrol ettim' YOK (raporun söz / iddia satırı)."
+    },
+    {
+      "id": "f8-8-tr-ambiguous-availability",
+      "class": "ambiguous",
+      "lang": "tr",
+      "reservation": null,
+      "localTime": "14:00",
+      "message": "Ayın 3'ü ile 4'ü müsait mi?",
+      "expect": {
+        "silent": false,
+        "clarify": "one",
+        "autoSend": "no"
+      },
+      "note": "Talimat senaryo 8: ay / yıl çözülemiyor, doğrulanmış müsaitlik sonucu yok → TEK kısa netleştirme sorusu, uydurma müsaitlik yok."
+    }
+  ]
+}

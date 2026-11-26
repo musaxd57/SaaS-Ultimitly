@@ -1,0 +1,157 @@
+{
+  "stay-change-final.json": {
+    "sha256": "d178700d3561c521125bfa8ae8da9c52c8f10a2fba111b01b2f5748f2cab07b4",
+    "sealedAt": "2026-09-24",
+    "author": "kör ajan: depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md (genel kurallar) bağlamına otomatik yüklendi. Taslak kopyaları okunmadan silindi.",
+    "items": {
+      "requests": 180,
+      "replies": 180
+    },
+    "state": "burned",
+    "burnedAt": "2026-09-25",
+    "runSha": "f584075e15ceeb20146093c0a8d8c966438c01af",
+    "report": "docs/olcum/stay-change-FINAL-eval-2026-09-25.md"
+  },
+  "understanding-e2e-blind.json": {
+    "sha256": "e737258b7ddeda049b8aab769e073b41a4efffdc48fcea1c4f1a4d26047a384e",
+    "sealedAt": "2026-10-21",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucu karar kuralları (docs/TASARIM-2026-10-21-anlama-olcumu.md §4-§5 metni) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Taslak / doğrulama betikleri silindi.",
+    "items": {
+      "scenarios": 72,
+      "requests": 110,
+      "pairs": 13,
+      "multiTurn": 14
+    },
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/anlama-e2e-kor-live-2026-11-26-blind.md"
+  },
+  "understanding-e2e-redteam-blind.json": {
+    "sha256": "3dc19dd2789796ec7a8619de75a79ea6e4bee565d3b7b562a502c48997149173",
+    "sealedAt": "2026-10-21",
+    "author": "kör ajan (Claude iş paketi, istek 3, Sonnet): depodaki kodu, istemleri ve geliştirme setini OKUMADI; yalnız biçim + kategori listesi + misafire giden metinde yasak dizeler kuralı verildi. Geliştirici dosyayı açmadı; yalnız sayılar, boyut ve SHA-256 hesaplandı.",
+    "items": {
+      "scenarios": 71,
+      "requests": 117,
+      "pairs": 1,
+      "multiTurn": 6
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-21",
+    "runSha": "069af573c69be60dc2627ff7d1f801eb98d159e5",
+    "report": "docs/olcum/anlama-e2e-kor-live-2026-10-21-rtblind.md"
+  },
+  "needs-blind-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun 10-23 sabah kuralları (Soru 9 / 11 metni, sade anlatım) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı.",
+    "sha256": "83c7487d2cb468be49d20b2ad1d4f848e9023918df8cda58a44f80096e83d8dc",
+    "items": {
+      "scenarios": 45,
+      "needs": 62,
+      "answered": 40,
+      "open": 22,
+      "kbSets": 5,
+      "languages": 5,
+      "bytes": 25775
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "b47f246f260a6696acaca4f8b0aacf9360b568f1",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md"
+  },
+  "needs-kabul-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun kuralları (Soru 9 / 11, bilgi-yok misafire gitmez, konaklama tarihine göre sezon) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı. Yanan 10-23 setinin yerine kabul seti (Codex: ayrıntılar geliştirmede kullanıldı → yeni, görülmemiş set).",
+    "sha256": "f30f4766cdb3e5fdf2a5b636ccadf17d497bd24a24f6271ebe97003c88c921b1",
+    "items": {
+      "scenarios": 50,
+      "needs": 71,
+      "answered": 55,
+      "open": 16,
+      "kbSets": 5,
+      "languages": 6,
+      "withStay": 15
+    },
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "9413d0419af888f401aaa32e37e715e4444b31f3",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md"
+  },
+  "held-pet-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun S3 kuralı (aynı mesajda evcil hayvan + cevaplanabilir başka soru: öteki cevap gider, evcil hayvan sorusu ev sahibinde kalır; ücretsiz ve koşulsuz kabul istisnası; yardımcı hayvan her zaman ev sahibinde) düz anlatımla verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı. Yazarın taslak betiği oturumun geçici klasöründe kaldı (silme izni reddedildi); geliştirici açmadı, depoda değil.",
+    "sha256": "d82c1838d5a195c2e0610928e3954ae53df84804176e2e67891749830ca9e7bf",
+    "items": {
+      "scenarios": 51,
+      "needs": 96,
+      "answered": 47,
+      "open": 49,
+      "kbSets": 5,
+      "languages": 7,
+      "bytes": 71924
+    },
+    "state": "burned",
+    "burnedAt": "2026-11-12",
+    "runSha": "74f5f5432170afc54f4e74bd60330187408104c9",
+    "report": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-acik.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md"
+  },
+  "late-message-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralları + S2 kuralı (otomatik cevabımızdan önce yazılıp bize sonra ulaşan misafir mesajı; şartlar: kaçırılan cevap yapay zekânın, sonrasında ev sahibi yazmamış, mesaj en çok 24 saatlik) verildi. Geliştirici (Claude) içeriği okumadı: dosya yazarın geçici klasöründen kopyalandı, yalnız toplu sayılar ve biçim denetimi (kimlik tekilliği, bilgi kümesi anahtarı, geç senaryoda giden mesaj) koşuldu.",
+    "sha256": "c1327ca7cd16cb709af601cc073d84a449ba7d665d3342b4a1dd3dbfbec89fdb",
+    "items": {
+      "scenarios": 53,
+      "needs": 39,
+      "answered": 21,
+      "open": 18,
+      "kbSets": 3,
+      "languages": 7,
+      "late": 49,
+      "bytes": 40302
+    },
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-kapali.md"
+  },
+  "grounding-kabul-2026-11-12.json": {
+    "sealedAt": "2026-11-12",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralları + \"yazmıyorsa yok değildir\" ilkesi (bilgi tabanında açıkça yazmayan soru cevaplanmaz, ev sahibinde açık kalır; konu yakınlığı dayanak değildir; başka bir şeyin değeri taşınmaz) ve kategori listesi (konu yakın ama cevap yok · açık \"yok\" bilgisi · çelişkili kayıt · yakın ama farklı varlık · ücret / mesafe / saat taşıma · ev sahibindeki konu + cevaplanabilir soru · soru sırası · tek sorulu olağan cevap · küçük bilgi tabanı) verildi. Geliştirici (Claude) içeriği okumadı: dosya yazarın geçici klasöründen kopyalandı, yalnız toplu sayılar ve biçim denetimi (alan biçimleri, kimlik tekilliği, bilgi kümesi anahtarı) koşuldu.",
+    "sha256": "7f7bc4c1c9adba374ad37a393a59fd97ea09197eb57e615d74e847bbda091ea1",
+    "items": {
+      "scenarios": 74,
+      "needs": 118,
+      "answered": 64,
+      "open": 54,
+      "kbSets": 4,
+      "languages": 7,
+      "bytes": 41260
+    },
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g1-bugun.md"
+  },
+  "grounding-kabul-2026-11-26.json": {
+    "sha256": "350eaddf221eee7e9eaaaf84cc0ca49052e3d0cbe5e806e5f7cb34d8baa47581",
+    "sealedAt": "2026-11-26",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralı (notta açıkça yazmayan söylenmez, soru ev sahibinde kalır; \"bilgim yok\" denmez; misafirin dilinde) ve sınıf listesi (kontrol · konu yakın ama cevap yok · karışık · tek notta var + yok · yasak / yok kuralı başka dilde · çelişkili notlar · değer taşıma · şifre / kod değeri · tutulan konu + cevaplanabilir soru · takip sorusu) verildi; geliştirici dosyayı AÇMADI, yalnız biçim denetiminin sayıları, boyut ve SHA-256 görüldü. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Taslak betik silindi.",
+    "items": {
+      "scenarios": 97,
+      "needsAnswered": 68,
+      "needsOpen": 51,
+      "languages": 7
+    },
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "9b959231d30a1f939545d4b08ca58c8a4c0bf13d",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-bugun-luna.md"
+  }
+}

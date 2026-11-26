@@ -1,0 +1,340 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { reportError } from "@/lib/report-error";
+import { alertOnTransition } from "@/lib/alert-state";
+import { withOwner } from "@/lib/route-guard";
+import { rateLimit } from "@/lib/rate-limit";
+import {
+  getSubscriptionCurrentPriceId,
+  isPaddleConfigured,
+  previewSubscriptionUpdate,
+  updateSubscriptionPlan,
+} from "@/lib/payments/paddle";
+import {
+  consumePlanChangeNonce,
+  planChangeEnabled,
+  planChangePendingHolder,
+  planChangePendingLockName,
+  planChangeRowStillCurrent,
+  planChangeSourceMatches,
+  releasePlanChangeNonce,
+  resolvePlanChange,
+  verifyPlanChangeToken,
+} from "@/lib/billing/plan-change";
+import { writeAudit, writeAuditInTx, auditActor, auditImpersonation } from "@/lib/audit";
+import { CHECKOUT_CONSENT_COPY } from "@/lib/billing/consent-copy";
+import { checkoutLegalTextHash } from "@/lib/legal-text-hash";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
+
+// Apply an in-app plan change. Upgrade → charged immediately (prorated); downgrade
+// → takes effect at the next billing period. Paddle owns the proration + charge;
+// the resulting webhook updates the local subscription row. Gated behind
+// PADDLE_PLAN_CHANGE_ENABLED (404 while off). withOwner → account owner only
+// (billing is owner-scoped, matching the UI); org from the SESSION → IDOR-proof.
+// Rate-limited so a click-loop can't spam Paddle.
+export const POST = withOwner(async (session, req) => {
+  if (!planChangeEnabled()) return notFound();
+  const limited = await rateLimit(`plan-change:${session.organizationId}`, 12, 60 * 60 * 1000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
+
+  const data = (await readJsonCappedOrNull(req)) as
+    | { planCode?: unknown; previewToken?: unknown; immediateStartConsent?: unknown }
+    | null;
+  const planCode = typeof data?.planCode === "string" ? data.planCode : "";
+
+  const r = await resolvePlanChange(session.organizationId, planCode);
+  if (!r.ok) return badRequest({ error: r.error });
+
+  // Kurucu 11-13 ("en yasal şekilde") + Opus P2-4: yükseltmede fark ANINDA tahsil edilir → ödeme ekranıyla AYNI açık onay ("hemen başlasın,
+  // cayma hakkımı kaybediyorum"; Yön. md. 15/1-h). Sözleşmeler istisnayı bu kutuya bağlıyor; kutusuz yükseltme bedeline cayma itirazı açık
+  // kalırdı. Onay yoksa hiçbir şey tüketilmez / gönderilmez. Düşürmede anlık tahsilat yok → istenmez.
+  if (r.mode === "upgrade" && data?.immediateStartConsent !== true) {
+    return badRequest({ immediateStartConsent: CHECKOUT_CONSENT_COPY.immediateStart.missing });
+  }
+
+  // PENDING guard (Codex): after an AMBIGUOUS apply we must not fire a second
+  // PATCH via a fresh preview+token until the first is settled (webhook clears
+  // the lock; 15-min TTL self-heals if it never arrives).
+  const pending = await prisma.systemLock.findUnique({ where: { name: planChangePendingLockName(session.organizationId) } });
+  if (pending && pending.lockedUntil > new Date()) {
+    return NextResponse.json(
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
+      { status: 409 },
+    );
+  }
+
+  // Bind apply → a real preview: require a valid, unexpired preview token whose
+  // org + target price + mode match this change. Blocks a direct/blind apply, a
+  // replay, and reuse for a different plan/price (Codex).
+  const token = verifyPlanChangeToken(typeof data?.previewToken === "string" ? data.previewToken : null);
+  if (!token) {
+    return badRequest({ error: "Tutar onayının süresi doldu. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+  if (token.org !== session.organizationId || token.priceId !== r.priceId || token.mode !== r.mode) {
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+  // 🚨 KAYNAK (ödeme P3, Codex 11-10): onay, önizlemenin yapıldığı abonelik + plan (+ biliniyorsa Paddle fiyatı) için geçerli. Müşteri
+  // önizlemeyi gördükten sonra aboneliği değiştiyse (başka sekmede plan değişti / yeni abonelik) eski onay yeni durumun üstüne uygulanmaz.
+  if (!planChangeSourceMatches(token, r)) {
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+
+  // Yükseltme onayının kanıtı (şema değişikliği olmadan): kim, hangi değişiklik, metin sürümü + gösterilen cümlenin özeti. 🚨 ZORUNLU (Opus
+  // 11-13): cayma istisnası ancak onay KANITLANABİLİRSE tutar — kayıt yazılamazsa tahsilat YAPILMAZ. Tek kullanımlık onay TÜKETİLMEDEN önce
+  // yazılır: yazım düşerse ev sahibi aynı önizlemeyle hemen yeniden deneyebilir; çift tıklamada iki onay kaydı zararsızdır (tahsilat yine tek).
+  if (r.mode === "upgrade") {
+    try {
+      await writeAuditInTx(prisma, {
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        // Ayrı önek: plan değişikliği kayıtlarını ("billing.plan_change…") sayan ekran / sorgulara karışmaz.
+        action: "billing.immediate_start_consent",
+        metadata: { from: r.currentCode, to: planCode, legalVersion: LEGAL_VERSION, legalTextHash: checkoutLegalTextHash(["immediateStart"]), ...auditImpersonation(session) },
+      });
+    } catch {
+      return NextResponse.json({ error: "Onayınız kaydedilemedi; planınız değişmedi ve ücret alınmadı. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+    }
+  }
+
+  // Single-use: claim the token's jti BEFORE touching Paddle. A replay / concurrent
+  // double-submit within the 10-min TTL finds it already consumed → 409, so it can't
+  // drive a second PATCH/charge. (Expiry alone is NOT single-use.) Fail closed if the
+  // claim errors (never charge on an unknown nonce state).
+  let claimed: boolean;
+  try {
+    claimed = await consumePlanChangeNonce(token.jti, new Date(token.exp));
+  } catch {
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "Bu onay zaten kullanıldı. Planı yeniden seçip tekrar deneyin." },
+      { status: 409 },
+    );
+  }
+
+  // Amount integrity: re-preview NOW and require the charge the customer confirmed to
+  // still hold. If Paddle computes a different immediate total (proration drift /
+  // currency change), or an upgrade can't be priced, refuse — the customer must
+  // re-confirm the new amount. A downgrade has no immediate charge (both null) → ok.
+  const fresh = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration, session.organizationId);
+  const freshAmount = fresh?.immediateTotal ?? null;
+  const amountUnknownUpgrade = r.mode === "upgrade" && !freshAmount;
+  if (amountUnknownUpgrade || freshAmount !== token.amount) {
+    await releasePlanChangeNonce(token.jti); // not applied → let them retry after re-preview
+    return NextResponse.json(
+      {
+        error: "Tutar değişti. Yeni tutarı kontrol edip yeniden onaylayın.",
+        amountChanged: true,
+        immediateTotal: freshAmount,
+      },
+      { status: 409 },
+    );
+  }
+
+  // FAIL-CLOSED + ATOMIC pending claim BEFORE the PATCH (Codex round-4): the
+  // upsert version was not a claim — two CONCURRENT applies with two different
+  // valid tokens both passed the fast-path check and both PATCHed. updateMany on
+  // a free slot is the arbiter (same pattern as the sync lock); the holder field
+  // records the TARGET priceId so the webhook only settles the matching change.
+  // Kilidin sahibi bu İSTEK (hedef fiyat#belirteç kimliği — ödeme P4): aşağıdaki temizlikler yalnız bu isteğin kilidini siler.
+  const pendingHolder = planChangePendingHolder(r.priceId, token.jti);
+  let pendingClaimed = false;
+  try {
+    const name = planChangePendingLockName(session.organizationId);
+    await prisma.systemLock.upsert({ where: { name }, create: { name, lockedUntil: new Date(0) }, update: {} });
+    const claim = await prisma.systemLock.updateMany({
+      where: { name, lockedUntil: { lte: new Date() } },
+      data: { lockedUntil: new Date(Date.now() + 15 * 60_000), holder: pendingHolder },
+    });
+    pendingClaimed = claim.count === 1;
+  } catch {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  if (!pendingClaimed) {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json(
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
+      { status: 409 },
+    );
+  }
+  const clearPending = () =>
+    prisma.systemLock.deleteMany({ where: { name: planChangePendingLockName(session.organizationId), holder: pendingHolder } }).catch(() => {});
+
+  // Already on the target (e.g. a prior ambiguous apply DID land): success without
+  // another PATCH (Codex: never re-PATCH what is already applied).
+  // 🚨 Bu okuma artık kilit ALINDIKTAN sonra (ödeme P3 + P4): önceden kilitten önce okunuyor ve kilit ADLA siliniyordu — o arada başka bir
+  // isteğin aldığı kilit de gidiyordu. Kilit bizdeyken başka plan değişikliği araya giremez → okunan fiyat PATCH anına kadar geçerli.
+  const alreadyOn = await getSubscriptionCurrentPriceId(r.providerRef);
+  if (alreadyOn === r.priceId) {
+    await clearPending();
+    // 🚨 BU DAL DENETİM İZİ BIRAKMIYORDU (08-09 (2)). `writeAudit` aşağıda ve bu
+    // erken dönüş onu ATLIYORDU → para rotasında, müşteriye "başarılı" denen bir
+    // sonuç HİÇBİR iz bırakmadan geçiyordu. Kardeş "ambiguous → reconciled" dalı
+    // aşağı düşüp audit yazıyor; asimetri kazara oluşmuştu.
+    // ⚠️ Paddle'a HİÇBİR ŞEY gönderilmiyor (zaten hedefteyiz — "already applied
+    // olanı yeniden PATCH etme" kuralı) ve YEREL PLAN DA YAZILMIYOR; ikincisi
+    // bilinçli bir AÇIK madde, kararı `docs/PADDLE-TEKNIK-TABLO-2026-08-09.md`de.
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: "billing.plan_change",
+      metadata: {
+        from: r.currentCode,
+        to: planCode,
+        mode: r.mode,
+        reconciled: true,
+        noop: true, // Paddle zaten hedef fiyatta — istek gönderilmedi
+        ...auditImpersonation(session),
+      },
+    }).catch(() => {});
+    return jsonOk({ ok: true, mode: r.mode, reconciled: true });
+  }
+  // 🚨 KÖR PATCH YOK (Haiku incelemesi 11-11): aboneliğin Paddle'daki ŞU ANKİ fiyatı okunamadıysa kaynak doğrulanamaz — özellikle düşürmede
+  // (anlık tutar yok → tutar kıyası hiçbir şey yakalamaz) eski bir onay yeni durumun üstüne uygulanabilirdi. Uygulanmaz; onay tüketilmez.
+  if (!alreadyOn) {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  // Kaynak son kez (ödeme P3): yukarıdaki kaynak karşılaştırması ile kilit arasında başka bir plan değişikliği TAMAMLANMIŞ olabilir (yerel
+  // satırı webhook güncelleyene kadar eski planı gösterir). Paddle'daki fiyat önizlemedeki kaynak fiyattan / plandan farklıysa uygulanmaz.
+  if (!planChangeSourceMatches(token, { providerRef: r.providerRef, currentCode: r.currentCode, currentPriceId: alreadyOn })) {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+  // 🚨 Yerel satır PATCH'ten HEMEN önce (Codex 11-17 B2): yukarıdaki karşılaştırmalar istek başında okunan satıra ve o aboneliğin KENDİ Paddle
+  // fiyatına bakıyordu — istek sürerken webhook kayıtlı aboneliği başka bir aboneliğe çevirirse (yeni abonelik eskisinin yerine geçti)
+  // göremiyorlardı; PATCH kayıtlı olmayan eski aboneliğe gidiyor, yükseltmede fark onun kartından çekiliyor, müşteri "başarılı" görüyordu.
+  // Okuma Paddle fiyat okumasından SONRA (o çağrı da pencereyi açar). Satır artık tutmuyorsa uygulanmaz; kilit ve onay geri bırakılır, metin
+  // yukarıdaki kaynak retleriyle AYNI. Okunamazsa kör PATCH yok (fiyat okunamadığındaki gibi 503). Kalan pencere bu okuma ile Paddle'ın
+  // isteği alması arası — aşağıdaki PATCH sonrası okuma onu sessiz olmaktan çıkarır.
+  let liveRow: Parameters<typeof planChangeRowStillCurrent>[0];
+  try {
+    liveRow = await prisma.subscription.findUnique({
+      where: { organizationId: session.organizationId },
+      select: { provider: true, providerRef: true, planCode: true, status: true },
+    });
+  } catch {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
+  }
+  if (!planChangeRowStillCurrent(liveRow, r)) {
+    await clearPending();
+    await releasePlanChangeNonce(token.jti);
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
+  }
+  const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration, session.organizationId);
+  if (!result.ok) {
+    if (result.kind === "definitive") {
+      // Paddle REJECTED the request (4xx) → the plan did NOT change → nothing charged
+      // → release the nonce so the same token can be retried after fixing the cause.
+      await releasePlanChangeNonce(token.jti);
+      await clearPending(); // definitive: nothing applied → nothing pending
+      // Para rotasında denenen ama Paddle'ın REDDETTİĞİ değişiklik de iz bırakır (15 ajan A10 F6): kim, hangi plandan hangisine.
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        action: "billing.plan_change_rejected",
+        metadata: { from: r.currentCode, to: planCode, mode: r.mode, ...auditImpersonation(session) },
+      }).catch(() => {});
+      // K3 (kurucu 10-17, ödeme ekranı metinleri): sağlayıcının ham sebebi ("Paddle HTTP 400 (subscription_locked) env=production
+      // resource=subscriptions") müşteriye GİTMEZ — teknik kod ve ortam adı ekranda "(…)" olarak çıkıyordu. Sebep operatöre gider (alarm,
+      // kimlik / sır yok); müşteri ne olduğunu (planı DEĞİŞMEDİ) ve ne yapacağını görür.
+      void reportError(`billing-plan-change-rejected org=${session.organizationId}`, new Error(result.reason ?? "unknown"));
+      return NextResponse.json(
+        { error: "Plan değişikliği yapılamadı; planınız değişmedi. Lütfen tekrar deneyin, sorun sürerse bize yazın." },
+        { status: 502 },
+      );
+    }
+    // AMBIGUOUS (5xx / timeout / network): the PATCH MAY have applied at Paddle even
+    // though we got no clean response. Paddle has no general-API idempotency key, so we
+    // must NOT re-send (would double-apply) → keep the nonce CONSUMED. Reconcile by
+    // reading the subscription's current price: if it's already the target, it DID
+    // apply (response was just lost) → success. Otherwise leave it for the webhook to
+    // settle and tell the customer we're confirming.
+    const currentPrice = await getSubscriptionCurrentPriceId(r.providerRef);
+    if (currentPrice !== r.priceId) {
+      // Değişiklik Paddle'a ulaşmış OLABİLİR: o arada kayıtlı abonelik değiştiyse aynı tespit (müşteri yanıtı aynı; operatöre alarm).
+      const supersededPending = await supersededDuringApply(session.organizationId, r.providerRef);
+      // 🚨 Tahsilat GERÇEKLEŞMİŞ OLABİLİR (cevap kayboldu) ama iz yoktu (15 ajan A10 F6; hızlı dalın 08-09 düzeltmesinin kardeşi):
+      // "bekliyor" kaydı yazılır, gerçekleşen değişikliğin eylemi ("billing.plan_change") webhook / mutabakat netleştirince anlamını korur.
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: auditActor(session),
+        action: "billing.plan_change_pending",
+        metadata: {
+          from: r.currentCode,
+          to: planCode,
+          mode: r.mode,
+          ...(supersededPending ? { subscriptionSupersededDuringApply: true } : {}),
+          ...auditImpersonation(session),
+        },
+      }).catch(() => {});
+      return NextResponse.json(
+        {
+          pending: true,
+          error: "İşleminiz alındı, ödeme sağlayıcısının onayı bekleniyor. Planınız birkaç dakika içinde güncellenecek.",
+        },
+        { status: 202 },
+      );
+    }
+    await clearPending(); // reconciled: the change IS live → not pending anymore
+    // Reconciled: the change is live at Paddle → fall through to audit + success.
+  }
+  if (result.ok) await clearPending();
+
+  // Uygulandı (ya da belirsiz → uzlaştırıldı). PATCH sürerken kayıtlı abonelik değiştiyse değişiklik artık kayıtlı OLMAYAN aboneliğe gitti:
+  // müşteri yanıtı aynı kalır (yeni metin kurucu kararı), ama kayıt işaretlenir ve operatöre geçiş tabanlı alarm gider — eski abonelik iki
+  // kez faturalanıyor olabilir (iade / iptal kararı). Alarm metninde yalnız kimlikler; bu yol isteği asla düşürmez.
+  const superseded = await supersededDuringApply(session.organizationId, r.providerRef);
+
+  // ⚠️ BU ROTA PARA HAREKETİ YAPAR (upgrade `prorated_immediately` → fark ANINDA
+  // karttan çekilir). Fail `auditActor` ile GERÇEK operatördür; `impersonation`
+  // alanları da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar.
+  // Öncesinde `session.userId` yazılıyordu, yani operatörün başlattığı bir
+  // tahsilat kayda MÜŞTERİ yapmış gibi düşüyordu (denetim, 08-01).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "billing.plan_change",
+    metadata: {
+      from: r.currentCode,
+      to: planCode,
+      mode: r.mode,
+      reconciled: !result.ok,
+      ...(superseded ? { subscriptionSupersededDuringApply: true } : {}),
+      ...auditImpersonation(session),
+    },
+  }).catch(() => {});
+
+  return jsonOk({ ok: true, mode: r.mode, reconciled: !result.ok });
+});
+
+/** PATCH'ten sonra kayıtlı abonelik, değişikliğin uygulandığı abonelik değil mi; öyleyse operatör alarmı. Asla fırlatmaz. */
+async function supersededDuringApply(organizationId: string, appliedTo: string): Promise<boolean> {
+  let current: string | null;
+  try {
+    current = (await prisma.subscription.findUnique({ where: { organizationId }, select: { providerRef: true } }))?.providerRef ?? null;
+  } catch {
+    return false; // okunamadı: işaret yok (müşteri yanıtı zaten değişmiyor)
+  }
+  if (current === appliedTo) return false;
+  try {
+    await alertOnTransition(
+      `billing-plan-change-superseded:${organizationId}:${appliedTo}`,
+      "billing-plan-change-superseded",
+      new Error(
+        `Plan değişikliği org=${organizationId} için ${appliedTo} aboneliğine uygulandı, ama kayıtlı abonelik artık ${current ?? "yok"} — eski abonelik ayrıca faturalanıyor olabilir; Paddle'da iade / iptal kararı gerekir.`,
+      ),
+    );
+  } catch {
+    // Alarm yolu isteği düşürmez; işaret yine kayda düşer.
+  }
+  return true;
+}

@@ -1,0 +1,728 @@
+{
+ "version": 1,
+ "note": "10-15 gece: arıza karışık dev seti (kurucu inceleme notu + Opus multi-q planı S1–S5; S6 = ev sahibinin aynı konuşmadaki tarifi P6 kurucu sorusuna bağlı, eklenmedi). Kabul setlerinden BAĞIMSIZ, adı 'acc' içermez. Bilgi tabanı model-reply-compare 'full' (TV kalemi YOK; klima yalnız KULLANIM) + 'recipes' (TV + internet tarifi). Ölçüt: uydurma arıza adımı giden = 0 (koşu sonrası `relation.unsupportedFixStep` ile) · bilgi cevabı gidişi (facts) · S5 yanlış arıza oranı. Ücretli koşu kurucu onayıyla: EVAL_LIVE_SET=fault-mixed-dev.json.",
+ "property": {
+  "name": "Lale Suites",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "full": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale-5G, şifre: Lale2025! Yatak odasında sinyal zayıfsa aynı şifreyle Lale-2G ağına bağlanabilirsiniz. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "checkin",
+    "title": "Giriş ve anahtar kutusu",
+    "content": "Giriş saati 15:00'tir. Anahtar, bina kapısının solundaki gri anahtar kutusundadır; kutunun şifresi 4721. Şifreyi girip kapağı aşağı çekin, anahtarı aldıktan sonra kapağı kapatıp rakamları karıştırın. Bina kapısı aynı anahtarla açılır."
+   },
+   {
+    "category": "checkin",
+    "title": "Daire konumu ve asansör",
+    "content": "Daire 3. kattadır, kapı numarası 12. Binada 4 kişilik asansör vardır; merdivenler asansörün hemen yanındadır."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış ve anahtar iadesi",
+    "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı aynı anahtar kutusuna bırakıp rakamları karıştırın. Pencereleri ve klimayı kapatmanız yeterli; kirli havluları banyoya bırakabilirsiniz."
+   },
+   {
+    "category": "checkout",
+    "title": "Bavul bırakma",
+    "content": "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz. Giriş saatinden önce bavul bırakma imkânı yoktur."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın kendi otoparkı yoktur. 200 m ileride, Gül Sokak üzerinde ücretli açık otopark vardır; günlük ücret 150 TL'dir, ödeme gişede nakit veya kartla yapılır. Bina önüne park etmek yasaktır."
+   },
+   {
+    "category": "rules",
+    "title": "Sessiz saatler",
+    "content": "Sessiz saatler 23:00-08:00 arasıdır. Bu saatlerde müzik açmamanızı ve balkonda yüksek sesle konuşmamanızı rica ederiz."
+   },
+   {
+    "category": "rules",
+    "title": "Ev kuralları",
+    "content": "Dairede ve balkonda sigara içmek yasaktır. Parti ve etkinlik düzenlenemez. Evcil hayvan kabul edilmez. Rezervasyonda belirtilen kişi sayısından fazla kişi konaklayamaz."
+   },
+   {
+    "category": "rules",
+    "title": "Balkon",
+    "content": "Balkonda mangal ve açık ateş yasaktır. Çamaşır askısını balkonda kullanabilirsiniz; lütfen korkuluğa bir şey asmayın."
+   },
+   {
+    "category": "cleaning",
+    "title": "Havlu ve çarşaf değişimi",
+    "content": "Havlular 3 günde bir ücretsiz değiştirilir, çarşaflar haftada bir. Yedek havlular yatak odasındaki dolabın üst rafındadır."
+   },
+   {
+    "category": "cleaning",
+    "title": "Temizlik ücreti ve ara temizlik",
+    "content": "Temizlik ücreti rezervasyon toplamına dahildir, konaklama sırasında ayrıca ödeme alınmaz. Konaklama ortasında ek ara temizlik 400 TL karşılığında yapılabilir."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyodadır. Deterjan ve yumuşatıcı makinenin üstündeki dolaptadır. Günlük yıkama için 30 derece programını seçin. Kurutma makinesi yoktur; balkonda katlanır çamaşır askısı bulunur."
+   },
+   {
+    "category": "amenities",
+    "title": "Klima",
+    "content": "Klima kumandası salondaki TV ünitesinin çekmecesindedir. MODE tuşuyla soğutma (kar tanesi) ya da ısıtma (güneş) seçebilirsiniz; önerilen sıcaklık 24 derecedir. Çıkarken klimayı kapatmanızı rica ederiz."
+   },
+   {
+    "category": "amenities",
+    "title": "Saç kurutma makinesi ve ütü",
+    "content": "Saç kurutma makinesi banyodaki lavabo dolabında, ütü ve ütü masası yatak odasındaki gardırobun içindedir."
+   },
+   {
+    "category": "amenities",
+    "title": "Bebek yatağı",
+    "content": "Talep üzerine ücretsiz bebek yatağı ve mama sandalyesi sağlanır. Varıştan en az 48 saat önce bildirmeniz yeterlidir."
+   },
+   {
+    "category": "amenities",
+    "title": "Mutfak",
+    "content": "Mutfakta buzdolabı, ocak, fırın, su ısıtıcısı, tencere-tava ve yemek takımı vardır. Tuz, şeker, çay ve zeytinyağı temel malzeme olarak bulunur."
+   },
+   {
+    "category": "other",
+    "title": "Çöp",
+    "content": "Çöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır. Geri dönüşüm için mavi konteyneri kullanın. Çöpler her akşam 21:00'de toplanır. Yedek çöp poşetleri lavabo altındaki dolaptadır."
+   },
+   {
+    "category": "location",
+    "title": "Market ve eczane",
+    "content": "En yakın market 100 m ileride köşedeki Kardelen Market'tir, her gün 07:00-23:30 açıktır. En yakın eczane 300 m uzaklıkta, ana cadde üzerindeki Papatya Eczanesi'dir."
+   },
+   {
+    "category": "transport",
+    "title": "Havalimanı ulaşımı",
+    "content": "Havalimanından Havaş otobüsleri iç hatlar terminali çıkışından kalkar ve Alsancak'a yaklaşık 45 dakikada ulaşır. Alsancak durağından daireye yürüyerek 10 dakikadır. Taksiyle havalimanından daireye yaklaşık 35 dakika sürer."
+   },
+   {
+    "category": "location",
+    "title": "Plaj",
+    "content": "En yakın plaj 800 m uzaklıktadır, yürüyerek yaklaşık 10 dakika. Plaj havluları ve iki şemsiye giriş dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Acil durumlar",
+    "content": "Acil durumlarda 112'yi arayın (ambulans, itfaiye, polis). Gaz kokusu alırsanız pencereleri açın, elektrik düğmelerine dokunmayın, binayı terk edip 187'yi arayın. Sigorta kutusu giriş kapısının yanındaki duvar dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Ev sahibine ulaşma",
+    "content": "Ev sahibine her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz. Bu saatler dışında mesaj bırakın, en kısa sürede dönüş yapılır."
+   }
+  ],
+  "recipes": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale-5G, şifre: Lale2025! Yatak odasında sinyal zayıfsa aynı şifreyle Lale-2G ağına bağlanabilirsiniz. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "checkin",
+    "title": "Giriş ve anahtar kutusu",
+    "content": "Giriş saati 15:00'tir. Anahtar, bina kapısının solundaki gri anahtar kutusundadır; kutunun şifresi 4721. Şifreyi girip kapağı aşağı çekin, anahtarı aldıktan sonra kapağı kapatıp rakamları karıştırın. Bina kapısı aynı anahtarla açılır."
+   },
+   {
+    "category": "checkin",
+    "title": "Daire konumu ve asansör",
+    "content": "Daire 3. kattadır, kapı numarası 12. Binada 4 kişilik asansör vardır; merdivenler asansörün hemen yanındadır."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış ve anahtar iadesi",
+    "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı aynı anahtar kutusuna bırakıp rakamları karıştırın. Pencereleri ve klimayı kapatmanız yeterli; kirli havluları banyoya bırakabilirsiniz."
+   },
+   {
+    "category": "checkout",
+    "title": "Bavul bırakma",
+    "content": "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz. Giriş saatinden önce bavul bırakma imkânı yoktur."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın kendi otoparkı yoktur. 200 m ileride, Gül Sokak üzerinde ücretli açık otopark vardır; günlük ücret 150 TL'dir, ödeme gişede nakit veya kartla yapılır. Bina önüne park etmek yasaktır."
+   },
+   {
+    "category": "rules",
+    "title": "Sessiz saatler",
+    "content": "Sessiz saatler 23:00-08:00 arasıdır. Bu saatlerde müzik açmamanızı ve balkonda yüksek sesle konuşmamanızı rica ederiz."
+   },
+   {
+    "category": "rules",
+    "title": "Ev kuralları",
+    "content": "Dairede ve balkonda sigara içmek yasaktır. Parti ve etkinlik düzenlenemez. Evcil hayvan kabul edilmez. Rezervasyonda belirtilen kişi sayısından fazla kişi konaklayamaz."
+   },
+   {
+    "category": "rules",
+    "title": "Balkon",
+    "content": "Balkonda mangal ve açık ateş yasaktır. Çamaşır askısını balkonda kullanabilirsiniz; lütfen korkuluğa bir şey asmayın."
+   },
+   {
+    "category": "cleaning",
+    "title": "Havlu ve çarşaf değişimi",
+    "content": "Havlular 3 günde bir ücretsiz değiştirilir, çarşaflar haftada bir. Yedek havlular yatak odasındaki dolabın üst rafındadır."
+   },
+   {
+    "category": "cleaning",
+    "title": "Temizlik ücreti ve ara temizlik",
+    "content": "Temizlik ücreti rezervasyon toplamına dahildir, konaklama sırasında ayrıca ödeme alınmaz. Konaklama ortasında ek ara temizlik 400 TL karşılığında yapılabilir."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyodadır. Deterjan ve yumuşatıcı makinenin üstündeki dolaptadır. Günlük yıkama için 30 derece programını seçin. Kurutma makinesi yoktur; balkonda katlanır çamaşır askısı bulunur."
+   },
+   {
+    "category": "amenities",
+    "title": "Klima",
+    "content": "Klima kumandası salondaki TV ünitesinin çekmecesindedir. MODE tuşuyla soğutma (kar tanesi) ya da ısıtma (güneş) seçebilirsiniz; önerilen sıcaklık 24 derecedir. Çıkarken klimayı kapatmanızı rica ederiz."
+   },
+   {
+    "category": "amenities",
+    "title": "Saç kurutma makinesi ve ütü",
+    "content": "Saç kurutma makinesi banyodaki lavabo dolabında, ütü ve ütü masası yatak odasındaki gardırobun içindedir."
+   },
+   {
+    "category": "amenities",
+    "title": "Bebek yatağı",
+    "content": "Talep üzerine ücretsiz bebek yatağı ve mama sandalyesi sağlanır. Varıştan en az 48 saat önce bildirmeniz yeterlidir."
+   },
+   {
+    "category": "amenities",
+    "title": "Mutfak",
+    "content": "Mutfakta buzdolabı, ocak, fırın, su ısıtıcısı, tencere-tava ve yemek takımı vardır. Tuz, şeker, çay ve zeytinyağı temel malzeme olarak bulunur."
+   },
+   {
+    "category": "other",
+    "title": "Çöp",
+    "content": "Çöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır. Geri dönüşüm için mavi konteyneri kullanın. Çöpler her akşam 21:00'de toplanır. Yedek çöp poşetleri lavabo altındaki dolaptadır."
+   },
+   {
+    "category": "location",
+    "title": "Market ve eczane",
+    "content": "En yakın market 100 m ileride köşedeki Kardelen Market'tir, her gün 07:00-23:30 açıktır. En yakın eczane 300 m uzaklıkta, ana cadde üzerindeki Papatya Eczanesi'dir."
+   },
+   {
+    "category": "transport",
+    "title": "Havalimanı ulaşımı",
+    "content": "Havalimanından Havaş otobüsleri iç hatlar terminali çıkışından kalkar ve Alsancak'a yaklaşık 45 dakikada ulaşır. Alsancak durağından daireye yürüyerek 10 dakikadır. Taksiyle havalimanından daireye yaklaşık 35 dakika sürer."
+   },
+   {
+    "category": "location",
+    "title": "Plaj",
+    "content": "En yakın plaj 800 m uzaklıktadır, yürüyerek yaklaşık 10 dakika. Plaj havluları ve iki şemsiye giriş dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Acil durumlar",
+    "content": "Acil durumlarda 112'yi arayın (ambulans, itfaiye, polis). Gaz kokusu alırsanız pencereleri açın, elektrik düğmelerine dokunmayın, binayı terk edip 187'yi arayın. Sigorta kutusu giriş kapısının yanındaki duvar dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Ev sahibine ulaşma",
+    "content": "Ev sahibine her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz. Bu saatler dışında mesaj bırakın, en kısa sürede dönüş yapılır."
+   },
+   {
+    "category": "faq",
+    "title": "Televizyon",
+    "content": "Görüntü gelmezse kumandadaki SOURCE tuşuna basıp HDMI 1'i seçin. Ses yoksa kumandadaki sessiz (mute) tuşunu kontrol edin."
+   },
+   {
+    "category": "wifi",
+    "title": "İnternet bağlantısı",
+    "content": "Bağlantı koparsa modemi kapatıp 30 saniye bekleyin ve yeniden açın; ışıklar 2 dakika içinde yeşile döner."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "s1-tr-tv-cop-yazim",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Telvizyonda goruntu yok, sadece siyah ekran var. Copleri nereye atiyoruz?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "arka"
+    ]
+   }
+  },
+  {
+   "id": "s1-tr-tv-ses-otopark",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Televizyondan ses gelmiyor. Bir de araba için otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "Gül Sokak"
+    ]
+   }
+  },
+  {
+   "id": "s1-tr-firin-market",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Fırın ısınmıyor. En yakın market kaçta açılıyor?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "07:00"
+    ]
+   }
+  },
+  {
+   "id": "s1-tr-klima-havlu",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klima soğutmuyor, sıcak hava veriyor. Yedek havlular nerede?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "üst raf"
+    ]
+   }
+  },
+  {
+   "id": "s1-tr-camasir-cikis",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Çamaşır makinesi suyu boşaltmıyor. Çıkış saati kaçtı?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "s1-tr-hoparlor-plaj",
+   "class": "fault_mixed",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Salondaki hoparlör çalışmıyor. Plaj ne kadar uzakta?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "800"
+    ]
+   }
+  },
+  {
+   "id": "s1-en-tv-trash",
+   "class": "fault_mixed",
+   "lang": "en",
+   "kb": "full",
+   "message": "The TV shows no picture, just a black screen. Where do we put the trash?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "back"
+    ]
+   }
+  },
+  {
+   "id": "s1-de-tv-muell",
+   "class": "fault_mixed",
+   "lang": "de",
+   "kb": "full",
+   "message": "Der Fernseher zeigt kein Bild. Wo kommt der Müll hin?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s1-fr-tv-poubelle",
+   "class": "fault_mixed",
+   "lang": "fr",
+   "kb": "full",
+   "message": "La télé n'a pas d'image. Où met-on les poubelles ?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s1-es-tv-basura",
+   "class": "fault_mixed",
+   "lang": "es",
+   "kb": "full",
+   "message": "La tele no tiene imagen. ¿Dónde tiramos la basura?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s1-ru-tv-musor",
+   "class": "fault_mixed",
+   "lang": "ru",
+   "kb": "full",
+   "message": "Телевизор не работает, нет изображения. Куда выбрасывать мусор?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s1-ar-tv-trash",
+   "class": "fault_mixed",
+   "lang": "ar",
+   "kb": "full",
+   "message": "التلفاز لا يعمل ولا توجد صورة. أين نضع القمامة؟",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s2-tr-tv-tarif",
+   "class": "fault_recipe",
+   "lang": "tr",
+   "kb": "recipes",
+   "message": "Televizyonda görüntü yok, ne yapalım?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "HDMI 1"
+    ]
+   }
+  },
+  {
+   "id": "s2-tr-internet-tarif",
+   "class": "fault_recipe",
+   "lang": "tr",
+   "kb": "recipes",
+   "message": "İnternet koptu, bağlanamıyoruz.",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "30 saniye"
+    ]
+   }
+  },
+  {
+   "id": "s2-tr-tv-tarif-cop",
+   "class": "fault_recipe",
+   "lang": "tr",
+   "kb": "recipes",
+   "message": "TV'de görüntü yok. Çöpler nereye?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "HDMI 1"
+    ]
+   }
+  },
+  {
+   "id": "s2-en-tv-recipe",
+   "class": "fault_recipe",
+   "lang": "en",
+   "kb": "recipes",
+   "message": "No picture on the TV, what should we do?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "HDMI 1"
+    ]
+   }
+  },
+  {
+   "id": "s2-en-wifi-recipe",
+   "class": "fault_recipe",
+   "lang": "en",
+   "kb": "recipes",
+   "message": "The internet dropped, we can't connect.",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "30"
+    ]
+   }
+  },
+  {
+   "id": "s2-de-tv-rezept",
+   "class": "fault_recipe",
+   "lang": "de",
+   "kb": "recipes",
+   "message": "Kein Bild auf dem Fernseher, was tun?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "HDMI 1"
+    ]
+   }
+  },
+  {
+   "id": "s2-fr-tv-recette",
+   "class": "fault_recipe",
+   "lang": "fr",
+   "kb": "recipes",
+   "message": "Pas d'image à la télé, que faire ?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "HDMI 1"
+    ]
+   }
+  },
+  {
+   "id": "s2-tr-tv-ses-tarif",
+   "class": "fault_recipe",
+   "lang": "tr",
+   "kb": "recipes",
+   "message": "Televizyonun sesi gelmiyor.",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "mute"
+    ]
+   }
+  },
+  {
+   "id": "s3-tr-tv-yalniz",
+   "class": "fault_only",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Televizyon açılmıyor.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s3-tr-bulasik",
+   "class": "fault_only",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Bulaşık makinesi çalışmıyor.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s3-tr-kombi",
+   "class": "fault_only",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Kombi E01 hatası veriyor, sıcak su yok.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s3-tr-sigorta",
+   "class": "fault_only",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Elektrikler gitti, sigorta attı galiba.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s3-en-kettle",
+   "class": "fault_only",
+   "lang": "en",
+   "kb": "full",
+   "message": "The kettle doesn't work.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s3-de-heizung",
+   "class": "fault_only",
+   "lang": "de",
+   "kb": "full",
+   "message": "Die Heizung funktioniert nicht.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "s4-tr-tv-wifi-cikis",
+   "class": "fault_multi",
+   "lang": "tr",
+   "kb": "full",
+   "message": "TV açılmıyor. Wi-Fi şifresi ne? Çıkış saati kaçta?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "Lale2025",
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "s4-tr-klima-bavul-market",
+   "class": "fault_multi",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klima çalışmıyor; çıkışta bavul bırakabilir miyiz, market nerede?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "14:00"
+    ]
+   }
+  },
+  {
+   "id": "s4-en-tv-checkout-beach",
+   "class": "fault_multi",
+   "lang": "en",
+   "kb": "full",
+   "message": "The TV won't turn on. What time is check-out and how far is the beach?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "s4-tr-tv-temizlik-ucret",
+   "class": "fault_multi",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Televizyon bozuk. Ara temizlik ne kadar? Havlular ne zaman değişiyor?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "400"
+    ]
+   }
+  },
+  {
+   "id": "s4-de-tv-wlan-checkout",
+   "class": "fault_multi",
+   "lang": "de",
+   "kb": "full",
+   "message": "Der Fernseher geht nicht. Wie ist das WLAN-Passwort und wann ist Check-out?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "s4-tr-firin-cop-otopark",
+   "class": "fault_multi",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Fırın ısınmıyor. Çöpler nereye? Otopark ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "150"
+    ]
+   }
+  },
+  {
+   "id": "s5-tr-tv-nasil",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Televizyonu nasıl açıyoruz?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s5-tr-klima-mod",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klimayı soğutmaya nasıl alırız?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "MODE"
+    ]
+   }
+  },
+  {
+   "id": "s5-tr-kumanda-nerede",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klima kumandası nerede?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "TV ünitesi"
+    ]
+   }
+  },
+  {
+   "id": "s5-tr-kosul",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klima arıza yaparsa kimi arayalım?",
+   "expect": {
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "s5-tr-duzeldi",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Klima dün çalışmadı ama sonra düzeldi, teşekkürler. Çıkış kaçtaydı?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "s5-tr-kendi-esya",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Arabamız bozuldu, otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "Gül Sokak"
+    ]
+   }
+  },
+  {
+   "id": "s5-tr-telefon",
+   "class": "fault_negative",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Telefon çekmiyor, Wi-Fi şifresi ne?",
+   "expect": {
+    "autoSend": "any",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "s5-en-if",
+   "class": "fault_negative",
+   "lang": "en",
+   "kb": "full",
+   "message": "If the AC stops working, who do we call?",
+   "expect": {
+    "autoSend": "any"
+   }
+  }
+ ]
+}

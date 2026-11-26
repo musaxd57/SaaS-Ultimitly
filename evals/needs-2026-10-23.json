@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "_about": "Kurucu 10-23 E: ihtiyac bazli olcum seti (gelistirme seti, acik). Her senaryoda INSANIN yazdigi ihtiyac listesi: want=answered (all desenleri giden metinde olmali) / want=open (forbid desenleri gitmemeli, oge cevaplandi sayilmamali). Kurgusal mulk 'Lale'.",
+  "property": {
+    "name": "Lale – deniz cephe (iç kod L3)",
+    "guestDisplayName": "Kat 3 Daire 12",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "address": "Menekşe Sokak No: 14, Alsancak",
+    "city": "İzmir"
+  },
+  "kbSets": {
+    "full": [
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ adı: Lale-5G, şifre: Lale2025! Modem salondaki TV ünitesinin altındadır." },
+      { "category": "amenities", "title": "Havuz ve sauna", "content": "Havuz her gün 20:00'de, sauna 22:00'de kapanır. Hafta sonu havuz 23:00'e kadar açıktır. Havuz ve sauna sitenin bahçe katındadır." },
+      { "category": "parking", "title": "Otopark", "content": "Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır." },
+      { "category": "amenities", "title": "Kahvaltı", "content": "Kahvaltı fiyata dahil değildir; kişi başı 250 TL. Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir." },
+      { "category": "rules", "title": "Evcil hayvan", "content": "Evcil hayvan kabul edilmez." },
+      { "category": "rules", "title": "Sigara", "content": "Dairede ve balkonda sigara içmek yasaktır." },
+      { "category": "amenities", "title": "Bisiklet", "content": "Bisiklet talep üzerine günlüğü 200 TL'ye kiralanır." },
+      { "category": "amenities", "title": "Çamaşır ve ütü", "content": "Çamaşır makinesi banyodadır. Ütü ve ütü masası yatak odası dolabındadır." },
+      { "category": "rules", "title": "Çöp", "content": "Çöpler bina girişinin sağındaki konteynere atılır." },
+      { "category": "local", "title": "Yakın yerler", "content": "Plaj 800 metre uzaklıktadır. En yakın eczane binanın 300 metre ilerisinde, köşededir. Havaalanına arabayla yaklaşık 45 dakika sürer." },
+      { "category": "appliances", "title": "Klima", "content": "Klima kumandası TV ünitesinin çekmecesindedir." },
+      { "category": "checkout", "title": "Çıkışta anahtar", "content": "Çıkışta anahtarı bina kapısının solundaki gri anahtar kutusuna bırakın." }
+    ],
+    "nosauna": [
+      { "category": "wifi", "title": "Wi-Fi", "content": "Ağ adı: Lale-5G, şifre: Lale2025! Modem salondaki TV ünitesinin altındadır." },
+      { "category": "amenities", "title": "Havuz", "content": "Havuz her gün 20:00'de kapanır. Sitede sauna bulunmuyor." },
+      { "category": "parking", "title": "Otopark", "content": "Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır." }
+    ]
+  },
+  "scenarios": [
+    { "id": "n-tr-cikis-hamam", "class": "unknown_topic", "lang": "tr", "kb": "full", "message": "Çıkış saat kaçta? Bir de hamam var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "checkout_time", "want": "answered", "all": ["11[:.]00"] },
+        { "kind": "amenities", "want": "open", "forbid": ["hamam"] } ] } },
+    { "id": "n-tr-havuz-kapanis", "class": "conditional", "lang": "tr", "kb": "full", "message": "Havuz kaçta kapanıyor?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["20[:.]00", "23[:.]00"], "forbid": ["22[:.]00"] } ] } },
+    { "id": "n-tr-sauna-kapanis", "class": "grounded", "lang": "tr", "kb": "full", "message": "Sauna kaçta kapanıyor?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["22[:.]00"], "forbid": ["20[:.]00"] } ] } },
+    { "id": "n-tr-havuz-sauna-ikisi", "class": "same_kind_double", "lang": "tr", "kb": "full", "message": "Havuz kaçta kapanıyor, sauna kaçta kapanıyor?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "amenities", "want": "answered", "all": ["20[:.]00"] },
+        { "kind": "amenities", "want": "answered", "all": ["22[:.]00"] } ] } },
+    { "id": "n-tr-sauna-yok", "class": "negative_kb", "lang": "tr", "kb": "nosauna", "message": "Sauna var mı?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["sauna", "(yok|bulunm|maalesef)"] } ] } },
+    { "id": "n-tr-kahvalti", "class": "conditional", "lang": "tr", "kb": "full", "message": "Kahvaltı kaça kadar?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["10[:.]30", "11[:.]00"] } ] } },
+    { "id": "n-tr-kopek", "class": "negative_kb", "lang": "tr", "kb": "full", "message": "Köpeğimizi getirebilir miyiz?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "pets", "want": "answered", "all": ["(kabul edilm|getiremez|izin veril?m|maalesef)"] } ] } },
+    { "id": "n-tr-bisiklet", "class": "conditional", "lang": "tr", "kb": "full", "message": "Bisiklet kiralayabilir miyiz?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["200", "talep"] } ] } },
+    { "id": "n-tr-wifi-kaynak", "class": "source_question", "lang": "tr", "kb": "full", "message": "Wi-Fi şifresi neydi? Bu bilgiyi nereden buluyorsun?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "wifi", "want": "answered", "all": ["Lale2025"] },
+        { "kind": "about_assistant", "want": "open", "forbid": ["bilgi taban", "kayıt", "sistem", "not(lar)?ım"] } ] } },
+    { "id": "n-tr-kaynak-tek", "class": "source_question", "lang": "tr", "kb": "full",
+      "history": [ { "direction": "inbound", "body": "Otopark ücretli mi?" }, { "direction": "outbound", "body": "Otopark ücretsizdir; -2. katta 12 numaralı yer size ayrılmıştır." } ],
+      "message": "Bunu nereden biliyorsun?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "about_assistant", "want": "open", "forbid": ["bilgi taban", "kayıt", "sistem"] } ] } },
+    { "id": "n-tr-jakuzi", "class": "unknown_topic", "lang": "tr", "kb": "full", "message": "Jakuzi var mı?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "open", "forbid": ["jakuzi"] } ] } },
+    { "id": "n-tr-otopark-eczane", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Otopark ücretli mi? Bir de yakında eczane var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "parking", "want": "answered", "all": ["ücretsiz"] },
+        { "kind": "local_recommendations", "want": "answered", "all": ["300"] } ] } },
+    { "id": "n-tr-cop-camasir", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Çöpü nereye atıyoruz, çamaşır makinesi var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "trash", "want": "answered", "all": ["konteyner"] },
+        { "kind": "amenities", "want": "answered", "all": ["banyo"] } ] } },
+    { "id": "n-tr-onceki-havuz", "class": "reference", "lang": "tr", "kb": "full",
+      "history": [ { "direction": "inbound", "body": "Sitede havuz var mı?" }, { "direction": "outbound", "body": "Evet, sitenin bahçe katında havuz var." } ],
+      "message": "Peki kaçta kapanıyor?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["20[:.]00"], "forbid": ["22[:.]00"] } ] } },
+    { "id": "n-tr-giris-erken", "class": "sensitive_mix", "lang": "tr", "kb": "full", "message": "Giriş saati kaçta? Erken giriş mümkün mü?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "checkin_time", "want": "answered", "all": ["15[:.]00"] },
+        { "kind": "early_checkin", "want": "open", "forbid": ["erken giriş (yapabilirsiniz|mümkündür|onaylan)"] } ] } },
+    { "id": "n-tr-plaj-sezlong", "class": "unknown_topic", "lang": "tr", "kb": "full", "message": "Plaja ne kadar uzak? Plajda şezlong var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "directions_transport", "want": "answered", "all": ["800"] },
+        { "kind": "amenities", "want": "open", "forbid": ["şezlong"] } ] } },
+    { "id": "n-en-checkout-sauna", "class": "two_kinds", "lang": "en", "kb": "full", "message": "What time is checkout, and is there a sauna?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "checkout_time", "want": "answered", "all": ["11[:.]00|11(?::00)? ?am"] },
+        { "kind": "amenities", "want": "answered", "all": ["sauna"] } ] } },
+    { "id": "n-en-pool-saturday", "class": "conditional", "lang": "en", "kb": "full", "message": "When does the pool close on Saturday?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["23[:.]00|11(?::00)? ?pm"], "forbid": ["22[:.]00|10(?::00)? ?pm"] } ] } },
+    { "id": "n-en-breakfast-included", "class": "negative_kb", "lang": "en", "kb": "full", "message": "Is breakfast included in the price?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["not included|isn'?t included|250"] } ] } },
+    { "id": "n-en-smoke-balcony", "class": "negative_kb", "lang": "en", "kb": "full", "message": "Can we smoke on the balcony?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "house_rules", "want": "answered", "all": ["not (allowed|permitted)|no smoking|prohibited|can'?t|cannot"] } ] } },
+    { "id": "n-en-gym-wifi", "class": "unknown_topic", "lang": "en", "kb": "full", "message": "Do you have a gym? And what's the wifi password?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "amenities", "want": "open", "forbid": ["gym"] },
+        { "kind": "wifi", "want": "answered", "all": ["Lale2025"] } ] } },
+    { "id": "n-de-pool-sauna", "class": "same_kind_double", "lang": "de", "kb": "full", "message": "Wann schließt der Pool und gibt es eine Sauna?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "amenities", "want": "answered", "all": ["20[:.]00|20 Uhr"] },
+        { "kind": "amenities", "want": "answered", "all": ["Sauna"] } ] } },
+    { "id": "n-de-hund", "class": "negative_kb", "lang": "de", "kb": "full", "message": "Darf ich meinen Hund mitbringen?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "pets", "want": "answered", "all": ["nicht|keine|leider"] } ] } },
+    { "id": "n-ru-vyezd-parkovka", "class": "two_kinds", "lang": "ru", "kb": "full", "message": "Во сколько выезд? Есть ли парковка?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "checkout_time", "want": "answered", "all": ["11[:.]00"] },
+        { "kind": "parking", "want": "answered", "all": ["бесплат|парков"] } ] } },
+    { "id": "n-tr-havuz-22-tuzak", "class": "value_trap", "lang": "tr", "kb": "full", "message": "Havuz 22:00'ye kadar açık mı?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["20[:.]00"] } ] } },
+    { "id": "n-tr-sauna-23-tuzak", "class": "value_trap", "lang": "tr", "kb": "full", "message": "Saunaya saat 23:00'te girebilir miyiz?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["22[:.]00"] } ] } },
+    { "id": "n-tr-hafta-sonu-kahvalti", "class": "conditional", "lang": "tr", "kb": "full", "message": "Hafta sonu kahvaltı kaçta bitiyor?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["11[:.]00"] } ] } },
+    { "id": "n-tr-bisiklet-ucret", "class": "value_trap", "lang": "tr", "kb": "full", "message": "Bisiklet ücretsiz mi?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["200"] } ] } },
+    { "id": "n-tr-hayvan-sigara", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Evcil hayvan kabul ediyor musunuz? Balkonda sigara içilebilir mi?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "pets", "want": "answered", "all": ["kabul edilm|kabul etm|maalesef|getiremez"] },
+        { "kind": "house_rules", "want": "answered", "all": ["yasak|içilmez|içilemez|izin veril?m"] } ] } },
+    { "id": "n-tr-klima-utu", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Klima kumandası nerede? Ütü var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "appliance_help", "want": "answered", "all": ["çekmece"] },
+        { "kind": "amenities", "want": "answered", "all": ["dolab"] } ] } },
+    { "id": "n-tr-anahtar-hamam", "class": "unknown_topic", "lang": "tr", "kb": "full", "message": "Çıkışta anahtarı ne yapalım? Bir de hamam var mı?",
+      "expect": { "autoSend": "any", "needs": [
+        { "kind": "access_keys", "want": "answered", "all": ["kutu"] },
+        { "kind": "amenities", "want": "open", "forbid": ["hamam"] } ] } },
+    { "id": "n-tr-havaalani", "class": "grounded", "lang": "tr", "kb": "full", "message": "Havaalanına ne kadar sürer?",
+      "expect": { "autoSend": "any", "needs": [ { "kind": "directions_transport", "want": "answered", "all": ["45"] } ] } }
+  ]
+}

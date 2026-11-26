@@ -1,0 +1,1127 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "b651c01c",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.3227568,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 23,
+        "in": 4440,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 141,
+        "in": 781704,
+        "cached": 700544,
+        "out": 13365,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "svc-01",
+      "cls": "fee_service",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBebek yatağı ve mama sandalyesini yarından itibaren getirebiliyoruz; ikisi birlikte konaklama başına ücreti 250 TL'dir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 11719,
+      "retried": false
+    },
+    {
+      "id": "svc-02",
+      "cls": "fee_service",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nAn extra cleaning during your stay is possible with at least one day’s notice. The fee for an extra cleaning is 700 TL and the team will come during the day and also refresh towels and bed linen.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 10169,
+      "retried": false
+    },
+    {
+      "id": "svc-03",
+      "cls": "fee_service",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nEin privater Transfer kann organisiert werden; die einfache Fahrt kostet 950 TL für bis zu 4 Personen und 4 Koffer.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nEin privater Transfer kann organisiert werden; die einfache Fahrt kostet 950 TL für bis zu 4 Personen und 4 Koffer.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7626,
+      "retried": false
+    },
+    {
+      "id": "svc-04",
+      "cls": "fee_service",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nPodemos proporcionar una cuna de viaje para el bebé a partir de mañana; el servicio de cuna y trona juntos tiene un coste total de 250 TL por estancia.\n\n(Esta respuesta fue preparada por un asistente automático.)",
+      "draft": "Hola Alex,\n\nPodemos proporcionar una cuna de viaje para el bebé a partir de mañana; el servicio de cuna y trona juntos tiene un coste total de 250 TL por estancia.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6819,
+      "retried": false
+    },
+    {
+      "id": "svc-05",
+      "cls": "fee_service",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nДополнительную уборку можно заказать заранее, не позднее чем за один день. Стоимость такой уборки 700 TL, при этом команда наведёт порядок и заменит полотенца и постельное бельё.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 9445,
+      "retried": false
+    },
+    {
+      "id": "svc-06",
+      "cls": "fee_service",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nنعم، يمكن ترتيب نقل خاص من المطار. تكلفة النقل الخاص باتجاه واحد هي 950 TL (حتى 4 أشخاص و4 حقائب)، ويُفضّل أن تطلبوه قبل يوم واحد على الأقل من موعد الوصول.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 9543,
+      "retried": false
+    },
+    {
+      "id": "svc-07",
+      "cls": "fee_service",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nWe can provide a portable baby cot together with a high chair for 250 TL per stay.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 9092,
+      "retried": false
+    },
+    {
+      "id": "svc-08",
+      "cls": "fee_service",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKonaklama sırasında ek temizlik ücretlidir, bedeli 700 TL’dir. Ek temizlik için en az bir gün önceden haber vermeniz gerekir; temizlik ekibi gün içinde gelip havlu ve çarşafları da yeniler.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKonaklama sırasında ek temizlik ücretlidir, bedeli 700 TL’dir. Ek temizlik için en az bir gün önceden haber vermeniz gerekir; temizlik ekibi gün içinde gelip havlu ve çarşafları da yeniler.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 12121,
+      "retried": false
+    },
+    {
+      "id": "f-09",
+      "cls": "fee_plain",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nPortatif bebek yatağı ve mama sandalyesini isteğe bağlı olarak birlikte sağlayabiliyorum; ikisi için toplam ücret konaklama başına 250 TL.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 10617,
+      "retried": false
+    },
+    {
+      "id": "f-10",
+      "cls": "fee_plain",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavalimanı özel transfer ücreti tek yön 950 TL'dir ve 4 kişi ile 4 valize kadar geçerlidir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavalimanı özel transfer ücreti tek yön 950 TL'dir ve 4 kişi ile 4 valize kadar geçerlidir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 9063,
+      "retried": false
+    },
+    {
+      "id": "f-11",
+      "cls": "fee_plain",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe price for an extra cleaning during your stay is 700 TL. This includes a visit from the cleaning team during the day, with fresh towels and bed linens.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe price for an extra cleaning during your stay is 700 TL. This includes a visit from the cleaning team during the day, with fresh towels and bed linens.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7198,
+      "retried": false
+    },
+    {
+      "id": "f-12",
+      "cls": "fee_plain",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nKonaklamanız sırasında ek temizlik ücreti 700 TL’dir; temizlik ekibi gün içinde gelir ve havlu ile çarşafları da yeniler.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_offplatform_payment",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": false,
+      "factsSentStrict": null,
+      "factsDraft": true,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 2,
+      "rw": [
+        "payHost"
+      ],
+      "ms": 10212,
+      "retried": false
+    },
+    {
+      "id": "f-13",
+      "cls": "fee_plain",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "مرحباً Alex،\n\nنوفر سرير أطفال قابل للطي مع كرسي طعام للأطفال عند الطلب، وسعرهما معاً 250 ليرة تركية لكل إقامة.\n\n(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+      "draft": "مرحباً Alex،\n\nنوفر سرير أطفال قابل للطي مع كرسي طعام للأطفال عند الطلب، وسعرهما معاً 250 ليرة تركية لكل إقامة.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6921,
+      "retried": false
+    },
+    {
+      "id": "f-14",
+      "cls": "fee_plain",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nHavalimanı için özel transfer tek yön 950 TL’dir; 4 kişi ve 4 valize kadar geçerlidir ve en az bir gün önceden haber vermeniz gerekir.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nHavalimanı için özel transfer tek yön 950 TL’dir; 4 kişi ve 4 valize kadar geçerlidir ve en az bir gün önceden haber vermeniz gerekir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsSentStrict": {
+        "ok": true,
+        "missing": 0,
+        "wrong": 0
+      },
+      "factsDraft": true,
+      "langOk": false,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7367,
+      "retried": false
+    },
+    {
+      "id": "c-01",
+      "cls": "money_host",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEk temizlik ücreti daire temizliği hizmeti için belirlenmiş sabit bir bedeldir; ödeme yöntemi ve şeklini belirlemek ev sahibinizin kararıdır. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.7
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7107,
+      "retried": false
+    },
+    {
+      "id": "c-02",
+      "cls": "money_host",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nPayment and reservation transactions need to be handled through the platform; this is at your host's discretion.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "high",
+        "riskType": "platform_policy",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 8123,
+      "retried": false
+    },
+    {
+      "id": "c-03",
+      "cls": "money_host",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nKonaklama ücreti, indirim ve iade gibi konular ev sahibinizin kararıdır.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "medium",
+        "riskType": "money_refund",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 8324,
+      "retried": false
+    },
+    {
+      "id": "c-04",
+      "cls": "money_host",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nİptal durumunda ne kadar iade alabileceğiniz, rezervasyon yaptığınız platformun iptal politikalarına ve ev sahibinizin kararına bağlıdır. Bu konu ev sahibinizin kararıdır.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "refund",
+        "riskLevel": "medium",
+        "riskType": "money_refund",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6390,
+      "retried": false
+    },
+    {
+      "id": "c-05",
+      "cls": "money_host",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nStandart giriş saatimiz 16:00. Erken giriş ve buna bağlı olası ücretlendirme ev sahibinizin kararına bağlıdır.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "handoff_notice",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "early_checkin",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime",
+          "kb:checkout"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7476,
+      "retried": false
+    },
+    {
+      "id": "c-06",
+      "cls": "money_host",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nPets are only accepted with prior approval from the host. Any pet fee and conditions are also up to the host; your request has been recorded and is visible to your host.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6460,
+      "retried": false
+    },
+    {
+      "id": "u-01",
+      "cls": "fee_unknown",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBu bilgi şu anda kayıtlarımda görünmüyor.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 7681,
+      "retried": false
+    },
+    {
+      "id": "u-02",
+      "cls": "fee_unknown",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 5730,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "b651c01c",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "1",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "32aa7b5cb535",
+      "replyVariant": "d722acc7c376",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

@@ -1,0 +1,330 @@
+{
+  "surum": "7d-gonderim-zamani-2026-10-28",
+  "ortak": {
+    "daire": "Lale 1 (kurgusal)",
+    "saatDilimi": "Europe/Istanbul",
+    "standartGiris": "15:00",
+    "standartCikis": "11:00",
+    "varsayilanRezervasyon": { "giris": "2026-11-02", "cikis": "2026-11-06", "durum": "confirmed" },
+    "bilgiTabani": "Havuz için yalnız 'Hafta sonu havuz 23:00'e kadar açık.' kalemi var; hafta içi saati YOK.",
+    "aday": "12 Eylül'de başka bir misafire yazılan ev sahibi cevabı: 'Hafta içi havuz 22:00'ye kadar açık.'",
+    "davranislar": {
+      "gonder": "Onaylanan metin aynen, şimdi gider.",
+      "bu_arada_gonder": "Metnin başına misafirin dilinde kodla kurulan bağlaç ('Bu arada,' / 'By the way,') eklenir, şimdi gider.",
+      "duzenleyici": "Tek tık gönderim kapanır; metin düzenleyicide açılır, nedeni yazılı uyarı görünür; ev sahibi düzenleyip gönderir.",
+      "gonderme": "Sistem göndermemeyi önerir (neden yazılı); ev sahibi isterse 'Yine de gönder' der (denetim kaydına işlenir). 'Bilgi tabanına kaydedeyim mi?' yine sorulur."
+    }
+  },
+  "senaryolar": [
+    {
+      "id": "S01", "baslik": "30 dk sonra onay, araya hiçbir şey girmedi",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-03T14:32", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Sorunun kendisi konuşmanın son mesajı; cevap doğrudan onun altına düşer." }
+    },
+    {
+      "id": "S02", "baslik": "Kurucu örneği: yapay zekâ kısmi cevap verdi, 18 dk sonra onay",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" } ],
+      "onay": { "an": "2026-11-03T14:20", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Araya bir cevap girdi; bağlaç tamamlayıcı bilgi olduğunu gösterir." }
+    },
+    {
+      "id": "S03", "baslik": "Kısmi cevap + misafir 'Peki, teşekkürler' + 1 saat sonra onay",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T14:06", "metin": "Peki, teşekkürler", "tur": "tesekkur" }
+      ],
+      "onay": { "an": "2026-11-03T15:10", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Kapanış onayı konuyu kapatmaz; eksik parça hâlâ işe yarar." }
+    },
+    {
+      "id": "S04", "baslik": "6 saat sonra onay, araya hiçbir şey girmedi",
+      "soru": { "an": "2026-11-03T10:00", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-03T16:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Soru zamana bağlı değil, konaklama sürüyor, soru hâlâ son mesaj." }
+    },
+    {
+      "id": "S05", "baslik": "Ertesi gün (26 saat) onay, araya hiçbir şey girmedi",
+      "soru": { "an": "2026-11-03T19:00", "metin": "Otoparkta ikinci araç için yer var mı?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-04T21:00", "metin": "Otoparkta ikinci araç için de yer var; B2 katındaki misafir alanını kullanabilirsiniz.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "24 saat geçti ama konaklama 2 gün daha sürüyor; bilgi hâlâ işe yarar. Sabit 24 saat kuralı burada gereksiz tutar." }
+    },
+    {
+      "id": "S06", "baslik": "Giriş öncesi soru, 30 saat sonra onay (giriş 11 gün sonra)",
+      "rezervasyon": { "giris": "2026-11-02", "cikis": "2026-11-06", "durum": "confirmed" },
+      "soru": { "an": "2026-10-21T10:00", "metin": "Bebek yatağı var mı?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-10-22T16:00", "metin": "Evet, dairede portatif bebek yatağı var; yatak odasındaki dolapta duruyor.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Giriş öncesi sorular günlerce geçerlidir." }
+    },
+    {
+      "id": "S07", "baslik": "'Bu akşam' sorusu, gece 23:40'ta onay (havuz 22:00'de kapandı)",
+      "soru": { "an": "2026-11-03T18:30", "metin": "Bu akşam havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-03T23:40", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": ["gonderme"], "zamanlama": "sabah", "gerekce": "Sorulan akşam geçti; genel bilgi yarın için işe yarayabilir ama metin 'bu akşam'a cevap gibi okunur. Ev sahibi uyarlasın ('Yarın da 22:00'ye kadar açık')." }
+    },
+    {
+      "id": "S08", "baslik": "Çıkış günü 08:10 soru, 09:00 onay (çıkış 11:00)",
+      "soru": { "an": "2026-11-06T08:10", "metin": "Bugün çıkarken anahtarı nereye bırakalım?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-06T09:00", "metin": "Anahtarı kapının yanındaki kilitli kutuya bırakabilirsiniz.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Zamana bağlı ama ihtiyaç anı (11:00) henüz gelmedi; acil ve geçerli." }
+    },
+    {
+      "id": "S09", "baslik": "Çıkış günü 08:10 soru, 13:30 onay (çıkış saati geçti)",
+      "soru": { "an": "2026-11-06T08:10", "metin": "Bugün çıkarken anahtarı nereye bırakalım?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-06T13:30", "metin": "Anahtarı kapının yanındaki kilitli kutuya bırakabilirsiniz.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "İhtiyaç anı geçti; misafir büyük olasılıkla çıktı. Anahtarın durumu ev sahibinin ayrıca sorması gereken bir şey." }
+    },
+    {
+      "id": "S10", "baslik": "Konaklama bitti, 2 gün sonra onay",
+      "soru": { "an": "2026-11-05T21:00", "metin": "Havalimanına en kolay nasıl gidilir?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-07T10:00", "metin": "Havalimanına en kolay yol, 200 m ilerideki duraktan kalkan Havaist otobüsü.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Konaklama sırasında sorulan soru, konaklama bitince anlamsız." }
+    },
+    {
+      "id": "S11", "baslik": "Misafir 'Boşverin, hallettim' yazdı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T14:40", "metin": "Boşverin, hallettim.", "tur": "vazgecti" } ],
+      "onay": { "an": "2026-11-03T15:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Misafir açıkça vazgeçti." }
+    },
+    {
+      "id": "S12", "baslik": "Misafir başka yerden öğrendi, bilgi aynı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T15:20", "metin": "Tamam, resepsiyona sordum, 22:00'ye kadarmış.", "tur": "baska_yerden_ogrendi" } ],
+      "onay": { "an": "2026-11-03T16:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Misafir cevabı zaten biliyor; aynı bilgiyi tekrar göndermek gereksiz." }
+    },
+    {
+      "id": "S13", "baslik": "Misafir başka yerde FARKLI bilgi gördü",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T15:20", "metin": "Havuz kapısındaki tabelada 21:00 yazıyor ama?", "tur": "celiski" } ],
+      "onay": { "an": "2026-11-03T16:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Çelişki var; hangisinin doğru olduğunu ev sahibi söylemeli (tabela mı eski, aday mı?)." }
+    },
+    {
+      "id": "S14", "baslik": "Misafir başka konu sordu, yapay zekâ onu cevapladı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "misafir", "an": "2026-11-03T15:10", "metin": "Bir de yakında market var mı?", "tur": "yeni_konu_cevaplandi" },
+        { "kimden": "ai", "an": "2026-11-03T15:11", "metin": "Evet, binadan çıkınca sağda 200 metre ileride bir market var.", "tur": "ilgisiz_cevap" }
+      ],
+      "onay": { "an": "2026-11-03T15:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "Yeni konu kapandı; havuz cevabı kendi başına anlaşılır, bağlaçla doğal." }
+    },
+    {
+      "id": "S15", "baslik": "Misafir başka bir şey istedi, o da ev sahibini bekliyor",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T15:10", "metin": "Yarın 13:00'e kadar kalabilir miyiz?", "tur": "yeni_konu_bekliyor" } ],
+      "onay": { "an": "2026-11-03T15:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Son mesaj cevapsız bir istek; yalnız havuz cevabı gitmesi isteği görmezden gelmek gibi okunur. Ev sahibi ikisini birlikte yazsın." }
+    },
+    {
+      "id": "S16", "baslik": "Misafir aynı soruyu yeniden sordu",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T16:40", "metin": "Havuz kaç saate kadar açık acaba?", "tur": "tekrar" } ],
+      "onay": { "an": "2026-11-03T16:50", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Cevap son mesaja doğrudan cevap; bağlaç gereksiz." }
+    },
+    {
+      "id": "S17", "baslik": "Misafir dürttü ('dönüş yapabilir misiniz?')",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T17:30", "metin": "Merhaba, dönüş yapabilir misiniz?", "tur": "durtme" } ],
+      "onay": { "an": "2026-11-03T17:45", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": ["bu_arada_gonder"], "zamanlama": "simdi", "gerekce": "Misafir tam bu cevabı bekliyor." }
+    },
+    {
+      "id": "S18", "baslik": "Misafir gecikmeye sinirlendi",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T17:30", "metin": "3 saattir cevap yok, rezalet bir hizmet.", "tur": "sikayet" } ],
+      "onay": { "an": "2026-11-03T17:45", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Şikâyet var; kuru bir saat bilgisi soğuk okunur. Ev sahibi kendi sözüyle yazsın (sistem özür / kusur kabulü EKLEMEZ)." }
+    },
+    {
+      "id": "S19", "baslik": "Arada ilgisiz şikâyet (klima)",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T15:00", "metin": "Klima çalışmıyor, oda çok sıcak.", "tur": "sikayet" } ],
+      "onay": { "an": "2026-11-03T15:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Açık bir şikâyet varken havuz saati göndermek umursamazlık gibi okunur." }
+    },
+    {
+      "id": "S20", "baslik": "Arada acil durum (gaz kokusu)",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T15:00", "metin": "Mutfakta gaz kokusu var!", "tur": "acil" } ],
+      "onay": { "an": "2026-11-03T15:20", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "Önce acil durum; havuz bilgisi şimdi gitmez." }
+    },
+    {
+      "id": "S21", "baslik": "Ev sahibi arada aynı cevabı elle yazdı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "ev_sahibi", "an": "2026-11-03T15:00", "metin": "Havuz hafta içi 22:00'ye kadar.", "tur": "ev_sahibi_ayni_cevap" } ],
+      "onay": { "an": "2026-11-03T15:20", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Aynı bilgi zaten gitti; ikinci kez gitmesi tekrar." }
+    },
+    {
+      "id": "S22", "baslik": "Ev sahibi arada başka bir konuda yazdı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "ev_sahibi", "an": "2026-11-03T15:00", "metin": "Yarın 10:00'da temizlik ekibi gelecek.", "tur": "ev_sahibi_baska_konu" } ],
+      "onay": { "an": "2026-11-03T15:20", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "Soru hâlâ cevapsız; araya başka bir mesaj girdiği için bağlaç." }
+    },
+    {
+      "id": "S23", "baslik": "Bilgi tabanı güncellendi, yapay zekâ aynı cevabı zaten verdi",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "misafir", "an": "2026-11-03T16:00", "metin": "Havuz hafta içi kaça kadar açık?", "tur": "tekrar" },
+        { "kimden": "ai", "an": "2026-11-03T16:01", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "tur": "ai_ayni_cevap" }
+      ],
+      "bilgiTabaniDegisti": { "an": "2026-11-03T15:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "celisiyor": false },
+      "onay": { "an": "2026-11-03T16:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Aynı cevap gitti." }
+    },
+    {
+      "id": "S24", "baslik": "Bilgi tabanı arada FARKLI saatle güncellendi",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "bilgiTabaniDegisti": { "an": "2026-11-03T15:00", "metin": "Hafta içi havuz 21:30'a kadar açık.", "celisiyor": true },
+      "onay": { "an": "2026-11-03T15:20", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Onaylanan metin bilgi tabanının yeni hâliyle çelişiyor." }
+    },
+    {
+      "id": "S25", "baslik": "Gece 01:20 soru, 01:35 onay (misafir uyanık)",
+      "soru": { "an": "2026-11-04T01:20", "metin": "Saç kurutma makinesi nerede?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-04T01:35", "metin": "Saç kurutma makinesi banyodaki lavabonun altındaki çekmecede.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Misafir 15 dk önce yazdı, uyanık ve şimdi ihtiyacı var." }
+    },
+    {
+      "id": "S26", "baslik": "Akşam 21:00 soru, gece 03:10 onay (misafir büyük olasılıkla uyuyor)",
+      "soru": { "an": "2026-11-03T21:00", "metin": "Kahvaltı kaçta başlıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-04T03:10", "metin": "Kahvaltı 08:00'de başlıyor, 10:30'a kadar sürüyor.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "sabah", "gerekce": "Bilgi geçerli; ama 03:10'da bildirim misafiri uyandırabilir. Öneri: 07:30'da gitsin (ev sahibi 'Şimdi gönder' diyebilir)." }
+    },
+    {
+      "id": "S27", "baslik": "Gece onayı ama ihtiyaç sabahtan önce",
+      "soru": { "an": "2026-11-05T23:30", "metin": "Yarın sabah 06:00'da çıkacağız, anahtarı nereye bırakalım?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-06T02:00", "metin": "Anahtarı kapının yanındaki kilitli kutuya bırakabilirsiniz.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Sabaha ertelemek ihtiyacı kaçırır (06:00 çıkış)." }
+    },
+    {
+      "id": "S28", "baslik": "Konaklama SONRASI sorulmuş soru, ertesi gün onay",
+      "soru": { "an": "2026-11-07T10:00", "metin": "Konaklamam için fatura alabilir miyim?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-08T12:00", "metin": "Fatura için ad-soyad ve T.C. kimlik ya da vergi numaranızı buradan yazmanız yeterli.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Soru konaklama bittikten sonra soruldu; cevap hâlâ geçerli. 'Konaklama bittiyse gönderme' kuralı burada yanlış tutar." }
+    },
+    {
+      "id": "S29", "baslik": "Rezervasyon arada iptal edildi",
+      "rezervasyon": { "giris": "2026-11-02", "cikis": "2026-11-06", "durum": "cancelled" },
+      "soru": { "an": "2026-10-25T10:00", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-10-25T18:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Geçerli konaklama yok." }
+    },
+    {
+      "id": "S30", "baslik": "Varıştan önce sorulan otopark girişi; misafir geldi ve park etti",
+      "soru": { "an": "2026-11-01T20:00", "metin": "Otoparka nasıl gireceğiz?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-02T16:10", "metin": "Geldik, arabayı otoparka koyduk, teşekkürler.", "tur": "geldi_cozdu" } ],
+      "onay": { "an": "2026-11-02T18:00", "metin": "Otopark girişi binanın arka sokağında; kapı plakayı tanıyor.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "İhtiyaç çözüldü (park ettiler)." }
+    },
+    {
+      "id": "S31", "baslik": "Kısmi cevap + 'Tamamdır' + 21 saat sonra onay",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T14:05", "metin": "Tamamdır 👍", "tur": "tesekkur" }
+      ],
+      "onay": { "an": "2026-11-04T11:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Konaklama sürüyor, bilgi işe yarar." }
+    },
+    {
+      "id": "S32", "baslik": "Aynı durum, 27 saat sonra onay",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T14:05", "metin": "Tamamdır 👍", "tur": "tesekkur" }
+      ],
+      "onay": { "an": "2026-11-04T17:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "S31'den tek farkı 6 saat; doğru davranış aynı. Sabit 24 saat eşiği iki komşu durumu farklı sonuca böler." }
+    },
+    {
+      "id": "S33", "baslik": "Misafir eksik parçayı kendisi sordu ('hafta içi de aynı mı?')",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T14:10", "metin": "Peki hafta içi de aynı mı?", "tur": "ayni_konu_takip" }
+      ],
+      "onay": { "an": "2026-11-03T14:40", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": ["bu_arada_gonder"], "zamanlama": "simdi", "gerekce": "Son mesaja doğrudan cevap." }
+    },
+    {
+      "id": "S34", "baslik": "Misafir İngilizce yazdı, onaylanan aday Türkçe",
+      "misafirDili": "en",
+      "soru": { "an": "2026-11-03T14:02", "metin": "What time does the pool close?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-03T14:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "Metin misafirin dilinde değil (aday başka bir Türk misafire yazılmıştı); çeviri önerisiyle düzenleyici." }
+    },
+    {
+      "id": "S35", "baslik": "Aday kendi başına anlaşılmıyor ('22:00'ye kadar açık.') ve araya mesaj girdi",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "ai", "an": "2026-11-03T14:03", "metin": "Hafta sonu havuz 23:00'e kadar açık.", "tur": "kismi_cevap" } ],
+      "onay": { "an": "2026-11-03T14:30", "metin": "22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "duzenleyici", "kabulEdilir": [], "zamanlama": "simdi", "gerekce": "'Bu arada, 22:00'ye kadar açık.' neyin açık olduğunu söylemiyor; hafta sonu cevabıyla da çelişiyor gibi okunur." }
+    },
+    {
+      "id": "S36", "baslik": "Misafir sitemle aynı soruyu tekrarladı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-03T17:00", "metin": "Hâlâ cevap yok! Havuz kaçta kapanıyor?", "tur": "tekrar_sitem" } ],
+      "onay": { "an": "2026-11-03T17:10", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "En iyi telafi cevabın kendisi; ev sahibi isterse düzenler. Şikâyet değil, sitemli tekrar." }
+    },
+    {
+      "id": "S37", "baslik": "Konuşma çok ilerledi (5 saatte 6 mesaj, hepsi cevaplandı)",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [
+        { "kimden": "misafir", "an": "2026-11-03T15:00", "metin": "Wi-Fi şifresi neydi?", "tur": "yeni_konu_cevaplandi" },
+        { "kimden": "ai", "an": "2026-11-03T15:01", "metin": "Wi-Fi ağı Lale-5G, şifre Lale2025.", "tur": "ilgisiz_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T17:30", "metin": "Çöpü nereye atıyoruz?", "tur": "yeni_konu_cevaplandi" },
+        { "kimden": "ai", "an": "2026-11-03T17:31", "metin": "Çöpü binanın girişindeki konteynere atabilirsiniz.", "tur": "ilgisiz_cevap" },
+        { "kimden": "misafir", "an": "2026-11-03T18:40", "metin": "Süper, sağ olun", "tur": "tesekkur" }
+      ],
+      "onay": { "an": "2026-11-03T19:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "Bütün yeni konular kapandı; havuz bilgisi bu akşam için hâlâ işe yarar." }
+    },
+    {
+      "id": "S38", "baslik": "Varıştan 3 gün önce sorulan havuz saati; misafir geldi, konu hâlâ geçerli",
+      "soru": { "an": "2026-10-30T11:00", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "misafir", "an": "2026-11-02T16:00", "metin": "Geldik, ev çok güzel.", "tur": "geldi_baska" } ],
+      "onay": { "an": "2026-11-02T19:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "bu_arada_gonder", "kabulEdilir": ["gonder"], "zamanlama": "simdi", "gerekce": "Bilgi şimdi daha da işe yarar; 3 gün geçmesi önemsiz." }
+    },
+    {
+      "id": "S39", "baslik": "Misafir aynı soruyu QR sohbetinde sordu, QR bilgi tabanından cevapladı",
+      "soru": { "an": "2026-11-03T14:02", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [ { "kimden": "qr_ai", "an": "2026-11-03T16:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "tur": "ai_ayni_cevap" } ],
+      "bilgiTabaniDegisti": { "an": "2026-11-03T15:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "celisiyor": false },
+      "onay": { "an": "2026-11-03T16:30", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonderme", "kabulEdilir": ["bu_arada_gonder"], "zamanlama": "simdi", "gerekce": "Aynı bilgi başka kanaldan ulaştı (QR konuşması bu konaklamaya bağlanabiliyorsa). Bağ kurulamıyorsa tekrar zararsız." }
+    },
+    {
+      "id": "S40", "baslik": "3 gün sonra onay, araya hiçbir şey girmedi, yarın çıkış",
+      "soru": { "an": "2026-11-02T18:00", "metin": "Havuz kaçta kapanıyor?" },
+      "araMesajlar": [],
+      "onay": { "an": "2026-11-05T18:00", "metin": "Hafta içi havuz 22:00'ye kadar açık.", "dil": "tr" },
+      "dogru": { "davranis": "gonder", "kabulEdilir": ["duzenleyici"], "zamanlama": "simdi", "gerekce": "Son akşam için bile işe yarar; geç cevap zararsız. Ev sahibi isterse uyarlar." }
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+import "server-only";
+
+import { prisma } from "@/lib/db";
+import { orgTimezone } from "@/lib/timezone";
+import { dedupeBookings } from "@/lib/reports";
+import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
+import { layoutTimeline, resolveWindow, type CalendarWindow, type TimelineModel, type TimelineStay } from "./timeline";
+
+// ---------------------------------------------------------------------------
+// ÇOKLU TAKVİM — YÜKLEYİCİ (tasarım `docs/TASARIM-2026-10-29-takvim-coklu.md` §3). Veritabanına dokunan TEK dosya; yerleşim
+// (`timeline.ts`) saf kalır.
+//   · Pencere sabit 35 gün (istemci seçemez), `from` sınırlı, satır tavanı var, sorgu sayısı sabit (org + 3 paralel).
+//   · Her sorgu `organizationId` ile başlar. Süzgeç (`?property=`) yalnız org'un kendi mülküyse uygulanır, BELLEKTE: sorgu bütün daireleri
+//     okur → "diğer dairelerde N hareket" ek sorgusuz.
+//   · Okunmayanlar (bilinçli): para (`totalAmount*`, `currency` — V2 pini), telefon, e-posta, besleme URL'i (`url`/`urlEnc` bir sırdır).
+//   · Tekrar kuralı panoyla / raporlarla AYNI (`dedupeBookings`); farklı kaynakların satırları birleşmez (değişmez 6).
+// ---------------------------------------------------------------------------
+
+/** Daire başına satır tavanı (35 günde bir dairede 150 kayıt olağan dışıdır); aşılırsa model "bilgi yok"a döner. */
+export const ROWS_PER_PROPERTY = 150;
+
+/** Saklama biçimleri gece yarısı / öğlen UTC ya da gerçek an; ±2 gün genişletme hepsini kapsar (`availability/load.ts` deseni). */
+const WIDEN_MS = 2 * 86_400_000;
+
+function keyStartUtc(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+/** Doğal sıra: "Daire 2" "Daire 10"dan önce (bellekte, migration yok). */
+const naturalOrder = new Intl.Collator("tr", { numeric: true, sensitivity: "base" });
+
+export interface CalendarLoadResult {
+  model: TimelineModel;
+  window: CalendarWindow;
+  timeZone: string;
+  today: string;
+  properties: { id: string; name: string }[];
+  propertyFilter: string | null;
+  cancelledInWindow: number;
+}
+
+export async function loadCalendarTimeline(input: {
+  organizationId: string;
+  params: { from?: string | string[]; month?: string | string[]; property?: string | string[] };
+  now?: Date;
+  /** Testte küçük tavanla kırpılma sınanır. */
+  rowsPerProperty?: number;
+}): Promise<CalendarLoadResult> {
+  const { organizationId } = input;
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+  const timeZone = orgTimezone(org?.timezone);
+  const today = todayKey(input.now ?? new Date(), timeZone);
+  const window = resolveWindow({ from: input.params.from, month: input.params.month, today });
+  // İlk günün sabahı önceki geceyi gösterir → okunan geceler [from − 1, to).
+  const loadedFrom = addNights(window.from, -1);
+  const queryStart = new Date(keyStartUtc(loadedFrom).getTime() - WIDEN_MS);
+  const queryEnd = new Date(keyStartUtc(window.to).getTime() + WIDEN_MS);
+  const cap = input.rowsPerProperty ?? ROWS_PER_PROPERTY;
+
+  const [propertiesRaw, rowsRaw, cancelledInWindow] = await Promise.all([
+    prisma.property.findMany({ where: { organizationId }, select: { id: true, name: true } }),
+    prisma.reservation.findMany({
+      where: {
+        property: { organizationId },
+        status: { in: ["confirmed", "completed"] },
+        // Normal konaklama (giriş < bitiş, çıkış ≥ başlangıç) + ters kayıt (çıkış < giriş) — ikisi de bu genişletilmiş kesişimde.
+        OR: [
+          { arrivalDate: { lt: queryEnd }, departureDate: { gte: queryStart } },
+          { departureDate: { lt: queryEnd }, arrivalDate: { gte: queryStart } },
+        ],
+      },
+      select: {
+        id: true,
+        propertyId: true,
+        guestName: true,
+        arrivalDate: true,
+        departureDate: true,
+        status: true,
+        channel: true,
+        calendarSourceId: true,
+        sourceReference: true,
+      },
+      orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+      take: undefined,
+    }),
+    prisma.reservation.count({
+      where: {
+        property: { organizationId },
+        status: "cancelled",
+        arrivalDate: { lt: queryEnd },
+        departureDate: { gte: queryStart },
+      },
+    }),
+  ]);
+
+  const properties = [...propertiesRaw].sort((a, b) => naturalOrder.compare(a.name, b.name) || (a.id < b.id ? -1 : 1));
+  const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const wanted = first(input.params.property);
+  const propertyFilter = properties.some((p) => p.id === wanted) ? (wanted as string) : null;
+
+  // Satır tavanı daire başına: biri aşarsa veri eksik olabilir → model hiçbir yerde "boş" ya da sayı üretmez.
+  const perProperty = new Map<string, number>();
+  for (const r of rowsRaw) perProperty.set(r.propertyId, (perProperty.get(r.propertyId) ?? 0) + 1);
+  const truncated = [...perProperty.values()].some((n) => n > cap);
+
+  const rows = dedupeBookings(rowsRaw);
+  const stays: TimelineStay[] = [];
+  for (const r of rows) {
+    const arrival = calendarDateOf(r.arrivalDate, timeZone).key;
+    const departure = calendarDateOf(r.departureDate, timeZone).key;
+    // Kesin süzme (gün anahtarıyla): pencereye değmeyen satır modele girmez; değen her satır girer (yerleşim hiçbirini düşürmez).
+    const lo = arrival <= departure ? arrival : departure;
+    const hi = arrival <= departure ? departure : arrival;
+    if (hi < window.from || lo >= window.to) continue;
+    stays.push({
+      id: r.id,
+      propertyId: r.propertyId,
+      guestName: r.guestName,
+      arrival,
+      departure,
+      status: r.status,
+      channel: r.channel,
+      fromCalendarFeed: r.calendarSourceId != null,
+    });
+  }
+
+  const shown = propertyFilter ? properties.filter((p) => p.id === propertyFilter) : properties;
+  const model = layoutTimeline({
+    window,
+    loaded: { from: loadedFrom, to: window.to },
+    truncated,
+    properties: shown,
+    stays,
+    today,
+  });
+  return { model, window, timeZone, today, properties, propertyFilter, cancelledInWindow };
+}

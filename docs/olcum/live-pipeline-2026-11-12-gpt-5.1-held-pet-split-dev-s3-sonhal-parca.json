@@ -1,0 +1,2996 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "dda799c8",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.50745218,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 29,
+        "in": 1609,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 168,
+        "in": 853800,
+        "cached": 647040,
+        "out": 16809,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "ps-tr-kopek-wifi",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "Köpeğimizi getirebilir miyiz?"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi internet şifresi",
+            "query_original": "İnternet şifresi ne?"
+          }
+        ]
+      ],
+      "ms": 12306,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-kedi-otopark-fee",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nOtopark ücretsizdir, binanın arkasında yer alıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nOtopark ücretsizdir, binanın arkasında yer alıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otopark ücretsizdir, binanın arkasında yer alıyor.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan kedi kabul",
+            "query_original": "kedimizle gelsek olur mu"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark var mı"
+          }
+        ]
+      ],
+      "ms": 13488,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-kopek-havuz-ban",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nHavuz her gün 09:00–20:00 saatleri arasında açıktır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nHavuz her gün 09:00–20:00 saatleri arasında açıktır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Havuz her gün 09:00–20:00 saatleri arasında açıktır.",
+            "evidence": "Havuz: Havuz her gün 09:00–20:00 arası açıktır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "evcil hayvan köpek kabul"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "havuz çalışma saatleri",
+            "query_original": "havuz çalışma saatleri"
+          }
+        ]
+      ],
+      "ms": 10417,
+      "retried": false
+    },
+    {
+      "id": "ps-en-dog-wifi",
+      "cls": "pet_split",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe Wi-Fi network name is \"Lale_Home\" and the password is \"Lale2024\".\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe Wi-Fi network name is \"Lale_Home\" and the password is \"Lale2024\".",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "The Wi-Fi network name is \"Lale_Home\" and the password is \"Lale2024\".",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "bring our dog pets"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi password"
+          }
+        ]
+      ],
+      "ms": 12105,
+      "retried": false
+    },
+    {
+      "id": "ps-en-cat-checkin-fee",
+      "cls": "pet_split",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nCheck-in time is 15:00.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "early_checkin",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkin_time",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkin_time",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Check-in time is 15:00.",
+            "evidence": "Check-in saati: 15:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan kedi kabul",
+            "query_original": "pet cat allowed"
+          },
+          {
+            "intent": "checkin_time",
+            "query_tr": "giriş saati check-in",
+            "query_original": "check-in time"
+          }
+        ]
+      ],
+      "ms": 10788,
+      "retried": false
+    },
+    {
+      "id": "ps-de-hund-wlan",
+      "cls": "pet_split",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nDas WLAN-Netz heißt \"Lale_Home\" und das Passwort lautet Lale2024.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nDas WLAN-Netz heißt \"Lale_Home\" und das Passwort lautet Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Das WLAN-Netz heißt \"Lale_Home\" und das Passwort lautet Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "Hund mitbringen Haustier erlaubt"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "WLAN-Passwort"
+          }
+        ]
+      ],
+      "ms": 12384,
+      "retried": false
+    },
+    {
+      "id": "ps-fr-chien-parking-fee",
+      "cls": "pet_split",
+      "lang": "fr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Bonjour Alex,\n\nLe parking est gratuit et se trouve à l’arrière de l’immeuble.\n\n(Cette réponse a été préparée par un assistant automatique.)",
+      "draft": "Bonjour Alex,\n\nLe parking est gratuit et se trouve à l’arrière de l’immeuble.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Le parking est gratuit et se trouve à l’arrière de l’immeuble.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "chien animal de compagnie autorisé"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          }
+        ]
+      ],
+      "ms": 10770,
+      "retried": false
+    },
+    {
+      "id": "ps-es-perro-wifi",
+      "cls": "pet_split",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nLa red Wi‑Fi se llama \"Lale_Home\" y la contraseña es Lale2024.\n\n(Esta respuesta fue preparada por un asistente automático.)",
+      "draft": "Hola Alex,\n\nLa red Wi‑Fi se llama \"Lale_Home\" y la contraseña es Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "La red Wi‑Fi se llama \"Lale_Home\" y la contraseña es Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "llevar perro mascota"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "contraseña wifi"
+          }
+        ]
+      ],
+      "ms": 10245,
+      "retried": false
+    },
+    {
+      "id": "ps-ru-sobaka-wifi-ban",
+      "cls": "pet_split",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nWi‑Fi сеть называется \"Lale_Home\", пароль: Lale2024.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nWi‑Fi сеть называется \"Lale_Home\", пароль: Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi‑Fi сеть называется \"Lale_Home\", пароль: Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "собака с питомцем можно ли"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "пароль от Wi-Fi"
+          }
+        ]
+      ],
+      "ms": 9700,
+      "retried": false
+    },
+    {
+      "id": "ps-ar-kalb-wifi",
+      "cls": "pet_split",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nشبكة الواي فاي اسمها \"Lale_Home\"، وكلمة المرور هي Lale2024.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "subject_missing",
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "شبكة الواي فاي اسمها \"Lale_Home\"، وكلمة المرور هي Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "إحضار كلبنا الحيوانات الأليفة"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "كلمة مرور الواي فاي"
+          }
+        ]
+      ],
+      "ms": 9802,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-adiyla-cikis",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Çıkış saati 11:00.",
+            "evidence": "Check-out saati: 11:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan küçük köpek kabul politikası",
+            "query_original": "evcil hayvan küçük köpek kabul politikası"
+          },
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "çıkış saati check-out"
+          }
+        ]
+      ],
+      "ms": 8604,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-wifi-sonra-ucret",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi şifresi"
+          },
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek ek ücret",
+            "query_original": "köpeğimiz için ek ücret"
+          }
+        ]
+      ],
+      "ms": 18316,
+      "retried": false
+    },
+    {
+      "id": "ps-en-three-ban",
+      "cls": "pet_split",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".\nYou can park for free in the parking area behind the building.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".\nYou can park for free in the parking area behind the building.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi",
+          "kb:parking"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "The Wi-Fi network is \"Lale_Home\" and the password is \"Lale2024\".",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "You can park for free in the parking area behind the building.",
+            "evidence": "Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "wifi password"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "where do we park"
+          },
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan kabul politikası",
+            "query_original": "pets allowed"
+          }
+        ]
+      ],
+      "ms": 17718,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-iki-mesaj",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adımız \"Lale_Home\", şifre ise Lale2024.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adımız \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi internet şifresi",
+            "query_original": "İnternet şifresi ne"
+          }
+        ]
+      ],
+      "ms": 8106,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-beyan-wifi",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifresi Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifresi Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifresi Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizle birlikte geliyoruz"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "Wi-Fi şifresini alabilir miyim"
+          }
+        ]
+      ],
+      "ms": 10248,
+      "retried": false
+    },
+    {
+      "id": "ps-tr-evethayir-otopark-ban",
+      "cls": "pet_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nOtoparkımız ücretsiz, binanın arkasında park edebilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nOtoparkımız ücretsiz, binanın arkasında park edebilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Otoparkımız ücretsiz, binanın arkasında park edebilirsiniz.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "Köpek getirebilir miyiz"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri ücretsiz mi",
+            "query_original": "Otopark ücretsiz mi"
+          }
+        ]
+      ],
+      "ms": 9439,
+      "retried": false
+    },
+    {
+      "id": "ps-en-evethayir-pool",
+      "cls": "pet_split",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe pool is open every day from 09:00 to 20:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe pool is open every day from 09:00 to 20:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "The pool is open every day from 09:00 to 20:00.",
+            "evidence": "Havuz: Havuz her gün 09:00–20:00 arası açıktır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "bring our puppy pets allowed"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "havuz açık olduğu saatler",
+            "query_original": "pool open in the evening opening hours"
+          }
+        ]
+      ],
+      "ms": 9015,
+      "retried": false
+    },
+    {
+      "id": "ps-de-katze-parken-fee",
+      "cls": "pet_split",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nEs gibt einen kostenlosen Parkplatz hinter dem Gebäude.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nEs gibt einen kostenlosen Parkplatz hinter dem Gebäude.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Es gibt einen kostenlosen Parkplatz hinter dem Gebäude.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan kedi kabul politikası",
+            "query_original": "Katze mitnehmen Haustier erlaubt"
+          },
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "Parkplatz"
+          }
+        ]
+      ],
+      "ms": 9581,
+      "retried": false
+    },
+    {
+      "id": "as-tr-rehber-wifi",
+      "cls": "assist_split",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "rehber köpek evcil hayvan kabul politikası",
+            "query_original": "Rehber köpeğimle geleceğim, sorun olur mu?"
+          },
+          {
+            "intent": "wifi",
+            "query_tr": "wifi internet şifresi",
+            "query_original": "İnternet şifresi ne?"
+          }
+        ]
+      ],
+      "ms": 5644,
+      "retried": false
+    },
+    {
+      "id": "as-en-service-checkin",
+      "cls": "assist_split",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nStandard check-in time is 15:00.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "early_checkin",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkin_time",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkin_time",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Standard check-in time is 15:00.",
+            "evidence": "Check-in saati: 15:00"
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "rehber köpek refakatçi köpek evcil hayvan politikası",
+            "query_original": "service dog pet policy"
+          },
+          {
+            "intent": "checkin_time",
+            "query_tr": "giriş saati check-in",
+            "query_original": "check-in time"
+          }
+        ]
+      ],
+      "ms": 8947,
+      "retried": false
+    },
+    {
+      "id": "c-tr-yalniz-kopek",
+      "cls": "control_pet_only",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEvcil hayvan kabulü ve koşulları rezervasyonunuza göre değişebiliyor. Bu konu ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "low",
+        "riskType": "rule_violation",
+        "confidence": 0.5
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          }
+        ]
+      ],
+      "ms": 5482,
+      "retried": false
+    },
+    {
+      "id": "c-en-pets-allowed-fee",
+      "cls": "control_pet_only",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nEvcil hayvan kabul ediyorum; gecelik 200 TL ek ücret bulunuyor ve önceden haber vermeniz gerekiyor.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan kabul politikası",
+            "query_original": "pets allowed"
+          }
+        ]
+      ],
+      "ms": 5762,
+      "retried": false
+    },
+    {
+      "id": "c-tr-ucretsiz-kabul",
+      "cls": "control_free",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEvcil hayvanlarınızı, köpeğiniz de dahil, ücretsiz olarak getirebilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEvcil hayvanlarınızı, köpeğiniz de dahil, ücretsiz olarak getirebilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified",
+          "advisory": [
+            "subject_missing",
+            "condition_added",
+            "unsupported_content"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Evcil hayvanlarınızı, köpeğiniz de dahil, ücretsiz olarak getirebilirsiniz.",
+            "evidence": "Evcil hayvanlar: Evcil hayvanlar ücretsiz kabul edilir."
+          },
+          {
+            "ref": "R2",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise \"Lale2024\".",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "ms": 6953,
+      "retried": false
+    },
+    {
+      "id": "c-tr-yalniz-wifi",
+      "cls": "control_info",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağımızın adı \"Lale_Home\", şifresi Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağımızın adı \"Lale_Home\", şifresi Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağımızın adı \"Lale_Home\", şifresi Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "internet şifresi"
+          }
+        ]
+      ],
+      "ms": 8206,
+      "retried": false
+    },
+    {
+      "id": "c-tr-otopark-evet",
+      "cls": "control_info",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBinanın arkasında ücretsiz otopark bulunmaktadır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBinanın arkasında ücretsiz otopark bulunmaktadır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Binanın arkasında ücretsiz otopark bulunmaktadır.",
+            "evidence": "Otopark: Otopark ücretsizdir; binanın arkasındadır."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "Otopark var mı?"
+          }
+        ]
+      ],
+      "ms": 8137,
+      "retried": false
+    },
+    {
+      "id": "c-tr-kopek-sikayet",
+      "cls": "control_other",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nEvcil hayvan kabulü ve varsa buna bağlı koşullar ev sahibinin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir. Klimayla ilgili yaşadığınız sorun için özür dileriz. Klima kumandası TV ünitesinin çekmecesindedir, oradan alıp klimayı tekrar açmayı dener misiniz. Sorun devam ederse mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_absence",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "items": 3,
+      "heldItems": 3,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host"
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "Köpeğimizi getirebilir miyiz?"
+          },
+          {
+            "intent": "complaint_issue",
+            "query_tr": "klima arızalı şikayet",
+            "query_original": "klima çalışmıyor"
+          },
+          {
+            "intent": "appliance_help",
+            "query_tr": "klima çalışmıyor nasıl düzeltilir",
+            "query_original": "klima çalışmıyor"
+          }
+        ]
+      ],
+      "ms": 8754,
+      "retried": false
+    },
+    {
+      "id": "c-tr-kopek-bilinmeyen",
+      "cls": "control_other",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.86
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "reader_binding"
+          ],
+          "advisory": [
+            "subject_missing",
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "En yakın eczane için binanın yaklaşık 150 metre ilerisindeki cadde üzerinde seçenekler bulabilirsiniz.",
+            "evidence": "En yakın market binanın 150 metre ilerisindedir."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "yakında eczane var mı"
+          }
+        ]
+      ],
+      "ms": 8039,
+      "retried": false
+    },
+    {
+      "id": "c-tr-eczane-yalniz",
+      "cls": "control_other",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "Yakında eczane var mı?"
+          }
+        ]
+      ],
+      "ms": 4958,
+      "retried": false
+    },
+    {
+      "id": "c-tr-wifi-eczane",
+      "cls": "control_other",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi internet şifresi",
+            "query_original": "İnternet şifresi"
+          },
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "Yakında eczane"
+          }
+        ]
+      ],
+      "ms": 8225,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "dda799c8",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "1",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "1",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "d409de06877e",
+      "replyVariant": "5f75f4706871",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

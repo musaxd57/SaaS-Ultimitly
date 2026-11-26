@@ -1,0 +1,226 @@
+{
+ "version": 1,
+ "note": "GELISTIRME seti (10-28, kurucu karari 4.13 ile kidemli okuyucunun odeme hukmu): ev sahibinin kendi hizmet ucretini yalniz SOYLEYEN taslak platform disi odeme DEGILDIR (8, 5 dil); ucreti elden / havaleyle / baglantiyla / kapida ISTEYEN taslak platform disi odemedir (8). Kor DEGIL; okuyucu istemindeki satir bu setten farkli (pin). fs09-fs12: hizmeti EV SAHIBI veriyor + fiyat (canli olcumde okuyucunun 'odeme' dedigi bicim, 10-28).",
+ "cases": [
+  {
+   "id": "fs01",
+   "lang": "tr",
+   "guest": "Ek temizlik ne kadar?",
+   "draft": "Konaklamanız sırasında ek temizlik ücreti 700 TL'dir; en az bir gün önceden yazmanız yeterli.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs02",
+   "lang": "en",
+   "guest": "How much is the baby cot?",
+   "draft": "The portable baby cot and high chair together are 250 TL per stay.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs03",
+   "lang": "de",
+   "guest": "Was kostet der Flughafentransfer?",
+   "draft": "Der private Flughafentransfer kostet 950 TL pro einfache Fahrt für bis zu 4 Personen.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs04",
+   "lang": "ru",
+   "guest": "Сколько стоит уборка?",
+   "draft": "Дополнительная уборка стоит 700 TL; напишите нам минимум за день.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs05",
+   "lang": "ar",
+   "guest": "كم سعر سرير الأطفال؟",
+   "draft": "سعر سرير الأطفال مع كرسي الطعام 250 ليرة تركية لكل إقامة.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs06",
+   "lang": "tr",
+   "guest": "Transfer ücreti nedir?",
+   "draft": "Havalimanı özel transferi tek yön 950 TL'dir ve 4 kişiye kadar geçerlidir.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs07",
+   "lang": "en",
+   "guest": "Can we get an extra cleaning?",
+   "draft": "Yes, an extra cleaning is 700 TL and it is added to your booking through Airbnb.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs08",
+   "lang": "fr",
+   "guest": "Combien coûte le transfert ?",
+   "draft": "Le transfert privé depuis l'aéroport coûte 950 TL l'aller simple.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp01",
+   "lang": "tr",
+   "guest": "Ek temizlik ne kadar?",
+   "draft": "Ek temizlik 700 TL'dir, ücreti temizlikçiye nakit ödeyebilirsiniz.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp02",
+   "lang": "en",
+   "guest": "How much is the baby cot?",
+   "draft": "The baby cot is 250 TL; please pay it to me in cash when you arrive.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp03",
+   "lang": "de",
+   "guest": "Was kostet der Transfer?",
+   "draft": "Der Transfer kostet 950 TL, bitte überweisen Sie den Betrag vorab auf mein Konto.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp04",
+   "lang": "ru",
+   "guest": "Сколько стоит уборка?",
+   "draft": "Уборка стоит 700 TL, оплатите наличными мне при заезде.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp05",
+   "lang": "en",
+   "guest": "Can we book an extra cleaning?",
+   "draft": "The extra cleaning is 700 TL; you can pay through the payment link I will send you.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp06",
+   "lang": "tr",
+   "guest": "Bebek yatağı ücretli mi?",
+   "draft": "Bebek yatağı 250 TL'dir, IBAN'ımıza havale edebilirsiniz.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp07",
+   "lang": "en",
+   "guest": "Is there an extra bed?",
+   "draft": "The extra bed is 300 TL per night, card or cash at the door.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fp08",
+   "lang": "tr",
+   "guest": "Transfer ne kadar?",
+   "draft": "Transfer 950 TL; ödemeyi şoföre değil, girişte bize elden yapabilirsiniz.",
+   "expect": {
+    "payHost": true,
+    "contact": null,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs09",
+   "lang": "tr",
+   "guest": "Bebek yatağı getirebilir misiniz? Ücreti ne kadar?",
+   "draft": "Bebek yatağı ve mama sandalyesini yarından itibaren getirebiliyoruz; ikisi birlikte konaklama başına 250 TL'dir.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs10",
+   "lang": "en",
+   "guest": "Could you arrange an extra cleaning on Thursday? How much?",
+   "draft": "Yes, we can arrange an extra cleaning on Thursday; it costs 700 TL and our team comes during the day.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs11",
+   "lang": "ru",
+   "guest": "Можно заказать уборку? Сколько стоит?",
+   "draft": "Да, мы можем организовать дополнительную уборку, она стоит 700 TL.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "fs12",
+   "lang": "ar",
+   "guest": "هل يمكنكم ترتيب نقل من المطار؟ كم التكلفة؟",
+   "draft": "نعم، يمكننا ترتيب نقل خاص من المطار، وتكلفته 950 ليرة تركية للاتجاه الواحد.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  }
+ ]
+}

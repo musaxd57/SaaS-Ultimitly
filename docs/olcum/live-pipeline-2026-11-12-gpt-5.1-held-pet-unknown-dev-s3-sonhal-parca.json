@@ -1,0 +1,1606 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "dda799c8",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.16546152,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 12,
+        "in": 851,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 50,
+        "in": 393634,
+        "cached": 347136,
+        "out": 6393,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "u-pet-eczane",
+      "cls": "pet_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.7
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "reader_binding"
+          ],
+          "advisory": [
+            "subject_missing",
+            "unsupported_content"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "En yakın eczane için, binanın yaklaşık 150 metre ilerisindeki marketin bulunduğu cadde üzerinde birkaç seçenek bulabilirsiniz.",
+            "evidence": "Market: En yakın market binanın 150 metre ilerisindedir."
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "yakında eczane var mı"
+          }
+        ]
+      ],
+      "ms": 11750,
+      "retried": false
+    },
+    {
+      "id": "u-wifi-eczane",
+      "cls": "wifi_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "internet şifresi"
+          },
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "yakında eczane var mı"
+          }
+        ]
+      ],
+      "ms": 8828,
+      "retried": false
+    },
+    {
+      "id": "u-alone-eczane",
+      "cls": "alone_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.35
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "Yakında eczane var mı?"
+          }
+        ]
+      ],
+      "ms": 5145,
+      "retried": false
+    },
+    {
+      "id": "u-pet-bebek",
+      "cls": "pet_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "evcil hayvan köpek kabul"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "bebek yatağı bebek karyolası var mı",
+            "query_original": "bebek yatağı var mı"
+          }
+        ]
+      ],
+      "ms": 4786,
+      "retried": false
+    },
+    {
+      "id": "u-wifi-bebek",
+      "cls": "wifi_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "answered"
+        },
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "internet şifresi"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "bebek yatağı beşik var mı",
+            "query_original": "bebek yatağı var mı"
+          }
+        ]
+      ],
+      "ms": 11795,
+      "retried": false
+    },
+    {
+      "id": "u-alone-bebek",
+      "cls": "alone_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.35
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "bebek yatağı beşik var mı",
+            "query_original": "Bebek yatağı var mı?"
+          }
+        ]
+      ],
+      "ms": 5940,
+      "retried": false
+    },
+    {
+      "id": "u-pet-utu",
+      "cls": "pet_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.6
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "Köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "dairede ütü var mı",
+            "query_original": "Dairede ütü var mı"
+          }
+        ]
+      ],
+      "ms": 4789,
+      "retried": false
+    },
+    {
+      "id": "u-wifi-utu",
+      "cls": "wifi_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "wifi",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "internet şifresi"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "dairede ütü var mı",
+            "query_original": "dairede ütü var mı"
+          }
+        ]
+      ],
+      "ms": 9451,
+      "retried": false
+    },
+    {
+      "id": "u-alone-utu",
+      "cls": "alone_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "daire ütü var mı",
+            "query_original": "Dairede ütü var mı?"
+          }
+        ]
+      ],
+      "ms": 4703,
+      "retried": false
+    },
+    {
+      "id": "u-pet-transfer",
+      "cls": "pet_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.6
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "directions_transport",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "directions_transport",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "directions_transport",
+            "query_tr": "havaalanı transfer hizmeti",
+            "query_original": "havaalanı transferi ayarlıyor musunuz"
+          }
+        ]
+      ],
+      "ms": 6387,
+      "retried": false
+    },
+    {
+      "id": "u-wifi-transfer",
+      "cls": "wifi_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "directions_transport",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "wifi",
+          "status": "open"
+        },
+        {
+          "kind": "directions_transport",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "value_not_in_evidence"
+          ]
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı \"Lale_Home\", şifre ise Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi şifresi",
+            "query_original": "internet şifresi"
+          },
+          {
+            "intent": "directions_transport",
+            "query_tr": "havaalanı transfer hizmeti",
+            "query_original": "havaalanı transferi"
+          }
+        ]
+      ],
+      "ms": 6465,
+      "retried": false
+    },
+    {
+      "id": "u-alone-transfer",
+      "cls": "alone_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "directions_transport",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "directions_transport",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "directions_transport",
+            "query_tr": "havaalanı transfer hizmeti",
+            "query_original": "havaalanı transferi"
+          }
+        ]
+      ],
+      "ms": 3531,
+      "retried": false
+    },
+    {
+      "id": "u-pet-kahvalti",
+      "cls": "pet_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "rejected",
+          "issues": [
+            "text_missing"
+          ]
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Kahvaltı servisi sunmuyoruz.",
+            "textEvidence": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul politikası",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "kahvaltı sunuluyor mu",
+            "query_original": "kahvaltı veriyor musunuz"
+          }
+        ]
+      ],
+      "ms": 4979,
+      "retried": false
+    },
+    {
+      "id": "u-wifi-kahvalti",
+      "cls": "wifi_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağ adı Lale_Home, şifre Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "wifi",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        },
+        {
+          "kind": "wifi",
+          "status": "answered"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "verified"
+        },
+        {
+          "ref": "R2",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "answered",
+            "text": "Wi-Fi ağ adı Lale_Home, şifre Lale2024.",
+            "evidence": "Wi-Fi: Ağ adı: Lale_Home, şifre: Lale2024."
+          },
+          {
+            "ref": "R2",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "wifi",
+            "query_tr": "wifi internet şifresi",
+            "query_original": "İnternet şifresi"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "kahvaltı var mı",
+            "query_original": "Kahvaltı veriyor musunuz"
+          }
+        ]
+      ],
+      "ms": 9292,
+      "retried": false
+    },
+    {
+      "id": "u-alone-kahvalti",
+      "cls": "alone_unknown",
+      "lang": "tr",
+      "expectAuto": "any",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": [
+        {
+          "ref": "R1",
+          "status": "no_info"
+        }
+      ],
+      "absenceLeak": false,
+      "partsRaw": [
+        [
+          {
+            "ref": "R1",
+            "status": "no_info",
+            "text": "",
+            "evidence": ""
+          }
+        ]
+      ],
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "kahvaltı hizmeti",
+            "query_original": "Kahvaltı veriyor musunuz?"
+          }
+        ]
+      ],
+      "ms": 6110,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "dda799c8",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "1",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "1",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "d409de06877e",
+      "replyVariant": "5f75f4706871",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

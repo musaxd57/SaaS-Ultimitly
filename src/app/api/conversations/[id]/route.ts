@@ -1,0 +1,79 @@
+import { prisma } from "@/lib/db";
+import { conversationUpdateSchema, zodFieldErrors } from "@/lib/validators";
+import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
+import { ERASABLE_STATUSES, SETTLED_OUTBOX_STATUSES } from "@/lib/outbox/state";
+import { cancelRequestWrite } from "@/lib/outbox/dispatch";
+import { ANON_BODY } from "@/lib/data-retention";
+
+// Guest conversations are owner/manager-only (staff must not read guest messages or
+// re-triage threads): both PATCH (status/priority) and DELETE are withManage.
+export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
+  const { id } = await params;
+  const existing = await prisma.conversation.findFirst({
+    where: { id, property: { organizationId: session.organizationId } },
+    select: { id: true },
+  });
+  if (!existing) return notFound();
+
+  const data = await readJsonCappedOrNull(req);
+  const parsed = conversationUpdateSchema.safeParse(data);
+  if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+  const conversation = await prisma.conversation.update({
+    where: { id },
+    data: parsed.data,
+  });
+  return jsonOk(conversation);
+});
+
+export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
+  const { id } = await params;
+  const existing = await prisma.conversation.findFirst({
+    where: { id, property: { organizationId: session.organizationId } },
+    select: { id: true },
+  });
+  if (!existing) return notFound();
+
+  // Remove the messages first, then the conversation (no DB-level cascade).
+  await prisma.$transaction([
+    // 🚨 KUYRUK AYNI TX'TE İPTAL (Codex F03, P1). MessageOutbox konuşmaya FK ile
+    // bağlı DEĞİL (kendi hedef/gövde snapshot'ını taşır) → cascade yok. Eskiden
+    // silinen konuşmanın bekleyen satırı worker'da "Message yok = manuel, geçsin"
+    // dalına düşüp sağlayıcıya GİDİYORDU. Kapsam KVKK süpürgeleriyle AYNI TEK
+    // KAYNAK (`ERASABLE_STATUSES`: teslim EDİLMEMİŞ ve pending'e dönüş yolu olan
+    // her durum) + `claimedBy: null` — CLAIM ALINMIŞ satıra dokunulmaz: claim'i
+    // ezmek worker'ın settle'ını bozar ve satır "canceled" görünürken mesaj
+    // gitmiş olurdu. O pencereyi worker'ın kendi varlık vetosu kapatır (POST'tan
+    // hemen önce); veto→POST arası ms'lik kalıntı belgeli sınırdır.
+    // 🚨 11-18 akşam (`outbox/dispatch.ts`): o kalıntı da kapandı — işçinin elindeki, isteği henüz ATILMAMIŞ satıra aynı işlemde iptal
+    // isteği yazılır; işçi isteği atmadan hemen önce satırı koşullu işaretler ve iptal isteği taşıyan satırı GÖNDERMEZ. Yalnız isteği
+    // gerçekten sağlayıcıya çıkmış satır (gönderim başladı) dokunulmadan kalır.
+    prisma.messageOutbox.updateMany(cancelRequestWrite({ organizationId: session.organizationId, conversationId: id }, "conversation_deleted", new Date())),
+    prisma.messageOutbox.updateMany({
+      where: {
+        organizationId: session.organizationId,
+        conversationId: id,
+        status: { in: [...ERASABLE_STATUSES] },
+        claimedBy: null,
+      },
+      data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "conversation_deleted" },
+    }),
+    // 🚨 GÖVDE DE BOŞALIR (G2 tur 8 T8-B15): kuyruk satırı konuşmaya FK ile bağlı değil — konuşma silindikten sonra saklama süpürgesi o
+    // satırlara bir daha ULAŞAMAZ (yalnız var olan konuşma / rezervasyon kimliğinden gider) ve misafire yazılmış metin hesap silinene kadar
+    // kalırdı. Yalnız SONUÇLANMIŞ satır (gönderildi / iptal / başarısız / engelli): uçuştaki ya da belirsiz satırın gövdesi kanal uzlaştırmasının
+    // içerik eşleşmesi için gerekir (KU-1, `outbox/reconcile-channel.ts` — konuşma silinse de satır kanaldan doğrulanır); o pencere bilinen sınır.
+    prisma.messageOutbox.updateMany({
+      where: {
+        organizationId: session.organizationId,
+        conversationId: id,
+        status: { in: [...SETTLED_OUTBOX_STATUSES] },
+        body: { not: ANON_BODY },
+      },
+      data: { body: ANON_BODY },
+    }),
+    prisma.message.deleteMany({ where: { conversationId: id } }),
+    prisma.conversation.delete({ where: { id } }),
+  ]);
+  return jsonOk({ deleted: true });
+});

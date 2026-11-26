@@ -1,0 +1,5409 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "bf336ee3",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.2307767,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 27,
+        "in": 1185,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 84,
+        "in": 695620,
+        "cached": 644224,
+        "out": 8598,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "lm-tr-wifi-otopark",
+      "cls": "late_new_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Bir de otopark var mı?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcll2l00067djbldfm8n1n",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcll2l000a7djbqktemh51",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 3.3,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 461.8,
+            "rr": "ok",
+            "rrMs": 764,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2247,
+            "ui": [
+              "parking"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20975,
+            "ct": 145,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          }
+        ]
+      ],
+      "ms": 10530,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-otopark-havuz",
+      "cls": "late_new_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Havuz her gün 20:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Havuz her gün 20:00'de kapanıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Havuz kaçta kapanıyor?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcltcl001m7djbro5j3jz5",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcltcl001n7djbvi0r1t70",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 3.7,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 366.1,
+            "rr": "ok",
+            "rrMs": 928,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2893,
+            "ui": [
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20881,
+            "ct": 143,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "havuz çalışma saatleri kaçta kapanıyor",
+            "query_original": "Havuz kaçta kapanıyor?"
+          }
+        ]
+      ],
+      "ms": 8817,
+      "retried": false
+    },
+    {
+      "id": "lm-en-wifi-trash",
+      "cls": "late_new_question",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "You can throw the trash into the container located on the right side of the building entrance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "You can throw the trash into the container located on the right side of the building entrance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Also, where do we put the trash?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcm07i00327djbwtxl8z7s",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcm07h002z7djb3cy69mou",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:rules"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 2.9,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 325.6,
+            "rr": "ok",
+            "rrMs": 844,
+            "rrA": 1,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2667,
+            "ui": [
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21120,
+            "ct": 146,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:rules"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "trash",
+            "query_tr": "çöp nereye atılır çöp konteyneri",
+            "query_original": "where do we put the trash"
+          }
+        ]
+      ],
+      "ms": 8072,
+      "retried": false
+    },
+    {
+      "id": "lm-de-wlan-markt",
+      "cls": "late_new_question",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Der nächste Supermarkt ist etwa 150 Meter vom Gebäude entfernt.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Der nächste Supermarkt ist etwa 150 Meter vom Gebäude entfernt.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Wo ist der nächste Supermarkt?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcm6i5004j7djb8of1ctjw",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.7,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 423.2,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1768,
+            "ui": [
+              "local_recommendations"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21073,
+            "ct": 141,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "local_recommendations",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "local_recommendations",
+            "query_tr": "en yakın süpermarket market alışveriş",
+            "query_original": "nächster Supermarkt"
+          }
+        ]
+      ],
+      "ms": 6006,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-wifi-cikis",
+      "cls": "late_new_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Çıkış saatimiz 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Çıkış saatimiz 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Çıkış saati kaç?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005w7djbi0dns6en",
+              "v": "2026-08-31T23:57:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005v7djbhht85hwt",
+              "v": "2026-08-31T23:58:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005t7djbdgkksi4y",
+              "v": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005u7djb7he6n1os",
+              "v": "2026-08-31T23:59:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005x7djb5u5n4kip",
+              "v": "2026-08-31T23:56:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005y7djb626yy5y0",
+              "v": "2026-08-31T23:55:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w005z7djbc4satz4f",
+              "v": "2026-08-31T23:53:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00607djbt397uldx",
+              "v": "2026-08-31T23:52:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00617djb38t96ka6",
+              "v": "2026-08-31T23:51:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00627djbb4vcefe8",
+              "v": "2026-08-31T23:50:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00637djb9vx56t9n",
+              "v": "2026-08-31T23:49:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00647djb02f8ubgw",
+              "v": "2026-08-31T23:48:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00657djbcjhus2pk",
+              "v": "2026-08-31T23:47:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00667djb6slmtgpp",
+              "v": "2026-08-31T23:46:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00677djbx0vlsptb",
+              "v": "2026-08-31T23:45:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00687djbjcbvb6rs",
+              "v": "2026-08-31T23:44:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w00697djbjzyo5e7x",
+              "v": "2026-08-31T23:43:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9w006a7djbr8dzhaol",
+              "v": "2026-08-31T23:42:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006b7djbvkpfzjx5",
+              "v": "2026-08-31T23:41:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006c7djbhcd6utlg",
+              "v": "2026-08-31T23:40:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006d7djb58t6apvk",
+              "v": "2026-08-31T23:39:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006e7djb59omm8yi",
+              "v": "2026-08-31T23:38:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006f7djb4yvvebc0",
+              "v": "2026-08-31T23:37:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006g7djb93ql4v9l",
+              "v": "2026-08-31T23:36:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006h7djbl8rj5wcq",
+              "v": "2026-08-31T23:35:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006i7djbolt3s9zu",
+              "v": "2026-08-31T23:34:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006j7djbnfdd4tx0",
+              "v": "2026-08-31T23:33:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006k7djb814na5yt",
+              "v": "2026-08-31T23:32:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006l7djbgfr1wpo9",
+              "v": "2026-08-31T23:31:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmc9x006m7djbv8r35ci4",
+              "v": "2026-08-31T23:30:00.000Z"
+            }
+          ],
+          "used": [
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "no_lexical_hits",
+            "sel": 0,
+            "cand": 34,
+            "ms": 3.4,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 401.6,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2254,
+            "ui": [
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21446,
+            "ct": 140,
+            "cpt": 19840,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati checkout",
+            "query_original": "çıkış saati checkout"
+          }
+        ]
+      ],
+      "ms": 6513,
+      "retried": false
+    },
+    {
+      "id": "lm-es-wifi-piscina",
+      "cls": "late_new_question",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "La piscina está abierta todos los días de 09:00 a 20:00.\n\n(Esta respuesta fue preparada por un asistente automático.)",
+      "draft": "La piscina está abierta todos los días de 09:00 a 20:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "¿A qué hora abre la piscina?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcmi2h007a7djb1aml1e2g",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmi2h007b7djbpvc78ven",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmi2h00787djbxy6frxr6",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmi2h007c7djbzhm1nb7t",
+              "v": "2026-08-31T23:56:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 4,
+            "cand": 34,
+            "ms": 2.4,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 496.6,
+            "rr": "ok",
+            "rrMs": 769,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2113,
+            "ui": [
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 2,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21163,
+            "ct": 147,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "havuz açılış saati",
+            "query_original": "hora de apertura de la piscina"
+          }
+        ]
+      ],
+      "ms": 7320,
+      "retried": false
+    },
+    {
+      "id": "lm-en-checkin-parking",
+      "cls": "late_new_question",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Yes, there is free parking at the back of the building.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Yes, there is free parking at the back of the building.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Is there parking?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcmnui008o7djbxc4uf1so",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmnui008q7djbukiwjeq9",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 3.1,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 278.2,
+            "rr": "ok",
+            "rrMs": 888,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1649,
+            "ui": [
+              "parking"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21084,
+            "ct": 102,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          }
+        ]
+      ],
+      "ms": 6135,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-wifi-klima",
+      "cls": "late_new_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Klima kumandası TV ünitesinin çekmecesindedir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Klima kumandası TV ünitesinin çekmecesindedir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Klima kumandası nerede?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcmtmx00a67djbjwgy0hy4",
+              "v": "2026-08-31T23:56:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmtmx00a27djb5xluy01p",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:faq",
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 1.7,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 309.2,
+            "rr": "ok",
+            "rrMs": 1190,
+            "rrA": 1,
+            "un": "ok",
+            "unMs": 2235,
+            "ui": [
+              "appliance_help"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20894,
+            "ct": 147,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:faq",
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:faq",
+          "history"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "appliance_help",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "appliance_help",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "appliance_help",
+            "query_tr": "klima kumandası nerede",
+            "query_original": "Klima kumandası nerede"
+          }
+        ]
+      ],
+      "ms": 7923,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-gec-ve-yeni",
+      "cls": "late_plus_new",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Çıkış saatimiz 11:00.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Çıkış saatimiz 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Otopark var mı?",
+        "after": "Çıkış saati kaç?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcmzsw00bi7djbsxbz06vo",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmzsw00bk7djb7snfob79",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcmzsw00bj7djbowd8vvpr",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "property:checkOutTime"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 3.3,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 296.7,
+            "rr": "ok",
+            "rrMs": 790,
+            "rrA": 1,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2167,
+            "ui": [
+              "parking",
+              "checkout_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21034,
+            "ct": 140,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkOutTime"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "checkout",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "checkout_time",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "open"
+        },
+        {
+          "kind": "checkout_time",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "otopark"
+          },
+          {
+            "intent": "checkout_time",
+            "query_tr": "çıkış saati check-out",
+            "query_original": "çıkış saati"
+          }
+        ]
+      ],
+      "ms": 7141,
+      "retried": false
+    },
+    {
+      "id": "lm-en-late-and-new",
+      "cls": "late_plus_new",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "The pool is open every day from 09:00 to 20:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "The pool is open every day from 09:00 to 20:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Is there parking?",
+        "after": "And until what time is the pool open?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcn5l200d07djbv9i1k5gu",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcn5l200cz7djb8luxn8z0",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcn5l200d17djb5aklbg4g",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 3,
+            "cand": 34,
+            "ms": 2.8,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 318.8,
+            "rr": "ok",
+            "rrMs": 1074,
+            "rrA": 2,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2095,
+            "ui": [
+              "parking",
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 2,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21156,
+            "ct": 146,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:general"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R2"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": false,
+          "statusOk": false,
+          "wrongAnswered": false
+        },
+        {
+          "kind": "amenities",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "open"
+        },
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "parking",
+            "query_tr": "otopark park yeri",
+            "query_original": "parking"
+          },
+          {
+            "intent": "amenities",
+            "query_tr": "havuz çalışma saatleri açık olduğu saatler",
+            "query_original": "pool opening hours"
+          }
+        ]
+      ],
+      "ms": 7209,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-eczane",
+      "cls": "late_unknown",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Market olarak binanın 150 metre ilerisinde bir market bulunuyor.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Yakında eczane var mı?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcnbdh00ek7djbf2qf15cl",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:general"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.8,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 270.9,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1873,
+            "ui": [
+              "local_recommendations"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20956,
+            "ct": 181,
+            "cpt": 19968,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "items_nothing_answered",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:general"
+          ],
+          "missingInfo": [
+            "yakındaki eczane konumu ve mesafesi"
+          ],
+          "answeredRequests": {
+            "ok": true,
+            "refs": []
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.3
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "local_recommendations",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "local_recommendations",
+          "status": "open"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "local_recommendations",
+            "query_tr": "yakın eczane nerede",
+            "query_original": "Yakında eczane var mı?"
+          }
+        ]
+      ],
+      "ms": 4874,
+      "retried": false
+    },
+    {
+      "id": "lm-en-iron",
+      "cls": "late_unknown",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "There is no iron listed among the amenities for this apartment.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Do you have an iron?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcnh5o00fs7djb6d674tfj",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.1,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 302.9,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1901,
+            "ui": [
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21085,
+            "ct": 144,
+            "cpt": 20096,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "low_confidence",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [
+            "confirmation about availability of an iron"
+          ],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.7
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "open"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "ütü var mı",
+            "query_original": "iron amenity"
+          }
+        ]
+      ],
+      "ms": 4899,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-kahvalti",
+      "cls": "late_unknown",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": true,
+      "sentText": "Kahvaltı servisi sunmuyorum.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Kahvaltı servisi sunmuyorum.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Kahvaltı veriyor musunuz?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcnmy800ha7djbs4vf5hr2",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.9,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 302.8,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1929,
+            "ui": [
+              "amenities"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20852,
+            "ct": 137,
+            "cpt": 19840,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "history"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "amenities",
+          "want": "open",
+          "textOk": true,
+          "statusOk": false,
+          "wrongAnswered": true
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "amenities",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "amenities",
+            "query_tr": "kahvaltı veriliyor mu",
+            "query_original": "Kahvaltı veriyor musunuz?"
+          }
+        ]
+      ],
+      "ms": 5859,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-kopek",
+      "cls": "late_sensitive",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Evcil hayvan kabulü ve koşulları benim onayıma bağlı. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_pet_policy",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Köpeğimizi getirebilir miyiz?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcnsql00in7djb5v3068zn",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.5,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 308.6,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 1818,
+            "ui": [
+              "pets"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20454,
+            "ct": 180,
+            "cpt": 19328,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "d",
+            "d": "none/defers",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "reply_pet_policy",
+            "lx": [
+              "rule_violation"
+            ]
+          },
+          "hr": [
+            {
+              "t": "pets",
+              "s": "asks_permission",
+              "p": "ask_host",
+              "k": "hold"
+            }
+          ]
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [
+            "evcil hayvan politikası"
+          ],
+          "answeredRequests": null
+        }
+      },
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.5
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "pets",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "pets",
+          "status": "pending_host"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "pets",
+            "query_tr": "evcil hayvan köpek kabul",
+            "query_original": "köpeğimizi getirebilir miyiz"
+          }
+        ]
+      ],
+      "ms": 5778,
+      "retried": false
+    },
+    {
+      "id": "lm-en-late-checkout",
+      "cls": "late_sensitive",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Our standard check-out time is 11:00. A 14:00 check-out depends on availability and our cleaning schedule; this is up to the host’s decision, and your request has been noted.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "handoff_notice",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Can we check out at 2pm instead?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00jz7djbjpn1ry7e",
+              "v": "2026-08-31T23:58:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00jx7djbrhq74dof",
+              "v": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k07djb3drt2lft",
+              "v": "2026-08-31T23:57:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00jy7djblvtouseu",
+              "v": "2026-08-31T23:59:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k17djbbvxhf3iz",
+              "v": "2026-08-31T23:56:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k27djbos1lneie",
+              "v": "2026-08-31T23:55:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k37djb62itpt90",
+              "v": "2026-08-31T23:53:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k47djbp8b4f91z",
+              "v": "2026-08-31T23:52:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k57djbu0ggctor",
+              "v": "2026-08-31T23:51:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k67djbagiwc7c9",
+              "v": "2026-08-31T23:50:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k77djbw6rcbh03",
+              "v": "2026-08-31T23:49:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k87djbdvxytsbx",
+              "v": "2026-08-31T23:48:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00k97djbxb91ot50",
+              "v": "2026-08-31T23:47:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00ka7djb20pibtdu",
+              "v": "2026-08-31T23:46:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kb7djb5mgvjvww",
+              "v": "2026-08-31T23:45:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kc7djba2kl9ff1",
+              "v": "2026-08-31T23:44:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kd7djb7rwww6qa",
+              "v": "2026-08-31T23:43:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00ke7djbhqgiiaxn",
+              "v": "2026-08-31T23:42:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kf7djbdytj3m3g",
+              "v": "2026-08-31T23:41:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kg7djb3heep0gg",
+              "v": "2026-08-31T23:40:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00kh7djb8kyo1fuj",
+              "v": "2026-08-31T23:39:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyir00ki7djb05bagj41",
+              "v": "2026-08-31T23:38:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kj7djb4x7urays",
+              "v": "2026-08-31T23:37:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kk7djbs3fyle4s",
+              "v": "2026-08-31T23:36:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kl7djbad1e8rcx",
+              "v": "2026-08-31T23:35:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00km7djb3nkgpi8j",
+              "v": "2026-08-31T23:34:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kn7djbam9tzl05",
+              "v": "2026-08-31T23:33:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00ko7djbu7qnc2ua",
+              "v": "2026-08-31T23:32:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kp7djbnj5cg836",
+              "v": "2026-08-31T23:31:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcnyis00kq7djbgeq85tj6",
+              "v": "2026-08-31T23:30:00.000Z"
+            }
+          ],
+          "used": [
+            "property:checkOutTime",
+            "reservation:departureDate"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "no_lexical_hits",
+            "sel": 0,
+            "cand": 34,
+            "ms": 2,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 380.8,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1896,
+            "ui": [
+              "late_checkout"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 2,
+            "ctx": 1,
+            "op": 0,
+            "echo": 1,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": [
+              "time"
+            ]
+          },
+          "llm": {
+            "pt": 21672,
+            "ct": 218,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "availability_unconfirmed",
+            "ev": "availability_unconfirmed",
+            "lx": "d",
+            "d": "late_checkout/defers",
+            "g": "off",
+            "u": "req",
+            "ri": "late_checkout"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "reply_output_veto",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkOutTime",
+            "reservation:departureDate"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "late_checkout",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.9
+      },
+      "sources": {
+        "verified": [
+          "property:checkOutTime",
+          "reservation:departureDate"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "late_checkout",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "late_checkout",
+          "status": "open"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "late_checkout",
+            "query_tr": "geç çıkış saat 14:00",
+            "query_original": "late checkout 14:00"
+          }
+        ]
+      ],
+      "ms": 5271,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-uzatma",
+      "cls": "late_sensitive",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Ek bir gece konaklama isteğiniz bizim onayımıza tabidir. Bu konuda karar verebilmemiz için rezervasyonunuz üzerinden tarih değişiklik talebi gönderebilir misiniz?",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Bir gece daha kalabilir miyiz?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdco4b800lc7djbn2bqmiua",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "reservation:departureDate",
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 1.9,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 302.5,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2414,
+            "ui": [
+              "extend_stay"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 0,
+            "op": 0,
+            "echo": 1,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": [
+              "duration"
+            ]
+          },
+          "llm": {
+            "pt": 20958,
+            "ct": 222,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "availability_unconfirmed",
+            "ev": "availability_unconfirmed",
+            "lx": "r",
+            "d": "extend/defers",
+            "g": "ok",
+            "gv": "qd",
+            "u": "req"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "reservation:departureDate",
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "low",
+        "riskType": null,
+        "confidence": 0.85
+      },
+      "sources": {
+        "verified": [
+          "reservation:departureDate",
+          "history"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "extend_stay",
+          "want": "open",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "extend_stay",
+          "status": "open"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "extend_stay",
+            "query_tr": "ek gece konaklama uzatma",
+            "query_original": "Bir gece daha kalabilir miyiz"
+          }
+        ]
+      ],
+      "ms": 8956,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-tesekkur",
+      "cls": "late_closing",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "closing_ack_open",
+      "gateDetail": null,
+      "riskReason": "closing_ack",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Tamam, teşekkürler",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 13,
+      "retried": false
+    },
+    {
+      "id": "lm-en-thanks",
+      "cls": "late_closing",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "closing_ack_open",
+      "gateDetail": null,
+      "riskReason": "closing_ack",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Ok thanks!",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 10,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-tekrar-wifi",
+      "cls": "late_duplicate",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": true,
+      "sentText": "Wi-Fi ağı Lale_Home, şifresi Lale2024.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Wi-Fi ağı Lale_Home, şifresi Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Wi-Fi şifresini alabilir miyim?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcomue00pb7djbz3mc5ibc",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:wifi",
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 6,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 406.1,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2070,
+            "ui": [
+              "wifi"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20876,
+            "ct": 146,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:wifi",
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi",
+          "history"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6757,
+      "retried": false
+    },
+    {
+      "id": "lm-en-repeat-checkin",
+      "cls": "late_duplicate",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Check-in is at 15:00.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Hello? What time can we check in?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcosn000qt7djbuuab3c4x",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcosn000qs7djbb7lzc3v9",
+              "v": "2026-08-31T23:58:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "property:checkInTime",
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 1.5,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 287.7,
+            "rr": "ok",
+            "rrMs": 823,
+            "rrA": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1925,
+            "ui": [
+              "checkin_time"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21160,
+            "ct": 146,
+            "cpt": 19712,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "availability_unconfirmed",
+            "ev": "availability_unconfirmed",
+            "lx": "-",
+            "d": "early_checkin/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none",
+            "ri": "early_checkin"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "ec": {
+            "s": "needs_host",
+            "f": [
+              "rule_off",
+              "arrival_passed",
+              "time_unknown",
+              "previous_night_unverified",
+              "ready_unknown"
+            ],
+            "a": "0",
+            "n": "0"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "property:checkInTime",
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "early_checkin",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "property:checkInTime",
+          "history"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6610,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-orada-misiniz",
+      "cls": "late_duplicate",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Buradayım.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Orada mısınız?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s37djb6sx113pi",
+              "v": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s47djbp0mmlvgt",
+              "v": "2026-08-31T23:59:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s57djbl7s5iorz",
+              "v": "2026-08-31T23:58:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s67djboywly5xb",
+              "v": "2026-08-31T23:57:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s77djbrxxbyv48",
+              "v": "2026-08-31T23:56:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s87djbb37s8spf",
+              "v": "2026-08-31T23:55:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00s97djb4weji7n6",
+              "v": "2026-08-31T23:53:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sa7djb5gr4n7oo",
+              "v": "2026-08-31T23:52:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sb7djb8ruokqco",
+              "v": "2026-08-31T23:51:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sc7djbh6uz24hr",
+              "v": "2026-08-31T23:50:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sd7djbxp56tjo5",
+              "v": "2026-08-31T23:49:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00se7djbvw36kr16",
+              "v": "2026-08-31T23:48:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sf7djb9i8gqt08",
+              "v": "2026-08-31T23:47:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sg7djb77ll00kj",
+              "v": "2026-08-31T23:46:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sh7djb8e04wkxo",
+              "v": "2026-08-31T23:45:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00si7djb1mpju5w5",
+              "v": "2026-08-31T23:44:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sj7djbbvn4sowa",
+              "v": "2026-08-31T23:43:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sk7djbr936gi71",
+              "v": "2026-08-31T23:42:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sl7djb9mt2a3h5",
+              "v": "2026-08-31T23:41:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sm7djbibhmakbx",
+              "v": "2026-08-31T23:40:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sn7djbf4c2lkme",
+              "v": "2026-08-31T23:39:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00so7djb9zxbp6uw",
+              "v": "2026-08-31T23:38:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sp7djblzil6kdn",
+              "v": "2026-08-31T23:37:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sq7djb8c2q0z71",
+              "v": "2026-08-31T23:36:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sr7djbghq3kfan",
+              "v": "2026-08-31T23:35:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00ss7djbu4clw9rp",
+              "v": "2026-08-31T23:34:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00st7djbsipclq45",
+              "v": "2026-08-31T23:33:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00su7djboao7iv1y",
+              "v": "2026-08-31T23:32:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sv7djba70062bc",
+              "v": "2026-08-31T23:31:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcoygf00sw7djb7buovavs",
+              "v": "2026-08-31T23:30:00.000Z"
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 0,
+            "fb": "empty_query",
+            "sel": 0,
+            "cand": 34,
+            "ms": 1.8,
+            "sup": 0,
+            "sem": "ok",
+            "semMs": 279.6,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 1714,
+            "ui": [
+              "human_request"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21133,
+            "ct": 119,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "understanding_risk",
+            "ev": "understanding_risk",
+            "k": "human_request"
+          },
+          "g": {
+            "d": "items_nothing_answered",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": null
+        }
+      },
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.2
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 3977,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-cevap-bekliyorum",
+      "cls": "late_duplicate",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Otoparkla ilgili önceki mesajınızda bilgi vermiştim.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Cevap bekliyorum",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tg7djbuyy9zqfp",
+              "v": "2026-09-01T00:00:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00th7djbm59g38h8",
+              "v": "2026-08-31T23:59:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00ti7djb38k45o8o",
+              "v": "2026-08-31T23:58:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tj7djbhqzd72iz",
+              "v": "2026-08-31T23:57:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tk7djbgx912jux",
+              "v": "2026-08-31T23:56:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tl7djbcy9jgudd",
+              "v": "2026-08-31T23:55:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tm7djbs4he6t83",
+              "v": "2026-08-31T23:53:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tn7djbcc7fi6hn",
+              "v": "2026-08-31T23:52:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00to7djbh7rti6jj",
+              "v": "2026-08-31T23:51:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tp7djbhgic12kq",
+              "v": "2026-08-31T23:50:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tq7djb07bribgb",
+              "v": "2026-08-31T23:49:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tr7djbdwgagung",
+              "v": "2026-08-31T23:48:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00ts7djbkqx4cmou",
+              "v": "2026-08-31T23:47:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tt7djb5j56rvdd",
+              "v": "2026-08-31T23:46:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tu7djbq7v5pgbw",
+              "v": "2026-08-31T23:45:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tv7djbht5ge6pf",
+              "v": "2026-08-31T23:44:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tw7djb8szdeviq",
+              "v": "2026-08-31T23:43:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tx7djb6jw3toyx",
+              "v": "2026-08-31T23:42:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00ty7djbcllclqer",
+              "v": "2026-08-31T23:41:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00tz7djbbnozluw4",
+              "v": "2026-08-31T23:40:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u07djb9g0av4rj",
+              "v": "2026-08-31T23:39:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u17djboixa6s0n",
+              "v": "2026-08-31T23:38:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u27djbuu5x1etx",
+              "v": "2026-08-31T23:37:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u37djb4mzh4cvp",
+              "v": "2026-08-31T23:36:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u47djb3u0pazkm",
+              "v": "2026-08-31T23:35:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u57djbkpta4vbb",
+              "v": "2026-08-31T23:34:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u67djbjv6jn46x",
+              "v": "2026-08-31T23:33:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u77djbuuahsmdw",
+              "v": "2026-08-31T23:32:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u87djbkoqqouh8",
+              "v": "2026-08-31T23:31:00.000Z"
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcp47m00u97djbrutl747n",
+              "v": "2026-08-31T23:30:00.000Z"
+            }
+          ],
+          "used": [
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "no_lexical_hits",
+            "sel": 0,
+            "cand": 34,
+            "ms": 2.1,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 271.3,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 1788,
+            "ui": [
+              "human_request"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21032,
+            "ct": 132,
+            "cpt": 19328,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "understanding_risk",
+            "ev": "understanding_risk",
+            "k": "human_request"
+          },
+          "g": {
+            "d": "items_nothing_answered",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": null
+        }
+      },
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.35
+      },
+      "sources": {
+        "verified": [
+          "history"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 5102,
+      "retried": false
+    },
+    {
+      "id": "lm-de-hallo",
+      "cls": "late_duplicate",
+      "lang": "de",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": true,
+      "sentText": "Das WLAN heißt \"Lale_Home\", das Passwort lautet Lale2024.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Das WLAN heißt \"Lale_Home\", das Passwort lautet Lale2024.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Hallo? Ich brauche das WLAN-Passwort.",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcp9zy00ut7djb6onyrvng",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:wifi",
+            "history"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 3,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 286.2,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 1657,
+            "ui": [
+              "wifi"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 1,
+            "ctx": 1,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21090,
+            "ct": 108,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:wifi",
+            "history"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "wifi",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:wifi",
+          "history"
+        ],
+        "declared": 2
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 5494,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-bosverin",
+      "cls": "late_withdraw",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bilgi için teşekkür ederiz, iyi günler dileriz.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Boşverin, şifreyi buldum.",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcpfsh00w87djbyeuiquxn",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 2.6,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 392.7,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 1922,
+            "ui": [
+              "wifi"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20876,
+            "ct": 99,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "low_confidence",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.2
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 4475,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-gec-sonra-vazgec",
+      "cls": "late_withdraw",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Peki.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Otopark var mı?",
+        "after": "Tamam gördüm, boşverin.",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcplkr00xm7djb5hscp7ao",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 3,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 7.2,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "pq": 1,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 314.6,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 4,
+            "un": "ok",
+            "unMs": 2581,
+            "ui": [
+              "parking",
+              "other"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20974,
+            "ct": 127,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "d": "low_confidence",
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 2,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.2
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 5276,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-duman",
+      "cls": "emergency",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "status": "problem",
+      "escalated": true,
+      "late": true,
+      "trace": {
+        "guest": "Mutfakta duman var!",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcprda00z47djbg7ps800f",
+              "v": "2026-08-31T23:56:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 3.7,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 298.2,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2315,
+            "ui": [
+              "emergency"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20446,
+            "ct": 192,
+            "cpt": 19328,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "understanding_risk",
+            "ev": "understanding_risk",
+            "k": "emergency"
+          },
+          "g": {
+            "d": "model_intent",
+            "lx": [
+              "safety_emergency"
+            ],
+            "mi": "complaint",
+            "mt": "safety_emergency",
+            "ml": "high"
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": null
+        }
+      },
+      "items": 1,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "high",
+        "riskType": "safety_emergency",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6738,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-klima-bozuk",
+      "cls": "complaint",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bunun için özür dileriz. Klimayla ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Klima çalışmıyor, çok sıcak.",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcpx5w010h7djbr2hd4cri",
+              "v": "2026-08-31T23:56:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcpx5w010d7djbhb916koh",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 5.8,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 397.1,
+            "rr": "ok",
+            "rrMs": 819,
+            "rrA": 1,
+            "uq": 2,
+            "un": "ok",
+            "unMs": 2423,
+            "ui": [
+              "complaint_issue",
+              "appliance_help"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20585,
+            "ct": 185,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "off",
+            "u": "none"
+          },
+          "ir": {
+            "v": "understanding_risk",
+            "ev": "understanding_risk",
+            "k": "complaint_issue"
+          },
+          "g": {
+            "d": "reply_output_veto",
+            "lx": [
+              "complaint"
+            ],
+            "mi": "complaint",
+            "mt": "complaint",
+            "ml": "medium"
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [],
+          "missingInfo": [],
+          "answeredRequests": null
+        }
+      },
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "complaint",
+        "riskLevel": "medium",
+        "riskType": "complaint",
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [],
+        "declared": 0
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "ms": 6649,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-ev-sahibi-yazdi",
+      "cls": "late_out_of_scope",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "already_answered",
+      "gateDetail": null,
+      "riskReason": null,
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Bir de otopark var mı?",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 6,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-25-saat",
+      "cls": "late_out_of_scope",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "already_answered",
+      "gateDetail": null,
+      "riskReason": null,
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Bir de otopark var mı?",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 7,
+      "retried": false
+    },
+    {
+      "id": "k-tr-olagan-otopark",
+      "cls": "control_normal",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Ücretsiz otoparkımız var, binanın arkasında park edebilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Bir de otopark var mı?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcqej9014c7djbde3hdfqy",
+              "v": "2026-08-31T23:59:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcqej9014g7djba43mbv86",
+              "v": "2026-08-31T23:55:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:parking"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 4.8,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 7.1,
+            "rr": "ok",
+            "rrMs": 867,
+            "rrA": 1,
+            "uq": 2,
+            "un": "cached",
+            "unMs": 1,
+            "ui": [
+              "parking"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20975,
+            "ct": 145,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "m",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:parking"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "parking",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:parking"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "parking",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "parking",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "ms": 4499,
+      "retried": false
+    },
+    {
+      "id": "k-en-normal-trash",
+      "cls": "control_normal",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "You can throw the trash into the container on the right side of the building entrance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "You can throw the trash into the container on the right side of the building entrance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "trace": {
+        "guest": "Also, where do we put the trash?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcqkbh015t7djbiqnlvpwc",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            },
+            {
+              "type": "kb_item",
+              "id": "cmwdcqkbh015q7djblswyhflo",
+              "v": "2026-09-01T00:00:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:rules"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 2,
+            "fb": "none",
+            "sel": 2,
+            "cand": 34,
+            "ms": 3.5,
+            "srcs": [
+              "bm25",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 4.8,
+            "rr": "ok",
+            "rrMs": 807,
+            "rrA": 1,
+            "uq": 1,
+            "un": "cached",
+            "unMs": 0,
+            "ui": [
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 21120,
+            "ct": 145,
+            "cpt": 19584,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:rules"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "ms": 4506,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-teklif-evet",
+      "cls": "late_offer_reply",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "already_answered",
+      "gateDetail": null,
+      "riskReason": null,
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Evet lütfen",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 5,
+      "retried": false
+    },
+    {
+      "id": "lm-en-offer-then-question",
+      "cls": "late_offer_reply",
+      "lang": "en",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "already_answered",
+      "gateDetail": null,
+      "riskReason": null,
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Where do we leave the trash?",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 9,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-soru-ile-biten",
+      "cls": "late_offer_reply",
+      "lang": "tr",
+      "expectAuto": "no",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "already_answered",
+      "gateDetail": null,
+      "riskReason": null,
+      "status": "new",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Tamam",
+        "kb": "std",
+        "evidence": null,
+        "declared": null
+      },
+      "items": 0,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": null,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": null,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": null,
+      "sources": null,
+      "modelCalls": 0,
+      "rw": null,
+      "ms": 5,
+      "retried": false
+    },
+    {
+      "id": "lm-tr-iki-tur-sonra",
+      "cls": "late_new_question",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Çöpleri bina girişinin sağındaki konteynere bırakabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Çöpleri bina girişinin sağındaki konteynere bırakabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "late": true,
+      "trace": {
+        "guest": "Çöpü nereye bırakıyoruz?",
+        "kb": "std",
+        "evidence": {
+          "retrieved": [
+            {
+              "type": "kb_item",
+              "id": "cmwdcr7hd01b27djbq6qerhzm",
+              "v": "2026-08-31T23:57:00.000Z",
+              "c": 0
+            }
+          ],
+          "used": [
+            "kb:rules"
+          ],
+          "retrieval": {
+            "mode": "hybrid",
+            "q": 1,
+            "fb": "none",
+            "sel": 1,
+            "cand": 34,
+            "ms": 3.9,
+            "srcs": [
+              "bm25",
+              "ngram",
+              "semantic"
+            ],
+            "sup": 0,
+            "conf": 0,
+            "confDropped": 0,
+            "fus": "rrf",
+            "sem": "ok",
+            "semMs": 321.5,
+            "rr": "skipped",
+            "rrMs": 0,
+            "uq": 1,
+            "un": "ok",
+            "unMs": 2197,
+            "ui": [
+              "trash"
+            ]
+          },
+          "claims": {
+            "v": 1,
+            "n": 0,
+            "ctx": 0,
+            "op": 0,
+            "echo": 0,
+            "k": 0,
+            "u": 0,
+            "uc": [],
+            "ec": []
+          },
+          "llm": {
+            "pt": 20898,
+            "ct": 143,
+            "cpt": 19456,
+            "rt": 0,
+            "m": "gpt-5.1-2025-11-13"
+          },
+          "sc": {
+            "v": "-",
+            "ev": "-",
+            "lx": "-",
+            "d": "none/none",
+            "g": "ok",
+            "gv": "-",
+            "u": "none"
+          },
+          "ir": {
+            "v": "-",
+            "ev": "-",
+            "k": "-"
+          },
+          "g": {
+            "lx": []
+          },
+          "hr": []
+        },
+        "declared": {
+          "usedSources": [
+            "kb:rules"
+          ],
+          "missingInfo": [],
+          "answeredRequests": {
+            "ok": true,
+            "refs": [
+              "R1"
+            ]
+          }
+        }
+      },
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": null,
+      "factsSentStrict": null,
+      "factsDraft": null,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "general",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:rules"
+        ],
+        "declared": 1
+      },
+      "modelCalls": 1,
+      "rw": null,
+      "needs": [
+        {
+          "kind": "trash",
+          "want": "answered",
+          "textOk": true,
+          "statusOk": true,
+          "wrongAnswered": false
+        }
+      ],
+      "itemStates": [
+        {
+          "kind": "trash",
+          "status": "answered"
+        }
+      ],
+      "parts": null,
+      "absenceLeak": false,
+      "requestsRaw": [
+        [
+          {
+            "intent": "trash",
+            "query_tr": "çöp nereye atılır çöp konteyneri",
+            "query_original": "Çöpü nereye bırakıyoruz"
+          }
+        ]
+      ],
+      "ms": 6604,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "bf336ee3",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+      "AI_LATE_MESSAGE_REPLY_ENABLED": "1",
+      "AI_NO_SOURCE_RULE_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+      "AI_SENIOR_READER_ENABLED": "(boş)",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+      "AI_ANSWER_PARTS_ENABLED": "(boş)",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "d409de06877e",
+      "replyVariant": "5f75f4706871",
+      "understanding": "359ca58631db",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+fee"
+    }
+  }
+}

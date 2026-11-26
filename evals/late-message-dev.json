@@ -1,0 +1,1044 @@
+{
+ "version": 1,
+ "_about": "S2 (kurucu karari 11-11) GELISTIRME seti (acik): misafirin otomatik cevabimizdan ONCE yazip bize SONRA ulasan mesaji (late: true). Siniflar: yeni soru (gitmeli) · gec + sonradan yeni mesaj · bilgi tabaninda olmayan soru · hassas istek · kapanis · tekrar / durtme (tekrar cevap gitmemeli) · geri cekme · acil / sikayet · sart disi (ev sahibi yazdi, 24 saatten eski) · cevabimiz soru / teklifle bitiyor (tur acilmamali, Opus 11-12 S2-2a) · kontrol (gec degil) · iki olagan cevapsiz mesaj (gec + yeni mesaj turuyla kiyas). Anahtar kapaliyken gec senaryolarin hicbiri gitmez. Kurgusal mulk 'Lale'. Kabul olcumu ayri yazarin gorulmemis setiyle yapilir.",
+ "property": {
+  "name": "Lale – bahçe katı (iç kod L1)",
+  "guestDisplayName": "Bahçe Katı Daire 1",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "std": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale_Home, şifre: Lale2024. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Otopark ücretsizdir; binanın arkasındadır."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz her gün 09:00–20:00 arası açıktır."
+   },
+   {
+    "category": "rules",
+    "title": "Çöp",
+    "content": "Çöpler bina girişinin sağındaki konteynere atılır."
+   },
+   {
+    "category": "appliances",
+    "title": "Klima",
+    "content": "Klima kumandası TV ünitesinin çekmecesindedir."
+   },
+   {
+    "category": "local",
+    "title": "Market",
+    "content": "En yakın market binanın 150 metre ilerisindedir."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "lm-tr-wifi-otopark",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Bir de otopark var mı?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-otopark-havuz",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Otopark ücretsizdir; binanın arkasındadır."
+    }
+   ],
+   "message": "Havuz kaçta kapanıyor?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "20:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-en-wifi-trash",
+   "class": "late_new_question",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Also, where do we put the trash?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container|bin"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-de-wlan-markt",
+   "class": "late_new_question",
+   "lang": "de",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wie lautet das WLAN-Passwort?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Das WLAN heißt Lale_Home, das Passwort lautet Lale2024."
+    }
+   ],
+   "message": "Wo ist der nächste Supermarkt?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "150"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-wifi-cikis",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Çıkış saati kaç?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-es-wifi-piscina",
+   "class": "late_new_question",
+   "lang": "es",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "¿Cuál es la contraseña del wifi?"
+    },
+    {
+     "direction": "outbound",
+     "body": "La red wifi es Lale_Home y la contraseña es Lale2024."
+    }
+   ],
+   "message": "¿A qué hora abre la piscina?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "09:00|9:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-en-checkin-parking",
+   "class": "late_new_question",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What time is check-in?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Check-in is at 15:00."
+    }
+   ],
+   "message": "Is there parking?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "free"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-wifi-klima",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Klima kumandası nerede?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "çekmece"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-gec-ve-yeni",
+   "class": "late_plus_new",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Otopark var mı?",
+   "late": true,
+   "after": "Çıkış saati kaç?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-en-late-and-new",
+   "class": "late_plus_new",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Is there parking?",
+   "late": true,
+   "after": "And until what time is the pool open?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "free"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "20:00|8 ?pm"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-eczane",
+   "class": "late_unknown",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Yakında eczane var mı?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-en-iron",
+   "class": "late_unknown",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Do you have an iron?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-kahvalti",
+   "class": "late_unknown",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Otopark ücretsizdir; binanın arkasındadır."
+    }
+   ],
+   "message": "Kahvaltı veriyor musunuz?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-kopek",
+   "class": "late_sensitive",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Köpeğimizi getirebilir miyiz?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "getirebilir|kabul ed|izin ver|evet|maalesef"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-en-late-checkout",
+   "class": "late_sensitive",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Can we check out at 2pm instead?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "late_checkout",
+      "want": "open"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-uzatma",
+   "class": "late_sensitive",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Otopark ücretsizdir; binanın arkasındadır."
+    }
+   ],
+   "message": "Bir gece daha kalabilir miyiz?",
+   "late": true,
+   "expect": {
+    "autoSend": "no",
+    "needs": [
+     {
+      "kind": "extend_stay",
+      "want": "open"
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-tesekkur",
+   "class": "late_closing",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Tamam, teşekkürler",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-en-thanks",
+   "class": "late_closing",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Ok thanks!",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-tekrar-wifi",
+   "class": "late_duplicate",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Wi-Fi şifresini alabilir miyim?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-en-repeat-checkin",
+   "class": "late_duplicate",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What time is check-in?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Check-in is at 15:00."
+    }
+   ],
+   "message": "Hello? What time can we check in?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-orada-misiniz",
+   "class": "late_duplicate",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Orada mısınız?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-cevap-bekliyorum",
+   "class": "late_duplicate",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Otopark ücretsizdir; binanın arkasındadır."
+    }
+   ],
+   "message": "Cevap bekliyorum",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-de-hallo",
+   "class": "late_duplicate",
+   "lang": "de",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wie lautet das WLAN-Passwort?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Das WLAN heißt Lale_Home, das Passwort lautet Lale2024."
+    }
+   ],
+   "message": "Hallo? Ich brauche das WLAN-Passwort.",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-bosverin",
+   "class": "late_withdraw",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Boşverin, şifreyi buldum.",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-gec-sonra-vazgec",
+   "class": "late_withdraw",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Otopark var mı?",
+   "late": true,
+   "after": "Tamam gördüm, boşverin.",
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-duman",
+   "class": "emergency",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Mutfakta duman var!",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-klima-bozuk",
+   "class": "complaint",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Klima çalışmıyor, çok sıcak.",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-ev-sahibi-yazdi",
+   "class": "late_out_of_scope",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024.",
+     "author": "host"
+    }
+   ],
+   "message": "Bir de otopark var mı?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-25-saat",
+   "class": "late_out_of_scope",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Bir de otopark var mı?",
+   "late": true,
+   "lateWrittenMinutesAgo": 1500,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "k-tr-olagan-otopark",
+   "class": "control_normal",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    }
+   ],
+   "message": "Bir de otopark var mı?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-en-normal-trash",
+   "class": "control_normal",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What's the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The Wi-Fi network is Lale_Home and the password is Lale2024."
+    }
+   ],
+   "message": "Also, where do we put the trash?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "container|bin"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "lm-tr-teklif-evet",
+   "class": "late_offer_reply",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Havuz kaçta açılıyor?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Havuz her gün 09:00 - 20:00 arasında açık; isterseniz yol tarifini de gönderebilirim."
+    }
+   ],
+   "message": "Evet lütfen",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-en-offer-then-question",
+   "class": "late_offer_reply",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What is the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The network is Lale_Home and the password is Lale2024. Would you like me to send the parking details as well?"
+    }
+   ],
+   "message": "Where do we leave the trash?",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-soru-ile-biten",
+   "class": "late_offer_reply",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Yarın geliyoruz, bir şey gerekiyor mu?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Hayır, hazırız. Kaç kişi olacaksınız?"
+    }
+   ],
+   "message": "Tamam",
+   "late": true,
+   "expect": {
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "lm-tr-iki-tur-sonra",
+   "class": "late_new_question",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    },
+    {
+     "direction": "inbound",
+     "body": "Havuz kaçta açılıyor?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Havuz her gün 09:00 - 20:00 arasında açık."
+    }
+   ],
+   "message": "Çöpü nereye bırakıyoruz?",
+   "late": true,
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "konteyner"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-tr-iki-mesaj-olagan",
+   "class": "control_two_messages",
+   "lang": "tr",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Wi-Fi şifresi ne?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Wi-Fi ağı Lale_Home, şifresi Lale2024."
+    },
+    {
+     "direction": "inbound",
+     "body": "Otopark var mı?"
+    }
+   ],
+   "message": "Çıkış saati kaç?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz"
+      ]
+     },
+     {
+      "kind": "checkout_time",
+      "want": "answered",
+      "all": [
+       "11:00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "k-en-two-messages-normal",
+   "class": "control_two_messages",
+   "lang": "en",
+   "kb": "std",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "What is the Wi-Fi password?"
+    },
+    {
+     "direction": "outbound",
+     "body": "The network is Lale_Home and the password is Lale2024."
+    },
+    {
+     "direction": "inbound",
+     "body": "Is there parking?"
+    }
+   ],
+   "message": "What time does the pool open?",
+   "expect": {
+    "autoSend": "yes",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "free"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "09:00|9:00|9 ?am"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

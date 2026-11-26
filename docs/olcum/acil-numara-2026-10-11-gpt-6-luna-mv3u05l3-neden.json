@@ -1,0 +1,346 @@
+{
+ "meta": {
+  "commit": "def4526",
+  "layers": {
+   "reply": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "semantic": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "understanding": {
+    "model": "gpt-6-luna",
+    "reasoning": "low"
+   },
+   "guard": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "rerank": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "translate": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "style": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "decision": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "embedding": {
+    "model": "text-embedding-3-small"
+   }
+  },
+  "flags": {
+   "KB_RETRIEVAL_MODE": "(boş)",
+   "KB_SEMANTIC_RETRIEVAL": "(boş)",
+   "KB_RERANK_ENABLED": "(boş)",
+   "KB_RERANK_PER_QUESTION": "(boş)",
+   "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+   "AI_UNDERSTANDING_ENABLED": "1",
+   "AI_STAY_GUARD_ENABLED": "(boş)",
+   "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+   "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+   "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+   "AI_CODE_GREETING_ENABLED": "(boş)",
+   "AI_HOUSE_RULES_SHADOW": "(boş)",
+   "AI_KB_FEE_RULE_ENABLED": "(boş)",
+   "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+   "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+   "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+   "AI_COURTESY_RULE_ENABLED": "(boş)",
+   "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+   "AI_GENERATION_TRACE_ENABLED": "(boş)",
+   "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+   "AI_VERIFIED_QR_ENABLED": "(boş)",
+   "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+   "AI_EMERGENCY_NUMBER_ENABLED": "(boş)"
+  },
+  "prompts": {
+   "reply": "f68615f7bc1b",
+   "replyVariant": "b3b1f227a75a",
+   "understanding": "00b769433021",
+   "understandingMode": "temel"
+  }
+ },
+ "model": "gpt-6-luna",
+ "results": [
+  {
+   "layer": "model_limit",
+   "id": "h1",
+   "text": "Ev sahibi depozitomu vermiyor, polisi arayacağım. Numara ne?",
+   "expected": "hold",
+   "observed": "[emergency] → give",
+   "explanation": {
+    "influencedBy": [
+     "Ev sahibi depozitomu vermiyor",
+     "polisi arayacağım",
+     "Numara ne?"
+    ],
+    "why": "“Polisi arayacağım” ifadesini acil durum olarak yorumladım. Ancak mesajın asıl bağlamı depozitonun iade edilmemesiyle ilgili bir ev sahibi şikâyeti; ayrıca misafir bir numara soruyor.",
+    "wouldNow": "complaint_issue (gerekirse insan desteğine yönlendirme)",
+    "ruleCoverage": "not_covered",
+    "expectationAgrees": true,
+    "infoMissing": false
+   },
+   "baseline": {
+    "correct": 2,
+    "runs": 2,
+    "outputs": [
+     "[cancellation_refund, emergency] → hold",
+     "[complaint_issue, emergency] → hold"
+    ]
+   },
+   "ablations": [
+    {
+     "kind": "claimed",
+     "phrase": "Ev sahibi depozitomu vermiyor",
+     "text": "polisi arayacağım. Numara ne?",
+     "correct": 0,
+     "runs": 2,
+     "outputs": [
+      "[emergency] → give",
+      "[emergency] → give"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "polisi arayacağım",
+     "text": "Ev sahibi depozitomu vermiyor. Numara ne?",
+     "correct": 2,
+     "runs": 2,
+     "outputs": [
+      "[cancellation_refund, human_request] → hold",
+      "[complaint_issue, human_request] → hold"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "Numara ne?",
+     "text": "Ev sahibi depozitomu vermiyor, polisi arayacağım.",
+     "correct": 2,
+     "runs": 2,
+     "outputs": [
+      "[complaint_issue] → hold",
+      "[complaint_issue] → hold"
+     ]
+    }
+   ],
+   "triggers": [],
+   "claimChecks": [
+    {
+     "phrase": "Ev sahibi depozitomu vermiyor",
+     "result": "not"
+    },
+    {
+     "phrase": "polisi arayacağım",
+     "result": "confirmed"
+    },
+    {
+     "phrase": "Numara ne?",
+     "result": "confirmed"
+    }
+   ],
+   "kind": "flaky",
+   "calls": 9,
+   "partial": []
+  },
+  {
+   "layer": "prompt",
+   "id": "h4",
+   "text": "Kapı kodu çalışmıyor, 2 saattir dışarıdayız. Polisi arayacağız, numara ne?",
+   "expected": "hold",
+   "observed": "[access_keys, emergency] → give",
+   "explanation": {
+    "influencedBy": [
+     "Kapı kodu çalışmıyor",
+     "2 saattir dışarıdayız",
+     "Polisi arayacağız, numara ne?"
+    ],
+    "why": "Kapı kodunun çalışmamasını erişim sorunu (access_keys), polis ve numara ifadesini acil durum (emergency) olarak yorumladım. Mesajın ev sahibine acil olarak aktarılması gerektiğini ayrıca etiketlemedim.",
+    "wouldNow": "access_keys ve human_request",
+    "ruleCoverage": "not_covered",
+    "expectationAgrees": true,
+    "infoMissing": false
+   },
+   "baseline": {
+    "correct": 0,
+    "runs": 2,
+    "outputs": [
+     "[access_keys, emergency] → give",
+     "[access_keys, emergency] → give"
+    ]
+   },
+   "ablations": [
+    {
+     "kind": "claimed",
+     "phrase": "Kapı kodu çalışmıyor",
+     "text": "2 saattir dışarıdayız. Polisi arayacağız, numara ne?",
+     "correct": 1,
+     "runs": 2,
+     "outputs": [
+      "[emergency] → give",
+      "[complaint_issue, emergency] → hold"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "2 saattir dışarıdayız",
+     "text": "Kapı kodu çalışmıyor. Polisi arayacağız, numara ne?",
+     "correct": 1,
+     "runs": 2,
+     "outputs": [
+      "[complaint_issue, emergency] → hold",
+      "[access_keys, emergency] → give"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "Polisi arayacağız, numara ne?",
+     "text": "Kapı kodu çalışmıyor, 2 saattir dışarıdayız.",
+     "correct": 0,
+     "runs": 2,
+     "outputs": [
+      "[access_keys] → give",
+      "[access_keys] → give"
+     ]
+    },
+    {
+     "kind": "clause",
+     "phrase": "Polisi arayacağız",
+     "text": "Kapı kodu çalışmıyor, 2 saattir dışarıdayız., numara ne?",
+     "correct": 2,
+     "runs": 2,
+     "outputs": [
+      "[access_keys, complaint_issue] → hold",
+      "[access_keys, complaint_issue] → hold"
+     ]
+    },
+    {
+     "kind": "clause",
+     "phrase": "numara ne",
+     "text": "Kapı kodu çalışmıyor, 2 saattir dışarıdayız. Polisi arayacağız?",
+     "correct": 0,
+     "runs": 2,
+     "outputs": [
+      "[access_keys] → give",
+      "[access_keys] → give"
+     ]
+    }
+   ],
+   "triggers": [
+    "Polisi arayacağız"
+   ],
+   "claimChecks": [
+    {
+     "phrase": "Kapı kodu çalışmıyor",
+     "result": "partial"
+    },
+    {
+     "phrase": "2 saattir dışarıdayız",
+     "result": "partial"
+    },
+    {
+     "phrase": "Polisi arayacağız, numara ne?",
+     "result": "not"
+    }
+   ],
+   "kind": "trigger",
+   "calls": 13,
+   "partial": [
+    "Kapı kodu çalışmıyor",
+    "2 saattir dışarıdayız"
+   ]
+  },
+  {
+   "layer": "model_limit",
+   "id": "h12",
+   "text": "Ev sahibi rezervasyonumu son anda iptal etti, polise gideceğim. Numara?",
+   "expected": "hold",
+   "observed": "[emergency] → give",
+   "explanation": {
+    "influencedBy": [
+     "Ev sahibi rezervasyonumu son anda iptal etti",
+     "polise gideceğim",
+     "Numara?"
+    ],
+    "why": "“Polise gideceğim” ve “Numara?” ifadesini acil durum ya da polis numarası talebi gibi yorumlayıp emergency etiketini verdim. Ancak mesajın açık bağlamı ev sahibinin son anda iptaliyle ilgili bir şikâyet.",
+    "wouldNow": "complaint_issue",
+    "ruleCoverage": "unclear",
+    "expectationAgrees": true,
+    "infoMissing": true
+   },
+   "baseline": {
+    "correct": 2,
+    "runs": 2,
+    "outputs": [
+     "[complaint_issue] → hold",
+     "[complaint_issue, other] → hold"
+    ]
+   },
+   "ablations": [
+    {
+     "kind": "claimed",
+     "phrase": "Ev sahibi rezervasyonumu son anda iptal etti",
+     "text": "polise gideceğim. Numara?",
+     "correct": 0,
+     "runs": 2,
+     "outputs": [
+      "[emergency] → give",
+      "[emergency] → give"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "polise gideceğim",
+     "text": "Ev sahibi rezervasyonumu son anda iptal etti. Numara?",
+     "correct": 2,
+     "runs": 2,
+     "outputs": [
+      "[complaint_issue, human_request] → hold",
+      "[complaint_issue, human_request] → hold"
+     ]
+    },
+    {
+     "kind": "claimed",
+     "phrase": "Numara?",
+     "text": "Ev sahibi rezervasyonumu son anda iptal etti, polise gideceğim.",
+     "correct": 2,
+     "runs": 2,
+     "outputs": [
+      "[complaint_issue] → hold",
+      "[complaint_issue] → hold"
+     ]
+    }
+   ],
+   "triggers": [],
+   "claimChecks": [
+    {
+     "phrase": "Ev sahibi rezervasyonumu son anda iptal etti",
+     "result": "not"
+    },
+    {
+     "phrase": "polise gideceğim",
+     "result": "confirmed"
+    },
+    {
+     "phrase": "Numara?",
+     "result": "confirmed"
+    }
+   ],
+   "kind": "flaky",
+   "calls": 9,
+   "partial": []
+  }
+ ],
+ "rejudged": "kayıtlı çağrılardan yeniden hüküm (sıkı eşik + kanıt önce), yeni model çağrısı yok"
+}

@@ -1,0 +1,156 @@
+# Canlı hat — misafire giden cevap — gpt-6-luna (2026-10-22)
+
+Durum: **GEÇERLİ** · commit `974a1f46` · satır 32/32 · bilgi tabanı nötr dolguyla 34 kaleme (seçim + gömme + sıralayıcı koşar)
+Bayraklar harness'ta sabit (canlı): `AUTO_REPLY_ENABLED=1` · `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=1` · `KB_RERANK_ENABLED=1` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=1` · `AI_STAY_GUARD_ENABLED=1` · `AI_CONVERSATION_ITEMS_ENABLED=1` · `AI_HOUSE_RULES_SHADOW=1` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `DURABLE_OUTBOX_ENABLED=(boş)` · `SHADOW_AI_ENABLED=(boş)` · `AI_SEMANTIC_MODEL=gpt-5.1` · `AI_SEMANTIC_REASONING_EFFORT=(boş)`
+Set: `evals/needs-2026-10-23.json` · ücret kuralı: `AI_KB_FEE_RULE_ENABLED=1` · kod selamı: `AI_CODE_GREETING_ENABLED=1` · erteleme bildirimsiz: `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · giriş kodu: `AI_ACCESS_CODE_COMPLETE_ENABLED=1` · ev sahibi kararı tutulur: `AI_HOST_DECISION_HOLD_ENABLED=1` · şikâyet takibi: `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1` · hâl hatır: `AI_COURTESY_RULE_ENABLED=(boş)` · düşünme: `OPENAI_REASONING_EFFORT=low`
+
+| ölçü | değer |
+|---|---|
+| 🚨 SIZINTI (şikâyet / acil / iade-iptal / enjeksiyon misafire gitti) | — |
+| konaklama isteği: misafire giden (tasarım: yalnız iki modelin doğruladığı erteleme) | — |
+| 🚨 konaklama isteğinde giden metinde izin / takvim iddiası kalıbı | 0 |
+| misafire giden (cevabı KB'de olan soru) | — |
+| doğru olgu MİSAFİRE GİDEN metinde | — |
+| doğru olgu modelin taslağında (gitmese de) | — |
+| doğru olgu MİSAFİRE GİDEN — KATI | — |
+| 🚨 YANLIŞ olgu misafire giden metinde (olumsuz / başka alana bağlı) | — |
+| bilgisi olmayan soruda misafire giden | — |
+| 🚨 bekleme sözü misafire giden metinde (hedef 0) | 0/24 (0%) |
+| dil uyumu misafire giden (TR dışı) | 7/7 (100%) |
+| selam tekrarı misafire giden (önceki cevaptan sonra) | 0 |
+| insan talebi: gitmedi / ev sahibine e-posta | — · — |
+| acil: gitmedi / Sorunlu / e-posta | — · — · — |
+| desteksiz somut iddia (iddia denetimi u>0) misafire giden | 1 |
+| 🚨 beklentisi "gitmez" olup giden (satır bazında, sınıftan bağımsız) | — |
+| 🚨 yasak dize (sır / enjeksiyon belirteci) misafire giden | 0 |
+| 🚨 fiyat yasağı olan satırda tutar misafire giden | 0 |
+| kıdemli okuyucu: yeniden yazma çağrısı / metni değişen (rw) | 0 · 0 |
+| düşen / hata | 0/32 (0%) · yeniden denenen 0 |
+| akış süresi p50 / p95 (tüm katmanlar) | 8.4 sn / 11.2 sn |
+
+Toplam ölçüm maliyeti (liste fiyatı, TÜM katmanlar, yeniden denemeler + düşünme dahil): **$0.0919**
+
+| model (sunulan) | çağrı | girdi | önbellek | çıktı | düşünme |
+|---|---|---|---|---|---|
+| text-embedding-3-small | 34 | 1927 | 0 | 0 | 0 |
+| gpt-5.1-2025-11-13 | 55 | 104479 | 90112 | 4449 | 0 |
+| gpt-6-luna | 57 | 670899 | 603226 | 10677 | 4157 |
+
+## Sınıf bazında misafire giden
+
+| sınıf | beklenti | giden | tutulan | Sorunlu | doğru olgu (giden / olgulu) | yasak dize giden | tutar giden (fiyat yasağı) |
+|---|---|---|---|---|---|---|---|
+| unknown_topic | any | 0 | 5 | 0 | 0/0 | 0 | 0 |
+| conditional | any | 5 | 0 | 0 | 0/0 | 0 | 0 |
+| grounded | any | 2 | 0 | 0 | 0/0 | 0 | 0 |
+| same_kind_double | any | 2 | 0 | 0 | 0/0 | 0 | 0 |
+| negative_kb | any | 4 | 1 | 0 | 0/0 | 0 | 0 |
+| source_question | any | 1 | 1 | 0 | 0/0 | 0 | 0 |
+| two_kinds | any | 6 | 0 | 0 | 0/0 | 0 | 0 |
+| reference | any | 1 | 0 | 0 | 0/0 | 0 | 0 |
+| sensitive_mix | any | 0 | 1 | 0 | 0/0 | 0 | 0 |
+| value_trap | any | 3 | 0 | 0 | 0/0 | 0 | 0 |
+
+## Tutulma gerekçeleri (misafire gitmeyen)
+
+- low_confidence_or_risky · low_confidence_or_risky · low_confidence: 4
+- low_confidence_or_risky · handoff_notice · reply_output_veto: 2
+- low_confidence_or_risky · items_held · items_nothing_answered: 1
+- low_confidence_or_risky · low_confidence_or_risky · items_nothing_answered: 1
+
+## İhtiyaç bazlı sonuç (kurucu 10-23 E) — okuyucu hatası kolu: `EVAL_LIVE_READER_FAIL=(boş)`
+
+| ölçü | değer |
+|---|---|
+| cevaplanması gereken ihtiyaç: doğru değerle misafire giden | 31/38 (82%) |
+| açık kalması gereken ihtiyaç: açık kaldı | 8/8 (100%) |
+| 🚨 yanlış "cevaplandı" / yanlış değer misafire giden (hedef 0) | 0 |
+| öğe durumu beklentiyle uyumlu (tek öğeli tür) | 31/38 (82%) |
+| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | 0 |
+| giden mesaj | 24/32 |
+
+| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış) | öğeler | parça kararları |
+|---|---|---|---|
+| n-tr-cikis-hamam | checkout_time:answered✖ amenities:open✔ | amenities=open checkout_time=open | — |
+| n-tr-havuz-kapanis | amenities:answered✔ | amenities=answered | — |
+| n-tr-sauna-kapanis | amenities:answered✔ | amenities=answered | — |
+| n-tr-havuz-sauna-ikisi | amenities:answered✔ amenities:answered✔ | amenities=answered | — |
+| n-tr-sauna-yok | amenities:answered✔ | amenities=answered | — |
+| n-tr-kahvalti | amenities:answered✔ | other=answered | — |
+| n-tr-kopek | pets:answered✖ | pets=pending_host | — |
+| n-tr-bisiklet | amenities:answered✔ | local_recommendations=answered | — |
+| n-tr-wifi-kaynak | wifi:answered✔ about_assistant:open✔ | other=open wifi=answered | — |
+| n-tr-kaynak-tek | about_assistant:open✔ | other=open | — |
+| n-tr-jakuzi | amenities:open✔ | amenities=open | — |
+| n-tr-otopark-eczane | parking:answered✔ local_recommendations:answered✔ | local_recommendations=answered parking=answered | — |
+| n-tr-cop-camasir | trash:answered✔ amenities:answered✔ | amenities=answered trash=answered | — |
+| n-tr-onceki-havuz | amenities:answered✔ | amenities=answered | — |
+| n-tr-giris-erken | checkin_time:answered✖ early_checkin:open✔ | checkin_time=open early_checkin=open | — |
+| n-tr-plaj-sezlong | directions_transport:answered✖ amenities:open✔ | amenities=open directions_transport=open | — |
+| n-en-checkout-sauna | checkout_time:answered✔ amenities:answered✔ | amenities=answered checkout_time=answered | — |
+| n-en-pool-saturday | amenities:answered✔ | amenities=answered | — |
+| n-en-breakfast-included | amenities:answered✔ | amenities=answered | — |
+| n-en-smoke-balcony | house_rules:answered✔ | house_rules=answered | — |
+| n-en-gym-wifi | amenities:open✔ wifi:answered✖ | amenities=open wifi=open | — |
+| n-de-pool-sauna | amenities:answered✔ amenities:answered✔ | amenities=answered | — |
+| n-de-hund | pets:answered✔ | pets=answered | — |
+| n-ru-vyezd-parkovka | checkout_time:answered✔ parking:answered✔ | checkout_time=answered parking=answered | — |
+| n-tr-havuz-22-tuzak | amenities:answered✔ | amenities=answered | — |
+| n-tr-sauna-23-tuzak | amenities:answered✔ | amenities=answered | — |
+| n-tr-hafta-sonu-kahvalti | amenities:answered✔ | amenities=answered | — |
+| n-tr-bisiklet-ucret | amenities:answered✔ | amenities=answered | — |
+| n-tr-hayvan-sigara | pets:answered✔ house_rules:answered✖ | pets=answered house_rules=pending_host | — |
+| n-tr-klima-utu | appliance_help:answered✔ amenities:answered✔ | appliance_help=answered amenities=answered | — |
+| n-tr-anahtar-hamam | access_keys:answered✖ amenities:open✔ | access_keys=open amenities=open | — |
+| n-tr-havaalani | directions_transport:answered✔ | directions_transport=answered | — |
+
+## Misafire giden cevaplar (sentetik veri; insan gözü için)
+
+- **n-tr-havuz-kapanis** (conditional/tr): "Merhaba Alex,\n\nHavuz hafta içi 20:00'de, hafta sonları ise 23:00'te kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-sauna-kapanis** (grounded/tr): "Merhaba Alex,\n\nSauna saat 22:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-havuz-sauna-ikisi** (same_kind_double/tr): "Merhaba Alex,\n\nHavuz her gün 20:00'de, sauna ise 22:00'de kapanıyor. Hafta sonları havuz 23:00'e kadar açık.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-sauna-yok** (negative_kb/tr): "Merhaba Alex,\n\nSitede sauna bulunmuyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-kahvalti** (conditional/tr): "Merhaba Alex,\n\nKahvaltı hafta içi 10:30’a, hafta sonu ise 11:00’e kadar servis ediliyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-bisiklet** (conditional/tr): "Merhaba Alex,\n\nBisiklet talep üzerine günlük 200 TL’ye kiralanabiliyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-wifi-kaynak** (source_question/tr): "Merhaba Alex,\n\nWi-Fi şifresi Lale2025!.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-otopark-eczane** (two_kinds/tr): "Merhaba Alex,\n\nOtopark ücretsizdir. En yakın eczane binanın 300 metre ilerisindeki köşededir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-cop-camasir** (two_kinds/tr): "Merhaba Alex,\n\nÇöpleri bina girişinin sağındaki konteynere atabilirsiniz. Çamaşır makinesi banyoda.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-onceki-havuz** (reference/tr): "Havuz hafta içi 20:00'de, hafta sonları 23:00'te kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-en-checkout-sauna** (two_kinds/en): "Hello Alex,\n\nCheckout is at 11:00. The sauna is on the garden level and closes daily at 22:00.\n\n(This reply was prepared by an automated assistant.)"
+- **n-en-pool-saturday** (conditional/en): "Hello Alex,\n\nThe pool is open until 23:00 on Saturdays.\n\n(This reply was prepared by an automated assistant.)"
+- **n-en-breakfast-included** (negative_kb/en): "Hello Alex,\n\nBreakfast is not included in the price. It is 250 TL per person.\n\n(This reply was prepared by an automated assistant.)"
+- **n-en-smoke-balcony** (negative_kb/en): "Hello Alex,\n\nSmoking is not allowed on the balcony.\n\n(This reply was prepared by an automated assistant.)"
+- **n-de-pool-sauna** (same_kind_double/de): "Hallo Alex,\n\nDer Pool schließt täglich um 20:00 Uhr, am Wochenende um 23:00 Uhr. Ja, es gibt eine Sauna; sie befindet sich im Gartenbereich und schließt um 22:00 Uhr.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)"
+- **n-de-hund** (negative_kb/de): "Hallo Alex,\n\nHaustiere sind in der Wohnung leider nicht erlaubt.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)"
+- **n-ru-vyezd-parkovka** (two_kinds/ru): "Здравствуйте, Alex!\n\nВремя выезда — до 11:00. Бесплатная парковка находится на этаже -2, за вами закреплено место №12.\n\n(Этот ответ подготовлен автоматическим ассистентом.)"
+- **n-tr-havuz-22-tuzak** (value_trap/tr): "Merhaba Alex,\n\nHayır, havuz hafta içi 20:00'de kapanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-sauna-23-tuzak** (value_trap/tr): "Merhaba Alex,\n\nSauna saat 22:00'de kapanıyor, bu nedenle 23:00'te kullanılamıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-hafta-sonu-kahvalti** (conditional/tr): "Merhaba Alex,\n\nHafta sonu kahvaltı 11:00'e kadar sürüyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-bisiklet-ucret** (value_trap/tr): "Merhaba Alex,\n\nBisiklet talep üzerine günlük 200 TL'ye kiralanıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-hayvan-sigara** (two_kinds/tr): "Merhaba Alex,\n\nEvcil hayvan kabul edilmiyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-klima-utu** (two_kinds/tr): "Merhaba Alex,\n\nKlima kumandası TV ünitesinin çekmecesinde. Ütü ve ütü masası yatak odası dolabında.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+- **n-tr-havaalani** (grounded/tr): "Merhaba Alex,\n\nHavaalanına arabayla yaklaşık 45 dakika sürer.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)"
+
+## Düşen satırlar
+
+
+## Koşu kimliği (katman bazında model + düşünme ayarı)
+
+Commit: `974a1f46`
+
+| Katman | Model | Düşünme çabası |
+|---|---|---|
+| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-6-luna` | low |
+| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Konaklama bekçisi | `gpt-6-luna` | low |
+| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |
+| Çeviri | `gpt-6-luna` | gönderilmez (model varsayılanı) |
+| Üslup özeti | `gpt-6-luna` | gönderilmez (model varsayılanı) |
+| Karar metni yazıcısı | `gpt-6-luna` | low |
+| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |
+
+Bayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=1` · `KB_RERANK_ENABLED=1` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=1` · `AI_STAY_GUARD_ENABLED=1` · `AI_CONVERSATION_ITEMS_ENABLED=1` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=1` · `AI_HOUSE_RULES_SHADOW=1` · `AI_KB_FEE_RULE_ENABLED=1` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=1` · `AI_HOST_DECISION_HOLD_ENABLED=1` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=1` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=1` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=1` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)`
+
+İstem kimliği (SHA-256 ilk 12): cevap `1e56c2312243` (öğe + yabancı dil örneği `5f64e1fa7c8a`) · anlama `dbf61aecd3d8` (kip: items+rules+cfu+prv)
+
+Yapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.

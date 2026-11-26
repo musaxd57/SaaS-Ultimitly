@@ -1,0 +1,305 @@
+import "server-only";
+
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { activeMessagingConnectionId } from "@/lib/channels";
+import { markHandoffExempt } from "./handoff-exempt";
+import { DELIVERY_PATH } from "@/lib/delivery-path";
+
+// ---------------------------------------------------------------------------
+// Durable Outbox — atomic enqueue (#8).
+//
+// Writes the local Message AND the durable send-intent (a MessageOutbox row) in
+// ONE transaction, so it is impossible to end up with "the message was recorded
+// but the intent to send it was lost" (or the reverse). Dedup is tenant-scoped
+// via the @@unique([organizationId, idempotencyKey]) — a retry / double-submit of
+// the SAME logical message produces neither a second outbox row nor a second
+// Message (the whole transaction rolls back on the unique hit, so no orphan
+// Message is left behind).
+//
+// The Message intentionally carries NO externalId here — that is written ONLY
+// after the worker gets a confirmed provider id (or reconciles one), so a queued-
+// but-not-yet-sent message can never be mistaken for a delivered one.
+//
+// ENQUEUE_CLOCK (CI #1170, 09-25): `availableAt` is written from the SAME clock the
+// worker's due-gate compares against (`availableAt <= now`, JS time). The schema
+// default (`@default(now())`) comes from another clock and is ROUNDED to
+// timestamp(3), while JS time is FLOORED to the millisecond — an enqueue and a
+// drain inside the same millisecond left the row "not yet due" (flaky red CI →
+// Railway skipped the deploy).
+// ---------------------------------------------------------------------------
+
+/** Whether the caller is enqueuing a host reply or an AI auto-send (drives authorType). */
+export type OutboundAuthor = "host" | "ai";
+
+/**
+ * Closed set of outbox message types (migration 30). Drives the worker's DELIVERY EFFECT:
+ *   manual | ai        → mark the conversation "answered" on confirmed delivery
+ *   holding_ack        → deliver but KEEP the thread in "problem" (never mark answered)
+ *   welcome|checkin|checkout → proactive lifecycle: stamp the reservation's *SentAt on delivery
+ * A NULL type (legacy / pre-30 rolling deploy) is treated as a reply → mark answered.
+ */
+export const OUTBOX_MESSAGE_TYPES = [
+  "manual",
+  "ai",
+  "holding_ack",
+  "welcome",
+  "checkin",
+  "checkout",
+] as const;
+export type OutboxMessageType = (typeof OUTBOX_MESSAGE_TYPES)[number];
+
+export interface EnqueueOutboundArgs {
+  organizationId: string;
+  conversationId: string;
+  /** Delivery channel snapshot (manual | airbnb | booking | ...). */
+  channel: string;
+  /** Hospitable reservation UUID = the delivery destination (null for internal threads). */
+  externalReservationId: string | null;
+  reservationId?: string | null;
+  /** The exact text to deliver AND store on the Message. */
+  body: string;
+  senderName: string;
+  authorType: OutboundAuthor;
+  /** Closed-set delivery-effect discriminator; omit for a plain reply (→ mark answered). */
+  messageType?: OutboxMessageType;
+  aiAssisted?: boolean;
+  /**
+   * Optional AI classification metadata, mirrored onto the Message so an auto-reply
+   * enqueued through the outbox keeps the SAME reporting/audit fidelity as a direct
+   * send (aiIntent/aiConfidence/aiSourcesJson). Omitted for a plain host reply.
+   */
+  aiIntent?: string | null;
+  aiConfidence?: number | null;
+  aiSourcesJson?: string | null;
+  /**
+   * Tenant-scoped idempotency identity of THIS logical send. The caller computes a
+   * stable key (e.g. `auto:{conversationId}:{inboundMessageId}` for an AI reply, or a
+   * client-supplied UUID for a manual reply). The same key never sends twice.
+   */
+  idempotencyKey: string;
+  /**
+   * Teslimde devir kilidi KURULMASIN (öğe kipindeki insan talebi cevabı — satır içi yolun `human_request && !itemsPlan` kararı).
+   * Kuyruk satırıyla AYNI işlemde işaret yazılır (`handoff-exempt.ts`); tekrar kuyruğa girişte (aynı anahtar) işlem geri alınır →
+   * ilk girişin kararı geçerli kalır.
+   */
+  handoffHoldExempt?: boolean;
+  /**
+   * S1: bu gönderim, misafire KESİNLİKLE ulaşmamış ("gönderilemedi" / "iptal") bir önceki kuyruk satırının YERİNE açılıyor (yapay zekâ
+   * önerisinin yeniden onayı). Yazmadan önce o satır AYNI işlemde paylaşımlı kilitlenir ve hâlâ o durumda mı diye bakılır: bu arada elle
+   * "yeniden dene" ile kuyruğa geri alındıysa (`requeueFailedOutbox` satırı güncellerken kilidi tutar) yeni satır AÇILMAZ →
+   * `SupersededRowRevivedError`. İki yol aynı satır kilidinde buluşur; aynı öneri iki ayrı satırdan iki kez gidemez.
+   */
+  supersedes?: string;
+  /**
+   * C4 (Codex 11-17): mesaj + kuyruk satırıyla AYNI işlemde çalışan çağıran kaydı (karar / WhatsApp cevabının "yalnız kendi talebini yanıtlar"
+   * bağı). Fırlatırsa işlem geri alınır: ne mesaj ne satır yazılır, `enqueueOutbound` fırlatır.
+   */
+  onMessageRecorded?: (tx: Prisma.TransactionClient, messageId: string) => Promise<unknown>;
+}
+
+/** `supersedes` ile verilen satır artık "gönderilemedi / iptal" değil (elle yeniden kuyruğa alınmış) — yeni gönderim açılmadı. */
+export class SupersededRowRevivedError extends Error {
+  constructor() {
+    super("superseded outbox row was revived");
+    this.name = "SupersededRowRevivedError";
+  }
+}
+
+export interface EnqueueResult {
+  outboxId: string;
+  messageId: string;
+  /** True when an identical logical message was already enqueued (no new rows written). */
+  deduped: boolean;
+}
+
+/**
+ * Atomically record a message + its durable send intent. Idempotent on
+ * (organizationId, idempotencyKey): a duplicate returns the existing outbox row
+ * and writes nothing new.
+ */
+export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<EnqueueResult> {
+  // V0.3: stamp the org's ACTIVE connection (provenance — which credential this
+  // send was queued under). Null when the org is not connected; delivery still
+  // resolves the credential at send time (a disconnected org parks the row).
+  const connectionId = await activeMessagingConnectionId(args.organizationId);
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      if (args.supersedes) {
+        // Paylaşımlı satır kilidi: elle yeniden deneme o satırı güncelliyorsa işlemi bitene dek bekler, sonra GÜNCEL durumu okur.
+        const prior = await tx.$queryRaw<{ status: string }[]>`
+          SELECT "status" FROM "MessageOutbox" WHERE "id" = ${args.supersedes} AND "organizationId" = ${args.organizationId} FOR SHARE`;
+        if (prior[0] && prior[0].status !== "failed" && prior[0].status !== "canceled") throw new SupersededRowRevivedError();
+      }
+      const message = await tx.message.create({
+        data: {
+          conversationId: args.conversationId,
+          direction: "outbound",
+          authorType: args.authorType,
+          senderName: args.senderName,
+          body: args.body,
+          aiAssisted: args.aiAssisted ?? false,
+          // AI metadata (auto-reply / holding-ack) — same fields a direct send stores,
+          // so reports/audit are identical whether or not the outbox path is used.
+          ...(args.aiIntent != null ? { aiIntent: args.aiIntent } : {}),
+          ...(args.aiConfidence != null ? { aiConfidence: args.aiConfidence } : {}),
+          ...(args.aiSourcesJson != null ? { aiSourcesJson: args.aiSourcesJson } : {}),
+          // No externalId yet — set only after a CONFIRMED send (worker).
+          // V0.4 provenance: kuyruklandığı bağlantı (outbox satırıyla aynı damga); ingestedAt
+          // YOK — bu bizim çıktımız, ingest değil. Kanıt türü "outbound" (gözlem değil, kuyruklama).
+          connectionId,
+          connectionEvidence: connectionId ? "outbound" : null,
+          // Teslim yolu (migration 98): satır kuyruk satırıyla AYNI işlemde yazılır — bütün kuyruk yazanları (ev sahibi, otomatik cevap,
+          // nezaket, yaşam döngüsü mesajları) bu tek yerden geçer.
+          deliveryPath: DELIVERY_PATH.queue,
+        },
+        select: { id: true },
+      });
+      const outbox = await tx.messageOutbox.create({
+        data: {
+          organizationId: args.organizationId,
+          conversationId: args.conversationId,
+          messageId: message.id,
+          reservationId: args.reservationId ?? null,
+          channel: args.channel,
+          externalReservationId: args.externalReservationId,
+          messageType: args.messageType ?? null,
+          body: args.body,
+          idempotencyKey: args.idempotencyKey,
+          status: "pending",
+          // ↓ENQUEUE_CLOCK: vade kapısı worker'ın saatiyle kıyaslanır; satır da o saatle damgalanır.
+          availableAt: new Date(),
+          connectionId,
+        },
+        select: { id: true },
+      });
+      if (args.handoffHoldExempt) await markHandoffExempt(tx, outbox.id, new Date());
+      // Çağıranın mesaja bağlı kaydı (C4 — karar / WhatsApp cevabının kapsam bağı) AYNI işlemde: düşerse ne mesaj ne satır yazılır.
+      // Tekilleşen tekrarda işlem geri alınır → kanca da geri alınır (ilk kuyruğa alma bağı zaten yazdı).
+      if (args.onMessageRecorded) await args.onMessageRecorded(tx, message.id);
+      // NOTE (Codex #6): the conversation is NOT marked "answered" here. The intent is
+      // durable, but the guest has NOT received anything yet — "answered/sent" is set
+      // by the worker ONLY once the provider confirms delivery. So a queued-but-
+      // undelivered reply never looks delivered.
+      return { outboxId: outbox.id, messageId: message.id };
+    });
+    return { ...result, deduped: false };
+  } catch (err) {
+    // Dedupe-hit on the tenant-scoped idempotency key: an identical logical send is
+    // already enqueued. The transaction rolled back, so NO orphan Message was left.
+    if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
+      const existing = await prisma.messageOutbox.findFirst({
+        where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
+        select: { id: true, messageId: true },
+      });
+      if (existing) return { outboxId: existing.id, messageId: existing.messageId ?? "", deduped: true };
+    }
+    throw err;
+  }
+}
+
+export interface EnqueueProactiveArgs {
+  organizationId: string;
+  /** Hospitable reservation UUID = the delivery destination. */
+  externalReservationId: string;
+  reservationId: string;
+  channel: string;
+  /** welcome | checkin | checkout — the worker stamps the matching reservation *SentAt on delivery. */
+  messageType: Extract<OutboxMessageType, "welcome" | "checkin" | "checkout">;
+  body: string;
+  /** Deterministic identity: {type}:{org}:{reservation-anchor} — replay/restart never sends twice. */
+  idempotencyKey: string;
+  /**
+   * Gövdenin kurulduğu `AutoMessageTemplate.revision` (kurucu T4, migration 80). İşçi gönderimden önce güncel sürümle kıyaslar; farklıysa
+   * gövdeyi AYNI satırda yeniden kurar (anahtar değişmez → çift gönderim yok). Tekrar-çarpmada (dedupe) mevcut satırın değeri korunur.
+   */
+  templateRevision?: number;
+}
+
+/**
+ * Rezervasyonun DURUMU yüzünden (iptal / kayıt yok) gönderim anı vetosunda — sağlayıcıya HİÇ gitmeden — iptal edilmiş yaşam döngüsü satırının
+ * sebepleri (`worker.ts` `lifecycleVeto`). Rezervasyon başına tek anahtar olduğu için bu satırlar rezervasyon geri dönünce (ev sahibi yeniden
+ * açtı, silinen kayıt senkronla geri geldi) mesajı KALICI yutuyordu (G1 tur 3 T3-B2 + tur 4 notu, 11-20) — kuyruk kapalıyken aynı akış
+ * gönderiyor. Gönderici rezervasyonu yeniden gönderilebilir bulduğunda bu satırı yeniden bekleyen yapar (↓`enqueueProactive`); işçi gönderim
+ * anında bütün kuralları yeniden uygular (zaten gönderildi damgası, pencere, onay). Başka sebeple iptal edilmiş satır (anahtar kapalı,
+ * silme talebi, pencere geçti) dirilmez.
+ */
+export const REVIVABLE_LIFECYCLE_CANCEL_CODES = ["reservation_cancelled", "reservation_gone"] as const;
+
+export interface EnqueueProactiveResult {
+  outboxId: string;
+  deduped: boolean;
+}
+
+/**
+ * Enqueue a PROACTIVE lifecycle send (welcome / check-in / check-out). Unlike a reply, this
+ * has NO conversation and NO local Message — it is a pure durable send-intent keyed to a
+ * reservation. The reservation's *SentAt is stamped ONLY by the worker on confirmed delivery
+ * (never here), and the deterministic idempotencyKey (via the tenant-scoped unique constraint)
+ * makes a scheduler replay or a process restart a clean dedupe-hit rather than a second message.
+ */
+export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<EnqueueProactiveResult> {
+  const connectionId = await activeMessagingConnectionId(args.organizationId); // V0.3 provenance (V0.8: kanal katmanından)
+  try {
+    const outbox = await prisma.messageOutbox.create({
+      data: {
+        organizationId: args.organizationId,
+        conversationId: null, // proactive: no thread
+        messageId: null, //      proactive: no local Message (sync re-imports it later, as today)
+        reservationId: args.reservationId,
+        channel: args.channel,
+        externalReservationId: args.externalReservationId,
+        messageType: args.messageType,
+        body: args.body,
+        idempotencyKey: args.idempotencyKey,
+        status: "pending",
+        availableAt: new Date(), // ↓ENQUEUE_CLOCK
+        connectionId,
+        templateRevision: args.templateRevision ?? null,
+      },
+      select: { id: true },
+    });
+    return { outboxId: outbox.id, deduped: false };
+  } catch (err) {
+    if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
+      // Rezervasyonun durumu yüzünden iptal edilmiş satır yeniden bekleyen olur (↑`REVIVABLE_LIFECYCLE_CANCEL_CODES`): gövde, sürüm ve
+      // rezervasyon kimliği bugünkü adaydan (silinip geri gelen kayıt yeni kimlik taşır). Koşullu tek yazma — eşzamanlı iki gönderici
+      // satırı iki kez diriltemez. Deneme sayısı korunur (önceki gerçek denemeler tavana sayılmaya devam eder).
+      const revived = await prisma.messageOutbox.updateMany({
+        where: {
+          organizationId: args.organizationId,
+          idempotencyKey: args.idempotencyKey,
+          messageType: args.messageType,
+          status: "canceled",
+          lastErrorCode: { in: [...REVIVABLE_LIFECYCLE_CANCEL_CODES] },
+        },
+        data: {
+          status: "pending",
+          availableAt: new Date(), // ↓ENQUEUE_CLOCK
+          reservationId: args.reservationId,
+          body: args.body,
+          templateRevision: args.templateRevision ?? null,
+          connectionId,
+          lastErrorKind: null,
+          lastErrorCode: null,
+          claimedBy: null,
+          claimExpiresAt: null,
+          claimedAt: null,
+        },
+      });
+      const existing = await prisma.messageOutbox.findFirst({
+        where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
+        select: { id: true },
+      });
+      if (existing && revived.count === 1) return { outboxId: existing.id, deduped: false };
+      // A replay / restart is a clean dedupe-hit: the durable row already exists and owns the
+      // send. A Hospitable 402 "subscription not active" send does NOT loop here — it parks in
+      // `blocked` and is reactivated to `pending` exactly once by `reactivateBlockedOutbox` when
+      // the org's sync succeeds again (worker.ts). Re-enqueue never resurrects it (that would
+      // hammer the provider + pager while the subscription stays inactive).
+      if (existing) return { outboxId: existing.id, deduped: true };
+    }
+    throw err;
+  }
+}

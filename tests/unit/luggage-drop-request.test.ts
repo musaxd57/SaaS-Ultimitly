@@ -1,0 +1,133 @@
+import { describe, it, expect } from "vitest";
+import {
+  detectAvailabilityRequestKinds,
+  luggageBeforeCheckIn,
+  luggageDropTimes,
+  stayRequestKinds,
+  vetoAvailability,
+} from "@/lib/ai/availability-claims";
+
+// ---------------------------------------------------------------------------
+// BAVUL BIRAKMA = ERKEN GİRİŞ İSTEĞİ (kurucu 10-12: "Ekle"). Kod kapısı "Bavullarımızı 9'da bırakabilir miyiz?" isteğini de
+// "Elbette, 9'da bırakabilirsiniz" iznini de tanımıyordu (Haiku 10-11, 12 kombinasyon ölçüldü); yalnız model katmanları yakalıyordu.
+// Kapsam: giriş ÖNCESİ (erken bağlam sözcüğü ya da giriş saatinden önceki açık saat). Çıkış sonrası bavul bu kuralın konusu değil.
+// ---------------------------------------------------------------------------
+
+const stay = { checkIn: "15:00", checkOut: "11:00" };
+const noDecl = { asked: "none", stance: "none" } as never;
+
+describe("bavul bırakma isteği (misafir)", () => {
+  it.each([
+    // Saatle — giriş saatinden önce.
+    ["Bavullarımızı 9'da bırakabilir miyiz?", true],
+    ["Bagajımızı saat 11'de bırakabilir miyiz?", true],
+    ["Can we drop our luggage at 9am?", true],
+    // Erken bağlam sözcüğüyle (saat gerekmez).
+    ["Bavullarımızı erken bırakabilir miyiz?", true],
+    ["Sabah valizlerimizi bırakabilir miyiz?", true],
+    ["Girişten önce çantalarımızı bırakabilir miyiz?", true],
+    ["Eşyalarımızı check-in'den önce bırakabilir miyiz?", true],
+    ["Can we leave our bags before check-in?", true],
+    ["Could we drop off our suitcases early?", true],
+    ["Can we store our bags in the morning?", true],
+    // Sayılmaz: giriş saatinden sonra · çıkış tarafı · bavul değil · bırakma yok · saat de bağlam da yok.
+    ["Bavullarımızı 16:00'da bırakabilir miyiz?", false],
+    ["Çıkışta bavullarımızı nereye bırakalım?", false],
+    ["Çıkıştan sonra bavullarımızı bırakabilir miyiz?", false],
+    ["Can we leave our bags after check-out?", false],
+    ["Sabah çıkış yaparken anahtarı nereye bırakalım?", false],
+    ["Anahtarı nereye bırakalım?", false],
+    ["Çöp poşetini sabah kapının önüne bırakabilir miyiz?", false],
+    ["We will arrive at 9pm with our bags", false],
+    ["Valiz için yer var mı?", false],
+    ["Bavullarımızı nereye koyalım?", false],
+    // Çıkış bağlamı + saat / "sabah" aynı cümlecikte → geç çıkış tarafı, bu kural saymaz (mutasyon L5, L6).
+    ["Çıkışta bavullarımızı saat 12'ye kadar bırakabilir miyiz?", false],
+    ["Sabah çıkışta bavullarımızı nereye bırakalım?", false],
+    // Haiku 10-12: kaçan fiiller / öğlen · akşam-gece saatleri · kayıp eşya · çöp poşeti.
+    ["Eşyalarımızı erkenden getirebilir miyiz?", true],
+    ["Is luggage storage possible before check-in?", true],
+    ["Bavullarımızı öğlen bırakabilir miyiz?", true],
+    ["Can we drop the bags off at noon?", true],
+    ["Bavullarımızı akşam 9'da bırakırız", false],
+    ["Gece 1'de bavullarımızı bırakabilir miyiz?", false],
+    ["Bavullarımızı sabah 9'da bırakabilir miyiz?", true],
+    ["Bavullarımızı bırakabilir miyiz? Akşam 9'da döneceğiz.", false],
+    ["Bavullarımızı bırakabilir miyiz? Saat 9'da geleceğiz.", true],
+    ["Dün sabah çantamı otelde bıraktım, bulabilir miyiz?", false],
+    ["Can we leave the trash bag out early tomorrow morning?", false],
+    // Bilinçli: "çıkıyoruz" çıkış sayılmaz (geliş günü de olabilir — yanlış izin riski yerine ev sahibine düşer).
+    ["Yarın sabah erken çıkıyoruz, bavullarımızı bırakabilir miyiz?", true],
+    // Haiku 10-12 2. tur: gün dilimi alt bölüm kapsamında · "I am" · "öğle yemeği" · "p.m." noktaları.
+    ["Bavulları 9'da bırakabilir miyiz, akşam 6'da döneriz", true],
+    ["I am arriving at 1pm, can we leave our bags?", true],
+    ["Can we leave our bags at 2 p.m.?", true],
+    ["Can we leave our bags at 3 p.m.?", false], // giriş saatine eşit — erken değil
+    ["Can we leave our bags at 9 a.m.?", true],
+    ["Can we leave our bags at 4 p.m.?", false],
+    ["Can we leave our bags at 6 p.m.?", false], // "p.m." birleşmezse 06:00 ikizi erken sayılırdı (mutasyon T5)
+    ["I am arriving at 1, can we leave our bags?", true], // "I am" sabah işareti değil → 13:00 adayı kalır (mutasyon T6)
+    ["Öğle yemeğinden sonra 16:00'da giriş yapacağız, bavulları bırakabilir miyiz?", false],
+  ])("%s → erken giriş isteği: %s", (text, expected) => {
+    expect(stayRequestKinds([text as string], { stayTimes: stay }).has("early_checkin")).toBe(expected);
+  });
+
+  it("saat yolu mülkün giriş saatine bağlı: aynı mesaj giriş 08:00 olan mülkte istek değil; giriş saati bilinmiyorsa saat yolu karar vermez", () => {
+    expect(luggageBeforeCheckIn("Bavullarımızı 9'da bırakabilir miyiz?", stay)).toBe(true);
+    expect(luggageBeforeCheckIn("Bavullarımızı 9'da bırakabilir miyiz?", { checkIn: "08:00", checkOut: "11:00" })).toBe(false);
+    expect(luggageBeforeCheckIn("Bavullarımızı 9'da bırakabilir miyiz?", null)).toBe(false);
+    // Bağlam sözcüğü varsa giriş saati bilinmese de kelime kalıbı sayar.
+    expect(detectAvailabilityRequestKinds("Bavullarımızı erken bırakabilir miyiz?")).toContain("early");
+    expect(luggageDropTimes("Saat 9'da geleceğiz.")).toEqual([]); // bavul bırakma cümleciği yok → saat okunmaz
+  });
+});
+
+describe("bavul bırakma izni (cevap) — kod kapısı tutar", () => {
+  it.each([
+    ["Elbette, bavullarınızı 9'da bırakabilirsiniz.", ["Bavullarımızı 9'da bırakabilir miyiz?"], true],
+    ["Sure, you can drop your luggage at 9am.", ["Can we drop our luggage at 9am?"], true],
+    ["Bavullarınızı sabah bırakabilirsiniz.", ["Erken gelirsek ne yapalım?"], true],
+    ["Bavullarınızı sabah bırakabilirsiniz.", ["Teşekkürler"], true],
+    ["You can leave your bags at 10am.", ["Thanks!"], true],
+    ["Feel free to leave your suitcases before check-in.", ["Thanks!"], true],
+    ["Çıkışta bavullarınızı kapının yanına bırakabilirsiniz.", ["Çıkışta bavulları nereye bırakalım?"], false],
+    ["Anahtarı masaya bırakabilirsiniz.", ["Anahtarı nereye bırakalım?"], false],
+    ["Bavullarınızı 16:00'da bırakabilirsiniz.", ["Teşekkürler"], false],
+    ["Wifi şifresi kartta yazıyor.", ["Wifi şifresi ne?"], false],
+    // Çıkış günü bavul izni (geç çıkış tarafı) bu kuralın konusu değil (mutasyon L7).
+    ["Çıkış günü sabah bavullarınızı resepsiyona bırakabilirsiniz.", ["Teşekkürler"], false],
+    // Cevapta erken bir saat geçmesi tek başına bavul izni değildir (mutasyon L11).
+    ["Temizlik 11:00'de biter, giriş 15:00'tedir.", ["Giriş saat kaçta?"], false],
+    // 🚨 Saatli istek + bavul sözcüğü GEÇMEYEN onay ("Tabii, sorun değil") → istek tek başına tutturur (mutasyon L3).
+    ["Tabii, sorun değil, sizi bekliyoruz.", ["Bavullarımızı 9'da bırakabilir miyiz?"], true],
+    ["Tabii, sorun değil, sizi bekliyoruz.", ["Bavullarımızı 16:00'da bırakabilir miyiz?"], false],
+    // 🚨 Misafir bavul sorduysa bavul sözcüğü GEÇMEYEN izin de izindir (Haiku 10-12): saatsiz soru + saatli izin.
+    ["Elbette, 9'da bırakabilirsiniz.", ["Bavullarımızı bırakabilir miyiz?"], true],
+    ["Sure, you can leave them at 10.", ["Can we leave our bags?"], true],
+    ["Elbette, sabah bırakabilirsiniz.", ["Valizleri bırakabilir miyiz?"], true],
+    // Kontrol: bavul sorulmadıysa aynı cevap bu kuraldan tutulmaz; giriş sonrası saat tutulmaz.
+    ["Elbette, 16:00'da bırakabilirsiniz.", ["Bavullarımızı bırakabilir miyiz?"], false],
+    ["Elbette, 9'da bırakabilirsiniz.", ["Anahtarı nereye bırakalım?"], false], // bavul sorulmadı → bu kural tutmaz (mutasyon T8)
+  ])("%s | %j → tutulur: %s", (reply, guest, expected) => {
+    expect(vetoAvailability(reply as string, guest as string[], { stayTimes: stay, declared: noDecl }) !== null).toBe(expected);
+  });
+
+  it("uzun metinde doğrusal (karesel iş yok): tek sözcük, boşluk dizisi, tekrarlanan bavul / bırak", () => {
+    const runs = [
+      "a".repeat(50_000),
+      `a${" ".repeat(50_000)}b`,
+      "bavul ".repeat(8_000),
+      "birak ".repeat(8_000),
+      `${"bavul birak ".repeat(4_000)}sabah`,
+      `${"luggage drop ".repeat(4_000)}cikis`,
+      "bavul birak 9'da ".repeat(3_000),
+      `${"bags drop at 9am, ".repeat(2_500)}`,
+    ];
+    for (const r of runs) {
+      const t = performance.now();
+      stayRequestKinds([r], { stayTimes: stay });
+      vetoAvailability(r, [r], { stayTimes: stay, declared: noDecl });
+      expect(performance.now() - t).toBeLessThan(2_000);
+    }
+  });
+});
