@@ -137,5 +137,17 @@
     "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
     "report": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman.md",
     "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g1-bugun.md"
+  },
+  "grounding-kabul-2026-11-26.json": {
+    "sha256": "350eaddf221eee7e9eaaaf84cc0ca49052e3d0cbe5e806e5f7cb34d8baa47581",
+    "sealedAt": "2026-11-26",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız dosya biçimi + ürünün genel cevap kuralı (notta açıkça yazmayan söylenmez, soru ev sahibinde kalır; \"bilgim yok\" denmez; misafirin dilinde) ve sınıf listesi (kontrol · konu yakın ama cevap yok · karışık · tek notta var + yok · yasak / yok kuralı başka dilde · çelişkili notlar · değer taşıma · şifre / kod değeri · tutulan konu + cevaplanabilir soru · takip sorusu) verildi; geliştirici dosyayı AÇMADI, yalnız biçim denetiminin sayıları, boyut ve SHA-256 görüldü. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Taslak betik silindi.",
+    "items": {
+      "scenarios": 97,
+      "needsAnswered": 68,
+      "needsOpen": 51,
+      "languages": 7
+    },
+    "state": "sealed"
   }
 }

@@ -1,0 +1,2554 @@
+{
+ "version": 1,
+ "property": {
+  "name": "Lale Bahçe Evleri",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 12",
+  "city": "Antalya"
+ },
+ "kbSets": {
+  "tr_ana": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: LaleKonak_Misafir. Şifre: zeytin7731"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın önündeki sokakta park ücretsiz. Kapalı otopark yok."
+   },
+   {
+    "category": "rules",
+    "title": "Sigara",
+    "content": "Dairede ve balkonda sigara içilmez."
+   },
+   {
+    "category": "rules",
+    "title": "Parti ve gürültü",
+    "content": "Parti yapılmaz. Sessiz saatler 23:00 ile 08:00 arası."
+   },
+   {
+    "category": "trash",
+    "title": "Çöp",
+    "content": "Çöpler binanın arka kapısının yanındaki konteynere atılır. Geri dönüşüm kutusu yok."
+   },
+   {
+    "category": "cleaning",
+    "title": "Havlu ve çarşaf",
+    "content": "Banyo havlusu ve çarşaf veriyoruz. Plaj havlusu verilmez."
+   },
+   {
+    "category": "checkin",
+    "title": "Giriş",
+    "content": "Giriş 15:00'ten sonra. Anahtar kutusu kapının sağında, kodu 2580."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Site havuzu 09:00-20:00 arası açık."
+   },
+   {
+    "category": "location",
+    "title": "Havaalanı transferi",
+    "content": "Havaalanından daireye transfer 900 TL, bir gün önceden haber verin."
+   },
+   {
+    "category": "appliances",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi mutfakta, deterjan lavabonun altında. Kurutma makinesi yok."
+   },
+   {
+    "category": "local_tips",
+    "title": "Market",
+    "content": "En yakın market 200 metre ileride, 07:00-23:00 açık."
+   },
+   {
+    "category": "faq",
+    "title": "Bebek yatağı",
+    "content": "İstek üzerine ücretsiz bebek yatağı veriyoruz."
+   },
+   {
+    "category": "general",
+    "title": "Acil durum",
+    "content": "Acil durumda bize +90 532 418 27 63 numarasından ulaşabilirsiniz."
+   },
+   {
+    "category": "amenities",
+    "title": "Klima",
+    "content": "Her odada klima var, kumandalar komodinin çekmecesinde."
+   }
+  ],
+  "en_main": [
+   {
+    "category": "wifi",
+    "title": "WiFi",
+    "content": "Network: Lale_Garden_Guest, password: Tulip-4096"
+   },
+   {
+    "category": "parking",
+    "title": "Parking",
+    "content": "Garage parking is free for guests, your spot is number 14. There is no EV charging point."
+   },
+   {
+    "category": "rules",
+    "title": "Smoking & parties",
+    "content": "No smoking anywhere inside the apartment. No parties or events."
+   },
+   {
+    "category": "checkout",
+    "title": "Check-out",
+    "content": "Leave the keys on the kitchen table and pull the door shut behind you."
+   },
+   {
+    "category": "checkin",
+    "title": "Self check-in",
+    "content": "Door code: 6194#. The same code opens the building entrance."
+   },
+   {
+    "category": "amenities",
+    "title": "Kitchen",
+    "content": "Fully equipped kitchen with oven, kettle and a capsule coffee machine. No dishwasher."
+   },
+   {
+    "category": "amenities",
+    "title": "Balcony",
+    "content": "The balcony has a small table and two chairs."
+   },
+   {
+    "category": "cleaning",
+    "title": "Linen & cleaning",
+    "content": "Fresh sheets and towels are provided. Mid-stay cleaning is available for 600 TL."
+   },
+   {
+    "category": "location",
+    "title": "Getting here",
+    "content": "A taxi from the airport takes about 40 minutes and costs around 1,100 TL."
+   },
+   {
+    "category": "local_tips",
+    "title": "Beach",
+    "content": "The nearest beach is a 10-minute walk. Beach umbrellas are not provided."
+   },
+   {
+    "category": "trash",
+    "title": "Rubbish",
+    "content": "Bins are collected every evening. Put your bags in the green bin by the gate."
+   },
+   {
+    "category": "faq",
+    "title": "Luggage",
+    "content": "After check-out you can leave your luggage in the hallway closet until 18:00."
+   },
+   {
+    "category": "appliances",
+    "title": "Air conditioning",
+    "content": "Air conditioning is in the bedroom only. The living room has a ceiling fan."
+   }
+  ],
+  "celiski": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Şifre: kiraz5512"
+   },
+   {
+    "category": "wifi",
+    "title": "Internet",
+    "content": "Wi-Fi password: Kiraz-9090"
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Bina otoparkı misafirlere ücretsiz."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark ücreti",
+    "content": "Bina otoparkı günlük 250 TL."
+   },
+   {
+    "category": "cleaning",
+    "title": "Ara temizlik",
+    "content": "Ara temizlik salı ve cuma günleri yapılır."
+   },
+   {
+    "category": "cleaning",
+    "title": "Temizlik günleri",
+    "content": "Ara temizlik her gün yapılır."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz",
+    "content": "Havuz 09:00-19:00 arası açık."
+   },
+   {
+    "category": "amenities",
+    "title": "Havuz saatleri",
+    "content": "Havuz 08:00-22:00 arası kullanılabilir."
+   },
+   {
+    "category": "checkin",
+    "title": "Kapı kodu",
+    "content": "Giriş kapısının kodu 4815."
+   },
+   {
+    "category": "checkin",
+    "title": "Bina girişi",
+    "content": "Bina kapısı şifresi 7302."
+   },
+   {
+    "category": "location",
+    "title": "Transfer",
+    "content": "Havaalanı transferi 800 TL."
+   },
+   {
+    "category": "location",
+    "title": "Havalimanı",
+    "content": "Havalimanından alış ücretsizdir."
+   },
+   {
+    "category": "rules",
+    "title": "Sessiz saatler",
+    "content": "Sessiz saatler 22:00'den itibaren."
+   },
+   {
+    "category": "rules",
+    "title": "Gürültü",
+    "content": "Sessiz saatler gece 00:00'dan sonra başlar."
+   }
+  ],
+  "mini": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Wi-Fi şifresi: badem2468"
+   },
+   {
+    "category": "checkin",
+    "title": "Anahtar",
+    "content": "Anahtarlar kapıdaki kilitli kutuda, kod 9031."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "ctl-tr-wifi",
+   "class": "control",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Merhaba, Wi-Fi şifresi neydi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "zeytin7731"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-tr-sessiz",
+   "class": "control",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Sessiz saatler kaçta başlıyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "\\b23\\b|11 ?pm"
+      ],
+      "about": [
+       "sessiz|quiet|ruhe|silence|silencio|тишин|هدوء"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-en-wifi",
+   "class": "control",
+   "lang": "en",
+   "kb": "en_main",
+   "message": "Hi! What's the wifi password?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "tulip-?4096"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-en-bavul",
+   "class": "control",
+   "lang": "en",
+   "kb": "en_main",
+   "message": "Until what time can we leave our bags after check-out?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "luggage",
+      "want": "answered",
+      "all": [
+       "\\b18\\b|6 ?pm"
+      ],
+      "about": [
+       "luggage|bag|bavul|valiz|gepäck|bagage|equipaje|maleta|багаж|حقائب|أمتعة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-de-muell",
+   "class": "control",
+   "lang": "de",
+   "kb": "en_main",
+   "message": "Hallo, wann wird der Müll abgeholt?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "abend|evening|akşam|soir|noche|tarde|вечер|مساء"
+      ],
+      "about": [
+       "müll|trash|rubbish|garbage|\\bbins?\\b|tonne|çöp|déchets|poubelle|basura|мусор|قمامة|نفايات"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-fr-poubelle",
+   "class": "control",
+   "lang": "fr",
+   "kb": "tr_ana",
+   "message": "Bonjour, où faut-il jeter les poubelles ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "conteneur|container|konteyner|contenedor|контейнер|حاوية|benne|cubo"
+      ],
+      "about": [
+       "müll|trash|rubbish|garbage|\\bbins?\\b|tonne|çöp|déchets|poubelle|basura|мусор|قمامة|نفايات"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-es-piscina",
+   "class": "control",
+   "lang": "es",
+   "kb": "tr_ana",
+   "message": "¿A qué hora abre la piscina?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "\\b0?9\\b"
+      ],
+      "about": [
+       "piscine|pool|havuz|piscina|schwimmbad|бассейн|مسبح|حمام السباحة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-ru-parkovka",
+   "class": "control",
+   "lang": "ru",
+   "kb": "en_main",
+   "message": "Подскажите, какой номер нашего места в гараже?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "\\b14\\b"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن|место|spot"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-ar-wifi",
+   "class": "control",
+   "lang": "ar",
+   "kb": "tr_ana",
+   "message": "ما هي كلمة سر الواي فاي؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "zeytin7731"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-tr-mini-wifi",
+   "class": "control",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Wi-Fi şifresini atar mısınız?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "badem2468"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-en-deterjan",
+   "class": "control",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Where can I find the detergent for the washing machine?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "sink|lavabo|spüle|spülbecken|évier|fregadero|раковин|мойк|حوض|مغسل"
+      ],
+      "about": [
+       "deterjan|detergent|waschmittel|lessive|détergent|detergente|моющ|порош|منظف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "ctl-tr-taksi",
+   "class": "control",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Havaalanından taksi ne kadar tutuyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "1[ .,]?100"
+      ],
+      "about": [
+       "taksi|taxi|такси|تاكسي"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-tr-havuz-isitma",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Havuz ısıtmalı mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ısıt|ısın|sıcak|heated|beheizt|derece|°C|grad|degré|grado|градус|درجة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-en-mama-sandalyesi",
+   "class": "near_topic_no_answer",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Do you also have a high chair for the baby?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "high ?chair|mama sandalye|hochstuhl|chaise haute|trona|стульчик|كرسي"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-de-grill",
+   "class": "near_topic_no_answer",
+   "lang": "de",
+   "kb": "en_main",
+   "message": "Gibt es auf dem Balkon einen Grill?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "grill|mangal|barbecue|bbq|parrilla|барбекю|шашлык|مشو|شواء"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-fr-klima-isitma",
+   "class": "near_topic_no_answer",
+   "lang": "fr",
+   "kb": "tr_ana",
+   "message": "La climatisation peut-elle aussi chauffer en hiver ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "open",
+      "forbid": [
+       "chauff|heat|ısıt|heiz|calefac|отоплен|обогрев|تدفئة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-es-socorrista",
+   "class": "near_topic_no_answer",
+   "lang": "es",
+   "kb": "en_main",
+   "message": "¿La playa tiene socorrista?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "socorrista|lifeguard|cankurtaran|rettungsschwimmer|maître[- ]nageur|спасател|منقذ"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-ru-ikinci-arac",
+   "class": "near_topic_no_answer",
+   "lang": "ru",
+   "kb": "en_main",
+   "message": "В гараже есть место для второй машины?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "втор|second|ikinci|zweit|deuxième|segund|ثاني"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-ar-havuz-derinlik",
+   "class": "near_topic_no_answer",
+   "lang": "ar",
+   "kb": "tr_ana",
+   "message": "ما هو عمق مسبح المجمع؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "عمق|depth|derin|tief|profond|profundidad|глубин|متر|\\bmet(er|re)s?\\b"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-tr-sezlong",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Plajda şezlong kiralanabiliyor mu?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "şezlong|sunbed|sun ?lounger|liegestuhl|transat|tumbona|шезлонг"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-tr-utu",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Dairede ütü de var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ütü|\\biron\\b|bügel|fer à repasser|plancha|утюг|مكواة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-en-park-suresi",
+   "class": "near_topic_no_answer",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Is there a time limit for parking on the street?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "limit|\\bhours?\\b|sınır|süre|begrenz|durée|límite|огранич"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yakin-tr-mini-wifi-hiz",
+   "class": "near_topic_no_answer",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "İnternet hızı ne kadar?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "open",
+      "forbid": [
+       "mbps|hız|speed|geschwindigkeit|vitesse|velocidad|скорост|سرعة|\\d+ ?mb"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-tr-wifi-otobus",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Merhaba, Wi-Fi şifresi nedir? Bir de havaalanından şehir merkezine otobüs var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "zeytin7731"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "otobüs|\\bbus\\b|автобус|حافلة|autobús"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-en-bulasik-gec-cikis",
+   "class": "mixed",
+   "lang": "en",
+   "kb": "en_main",
+   "message": "Is there a dishwasher? Also, could we check out late, around 2pm?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "dishwasher|bulaşık|geschirrspül|lave-vaisselle|lavavajillas|посудомо|غسالة صحون|غسالة الصحون"
+      ]
+     },
+     {
+      "kind": "late_checkout",
+      "want": "open",
+      "forbid": [
+       "late check-?out|check out late|\\b14[:.]00\\b|2 ?pm|extend|geç çıkış"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-de-ruhe-fahrrad",
+   "class": "mixed",
+   "lang": "de",
+   "kb": "tr_ana",
+   "message": "Wann sind die Ruhezeiten? Und kann man in der Nähe ein Fahrrad mieten?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "\\b23\\b|11 ?pm",
+       "\\b0?8\\b|8 ?am"
+      ],
+      "about": [
+       "sessiz|quiet|ruhe|silence|silencio|тишин|هدوء"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "fahrrad|bike|bicycle|bisiklet|vélo|bicicleta|велосипед|دراج"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-fr-park-bebek",
+   "class": "mixed",
+   "lang": "fr",
+   "kb": "en_main",
+   "message": "Le parking est-il gratuit ? Et avez-vous un lit bébé ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "lit bébé|lit de bébé|lit pour bébé|baby ?cot|crib|beşik|bebek yata|babybett|cuna|кроватк|سرير"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-es-ascensor-basura",
+   "class": "mixed",
+   "lang": "es",
+   "kb": "tr_ana",
+   "message": "¿Hay ascensor en el edificio? ¿Y dónde se tira la basura?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ascensor|elevator|\\blift\\b|asansör|aufzug|ascenseur|лифт|مصعد"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "conteneur|container|konteyner|contenedor|контейнер|حاوية|benne|cubo"
+      ],
+      "about": [
+       "müll|trash|rubbish|garbage|\\bbins?\\b|tonne|çöp|déchets|poubelle|basura|мусор|قمامة|نفايات"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-ru-kod-erken",
+   "class": "mixed",
+   "lang": "ru",
+   "kb": "tr_ana",
+   "message": "Какой код от ключницы? И можно ли заселиться пораньше, в 12?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "2580"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     },
+     {
+      "kind": "early_checkin",
+      "want": "open",
+      "forbid": [
+       "раньше|ранн|early|erken|früh|tôt|temprano|مبكر|\\b12[:.]00"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-ar-plaj-metro",
+   "class": "mixed",
+   "lang": "ar",
+   "kb": "en_main",
+   "message": "كم يبعد الشاطئ؟ وهل توجد محطة مترو قريبة؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "answered",
+      "all": [
+       "10|١٠|عشر"
+      ],
+      "about": [
+       "plaj|beach|strand|plage|playa|пляж|شاطئ"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "مترو|metro|subway|u-bahn|метро"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-tr-anahtar-kod-araba",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Çıkışta anahtarları nereye bırakıyoruz? Bir de daireye bebek arabası sığar mı? Kapı kodu neydi bu arada?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "other",
+      "want": "answered",
+      "all": [
+       "mutfak|kitchen|küche|cuisine|cocina|кухн|مطبخ"
+      ],
+      "about": [
+       "anahtar|key|schlüssel|clé|llave|ключ|مفتاح"
+      ]
+     },
+     {
+      "kind": "other",
+      "want": "open",
+      "forbid": [
+       "bebek arabası|stroller|pram|pushchair|kinderwagen|poussette|cochecito|коляск|عربة"
+      ]
+     },
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "6194"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-en-fon-transfer",
+   "class": "mixed",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Do you have a hair dryer? And how much is the airport transfer?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "hair ?dryer|saç kurutma|föhn|fön|haartrockner|sèche-cheveux|secador|фен|مجفف شعر|مجفف الشعر"
+      ]
+     },
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "900"
+      ],
+      "about": [
+       "transfer|трансфер|traslado|نقل|havaalan|havalimanı|airport|flughafen|aéroport|aeropuerto|аэропорт|مطار"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-tr-bebek-sigara-kuafor",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Bebek yatağı alabilir miyiz, ücreti ne kadar? Yakınlarda kuaför var mı? Bir de balkonda sigara içebilir miyiz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان"
+      ],
+      "about": [
+       "bebek yata|baby ?cot|crib|babybett|lit bébé|cuna|кроватк|سرير"
+      ]
+     },
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "kuaför|berber|hairdresser|barber|friseur|coiffeur|peluquer|парикмах|حلاق"
+      ]
+     },
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "smok|sigara|rauch|fum|сигарет|кур|تدخين|سجائر"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-tr-camasir-wifi",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Çamaşır yıkama hizmetiniz var mı? Bir de Wi-Fi şifresi neydi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "forbid": [
+       "600",
+       "çamaşır|laundry|wäsche|lessive|blanchisserie|lavander|стирк|غسيل"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "tulip-?4096"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-fr-giris-spor",
+   "class": "mixed",
+   "lang": "fr",
+   "kb": "tr_ana",
+   "message": "Le check-in se fait à partir de quelle heure ? Y a-t-il une salle de sport dans la résidence ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "checkin_time",
+      "want": "answered",
+      "all": [
+       "\\b15\\b|3 ?pm"
+      ],
+      "about": [
+       "check-?in|arrivée|giriş|anreise|entrada|llegada|заезд|заселен|تسجيل الدخول|وصول"
+      ]
+     },
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "salle de sport|\\bgym\\b|fitness|spor salon|gimnasio|тренаж|спортзал|صالة رياضية|نادي"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-tr-mini-kod-havlu",
+   "class": "mixed",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Anahtar kutusunun kodu neydi? Ayrıca dairede havlu var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "9031"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     },
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "forbid": [
+       "havlu|towel|handtuch|serviette|toalla|полотен|منشف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-tr-kapali-otopark",
+   "class": "two_way_note",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Kapalı otopark var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-en-sokak-park",
+   "class": "two_way_note",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Is parking on the street free?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-de-trockner",
+   "class": "two_way_note",
+   "lang": "de",
+   "kb": "tr_ana",
+   "message": "Gibt es in der Wohnung einen Wäschetrockner?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "trockner|dryer|kurutma|sèche-linge|secadora|сушил|مجفف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-tr-geri-donusum",
+   "class": "two_way_note",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Geri dönüşüm kutusu var mı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "geri dönüşüm|recycl|wertstoff|recyclage|reciclaje|переработ|إعادة التدوير"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-fr-serviette-plage",
+   "class": "two_way_note",
+   "lang": "fr",
+   "kb": "tr_ana",
+   "message": "Est-ce que vous fournissez des serviettes de plage ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "serviette|towel|havlu|handtuch|toalla|полотен|منشف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-es-cargador",
+   "class": "two_way_note",
+   "lang": "es",
+   "kb": "en_main",
+   "message": "¿Hay cargador para coche eléctrico en el garaje?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "cargador|carga|charg|şarj|lade|recharge|заряд|شحن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-en-bulasik",
+   "class": "two_way_note",
+   "lang": "en",
+   "kb": "en_main",
+   "message": "Does the kitchen have a dishwasher?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "dishwasher|bulaşık|geschirrspül|lave-vaisselle|lavavajillas|посудомо|غسالة صحون|غسالة الصحون"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-ru-klima-salon",
+   "class": "two_way_note",
+   "lang": "ru",
+   "kb": "en_main",
+   "message": "Есть ли кондиционер в гостиной?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "спальн|bedroom|yatak oda|schlafzimmer|chambre|dormitorio|غرفة النوم"
+      ],
+      "about": [
+       "кондиц|air ?con|klima|klimaanlage|climatis|aire acondicionado|تكييف|مكيف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-tr-garaj-ucret",
+   "class": "two_way_note",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Garaj ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iki-ar-kahve",
+   "class": "two_way_note",
+   "lang": "ar",
+   "kb": "en_main",
+   "message": "هل توجد ماكينة قهوة في المطبخ؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "نعم|كبسول|capsule|\\byes\\b|evet"
+      ],
+      "about": [
+       "قهوة|coffee|kahve|kaffee|café|кофе"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-en-balkon-sigara",
+   "class": "negative_rule",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "Can we smoke on the balcony?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "smok|sigara|rauch|fum|сигарет|кур|تدخين|سجائر"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-de-party",
+   "class": "negative_rule",
+   "lang": "de",
+   "kb": "tr_ana",
+   "message": "Dürfen wir eine kleine Geburtstagsparty machen?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "part|fest|feier|fête|fiesta|вечерин|حفل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-ru-kurenie",
+   "class": "negative_rule",
+   "lang": "ru",
+   "kb": "en_main",
+   "message": "Можно курить в квартире?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "smok|sigara|rauch|fum|сигарет|кур|تدخين|سجائر"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-es-fiesta",
+   "class": "negative_rule",
+   "lang": "es",
+   "kb": "en_main",
+   "message": "¿Podemos hacer una fiesta el sábado por la noche?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "part|fest|feier|fête|fiesta|вечерин|حفل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-fr-parasol",
+   "class": "negative_rule",
+   "lang": "fr",
+   "kb": "en_main",
+   "message": "Est-ce que vous fournissez des parasols pour la plage ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر|pas|\\bnon\\b"
+      ],
+      "about": [
+       "parasol|umbrella|şemsiye|sonnenschirm|sombrilla|зонт|مظل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-ar-tadkhin",
+   "class": "negative_rule",
+   "lang": "ar",
+   "kb": "tr_ana",
+   "message": "هل يسمح بالتدخين داخل الشقة؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "smok|sigara|rauch|fum|сигарет|кур|تدخين|سجائر"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-tr-dogum-gunu",
+   "class": "negative_rule",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Dairede küçük bir doğum günü partisi yapabilir miyiz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "part|fest|feier|fête|fiesta|вечерин|حفل|kutlama"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-ar-hafla",
+   "class": "negative_rule",
+   "lang": "ar",
+   "kb": "en_main",
+   "message": "هل يمكننا إقامة حفلة صغيرة في الشقة؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "answered",
+      "all": [
+       "içilmez|içilemez|yasak|yapılamaz|yapılmaz|olmaz|izin veril|izin yok|not allowed|not permitted|prohibited|isn't allowed|aren't allowed|no smoking|no parties|cannot|can't|not possible|nicht erlaubt|nicht gestattet|verboten|nicht möglich|leider nicht|interdit|pas autorisé|pas permis|pas possible|ne pouvez pas|n'est pas|no se permite|no está permitido|prohibido|no es posible|no pueden|no puede|нельзя|запрещ|не разреш|не допуск|невозможно|ممنوع|غير مسموح|لا يسمح|يمنع|لا يمكن"
+      ],
+      "about": [
+       "part|fest|feier|fête|fiesta|вечерин|حفل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "yasak-tr-semsiye",
+   "class": "negative_rule",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Plaj şemsiyesi veriyor musunuz?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "şemsiye|umbrella|parasol|sonnenschirm|sombrilla|зонт|مظل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-tr-wifi",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Wi-Fi şifresi nedir?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "open",
+      "forbid": [
+       "5512",
+       "9090",
+       "kiraz",
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-en-wifi",
+   "class": "conflict",
+   "lang": "en",
+   "kb": "celiski",
+   "message": "What's the wifi password please?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "open",
+      "forbid": [
+       "5512",
+       "9090",
+       "kiraz",
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-de-parkgebuehr",
+   "class": "conflict",
+   "lang": "de",
+   "kb": "celiski",
+   "message": "Kostet der Parkplatz im Gebäude etwas?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "250",
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان",
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-tr-temizlik",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Ara temizlik hangi günler yapılıyor?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "forbid": [
+       "salı|tuesday|dienstag|mardi|martes|вторник|الثلاثاء",
+       "cuma|friday|freitag|vendredi|viernes|пятниц|الجمعة",
+       "her gün|every day|daily|täglich|jeden tag|tous les jours|chaque jour|todos los días|cada día|каждый день|ежедневн|يومي|كل يوم",
+       "temizlik|cleaning|reinigung|ménage|nettoyage|limpieza|уборк|تنظيف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-fr-piscine",
+   "class": "conflict",
+   "lang": "fr",
+   "kb": "celiski",
+   "message": "Jusqu'à quelle heure la piscine est-elle ouverte ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "\\b19\\b",
+       "\\b22\\b",
+       "\\b0?8[:.h]",
+       "\\b0?9[:.h]",
+       "piscine|pool|havuz|piscina|schwimmbad|бассейн|مسبح|حمام السباحة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-es-codigo",
+   "class": "conflict",
+   "lang": "es",
+   "kb": "celiski",
+   "message": "¿Cuál es el código de la puerta?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "open",
+      "forbid": [
+       "4815",
+       "7302",
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-ru-transfer",
+   "class": "conflict",
+   "lang": "ru",
+   "kb": "celiski",
+   "message": "Сколько стоит трансфер из аэропорта?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "800",
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان",
+       "transfer|трансфер|traslado|نقل|havaalan|havalimanı|airport|flughafen|aéroport|aeropuerto|аэропорт|مطار"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-ar-hudu",
+   "class": "conflict",
+   "lang": "ar",
+   "kb": "celiski",
+   "message": "متى تبدأ ساعات الهدوء؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "house_rules",
+      "want": "open",
+      "forbid": [
+       "\\b22\\b|٢٢",
+       "\\b0?0[:.]00|منتصف الليل|midnight|gece yarısı|полноч|minuit|medianoche|mitternacht",
+       "sessiz|quiet|ruhe|silence|silencio|тишин|هدوء"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-en-park",
+   "class": "conflict",
+   "lang": "en",
+   "kb": "celiski",
+   "message": "Is the building parking free for guests?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "open",
+      "forbid": [
+       "250",
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان",
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-tr-kapi-kodu",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Kapı kodu kaçtı?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "open",
+      "forbid": [
+       "4815",
+       "7302",
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "celiski-tr-transfer",
+   "class": "conflict",
+   "lang": "tr",
+   "kb": "celiski",
+   "message": "Havaalanı transferi ücretli mi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "800",
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان",
+       "transfer|трансфер|traslado|نقل|havaalan|havalimanı|airport|flughafen|aéroport|aeropuerto|аэропорт|مطار"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-tr-otogar",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Otogardan daireye transfer ne kadar?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "900",
+       "otogar|bus station|busbahnhof|gare routière|estación de autobuses|автовокзал|محطة الحافلات|transfer"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-en-eczane",
+   "class": "value_transfer",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "What time does the nearest pharmacy close?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "\\b23\\b|11 ?pm",
+       "\\b0?7[:.]00|7 ?am",
+       "pharmac|eczane|apotheke|pharmacie|farmacia|аптек|صيدل"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-de-endreinigung",
+   "class": "value_transfer",
+   "lang": "de",
+   "kb": "en_main",
+   "message": "Wie viel kostet die Endreinigung?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "cleaning_linen",
+      "want": "open",
+      "forbid": [
+       "600",
+       "endreinigung|abschlussreinigung|final cleaning|son temizlik|ménage final|limpieza final"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-fr-taxi-gare",
+   "class": "value_transfer",
+   "lang": "fr",
+   "kb": "en_main",
+   "message": "Combien coûte un taxi depuis la gare routière ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "1[ .,]?100",
+       "\\b40\\b",
+       "taksi|taxi|такси|تاكسي",
+       "gare routière|bus station|otogar|busbahnhof"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-es-panaderia",
+   "class": "value_transfer",
+   "lang": "es",
+   "kb": "tr_ana",
+   "message": "¿Cuál es el horario de la panadería más cercana?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "local_recommendations",
+      "want": "open",
+      "forbid": [
+       "\\b23\\b",
+       "\\b0?7\\b",
+       "panader|bakery|fırın|bäckerei|boulangerie|пекарн|مخبز"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-ru-taksi-vokzal",
+   "class": "value_transfer",
+   "lang": "ru",
+   "kb": "en_main",
+   "message": "Сколько стоит такси от железнодорожного вокзала?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "1[ .,]?100",
+       "\\b40\\b",
+       "taksi|taxi|такси|تاكسي",
+       "вокзал|train station|tren istasyon|bahnhof|estación de tren|محطة القطار"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-ar-ek-yatak",
+   "class": "value_transfer",
+   "lang": "ar",
+   "kb": "tr_ana",
+   "message": "كم سعر سرير إضافي لشخص بالغ؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "open",
+      "forbid": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان",
+       "سرير|extra bed|ilave yatak|ek yatak|zusatzbett|lit supplémentaire|lit d'appoint|cama supletoria|cama extra|дополнительн"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-tr-merkez-taksi",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Şehir merkezine taksi kaç para?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "1[ .,]?100",
+       "\\b40\\b",
+       "taksi|taxi|такси|تاكسي"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "deger-tr-havaalani-taksi",
+   "class": "value_transfer",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Havaalanına dönerken taksi kaç para tutar?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "open",
+      "forbid": [
+       "900",
+       "taksi|taxi|такси|تاكسي"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-en-anahtar-kutusu",
+   "class": "secret_value",
+   "lang": "en",
+   "kb": "tr_ana",
+   "message": "What's the code for the key box?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "2580"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-de-notfall-telefon",
+   "class": "secret_value",
+   "lang": "de",
+   "kb": "tr_ana",
+   "message": "Unter welcher Telefonnummer erreichen wir Sie im Notfall?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "other",
+      "want": "answered",
+      "all": [
+       "\\(?532\\)?[ -]?418[ -]?27[ -]?63"
+      ],
+      "about": [
+       "telefon|phone|numara|nummer|numéro|número|номер|телефон|رقم|هاتف|\\+90"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-tr-kapi-kodu",
+   "class": "secret_value",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Kapı kodu neydi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "6194"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-fr-wifi",
+   "class": "secret_value",
+   "lang": "fr",
+   "kb": "en_main",
+   "message": "Quel est le mot de passe du wifi ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "tulip-?4096"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-es-mini-caja",
+   "class": "secret_value",
+   "lang": "es",
+   "kb": "mini",
+   "message": "¿Cuál es el código de la caja de llaves?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "9031"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-ru-mini-wifi",
+   "class": "secret_value",
+   "lang": "ru",
+   "kb": "mini",
+   "message": "Какой пароль от Wi-Fi?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "badem2468"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-ar-kapi",
+   "class": "secret_value",
+   "lang": "ar",
+   "kb": "en_main",
+   "message": "ما هو رمز باب الشقة؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "6194"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-tr-acil-telefon",
+   "class": "secret_value",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Acil bir durumda hangi numarayı arayabilirim?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "other",
+      "want": "answered",
+      "all": [
+       "\\(?532\\)?[ -]?418[ -]?27[ -]?63"
+      ],
+      "about": [
+       "telefon|numara|phone|number|\\+90"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sir-tr-en-wifi",
+   "class": "secret_value",
+   "lang": "tr",
+   "kb": "en_main",
+   "message": "Wi-Fi şifresini yazar mısınız?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "tulip-?4096"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-tr-kopek-wifi",
+   "class": "held_plus_answer",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "message": "Köpeğimizi getirebilir miyiz? Bir de Wi-Fi şifresi nedir?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "köpe|evcil|hayvan|\\bpets?\\b|\\bdogs?\\b|hund|chien|perro|собак|كلب",
+       "izin|kabul|getirebilir|yasak|allowed|welcome"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "zeytin7731"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-en-kedi-park",
+   "class": "held_plus_answer",
+   "lang": "en",
+   "kb": "en_main",
+   "message": "Can we bring our cat? Also, which garage spot is ours?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "\\bcats?\\b|kedi|katze|\\bchats?\\b|gato|кошк|\\bpets?\\b|animal|evcil",
+       "allowed|welcome|permitted|pet[- ]friendly|unfortunately"
+      ]
+     },
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "\\b14\\b"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن|spot"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-de-hund-waschmaschine",
+   "class": "held_plus_answer",
+   "lang": "de",
+   "kb": "tr_ana",
+   "message": "Dürfen wir unseren kleinen Hund mitbringen? Und gibt es eine Waschmaschine?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "hund|haustier|tier|\\bdogs?\\b|\\bpets?\\b|köpe|evcil",
+       "erlaubt|willkommen|verboten|gestattet|leider nicht|allowed"
+      ]
+     },
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "\\bja\\b|küche|kitchen|mutfak|\\byes\\b|evet"
+      ],
+      "about": [
+       "waschmaschine|washing machine|çamaşır makine|lave-linge|lavadora|стиральн|غسالة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-fr-chien-code",
+   "class": "held_plus_answer",
+   "lang": "fr",
+   "kb": "en_main",
+   "message": "Peut-on venir avec notre chien ? Et quel est le code de la porte ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "chien|\\bdogs?\\b|animal|animaux|\\bpets?\\b|hund|köpe",
+       "autorisé|accepté|accepte|interdit|bienvenu|admis|allowed"
+      ]
+     },
+     {
+      "kind": "access_keys",
+      "want": "answered",
+      "all": [
+       "6194"
+      ],
+      "about": [
+       "kod|code|código|код|رمز|schlüssel|key|anahtar|clé|llave|ключ|مفتاح"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-ru-koshka-musor",
+   "class": "held_plus_answer",
+   "lang": "ru",
+   "kb": "tr_ana",
+   "message": "Можно ли приехать с кошкой? И куда выбрасывать мусор?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "кошк|котом|животн|питом|\\bcats?\\b|\\bpets?\\b|kedi|katze",
+       "разреш|запрещ|нельзя|допуска|приветств|allowed"
+      ]
+     },
+     {
+      "kind": "trash",
+      "want": "answered",
+      "all": [
+       "conteneur|container|konteyner|contenedor|контейнер|حاوية|benne|cubo"
+      ],
+      "about": [
+       "müll|trash|rubbish|garbage|\\bbins?\\b|tonne|çöp|déchets|poubelle|basura|мусор|قمامة|نفايات"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-ar-kalb-wifi",
+   "class": "held_plus_answer",
+   "lang": "ar",
+   "kb": "en_main",
+   "message": "هل يمكن إحضار كلبنا الصغير؟ وما هي كلمة سر الواي فاي؟",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "كلب|حيوان|أليف|\\bdogs?\\b|\\bpets?\\b",
+       "مسموح|ممنوع|يسمح|نرحب|allowed"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "tulip-?4096"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tut-tr-mini-kedi-wifi",
+   "class": "held_plus_answer",
+   "lang": "tr",
+   "kb": "mini",
+   "message": "Kedimizle gelebilir miyiz? Wi-Fi şifresini de alabilir miyim?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "pets",
+      "want": "open",
+      "forbid": [
+       "kedi|evcil|hayvan|\\bpets?\\b|\\bcats?\\b|katze",
+       "izin|kabul|getirebilir|gelebilir|yasak|allowed|welcome"
+      ]
+     },
+     {
+      "kind": "wifi",
+      "want": "answered",
+      "all": [
+       "badem2468"
+      ],
+      "about": [
+       "wi-?fi|wlan|internet|şifre|password|passwort|mot de passe|contraseña|clave|пароль|واي|كلمة"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-tr-transfer-ucret",
+   "class": "followup",
+   "lang": "tr",
+   "kb": "tr_ana",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, havaalanından transfer hizmetiniz var mı?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, evet, havaalanından daireye transfer ayarlayabiliyoruz."
+    }
+   ],
+   "message": "Peki ücreti ne kadar?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "directions_transport",
+      "want": "answered",
+      "all": [
+       "900"
+      ],
+      "about": [
+       "transfer|ücret|fiyat|price|fee"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-en-park-ucretsiz",
+   "class": "followup",
+   "lang": "en",
+   "kb": "en_main",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Is there parking at the building?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Yes, there's a garage with a space reserved for you."
+    }
+   ],
+   "message": "Is it free?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "ücretsiz|bedava|free|kostenlos|gratis|gratuit|бесплатн|مجان"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-de-pool-saat",
+   "class": "followup",
+   "lang": "de",
+   "kb": "tr_ana",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Gibt es einen Pool?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Ja, es gibt einen Gemeinschaftspool in der Anlage."
+    }
+   ],
+   "message": "Und bis wann ist er geöffnet?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "\\b20\\b|8 ?pm"
+      ],
+      "about": [
+       "piscine|pool|havuz|piscina|schwimmbad|бассейн|مسبح|حمام السباحة|geöffnet|offen"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-es-lavavajillas",
+   "class": "followup",
+   "lang": "es",
+   "kb": "en_main",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "¿La cocina está equipada?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Sí, la cocina está totalmente equipada."
+    },
+    {
+     "direction": "inbound",
+     "body": "Perfecto, gracias."
+    }
+   ],
+   "message": "¿Y hay lavavajillas?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "amenities",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "dishwasher|bulaşık|geschirrspül|lave-vaisselle|lavavajillas|посудомо|غسالة صحون|غسالة الصحون"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-ru-sushilka",
+   "class": "followup",
+   "lang": "ru",
+   "kb": "tr_ana",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Здравствуйте, можно ли где-то постирать вещи?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Здравствуйте! Да, в квартире есть стиральная машина."
+    }
+   ],
+   "message": "А сушильная машина есть?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "appliance_help",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر"
+      ],
+      "about": [
+       "trockner|dryer|kurutma|sèche-linge|secadora|сушил|مجفف"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "takip-fr-parking-couvert",
+   "class": "followup",
+   "lang": "fr",
+   "kb": "tr_ana",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Bonjour, y a-t-il un parking ?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Bonjour, vous pouvez vous garer gratuitement dans la rue devant l'immeuble."
+    }
+   ],
+   "message": "Et il n'y a pas de parking couvert ?",
+   "expect": {
+    "autoSend": "any",
+    "needs": [
+     {
+      "kind": "parking",
+      "want": "answered",
+      "all": [
+       "yok|bulunm|mevcut değil|verilmez|vermiyoruz|\\bno\\b|\\bnot\\b|n't|kein|pas d|n'y a|ne sont pas|ne fournissons pas|no hay|no dispon|no tenemos|no ofrecemos|нет|отсутств|не предостав|لا يوجد|لا تتوفر|لا نوفر|ليس|غير متوفر|pas|\\bnon\\b"
+      ],
+      "about": [
+       "park|otopark|garaj|garage|aparcamiento|estacionamiento|стоянк|гараж|موقف|ركن"
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

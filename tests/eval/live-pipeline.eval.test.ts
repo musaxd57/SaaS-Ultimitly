@@ -149,6 +149,7 @@ const SEALED_NAMES = [
   "held-pet-kabul-2026-11-12.json",
   "late-message-kabul-2026-11-12.json",
   "grounding-kabul-2026-11-12.json",
+  "grounding-kabul-2026-11-26.json",
 ] as const;
 const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);

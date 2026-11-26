@@ -35,6 +35,9 @@ const NEEDLE_L = ["late", "message", "kabul", "2026", "11", "12"].join("-");
 /** Dayanak kabul seti (kurucu + Codex 11-12: "yazmıyorsa yok değildir"; koşulan set geliştirmeye taşınır, kabul yeni setle) — aynı kurallar. */
 const NEEDLE_G = ["grounding", "kabul", "2026", "11", "12"].join("-");
 
+/** Dayanak kabul seti 2 (11-26: parça kipi + okuyucunun iki sorusu + dar olumluluk kararı yeni görülmemiş setle ölçülür) — aynı kurallar. */
+const NEEDLE_G2 = ["grounding", "kabul", "2026", "11", "26"].join("-");
+
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
   "evals/sealed/SEALS.json",
@@ -111,6 +114,8 @@ const ALLOWED_G = new Set([
   "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.md",
   "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.json",
 ]);
+// Dayanak kabul seti 2: mühür kaydı, dosyanın kendisi ve ölçer. Koşu raporları eklendiğinde bu listeye BİLEREK yazılır.
+const ALLOWED_G2 = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_G2}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
@@ -166,6 +171,7 @@ describe("mühürlü final eval seti", () => {
       if (text.includes(NEEDLE_P) && !ALLOWED_P.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_L) && !ALLOWED_L.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_G) && !ALLOWED_G.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_G2) && !ALLOWED_G2.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });
