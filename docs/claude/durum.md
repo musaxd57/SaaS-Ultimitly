@@ -937,3 +937,15 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
 - CI 1857 (9d8daf72) KIRMIZI: `commitment-topic.test.ts` (10-17 testi) — söz ve mesaj aynı milisaniyeye düşünce ürün kuralı (doğru) öneriyi
   gizliyor, test düşüyordu. Teşhis iki zaman elle eşitlenerek birebir yeniden üretildi; yedi çağrı yeri sırayı açıkça kuran yardımcıya alındı.
 
+## (18) 11-26 gündüz — kurucu kararları + görülmemiş set ölçümleri
+- Kurucu 11-26 sabah / öğleden sonra kararları AYNEN: `docs/KURUCU-TALIMATI-2026-11-26-sabah-cevaplar.md`.
+- YAYINDA `7e8d2257` (CI 1861 yeşil): giriş bilgisi mesajı 10:00'da açılır (GM-1) · sohbet ekranı son 60 mesaj + "Daha eski mesajları göster"
+  (K2-S, Opus yazdı, satır satır okundu) · dışa verilen takvim başlığı genel ad (K16-1). Fotoğraftaki konum bilgisi KALIR (K11-1, kod yok).
+- Kredi geldi → iki görülmemiş kabul seti koşuldu (sekiz kol, ~5,5 $), ikisi de "kullanıldı": bugünkü hat 74 mesajda 21 yanlış gönderim,
+  parça kipi 1–2; bedeli doğru cevap 41 → 34–37 (§6.4). Neden analizi + neden defteri (769 satır, her ölçüm üstüne ekler) + olumluluk tablosu
+  ve okuyucunun anlama gücü ölçümü (1,15 $). Hiçbir anahtar açılmadı; açık kararlar `acik-isler.md` "11-26 öğleden sonra".
+- Ölçümün bulduğu ürün kusuru düzeltildi: anlam katmanında köşeli ayraçlı düz yazı + "password:" bütün metni siliyordu (`kalici-kararlar.md`).
+- Push öncesi yakalananlar (CI'a gitmeden): 10:00 kuralı mutasyonunda birbirini örten iki katman (iki test eklendi) · yeni ölçüm betiklerinde
+  koşu kimliği pini. Saat kaydırmalı koşu (`time-travel.mjs -0.3`, İstanbul 04:11) 95 dosya / 1071 test yeşil.
+- Railway: kurucu plan alacak; önerilen sıra önce `AUTO_REPLY_ENABLED=0`, yedek, sonra web servisi.
+

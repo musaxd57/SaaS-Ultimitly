@@ -388,3 +388,14 @@ gerçekten yaptığı doğrulanamadı; sonda `gece1126/G6-bulgular.md`) — işa
 sırada gelen olayda yeni aboneliğin "aktif" olayı kayda işlenmiyor, 15 dk sonra "ödeme alındı" alarmı çıkıyor — sıra kontrolü olayın kendi
 aboneliğine baksın mı. **Kurucu 11-26 sabah cevapladı:** GM-1 (10:00), K2-S (son 60 + düğme), K11-1 (konum kalır), K16-1 (genel ad) —
 `docs/KURUCU-TALIMATI-2026-11-26-sabah-cevaplar.md`.
+
+**11-26 öğleden sonra — ölçüm sonrası açık kararlar (`docs/INCELEME-2026-11-12-istem-denetimi.md` §6.4 · `docs/INCELEME-2026-11-26-kor-set-neden-analizi.md` ·
+`docs/olcum/olumluluk-ve-model-gucu-2026-11-26.md` · `docs/TASARIM-2026-11-26-olumluluk-karari-modele.md` · neden defteri `docs/olcum/neden-defteri.jsonl`):**
+**S-1** kontrol eden model Wi-Fi şifresinin DEĞERİNİ maskesiz görsün mü (maskeli: doğru şifreli cevaplar tutuluyor; maskesiz ölçümde 4 yanlış
+şifrenin 4'ü yakalandı) · **S-2** "var / yok" kararı modele geçsin, kod yalnız dar ve kesin durumda tutsun mu — ölçüm: kod 53 doğru cevabın
+28'ini haksız tutuyor ve 46 ters cevabın 6'sını kaçırıyor; okuyucu 46 tersin 46'sını üç koşuda da tuttu; 🚨 10-23 kararıyla ("izin ↔ yasak tek
+bir model hükmüne bırakılmaz") ÇELİŞİR → kurucu kararı olmadan değişmez · **S-3** geç mesaj anahtarı yalnız parça kipiyle birlikte (kurucu:
+"önerin iyi gibi") · okuyucuya iki ek soru (dil: %27 → %100; çelişkili notlar: %86 → %95, 2 vaka yine kaçıyor) — istem değişikliği, yeni
+görülmemiş setle ölçülmeden açılmaz · ölçerin eksikleri (yabancı dilde "bilgilerde yok" anlatımı ve dil hatası yanlış gönderime sayılmıyor;
+getirilen kalem başlığı ayrıntı dosyasında yok). **Açılış adayı:** parça kipi + okuyucu + öğe sırası (+ kaynak kuralı) — bugünkü hâliyle
+AÇILMAZ; sıra: çelişki sorusu → dil sorusu → maske kararı → olumluluk kararı → ölçer düzeltmeleri → yeni görülmemiş set (kol başına ≥ 2 koşu).

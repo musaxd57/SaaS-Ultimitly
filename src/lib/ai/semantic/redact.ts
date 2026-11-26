@@ -1,6 +1,6 @@
 import "server-only";
 
-import { redactSensitive } from "@/lib/report-error";
+import { redactSensitiveProse } from "@/lib/report-error";
 import { maskGuestIdentity, type TextAuthor } from "@/lib/ai/guest-identity-mask";
 import { isDateOrTimeToken, isProtectedNumericRun, NUMERIC_RUN_SOURCE } from "./date-time-tokens";
 
@@ -43,5 +43,6 @@ export function redactForSemanticModel(text: string, names: readonly string[], a
     kept.push(run);
     return `${MARK}KEEP${kept.length - 1}${MARK}`;
   });
-  return redactSensitive(masked).replace(PLACEHOLDER_RE, (_, i: string) => kept[Number(i)] ?? "");
+  // DÜZ YAZI kuralı (yapısal JSON geçişi yok): köşeli ayraçlı bir satır + "password:" bütün metni silmesin (`redactSensitiveProse`, 11-26).
+  return redactSensitiveProse(masked).replace(PLACEHOLDER_RE, (_, i: string) => kept[Number(i)] ?? "");
 }

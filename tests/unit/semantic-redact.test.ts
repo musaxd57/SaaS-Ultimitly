@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isDateOrTimeToken, isProtectedNumericRun, redactForSemanticModel } from "@/lib/ai/semantic/redact";
+import { redactSensitive } from "@/lib/redact";
 
 // ---------------------------------------------------------------------------
 // ANLAM KATMANI REDAKSİYONU (09-24). İki yön birlikte pinlenir:
@@ -110,5 +111,46 @@ describe("parça kuralları (alan aralıkları)", () => {
     expect(isProtectedNumericRun("+33 11:00")).toBe(false);
     expect(isProtectedNumericRun("3 4")).toBe(false);
     expect(isProtectedNumericRun("12.10.2026 - 14.10.2026")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 NOT BLOĞU SİLİNMEZ (11-26, görülmemiş set ölçümü + okuyucu gücü ölçümü): `redactSensitive` hata metinleri içindir ve içinde JSON
+// adayı ("[" / "{") gördüğü, ayrıştıramadığı ve ardında hassas anahtar ("password:") bulduğu metni BÜTÜNÜYLE
+// "[REDACTED_UNPARSEABLE_JSON]" yapar (hata gövdesinde doğru: göremediğimiz yapı hakkında hüküm vermeyiz). Anlam katmanına giden metin ise
+// DÜZ YAZIDIR: bilgi tabanı notları "- [WIFI] …" biçiminde dizilir → İngilizce "password:" geçen tek bir not, kontrol eden modelin önünden
+// BÜTÜN notları (sigara kuralı, park) siliyordu; okuyucu doğru cevapları da tutuyordu. Anlam katmanı yapısal JSON geçişini kullanmaz; değer
+// maskesi ("password: [REDACTED]", telefon, e-posta, uzun sayı) AYNEN kalır.
+// ---------------------------------------------------------------------------
+describe("anlam katmanı redaksiyonu — köşeli ayraçlı düz yazı silinmez", () => {
+  const NOTES =
+    "- [WIFI] Wi-Fi network: Lale_Terrace, password: olive2026\n- [RULES] Smoking is not allowed anywhere, including the terrace.\n- [PARKING] Free street parking in front of the building.";
+
+  it("🚨 'password:' taşıyan not öteki notları götürmez; şifrenin değeri yine maskeli", () => {
+    const out = redactForSemanticModel(NOTES, [], "ours");
+    expect(out).not.toContain("UNPARSEABLE");
+    expect(out).toContain("- [RULES] Smoking is not allowed anywhere, including the terrace.");
+    expect(out).toContain("- [PARKING] Free street parking in front of the building.");
+    expect(out).toContain("password: [REDACTED]");
+    expect(out).not.toContain("olive2026");
+  });
+
+  it("misafir mesajında köşeli ayraç + 'password:' → mesajın öteki satırları okunur kalır", () => {
+    const out = redactForSemanticModel("[Airbnb] Can I check in at 14:00?\nAlso the wifi password: does not work.", [], "guest");
+    expect(out).not.toContain("UNPARSEABLE");
+    expect(out).toContain("[Airbnb] Can I check in at 14:00?");
+    // BİLİNEN SINIR (değişmedi, maske kararı kurucuda — S-1): "password:" sonrası SATIR SONUNA kadar maskelenir.
+    expect(out).toContain("password: [REDACTED]");
+  });
+
+  it("değer maskeleri aynen: telefon, e-posta ve JSON biçimli anahtar = değer düz yazının içinde de maskelenir", () => {
+    const out = redactForSemanticModel('[not] ara: +90 532 123 45 67, yaz: a@b.co, {"token":"abcdef123456"}', [], "guest");
+    expect(out).toContain("[PHONE]");
+    expect(out).toContain("[EMAIL]");
+    expect(out).not.toContain("abcdef123456");
+  });
+
+  it("KONTROL: hata metni yolu (`redactSensitive`) DEĞİŞMEDİ — ayrıştırılamayan yapı + hassas anahtar yine bütünüyle kapanır", () => {
+    expect(redactSensitive(NOTES)).toBe("- [REDACTED_UNPARSEABLE_JSON]");
   });
 });

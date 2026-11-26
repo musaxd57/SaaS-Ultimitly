@@ -28,9 +28,12 @@ import { sourceMentionsNeed } from "../../src/lib/ai/answer-binding";
 import { ITEM_KIND_LABELS_TR, type ItemKind } from "../../src/lib/conversation-items/core";
 import { priceFor } from "./reply-scoring";
 import { REPO, loadTable, needOf, sourcesOf, type TableRow } from "./polarity-table-core";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 const CASES_PATH = path.join(REPO, "evals", "okuyucu-gucu-vakalari.json");
 const OUT = path.join(REPO, "docs", "olcum", "okuyucu-gucu-2026-11-26.json");
+/** Koşu kimliği (pin `eval-run-meta`): okuyucunun modeli / çabası ve açık bayraklar çıktıya yazılır. */
+const RUNTIME = evalRuntime();
 
 type Arm = "urun" | "celiski_soru" | "dil_soru" | "maskesiz";
 interface Case {
@@ -243,7 +246,7 @@ async function main() {
   const cases = { ...keptCases, ...Object.fromEntries(all.map((c) => [`${c.set}:${c.id}`, c])) };
   writeFileSync(
     OUT,
-    `${JSON.stringify({ meta: { model: partReaderModel(), served, reasoningEffort: partReaderReasoningEffort() ?? null, runs: RUNS, calls, costUsd: Number(spent.toFixed(4)), budgetUsd: BUDGET, stoppedByBudget: stopped, jobs: jobs.length, done: results.length - keptResults.length, merged: prev !== null, conflictExtra: CONFLICT_EXTRA, langExtra: LANG_EXTRA }, maskCheck, cases, results }, null, 1)}\n`,
+    `${JSON.stringify({ runtime: RUNTIME, runtimeMarkdown: evalRuntimeMarkdown(RUNTIME), meta: { model: partReaderModel(), served, reasoningEffort: partReaderReasoningEffort() ?? null, runs: RUNS, calls, costUsd: Number(spent.toFixed(4)), budgetUsd: BUDGET, stoppedByBudget: stopped, jobs: jobs.length, done: results.length - keptResults.length, merged: prev !== null, conflictExtra: CONFLICT_EXTRA, langExtra: LANG_EXTRA }, maskCheck, cases, results }, null, 1)}\n`,
   );
   console.log(`bitti: ${results.length - keptResults.length}/${jobs.length} çağrı · $${spent.toFixed(3)}${stopped ? " · BÜTÇE TAVANI" : ""} → ${path.relative(REPO, OUT)}`);
 }

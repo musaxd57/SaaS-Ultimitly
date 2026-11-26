@@ -4,7 +4,7 @@ import { currentCorrelationId } from "./correlation";
 import { prismaErrorSummary, redactSensitive } from "./redact";
 
 // Redaksiyon yaprak modüle taşındı (F10); eski import yolları için yeniden dışa verilir.
-export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStructurally, redactSensitive } from "./redact";
+export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStructurally, redactSensitive, redactSensitiveProse } from "./redact";
 
 // Pure core of the error reporter — the WHOLE thing: redaction, the
 // dependency-free Sentry envelope client, the alert-email leg and its

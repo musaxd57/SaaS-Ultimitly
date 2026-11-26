@@ -12,6 +12,7 @@
  * ------------------------------------------------------------------------- */
 
 import { writeFileSync } from "node:fs";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import path from "node:path";
 import {
   CANDIDATES,
@@ -103,7 +104,9 @@ function main() {
     }),
   );
   const summary = { rows: table.rows.length, reproducedObserved: `${reproduced}/${observed}`, totals, compare, byKey };
-  writeFileSync(OUT, `${JSON.stringify({ summary, rows: perRow }, null, 1)}\n`);
+  // Koşu kimliği (pin `eval-run-meta`: docs/olcum'a yazan her ölçer kimliği taşır) — model çağrısı yok; commit + bayraklar önemlidir.
+  const runtime = evalRuntime();
+  writeFileSync(OUT, `${JSON.stringify({ runtime, runtimeMarkdown: evalRuntimeMarkdown(runtime), summary, rows: perRow }, null, 1)}\n`);
   console.log(`satır ${table.rows.length} · gözlenen 27 reddin yeniden üretimi ${reproduced}/${observed}`);
   for (const n of names) {
     const t = totals[n];

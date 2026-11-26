@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CANDIDATES, REPO, candidateVerdict, featuresOf, loadTable, productVerdict, type CandidateName } from "./polarity-table-core";
+import { evalRuntimeMarkdown, type EvalRuntime } from "./run-meta";
 
 const IN = path.join(REPO, "docs", "olcum", "okuyucu-gucu-2026-11-26.json");
 const OUT = path.join(REPO, "docs", "olcum", "okuyucu-gucu-ozet-2026-11-26.json");
@@ -110,7 +111,12 @@ function main() {
       combined[`${arm}|${n}`] = { wrongPassCases, wrongPassCalls, falseHoldCases, meanCorrect: `${((100 * correct) / table.rows.length).toFixed(1)}%`, wrongPassIds, byCode, byReader };
     }
   }
-  writeFileSync(OUT, `${JSON.stringify({ meta: data.meta, agg, combined }, null, 1)}\n`);
+  // Koşu kimliği ölçüm dosyasından AYNEN taşınır (bu betik model çağırmaz; kimlik ölçümün yapıldığı koşunundur).
+  const runtime = (data as { runtime?: EvalRuntime }).runtime ?? null;
+  writeFileSync(
+    OUT,
+    `${JSON.stringify({ runtime, runtimeMarkdown: runtime ? evalRuntimeMarkdown(runtime) : null, meta: data.meta, agg, combined }, null, 1)}\n`,
+  );
   for (const [k, a] of Object.entries(agg)) {
     if (k.split("|").length !== 2) continue;
     console.log(

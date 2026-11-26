@@ -320,6 +320,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`LIFECYCLE_STATUS_HOLD`, 20 dk; deneme sayılmaz, hata bilgisi yazılmaz): iptal + rezervasyon başına tek anahtar mesajı kalıcı yutardı.
   Sonsuz erteleme yok: giriş / çıkış var olan pencere hükmüyle, karşılama "varış günü geçti ve hâlâ onaylı değil" ile iptal olur. Satırın
   kendi kopyası bekliyorken başka dairedeki onaylı kardeş kopyaya GEÇİLMEZ (başka dairenin metni / kapı kodu giderdi).
+- 🚨 **Anlam katmanına giden DÜZ YAZI yapısal JSON geçişinden geçmez (11-26, görülmemiş set ölçümü; `redactSensitiveProse`,
+  `ai/semantic/redact.ts`):** `redactSensitive` hata gövdeleri içindir — "[" / "{" gördüğü, ayrıştıramadığı ve ardında hassas anahtar
+  bulduğu metni bütünüyle `[REDACTED_UNPARSEABLE_JSON]` yapar. Bilgi tabanı notları "- [WIFI] …" biçiminde dizildiği için İngilizce
+  "password:" taşıyan tek not, kontrol eden modelin önünden BÜTÜN notları siliyordu (okuyucu doğru cevapları tutuyordu); köşeli ayraçla
+  başlayan misafir mesajında da mesajın tamamı okunmaz oluyordu. Düz yazıda yalnız değer kuralları uygulanır (anahtar = değer, telefon,
+  e-posta, uzun sayı, sır biçimleri); hata / log yolu AYNEN. Bilinen sınır (karar kurucuda, S-1): "password:" sonrası satır sonuna kadar
+  maskelenir. Pin `tests/unit/semantic-redact.test.ts`.
 - **Giriş bilgisi mesajı işletme saatiyle 10:00'da açılır (GM-1, kurucu 11-26: "gece 3'de gitmesin, 4 gün önceden alınmışsa saat tam 10'da
   gitmiş olsun"; `lib/checkin-window.ts`):** pencere ANLIK değil GÜNE göre — varış gününden `CHECKIN_LEAD_DAYS` (4) gün önceki günün işletme
   saatiyle `CHECKIN_SEND_HOUR` (10):00'ında açılır, varışa kadar açık kalır. Son dakika rezervasyonu (pencere çoktan açık) eskisi gibi ilk

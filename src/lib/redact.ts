@@ -296,7 +296,24 @@ export function redactSensitive(input: string): string {
   // anahtar politikasıyla gezilir; kalan düz metne aşağıdaki değer-biçimli
   // kurallar uygulanır. Sıra ÖNEMLİ: yapısal geçiş hassas alt ağacı komple
   // `"[REDACTED]"` yaptığı için regex'lerin oraya bakacak bir şeyi kalmaz.
-  let s = redactJsonStructurally(input);
+  return redactSensitiveValues(redactJsonStructurally(input));
+}
+
+/**
+ * DÜZ YAZI için redaksiyon: `redactSensitive`in değer kurallarının AYNISI (sır biçimleri, anahtar = değer, e-posta, telefon, uzun sayı),
+ * yapısal JSON geçişi OLMADAN. Yapısal geçiş hata gövdeleri içindir: "[" / "{" gördüğü, ayrıştıramadığı ve ardında hassas anahtar bulduğu
+ * metni bütünüyle `[REDACTED_UNPARSEABLE_JSON]` yapar. İnsan yazısında bu, köşeli ayraçlı bir satırla ("- [WIFI] … password: …",
+ * "[Airbnb] Hi, the wifi password: …") BÜTÜN metni siler — anlam katmanı mesajı / notları okuyamaz (11-26, ölçüldü). Yalnız model girdisi
+ * olan düz yazıda kullanılır (`ai/semantic/redact.ts`); hata / log yolu `redactSensitive`te kalır.
+ */
+export function redactSensitiveProse(input: string): string {
+  if (!input) return input;
+  return redactSensitiveValues(input);
+}
+
+/** Değer biçimli kurallar (A–C) — `redactSensitive` ve `redactSensitiveProse`un ortak gövdesi. */
+function redactSensitiveValues(input: string): string {
+  let s = input;
   // (A) value-shaped secrets
   s = s.replace(/\b[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]");
   s = s.replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "sk-[REDACTED]"); // OpenAI key
