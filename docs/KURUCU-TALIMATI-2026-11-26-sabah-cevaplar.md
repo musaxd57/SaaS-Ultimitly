@@ -49,3 +49,33 @@ Gece boyunca verilen çalışma talimatları (AYNEN):
 | 6 | K11-1: fotoğraftaki konum bilgisi KALIR (kanıt değeri; kurucu görüş sordu → ana oturum da "kalsın" dedi: fotoğraflar yalnız işletmenin kendi ekibine, imzalı adresle açılıyor) | Kod yok |
 | 7 | K16-1: dışa verilen takvimin başlığı genel ad | Kod + test |
 | 8 | İzin sorusu çıkaran komut yazılmaz; uyandırıcı yalnız kurucunun söylediği saate kurulur; test gevşetilmez | `docs/claude/calisma-ortami.md` |
+
+## Öğleden sonra — ölçüm sonuçlarına cevap (AYNEN)
+
+Bağlam: görülmemiş iki kabul seti koşuldu (`docs/INCELEME-2026-11-12-istem-denetimi.md` §6.4); ana oturum S-1 (okuyucuya maskesiz şifre),
+S-2 ("var / yok" kontrolü yalnız emin olduğunda tutsun) ve S-3 (geç mesaj anahtarı parça kipiyle birlikte) sorularını sordu.
+
+> daha planı almadım, 2. için dosyayı göremiyorum tam nerde ben zaten birde kapatmadan önce yedek aldığımı hatırlıyorum bu arada sende
+> bakabilirsin tam kapatmadan önce yani. sen bol bol yapacağın testleri yap izin almana gerek yok izin veriyorum.
+
+> olmuyor ben açiyim ya hepsi 0'lanır mı aq bi sorunda ki şuana kadar uygulamayı tek ben kullandım ve 1 müşterisi mesajları çekti sadece o
+> otomatik mesaj gidemez haksız mıyım
+>
+> S-2: "var / yok" kontrolü yalnız emin olduğunda tutsun, emin değilse kararı modele bıraksın mı? Önerim evet; önce ücretsiz bir tabloyla,
+> gerçekten ters cevapların hâlâ tutulduğunu görmeden değiştirmem. önce kontrol et
+>
+> salak salak hala yanlış eksik cevaplar gitmemeli modelin anlama bağlam gücünü test et
+>
+> s-3 öerin iyi gibi ama test niye burda hata oluyor onları öğren en ufak gitmeme nedeni hatanın sebeplerini tut bir dosyada biriksin datalar
+
+### Ana oturumun okuması (kurucunun metni DEĞİL)
+
+| # | Karar | İş |
+|---|---|---|
+| 9 | Ücretli / ücretsiz ölçüm için izin sorulmaz ("bol bol test yap") | — |
+| 10 | S-2: önce kontrol (ücretsiz tablo); sonuç görülmeden kod değişmez | `docs/olcum/olumluluk-ve-model-gucu-2026-11-26.md` |
+| 11 | Yanlış / eksik cevap gitmemeli; modelin anlama ve bağlam gücü ölçülsün (çelişkili not, ters cevap, dil, maske, eksik cevap) | aynı rapor + `docs/TASARIM-2026-11-26-olumluluk-karari-modele.md` |
+| 12 | S-3: öneri (geç mesaj anahtarı parça kipiyle birlikte) uygun görünüyor; önce hataların nedeni öğrenilsin | neden defteri |
+| 13 | NEDEN DEFTERİ: her "gitmedi" ve her "yanlış gitti" vakasının sebebi kalıcı bir veri dosyasında birikir | `docs/olcum/neden-defteri.jsonl` + araç |
+| 14 | Railway: plan alınacak; açılışta önce `AUTO_REPLY_ENABLED=0`, yedek, sonra web servisi (ana oturumun önerdiği sıra — kurucu henüz onaylamadı) | `docs/RAILWAY-ACILIS-2026-10-15.md` §0 |
+| — | S-1 (okuyucuya maskesiz şifre) cevaplanmadı — açık soru | — |
