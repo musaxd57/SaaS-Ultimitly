@@ -3,6 +3,7 @@ import "server-only";
 import { callStructuredJsonRetryingOnce } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
+import { maskGuestIdentity } from "@/lib/ai/guest-identity-mask";
 import { fenceSafe } from "./fence";
 import { stripDividerRuns } from "../divider-spoof";
 
@@ -25,6 +26,13 @@ import { stripDividerRuns } from "../divider-spoof";
 //    bu anlam bulgularının önünde yalnız okuyucu kalır; kodda kalanlar yine tutar.
 //  · Okuyucunun cevabında bulunmayan / bozuk / tekrarlanan parça TUTULUR; okuyucu düşerse / kapalıysa BÜTÜN parçalar tutulur (Opus 10-23 G1,
 //    `ai/index.ts`).
+//  · 11-26 (kurucu: "tekrar test S-1 MASKesiz olsun o zaman / okuyucuya 2 soru koyabilirsin"; tasarım
+//    `docs/TASARIM-2026-11-26-okuyucu-maskesiz-iki-soru-olumluluk.md`): (1) BİZİM metinlerimiz (parça + notlar) okuyucuya DEĞER MASKESİZ gider
+//    ("password: …", telefon, uzun sayı) — cevabı yazan model aynı değerleri zaten görüyor (aynı sağlayıcı); maskeli notlarla okuyucu doğru
+//    şifreyi "notlarda yok" diye tutuyordu, maskesiz ölçümde yanlış şifrenin 4'ü / 4 yakalandı. Misafirin metni ve önceki konuşma AYNEN
+//    maskeli; misafir adı bizim metnimizde de kimlik konumunda maskeli. (2) İki ek soru: parça misafirin dilinde mi (`in_guest_language`) ·
+//    notlar parçanın konusunda kendi aralarında çelişiyor mu (`notes_conflict`). Karar modelde (11-18 kalıcı kural: anlam kararı sözcük
+//    listesiyle verilmez); kod yalnız alanı okur, alan eksik / bozuksa parça `unread` ile tutulur.
 // Anahtar: kıdemli okuyucununki (`AI_SENIOR_READER_ENABLED`); yalnız parça kipinde (`AI_ANSWER_PARTS_ENABLED`) çağrılır.
 // ---------------------------------------------------------------------------
 
@@ -103,6 +111,14 @@ export const PART_READER_SYSTEM_PROMPT = [
   "not fully settled — the host is told. false when the notes also cover the general case, when the guest asked about that very case, or when",
   "the question has no days, periods or cases.",
   "",
+  "in_guest_language = true when the part is written in the language the guest wrote this turn's message in. Names, addresses and codes do",
+  "not count. false when the part, or any sentence of it, is in another language. When the guest's message has no words to tell the",
+  "language by (only a number or an emoji), true.",
+  "",
+  "notes_conflict = true when the NOTES disagree with each other about what this part says: they give two different values or two",
+  "different rules for the same thing, so it is not clear which one is true. false when they agree, repeat the same thing, or one only adds",
+  "to the other (a general rule and its exception, a rule and its fee, details of a different thing).",
+  "",
   "quote: when any answer above is not the good one, copy at most 15 words of the part concerned; otherwise an empty string.",
 ].join("\n");
 
@@ -119,7 +135,17 @@ export const PART_READER_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["ref", "answers_request", "supported_by_notes", "binding_ok", "exception_without_rule", "only_known_case", "quote"],
+          required: [
+            "ref",
+            "answers_request",
+            "supported_by_notes",
+            "binding_ok",
+            "exception_without_rule",
+            "only_known_case",
+            "in_guest_language",
+            "notes_conflict",
+            "quote",
+          ],
           properties: {
             ref: { type: "string" },
             answers_request: { type: "string", enum: ["yes", "partly", "no", "unsure"] },
@@ -127,6 +153,8 @@ export const PART_READER_JSON_SCHEMA = {
             binding_ok: { type: "boolean" },
             exception_without_rule: { type: "boolean" },
             only_known_case: { type: "boolean" },
+            in_guest_language: { type: "boolean" },
+            notes_conflict: { type: "boolean" },
             quote: { type: "string" },
           },
         },
@@ -137,9 +165,20 @@ export const PART_READER_JSON_SCHEMA = {
 
 /**
  * Okuyucunun tuttuğu parçanın sebebi (iz / ölçüm; metin YOK). `unsupported` = notlarda olmayan olgu (Codex 10-23: "kaynak destekliyor mu" ile
- * "ihtiyacı karşılıyor mu" ayrı karar) · `unsure` = okuyucu emin değil · `unread` = okuyucu bu parçaya hüküm vermedi (düştü, eksik, bozuk).
+ * "ihtiyacı karşılıyor mu" ayrı karar) · `unsure` = okuyucu emin değil · `unread` = okuyucu bu parçaya hüküm vermedi (düştü, eksik, bozuk) ·
+ * `notes_conflict` = notlar parçanın konusunda kendi aralarında çelişiyor (11-26) · `wrong_language` = parça misafirin dilinde değil (11-26).
  */
-export const PART_READER_HOLDS = ["not_answered", "binding", "unsupported", "exception_only", "partial", "unsure", "unread"] as const;
+export const PART_READER_HOLDS = [
+  "not_answered",
+  "binding",
+  "unsupported",
+  "exception_only",
+  "partial",
+  "unsure",
+  "unread",
+  "notes_conflict",
+  "wrong_language",
+] as const;
 export type PartReaderHold = (typeof PART_READER_HOLDS)[number];
 
 /**
@@ -196,16 +235,26 @@ export type PartReaderOutcome = { status: "ok"; holds: Map<string, PartReaderHol
 const knownNames = (input: Pick<PartReaderInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
 
+/**
+ * Okuyucuya giden metnin yazarı: `guest` = misafirin metni (kimlik maskesi + değer maskesi + bölüm çizgisi taklidi silinir) · `ours` = önceki
+ * konuşmadaki bizim satırımız (kimlik + değer maskesi, bugünkü kural) · `ours_plain` = PARÇA ve NOTLAR (S-1, 11-26): yalnız misafir adı
+ * kimlik konumunda maskelenir, DEĞER MASKESİ YOK — okuyucu parçadaki şifre / telefon / numarayı notlardakiyle kıyaslayabilsin.
+ */
+type ReaderTextAuthor = "guest" | "ours" | "ours_plain";
 /** `tail`: uzun metnin SONU okunur (turun en yeni mesajı — sorulan gün / ihtiyaç çoğunlukla oradadır; Haiku 10-23 sabah). */
-const fenceText = (text: string, names: readonly string[], author: "guest" | "ours") =>
-  fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author));
-const fenced = (text: string, names: readonly string[], author: "guest" | "ours", cap: number, tail = false) => {
+const fenceText = (text: string, names: readonly string[], author: ReaderTextAuthor) =>
+  fenceSafe(
+    author === "ours_plain"
+      ? maskGuestIdentity(text, names, "ours")
+      : redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author),
+  );
+const fenced = (text: string, names: readonly string[], author: ReaderTextAuthor, cap: number, tail = false) => {
   const safe = fenceText(text, names, author);
   return `<<<${tail ? safe.slice(-cap) : safe.slice(0, cap)}>>>`;
 };
 const notesOf = (p: PartReaderPart) => p.notes.join("\n---\n");
-/** Notları tavana sığmayan parça (okuyucu notun tamamını göremez → tutulur). */
-const notesOverflow = (p: PartReaderPart, names: readonly string[]) => fenceText(notesOf(p), names, "ours").length > NOTES_CAP;
+/** Notları tavana sığmayan parça (okuyucu notun tamamını göremez → tutulur). Tavan, okuyucuya GİDEN metinle (maskesiz notlar) ölçülür. */
+const notesOverflow = (p: PartReaderPart, names: readonly string[]) => fenceText(notesOf(p), names, "ours_plain").length > NOTES_CAP;
 
 export function buildPartReaderUserContent(input: PartReaderInput): string {
   const names = knownNames(input);
@@ -223,8 +272,8 @@ export function buildPartReaderUserContent(input: PartReaderInput): string {
     "PARTS:",
     ...input.parts.slice(0, PART_READER_MAX_PARTS).flatMap((p) => [
       `${p.ref}${p.topic ? ` · TOPIC: ${p.topic}` : ""} · REQUEST (guest's words): ${fenced(p.request, names, "guest", REQUEST_CAP)}`,
-      `PART: ${fenced(p.text, names, "ours", PART_CAP)}`,
-      `NOTES: ${fenced(notesOf(p), names, "ours", NOTES_CAP)}`,
+      `PART: ${fenced(p.text, names, "ours_plain", PART_CAP)}`,
+      `NOTES: ${fenced(notesOf(p), names, "ours_plain", NOTES_CAP)}`,
     ]),
   ].join("\n");
 }
@@ -247,15 +296,21 @@ export function parsePartReaderVerdict(data: unknown, refs: readonly string[]): 
       !["yes", "partly", "no", "unsure"].includes(r.answers_request as string) ||
       typeof r.supported_by_notes !== "boolean" ||
       typeof r.binding_ok !== "boolean" ||
-      typeof r.exception_without_rule !== "boolean"
+      typeof r.exception_without_rule !== "boolean" ||
+      // 11-26 iki soru: alan eksik / yanlış tipte → okunmadı (eski şemanın cevabı da tutulur — belirsizlikte tut).
+      typeof r.in_guest_language !== "boolean" ||
+      typeof r.notes_conflict !== "boolean"
     ) {
       holds.set(ref, "unread");
       continue;
     }
-    // Sıra: en ağır sebep önce (iz için tek sebep).
+    // Sıra: en ağır sebep önce (iz için tek sebep). Çelişen notlarda "hangisi doğru" bilinmez → bağ / destek sorusundan önce; dil, bağ / destek
+    // sorularından sonra (yanlış dilde VE yanlış bağlı parçada iz bağ sebebini göstersin). Sıra yalnız izi etkiler: her sebep tutar.
     if (r.answers_request === "no") holds.set(ref, "not_answered");
+    else if (r.notes_conflict) holds.set(ref, "notes_conflict");
     else if (!r.binding_ok) holds.set(ref, "binding");
     else if (!r.supported_by_notes) holds.set(ref, "unsupported");
+    else if (!r.in_guest_language) holds.set(ref, "wrong_language");
     else if (r.exception_without_rule) holds.set(ref, "exception_only");
     else if (r.answers_request === "partly") holds.set(ref, "partial");
     else if (r.answers_request === "unsure") holds.set(ref, "unsure");

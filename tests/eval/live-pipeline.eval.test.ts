@@ -1343,7 +1343,7 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
   });
 
   it("neden defteri (11-26): okuyucunun ham hükmü yalnız part_reader yanıtından alınır; rapor komutu ÖNERİR, yazmaz", () => {
-    const reader = JSON.stringify({ parts: [{ ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: false, exception_without_rule: false, only_known_case: false, quote: "x" }] });
+    const reader = JSON.stringify({ parts: [{ ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: false, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: false, quote: "x" }] });
     expect(partReaderVerdictsOf(reader)).toEqual([expect.objectContaining({ ref: "R1", binding_ok: false })]);
     // Cevap modelinin parçaları / anlama katmanının istekleri / bozuk JSON / boş dizi alınmaz.
     expect(partReaderVerdictsOf(JSON.stringify({ answers: [{ ref: "R1", status: "answered", text: "t", evidence: "e" }] }))).toBeNull();

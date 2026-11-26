@@ -469,7 +469,7 @@ const MODEL = {
 /** Okuyucunun "hepsi evet" hükmü (okuyucuya giden her istek kimliği için) — kodun doğrulamasını sınayan testler okuyucuya takılmaz. */
 function readerAllYes(body: string): Response {
   const refs = [...new Set([...body.matchAll(/(R\d+) · (?:TOPIC|REQUEST)/g)].map((m) => m[1]))];
-  const parts = refs.map((ref) => ({ ref, answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" }));
+  const parts = refs.map((ref) => ({ ref, answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, quote: "" }));
   return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts }) } }] }), { status: 200 });
 }
 /**
@@ -592,7 +592,7 @@ describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
     routedFetch(
       { ...MODEL, answers: heated },
-      readerSays([{ ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "Havuz ısıtmalıdır." }]),
+      readerSays([{ ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, quote: "Havuz ısıtmalıdır." }]),
     );
     const held = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: withQueries });
     expect(held.reply).toBe("");
@@ -1035,8 +1035,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     const f = routedFetch({ ...MODEL, answers }, (body) => {
       seen = body;
       return readerSays([
-        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" },
-        { ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "Havuz her gün 20:00'de kapanıyor." },
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, quote: "" },
+        { ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, quote: "Havuz her gün 20:00'de kapanıyor." },
       ])();
     });
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
@@ -1140,8 +1140,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     routedFetch(
       { ...MODEL, answers },
       readerSays([
-        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" },
-        { ref: "R2", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: true, quote: "" },
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: false, quote: "" },
+        { ref: "R2", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: true, quote: "" },
       ]),
     );
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
@@ -1153,8 +1153,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     routedFetch(
       { ...MODEL, answers },
       readerSays([
-        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" },
-        { ref: "R2", answers_request: "partly", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: true, quote: "Havuz" },
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: false, quote: "" },
+        { ref: "R2", answers_request: "partly", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: true, quote: "Havuz" },
       ]),
     );
     const held = await suggestReply({ ...input, conversationItems: ITEMS });

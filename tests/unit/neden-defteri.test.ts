@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+import { PART_READER_HOLDS } from "@/lib/ai/semantic/part-reader";
 import { scoreNeeds, needMetrics, type NeedSpec } from "../eval/need-scoring";
 import {
   defteriAyristir,
@@ -6,6 +10,8 @@ import {
   girdiyiOku,
   istekEsle,
   kosuToplamlari,
+  OKUYUCU_SEBEPLERI,
+  okuyucuAyrintisi,
   ozetMetni,
   parcaKimlikleri,
   yanlisDali,
@@ -230,6 +236,16 @@ describe("neden defteri — eşleme, ekleme, özet", () => {
     expect(() => defteriAyristir('{"a":1}\n{bozuk')).toThrow(/satırı 2/);
     expect(() => girdiyiOku({ suite: "live-pipeline", rows: [{ id: "a", ok: true }] }, "x.json")).toThrow(/toplu yan dosya/);
     expect(() => girdiyiOku({ suite: "baska", rows: [] }, "x.json")).toThrow(/tanınmayan/);
+  });
+
+  it("🚨 okuyucu sebep envanteri ürünün listesiyle AYNI (11-26 iki soru dahil); okuyucu tutmasında okunur ad ayrıntıda", () => {
+    expect(Object.keys(OKUYUCU_SEBEPLERI).sort()).toEqual([...PART_READER_HOLDS].sort());
+    expect(need("p2", "parking")!.ayrinti).toContain("okuyucu sebebi: değer / koşul başka şeye bağlı");
+    const raw = { answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" };
+    expect(okuyucuAyrintisi({ ...raw, in_guest_language: false, notes_conflict: true })).toContain("misafirin_dilinde_degil · notlar_celisiyor");
+    // Alan yoksa (11-26 öncesi koşu) ya da "tutmayan" yöndeyse hiçbir şey eklenmez.
+    expect(okuyucuAyrintisi(raw)).not.toMatch(/dilinde|celisiyor/);
+    expect(okuyucuAyrintisi({ ...raw, in_guest_language: true, notes_conflict: false })).not.toMatch(/dilinde|celisiyor/);
   });
 
   it("özet: koşu satırında dört sayı, bilinmiyor oranı, deterministik", () => {

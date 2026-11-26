@@ -189,7 +189,7 @@ const BETTER = { ref: "R1", status: "answered", text: "Kumanda komodinin çekmec
 
 const ok = (content: unknown, usage?: Record<string, number>) =>
   new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }], ...(usage ? { usage } : {}) }), { status: 200 });
-const row = (ref: string, answers_request: string) => ({ ref, answers_request, supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" });
+const row = (ref: string, answers_request: string) => ({ ref, answers_request, supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, only_known_case: false, quote: "" });
 
 /** Cevap / okuyucu / yeniden yazma çağrılarını ayırır; okuyucu her çağrıda sıradaki hükmü verir (yalnız gelen istek kimlikleri için). */
 function net(opts: { rewrite?: unknown[] | "fail"; readers: Record<string, string>[] }) {

@@ -204,6 +204,22 @@ export function turSebebi(r) {
 }
 
 /**
+ * Okuyucunun tutma sebepleri (`semantic/part-reader.ts` `PART_READER_HOLDS`; parça hükmünde `reader_<sebep>`) → defterde okunur ad. Sebep
+ * kodu satırın `sebep` alanında AYNEN durur; bu tablo yalnız ayrıntıyı okunur kılar. Ürün listesiyle eşitliği pinli (`neden-defteri.test.ts`).
+ */
+export const OKUYUCU_SEBEPLERI = Object.freeze({
+  not_answered: "sorulanı cevaplamıyor",
+  binding: "değer / koşul başka şeye bağlı",
+  unsupported: "notlarda yok",
+  exception_only: "genel kuralı anmadan istisna",
+  partial: "yarım cevap",
+  unsure: "okuyucu emin değil",
+  unread: "okuyucu okumadı (düştü / eksik / tavan)",
+  notes_conflict: "notlar kendi arasında çelişiyor",
+  wrong_language: "misafirin dilinde değil",
+});
+
+/**
  * Okuyucunun ham hükmü (ölçerin `readerRaw` alanı, 11-26'dan sonraki koşular) → kısa ayrıntı. Alan yoksa boş dize: okuyucunun HANGİ soruya
  * "hayır" dediği bugünkü ayrıntı dosyalarında yazılı değildir (yalnız tutma kodu).
  */
@@ -215,6 +231,9 @@ export function okuyucuAyrintisi(verdict) {
     `bag_dogru=${verdict.binding_ok ?? "?"}`,
     ...(verdict.exception_without_rule ? ["kuralsız_istisna"] : []),
     ...(verdict.only_known_case ? ["yalnız_bilinen_durum"] : []),
+    // 11-26 iki soru (`semantic/part-reader.ts`): yalnız "tutan" yön yazılır; alan yoksa (eski koşu) hiçbir şey eklenmez.
+    ...(verdict.in_guest_language === false ? ["misafirin_dilinde_degil"] : []),
+    ...(verdict.notes_conflict === true ? ["notlar_celisiyor"] : []),
   ];
   return `okuyucu: ${f.join(" · ")}${verdict.quote ? ` · alıntı "${kisalt(verdict.quote, 60)}"` : ""}`;
 }
@@ -224,7 +243,19 @@ function parcaSebebi(part, verdict) {
   if (part.status === "rejected") {
     const issues = Array.isArray(part.issues) ? part.issues : [];
     const okuyucu = issues.length > 0 && issues.every((i) => String(i).startsWith("reader_"));
-    const ayrinti = [part.advisory?.length ? `kodun gördüğü: ${part.advisory.join(",")}` : "", okuyucu ? okuyucuAyrintisi(verdict) : ""]
+    // Okuyucu sebebinin okunur adı (tanınmayan kod sessizce atlanır — sebep kodu `sebep` alanında aynen durur).
+    const okunur = okuyucu
+      ? issues
+          .map((i) => String(i).slice("reader_".length))
+          .filter((k) => Object.hasOwn(OKUYUCU_SEBEPLERI, k))
+          .map((k) => OKUYUCU_SEBEPLERI[k])
+          .join(", ")
+      : "";
+    const ayrinti = [
+      okunur ? `okuyucu sebebi: ${okunur}` : "",
+      part.advisory?.length ? `kodun gördüğü: ${part.advisory.join(",")}` : "",
+      okuyucu ? okuyucuAyrintisi(verdict) : "",
+    ]
       .filter(Boolean)
       .join(" · ");
     return {

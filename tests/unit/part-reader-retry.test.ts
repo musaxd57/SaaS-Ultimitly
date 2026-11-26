@@ -25,7 +25,7 @@ const okBody = () =>
         finish_reason: "stop",
         message: {
           content: JSON.stringify({
-            parts: [{ ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" }],
+            parts: [{ ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, in_guest_language: true, notes_conflict: false, quote: "" }],
           }),
         },
       },
