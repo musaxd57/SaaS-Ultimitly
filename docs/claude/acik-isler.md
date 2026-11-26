@@ -381,3 +381,10 @@ alması (kaybedince `unclaimed` + `pinRequired`), ayrıntı oturum notu `gece112
 misafir silmesinde kalıyor, 90 günde siliniyor (anahtar kapalı — **soru VA-1:** silmede de silinsin mi) · **Railway açılınca bakılacak sayım:**
 eski QR konuşmalarında `reservationId` boş satır var mı (varsa açık silme onları bulmaz):
 `SELECT count(*) FROM "Conversation" WHERE channel='chat' AND "externalReservationId" LIKE 'qr-chat:%' AND "reservationId" IS NULL`.
+
+**11-26 gece (3) — tur 3 (G5 ödeme / kimlik, G6 senkron / otomatik yanıt): P1 / P2 yok.** Sorular: **TR-1** rezervasyon sağlayıcıda başka
+daireye taşınırsa yeni dairede temiz konuşma açılır, eski konuşmadaki "Sorunlu" işareti taşınmaz ve otomatik yanıt verebilir (sağlayıcının bunu
+gerçekten yaptığı doğrulanamadı; sonda `gece1126/G6-bulgular.md`) — işaret taşınsın mı · **AB-1** aynı işletmede iki canlı abonelik + karışık
+sırada gelen olayda yeni aboneliğin "aktif" olayı kayda işlenmiyor, 15 dk sonra "ödeme alındı" alarmı çıkıyor — sıra kontrolü olayın kendi
+aboneliğine baksın mı. **Kurucu 11-26 sabah cevapladı:** GM-1 (10:00), K2-S (son 60 + düğme), K11-1 (konum kalır), K16-1 (genel ad) —
+`docs/KURUCU-TALIMATI-2026-11-26-sabah-cevaplar.md`.

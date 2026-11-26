@@ -581,7 +581,8 @@ Bu dosyaya token/anahtar/parola yazma.
 bakıp bakıp ilerle") · `docs/KURUCU-TALIMATI-2026-11-18-aksam-kararlar-ve-anlam-yonu.md` · `docs/KURUCU-TALIMATI-2026-11-19-gece-raporuna-cevap.md` ·
 `docs/KURUCU-TALIMATI-2026-11-19-aksam-ajan-turu-cevabi.md` · `docs/KURUCU-TALIMATI-2026-11-20-sabah-cevaplar.md` ·
 `docs/KURUCU-TALIMATI-2026-11-21-sabah-cevaplar.md` · `docs/KURUCU-TALIMATI-2026-11-25-codex-raporu-ve-opus-dalgasi.md` ·
-`docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md` · `docs/KURUCU-TALIMATI-2026-11-25-aksam-codex-ikinci-rapor.md`.
+`docs/KURUCU-TALIMATI-2026-11-25-uc-kucuk-is.md` · `docs/KURUCU-TALIMATI-2026-11-25-aksam-codex-ikinci-rapor.md` ·
+`docs/KURUCU-TALIMATI-2026-11-26-sabah-cevaplar.md`.
 **Çalışma düzeni (kurucu 11-18):** Claude orkestratör; Opus 5.5 kod yazabilir ama push etmez, kodu hemen eleştirel incelenir; en zor kodu Claude
 yazar; kontrollerde alt ajan; acele yok.
 
