@@ -359,3 +359,15 @@ dışa verilen takvimin başlığı genel olsun mu ("Lixus AI takvimi") · **K17
 eksikse uyarı · **K22-2** öteki geç yazıcılar (taslak izi, konuşma öğesi konusu, WhatsApp sorusu, taslak bağı, misafire söz) aynı sınırla
 kapatılsın mı · **K25** bileşik "aynı işletme" kısıtı (önce iki tabloya işletme sütunu) · **K26** büyük işletmede dışa aktarma parça parça mı.
 **Açılış notu (C1):** `QR_PIN_ENABLED` açıldıktan sonra Ayarlar'da "sohbet kodu iste" bir kez yeniden kaydedilir (eski cihaz bağları o zaman düşer).
+
+**11-26 gece — iki Opus hata ayıklama ajanı (G1: K27 sert kontrol + K26 + saat dilimi + ödeme doğrulama; G2: içe aktarma / takvim, görevler,
+otomatik mesaj, ekip, elle rezervasyon): P1 / P2 YOK.** Kayıtlı küçükler (P3, düzeltilmedi — ayrı turda kırmızı-önce testle): QR'da kod
+konulurken yolda olan ilk tarama isteği kodsuz bağlanabilir (milisaniyelik yarış; `guest-chat.ts` sahiplenme koşulu — kod girme yolu aynı
+işlevi kullanıyor mu önce bakılır) · ödeme süpürgesi sınır alarmının durumu birikim eriyince temizlenmiyor · ödeme süpürgesinde tek satırın
+hatası turu kesiyor (sonraki tur sürer; önceden de böyleydi) · senkronda kilit kaybında işletme özet satırı yazılmıyor · iç not yazımı uzun
+silme kilidini beklerse hata verebilir · görev güncellemesinde yönetici yolunda arada silinen görev 500 (404 olmalı) · CSV başlığı BÜYÜK
+Türkçe harfle ("GİRİŞ") tanınmıyor, satırlar sessizce atlanıyor (CSV yalnız API'den) · elle rezervasyonda referans kırpılmıyor (" ABC" sonra
+"ABC" beslemesiyle eşleşmez) · tırnaklı ve ":" içeren TZID'li etkinlik okunamıyor (sessiz değil) · atama doğrulaması üyelik durumunu değil
+`User.organizationId`yi okuyor (bugün ulaşılamaz; "ekipten çıkarma" gelince üç yer birlikte). **Kurucu sorusu GM-1:** giriş bilgisi mesajı
+varıştan 4 gün önce, ilk fırsatta gidiyor — Hospitable tarihi gece yarısı (UTC) olduğu için bu İstanbul'da gece ~03:00'e denk geliyor;
+gündüz saatine (ör. 10:00) ertelensin mi?

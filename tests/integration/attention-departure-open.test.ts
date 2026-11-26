@@ -111,8 +111,10 @@ async function openCommitment(
 
 const departureRows = (items: AttentionItem[]) => items.filter((i) => i.departureOpen);
 const text = (i: AttentionItem) => [departureOpenHeadline(i.propertyName, i.departureOpen!), departureOpenDetail(i.departureOpen!)];
-// Kesin saatli sözün zamanı konu adının yanında kalır ("sıcak su (söz bugün 18:00)"); gün / saat koşu anına bağlı → biçim kalıbı.
-const WHEN = String.raw`\(söz (?:bugün|yarın) \d{2}:\d{2}\)`;
+// Kesin saatli sözün zamanı konu adının yanında kalır. Söz BUGÜNSE yalnız saat yazılır ("sıcak su (söz 18:00)"), yarınsa
+// "yarın 09:00" (söz satırıyla aynı kural). Söz koşu anından 5 saat sonrasına kurulur → gün koşu saatine bağlı: iki biçim de geçerli.
+// (CI 1855: kalıp "bugün" sözcüğünü şart koşuyordu; söz aynı güne düşen saatlerde — İstanbul 00:00–19:00 — kırmızıydı.)
+const WHEN = String.raw`\(söz (?:yarın )?\d{2}:\d{2}\)`;
 /** İşletmenin (İstanbul, sabit +03:00) bugününde verilen saat — "şimdi"yi sabitlemek için. */
 const todayAt = (clock: string) => new Date(`${new Date().toLocaleDateString("en-CA", { timeZone: TZ })}T${clock}:00+03:00`);
 

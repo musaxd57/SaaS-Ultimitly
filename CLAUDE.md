@@ -655,3 +655,6 @@ gece: Codex ikinci rapor (26 madde, altı paket; hükümler talimat belgesinde) 
 - (11-25 akşam) İstek yoluna yeni okuma eklerken ardışık tur eklenmez: okuma, girdisi belli olur olmaz (gerekirse geniş aday kümesiyle)
   başlatılıp sonda beklenir (`request-path-queries` derinlik pini; sınır büyütülmez). Bir satır başka satırları yutuyorsa yutulanın taşıdığı
   bilgi (söz saati, onaylı saat) yeni satırda aranır.
+- (11-26, CI 1855) Koşu anına göre kurulan zamanı ("şimdi + 5 saat") ekran yazısında sınayan testte yazı GÜNE göre değişir (bugün → yalnız
+  saat, yarın → "yarın 09:00"); akşam koşan kapı yalnız "yarın" dalını görür. Böyle bir test eklenince öteki dal için saat sabitlenerek ya da
+  günün başka bir saatinde bir kez koşulur; kalıp ürünün hiç yazmadığı bir sözcüğü ("bugün") beklemez.

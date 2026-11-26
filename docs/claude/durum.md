@@ -925,3 +925,10 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
 - Kurucu kararları gece: silme ekranı metni · QR'da yeniden kod · `BILLING_ENFORCED` + webhook anahtarı eksikse açılış durur · migration izni
   (kullanılmadı) · kontrol / izleme araçları için soru gitmez.
 - Açılış sırası değişti: `verify-env → migrate deploy → start` (Dockerfile; CLAUDE.md "Teknik mimari").
+
+## (17) 11-26 gece — CI 1855 kırmızısı + iki ajanlı hata ayıklama turu
+- CI 1855 (3d523b74) KIRMIZI: `attention-departure-open.test.ts` üç test. Sebep TEST (ürün doğru): kalıp "söz bugün SS:DD" bekliyordu, ürün
+  bugünkü sözde yalnız saati yazar; söz "şimdi + 5 saat" kurulduğu için akşam koşan iki tam kapı yalnız "yarın" dalını gördü, CI gece 01:35'te
+  (İstanbul) öteki dala düştü. Kalıp düzeltildi; son turda eklenen 57 test dosyası sabah 06:20'de (İstanbul) yeniden koşuldu — 858 / 858.
+- İki Opus ajanı (salt okuma + sonda): P1 / P2 yok; küçükler ve bir kurucu sorusu `acik-isler.md` "11-26 gece".
+

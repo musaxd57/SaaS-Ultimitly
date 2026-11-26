@@ -33,8 +33,8 @@ describe("saate bulunma eki", () => {
 describe("alt satır", () => {
   it("kesin saatli sözün zamanı konu adının yanında yazılır; zamansız sözde parantez yok", () => {
     expect(
-      departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water", when: "bugün 18:00" }], problem: false }),
-    ).toBe("sıcak su (söz bugün 18:00) konusu açık");
+      departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water", when: "yarın 09:00" }], problem: false }),
+    ).toBe("sıcak su (söz yarın 09:00) konusu açık");
     expect(departureOpenDetail({ topics: [{ source: "commitment", kind: "maintenance", topic: "hot_water" }], problem: false })).toBe(
       "sıcak su konusu açık",
     );

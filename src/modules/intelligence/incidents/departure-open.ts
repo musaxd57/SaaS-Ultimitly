@@ -13,7 +13,7 @@ import { COMMITMENT_KIND_LABELS, COMMITMENT_TOPIC_LABELS, isCommitmentTopic, typ
 /** Birleşik satırın açık konusu (kapalı küme kodlar; METİN değil). */
 export type DepartureTopic =
   | { source: "held"; kind: ItemKind }
-  | { source: "commitment"; kind: CommitmentKind; topic: string | null; /** Kesin saatli sözün zamanı ("bugün 18:00"); yoksa yazılmaz. */ when?: string };
+  | { source: "commitment"; kind: CommitmentKind; topic: string | null; /** Kesin saatli sözün zamanı (bugünse "18:00", yarınsa "yarın 09:00"); yoksa yazılmaz. */ when?: string };
 
 export interface DepartureOpen {
   /** Çıkış günü işletmenin takviminde bugün mü yarın mı. */
