@@ -11,7 +11,8 @@ import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { discardAutomatedSend, isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { currentHourInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
-import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_END_HOUR, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
+import { CHECKOUT_SEND_END_HOUR, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
+import { checkinWindowOpensAt } from "@/lib/checkin-window";
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { spansMultipleProperties } from "@/lib/booking-property-conflict";
 import { loadErasureGuard } from "@/lib/erasure";
@@ -818,16 +819,21 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
     (await prisma.reservation.findFirst({
       where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: lifecycleStatusWhere("checkin") },
       orderBy: { arrivalDate: "asc" },
-      select: { arrivalDate: true },
+      select: { arrivalDate: true, property: { select: { organization: { select: { timezone: true } } } } },
     })) ??
     // Onaylı kopya yoksa (ör. "bekliyor"a döndü) satırın KENDİ rezervasyonunun tarihi — açık kalmasın (Haiku 10-14 son tur): kapı kodu
     // haftalar önce gitmesin. İptal / tamamlanma hükmünü ↓veto verir.
     (row.reservationId
-      ? await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: { arrivalDate: true } })
+      ? await prisma.reservation.findUnique({
+          where: { id: row.reservationId },
+          select: { arrivalDate: true, property: { select: { organization: { select: { timezone: true } } } } },
+        })
       : null);
   if (!earliest) return null;
-  const opensAt = earliest.arrivalDate.getTime() - CHECKIN_LEAD_DAYS * 86_400_000;
-  return opensAt > now.getTime() ? new Date(opensAt) : null;
+  // Pencere GÜNE göre açılır (GM-1, `checkin-window.ts`): varıştan CHECKIN_LEAD_DAYS gün önceki günün işletme saatiyle 10:00'ı — gönderici
+  // ile aynı işlev (gece yarısı saklanan tarih yüzünden mesaj gece gitmez).
+  const opensAt = checkinWindowOpensAt(earliest.arrivalDate, orgTimezone(earliest.property?.organization?.timezone));
+  return opensAt.getTime() > now.getTime() ? opensAt : null;
 }
 
 /**

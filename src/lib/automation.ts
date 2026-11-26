@@ -103,13 +103,14 @@ import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import type { TimeConflict } from "@/lib/ai/prompts";
 import { addDays } from "date-fns";
 import { CHECKIN_LEAD_DAYS, CHECKOUT_SEND_END_HOUR, CHECKOUT_SEND_START_HOUR } from "@/lib/lifecycle-window";
+import { checkinLatestArrivalDay } from "@/lib/checkin-window";
 // Otomatik mesajın gönderilebildiği rezervasyon durumları — TEK KAYNAK (D1, 11-18): gönderici sorguları, son talepler, önizlemeler ve kalıcı
 // kuyruğun işçisi aynı kümeyi okur (iki yol ayrışmasın).
 import { lifecycleStatusAllows, lifecycleStatusWhere } from "@/lib/lifecycle-status";
 import { bookingRefsInMultipleProperties } from "@/lib/booking-property-conflict";
 import { outboxPhase, requestOutboxCancel } from "@/lib/outbox/dispatch";
 import { prisma } from "@/lib/db";
-import { orgTimezone, zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
+import { orgTimezone, zonedDayRange, zonedDateStart, currentHourInTimeZone } from "@/lib/timezone";
 import { addNights, calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { writeAudit } from "@/lib/audit";
 import type { CheckinNowRefusal } from "@/lib/checkin-now-text";
@@ -5789,6 +5790,23 @@ function onOrAfterTodayWhere(field: "arrivalDate" | "departureDate", now: Date, 
   return { OR: [{ [field]: { gte: zonedDayRange(now, tz).start } }, { [field]: { in: todayDateAnchors(now, tz) } }] };
 }
 
+/**
+ * Saklı tarihin işletme takvimindeki günü `key` ya da ÖNCESİ — `calendarDateOf` ile BİREBİR aynı karar, sorguda (GM-1). Yalnız tarih
+ * saklayan iki çapa (00:00Z / 12:00Z) kendi UTC gününü taşır; öteki değerler işletme saat dilimindeki günü. Kolon boş bırakılamaz
+ * (`notIn` güvenli).
+ */
+function onOrBeforeDayWhere(field: "arrivalDate" | "departureDate", key: string, tz: string): Prisma.ReservationWhereInput {
+  const anchors = (k: string) => [new Date(`${k}T00:00:00.000Z`), new Date(`${k}T12:00:00.000Z`)];
+  const next = addNights(key, 1);
+  const [y, m, d] = next.split("-").map(Number);
+  return {
+    OR: [
+      { [field]: { in: anchors(key) } },
+      { AND: [{ [field]: { lt: zonedDateStart(y, m, d, tz) } }, { [field]: { notIn: anchors(next) } }] },
+    ],
+  };
+}
+
 /** Koşu başına TEK silme kapısı okuması (kuyruğa giriş öncesi ön eleme; işçi gönderim anında yeniden bakar). */
 function erasureGuardMemo(organizationId: string): () => ReturnType<typeof loadErasureGuard> {
   let p: ReturnType<typeof loadErasureGuard> | null = null;
@@ -6432,9 +6450,13 @@ export async function sendDueCheckins(
     checkinSentAt: null,
     ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
     // S7-4: "açıldıktan sonra" tabanı daire başına (↑lifecycleBaselineWhere) — AND içinde.
-    arrivalDate: { lte: addDays(now, CHECKIN_LEAD_DAYS) }, // …only once within the lead window
     // Not for stays already begun/past — org gününe göre bugün ya da sonrası, TEK TARİH KURALI (↑todayDateAnchors).
-    AND: [onOrAfterTodayWhere("arrivalDate", now, tz), await lifecycleBaselineWhere(organizationId, baseline)],
+    // Pencere GÜNE göre (GM-1, `checkin-window.ts`): varıştan CHECKIN_LEAD_DAYS gün önceki günün işletme saatiyle 10:00'ında açılır.
+    AND: [
+      onOrBeforeDayWhere("arrivalDate", checkinLatestArrivalDay(now, tz), tz),
+      onOrAfterTodayWhere("arrivalDate", now, tz),
+      await lifecycleBaselineWhere(organizationId, baseline),
+    ],
   };
   // D2 (Codex 11-17): bu türde metni olmayan daire aday değildir (↑lifecycleTemplatedPropertyWhere).
   const candidateWhere: Prisma.ReservationWhereInput = { AND: [bookingWhere, await lifecycleTemplatedPropertyWhere(organizationId, "checkin")] };
@@ -6517,7 +6539,7 @@ export async function sendDueCheckins(
     if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) continue;
 
     // Claim-then-send — Girişler'deki elle gönderimle (UX-10 D5) ORTAK yardımcı (`claimAndSendCheckin`): aynı damga, aynı şartlar, aynı geri alma.
-    const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz);
+    const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz, "auto");
     if (outcome.kind === "not_claimed") continue;
     if (outcome.kind === "sent") {
       sent++;
@@ -6554,6 +6576,11 @@ async function claimAndSendCheckin(
   body: string,
   token: string,
   tz: string,
+  /**
+   * Pencere kuralı: otomatik gönderici GÜNE göre (10:00'da açılır, GM-1); ev sahibinin Girişler'den ELLE gönderimi eski anlık kuralla
+   * ("varış ≤ şimdi + CHECKIN_LEAD_DAYS gün") — ev sahibi düğmeye bastıysa saat beklenmez.
+   */
+  window: "auto" | "manual",
 ): Promise<CheckinSendOutcome> {
   // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
   // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
@@ -6576,8 +6603,12 @@ async function claimAndSendCheckin(
         property: { organizationId },
         checkinSentAt: null,
         status: lifecycleStatusWhere("checkin"),
-        arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) },
-        AND: [onOrAfterTodayWhere("arrivalDate", stampedAt, tz)],
+        AND: [
+          window === "auto"
+            ? onOrBeforeDayWhere("arrivalDate", checkinLatestArrivalDay(stampedAt, tz), tz)
+            : { arrivalDate: { lte: addDays(stampedAt, CHECKIN_LEAD_DAYS) } },
+          onOrAfterTodayWhere("arrivalDate", stampedAt, tz),
+        ],
       },
       data: { checkinSentAt: stampedAt },
     });
@@ -6797,7 +6828,7 @@ export async function sendCheckinNow(input: {
   // Sağlayıcı "çok fazla istek" dediyse bekleme bitmeden denenmez (otomatik gönderimle aynı kural).
   if (lifecycleSendsHeld(organizationId, now)) return { ok: false, kind: "held" };
 
-  const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz);
+  const outcome = await claimAndSendCheckin(organizationId, r, tpl, body, token, tz, "manual");
   if (outcome.kind === "not_claimed") {
     // Talep işleminde bir şart tutmadı: ya bu arada gönderildi (otomatik ya da başka sekme) ya metin / rezervasyon değişti.
     const again = await prisma.reservation.findFirst({ where: { id: r.id, property: { organizationId } }, select: { checkinSentAt: true } });

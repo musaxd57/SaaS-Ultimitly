@@ -320,6 +320,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`LIFECYCLE_STATUS_HOLD`, 20 dk; deneme sayılmaz, hata bilgisi yazılmaz): iptal + rezervasyon başına tek anahtar mesajı kalıcı yutardı.
   Sonsuz erteleme yok: giriş / çıkış var olan pencere hükmüyle, karşılama "varış günü geçti ve hâlâ onaylı değil" ile iptal olur. Satırın
   kendi kopyası bekliyorken başka dairedeki onaylı kardeş kopyaya GEÇİLMEZ (başka dairenin metni / kapı kodu giderdi).
+- **Giriş bilgisi mesajı işletme saatiyle 10:00'da açılır (GM-1, kurucu 11-26: "gece 3'de gitmesin, 4 gün önceden alınmışsa saat tam 10'da
+  gitmiş olsun"; `lib/checkin-window.ts`):** pencere ANLIK değil GÜNE göre — varış gününden `CHECKIN_LEAD_DAYS` (4) gün önceki günün işletme
+  saatiyle `CHECKIN_SEND_HOUR` (10):00'ında açılır, varışa kadar açık kalır. Son dakika rezervasyonu (pencere çoktan açık) eskisi gibi ilk
+  turda gider; yalnız AÇILIŞ saati kuraldır, gece sessizliği sistemi DEĞİLDİR. Tek kaynak: aday seçimi, otomatik yolun son talebi ve kuyruk
+  işçisinin ertelemesi aynı iki işlevi okur; sorgu `calendarDateOf` ile birebir (`onOrBeforeDayWhere`). Ev sahibinin Girişler'den ELLE
+  gönderimi saat kuralına tabi değildir. Pin `tests/integration/checkin-send-hour.test.ts` (saat sabit) + `tests/unit/checkin-window.test.ts`.
+- **Dışa verilen takvimin başlığı genel ad (K16-1, kurucu 11-26):** `EXPORTED_CALENDAR_NAME` ("Lixus AI takvimi"); dairenin iç adı üçüncü
+  taraflara gitmez; etkinlik kimlikleri (UID) değişmez. Bilinen bedel: ev sahibi on takvimi kendi takvim uygulamasına eklerse hepsi aynı
+  adla görünür (kurucuya soruldu). Pin `tests/integration/ical-feed-title.test.ts`.
 - **Daire silme, referansı başka dairede yaşayan otomatik mesaj satırını yutmaz (11-26, hata ayıklama ajanı G4; `api/properties/[id]` DELETE):**
   aynı sağlayıcı rezervasyonu işletmenin başka bir dairesinde de kayıtlıysa, o rezervasyonun yaşam döngüsü satırı (a) öteki dairenin
   rezervasyonuna aitse DOKUNULMAZ, (b) silinen dairenin rezervasyonuna aitse diriltilebilir `reservation_gone` koduyla iptal edilir (gövdesi

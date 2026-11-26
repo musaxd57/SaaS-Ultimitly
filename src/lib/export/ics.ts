@@ -92,6 +92,12 @@ function formatDateOnly(date: Date): string {
 }
 
 /**
+ * Dışa verilen takvimin başlığı (K16-1, kurucu 11-26: "Genel ad"). Bağlantı üçüncü taraflara (Airbnb / Booking / Google) verilir; dairenin
+ * işletme içindeki adı ("Lale 3 — arka cephe" gibi iç notlar) başlıkta dışarı çıkmaz. Etkinlik kimlikleri (UID) bundan bağımsızdır.
+ */
+export const EXPORTED_CALENDAR_NAME = "Lixus AI takvimi";
+
+/**
  * Build a complete VCALENDAR document from a set of events.
  * `calendarName` becomes X-WR-CALNAME so subscribers show a friendly title.
  */

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
+import { CHECKIN_LEAD_DAYS, CHECKIN_SEND_HOUR } from "@/lib/lifecycle-window";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
@@ -40,7 +40,7 @@ export const AUTO_MESSAGE_REVIEW_NOTE = "Bu mesaj bilgi tabanınızdaki eski kay
 
 const HINT: Record<AutoMessageKind, string> = {
   welcome: "Rezervasyon yapılınca gider.",
-  checkin: `Girişe ${CHECKIN_LEAD_DAYS} gün kala gider (adres, kapı kodu, Wi-Fi gibi bilgiler için).`,
+  checkin: `Girişe ${CHECKIN_LEAD_DAYS} gün kala saat ${CHECKIN_SEND_HOUR}:00'da gider (adres, kapı kodu, Wi-Fi gibi bilgiler için).`,
   checkout: "Çıkış günü sabah gider.",
 };
 

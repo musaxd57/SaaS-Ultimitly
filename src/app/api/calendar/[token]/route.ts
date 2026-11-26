@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { buildIcsCalendar, buildIcalEvents } from "@/lib/export/ics";
+import { buildIcsCalendar, buildIcalEvents, EXPORTED_CALENDAR_NAME } from "@/lib/export/ics";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { orgTimezone } from "@/lib/timezone";
 
@@ -80,7 +80,8 @@ export async function GET(
   // Gün org diliminde okunur (tek tarih kuralı; saat dilimli giriş UTC gününe kaymasın — Codex 09-30 A2).
   const events = buildIcalEvents(property.reservations, showGuestName, orgTimezone(property.organization?.timezone));
 
-  const ics = buildIcsCalendar(`${property.name} — Lixus AI`, events);
+  // Başlık genel ad: dairenin iç adı üçüncü taraflara gitmez (K16-1, kurucu 11-26).
+  const ics = buildIcsCalendar(EXPORTED_CALENDAR_NAME, events);
 
   return new Response(ics, {
     status: 200,
