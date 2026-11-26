@@ -165,6 +165,14 @@
   gitmemiş en yeni mesaj); bugünkü devir / cevapsız parça e-postası da turun açık ihtiyaçlarını kaydeder (ikinci e-posta yok); e-posta gitmezse
   kayıt geri alınır; güncel durum yeniden okunur; `notifiedAt` BİLEREK kullanılmadı. Ölçüm: `live-pipeline` mühürlü kip (yalnız toplu sayı),
   yanlış "cevaplandı" (eksik cevap gitti + iş kapandı) gereksiz tutmadan ayrı; okuyucu karşılaştırma seti `evals/part-reader-dev.json`.
+- 🚨 **PARÇA OKUYUCUSU 11-26 akşamüstü (kurucu: "S-1 MASKesiz olsun · okuyucuya 2 soru · herşeyi modele bırakmamalıyız"; tam metin
+  `docs/TASARIM-2026-11-26-okuyucu-maskesiz-iki-soru-olumluluk.md`, anahtarlar KAPALI):** (1) PARÇA ve NOTLAR okuyucuya değer maskesiz gider;
+  misafirin metni ve önceki konuşma aynen maskeli, misafir adı kimlik konumunda maskeli. (2) İki soru modelde: `in_guest_language` (yalnız
+  parça ↔ misafir mesajı, yalnız doğal dil) · `notes_conflict` (örnek cümlesiz); "hayır" / "evet" → `reader_wrong_language` /
+  `reader_notes_conflict`; alan eksikse `unread`. Kodda dil / çelişki sözcük listesi YOK. (3) Değersiz parçanın üç olumluluk dalı okuyucu
+  OKURKEN yalnız iki taraf da yan cümle düzeyinde tek yönlü ve yönler tersken tutar (`polarityReversalCertain`); okuyucu okumadıysa (`unread`)
+  eski hüküm birebir; ücret kutbu ve değer başına olumluluk her zaman kodda. Ölçüm (görülmüş set, istem bu setle iki kez düzeltildi): var / yok
+  birleşik 100% / haksız 0 (önce 71,7% / 28), çelişki 2 vaka kaçıyor (çöp), dil 1 haksız tutma — görülmemiş set ölçülmeden AÇILMAZ.
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

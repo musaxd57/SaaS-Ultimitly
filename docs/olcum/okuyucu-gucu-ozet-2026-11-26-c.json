@@ -1,0 +1,934 @@
+{
+ "runtime": {
+  "commit": "91349536",
+  "layers": {
+   "reply": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "semantic": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "understanding": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "guard": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "rerank": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "translate": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "style": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "decision": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "partReader": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "embedding": {
+    "model": "text-embedding-3-small"
+   }
+  },
+  "flags": {
+   "KB_RETRIEVAL_MODE": "(boş)",
+   "KB_SEMANTIC_RETRIEVAL": "(boş)",
+   "KB_RERANK_ENABLED": "(boş)",
+   "KB_RERANK_PER_QUESTION": "(boş)",
+   "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+   "AI_UNDERSTANDING_ENABLED": "(boş)",
+   "AI_STAY_GUARD_ENABLED": "(boş)",
+   "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+   "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+   "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+   "AI_CODE_GREETING_ENABLED": "(boş)",
+   "AI_HOUSE_RULES_SHADOW": "(boş)",
+   "AI_KB_FEE_RULE_ENABLED": "(boş)",
+   "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+   "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+   "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+   "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+   "AI_LATE_MESSAGE_REPLY_ENABLED": "(boş)",
+   "AI_NO_SOURCE_RULE_ENABLED": "(boş)",
+   "AI_TURN_MESSAGES_ENABLED": "(boş)",
+   "AI_REPLY_LANGUAGE_SHADOW_ENABLED": "(boş)",
+   "AI_HOST_COMMITMENT_READER_ENABLED": "(boş)",
+   "AI_REPLY_ITEMS_READER_ENABLED": "(boş)",
+   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+   "AI_COURTESY_RULE_ENABLED": "(boş)",
+   "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+   "AI_GENERATION_TRACE_ENABLED": "(boş)",
+   "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+   "AI_VERIFIED_QR_ENABLED": "(boş)",
+   "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+   "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+   "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+   "AI_FAULT_GUARD_ENABLED": "(boş)",
+   "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+   "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+   "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+   "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+   "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+   "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+   "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+   "AI_SENIOR_READER_ENABLED": "(boş)",
+   "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+   "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+   "AI_ANSWER_PARTS_ENABLED": "(boş)",
+   "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+   "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+   "AI_PART_REWRITE_ENABLED": "(boş)"
+  },
+  "prompts": {
+   "reply": "bd6e8b2d6471",
+   "replyVariant": "34e8b0508392",
+   "understanding": "2280457cf496",
+   "partReader": "1ddf772ddece",
+   "understandingMode": "temel"
+  }
+ },
+ "runtimeMarkdown": "\n## Koşu kimliği (katman bazında model + düşünme ayarı)\n\nCommit: `91349536`\n\n| Katman | Model | Düşünme çabası |\n|---|---|---|\n| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Konaklama bekçisi | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Çeviri | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Üslup özeti | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Karar metni yazıcısı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |\n\nBayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=(boş)` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=(boş)` · `AI_HOST_DECISION_HOLD_ENABLED=(boş)` · `AI_HELD_PET_SPLIT_ENABLED=(boş)` · `AI_LATE_MESSAGE_REPLY_ENABLED=(boş)` · `AI_NO_SOURCE_RULE_ENABLED=(boş)` · `AI_TURN_MESSAGES_ENABLED=(boş)` · `AI_REPLY_LANGUAGE_SHADOW_ENABLED=(boş)` · `AI_HOST_COMMITMENT_READER_ENABLED=(boş)` · `AI_REPLY_ITEMS_READER_ENABLED=(boş)` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=(boş)` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=(boş)` · `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=(boş)` · `AI_HOST_CONTACT_PARTIAL_DISABLED=(boş)` · `AI_HOST_VOICE_GUARD_DISABLED=(boş)` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=(boş)` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_REFERRAL_JUDGE_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)` · `AI_ANSWER_REUSE_SHADOW_ENABLED=(boş)` · `AI_ITEM_ORDINAL_ENABLED=(boş)` · `AI_PART_REWRITE_ENABLED=(boş)`\n\nİstem kimliği (SHA-256 ilk 12): cevap `bd6e8b2d6471` (öğe + yabancı dil örneği `34e8b0508392`) · anlama `2280457cf496` (kip: temel)\n\nYapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.\n",
+ "meta": {
+  "model": "gpt-5.1",
+  "served": "gpt-5.1-2025-11-13",
+  "reasoningEffort": null,
+  "runs": 3,
+  "calls": 561,
+  "costUsd": 0.6937,
+  "budgetUsd": 2.2,
+  "stoppedByBudget": false,
+  "jobs": 561,
+  "done": 561,
+  "merged": false
+ },
+ "agg": {
+  "olumluluk|urun": {
+   "cases": 99,
+   "calls": 297,
+   "correct": 97.99999999999999,
+   "unstable": 2,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "c-04",
+    "c-34"
+   ]
+  },
+  "olumluluk|urun|dil:en": {
+   "cases": 32,
+   "calls": 96,
+   "correct": 30.999999999999996,
+   "unstable": 2,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "c-04",
+    "c-34"
+   ]
+  },
+  "olumluluk|urun|beklenen:gecir": {
+   "cases": 53,
+   "calls": 159,
+   "correct": 52.00000000000001,
+   "unstable": 2,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "c-04",
+    "c-34"
+   ]
+  },
+  "olumluluk|urun|etiket:dogru-cevap-yanlis-alarm": {
+   "cases": 24,
+   "calls": 72,
+   "correct": 24,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:fr": {
+   "cases": 15,
+   "calls": 45,
+   "correct": 15,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:tr": {
+   "cases": 19,
+   "calls": 57,
+   "correct": 19,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|beklenen:tut": {
+   "cases": 46,
+   "calls": 138,
+   "correct": 46,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:hakli-tutma": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:ru": {
+   "cases": 11,
+   "calls": 33,
+   "correct": 11,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:es": {
+   "cases": 8,
+   "calls": 24,
+   "correct": 8,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|dil:de": {
+   "cases": 10,
+   "calls": 30,
+   "correct": 10,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:ters-cevap": {
+   "cases": 43,
+   "calls": 129,
+   "correct": 43,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "olumluluk|urun|etiket:dogru-cevap": {
+   "cases": 29,
+   "calls": 87,
+   "correct": 27.999999999999996,
+   "unstable": 2,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "c-04",
+    "c-34"
+   ]
+  },
+  "olumluluk|urun|dil:ar": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun": {
+   "cases": 31,
+   "calls": 93,
+   "correct": 29.666666666666664,
+   "unstable": 2,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-1",
+    "cf-k-7"
+   ]
+  },
+  "celiski|urun|dil:tr": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 6.333333333333333,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-1"
+   ]
+  },
+  "celiski|urun|beklenen:tut": {
+   "cases": 23,
+   "calls": 69,
+   "correct": 22.333333333333332,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "cf-cop-1",
+     "passed": "2/3",
+     "part": "Çöpler salı ve cuma akşamı toplanıyor; ayrıca çöpü her akşam kapınızın önüne bırakabilirsiniz."
+    }
+   ],
+   "unstableIds": [
+    "cf-cop-1"
+   ]
+  },
+  "celiski|urun|dil:en": {
+   "cases": 10,
+   "calls": 30,
+   "correct": 9.333333333333334,
+   "unstable": 1,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "cf-k-7"
+   ]
+  },
+  "celiski|urun|dil:de": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:fr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:es": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|dil:ar": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "celiski|urun|beklenen:gecir": {
+   "cases": 8,
+   "calls": 24,
+   "correct": 7.333333333333333,
+   "unstable": 1,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 1,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": [
+    "cf-k-7"
+   ]
+  },
+  "dil|urun": {
+   "cases": 22,
+   "calls": 66,
+   "correct": 21.333333333333336,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-14",
+     "passed": "2/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    }
+   ],
+   "unstableIds": [
+    "dil-14"
+   ]
+  },
+  "dil|urun|dil:es": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|beklenen:tut": {
+   "cases": 16,
+   "calls": 48,
+   "correct": 15.333333333333334,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-14",
+     "passed": "2/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    }
+   ],
+   "unstableIds": [
+    "dil-14"
+   ]
+  },
+  "dil|urun|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:fr": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 2.333333333333333,
+   "unstable": 1,
+   "wrongPassCases": 1,
+   "wrongPassCalls": 2,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [
+    {
+     "id": "dil-14",
+     "passed": "2/3",
+     "part": "Здравствуйте! Çıkış saati 11:00. Хорошего дня!"
+    }
+   ],
+   "unstableIds": [
+    "dil-14"
+   ]
+  },
+  "dil|urun|dil:de": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:ar": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|dil:tr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "dil|urun|beklenen:gecir": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun": {
+   "cases": 12,
+   "calls": 36,
+   "correct": 12,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:ru": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|beklenen:gecir": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 7,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:tr": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:es": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:fr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:de": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|beklenen:tut": {
+   "cases": 5,
+   "calls": 15,
+   "correct": 5,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "maske|urun|dil:en": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun": {
+   "cases": 23,
+   "calls": 69,
+   "correct": 23,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:tr": {
+   "cases": 4,
+   "calls": 12,
+   "correct": 4,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|beklenen:tut": {
+   "cases": 17,
+   "calls": 51,
+   "correct": 17,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:de": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:fr": {
+   "cases": 2,
+   "calls": 6,
+   "correct": 2,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:en": {
+   "cases": 7,
+   "calls": 21,
+   "correct": 7,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:es": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:ru": {
+   "cases": 3,
+   "calls": 9,
+   "correct": 3,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|dil:ar": {
+   "cases": 1,
+   "calls": 3,
+   "correct": 1,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  },
+  "eksik|urun|beklenen:gecir": {
+   "cases": 6,
+   "calls": 18,
+   "correct": 6,
+   "unstable": 0,
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 0,
+   "failed": 0,
+   "wrongPass": [],
+   "unstableIds": []
+  }
+ },
+ "combined": {
+  "urun|bugun": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 29,
+   "meanCorrect": "71.4%",
+   "wrongPassIds": [],
+   "byCode": 40,
+   "byReader": 6
+  },
+  "urun|A1_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "meanCorrect": "98.0%",
+   "wrongPassIds": [],
+   "byCode": 14,
+   "byReader": 32
+  },
+  "urun|A2_yan_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 12,
+   "byReader": 34
+  },
+  "urun|A3_cumle_tek_yon_ayni_dil": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 0,
+   "byReader": 46
+  },
+  "urun|A4_kalem_tek_yonluyse": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 10,
+   "meanCorrect": "90.6%",
+   "wrongPassIds": [],
+   "byCode": 22,
+   "byReader": 24
+  },
+  "urun|urun_okuyucu_varken": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 15,
+   "byReader": 31
+  },
+  "maskesiz_varsa|bugun": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 29,
+   "meanCorrect": "71.4%",
+   "wrongPassIds": [],
+   "byCode": 40,
+   "byReader": 6
+  },
+  "maskesiz_varsa|A1_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 3,
+   "meanCorrect": "98.0%",
+   "wrongPassIds": [],
+   "byCode": 14,
+   "byReader": 32
+  },
+  "maskesiz_varsa|A2_yan_cumle_tek_yon": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 12,
+   "byReader": 34
+  },
+  "maskesiz_varsa|A3_cumle_tek_yon_ayni_dil": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 0,
+   "byReader": 46
+  },
+  "maskesiz_varsa|A4_kalem_tek_yonluyse": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 10,
+   "meanCorrect": "90.6%",
+   "wrongPassIds": [],
+   "byCode": 22,
+   "byReader": 24
+  },
+  "maskesiz_varsa|urun_okuyucu_varken": {
+   "wrongPassCases": 0,
+   "wrongPassCalls": 0,
+   "falseHoldCases": 2,
+   "meanCorrect": "99.0%",
+   "wrongPassIds": [],
+   "byCode": 15,
+   "byReader": 31
+  }
+ }
+}

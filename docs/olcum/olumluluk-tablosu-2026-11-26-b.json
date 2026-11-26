@@ -1,0 +1,9065 @@
+{
+ "runtime": {
+  "commit": "6eee3a2e",
+  "layers": {
+   "reply": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "semantic": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "understanding": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "guard": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "rerank": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "translate": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "style": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "decision": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "partReader": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "embedding": {
+    "model": "text-embedding-3-small"
+   }
+  },
+  "flags": {
+   "KB_RETRIEVAL_MODE": "(boş)",
+   "KB_SEMANTIC_RETRIEVAL": "(boş)",
+   "KB_RERANK_ENABLED": "(boş)",
+   "KB_RERANK_PER_QUESTION": "(boş)",
+   "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+   "AI_UNDERSTANDING_ENABLED": "(boş)",
+   "AI_STAY_GUARD_ENABLED": "(boş)",
+   "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+   "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+   "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+   "AI_CODE_GREETING_ENABLED": "(boş)",
+   "AI_HOUSE_RULES_SHADOW": "(boş)",
+   "AI_KB_FEE_RULE_ENABLED": "(boş)",
+   "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+   "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+   "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+   "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+   "AI_LATE_MESSAGE_REPLY_ENABLED": "(boş)",
+   "AI_NO_SOURCE_RULE_ENABLED": "(boş)",
+   "AI_TURN_MESSAGES_ENABLED": "(boş)",
+   "AI_REPLY_LANGUAGE_SHADOW_ENABLED": "(boş)",
+   "AI_HOST_COMMITMENT_READER_ENABLED": "(boş)",
+   "AI_REPLY_ITEMS_READER_ENABLED": "(boş)",
+   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+   "AI_COURTESY_RULE_ENABLED": "(boş)",
+   "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+   "AI_GENERATION_TRACE_ENABLED": "(boş)",
+   "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+   "AI_VERIFIED_QR_ENABLED": "(boş)",
+   "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+   "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "(boş)",
+   "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+   "AI_FAULT_GUARD_ENABLED": "(boş)",
+   "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+   "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+   "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+   "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+   "AI_NO_APOLOGY_RULE_ENABLED": "(boş)",
+   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+   "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+   "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "(boş)",
+   "AI_SENIOR_READER_ENABLED": "(boş)",
+   "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+   "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "(boş)",
+   "AI_ANSWER_PARTS_ENABLED": "(boş)",
+   "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+   "AI_ITEM_ORDINAL_ENABLED": "(boş)",
+   "AI_PART_REWRITE_ENABLED": "(boş)"
+  },
+  "prompts": {
+   "reply": "bd6e8b2d6471",
+   "replyVariant": "34e8b0508392",
+   "understanding": "2280457cf496",
+   "partReader": "36cf32b3fa2a",
+   "understandingMode": "temel"
+  }
+ },
+ "runtimeMarkdown": "\n## Koşu kimliği (katman bazında model + düşünme ayarı)\n\nCommit: `6eee3a2e`\n\n| Katman | Model | Düşünme çabası |\n|---|---|---|\n| Cevap modeli (kanal, gelen kutusu, Ayarlar, QR, demo) | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Anlama katmanı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Konaklama bekçisi | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Yeniden sıralayıcı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Çeviri | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Üslup özeti | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Karar metni yazıcısı | `gpt-5.1` | gönderilmez (model varsayılanı) |\n| Gömme (anlamsal getirme) | `text-embedding-3-small` | — |\n\nBayraklar: `KB_RETRIEVAL_MODE=(boş)` · `KB_SEMANTIC_RETRIEVAL=(boş)` · `KB_RERANK_ENABLED=(boş)` · `KB_RERANK_PER_QUESTION=(boş)` · `KB_RETRIEVAL_WIDE_BUDGET=(boş)` · `AI_UNDERSTANDING_ENABLED=(boş)` · `AI_STAY_GUARD_ENABLED=(boş)` · `AI_CONVERSATION_ITEMS_ENABLED=(boş)` · `AI_CONVERSATION_STATE_ENABLED=(boş)` · `AI_ACTION_CLAIMS_ENABLED=(boş)` · `AI_CODE_GREETING_ENABLED=(boş)` · `AI_HOUSE_RULES_SHADOW=(boş)` · `AI_KB_FEE_RULE_ENABLED=(boş)` · `AI_STAY_DEFERRAL_PLAIN_ENABLED=(boş)` · `AI_ACCESS_CODE_COMPLETE_ENABLED=(boş)` · `AI_HOST_DECISION_HOLD_ENABLED=(boş)` · `AI_HELD_PET_SPLIT_ENABLED=(boş)` · `AI_LATE_MESSAGE_REPLY_ENABLED=(boş)` · `AI_NO_SOURCE_RULE_ENABLED=(boş)` · `AI_TURN_MESSAGES_ENABLED=(boş)` · `AI_REPLY_LANGUAGE_SHADOW_ENABLED=(boş)` · `AI_HOST_COMMITMENT_READER_ENABLED=(boş)` · `AI_REPLY_ITEMS_READER_ENABLED=(boş)` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=(boş)` · `AI_COURTESY_RULE_ENABLED=(boş)` · `AI_VERIFIED_AVAILABILITY_ENABLED=(boş)` · `AI_GENERATION_TRACE_ENABLED=(boş)` · `AI_VERIFIED_EXTENSION_ENABLED=(boş)` · `AI_VERIFIED_QR_ENABLED=(boş)` · `AI_DATE_RESOLUTION_ENABLED=(boş)` · `AI_UNDERSTANDING_EN_QUERY_ENABLED=(boş)` · `AI_EMERGENCY_NUMBER_ENABLED=(boş)` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED=(boş)` · `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED=(boş)` · `AI_ACTION_SUGGESTIONS_ENABLED=(boş)` · `AI_FAULT_GUARD_ENABLED=(boş)` · `AI_FIX_SUPPORT_GATE_ENABLED=(boş)` · `AI_TOPIC_ABSENCE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_ENABLED=(boş)` · `AI_ABSENCE_JUDGE_STRICT=(boş)` · `AI_NO_APOLOGY_RULE_ENABLED=(boş)` · `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=(boş)` · `AI_HOST_CONTACT_PARTIAL_DISABLED=(boş)` · `AI_HOST_VOICE_GUARD_DISABLED=(boş)` · `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED=(boş)` · `AI_SENIOR_READER_ENABLED=(boş)` · `AI_REFERRAL_JUDGE_ENABLED=(boş)` · `AI_ASSISTANT_QUESTION_ITEM_ENABLED=(boş)` · `AI_ANSWER_PARTS_ENABLED=(boş)` · `AI_ANSWER_REUSE_SHADOW_ENABLED=(boş)` · `AI_ITEM_ORDINAL_ENABLED=(boş)` · `AI_PART_REWRITE_ENABLED=(boş)`\n\nİstem kimliği (SHA-256 ilk 12): cevap `bd6e8b2d6471` (öğe + yabancı dil örneği `34e8b0508392`) · anlama `2280457cf496` (kip: temel)\n\nYapılandırma başına geçersiz kılma (ör. ölçerin `rrm:` / `rre:` sıralayıcı belirteci) varsa raporun yapılandırma satırı esastır.\n",
+ "summary": {
+  "rows": 99,
+  "reproducedObserved": "27/27",
+  "totals": {
+   "bugun": {
+    "dogru_tutma": 40,
+    "haksiz_tutma": 28,
+    "kacirma": 6,
+    "dogru_gecirme": 25
+   },
+   "A1_cumle_tek_yon": {
+    "dogru_tutma": 14,
+    "haksiz_tutma": 1,
+    "kacirma": 32,
+    "dogru_gecirme": 52
+   },
+   "A2_yan_cumle_tek_yon": {
+    "dogru_tutma": 12,
+    "haksiz_tutma": 0,
+    "kacirma": 34,
+    "dogru_gecirme": 53
+   },
+   "A3_cumle_tek_yon_ayni_dil": {
+    "dogru_tutma": 0,
+    "haksiz_tutma": 0,
+    "kacirma": 46,
+    "dogru_gecirme": 53
+   },
+   "A4_kalem_tek_yonluyse": {
+    "dogru_tutma": 22,
+    "haksiz_tutma": 9,
+    "kacirma": 24,
+    "dogru_gecirme": 44
+   },
+   "urun_okuyucu_varken": {
+    "dogru_tutma": 15,
+    "haksiz_tutma": 0,
+    "kacirma": 31,
+    "dogru_gecirme": 53
+   }
+  },
+  "compare": {
+   "bugun": {
+    "recovered": 0,
+    "stillHeldReverse": 40,
+    "missedTotal": 6,
+    "newlyMissed": 0,
+    "recoveredIds": [],
+    "newlyMissedIds": []
+   },
+   "A1_cumle_tek_yon": {
+    "recovered": 27,
+    "stillHeldReverse": 14,
+    "missedTotal": 32,
+    "newlyMissed": 26,
+    "recoveredIds": [
+     "a-g3-nt6-R2",
+     "a-g3-en1-R1",
+     "a-g3-en4-R1",
+     "a-g3-hp4-R2",
+     "a-g3-m4-R2",
+     "a-g3-m6-R1",
+     "a-g4-nt6-R2",
+     "a-g4-en1-R1",
+     "a-g4-en4-R1",
+     "a-g4-en6-R1",
+     "a-g4-hp4-R2",
+     "a-g4-c11-R1",
+     "a-g4-m4-R2",
+     "a-g4-m6-R1",
+     "a-g4b-nt6-R2",
+     "a-g4b-en1-R1",
+     "a-g4b-en4-R1",
+     "a-g4b-en6-R1",
+     "a-g4b-en7-R1",
+     "a-g4b-en8-R1",
+     "a-g4b-hp4-R2",
+     "a-g4b-c11-R1",
+     "a-g4b-m4-R2",
+     "a-g4b-m6-R1",
+     "c-08",
+     "c-18",
+     "c-34"
+    ],
+    "newlyMissedIds": [
+     "a-g3-ne2-R1",
+     "a-g4-ne2-R1",
+     "b-01-g3-nt6-R2",
+     "b-02-g3-nt6-R2",
+     "b-04-g4-nt6-R2",
+     "b-05-g4-en1-R1",
+     "b-06-g4-en1-R1",
+     "b-07-g3-en1-R1",
+     "b-08-g3-en4-R1",
+     "b-09-g3-en4-R1",
+     "b-10-g4b-en4-R1",
+     "b-11-g4-en6-R1",
+     "b-12-g4-en6-R1",
+     "b-14-g4-hp4-R2",
+     "b-16-g4-c11-R1",
+     "b-18-g4-m4-R2",
+     "b-19-g3-m6-R1",
+     "b-21-g4b-en7-R1",
+     "b-22-g4b-en7-R1",
+     "c-12",
+     "c-13",
+     "c-16",
+     "c-17",
+     "c-23",
+     "c-47",
+     "c-49"
+    ]
+   },
+   "A2_yan_cumle_tek_yon": {
+    "recovered": 28,
+    "stillHeldReverse": 12,
+    "missedTotal": 34,
+    "newlyMissed": 28,
+    "recoveredIds": [
+     "a-g3-nt6-R2",
+     "a-g3-en1-R1",
+     "a-g3-en4-R1",
+     "a-g3-hp4-R2",
+     "a-g3-m4-R2",
+     "a-g3-m6-R1",
+     "a-g4-nt6-R2",
+     "a-g4-en1-R1",
+     "a-g4-en4-R1",
+     "a-g4-en6-R1",
+     "a-g4-hp4-R2",
+     "a-g4-c11-R1",
+     "a-g4-m4-R2",
+     "a-g4-m6-R1",
+     "a-g4b-nt6-R2",
+     "a-g4b-en1-R1",
+     "a-g4b-en4-R1",
+     "a-g4b-en6-R1",
+     "a-g4b-en7-R1",
+     "a-g4b-en8-R1",
+     "a-g4b-hp4-R2",
+     "a-g4b-c11-R1",
+     "a-g4b-m4-R2",
+     "a-g4b-m6-R1",
+     "c-08",
+     "c-18",
+     "c-30",
+     "c-34"
+    ],
+    "newlyMissedIds": [
+     "a-g3-ne2-R1",
+     "a-g4-ne2-R1",
+     "b-01-g3-nt6-R2",
+     "b-02-g3-nt6-R2",
+     "b-04-g4-nt6-R2",
+     "b-05-g4-en1-R1",
+     "b-06-g4-en1-R1",
+     "b-07-g3-en1-R1",
+     "b-08-g3-en4-R1",
+     "b-09-g3-en4-R1",
+     "b-10-g4b-en4-R1",
+     "b-11-g4-en6-R1",
+     "b-12-g4-en6-R1",
+     "b-14-g4-hp4-R2",
+     "b-15-g4-c11-R1",
+     "b-16-g4-c11-R1",
+     "b-18-g4-m4-R2",
+     "b-19-g3-m6-R1",
+     "b-21-g4b-en7-R1",
+     "b-22-g4b-en7-R1",
+     "c-12",
+     "c-13",
+     "c-16",
+     "c-17",
+     "c-23",
+     "c-31",
+     "c-47",
+     "c-49"
+    ]
+   },
+   "A3_cumle_tek_yon_ayni_dil": {
+    "recovered": 28,
+    "stillHeldReverse": 0,
+    "missedTotal": 46,
+    "newlyMissed": 40,
+    "recoveredIds": [
+     "a-g3-nt6-R2",
+     "a-g3-en1-R1",
+     "a-g3-en4-R1",
+     "a-g3-hp4-R2",
+     "a-g3-m4-R2",
+     "a-g3-m6-R1",
+     "a-g4-nt6-R2",
+     "a-g4-en1-R1",
+     "a-g4-en4-R1",
+     "a-g4-en6-R1",
+     "a-g4-hp4-R2",
+     "a-g4-c11-R1",
+     "a-g4-m4-R2",
+     "a-g4-m6-R1",
+     "a-g4b-nt6-R2",
+     "a-g4b-en1-R1",
+     "a-g4b-en4-R1",
+     "a-g4b-en6-R1",
+     "a-g4b-en7-R1",
+     "a-g4b-en8-R1",
+     "a-g4b-hp4-R2",
+     "a-g4b-c11-R1",
+     "a-g4b-m4-R2",
+     "a-g4b-m6-R1",
+     "c-08",
+     "c-18",
+     "c-30",
+     "c-34"
+    ],
+    "newlyMissedIds": [
+     "a-g3-ne2-R1",
+     "a-g4-ne2-R1",
+     "a-g4b-nt5-R1",
+     "b-01-g3-nt6-R2",
+     "b-02-g3-nt6-R2",
+     "b-04-g4-nt6-R2",
+     "b-05-g4-en1-R1",
+     "b-06-g4-en1-R1",
+     "b-07-g3-en1-R1",
+     "b-08-g3-en4-R1",
+     "b-09-g3-en4-R1",
+     "b-10-g4b-en4-R1",
+     "b-11-g4-en6-R1",
+     "b-12-g4-en6-R1",
+     "b-14-g4-hp4-R2",
+     "b-15-g4-c11-R1",
+     "b-16-g4-c11-R1",
+     "b-17-g4-m4-R2",
+     "b-18-g4-m4-R2",
+     "b-19-g3-m6-R1",
+     "b-21-g4b-en7-R1",
+     "b-22-g4b-en7-R1",
+     "b-23-g4b-en8-R1",
+     "c-12",
+     "c-13",
+     "c-16",
+     "c-17",
+     "c-21",
+     "c-23",
+     "c-27",
+     "c-31",
+     "c-33",
+     "c-35",
+     "c-37",
+     "c-39",
+     "c-41",
+     "c-43",
+     "c-45",
+     "c-47",
+     "c-49"
+    ]
+   },
+   "A4_kalem_tek_yonluyse": {
+    "recovered": 19,
+    "stillHeldReverse": 22,
+    "missedTotal": 24,
+    "newlyMissed": 18,
+    "recoveredIds": [
+     "a-g3-nt6-R2",
+     "a-g3-en1-R1",
+     "a-g3-en4-R1",
+     "a-g3-hp4-R2",
+     "a-g3-m6-R1",
+     "a-g4-nt6-R2",
+     "a-g4-en1-R1",
+     "a-g4-en4-R1",
+     "a-g4-en6-R1",
+     "a-g4-hp4-R2",
+     "a-g4-m6-R1",
+     "a-g4b-nt6-R2",
+     "a-g4b-en1-R1",
+     "a-g4b-en4-R1",
+     "a-g4b-en6-R1",
+     "a-g4b-en7-R1",
+     "a-g4b-hp4-R2",
+     "a-g4b-m6-R1",
+     "c-18"
+    ],
+    "newlyMissedIds": [
+     "b-01-g3-nt6-R2",
+     "b-02-g3-nt6-R2",
+     "b-04-g4-nt6-R2",
+     "b-05-g4-en1-R1",
+     "b-06-g4-en1-R1",
+     "b-07-g3-en1-R1",
+     "b-08-g3-en4-R1",
+     "b-09-g3-en4-R1",
+     "b-10-g4b-en4-R1",
+     "b-11-g4-en6-R1",
+     "b-12-g4-en6-R1",
+     "b-14-g4-hp4-R2",
+     "b-19-g3-m6-R1",
+     "b-21-g4b-en7-R1",
+     "b-22-g4b-en7-R1",
+     "c-12",
+     "c-13",
+     "c-47"
+    ]
+   },
+   "urun_okuyucu_varken": {
+    "recovered": 28,
+    "stillHeldReverse": 15,
+    "missedTotal": 31,
+    "newlyMissed": 25,
+    "recoveredIds": [
+     "a-g3-nt6-R2",
+     "a-g3-en1-R1",
+     "a-g3-en4-R1",
+     "a-g3-hp4-R2",
+     "a-g3-m4-R2",
+     "a-g3-m6-R1",
+     "a-g4-nt6-R2",
+     "a-g4-en1-R1",
+     "a-g4-en4-R1",
+     "a-g4-en6-R1",
+     "a-g4-hp4-R2",
+     "a-g4-c11-R1",
+     "a-g4-m4-R2",
+     "a-g4-m6-R1",
+     "a-g4b-nt6-R2",
+     "a-g4b-en1-R1",
+     "a-g4b-en4-R1",
+     "a-g4b-en6-R1",
+     "a-g4b-en7-R1",
+     "a-g4b-en8-R1",
+     "a-g4b-hp4-R2",
+     "a-g4b-c11-R1",
+     "a-g4b-m4-R2",
+     "a-g4b-m6-R1",
+     "c-08",
+     "c-18",
+     "c-30",
+     "c-34"
+    ],
+    "newlyMissedIds": [
+     "a-g3-ne2-R1",
+     "a-g4-ne2-R1",
+     "b-01-g3-nt6-R2",
+     "b-02-g3-nt6-R2",
+     "b-05-g4-en1-R1",
+     "b-06-g4-en1-R1",
+     "b-07-g3-en1-R1",
+     "b-08-g3-en4-R1",
+     "b-09-g3-en4-R1",
+     "b-10-g4b-en4-R1",
+     "b-11-g4-en6-R1",
+     "b-12-g4-en6-R1",
+     "b-14-g4-hp4-R2",
+     "b-15-g4-c11-R1",
+     "b-16-g4-c11-R1",
+     "b-18-g4-m4-R2",
+     "b-19-g3-m6-R1",
+     "b-21-g4b-en7-R1",
+     "b-22-g4b-en7-R1",
+     "c-12",
+     "c-13",
+     "c-16",
+     "c-17",
+     "c-31",
+     "c-47"
+    ]
+   }
+  },
+  "byKey": {
+   "grup:a": {
+    "bugun": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 24,
+     "kacirma": 0,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 24
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 24
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 24
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 6,
+     "kacirma": 0,
+     "dogru_gecirme": 18
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 24
+    }
+   },
+   "dil:en": {
+    "bugun": {
+     "dogru_tutma": 12,
+     "haksiz_tutma": 8,
+     "kacirma": 3,
+     "dogru_gecirme": 9
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 14,
+     "dogru_gecirme": 17
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 14,
+     "dogru_gecirme": 17
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 15,
+     "dogru_gecirme": 17
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 4,
+     "haksiz_tutma": 1,
+     "kacirma": 11,
+     "dogru_gecirme": 16
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 12,
+     "dogru_gecirme": 17
+    }
+   },
+   "bicim:diller-arasi": {
+    "bugun": {
+     "dogru_tutma": 20,
+     "haksiz_tutma": 19,
+     "kacirma": 3,
+     "dogru_gecirme": 9
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 14,
+     "haksiz_tutma": 1,
+     "kacirma": 9,
+     "dogru_gecirme": 27
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 12,
+     "haksiz_tutma": 0,
+     "kacirma": 11,
+     "dogru_gecirme": 28
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 23,
+     "dogru_gecirme": 28
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 16,
+     "haksiz_tutma": 8,
+     "kacirma": 7,
+     "dogru_gecirme": 20
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 12,
+     "haksiz_tutma": 0,
+     "kacirma": 11,
+     "dogru_gecirme": 28
+    }
+   },
+   "diller-arasi:true": {
+    "bugun": {
+     "dogru_tutma": 28,
+     "haksiz_tutma": 19,
+     "kacirma": 5,
+     "dogru_gecirme": 14
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 14,
+     "haksiz_tutma": 1,
+     "kacirma": 19,
+     "dogru_gecirme": 32
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 12,
+     "haksiz_tutma": 0,
+     "kacirma": 21,
+     "dogru_gecirme": 33
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 33,
+     "dogru_gecirme": 33
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 20,
+     "haksiz_tutma": 8,
+     "kacirma": 13,
+     "dogru_gecirme": 25
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 15,
+     "haksiz_tutma": 0,
+     "kacirma": 18,
+     "dogru_gecirme": 33
+    }
+   },
+   "dil:tr": {
+    "bugun": {
+     "dogru_tutma": 8,
+     "haksiz_tutma": 5,
+     "kacirma": 0,
+     "dogru_gecirme": 6
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 7,
+     "dogru_gecirme": 11
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 7,
+     "dogru_gecirme": 11
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 11
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 1,
+     "kacirma": 5,
+     "dogru_gecirme": 10
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 7,
+     "dogru_gecirme": 11
+    }
+   },
+   "bicim:ayni-dil": {
+    "bugun": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 7,
+     "kacirma": 0,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 7
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 7
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 7
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 7
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 7
+    }
+   },
+   "diller-arasi:false": {
+    "bugun": {
+     "dogru_tutma": 12,
+     "haksiz_tutma": 9,
+     "kacirma": 1,
+     "dogru_gecirme": 11
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 13,
+     "dogru_gecirme": 20
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 13,
+     "dogru_gecirme": 20
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 13,
+     "dogru_gecirme": 20
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 1,
+     "kacirma": 11,
+     "dogru_gecirme": 19
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 13,
+     "dogru_gecirme": 20
+    }
+   },
+   "dil:fr": {
+    "bugun": {
+     "dogru_tutma": 6,
+     "haksiz_tutma": 6,
+     "kacirma": 1,
+     "dogru_gecirme": 2
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 4,
+     "dogru_gecirme": 8
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 4,
+     "dogru_gecirme": 8
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 7,
+     "dogru_gecirme": 8
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 5,
+     "haksiz_tutma": 3,
+     "kacirma": 2,
+     "dogru_gecirme": 5
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 4,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 8
+    }
+   },
+   "dil:ru": {
+    "bugun": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 4,
+     "kacirma": 2,
+     "dogru_gecirme": 2
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 6
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 6
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 6
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 1,
+     "kacirma": 3,
+     "dogru_gecirme": 5
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 6
+    }
+   },
+   "dil:es": {
+    "bugun": {
+     "dogru_tutma": 4,
+     "haksiz_tutma": 2,
+     "kacirma": 0,
+     "dogru_gecirme": 2
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 4
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 4
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 4,
+     "dogru_gecirme": 4
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 4
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 4
+    }
+   },
+   "dil:de": {
+    "bugun": {
+     "dogru_tutma": 5,
+     "haksiz_tutma": 2,
+     "kacirma": 0,
+     "dogru_gecirme": 3
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 5
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 5
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 5
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 4,
+     "haksiz_tutma": 2,
+     "kacirma": 1,
+     "dogru_gecirme": 3
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 5
+    }
+   },
+   "grup:b": {
+    "bugun": {
+     "dogru_tutma": 20,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 20,
+     "dogru_gecirme": 0
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 21,
+     "dogru_gecirme": 0
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 23,
+     "dogru_gecirme": 0
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 5,
+     "haksiz_tutma": 0,
+     "kacirma": 18,
+     "dogru_gecirme": 0
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 20,
+     "dogru_gecirme": 0
+    }
+   },
+   "bicim:iki-yon": {
+    "bugun": {
+     "dogru_tutma": 7,
+     "haksiz_tutma": 1,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 2
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 2
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 2
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 2
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 8,
+     "dogru_gecirme": 2
+    }
+   },
+   "bicim:iki-yon-takas": {
+    "bugun": {
+     "dogru_tutma": 5,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 0
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 0
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 0
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 4,
+     "dogru_gecirme": 0
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 5,
+     "dogru_gecirme": 0
+    }
+   },
+   "bicim:tek-yon": {
+    "bugun": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 0
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 0
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 0
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 0
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 0
+    }
+   },
+   "bicim:ucret": {
+    "bugun": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 0
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 0
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 0
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 0
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 0
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 0
+    }
+   },
+   "bicim:diller-arasi-iki-yon": {
+    "bugun": {
+     "dogru_tutma": 3,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 1
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 1
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 1
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 1
+    }
+   },
+   "grup:c": {
+    "bugun": {
+     "dogru_tutma": 17,
+     "haksiz_tutma": 4,
+     "kacirma": 3,
+     "dogru_gecirme": 25
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 10,
+     "haksiz_tutma": 1,
+     "kacirma": 10,
+     "dogru_gecirme": 28
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 9,
+     "haksiz_tutma": 0,
+     "kacirma": 11,
+     "dogru_gecirme": 29
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 20,
+     "dogru_gecirme": 29
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 14,
+     "haksiz_tutma": 3,
+     "kacirma": 6,
+     "dogru_gecirme": 26
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 11,
+     "haksiz_tutma": 0,
+     "kacirma": 9,
+     "dogru_gecirme": 29
+    }
+   },
+   "bicim:ayni-dil-olumlu": {
+    "bugun": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 4
+    }
+   },
+   "bicim:ayni-dil-olumsuz": {
+    "bugun": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 1,
+     "kacirma": 0,
+     "dogru_gecirme": 5
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 6
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 6
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 6
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 1,
+     "kacirma": 0,
+     "dogru_gecirme": 5
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 6
+    }
+   },
+   "bicim:iki-yon-tek-yari": {
+    "bugun": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    }
+   },
+   "bicim:karisik-kalem": {
+    "bugun": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 1
+    }
+   },
+   "bicim:diller-arasi-ucret": {
+    "bugun": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 3
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 3
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 3
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 3,
+     "dogru_gecirme": 3
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 3
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 3
+    }
+   },
+   "dil:ar": {
+    "bugun": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 1,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A1_cumle_tek_yon": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 1,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "A2_yan_cumle_tek_yon": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 2
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "dogru_tutma": 0,
+     "haksiz_tutma": 0,
+     "kacirma": 2,
+     "dogru_gecirme": 2
+    },
+    "A4_kalem_tek_yonluyse": {
+     "dogru_tutma": 2,
+     "haksiz_tutma": 1,
+     "kacirma": 0,
+     "dogru_gecirme": 1
+    },
+    "urun_okuyucu_varken": {
+     "dogru_tutma": 1,
+     "haksiz_tutma": 0,
+     "kacirma": 1,
+     "dogru_gecirme": 2
+    }
+   }
+  }
+ },
+ "rows": [
+  {
+   "id": "a-g3-nt6-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "You can park your car on the free street parking in front of the building; there is no covered parking garage.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false,
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g3-en1-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil",
+   "part": "Binanın önünde ücretsiz sokak üzeri park yeri bulunuyor, ancak kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g3-en4-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil",
+   "part": "There is a washing machine available in the apartment, but there is no tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g3-ne2-R1",
+   "group": "a",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "We can provide a baby cot free of charge if we know in advance. A high chair is not listed among the available baby equipment.",
+   "evidence": "Bebek yatağı: Bebek yatağı ücretsiz verilir, önceden haber verin.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false,
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "a-g3-hp4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Pour le stationnement, vous pouvez utiliser gratuitement les places de parking dans la rue devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g3-m4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g3-m6-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "ru",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Парковаться можно бесплатно перед зданием на улице, закрытого паркинга нет.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-nt6-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "You can park your car for free on the street in front of the building.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-en1-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil",
+   "part": "Binanın önünde ücretsiz sokak parkı var, ancak kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-en4-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil",
+   "part": "There is a washing machine available in the apartment, but there is no tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-en6-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "es",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Playa toallas no están incluidas; proporcionamos toallas de baño y ropa de cama, pero no toallas de playa.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "es",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-ne2-R1",
+   "group": "a",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "We offer a baby cot free of charge if you let us know in advance. A high chair is not specifically listed among the amenities.",
+   "evidence": "Bebek yatağı: Bebek yatağı ücretsiz verilir, önceden haber verin.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false,
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "a-g4-hp4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Pour vous garer, il y a un stationnement gratuit dans la rue juste devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-c11-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Rauchen ist in der gesamten Unterkunft, einschließlich der Terrasse, nicht erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-m4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4-m6-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "ru",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Парковаться можно бесплатно перед зданием на улице.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-nt5-R1",
+   "group": "a",
+   "expect": "tut",
+   "label": "hakli-tutma",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "La piscine n’est pas indiquée comme étant chauffée dans les informations du logement.",
+   "evidence": "Havuz: Sitede açık yüzme havuzu var; 1 Haziran - 30 Eylül arası, 09:00-19:00 açık.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-nt6-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "You can park your car using the free street parking in front of the building.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-en1-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil",
+   "part": "Binanın önünde ücretsiz sokak parkı var, kapalı otopark yok.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-en4-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil",
+   "part": "There is a washing machine available in the apartment, but we do not have a tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-en6-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "es",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "No, no proporcionamos toallas de playa; en el alojamiento solo hay toallas de baño y ropa de cama.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true,
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "es",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-en7-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil",
+   "part": "Çamaşır makinesi var, ancak çamaşır kurutma makinesi yoktur.",
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-en8-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "К сожалению, устраивать даже небольшие вечеринки и любые мероприятия в квартире не разрешается.",
+   "evidence": "Parties and events are not allowed.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-hp4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Pour garer votre voiture, il y a un parking gratuit dans la rue juste devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-c11-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Rauchen ist in der gesamten Unterkunft, einschließlich der Terrasse, nicht erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-m4-R2",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Il est interdit de fumer dans le logement, y compris sur le balcon.",
+   "evidence": "[RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "a-g4b-m6-R1",
+   "group": "a",
+   "expect": "gecir",
+   "label": "dogru-cevap-yanlis-alarm",
+   "partLang": "ru",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Парковаться можно бесплатно перед зданием на улице.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "b-01-g3-nt6-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "iki-yon",
+   "part": "You can park your car on the free street parking in front of the building; there is also a covered parking garage.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-02-g3-nt6-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "iki-yon-takas",
+   "part": "You can park in the covered parking garage of the building; there is no street parking in front of it.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false,
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-03-g4-nt6-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "tek-yon",
+   "part": "Street parking in front of the building is not available.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-04-g4-nt6-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "ucret",
+   "part": "Street parking in front of the building is paid.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "b-05-g4-en1-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "iki-yon",
+   "part": "Binanın önünde ücretsiz sokak parkı var, kapalı otopark da var.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-06-g4-en1-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "iki-yon-takas",
+   "part": "Binanın önünde sokak parkı yok, ancak kapalı otopark var.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-07-g3-en1-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "iki-yon",
+   "part": "Binanın önünde ücretsiz sokak üzeri park yeri bulunuyor, kapalı otopark da bulunuyor.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": null,
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-08-g3-en4-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a washing machine and a tumble dryer in the apartment.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-09-g3-en4-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon-takas",
+   "part": "There is no washing machine in the apartment, but there is a tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-10-g4b-en4-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a washing machine available in the apartment, and we also have a tumble dryer.",
+   "evidence": "Laundry: Washing machine available; no dryer.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-11-g4-en6-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "es",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Sí, proporcionamos toallas de playa, además de toallas de baño y ropa de cama.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "es",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-12-g4-en6-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "es",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Las toallas de playa están incluidas.",
+   "evidence": "Towels and bed linen are provided. Beach towels are not provided.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "es",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-13-g4-hp4-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Il n’y a pas de stationnement dans la rue devant l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-14-g4-hp4-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Il y a un parking couvert dans l’immeuble.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-15-g4-c11-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Rauchen ist auf der Terrasse erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-16-g4-c11-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi-iki-yon",
+   "part": "Rauchen ist in der Unterkunft nicht erlaubt, auf der Terrasse aber erlaubt.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-17-g4-m4-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Vous pouvez fumer sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "b-18-g4-m4-R2",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi-iki-yon",
+   "part": "Il est interdit de fumer dans le logement, mais vous pouvez fumer sur le balcon.",
+   "evidence": "- [RULES] Sigara: Sigara içmek yasaktır, balkonda da içilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-19-g3-m6-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ru",
+   "kbLang": "tr",
+   "form": "diller-arasi-iki-yon",
+   "part": "Парковаться можно бесплатно перед зданием на улице, есть также закрытый паркинг.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-20-g4-m6-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ru",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Парковаться перед зданием нельзя.",
+   "evidence": "Otopark: Binanın önünde ücretsiz sokak parkı var. Kapalı otopark yok.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-21-g4b-en7-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "iki-yon",
+   "part": "Çamaşır makinesi ve çamaşır kurutma makinesi var.",
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-22-g4b-en7-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "tek-yon",
+   "part": "Çamaşır kurutma makinesi var.",
+   "evidence": "Dairede bulaşık makinesi ve çamaşır makinesi var. Çamaşır kurutma makinesi yoktur.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": null,
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "b-23-g4b-en8-R1",
+   "group": "b",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Небольшие вечеринки в квартире разрешаются.",
+   "evidence": "Parties and events are not allowed.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-01",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil-olumlu",
+   "part": "Evet, binada asansör var.",
+   "evidence": "Asansör: Binada asansör var.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "tr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-02",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil-olumlu",
+   "part": "Yes, every room has air conditioning.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-03",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil-olumlu",
+   "part": "Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-04",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil-olumlu",
+   "part": "Yes, pets are allowed.",
+   "evidence": "Pets: Pets are allowed.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-05",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "en",
+   "form": "ayni-dil-olumsuz",
+   "part": "Maalesef evcil hayvan kabul etmiyoruz.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-06",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil-olumsuz",
+   "part": "Dairede ütü bulunmuyor.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-07",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil-olumsuz",
+   "part": "Breakfast is not included in the price.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-08",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "ayni-dil-olumsuz",
+   "part": "Daire içinde parti ve etkinlik yapılamıyor.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "tr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-09",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil-olumsuz",
+   "part": "There is no TV in the apartment.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-10",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "ayni-dil-olumsuz",
+   "part": "There is no elevator; the flat is on the 3rd floor.",
+   "evidence": "Elevator: There is no elevator; the flat is on the 3rd floor.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "value_bound_elsewhere"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "value_bound_elsewhere"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true,
+     false
+    ],
+    "kbSentencePol": [
+     true,
+     false
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-11",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a kettle, but no toaster.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-12",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon-takas",
+   "part": "There is a toaster, but no kettle.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-13",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a kettle and a toaster.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-14",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon-tek-yari",
+   "part": "Yes, there is a kettle.",
+   "evidence": "Kitchen: There is a kettle; there is no toaster.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-15",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "karisik-kalem",
+   "part": "Dairede sigara içmek yasak, balkonda içebilirsiniz.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true,
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-16",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "karisik-kalem",
+   "part": "Balkonda da sigara içilmiyor.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-17",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "tr",
+   "form": "iki-yon-takas",
+   "part": "Dairede sigara içilebilir, balkonda yasak.",
+   "evidence": "Sigara: Dairede sigara içmek yasaktır, balkonda içilebilir.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-18",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a capsule coffee machine in the kitchen, but capsules are not included.",
+   "evidence": "Coffee: Capsule coffee machine in the kitchen; capsules are not included.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false,
+     true
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-19",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "en",
+   "form": "iki-yon",
+   "part": "There is a capsule coffee machine in the kitchen and capsules are included.",
+   "evidence": "Coffee: Capsule coffee machine in the kitchen; capsules are not included.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false,
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false,
+     true
+    ],
+    "partLang": "en",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-20",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Haustiere sind bei uns leider nicht erlaubt.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-21",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Haustiere sind bei uns erlaubt.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-22",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "La piscine est gratuite pour nos hôtes.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-23",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "La piscine est payante.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-24",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "The pool is free for guests.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-25",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "Using the pool costs extra.",
+   "evidence": "Havuz: Havuz misafirler için ücretsizdir.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "aspect_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "aspect_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": null,
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-26",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "es",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Sí, el edificio tiene ascensor.",
+   "evidence": "Asansör: Binada asansör var.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "es",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-27",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "es",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "El edificio no tiene ascensor.",
+   "evidence": "Asansör: Binada asansör var.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "es",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-28",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Завтрак не входит в стоимость.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-29",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Завтрак включён в стоимость.",
+   "evidence": "Breakfast: Breakfast is not included in the price.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-30",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "ar",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "التدخين غير مسموح في أي مكان، بما في ذلك التراس.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "ar",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-31",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ar",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "يُسمح بالتدخين في التراس.",
+   "evidence": "Smoking: Smoking is not allowed anywhere, including the terrace.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "ar",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-32",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "ar",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "لا نقبل الحيوانات الأليفة.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ar",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-33",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ar",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "نرحب بالحيوانات الأليفة.",
+   "evidence": "Evcil hayvan: Evcil hayvan kabul edilmez.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ar",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-34",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Parties and events are not allowed in the apartment.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "unsupported_content"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "polarity_mismatch",
+     "unsupported_content"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "haksiz_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-35",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Small parties are allowed in the apartment.",
+   "evidence": "Parti: Parti ve etkinlik yapılamaz.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "en",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-36",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Jedes Zimmer hat eine Klimaanlage.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-37",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Die Zimmer haben keine Klimaanlage.",
+   "evidence": "Air conditioning: Every room has air conditioning.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-38",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Nous prêtons gratuitement des vélos à nos hôtes.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-39",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "fr",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Nous ne proposons pas de vélos.",
+   "evidence": "Bisiklet: Misafirlerimize ücretsiz bisiklet veriyoruz.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "fr",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-40",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "В квартире нет телевизора.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-41",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "ru",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "В квартире есть телевизор.",
+   "evidence": "TV: There is no TV in the apartment.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "ru",
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-42",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "es",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "No hay plancha en el apartamento.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "es",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-43",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "es",
+   "kbLang": "tr",
+   "form": "diller-arasi",
+   "part": "Hay una plancha en el apartamento.",
+   "evidence": "Ütü: Dairede ütü yok.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": "es",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-44",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "tr",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Havalimanı karşılama hizmeti vermiyoruz.",
+   "evidence": "Airport: We don't provide airport pickup.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     true
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     true
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": null,
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-45",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "tr",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Havalimanından sizi alabiliriz.",
+   "evidence": "Airport: We don't provide airport pickup.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": []
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true
+    ],
+    "partLang": null,
+    "kbLang": "en"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  },
+  {
+   "id": "c-46",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi-iki-yon",
+   "part": "Es gibt keinen Parkplatz am Haus; ein öffentliches Parkhaus ist 400 m entfernt und kostet 3 EUR pro Stunde.",
+   "evidence": "Parking: No parking on site. Public paid car park 400 m away, 3 EUR per hour.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "value_bound_elsewhere"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "value_bound_elsewhere"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true,
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-47",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "de",
+   "kbLang": "en",
+   "form": "diller-arasi",
+   "part": "Es gibt einen Parkplatz direkt am Haus.",
+   "evidence": "Parking: No parking on site. Public paid car park 400 m away, 3 EUR per hour.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "subject_missing",
+     "condition_dropped"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "subject_missing",
+     "condition_dropped",
+     "polarity_mismatch"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     true,
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     true,
+     false
+    ],
+    "partLang": "de",
+    "kbLang": null
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    }
+   }
+  },
+  {
+   "id": "c-48",
+   "group": "c",
+   "expect": "gecir",
+   "label": "dogru-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "The airport transfer costs 25 Euro and must be booked at least one day in advance.",
+   "evidence": "Havaalanı transferi: Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli.",
+   "product": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "value_bound_elsewhere"
+    ]
+   },
+   "productWithReader": {
+    "held": false,
+    "issues": [],
+    "advisory": [
+     "value_bound_elsewhere"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    },
+    "urun_okuyucu_varken": {
+     "held": false,
+     "issues": [],
+     "outcome": "dogru_gecirme"
+    }
+   }
+  },
+  {
+   "id": "c-49",
+   "group": "c",
+   "expect": "tut",
+   "label": "ters-cevap",
+   "partLang": "en",
+   "kbLang": "tr",
+   "form": "diller-arasi-ucret",
+   "part": "The airport transfer is free.",
+   "evidence": "Havaalanı transferi: Havaalanı transferi ücretlidir: 25 Euro, en az bir gün önce rezerve edilmeli.",
+   "product": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "condition_dropped"
+    ]
+   },
+   "productWithReader": {
+    "held": true,
+    "issues": [
+     "polarity_mismatch"
+    ],
+    "advisory": [
+     "condition_dropped"
+    ]
+   },
+   "features": {
+    "partSentencePol": [
+     false
+    ],
+    "kbSentencePol": [
+     false
+    ],
+    "partClausePol": [
+     false
+    ],
+    "kbClausePol": [
+     false
+    ],
+    "partLang": "en",
+    "kbLang": "tr"
+   },
+   "decisions": {
+    "bugun": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "A1_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A2_yan_cumle_tek_yon": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A3_cumle_tek_yon_ayni_dil": {
+     "held": false,
+     "issues": [],
+     "outcome": "kacirma"
+    },
+    "A4_kalem_tek_yonluyse": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    },
+    "urun_okuyucu_varken": {
+     "held": true,
+     "issues": [
+      "polarity_mismatch"
+     ],
+     "outcome": "dogru_tutma"
+    }
+   }
+  }
+ ]
+}

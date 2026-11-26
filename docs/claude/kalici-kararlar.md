@@ -327,6 +327,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   başlayan misafir mesajında da mesajın tamamı okunmaz oluyordu. Düz yazıda yalnız değer kuralları uygulanır (anahtar = değer, telefon,
   e-posta, uzun sayı, sır biçimleri); hata / log yolu AYNEN. Bilinen sınır (karar kurucuda, S-1): "password:" sonrası satır sonuna kadar
   maskelenir. Pin `tests/unit/semantic-redact.test.ts`.
+- 🚨 **"İzin ↔ yasak tek bir model hükmüne bırakılmaz" (Opus 10-23 B1) — 11-26 GÜNCELLEMESİ (kurucu: "model koddan belirgin biçimde daha iyi
+  … ama herşeyi modele bırakmamalıyız"; `ai/answer-parts.ts` `CODE_KEPT_ISSUES` yorumu, tasarım
+  `docs/TASARIM-2026-11-26-okuyucu-maskesiz-iki-soru-olumluluk.md`):** parça okuyucusu OKURKEN değersiz parçanın olumluluk bulgusu yalnız
+  kodun KESİN olduğu dar durumda tutar (iki taraf da yan cümle düzeyinde tek yönlü, yönler ters); kod tutuyorsa okuyucu "destekliyor" dese de
+  TUTULUR (iki katman, biri yeter); gerisi okuyucunun sorusudur. Okuyucu yoksa / düştüyse / o parçayı okumadıysa (`unread`) kodun üç dalı
+  AYNEN. Ücret kutbu (ücretsiz ↔ ücretli) ve değer başına olumluluk kodda kalır. Pin `tests/unit/answer-parts-polarity-narrow.test.ts`
+  (okuyucu yokken olumluluk tablosu 40 / 28 / 6 / 25 satır satır aynı; okuyucu okurken haksız tutma 0).
 - **Giriş bilgisi mesajı işletme saatiyle 10:00'da açılır (GM-1, kurucu 11-26: "gece 3'de gitmesin, 4 gün önceden alınmışsa saat tam 10'da
   gitmiş olsun"; `lib/checkin-window.ts`):** pencere ANLIK değil GÜNE göre — varış gününden `CHECKIN_LEAD_DAYS` (4) gün önceki günün işletme
   saatiyle `CHECKIN_SEND_HOUR` (10):00'ında açılır, varışa kadar açık kalır. Son dakika rezervasyonu (pencere çoktan açık) eskisi gibi ilk
