@@ -658,3 +658,7 @@ gece: Codex ikinci rapor (26 madde, altı paket; hükümler talimat belgesinde) 
 - (11-26, CI 1855) Koşu anına göre kurulan zamanı ("şimdi + 5 saat") ekran yazısında sınayan testte yazı GÜNE göre değişir (bugün → yalnız
   saat, yarın → "yarın 09:00"); akşam koşan kapı yalnız "yarın" dalını görür. Böyle bir test eklenince öteki dal için saat sabitlenerek ya da
   günün başka bir saatinde bir kez koşulur; kalıp ürünün hiç yazmadığı bir sözcüğü ("bugün") beklemez.
+- (11-26, CI 1857) "Aynı milisaniye" sınıfı ÜRÜN KURALINDA da yaşar: kural "aynı anda ya da sonra" (`>=`) diyorsa, iki kaydı art arda yazıp
+  birinin ötekinden ÖNCE olduğunu varsayan test hızlı makinede kırılır (yerel kapılar yeşil, CI'da nadiren kırmızı). Sıra testte açıkça
+  kurulur (önceki kaydın zamanı geriye alınır); teşhis, iki zamanı elle eşitleyip hatanın birebir çıktığını görmekle doğrulanır.
+

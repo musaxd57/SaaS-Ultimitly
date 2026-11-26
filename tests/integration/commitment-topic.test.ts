@@ -258,6 +258,16 @@ describe("söz konusu", () => {
 });
 
 describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
+  /**
+   * Önceden kayıtlı sözlerden SONRA yazılmış ev sahibi mesajı. Ürün kuralı: mesajla AYNI anda ya da sonra kaydedilmiş söz o mesajı karşılar
+   * (öneri çıkmaz — `ai-suggestions/load.ts` `sourceAt(c) >= m.createdAt`). Söz ve mesaj art arda yazılınca hızlı makinede ikisi aynı
+   * milisaniyeye düşüyor, öneri gizleniyor ve test `s` yokken düşüyordu (CI 1857; mesaj son sözün ânına çekilince hata birebir çıkar).
+   * Bekleme yok: önceki sözlerin kayıt ânı 2 sn GERİYE alınır (sıraları korunur), mesaj şimdi yazılır — saat hızından bağımsız.
+   */
+  async function hostSaysAfterCommitments(conv: string, body: string) {
+    await prisma.$executeRaw`UPDATE "GuestCommitment" SET "createdAt" = "createdAt" - interval '2 seconds' WHERE "conversationId" = ${conv}`;
+    return prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body } });
+  }
   async function manualCommitment(orgId: string, conv: string, propertyId: string, actor: string, topic: "ac" | "faucet" | null, id: string) {
     const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
     const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
@@ -358,7 +368,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const conv = await conversationWith(propertyId, []);
     await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     const [s] = await getConversationSuggestions(orgId, conv);
     expect(s).toMatchObject({ kind: "commitment", proposal: { topic: null, attachTopics: ["ac", "faucet"] } });
     expect(s!.detail).toBe("Aynı saatte kayıtlı sözler var (klima, musluk) — hangisine bağlanacağını seçin");
@@ -376,7 +386,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const conv = await conversationWith(propertyId, []);
     const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     const [s] = await getConversationSuggestions(orgId, conv);
     const r = await decide({ key: s!.key, decision: "approve", attach: "ac" });
     expect(r.status).toBe(200);
@@ -392,7 +402,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const conv = await conversationWith(propertyId, []);
     await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     const [s] = await getConversationSuggestions(orgId, conv);
     const edited = await decide({ key: s!.key, decision: "approve", attach: "ac", day: "tomorrow", time: "12:00" });
     expect(edited.status).toBe(400);
@@ -410,7 +420,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const conv = await conversationWith(propertyId, []);
     const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     const [s] = await getConversationSuggestions(orgId, conv);
     // Öneri listede görüldükten SONRA klima sözü kapandı → liste artık seçim istemez (tek uyumlu söz), onay "gone".
     await prisma.guestCommitment.update({ where: { id: ac.id }, data: { status: "done" } });
@@ -424,7 +434,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const conv = await conversationWith(propertyId, []);
     const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     const [s] = await getConversationSuggestions(orgId, conv);
     __aiSuggestionHooks.afterDecisionCheck = async () => {
       await prisma.guestCommitment.update({ where: { id: ac.id }, data: { status: "done" } });
@@ -444,7 +454,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     await manualCommitment(orgId, conv, propertyId, owner.id, null, "m-none");
     await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
     await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
   });
 
@@ -453,7 +463,7 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     const owner = await asOwner(orgId);
     const conv = await conversationWith(propertyId, []);
     await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
-    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    await hostSaysAfterCommitments(conv, "Teknisyen yarın 10:00'da gelecek.");
     expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
   });
 });

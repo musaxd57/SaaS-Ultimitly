@@ -934,4 +934,6 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
 - Tur 2 (G3, G4): bir P2 — daire silme, referansı başka dairede yaşayan otomatik mesaj satırını kalıcı iptal ediyordu (kalıcı kuyruk açıkken
   misafire giriş bilgisi hiç gitmezdi). Ajanın denemesi ana oturumda kırmızı teste çevrildi (4 kırmızı → düzeltme → 6 yeşil), mutasyon listesi
   `g4daire`. G1'in QR önerisi G3'ün okumasıyla YANLIŞ çıktı (uygulanmadı). İzin sorusu çıkaran komut kalıbı `calisma-ortami.md`ye yazıldı.
+- CI 1857 (9d8daf72) KIRMIZI: `commitment-topic.test.ts` (10-17 testi) — söz ve mesaj aynı milisaniyeye düşünce ürün kuralı (doğru) öneriyi
+  gizliyor, test düşüyordu. Teşhis iki zaman elle eşitlenerek birebir yeniden üretildi; yedi çağrı yeri sırayı açıkça kuran yardımcıya alındı.
 
