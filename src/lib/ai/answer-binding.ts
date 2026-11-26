@@ -110,6 +110,12 @@ export interface BindingInput {
 export interface BindingResult {
   ok: boolean;
   issues: BindingIssue[];
+  /**
+   * `polarity_mismatch` YALNIZ değersiz parçanın üç olumluluk dalından geldi (kimlik başına · bütün kalem · yan cümle başına) — ücret kutbu ve
+   * değer başına olumluluk değil (11-26). Parça okuyucusu koşarken bu bulgu yalnız dar ve kesin durumda tutar (`polarityReversalCertain`,
+   * `answer-parts.ts`); öteki kaynaklı olumluluk bulgusu her zaman tutar. Alan yalnız doğruyken bulunur.
+   */
+  polarityFromValueless?: true;
 }
 
 // ─── koşul sınıfları (katlanmış belirteçler; `tokenize` biçimi) ──────────────────────────────────────────────────────────────────
@@ -1858,6 +1864,7 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
   // İhtiyaç sözcükleri de aynı aksan katlamasından (iki taraf simetrik — R1). Baştaki evet / hayır ünlemi değer okumasına girmez (B11).
   const input: BindingInput = { ...raw, part: withoutLeadingYesNo(raw.part), needTerms: raw.needTerms.map(foldMarks) };
   const issues = new Set<BindingIssue>();
+  let polarityFromValueless = false;
   const evidence = input.evidence.trim();
   if (!evidence) return { ok: false, issues: ["evidence_missing"] };
   if (!quoteGroundedIn(input.sourceText, evidence)) issues.add("evidence_not_in_source");
@@ -2203,6 +2210,8 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
     // ihtiyaçta yalnız PARÇANIN konusunu anan yerler ("Havuz açıktır. Sauna kapalıdır." → "Havuz kapalıdır" tutulur).
     const places: string[] = [];
     const sentencesRead = new Set<Sentence>();
+    // Bu dalın olumluluk bulgusu ayrı işaretlenir (11-26, `polarityFromValueless`): dal öncesinde (ücret kutbu) gelen bulgu SAYILMAZ.
+    const polarityBefore = issues.has("polarity_mismatch");
     // 🚨 Kimlik başına olumluluk (çok konulu kalem — 11-12 ölçümü + Opus P1-3). Her tesis KENDİ yan cümlesinin olumluluğuyla okunur:
     //   · hüküm veren yan cümle = yüklemli, olumsuzluk taşıyan ya da BULUNMA ekli ad cümlesi ("Çamaşır makinesi mutfakta" — olumlu varlık);
     //   · hüküm vermeyen yalın yan cümle (kalem başlığı "Çamaşır:", ortak yüklemi bekleyen sıralama "Çamaşır makinesi, kurutma makinesi yok")
@@ -2294,6 +2303,7 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
         const t = tokenize(cl);
         return (hasSubject(cl, subj) || t.some(grantWord) || t.some((_, i) => negAt(t, i))) && negative(t) !== r.negative;
       })) issues.add("polarity_mismatch");
+      if (!polarityBefore && issues.has("polarity_mismatch")) polarityFromValueless = true;
       // Değersiz parça konu cümlesindeki KISITI düşüremez (Opus güvenlik 10-23 F1b; kurucu A "koşul düşerse GİTMEZ"): "10 kg'a kadar evcil
       // hayvan kabul edilir" → "Evcil hayvan kabul edilir", "…, gecelik 300 TL" ücreti, "Küçük evcil hayvanlar…" niteliği. Kısıt = konu
       // cümlesinde (çok konulu ihtiyaçta başka tesisin yan cümlesi hariç) saat / tutar / sayı / süre / kişi değeri ya da üst sınır / küçüklük
@@ -2412,7 +2422,40 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
   if ([...facilitiesIn(input.part)].some((f) => !allowedFacilities.has(f))) issues.add("subject_mismatch");
   if (unsupportedContent(input.part, evidence, input.needTerms, { sourceText: input.sourceText, needTopics: input.needTopics })) issues.add("unsupported_content");
   const list = BINDING_ISSUES.filter((i) => issues.has(i));
-  return { ok: list.length === 0, issues: list };
+  return { ok: list.length === 0, issues: list, ...(polarityFromValueless ? { polarityFromValueless: true as const } : {}) };
+}
+
+// ─── olumluluk: kodun KESİN olduğu dar durum (11-26, kurucu S-2 + "her şeyi modele bırakmamalıyız") ───────────────────────────────
+// Ölçüm `docs/olcum/olumluluk-ve-model-gucu-2026-11-26.md` (aday A2): değersiz parçanın üç olumluluk dalı 53 doğru cevabın 28'ini haksız
+// tutuyor, 46 ters cevabın 6'sını kaçırıyordu — iki yönlü kalemi bütün olarak, virgüllü yan cümleyi ayrı okuyordu. Kod yalnız İKİ TARAF DA
+// yan cümle düzeyinde tek yönlüyken ve yönler tersken kesindir; gerisi parça okuyucusunun (`supported_by_notes`) sorusudur. Yeni sözcük
+// listesi YOK: olumsuzluk okuması bu modülün kendi okumasıdır (`negative`, baştaki evet / hayır ünlemi okunmaz — B11).
+
+/** Kalem satırının içeriği ("- [KATEGORİ] Başlık: içerik" → içerik; başlık olumluluk okumasına girmez). Satır biçiminde değilse metin aynen. */
+function kbLineContent(line: string): string {
+  const close = line.indexOf("] ");
+  const colon = close >= 0 ? line.indexOf(": ", close) : -1;
+  return colon >= 0 ? line.slice(colon + 2) : line;
+}
+const HAS_LETTER = /\p{L}/u;
+/** Yan cümleler: cümle (nokta / ünlem / soru / noktalı virgül) ardından virgül. Harfsiz parça sayılmaz. Doğrusal (tek karakter sınıfları). */
+function polarityClauses(text: string): string[] {
+  return text
+    .split(/[.!?;؟]+(?:\s|$)|;/u)
+    .flatMap((x) => x.split(/[,،]/u))
+    .map((x) => x.trim())
+    .filter((x) => HAS_LETTER.test(x));
+}
+const clausePolarities = (text: string) => new Set(polarityClauses(text).map((c) => negative(tokenize(withoutLeadingYesNo(c)))));
+
+/**
+ * Kod ters olumluluktan KESİN mi: parçanın her yan cümlesi aynı yönde, kalemin (içeriğinin) her yan cümlesi aynı yönde ve iki yön ters.
+ * Saf. `sourceText` = değerin dayandığı TEK kalem satırı.
+ */
+export function polarityReversalCertain(part: string, sourceText: string): boolean {
+  const a = clausePolarities(part);
+  const b = clausePolarities(kbLineContent(sourceText));
+  return a.size === 1 && b.size === 1 && [...a][0] !== [...b][0];
 }
 
 /**

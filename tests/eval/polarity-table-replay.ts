@@ -8,7 +8,10 @@
  * cevabı kodun geçirmesi; okuyucu ayrıca okuyabilir — ücretli ölçer `part-reader-strength.ts`). Kırılım: grup, dil, biçim.
  * Hangi olumluluk DALININ tetiklendiği ürün kodu değiştirilmeden görülemez; rapor (`docs/olcum/olumluluk-ve-model-gucu-2026-11-26.md` §2)
  * depo dışında, tek seferlik etiketli bir kopyayla yapılan tespiti yazar.
- * Çıktı: `docs/olcum/olumluluk-tablosu-2026-11-26.json` (satır başına hüküm + özet).
+ * 11-26 akşamüstü: ürün dar olumluluk kuralını (aday A2) kendisi uygular. Satırlar artık iki ürün hükmüyle ölçülür: `urun_okuyucu_varken`
+ * (okuyucu okuyacak — kodun tuttuğu) ve `bugun` = okuyucu OKUMADIĞINDA kodun hükmü (`readerMissingVerdict`; 11-26 öncesi "bugün" sayılarıyla
+ * birebir aynı olmalı). Adaylar `bugun` hükmünü sarar (eski kıyas kalsın).
+ * Çıktı: `docs/olcum/olumluluk-tablosu-2026-11-26-b.json` (satır başına hüküm + özet; eski dosya `…-2026-11-26.json` kıyas için kalır).
  * ------------------------------------------------------------------------- */
 
 import { writeFileSync } from "node:fs";
@@ -22,29 +25,36 @@ import {
   loadTable,
   outcomeOf,
   productVerdict,
+  readerMissingVerdict,
   type CandidateName,
+  type CodeVerdict,
   type TableRow,
 } from "./polarity-table-core";
 
-const OUT = path.join(REPO, "docs", "olcum", "olumluluk-tablosu-2026-11-26.json");
+const OUT = path.join(REPO, "docs", "olcum", "olumluluk-tablosu-2026-11-26-b.json");
+/** Ürünün yeni hükmü (okuyucu okuyacak) — adaylardan ayrı bir satır olarak sayılır. */
+const NEW = "urun_okuyucu_varken" as const;
 
 type Outcome = ReturnType<typeof outcomeOf>;
 const empty = (): Record<Outcome, number> => ({ dogru_tutma: 0, haksiz_tutma: 0, kacirma: 0, dogru_gecirme: 0 });
 
 function main() {
   const table = loadTable();
-  const names = Object.keys(CANDIDATES) as CandidateName[];
+  const names = [...(Object.keys(CANDIDATES) as CandidateName[]), NEW] as (CandidateName | typeof NEW)[];
   const perRow: unknown[] = [];
-  const totals = Object.fromEntries(names.map((n) => [n, empty()])) as Record<CandidateName, Record<Outcome, number>>;
-  const byKey: Record<string, Record<CandidateName, Record<Outcome, number>>> = {};
-  const bump = (key: string, n: CandidateName, o: Outcome) => {
-    byKey[key] ??= Object.fromEntries(names.map((x) => [x, empty()])) as Record<CandidateName, Record<Outcome, number>>;
+  type Name = (typeof names)[number];
+  const totals = Object.fromEntries(names.map((n) => [n, empty()])) as Record<Name, Record<Outcome, number>>;
+  const byKey: Record<string, Record<Name, Record<Outcome, number>>> = {};
+  const bump = (key: string, n: Name, o: Outcome) => {
+    byKey[key] ??= Object.fromEntries(names.map((x) => [x, empty()])) as Record<Name, Record<Outcome, number>>;
     byKey[key][n][o]++;
   };
   let reproduced = 0;
   let observed = 0;
   for (const row of table.rows) {
-    const v = productVerdict(table, row);
+    // Eski kodun hükmü = okuyucu okumadığında (adaylar ve 27 reddin yeniden üretimi bununla); yeni hüküm = okuyucu okuyacakken.
+    const v = readerMissingVerdict(table, row);
+    const fresh = productVerdict(table, row);
     const f = featuresOf(table, row);
     if (row.observedIssues) {
       observed++;
@@ -52,7 +62,7 @@ function main() {
     }
     const decisions: Record<string, { held: boolean; issues: string[]; outcome: Outcome }> = {};
     for (const n of names) {
-      const cv = candidateVerdict(row, v, CANDIDATES[n](f));
+      const cv: CodeVerdict = n === NEW ? fresh : candidateVerdict(row, v, CANDIDATES[n](f));
       const o = outcomeOf(row, cv);
       decisions[n] = { held: cv.held, issues: cv.issues, outcome: o };
       totals[n][o]++;
@@ -69,6 +79,7 @@ function main() {
       part: row.part,
       evidence: row.evidence,
       product: v,
+      productWithReader: fresh,
       features: { partSentencePol: f.partSentencePol, kbSentencePol: f.kbSentencePol, partClausePol: f.partClausePol, kbClausePol: f.kbClausePol, partLang: f.partLang, kbLang: f.kbLang },
       decisions,
     });

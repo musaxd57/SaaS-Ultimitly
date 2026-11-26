@@ -20,7 +20,17 @@
 
 import "server-only";
 
-import { askedAspects, askedConditions, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, sourceMentionsNeed, type BindingIssue } from "@/lib/ai/answer-binding";
+import {
+  askedAspects,
+  askedConditions,
+  askedDirection,
+  checkAnswerBinding,
+  missesAskedFacility,
+  missingAspects,
+  polarityReversalCertain,
+  sourceMentionsNeed,
+  type BindingIssue,
+} from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import type { PartReaderHold } from "@/lib/ai/semantic/part-reader";
@@ -269,6 +279,11 @@ const NON_SUBJECT_TERMS: ReadonlySet<string> = new Set([
  * Ters olumluluk (izin ↔ yasak, ücretsiz ↔ ücretli, açık ↔ kapalı) da KODDA kalır (Opus 10-23 öğle B1): ev sahibini en çok haksız duruma
  * düşüren sınıf ("Evet, evcil hayvan kabul edilir" ↔ kalemde "kabul edilmez") tek bir model hükmüne bırakılmaz; aynı ölçümde kodun 12
  * gereksiz tutmasının hiçbiri bu bulgu değildi, 4 kötü taslağı tuttu.
+ * 🚨 11-26 güncellemesi (kurucu: "model koddan belirgin biçimde daha iyi … ama herşeyi modele bırakmamalıyız"; ölçüm
+ * `docs/olcum/olumluluk-ve-model-gucu-2026-11-26.md`): değersiz parçanın üç olumluluk dalı (`BindingResult.polarityFromValueless`) okuyucu
+ * OKURKEN yalnız dar ve kesin durumda tutar (`polarityReversalCertain`: iki taraf da yan cümle düzeyinde tek yönlü, yönler ters); gerisi
+ * okuyucunun `supported_by_notes` sorusudur ve bulgu `advisory` olarak ize yazılır. Okuyucu o parçayı OKUMADIYSA (düştü / zaman aşımı /
+ * cevabında yok / tavan → `unread`) kodun hükmü AYNEN geri gelir. Ücret kutbu ve değer başına olumluluk her zaman kodda.
  */
 export const CODE_KEPT_ISSUES: ReadonlySet<BindingIssue> = new Set<BindingIssue>([
   "evidence_missing",
@@ -348,10 +363,17 @@ export function composeVerifiedReply(input: {
       needTerms: need.terms,
       needTopics: need.topics,
     });
-    const blocking = byReader ? binding.issues.filter((i) => CODE_KEPT_ISSUES.has(i)) : binding.issues;
+    // 11-26: değersiz parçanın olumluluk bulgusu okuyucu kipinde yalnız kod KESİNSE tutar; okuyucunun okumadığı parçada (`unread`) her zaman.
+    const polarityToReader =
+      byReader &&
+      binding.polarityFromValueless === true &&
+      input.holds?.get(need.ref) !== "unread" &&
+      !polarityReversalCertain(part.text, source.text);
+    const kept = (i: BindingIssue) => CODE_KEPT_ISSUES.has(i) && !(polarityToReader && i === "polarity_mismatch");
+    const blocking = byReader ? binding.issues.filter(kept) : binding.issues;
     if (blocking.length > 0) {
       // Okuyucu kipinde kodun tuttuğu parçanın anlam bulguları da ize yazılır ("okuyucu ile kod aynı şeyi mi gördü" ölçümü — Opus B12).
-      const meaningSeen = byReader ? binding.issues.filter((i) => !CODE_KEPT_ISSUES.has(i)) : [];
+      const meaningSeen = byReader ? binding.issues.filter((i) => !kept(i)) : [];
       verdicts.push({ ref: need.ref, status: "rejected", issues: blocking, ...(meaningSeen.length > 0 ? { advisory: meaningSeen } : {}) });
       continue;
     }

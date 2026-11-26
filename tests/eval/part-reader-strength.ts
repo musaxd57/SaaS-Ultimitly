@@ -6,23 +6,21 @@
  *       [--sets olumluluk,celiski,dil,maske,eksik]
  *
  * Soru: kodun emin olmadığı kararları okuyucuya bırakırsak okuyucu doğru karar veriyor mu? ÜRÜNÜN KENDİ okuyucusu çağrılır
- * (`runPartReader`, istem `PART_READER_SYSTEM_PROMPT`, model / çaba ürünün ortam değişkenlerinden — `partReaderModel()`); istem DEĞİŞMEZ.
- * Ek soru kolları (çelişki, dil) ürün dosyasına YAZILMAZ: yalnız bu betiğin `fetch` sarmalayıcısında isteğe tek bir alan + tek bir cümle
- * eklenir ve açıkça "ek soru kolu" diye raporlanır. Maske kolu: ürünün okuyucuya gönderdiği notlar (`redactForSemanticModel`) ile aynı
- * vakanın maskesiz notları — maskesiz hâl de yalnız sarmalayıcıda kurulur.
+ * (`runPartReader`, istem `PART_READER_SYSTEM_PROMPT`, model / çaba ürünün ortam değişkenlerinden — `partReaderModel()`). Betik isteği
+ * DEĞİŞTİRMEZ (sarmalayıcı yalnız maliyeti ve ham hükmü okur).
+ * 11-26 akşamüstü: iki soru (dil · notlar arası çelişki) ve maskesiz notlar artık ÜRÜNDE (`semantic/part-reader.ts`); betiğin eski "ek soru"
+ * ve "maskesiz" kolları kaldırıldı — tek kol `urun`. Eski koşunun kolları ve cümleleri `docs/olcum/okuyucu-gucu-2026-11-26.json` `meta`da.
  *
  * Vakalar: `evals/olumluluk-tablosu.json` (Görev A, "olumluluk" kümesi) + `evals/okuyucu-gucu-vakalari.json` (çelişki · dil · maske ·
  * eksik). Her vaka `--runs` kez (varsayılan 2). Hüküm: okuyucu parçayı TUTTU mu (ürünün `partReaderHolds` kuralı; okuyucu düşerse tutar
  * — ayrı sayılır). Bütçe sayacı: sağlayıcının bildirdiği belirteçlerle liste fiyatı (`reply-scoring.ts` `PRICES`); tavana yaklaşınca yeni
  * çağrı başlatılmaz, rapor eksik koşuyu söyler.
- * Anahtar ortamdan (`OPENAI_API_KEY`); değeri hiçbir yere yazılmaz. Çıktı: `docs/olcum/okuyucu-gucu-2026-11-26.json`.
+ * Anahtar ortamdan (`OPENAI_API_KEY`); değeri hiçbir yere yazılmaz. Çıktı: `docs/olcum/okuyucu-gucu-2026-11-26-b.json` (`--out` ile başka ad).
  * ------------------------------------------------------------------------- */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildPartReaderUserContent, partReaderModel, partReaderReasoningEffort, runPartReader, type PartReaderInput } from "../../src/lib/ai/semantic/part-reader";
-import { redactForSemanticModel } from "../../src/lib/ai/semantic/redact";
-import { fenceSafe } from "../../src/lib/ai/semantic/fence";
 import { groundEvidence } from "../../src/lib/ai/answer-parts";
 import { sourceMentionsNeed } from "../../src/lib/ai/answer-binding";
 import { ITEM_KIND_LABELS_TR, type ItemKind } from "../../src/lib/conversation-items/core";
@@ -31,11 +29,12 @@ import { REPO, loadTable, needOf, sourcesOf, type TableRow } from "./polarity-ta
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 const CASES_PATH = path.join(REPO, "evals", "okuyucu-gucu-vakalari.json");
-const OUT = path.join(REPO, "docs", "olcum", "okuyucu-gucu-2026-11-26.json");
+const OUT_ARG = process.argv.indexOf("--out");
+const OUT = path.join(REPO, "docs", "olcum", OUT_ARG >= 0 ? (process.argv[OUT_ARG + 1] ?? "") : "okuyucu-gucu-2026-11-26-b.json");
 /** Koşu kimliği (pin `eval-run-meta`): okuyucunun modeli / çabası ve açık bayraklar çıktıya yazılır. */
 const RUNTIME = evalRuntime();
 
-type Arm = "urun" | "celiski_soru" | "dil_soru" | "maskesiz";
+type Arm = "urun";
 interface Case {
   set: "olumluluk" | "celiski" | "dil" | "maske" | "eksik";
   id: string;
@@ -52,19 +51,6 @@ interface Case {
   label?: string;
   form?: string;
 }
-
-// ─── ek soru kolları (YALNIZ bu betikte; ürün istemi değişmez) ─────────────────────────────────────────────────────────────────
-export const CONFLICT_FIELD = "notes_conflict";
-export const CONFLICT_EXTRA =
-  "notes_conflict = true when two of the NOTES give different, incompatible values or rules for the thing this part talks about (two " +
-  "different passwords, two different opening hours, free in one note and charged in another, collected on some days in one note and every " +
-  "day in another). false when the notes agree, repeat the same value, or only add to each other (a general rule and its exception, a rule " +
-  "and its fee).";
-export const LANG_FIELD = "in_guest_language";
-export const LANG_EXTRA =
-  "in_guest_language = true when the part is written in the language the guest wrote this turn's message in (names, addresses, codes and " +
-  "passwords do not count). false when the part, or any sentence of it, is in another language (a part in Turkish to a guest who wrote in " +
-  "French).";
 
 const ARGS = process.argv.slice(2);
 const arg = (name: string) => {
@@ -109,12 +95,6 @@ function readerInput(c: Case): PartReaderInput {
   return { guestMessage: c.guestMessage, parts: [{ ref: "R1", request: c.request, topic: c.topic, text: c.part, notes: c.notes }] };
 }
 
-/** Ürünün okuyucuya gönderdiği NOTES bloğu ↔ maskesiz hâli (yalnız sarmalayıcıda). */
-function notesBlocks(c: Case): { masked: string; plain: string } {
-  const joined = c.notes.join("\n---\n");
-  return { masked: `NOTES: <<<${fenceSafe(redactForSemanticModel(joined, [], "ours"))}`, plain: `NOTES: <<<${fenceSafe(joined)}` };
-}
-
 interface Usage {
   prompt_tokens?: number;
   completion_tokens?: number;
@@ -131,25 +111,10 @@ function costOf(model: string, u: Usage | undefined): number {
   return (((u.prompt_tokens ?? 0) - cached) * p.in + cached * p.cached + (u.completion_tokens ?? 0) * p.out) / 1e6;
 }
 
-function wrappedFetch(c: Case, arm: Arm, sink: { raw?: Record<string, unknown> }): typeof fetch {
+/** İsteği DEĞİŞTİRMEYEN sarmalayıcı: yalnız maliyet ve ham hüküm okunur. */
+function wrappedFetch(sink: { raw?: Record<string, unknown> }): typeof fetch {
   return (async (url: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body ?? "{}")) as {
-      messages: { role: string; content: string }[];
-      response_format: { json_schema: { schema: { properties: { parts: { items: { required: string[]; properties: Record<string, unknown> } } } } } };
-    };
-    const items = body.response_format.json_schema.schema.properties.parts.items;
-    if (arm === "celiski_soru" || arm === "dil_soru") {
-      const [field, extra] = arm === "celiski_soru" ? [CONFLICT_FIELD, CONFLICT_EXTRA] : [LANG_FIELD, LANG_EXTRA];
-      body.messages[0].content = body.messages[0].content.replace(/\nquote: /, `\n${extra}\n\nquote: `);
-      items.properties[field] = { type: "boolean" };
-      items.required = [...items.required, field];
-    }
-    if (arm === "maskesiz") {
-      const { masked, plain } = notesBlocks(c);
-      if (!body.messages[1].content.includes(masked)) throw new Error(`maske bloğu bulunamadı: ${c.id}`);
-      body.messages[1].content = body.messages[1].content.replace(masked, plain);
-    }
-    const res = await fetch(url, { ...init, body: JSON.stringify(body) });
+    const res = await fetch(url, init);
     const text = await res.text();
     try {
       const data = JSON.parse(text) as { model?: string; usage?: Usage; choices?: { message?: { content?: string } }[] };
@@ -175,26 +140,35 @@ interface Result {
   held: boolean;
   failed: boolean;
   productHold: string | null;
-  extraField: boolean | null;
+  /** Okuyucunun iki yeni sorusuna ham cevabı (alan yoksa null). */
+  inGuestLanguage: boolean | null;
+  notesConflict: boolean | null;
   raw: Record<string, unknown> | null;
 }
 
 async function runOne(c: Case, arm: Arm, run: number): Promise<Result> {
   const sink: { raw?: Record<string, unknown> } = {};
-  const outcome = await runPartReader({ ...readerInput(c), fetchImpl: wrappedFetch(c, arm, sink) });
+  const outcome = await runPartReader({ ...readerInput(c), fetchImpl: wrappedFetch(sink) });
   const failed = outcome.status !== "ok";
   const productHold = outcome.status === "ok" ? (outcome.holds.get("R1") ?? null) : "unread";
-  const field = arm === "celiski_soru" ? CONFLICT_FIELD : arm === "dil_soru" ? LANG_FIELD : null;
-  const extraField = field && sink.raw && typeof sink.raw[field] === "boolean" ? (sink.raw[field] as boolean) : null;
-  const extraHold = arm === "celiski_soru" ? extraField === true : arm === "dil_soru" ? extraField === false : false;
-  return { set: c.set, id: c.id, arm, run, expect: c.expect, held: productHold !== null || extraHold, failed, productHold, extraField, raw: sink.raw ?? null };
+  const bool = (k: string) => (sink.raw && typeof sink.raw[k] === "boolean" ? (sink.raw[k] as boolean) : null);
+  return {
+    set: c.set,
+    id: c.id,
+    arm,
+    run,
+    expect: c.expect,
+    held: productHold !== null,
+    failed,
+    productHold,
+    inGuestLanguage: bool("in_guest_language"),
+    notesConflict: bool("notes_conflict"),
+    raw: sink.raw ?? null,
+  };
 }
 
-/** Kollar: her vaka ürünün okuyucusuyla; çelişki / dil kümesinde ek soru kolu; maske kümesinde ve notları maskelenen her vakada maskesiz kol. */
-function armsFor(c: Case): Arm[] {
-  if (c.set === "celiski") return ["urun", "celiski_soru"];
-  if (c.set === "dil") return ["urun", "dil_soru"];
-  if (c.set === "maske" || buildPartReaderUserContent(readerInput(c)).includes("[REDACTED")) return ["urun", "maskesiz"];
+/** Tek kol: ürünün okuyucusu (iki soru + maskesiz notlar üründe). */
+function armsFor(): Arm[] {
   return ["urun"];
 }
 
@@ -212,7 +186,7 @@ async function main() {
       return { id: c.id, notesRedacted: notesLine.includes("[REDACTED"), partRedacted: partLine.includes("[REDACTED"), notesLine, partLine };
     });
   const jobs: { c: Case; arm: Arm; run: number }[] = [];
-  for (let run = 1; run <= RUNS; run++) for (const c of all) for (const arm of armsFor(c)) jobs.push({ c, arm, run });
+  for (let run = 1; run <= RUNS; run++) for (const c of all) for (const arm of armsFor()) jobs.push({ c, arm, run });
   console.log(`model ${partReaderModel()} · çaba ${partReaderReasoningEffort() ?? "(gönderilmez)"} · vaka ${all.length} · çağrı ${jobs.length} · bütçe $${BUDGET}`);
   for (const m of maskCheck) console.log(`maske ${m.id} [${all.find((c) => c.id === m.id)?.set}]: notlar ${m.notesRedacted ? "MASKELİ" : "açık"} · parça ${m.partRedacted ? "MASKELİ" : "açık"}`);
   if (ARGS.includes("--show")) for (const m of maskCheck) console.log(m.id, m.notesLine);
@@ -246,7 +220,7 @@ async function main() {
   const cases = { ...keptCases, ...Object.fromEntries(all.map((c) => [`${c.set}:${c.id}`, c])) };
   writeFileSync(
     OUT,
-    `${JSON.stringify({ runtime: RUNTIME, runtimeMarkdown: evalRuntimeMarkdown(RUNTIME), meta: { model: partReaderModel(), served, reasoningEffort: partReaderReasoningEffort() ?? null, runs: RUNS, calls, costUsd: Number(spent.toFixed(4)), budgetUsd: BUDGET, stoppedByBudget: stopped, jobs: jobs.length, done: results.length - keptResults.length, merged: prev !== null, conflictExtra: CONFLICT_EXTRA, langExtra: LANG_EXTRA }, maskCheck, cases, results }, null, 1)}\n`,
+    `${JSON.stringify({ runtime: RUNTIME, runtimeMarkdown: evalRuntimeMarkdown(RUNTIME), meta: { model: partReaderModel(), served, reasoningEffort: partReaderReasoningEffort() ?? null, runs: RUNS, calls, costUsd: Number(spent.toFixed(4)), budgetUsd: BUDGET, stoppedByBudget: stopped, jobs: jobs.length, done: results.length - keptResults.length, merged: prev !== null }, maskCheck, cases, results }, null, 1)}\n`,
   );
   console.log(`bitti: ${results.length - keptResults.length}/${jobs.length} çağrı · $${spent.toFixed(3)}${stopped ? " · BÜTÇE TAVANI" : ""} → ${path.relative(REPO, OUT)}`);
 }

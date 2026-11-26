@@ -10,6 +10,11 @@
  * (`needTerms`, `requestTopics`; sorgular [Türkçe arama sorgusu, özgün dildeki sorgu] — `conversation-items/extract.ts` düzeni).
  * Doğrulama: üç parça koşusundaki 27 `polarity_mismatch` reddi bu kurulumla birebir yeniden üretildi (sorun + danışma bulguları dahil).
  *
+ * 11-26 akşamüstü (kurucu kararı, `docs/TASARIM-2026-11-26-okuyucu-maskesiz-iki-soru-olumluluk.md`): ürün A2'yi kendisi uygular — okuyucu
+ * OKURKEN değersiz parçanın olumluluk bulgusu yalnız dar ve kesin durumda tutar; okuyucu okumadıysa (`unread`) eski hüküm aynen. İki hüküm
+ * ayrı ölçülür: `productVerdict` (okuyucu okuyacak — yeni davranış) · `readerMissingVerdict` (okuyucu düştü / okumadı — eski kodun hükmü,
+ * 26 Kasım öğleden önceki "bugün" sayılarının birebir aynısı). Adaylar eski hükmü sarar (karşılaştırma kalsın).
+ *
  * Adaylar ürünü DEĞİŞTİRMEZ: ürünün hükmünü sarar. Ürün `polarity_mismatch` ile tuttuysa aday "kod bundan emin mi" diye bakar; emin
  * değilse olumluluk bulgusu tutmaz (karar okuyucuya kalır), başka kodda kalan bulgu varsa yine tutar. Olumluluk ürünün kendi
  * okumasıyla (`partSignature(…).negative`) yan cümle / cümle başına okunur; dil ürünün `confidentLanguage` işleviyle.
@@ -80,6 +85,7 @@ export interface CodeVerdict {
   advisory: string[];
 }
 
+/** Ürünün okuyucu kipindeki hükmü: okuyucu bu parçayı OKUYACAK (tutma yok) — kodun tuttuğu. 11-26'dan sonra dar olumluluk kuralıyla. */
 export function productVerdict(table: Table, row: TableRow): CodeVerdict {
   const v = composeVerifiedReply({
     parts: [{ ref: "R1", status: "answered", text: row.part, evidence: row.evidence }],
@@ -90,6 +96,26 @@ export function productVerdict(table: Table, row: TableRow): CodeVerdict {
   if (v.status === "verified") return { held: false, issues: [], advisory: [...(v.advisory ?? [])] };
   if (v.status !== "rejected") return { held: true, issues: [v.status], advisory: [] };
   return { held: true, issues: [...v.issues], advisory: [...(v.advisory ?? [])] };
+}
+
+/**
+ * Okuyucu bu parçayı OKUMADI (düştü / zaman aşımı / cevabında yok): ürün parçayı `unread` ile tutar; burada yalnız KODUN tuttuğu sayılır
+ * (sebebi okuyucu olmayan bir bulgu). 11-26 öncesi "bugün" hükmüyle birebir aynı olmalı (pin `tests/unit/answer-parts-polarity-narrow.test.ts`).
+ */
+export function readerMissingVerdict(table: Table, row: TableRow): CodeVerdict {
+  const v = composeVerifiedReply({
+    parts: [{ ref: "R1", status: "answered", text: row.part, evidence: row.evidence }],
+    needs: [needOf(row)],
+    sources: sourcesOf(table, row.kbSet),
+    meaningJudge: "reader",
+    holds: new Map([["R1", "unread" as const]]),
+  }).verdicts[0];
+  if (v.status === "verified") return { held: false, issues: [], advisory: [...(v.advisory ?? [])] };
+  if (v.status !== "rejected") return { held: true, issues: [v.status], advisory: [] };
+  const codeIssues = v.issues.filter((i) => !i.startsWith("reader_"));
+  return codeIssues.length > 0
+    ? { held: true, issues: [...codeIssues], advisory: [...(v.advisory ?? [])] }
+    : { held: false, issues: [], advisory: [...(v.advisory ?? [])] };
 }
 
 // ─── adaylar ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

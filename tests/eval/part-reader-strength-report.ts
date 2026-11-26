@@ -7,15 +7,21 @@
  * "tut", okuyucu tutmadı — en tehlikeli sınıf; vaka ve koşu sayısı), haksız tutma, okuyucunun düştüğü çağrı. Dil kırılımı.
  * Birleşik hat (olumluluk kümesi): kodun hükmü (bugün ve her aday) TUTARSA tutulur, geçirirse okuyucunun hükmü — ürünün sırasıyla aynı
  * (okuyucu yalnız kodun geçirdiği parçayı okur). Çıktı: `docs/olcum/okuyucu-gucu-ozet-2026-11-26.json`.
+ * 11-26 akşamüstü: `--in <dosya> --out <dosya>` (docs/olcum altında; varsayılan yeni koşu `…-b`). Birleşik hatta ürünün YENİ hükmü
+ * (`urun_okuyucu_varken`: okuyucu okurken kodun tuttuğu) da sayılır; adaylar eski hükmü (`readerMissingVerdict`) sarar.
  * ------------------------------------------------------------------------- */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CANDIDATES, REPO, candidateVerdict, featuresOf, loadTable, productVerdict, type CandidateName } from "./polarity-table-core";
+import { CANDIDATES, REPO, candidateVerdict, featuresOf, loadTable, productVerdict, readerMissingVerdict, type CandidateName } from "./polarity-table-core";
 import { evalRuntimeMarkdown, type EvalRuntime } from "./run-meta";
 
-const IN = path.join(REPO, "docs", "olcum", "okuyucu-gucu-2026-11-26.json");
-const OUT = path.join(REPO, "docs", "olcum", "okuyucu-gucu-ozet-2026-11-26.json");
+const argOf = (name: string) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const IN = path.join(REPO, "docs", "olcum", argOf("in") ?? "okuyucu-gucu-2026-11-26-b.json");
+const OUT = path.join(REPO, "docs", "olcum", argOf("out") ?? "okuyucu-gucu-ozet-2026-11-26-b.json");
 
 interface Result {
   set: string;
@@ -79,7 +85,7 @@ function main() {
 
   // Birleşik hat: olumluluk kümesi, "urun" kolu (notları maskelenen satırda ürünün gördüğü maskeli hâl — ürün gerçeği).
   const table = loadTable();
-  const names = Object.keys(CANDIDATES) as CandidateName[];
+  const names = [...(Object.keys(CANDIDATES) as CandidateName[]), "urun_okuyucu_varken" as const];
   const combined: Record<string, { wrongPassCases: number; wrongPassCalls: number; falseHoldCases: number; meanCorrect: string; wrongPassIds: string[]; byCode: number; byReader: number }> = {};
   for (const arm of ["urun", "maskesiz_varsa"]) {
     for (const n of names) {
@@ -91,7 +97,8 @@ function main() {
       let byReader = 0;
       const wrongPassIds: string[] = [];
       for (const row of table.rows) {
-        const cv = candidateVerdict(row, productVerdict(table, row), CANDIDATES[n](featuresOf(table, row)));
+        const cv =
+          n === "urun_okuyucu_varken" ? productVerdict(table, row) : candidateVerdict(row, readerMissingVerdict(table, row), CANDIDATES[n](featuresOf(table, row)));
         const plain = groups.get(`olumluluk|maskesiz|${row.id}`);
         const rs = (arm === "maskesiz_varsa" && plain ? plain : groups.get(`olumluluk|urun|${row.id}`)) ?? [];
         if (rs.length === 0) continue;
