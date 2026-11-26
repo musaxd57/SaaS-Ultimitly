@@ -82,6 +82,33 @@ describe("giriş bilgisi mesajı — pencere işletme saatiyle 10:00'da açılı
     expect((await sendDueCheckins(orgId)).sent).toBe(0);
   });
 
+  it("🚨 son talep de AYNI kuralı ister: seçimden sonra varışı pencerenin açılmadığı güne taşınan rezervasyona gece gitmez", async () => {
+    // A (yarın) ve B (öbür gün) gece 03:30'da adaydır (pencereleri çoktan açık). A gönderilirken B'nin varışı 21 Haziran'a taşınır:
+    // eski ANLIK kuralda (varış ≤ şimdi + 4 gün → 21 Haziran 03:30) B yine giderdi; yeni kuralda 21 Haziran'ın penceresi 17 Haziran 10:00'da
+    // açılır → gitmez, damga konmaz. (Aday seçimi ile son talep iki AYRI katman — biri kalkarsa öteki tutar; bu test son talebi ölçer.)
+    const orgId = await seed("Europe/Istanbul", midnight("2026-06-18"), midnight("2026-06-20"));
+    const property = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
+    await prisma.reservation.create({
+      data: { propertyId: property.id, guestName: "Burak Demir", arrivalDate: midnight("2026-06-19"), departureDate: midnight("2026-06-22"), channel: "airbnb", status: "confirmed", sourceReference: "res-b" },
+    });
+    vi.setSystemTime(new Date("2026-06-17T00:30:00Z")); // 03:30 yerel
+    let moved = false;
+    mockSend.mockImplementation((async () => {
+      if (!moved) {
+        moved = true;
+        await prisma.reservation.updateMany({ where: { sourceReference: "res-b" }, data: { arrivalDate: midnight("2026-06-21"), departureDate: midnight("2026-06-24") } });
+      }
+      return { ok: true };
+    }) as never);
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    expect(moved).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-b" } })).checkinSentAt).toBeNull();
+    // Pencere açılınca (aynı gün 10:00) B de gider.
+    vi.setSystemTime(new Date("2026-06-17T07:00:00Z"));
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+  });
+
   it("New York: varış 21 Haziran → 17 Haziran yerel 09:30'da gitmez, 10:00'da gider", async () => {
     const orgId = await seed("America/New_York", midnight("2026-06-21"), midnight("2026-06-24"));
     vi.setSystemTime(new Date("2026-06-17T13:30:00Z")); // 09:30 EDT
@@ -103,6 +130,17 @@ describe("giriş bilgisi mesajı — kuyruk işçisi ertelenen satırı 10:00'a 
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
+  });
+
+  it("🚨 aday seçimi: pencere açılmadan (gece 03:30) kuyruğa satır AÇILMAZ; 10:00'da açılır", async () => {
+    // Kuyruk yolunda son talep yoktur — aday seçimi tek başına karar verir (kuyruk satırı açılırsa işçi erteler ama satır hiç açılmamalı).
+    const orgId = await seed("Europe/Istanbul", midnight("2026-06-21"), midnight("2026-06-24"));
+    vi.setSystemTime(new Date("2026-06-17T00:30:00Z"));
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(0);
+    vi.setSystemTime(new Date("2026-06-17T07:00:00Z"));
+    expect((await sendDueCheckins(orgId)).sent).toBe(1);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
   });
 
   it("🚨 kuyruğa girdikten sonra 4 gün ileri taşınan varış: satır yeni pencerenin açıldığı güne, İstanbul 10:00'a ertelenir (03:00'e değil)", async () => {
