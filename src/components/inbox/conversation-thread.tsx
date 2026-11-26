@@ -196,6 +196,16 @@ interface Props {
    * Sunucu rota çözümünden verir (`deliveryOutcomeOfRoute` → `local_only`); yazma alanının üstünde kalıcı not gösterilir.
    */
   localOnly?: boolean;
+  /**
+   * Sohbet ekranı penceresi (kurucu 11-26 sabah, K2-S): sunucu yalnız en yeni mesajları verir; daha eski mesaj varsa listenin ÜSTÜNDE
+   * "Daha eski mesajları göster" bu adrese gider (aynı konuşma, bir sayfa daha — `inbox-message-window.ts`). `null` = gösterilecek eski mesaj yok.
+   */
+  olderHref?: string | null;
+  /**
+   * Konuşmanın SON misafir mesajının kimliği (bütün geçmişten; pencerenin dışında kalabilir). "AI cevap öner" sonucu bu mesaja kaydedilir —
+   * yenilemede kayıtlı taslağın üstüne yazılmasın diye. Verilmezse (eski çağıran) görünen listeden bulunur.
+   */
+  lastInboundMessageId?: string | null;
 }
 
 export function ConversationThread({
@@ -213,6 +223,8 @@ export function ConversationThread({
   headerActions,
   initialDraft = null,
   localOnly = false,
+  olderHref = null,
+  lastInboundMessageId,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -407,7 +419,10 @@ export function ConversationThread({
       } else if (res.ok) {
         setSuggestion(data);
         // Sunucu bu öneriyi son misafir mesajına da kaydetti → yenilemede kayıtlı hâli bunun üstüne yazılmasın.
-        seenDraftRef.current = [...messages].reverse().find((m) => m.direction === "inbound")?.id ?? seenDraftRef.current;
+        seenDraftRef.current =
+          (lastInboundMessageId !== undefined
+            ? lastInboundMessageId
+            : [...messages].reverse().find((m) => m.direction === "inbound")?.id) ?? seenDraftRef.current;
       } else {
         setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
         keepPrevious();
@@ -969,6 +984,21 @@ export function ConversationThread({
         {/* İç sarmalayıcı: okuma sütunu. `space-y-3` KABI DEĞİL bunu süsler —
             kap tam genişlikte kalmalı (kaydırma çubuğu ekranın kenarında). */}
         <div className={cn("space-y-3", readingColumnCn)}>
+        {olderHref ? (
+          // Pencere (K2-S): bir sayfa daha eski mesaj. Adres değişir, sunucu aynı yolla okur; geçmiş kaydı kirlenmesin (geri = listeye dön)
+          // ve kaydırma yerinde kalsın.
+          <div className="flex justify-center">
+            <Link
+              href={olderHref}
+              replace
+              scroll={false}
+              // Telefonda 40 px dokunma hedefi, sm ve üstünde sıkı ölçü (ürünün ölçüsü — `phone-touch-targets` emsali).
+              className="inline-flex min-h-10 items-center rounded-md px-3 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8"
+            >
+              Daha eski mesajları göster
+            </Link>
+          </div>
+        ) : null}
         {messages.map((m) => (
           <div
             key={m.id}

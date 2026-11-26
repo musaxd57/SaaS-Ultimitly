@@ -60,6 +60,13 @@ import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestion
 import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import { commitmentLateAt, hostCommitmentAutoEnabled, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
+import {
+  messageWindowSize,
+  olderMessagesHref,
+  parseOlderPages,
+  windowCoversTail,
+  windowFromNewestFirst,
+} from "@/lib/inbox-message-window";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +75,7 @@ export default async function ConversationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string | string[] }>;
+  searchParams: Promise<{ from?: string | string[]; eski?: string | string[] }>;
 }) {
   const session = await requireManagerSession();
   const { id } = await params;
@@ -81,6 +88,10 @@ export default async function ConversationPage({
   // gibi biçimler de vardır; bu yüzden tam eşleşme ya da `/inbox?` öneki aranır.
   const rawFrom = Array.isArray(sp.from) ? sp.from[0] : sp.from;
   const backHref = rawFrom === "/inbox" || (rawFrom?.startsWith("/inbox?") ?? false) ? rawFrom! : "/inbox";
+  // 🪟 MESAJ PENCERESİ (kurucu 11-26 sabah, K2-S; `inbox-message-window.ts`): ekran en yeni 60 mesajla açılır, "Daha eski mesajları göster"
+  // `?eski=N` ile pencereyi N sayfa büyütür (tavanda bütün geçmiş). 30 sn'lik yenileme adresi korur → yalnız gösterilen pencereyi okur.
+  const olderPages = parseOlderPages(sp.eski);
+  const windowSize = messageWindowSize(olderPages);
 
   // 🚀 İşletme satırı konuşmayı beklemez (optimizasyon turu 11-19; sayfa 30 sn'de bir yenilenir): okuma konuşmayla AYNI ANDA başlar
   // (`.then` Prisma'nın tembel sözünü hemen başlatır). Konuşma yoksa sonucu hiç beklenmez ve olası hatası yutulur → bulunamadı yolu bugünkü
@@ -92,6 +103,25 @@ export default async function ConversationPage({
     })
     .then((row) => row);
   void orgRowRead.catch(() => undefined);
+  // Mesaj düzeyindeki her okuma konuşmanın işletmesiyle sınırlı (konuşma okumasıyla aynı kiracı koşulu).
+  const messageScope = { conversationId: id, conversation: { property: { organizationId: session.organizationId } } };
+  // Son misafir mesajı ve kuyruk durumları da konuşmayla AYNI turda (aynı desen: konuşma yoksa sonuç beklenmez, hata yutulur). Son misafir
+  // mesajı pencerenin dışında kalabilir (60'tan fazla ev sahibi mesajı) — karar tutuşu notu bütün geçmişteki son misafir mesajına bakar.
+  // Kuyruk durumları pencerenin geriye tarayan hesapları karşılayıp karşılamadığına karar verir (iptal edilmiş satır cevap sayılmaz).
+  const lastInboundRead = prisma.message
+    .findFirst({
+      where: { ...messageScope, direction: "inbound" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    })
+    .then((row) => row);
+  void lastInboundRead.catch(() => undefined);
+  // Durable Outbox delivery status per outbound message (#3): a queued / sending / ambiguous / review reply must never look like a
+  // normally-delivered bubble.
+  const outboxRead = prisma.messageOutbox
+    .findMany({ where: { conversationId: id, organizationId: session.organizationId }, select: { messageId: true, status: true } })
+    .then((rows) => rows);
+  void outboxRead.catch(() => undefined);
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
     include: {
@@ -114,7 +144,12 @@ export default async function ConversationPage({
       },
       // `(createdAt, id)` — yapay zekâ tarafının sırası (`channel-thread-window`): aynı milisaniyedeki iki mesajda hazır taslak, son
       // misafir mesajı ve uzunluk kontrolü AYNI mesaja bakar (K27-K2; eskiden eşitlikte veritabanının döndürdüğü sıra belirliyordu).
-      messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      // 🪟 Yalnız en yeni pencere: AZALAN sırada `take N + 1` (fazladan satır "daha eski var" bilgisidir) → aşağıda kronolojiye çevrilir.
+      // ⚠️ `conversation.messages` bu yüzden YENİDEN ESKİYE ve eksik olabilir — doğrudan KULLANILMAZ; `windowMessages` / `historyTail`.
+      messages: {
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...(windowSize === null ? {} : { take: windowSize + 1 }),
+      },
     },
   });
   if (!conversation) notFound();
@@ -123,6 +158,18 @@ export default async function ConversationPage({
   // server's. Date-only reservation values below keep using formatDate (UTC).
   const orgRow = await orgRowRead;
   const TZ = orgTimezone(orgRow?.timezone);
+  const [lastInboundRow, outboxRows] = await Promise.all([lastInboundRead, outboxRead]);
+  const outboxByMessage = new Map(
+    outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
+  );
+  // Ekrandaki pencere (kronolojik) + daha eski mesaj var mı.
+  const { messages: windowMessages, hasOlder } = windowFromNewestFirst(conversation.messages, windowSize);
+  // Geriye tarayan hesaplar (uzunluk uyarısı, hazır taslak, karar kartı) son misafir mesajında / son iptalsiz cevapta durur. Pencere ikisini
+  // de içermiyorsa (ör. 60'tan fazla cevapsız misafir mesajı) pencereden eski mesajlar da okunur — yalnız bu hesaplar için, ekrana yine
+  // pencere gelir. Okuma aşağıdaki ana turda (ardışık yeni tur yok); sonuç bütün geçmişle hesaplanan sonuçla AYNI.
+  const canceledIds = new Set([...outboxByMessage].filter(([, status]) => status === "canceled").map(([messageId]) => messageId));
+  const oldestShown = windowMessages[0];
+  const needsOlder = hasOlder && !windowCoversTail(windowMessages, canceledIds);
 
   // Konaklama bitti mi — aşağıdaki kenar/devir bloklarının kapısı. Oto-yanıtın "konaklama bitti" kuralıyla AYNI
   // fonksiyon (TEK TARİH KURALI; eski ham kıyas New York'ta çıkış günü boyunca blokları gizliyordu).
@@ -133,14 +180,14 @@ export default async function ConversationPage({
   // K10 (kurucu kararı 09-30): son oto-yanıt tutuşu konuyu ev sahibine bırakan bir cevap yüzündense (karar kaydı `handoff_notice`)
   // not "Misafir cevabınızı bekliyor" der. `skippedReason` bilerek aynı kalır (on tüketicisi var) — not, son misafir mesajının
   // karar kaydından TÜRETİLİR (benzersiz anahtar; okuma hatası bugünkü notu gösterir).
-  const lastInboundId = [...conversation.messages].reverse().find((m) => m.direction === "inbound")?.id ?? null;
+  const lastInboundId = lastInboundRow?.id ?? null;
   // 🚀 Konuşmaya + saat dilimine bağlı bütün bölümler tek turda (optimizasyon turu 11-19; ölçüm `tests/integration/request-path-queries.test.ts`):
   // dönen misafir, karar kartları, öneriler, açık sözler ve iç notlar eskiden bu turdan SONRA tek tek bekleniyordu — hiçbiri bu turun
   // sonucuna bakmıyor, hiçbiri yazmıyor (hepsi ortak istemci). Koşullar ve `.catch`ler aynen; kart bağlamı ve komşu saatleri (bu turun
   // komşu / gece özetini kullanır) aşağıda kalır.
   const canManageHere = canManage(session);
   const suggestionsOn = aiActionSuggestionsEnabled();
-  const [kb, adjacency, tasks, outboxRows, stayEdges, itemsRead, heldEvent, returning, decisionViews, actionSuggestions, commitmentRowsRaw, internalNotes] = await Promise.all([
+  const [kb, adjacency, tasks, olderMessages, stayEdges, itemsRead, heldEvent, returning, decisionViews, actionSuggestions, commitmentRowsRaw, internalNotes] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -162,9 +209,19 @@ export default async function ConversationPage({
           select: { id: true, type: true, title: true, status: true, dueAt: true },
         })
       : [],
-    // Durable Outbox delivery status per outbound message (#3): a queued / sending /
-    // ambiguous / review reply must never look like a normally-delivered bubble.
-    prisma.messageOutbox.findMany({ where: { conversationId: id }, select: { messageId: true, status: true } }),
+    // Pencereden eski mesajlar — yalnız pencere geriye tarayan hesapları karşılamıyorsa (↑ `needsOlder`); sıra sınırı `(createdAt, id)`.
+    needsOlder && oldestShown
+      ? prisma.message.findMany({
+          where: {
+            ...messageScope,
+            OR: [
+              { createdAt: { lt: oldestShown.createdAt } },
+              { createdAt: oldestShown.createdAt, id: { lt: oldestShown.id } },
+            ],
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        })
+      : null,
     // Müsaitlik motoru dilim 2: erken giriş / geç çıkış / uzatma gecelerinin durumu + kanıtı.
     // YALNIZ HOST'A — yapay zekâya bağlı DEĞİL. Biten konaklamada sorulmaz (sorgu da atılmaz).
     conversation.reservation && !stayIsOver
@@ -268,20 +325,44 @@ export default async function ConversationPage({
   // Plan bağlantısı yalnız Faturalandırma sekmesi gerçekten varken (sahip + Paddle yapılandırılmış).
   const bandAction = skipReasonActionFor(skipNoteReason ?? conversation.skippedReason, billingTabAvailable(session.role));
 
+  // Geriye tarayan hesapların girdisi: konuşmanın SONEKİ (kronolojik) — pencere yetiyorsa pencere, yetmiyorsa bütün geçmiş.
+  const historyTail = olderMessages ? [...olderMessages, ...windowMessages] : windowMessages;
+
   const shownDecisions = visibleDecisions(decisionViews);
   // Kart bağlamı karar rotasıyla AYNI kurucudan (olgu parmak izi iki yerde aynı girdilerle); sayfanın zaten yüklediği komşu /
   // gece özeti verilir (ikinci sorgu yok).
+  // Kartın talep alıntısı talebin mesajını ister; o mesaj pencerenin dışında kalabilir → yalnız eksik olanlar kimlikle, bağlamla AYNI turda
+  // okunur (pencere dışındaki mesaj sonekten eskidir → başa eklenir; "sonra yazdı" bilgisi sonekteki son misafir mesajından gelir).
+  const loadedIds = new Set(historyTail.map((m) => m.id));
+  const missingRequestIds = [...new Set(shownDecisions.map((v) => v.messageId))].filter((mid) => !loadedIds.has(mid));
   const decisionCards =
     shownDecisions.length > 0
-      ? await decisionCardContextFor({
-          organizationId: session.organizationId,
-          conversation,
-          timeZone: TZ,
-          now: new Date(),
-          needsEarlyRule: shownDecisions.some((v) => v.kind === "early_checkin"),
-          preloaded: { adjacency, stayEdgeLines: stayEdges?.lines ?? [] },
-        })
-          .then((ctx) => buildDecisionCards(shownDecisions, ctx))
+      ? await Promise.all([
+          decisionCardContextFor({
+            organizationId: session.organizationId,
+            conversation: { ...conversation, messages: historyTail },
+            timeZone: TZ,
+            now: new Date(),
+            needsEarlyRule: shownDecisions.some((v) => v.kind === "early_checkin"),
+            preloaded: { adjacency, stayEdgeLines: stayEdges?.lines ?? [] },
+          }),
+          missingRequestIds.length > 0
+            ? prisma.message
+                .findMany({
+                  where: { ...messageScope, id: { in: missingRequestIds } },
+                  orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+                  select: { id: true, direction: true, createdAt: true, body: true },
+                })
+                .catch((err: unknown) => {
+                  // Alıntı okunamazsa kart alıntısız görünür (kartlar kaybolmaz); hata sessiz yutulmaz.
+                  void reportError("inbox.decision-request-messages", err);
+                  return [];
+                })
+            : [],
+        ])
+          .then(([ctx, requestMessages]) =>
+            buildDecisionCards(shownDecisions, requestMessages.length > 0 ? { ...ctx, messages: [...requestMessages, ...ctx.messages] } : ctx),
+          )
           .catch((err: unknown) => {
             void reportError("inbox.decision-cards", err);
             return [];
@@ -308,10 +389,6 @@ export default async function ConversationPage({
     open: isOpenForHost(v.effective),
     at: formatDateTime(v.messageAt, TZ),
   }));
-  const outboxByMessage = new Map(
-    outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
-  );
-
   // Açık sözlerin kart satırları (okuma yukarıdaki turda).
   const commitmentNow = new Date();
   const commitmentRows: CommitmentRow[] =
@@ -387,8 +464,8 @@ export default async function ConversationPage({
 
   // K10-t: cevapsız misafir mesajlarından biri ya da "AI öner"in cevaplayacağı son gelen mesaj 8.000 karakteri aşıyor mu (oto-yanıt
   // kaydından bağımsız; "AI öner" rotasıyla AYNI kural).
-  const tooLongForAi = aiSuggestExceedsLength(conversation.messages);
-  const messages: ThreadMessage[] = conversation.messages
+  const tooLongForAi = aiSuggestExceedsLength(historyTail);
+  const messages: ThreadMessage[] = windowMessages
     // A superseded AI draft (its outbox row was CANCELED by the send-time veto) never reached
     // the guest — hide it from the thread. It is NOT deleted: the row stays for export/audit
     // as "not delivered". Every other outbox state still renders (with its status badge).
@@ -408,7 +485,7 @@ export default async function ConversationPage({
   const preparedDraft =
     conversationItemsEnabled() && canManage(session)
       ? preparedDraftOf(
-          conversation.messages.filter((m) => outboxByMessage.get(m.id) !== "canceled"),
+          historyTail.filter((m) => outboxByMessage.get(m.id) !== "canceled"),
           {
             stayTimes: { checkIn: conversation.property.checkInTime, checkOut: conversation.property.checkOutTime },
             hostOfferText: hostOfferForGate(orgRow?.lateCheckoutOfferText),
@@ -520,6 +597,10 @@ export default async function ConversationPage({
             canReply={canManage(session) && !internalRecord}
             defaultTone={replyToneOrWarm(orgRow?.aiReplyTone)}
             initialDraft={preparedDraft}
+            // 🪟 Pencere (K2-S): daha eski mesaj varsa listenin üstünde "Daha eski mesajları göster" (bir sayfa daha; geri hedefi korunur).
+            olderHref={hasOlder ? olderMessagesHref(conversation.id, olderPages, rawFrom !== undefined && backHref === rawFrom ? backHref : null) : null}
+            // Son misafir mesajı pencerenin dışında olabilir — "AI öner" sonucunun ait olduğu mesaj bütün geçmişten.
+            lastInboundMessageId={lastInboundId}
             // Codex 11-17 C1: kanala bağlı olmayan konuşmada cevap yalnız kaydedilir — gönderimle AYNI rota çözümünden.
             localOnly={deliveryOutcomeOfRoute(resolveOutboundRoute(conversation)) === "local_only"}
             headerActions={
