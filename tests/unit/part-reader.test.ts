@@ -111,7 +111,9 @@ describe("parsePartReaderVerdict — tutucu yön", () => {
     expect(PART_READER_JSON_SCHEMA.schema.properties.parts.items.properties.notes_conflict).toEqual({ type: "boolean" });
     expect(PART_READER_SYSTEM_PROMPT).toContain("in_guest_language: compare ONLY the PART with the GUEST MESSAGE (this turn)");
     // İlk ücretli koşu (…-2026-11-26-b.json): notlar / konu etiketi Türkçe olunca İngilizce misafire İngilizce parça "yanlış dil" sayılıyordu.
-    expect(PART_READER_SYSTEM_PROMPT).toContain("The language of the NOTES, the TOPIC and the REQUEST");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("The language of the NOTES, the TOPIC and the");
+    // İkinci koşu (…-c.json): İngilizce ↔ İngilizce parça yine 3 vakada "yanlış dil" sayıldı — soru yalnız DİLLE ilgili, sözle / içerikle değil.
+    expect(PART_READER_SYSTEM_PROMPT).toContain("not about the wording or the content");
     expect(PART_READER_SYSTEM_PROMPT).toContain("notes_conflict = true when the NOTES disagree with each other about what this part says");
     // Ölçümdeki çöp vakası (gün / sıklık çelişkisi) istemde örnek olarak YOK — ölçümü iyimser yapıyordu.
     expect(PART_READER_SYSTEM_PROMPT).not.toMatch(/garbage|trash|rubbish|collect|every day|every evening|çöp/i);
