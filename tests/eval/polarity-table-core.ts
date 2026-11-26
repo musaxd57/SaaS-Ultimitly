@@ -88,7 +88,8 @@ export function productVerdict(table: Table, row: TableRow): CodeVerdict {
     meaningJudge: "reader",
   }).verdicts[0];
   if (v.status === "verified") return { held: false, issues: [], advisory: [...(v.advisory ?? [])] };
-  return { held: true, issues: [...(v.issues ?? [])], advisory: [...((v as { advisory?: string[] }).advisory ?? [])] };
+  if (v.status !== "rejected") return { held: true, issues: [v.status], advisory: [] };
+  return { held: true, issues: [...v.issues], advisory: [...(v.advisory ?? [])] };
 }
 
 // ─── adaylar ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
