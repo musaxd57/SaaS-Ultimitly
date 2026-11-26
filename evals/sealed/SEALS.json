@@ -148,6 +148,10 @@
       "needsOpen": 51,
       "languages": 7
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "9b959231d30a1f939545d4b08ca58c8a4c0bf13d",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-bugun-luna.md"
   }
 }

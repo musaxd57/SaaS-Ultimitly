@@ -18,6 +18,7 @@ export const SET_TURLERI = Object.freeze({
   "yanmis-3": "evcil-hayvan-kabul",
   "yanmis-4": "gec-mesaj-kabul",
   "yanmis-5": "dayanak-kabul",
+  "yanmis-6": "dayanak-kabul-2",
 });
 
 /** Sonuç sınıfları (ihtiyaç satırı). Sayım `needMetrics` ile aynı: tutma = gereksiz_tutuldu + metin_gitti_deger_yok. */

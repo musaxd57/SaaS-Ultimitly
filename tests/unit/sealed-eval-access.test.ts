@@ -114,8 +114,22 @@ const ALLOWED_G = new Set([
   "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.md",
   "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.json",
 ]);
-// Dayanak kabul seti 2: mühür kaydı, dosyanın kendisi ve ölçer. Koşu raporları eklendiğinde bu listeye BİLEREK yazılır.
-const ALLOWED_G2 = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_G2}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
+// Dayanak kabul seti 2 (11-26'da yakıldı, tek koşu, beş kol: bugünkü hat ve parça kipi × iki cevap modeli; parça kipi açılış modeliyle iki kez).
+const ALLOWED_G2 = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_G2}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-d2-bugun-51.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-d2-bugun-51.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-d2-parca-51.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-d2-parca-51.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-bugun-luna.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-bugun-luna.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna-2.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna-2.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-6-luna-kor-d2-parca-luna.md",
+]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 

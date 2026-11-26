@@ -949,3 +949,9 @@ sonra agentları durdur, düzeltmeleri yap, sonrasında sert bir kontrole çık"
   koşu kimliği pini. Saat kaydırmalı koşu (`time-travel.mjs -0.3`, İstanbul 04:11) 95 dosya / 1071 test yeşil.
 - Railway: kurucu plan alacak; önerilen sıra önce `AUTO_REPLY_ENABLED=0`, yedek, sonra web servisi.
 
+
+- Akşamüstü (kurucu: "S-1 maskesiz olsun", "okuyucuya 2 soru koyabilirsin test de et", "modeli kullan ama her şeyi modele bırakma"): okuyucu
+  maskesiz + dil / çelişki sorusu + olumluluk dar durum YAYINDA `67ad4e0e` (CI 1865 yeşil; Opus yazdı, satır satır okundu; mutasyon 12/12).
+  Görülmemiş anlama seti koşuldu (98/108 istek bulundu; tutulması gereken 40/42, misafire kaçan 0). Ayrı yazarın YENİ görülmemiş dayanak seti
+  beş kolla koşuldu: parça kipi iki modelde 46–47 doğru / 5 "yanlış" (ikisi set deseni, 1–2'si gerçek çelişki-uzlaştırma), gpt-5.1 bugünkü
+  hat yine 21 yanlış, gpt-6-luna bugünkü hat 5 yanlış / 38 doğru (§6.4). Açık: çelişkili notu "birleştirme" sınıfı; açılış cevap modeli sorusu.

@@ -212,6 +212,39 @@ birlikte yanlış yine 1, doğru 14. Geç kapanış mesajında konuşmanın gizl
 
 **Açma kararı kurucudadır** — öneri ve örnekler neden analizinde; bu sonuç görülmeden hiçbir anahtar açılmadı.
 
+**İkinci görülmemiş set — düzeltmelerden SONRA (26 Kasım akşam, commit `9b959231`; ayrı yazarın 97 senaryosu: 68 cevaplanmalı / 51 açık
+kalmalı, yedi dil; raporlar `docs/olcum/live-pipeline-2026-11-26-*-kor-d2-*.md`).** Parça kipi artık şunları içeriyor: okuyucu notları ve
+parçayı maskesiz görür · okuyucuda dil ve çelişkili not sorusu · "var / yok" kararında kod yalnız dar ve kesin durumda tutar · anlam
+katmanında köşeli ayraçlı düz yazı silinmez. Cevap modeli iki ayrı kolda: açılış listesi (`gpt-6-luna`, düşük çaba) ve `gpt-5.1`.
+
+| Kol | Cevap modeli | Doğru giden (68) | Gereksiz tutma | Açık kaldı (51) | 🚨 Yanlış (ölçerin sayımı) | Maliyet |
+|---|---|---|---|---|---|---|
+| `d2-bugun-luna` | gpt-6-luna | 38 | 28 | 48 | 5 | 0,29 $ |
+| `d2-parca-luna` | gpt-6-luna | 46 | 20 | 48 | 5 | 0,30 $ |
+| `d2-parca-luna-2` | gpt-6-luna | 46 | 20 | 48 | 5 | 0,30 $ |
+| `d2-bugun-51` | gpt-5.1 | 43 | 23 | 32 | **21** | 0,89 $ |
+| `d2-parca-51` | gpt-5.1 | 47 | 18 | 49 | 5 | 1,20 $ |
+
+Okuma (neden defterinden, senaryo senaryo):
+- **gpt-5.1 ile bugünkü hat yine 21 yanlış gönderdi** (sabahki setle aynı sayı; iki ayrı yazarın iki ayrı setinde tekrarlandı).
+  **gpt-6-luna ile bugünkü hat 5 yanlış** ama daha az cevap verdi (38; 9 tutma "düşük güven").
+- **Parça kipi iki modelde de 46–47 doğru, 5 "yanlış"** — yani parça kipi artık bugünkü hattan DAHA ÇOK doğru cevap veriyor (sabah: 34–37'ye
+  düşüyordu). Kazancın kaynağı düzeltmeler: "var / yok" haksız tutması 25 → 0–1, maske kaynaklı tutma yok.
+- Parça kollarındaki 5 "yanlış"ın dökümü (kol başına; ölçerin sayısı ≠ gerçek hata):
+  - **2'si setin desen eksiği, cevap DOĞRU**: "Plaj şemsiyesi sağlanmıyor" ve Arapça "sigara içilmesine izin verilmez" — setin beklediği
+    olumsuzluk kalıbı bu yazımı kapsamıyor (yazarın kendi uyarısı: desenler geniş / zayıf).
+  - **1–2'si setin "çelişki"si gerçek çelişki değil**: notlar "giriş kapısının kodu 4815" ve "bina kapısı şifresi 7302" — iki AYRI kapı;
+    giden cevap ikisini de doğru söylüyor.
+  - **1–2'si GERÇEK**: "Havaalanı transferi 800 TL" ile "havalimanından alış ücretsiz" notlarını model tek cevapta birleştiriyor
+    (Türkçe ve Rusça). Sabahki "çöp salı-cuma ↔ her akşam" vakasıyla aynı sınıf: okuyucunun çelişki sorusu "biri ötekini tamamlıyor" diye
+    geçiriyor. AÇIK.
+- Kalan gereksiz tutmaların başı (parça kolları): evcil hayvan kuralı kapısı 5–6 (aynı mesajdaki öteki soru da gitmiyor — S3, anahtarı
+  kapalı ayrı özellik) · değer alıntıda yok 3–4 · hiçbir öğe cevaplanmadı 2–3 · model risk etiketi 1–2.
+- İki `gpt-6-luna` parça koşusu aynı toplamları verdi (46 / 20 / 48 / 5); senaryo düzeyinde 2–3 fark var.
+
+Sınırlar: setin 4–5 senaryosunda beklenti kusurlu (yukarıda); ölçer dil hatasını ve yabancı dilde "bilgilerde yok" anlatımını hâlâ yanlışa
+saymıyor; tek set, model başına tek "bugünkü hat" koşusu.
+
 ### 6.5 Ölçerin kendi hataları (düzeltildi)
 
 - Kayıtlı bir raporda uydurma "There are ATMs available in the area" cevabı misafire gitmiş ve yanlış gönderim SAYILMAMIŞTI (yasak desen
