@@ -1,0 +1,340 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-5.1",
+    "commit": "f9c4c5dd",
+    "status": "GEÇERLİ",
+    "sealed": "late-message-kabul-2026-11-12.json",
+    "pad": 34,
+    "usd": 0.52944217,
+    "totals": {
+      "answered": 21,
+      "answeredOk": 14,
+      "needlessHold": 6,
+      "sentMissing": 1,
+      "open": 18,
+      "openOk": 18,
+      "wrong": 1
+    }
+  },
+  "rows": [
+    {
+      "id": "lnq-tr-parking",
+      "ok": true
+    },
+    {
+      "id": "lnq-tr-laundry",
+      "ok": true
+    },
+    {
+      "id": "lnq-en-trash",
+      "ok": true
+    },
+    {
+      "id": "lnq-de-parking",
+      "ok": true
+    },
+    {
+      "id": "lnq-de-elevator",
+      "ok": true
+    },
+    {
+      "id": "lnq-fr-airport",
+      "ok": true
+    },
+    {
+      "id": "lnq-es-beach",
+      "ok": true
+    },
+    {
+      "id": "lnq-ru-market",
+      "ok": true
+    },
+    {
+      "id": "lnq-ru-checkin",
+      "ok": true
+    },
+    {
+      "id": "lnq-ar-parking",
+      "ok": true
+    },
+    {
+      "id": "lnq-ar-checkout",
+      "ok": true
+    },
+    {
+      "id": "lpn-tr-trash-market",
+      "ok": true
+    },
+    {
+      "id": "lpn-en-iron-beach",
+      "ok": true
+    },
+    {
+      "id": "lpn-de-unknown-iron-parking",
+      "ok": true
+    },
+    {
+      "id": "lpn-fr-unknown-hairdryer-checkin",
+      "ok": true
+    },
+    {
+      "id": "lu-tr-hairdryer",
+      "ok": true
+    },
+    {
+      "id": "lu-tr-iron",
+      "ok": true
+    },
+    {
+      "id": "lu-en-washer",
+      "ok": true
+    },
+    {
+      "id": "lu-ru-airport",
+      "ok": true
+    },
+    {
+      "id": "lu-ar-elevator",
+      "ok": true
+    },
+    {
+      "id": "ls-tr-pets",
+      "ok": true
+    },
+    {
+      "id": "ls-en-early",
+      "ok": true
+    },
+    {
+      "id": "ls-de-late-checkout",
+      "ok": true
+    },
+    {
+      "id": "ls-fr-invoice",
+      "ok": true
+    },
+    {
+      "id": "ls-es-extend",
+      "ok": true
+    },
+    {
+      "id": "ls-ar-refund",
+      "ok": true
+    },
+    {
+      "id": "lc-tr-thanks",
+      "ok": true
+    },
+    {
+      "id": "lc-en-thx",
+      "ok": true
+    },
+    {
+      "id": "lc-de-danke",
+      "ok": true
+    },
+    {
+      "id": "lc-ar-thanks",
+      "ok": true
+    },
+    {
+      "id": "ld-tr-repeat-checkin",
+      "ok": true
+    },
+    {
+      "id": "ld-en-nudge",
+      "ok": true
+    },
+    {
+      "id": "ld-de-questionmark",
+      "ok": true
+    },
+    {
+      "id": "ld-fr-repeat-parking",
+      "ok": true
+    },
+    {
+      "id": "ld-es-waiting",
+      "ok": true
+    },
+    {
+      "id": "ld-ru-repeat-checkout",
+      "ok": true
+    },
+    {
+      "id": "lw-tr-self-withdraw",
+      "ok": true
+    },
+    {
+      "id": "lw-en-after-withdraw",
+      "ok": true
+    },
+    {
+      "id": "lw-ru-after-withdraw",
+      "ok": true
+    },
+    {
+      "id": "em-tr-smoke",
+      "ok": true
+    },
+    {
+      "id": "em-en-gas",
+      "ok": true
+    },
+    {
+      "id": "co-de-ac",
+      "ok": true
+    },
+    {
+      "id": "co-fr-hotwater",
+      "ok": true
+    },
+    {
+      "id": "co-ar-toilet",
+      "ok": true
+    },
+    {
+      "id": "oos-es-host-reply",
+      "ok": true
+    },
+    {
+      "id": "oos-ar-host-reply",
+      "ok": true
+    },
+    {
+      "id": "oos-en-host-reply",
+      "ok": true
+    },
+    {
+      "id": "oos-ru-too-old",
+      "ok": true
+    },
+    {
+      "id": "oos-tr-too-old",
+      "ok": true
+    },
+    {
+      "id": "cn-tr-trash",
+      "ok": true
+    },
+    {
+      "id": "cn-de-checkout",
+      "ok": true
+    },
+    {
+      "id": "cn-fr-trash",
+      "ok": true
+    },
+    {
+      "id": "cn-es-beach",
+      "ok": true
+    }
+  ],
+  "runtime": {
+    "commit": "f9c4c5dd",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "partReader": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_HELD_PET_SPLIT_ENABLED": "(boş)",
+      "AI_LATE_MESSAGE_REPLY_ENABLED": "1",
+      "AI_NO_SOURCE_RULE_ENABLED": "1",
+      "AI_TURN_MESSAGES_ENABLED": "1",
+      "AI_REPLY_LANGUAGE_SHADOW_ENABLED": "(boş)",
+      "AI_HOST_COMMITMENT_READER_ENABLED": "(boş)",
+      "AI_REPLY_ITEMS_READER_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED": "1",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_ENABLED": "(boş)",
+      "AI_ABSENCE_JUDGE_STRICT": "(boş)",
+      "AI_NO_APOLOGY_RULE_ENABLED": "1",
+      "AI_HOST_CONTACT_PROMPT_BAN_DISABLED": "(boş)",
+      "AI_HOST_CONTACT_PARTIAL_DISABLED": "(boş)",
+      "AI_HOST_VOICE_GUARD_DISABLED": "(boş)",
+      "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED": "1",
+      "AI_SENIOR_READER_ENABLED": "1",
+      "AI_REFERRAL_JUDGE_ENABLED": "(boş)",
+      "AI_ASSISTANT_QUESTION_ITEM_ENABLED": "1",
+      "AI_ANSWER_PARTS_ENABLED": "1",
+      "AI_ANSWER_REUSE_SHADOW_ENABLED": "(boş)",
+      "AI_ITEM_ORDINAL_ENABLED": "1",
+      "AI_PART_REWRITE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "e6dde68a75a6",
+      "replyVariant": "95d27009860c",
+      "understanding": "31599f891f50",
+      "partReader": "08bc33a1f8d4",
+      "understandingMode": "items+rules+cfu+prv+fee+flt"
+    }
+  }
+}

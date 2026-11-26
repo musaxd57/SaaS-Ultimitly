@@ -110,7 +110,11 @@
       "late": 49,
       "bytes": 40302
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-kapali.md"
   },
   "grounding-kabul-2026-11-12.json": {
     "sealedAt": "2026-11-12",
@@ -125,6 +129,10 @@
       "languages": 7,
       "bytes": 41260
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g1-bugun.md"
   }
 }

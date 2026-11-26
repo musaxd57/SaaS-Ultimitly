@@ -179,34 +179,38 @@ oldu ama iki koşunun ikisinde 2 yanlış gönderim çıktı: önceki mesajdaki 
 alıntıyla doğrulandığı için aynı yan etki yok; kod, tur parça kipinde değilse bloğu eski biçimde bırakır. Ayrıca: mesajlar farklı takvim
 günlerindeyse (dünkü "yarın" bugüne göre okunmasın) ya da çok sayıda / çok uzunsa eski biçim; her mesaj tek satırdır (misafir sahte etiket kuramaz).
 
-### 6.4 Görülmemiş (kör) set — HENÜZ KOŞMADI
+### 6.4 Görülmemiş (kör) set — KOŞTU (26 Kasım, gpt-5.1, commit `f9c4c5dd`)
 
-Ayrı yazarın yazdığı, geliştiricinin açmadığı 74 senaryoluk kabul seti hazır ve mühürlü (118 ihtiyaç: 64 cevaplanmalı / 54 açık kalmalı; yedi
-dil). Beş kol (bugünkü hat · katman · parça kipi · parça + katman ×2) iki kez başlatıldı, ikisi de çıktı yazmadan durdu: ilki ölçüm ortamı
-yeniden başladığı için, ikincisi **OpenAI hesabının kredisi bittiği için** (`credit_balance_exhausted` — cevap modeli ve embedding birlikte).
-İkinci koşu anlamsız sonuç üretmeden elle durduruldu. Rapor / ayrıntı dosyası yazılmadı, mühür "sealed", setten hiçbir şey görülmedi.
+Ayrı yazarın yazdığı, geliştiricinin açmadığı 74 senaryoluk kabul seti (118 ihtiyaç: 64 cevaplanmalı / 54 açık kalmalı; yedi dil) beş kolla
+tek seferde koşuldu; hepsi GEÇERLİ, düşen satır yok. Set "kullanıldı" (burned) olarak kayıtlı (`evals/sealed/SEALS.json`); raporlar
+`docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-*.md`. (11-12'deki iki deneme çıktı yazmadan durmuştu: ortam yeniden başladı /
+OpenAI kredisi bitti.)
 
-Kredi eklenince koşacak komut (kol başına bir kez, her kol ayrı ölçüm veritabanında, paralel):
+| Kol | Bayraklar | Doğru değerle giden (64) | Gereksiz tutma | Açık kalmalı: açık kaldı (54) | 🚨 Yanlış gönderim | Maliyet |
+|---|---|---|---|---|---|---|
+| `dayanak-g1-bugun` | (açılış kipi, ek yok) | 41 | 22 | 34 | **21** | 0,82 $ |
+| `dayanak-g2-katman` | `AI_NO_SOURCE_RULE_ENABLED` | 45 | 19 | 43 | **11** | 0,84 $ |
+| `dayanak-g3-parca` | `AI_ANSWER_PARTS` + `AI_ITEM_ORDINAL` + `AI_SENIOR_READER` | 34 | 30 (5'i metin gitti, değer yok) | 53 | **1** | 0,94 $ |
+| `dayanak-g4-parca-katman` | parça + kaynak kuralı | 36 | 27 (4) | 53 | **2** | 0,87 $ |
+| `dayanak-g4-parca-katman-2` | aynı (ikinci koşu) | 37 | 27 (3) | 53 | **1** | 0,97 $ |
 
-```
-TEST_DATABASE_URL=postgresql://postgres@localhost:5436/<veritabanı> RUN_REAL_EVAL=1 EVAL_LIVE_PIPELINE=1 NODE_USE_ENV_PROXY=1 EVAL_BUDGET_USD=3 \
-AI_CODE_GREETING_ENABLED=1 AI_KB_FEE_RULE_ENABLED=1 AI_HOST_DECISION_HOLD_ENABLED=1 AI_ACCESS_CODE_COMPLETE_ENABLED=1 \
-AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1 EVAL_SEALED_FINAL=1 EVAL_SEALED_NAME=<dayanak kabul seti> EVAL_LIVE_TAG=<kol etiketi> <kolun bayrakları> \
-npx vitest run --config vitest.eval-live.config.ts tests/eval/live-pipeline.eval.test.ts
-```
+Okuma: bugünkü hat görülmemiş sette 118 ihtiyacın 21'inde yanlış gönderiyor (geliştirme setinde görülen "dürüstlük tutuluyor, uydurma
+geçiyor" bulgusu burada da var). Kaynak kuralı tek başına yanlışı yarıya indiriyor; parça kipi 1–2'ye indiriyor ve açık kalması gerekeni
+54'te 53 açık bırakıyor. Bedeli: doğru giden cevap 41 → 34–37 (fark ev sahibine kalır). İki g4 koşusu birbirine yakın (36 / 37, yanlış 2 / 1).
+Neden analizi (yanlışların sınıfı, parça kipinde kaybedilen cevaplar, öneri): `docs/INCELEME-2026-11-26-kor-set-neden-analizi.md`.
 
-| Kol etiketi | Kolun bayrakları |
-|---|---|
-| `dayanak-g1-bugun` | (yok) |
-| `dayanak-g2-katman` | `AI_NO_SOURCE_RULE_ENABLED=1` |
-| `dayanak-g3-parca` | `AI_ANSWER_PARTS_ENABLED=1 AI_ITEM_ORDINAL_ENABLED=1 AI_SENIOR_READER_ENABLED=1` |
-| `dayanak-g4-parca-katman` (iki kez) | parça bayrakları + `AI_NO_SOURCE_RULE_ENABLED=1` |
+**Geç gelen mesaj (S2) kabul seti — aynı gün, üç kol** (53 senaryo; 21 cevaplanmalı / 18 açık kalmalı; raporlar `…-kor-s2-*.md`):
 
-Koşu sürerken çalışma ağacında commit yapılmaz (rapor commit kimliğini koşu sonunda okur). Koşu bitince: mühür kaydı "burned", rapor yolları
-erişim pinine, ayrıntı dosyasından neden analizi.
+| Kol | Bayraklar | Doğru giden (21) | Gereksiz tutma | Açık kaldı (18) | 🚨 Yanlış | Maliyet |
+|---|---|---|---|---|---|---|
+| `s2-kapali` | (yok) | 7 | 13 | 18 | 1 | 0,09 $ |
+| `s2-acik` | `AI_LATE_MESSAGE_REPLY_ENABLED` | 18 | 2 | 16 | 3 | 0,41 $ |
+| `s2-acik-parca-katman` | + parça + kaynak kuralı + `AI_TURN_MESSAGES` | 14 | 6 | 18 | 1 | 0,53 $ |
 
-Tahmini maliyet: kol başına ~1 ABD doları (geliştirme setinde 43 senaryo 0,37–0,57 dolar tuttu). **Bu sonuç görülmeden parça kipi ve katman
-için "açılabilir" denmez** — geliştirme seti benim yazdığım, düzeltmeleri üzerinde yaptığım settir.
+Geç mesaj anahtarı kapalıyken cevaplanabilir 21 ihtiyacın 14'ü ev sahibine kalıyor; açıkken 18'i gidiyor ama yanlış 1 → 3. Parça kipiyle
+birlikte yanlış yine 1, doğru 14. Geç kapanış mesajında konuşmanın gizlenmesi (hedef 0): üç kolda da 0.
+
+**Açma kararı kurucudadır** — öneri ve örnekler neden analizinde; bu sonuç görülmeden hiçbir anahtar açılmadı.
 
 ### 6.5 Ölçerin kendi hataları (düzeltildi)
 

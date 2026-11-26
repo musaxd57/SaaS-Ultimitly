@@ -78,10 +78,36 @@ const ALLOWED_P = new Set([
   "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.md",
   "docs/olcum/live-pipeline-2026-11-12-gpt-5.1-kor-s3-kapali.json",
 ]);
-// S2 kabul seti: mühür kaydı, dosyanın kendisi ve ölçer. Koşu raporları eklendiğinde bu listeye BİLEREK yazılır.
-const ALLOWED_L = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_L}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
-// Dayanak kabul seti: mühür kaydı, dosyanın kendisi ve ölçer. Koşu raporları eklendiğinde bu listeye BİLEREK yazılır.
-const ALLOWED_G = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_G}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
+// S2 kabul seti (11-26'da yakıldı, tek koşu, üç kol: anahtar kapalı / açık / açık + parça kipi + kaynak kuralı) — raporlar yalnız toplu
+// sayı + senaryo kimliği taşır.
+const ALLOWED_L = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_L}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-kapali.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-kapali.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik-parca-katman.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-s2-acik-parca-katman.json",
+]);
+// Dayanak kabul seti (11-26'da yakıldı, tek koşu, beş kol: bugünkü hat / kaynak kuralı / parça kipi / parça + kaynak kuralı ×2) — raporlar
+// yalnız toplu sayı + senaryo kimliği taşır.
+const ALLOWED_G = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_G}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g1-bugun.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g1-bugun.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g2-katman.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g2-katman.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g3-parca.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g3-parca.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman.json",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.md",
+  "docs/olcum/live-pipeline-2026-11-26-gpt-5.1-kor-dayanak-g4-parca-katman-2.json",
+]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
