@@ -266,6 +266,12 @@ let partsRawLog: unknown[] = [];
  */
 let requestsRawLog: unknown[] = [];
 /**
+ * Neden defteri (kurucu 11-26: "en ufak gitmeme nedeni … bir dosyada biriksin"): parça okuyucusunun HAM hükmü (parça başına evet / hayır
+ * alanları + kısa alıntı; sentetik veri). Üretim kararı yalnız tutma kodunu (`reader_binding` …) taşır; okuyucunun hangi soruya "hayır"
+ * dediği buradan okunur (`scripts/neden-defteri.mjs`). Senaryo başında sıfırlanır; ürün davranışını değiştirmez (yalnız yanıt okunur).
+ */
+let readerRawLog: unknown[] = [];
+/**
  * 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) ve parça okuyucusu (şema `part_reader`, Soru 11) gerçek
  * ağa gitmeden 503 döner.
  */
@@ -293,6 +299,10 @@ function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<type
           const answers = (JSON.parse(content) as { answers?: unknown }).answers;
           // Yalnız cevap modelinin parça dizisi (`ref` taşıyan kayıtlar); başka katmanın aynı adlı alanı alınmaz.
           if (Array.isArray(answers) && answers.some((a) => a && typeof a === "object" && "ref" in a)) partsRawLog.push(answers);
+        }
+        if (typeof content === "string") {
+          const verdicts = partReaderVerdictsOf(content);
+          if (verdicts) readerRawLog.push(verdicts);
         }
         if (typeof content === "string" && content.includes('"query_tr"')) {
           const requests = (JSON.parse(content) as { requests?: unknown }).requests;
@@ -538,6 +548,8 @@ interface Row {
   /** Ölçer içi neden analizi: cevap modelinin ham parça kayıtları (çağrı başına; sentetik veri). */
   partsRaw?: readonly unknown[];
   requestsRaw?: readonly unknown[];
+  /** Neden defteri: parça okuyucusunun ham hükmü (çağrı başına; `partReaderVerdictsOf`). */
+  readerRaw?: readonly unknown[];
   ms: number;
   error?: string;
 }
@@ -636,6 +648,30 @@ export function sealedDetailAllowed(status: string): boolean {
   return status === "GEÇERLİ";
 }
 
+/**
+ * Neden defteri (saf): model yanıtının içeriği parça okuyucusunun hükmüyse (`part_reader` şeması: `parts[]`, her kayıtta `ref` + `binding_ok`)
+ * parça dizisi, değilse null. Başka katmanın yanıtı (cevap modeli `answers`, anlama `requests`) alınmaz; bozuk JSON null.
+ */
+export function partReaderVerdictsOf(content: string): unknown[] | null {
+  if (!content.includes('"binding_ok"')) return null;
+  try {
+    const parts = (JSON.parse(content) as { parts?: unknown }).parts;
+    return Array.isArray(parts) && parts.length > 0 && parts.every((p) => p !== null && typeof p === "object" && "ref" in p && "binding_ok" in p)
+      ? parts
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Neden defteri (saf, kurucu 11-26): koşu sonunda rapora ÖNERİ olarak yazılan komut. Ölçer deftere KENDİSİ yazmaz (mühürlü koşuda ne
+ * yazılacağı kurucu kararı) — komutu çalıştıran insan / oturum karar verir. `dataFile` = ayrıntı (ya da yan) dosyasının adı.
+ */
+export function nedenDefteriKomutu(dataFile: string): string {
+  return `node scripts/neden-defteri.mjs ekle docs/olcum/${dataFile} && node scripts/neden-defteri.mjs ozet`;
+}
+
 /** Rapor satırları (geç mesaj senaryosu olmayan sette boş). */
 function lateTurnLines(rows: Parameters<typeof lateTurnMetrics>[0]): string[] {
   const m = lateTurnMetrics(rows);
@@ -705,6 +741,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
   spySuggest.mockClear();
   partsRawLog = [];
   requestsRawLog = [];
+  readerRawLog = [];
   const { conversationId } = await seed(s);
   const t0 = Date.now();
   const out = await applyChannelAutoReply(conversationId);
@@ -784,10 +821,11 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
       ? {
           needs: scoreNeeds(s.expect.needs, sentText, items),
           itemStates: items.map((i) => ({ kind: i.kind, status: i.status })),
-          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}), ...("advisory" in v && v.advisory ? { advisory: v.advisory } : {}), ...("openAfterSend" in v && v.openAfterSend ? { openAfterSend: true } : {}) })) : null,
+          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}), ...("advisory" in v && v.advisory ? { advisory: v.advisory } : {}), ...("openAfterSend" in v && v.openAfterSend ? { openAfterSend: true } : {}), ...(v.rewritten ? { rewritten: true } : {}) })) : null,
           absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
           ...(partsRawLog.length > 0 ? { partsRaw: partsRawLog } : {}),
           ...(requestsRawLog.length > 0 ? { requestsRaw: requestsRawLog } : {}),
+          ...(readerRawLog.length > 0 ? { readerRaw: readerRawLog } : {}),
         }
       : {}),
     ms,
@@ -948,6 +986,10 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         // Opus 10-23 sabah F14: yalnız toplu sayı + kimlik (ihtiyaç türü / sonuç dökümü setin yapısını sızdırır).
         "Senaryo kimlikleri: " + rows.map((r) => `\`${r.id}\``).join(" "),
         "",
+        // Neden defteri (kurucu 11-26): yalnız ÖNERİ — ölçer deftere kendisi yazmaz (mühürlü koşuda ne yazılacağı kurucu kararı).
+        ...(sealedDetailAllowed(status)
+          ? [`Neden defteri (öneri, ölçer kendisi yazmaz): \`${nedenDefteriKomutu(name.replace(/\.md$/u, "-ayrinti.json"))}\``, ""]
+          : []),
         "## Düşen satırlar",
         "",
         ...rows.filter((r) => !r.ok).map((r) => `- \`${r.id}\``),
@@ -1076,6 +1118,9 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "## Misafire giden cevaplar (sentetik veri; insan gözü için)",
       "",
       ...rows.filter((r) => r.sent).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${reviewQuote(r.sentText ?? "", name)}`),
+      "",
+      // Neden defteri (kurucu 11-26): yalnız ÖNERİ — ölçer deftere kendisi yazmaz.
+      `Neden defteri (öneri, ölçer kendisi yazmaz): \`${nedenDefteriKomutu(name.replace(/\.md$/u, ".json"))}\``,
       "",
       "## Düşen satırlar",
       "",
@@ -1295,6 +1340,20 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     // Opus 11-12 P3-8: ayrıntı dosyası yalnız eksiksiz biten koşuda (bütçe tavanı / düşen satır = set açığa çıkmaz).
     expect(sealedDetailAllowed("GEÇERLİ")).toBe(true);
     for (const bad of ["GEÇERSİZ — 2 satır düştü", "GEÇERSİZ — bütçe tavanı", "", "GEÇERLİ değil"]) expect([bad, sealedDetailAllowed(bad)]).toEqual([bad, false]);
+  });
+
+  it("neden defteri (11-26): okuyucunun ham hükmü yalnız part_reader yanıtından alınır; rapor komutu ÖNERİR, yazmaz", () => {
+    const reader = JSON.stringify({ parts: [{ ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: false, exception_without_rule: false, only_known_case: false, quote: "x" }] });
+    expect(partReaderVerdictsOf(reader)).toEqual([expect.objectContaining({ ref: "R1", binding_ok: false })]);
+    // Cevap modelinin parçaları / anlama katmanının istekleri / bozuk JSON / boş dizi alınmaz.
+    expect(partReaderVerdictsOf(JSON.stringify({ answers: [{ ref: "R1", status: "answered", text: "t", evidence: "e" }] }))).toBeNull();
+    expect(partReaderVerdictsOf(JSON.stringify({ requests: [{ intent: "wifi", query_tr: "q" }] }))).toBeNull();
+    expect(partReaderVerdictsOf('{"parts": [{"ref": "R1", "binding_ok": tr')).toBeNull();
+    expect(partReaderVerdictsOf(JSON.stringify({ parts: [], binding_ok: true }))).toBeNull();
+    expect(partReaderVerdictsOf(JSON.stringify({ parts: [{ ref: "R1", binding_ok: true }, { binding_ok: true }] }))).toBeNull();
+    expect(nedenDefteriKomutu("live-pipeline-2026-11-26-m-kor-x-ayrinti.json")).toBe(
+      "node scripts/neden-defteri.mjs ekle docs/olcum/live-pipeline-2026-11-26-m-kor-x-ayrinti.json && node scripts/neden-defteri.mjs ozet",
+    );
   });
 
   it("S2 geç tur sayıları: tur açıldı / açılmadı ayrımı — anahtar kapalı kolun 'gitmedi'si ile açık kolun tutması aynı sayılmaz", () => {
