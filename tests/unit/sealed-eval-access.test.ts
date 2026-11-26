@@ -47,6 +47,9 @@ const ALLOWED_UX = new Set([
   `evals/sealed/${NEEDLE_UX}.json`,
   "tests/eval/understanding-e2e.eval.test.ts",
   "docs/TASARIM-2026-10-21-anlama-olcumu.md",
+  // Yakma raporu (11-26, tek kol: açılış listesi) — yalnız toplu sayı + senaryo kimliği.
+  "docs/olcum/anlama-e2e-kor-live-2026-11-26-blind.md",
+  "docs/olcum/anlama-e2e-kor-live-2026-11-26-blind.json",
 ]);
 // Yakma raporu (10-23 sabah: iki kol, yalnız toplu sayı) seti adıyla anar — yakma kaydının kendisi.
 const ALLOWED_E = new Set([

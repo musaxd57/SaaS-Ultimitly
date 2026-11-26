@@ -22,7 +22,10 @@
       "pairs": 13,
       "multiTurn": 14
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-11-26",
+    "runSha": "f9c4c5dd48365486e527d4bbf08a7b34cb0b5374",
+    "report": "docs/olcum/anlama-e2e-kor-live-2026-11-26-blind.md"
   },
   "understanding-e2e-redteam-blind.json": {
     "sha256": "3dc19dd2789796ec7a8619de75a79ea6e4bee565d3b7b562a502c48997149173",
